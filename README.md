@@ -3,7 +3,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 ## Repository
 
 This project is part of the TransparentCity platform:
-- **Repository**: [transparentcity/transparentcity-ui](https://github.com/transparentcity/transparentcity-ui)
+- **Repository**: [transparentcity/ui](https://github.com/transparentcity/ui)
 
 ## Getting Started
 
