@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Bottom-left mask scaled from 300→32 (÷9.375) -->
+    <mask id="mask-bl-fav" x="-128" y="-128" width="384" height="384" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse">
+      <rect x="-128" y="-128" width="384" height="384" fill="white" />
+      <!-- Remove interior rounded rect (25→2.67, size 26.67, r≈1) -->
+      <rect x="2.67" y="2.67" width="26.67" height="26.67" rx="1" ry="1" fill="black" />
+      <!-- Remove diagonal band (200×500 → 21.33×53.33) rotated -45° around 16,16 -->
+      <rect x="5.33" y="-10.67" width="21.33" height="53.33" fill="black" transform="rotate(-45 16 16)" />
+      <!-- Remove top-right half-plane -->
+      <rect x="16" y="-128" width="384" height="384" fill="black" transform="rotate(-45 16 16)" />
+    </mask>
+    <!-- Top-right mask: keep top-right, cut bottom-left -->
+    <mask id="mask-tr-fav" x="-128" y="-128" width="384" height="384" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse">
+      <rect x="-128" y="-128" width="384" height="384" fill="white" />
+      <rect x="2.67" y="2.67" width="26.67" height="26.67" rx="1" ry="1" fill="black" />
+      <rect x="5.33" y="-10.67" width="21.33" height="53.33" fill="black" transform="rotate(-45 16 16)" />
+      <!-- Remove bottom-left half-plane (mirror) -->
+      <rect x="-368" y="-128" width="384" height="384" fill="black" transform="rotate(-45 16 16)" />
+    </mask>
+  </defs>
+  <!-- Filled masked rounded rects -->
+  <rect class="brace brace-bl" x="0" y="0" width="32" height="32" rx="1" ry="1" mask="url(#mask-bl-fav)" fill="black" />
+  <rect class="brace brace-tr" x="0" y="0" width="32" height="32" rx="1" ry="1" mask="url(#mask-tr-fav)" fill="black" />
+</svg>
+
+
+
+

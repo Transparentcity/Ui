@@ -1,0 +1,133 @@
+.city-typeahead {
+  position: relative;
+  width: 100%;
+}
+
+.city-typeahead-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.city-typeahead-search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-secondary);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.city-typeahead-input {
+  width: 100%;
+  padding: 10px 12px 10px 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.city-typeahead-input:focus {
+  border-color: var(--brand-primary, rgba(173, 53, 250, 0.5));
+  box-shadow: 0 0 0 3px rgba(173, 53, 250, 0.1);
+}
+
+.city-typeahead-input::placeholder {
+  color: var(--text-secondary);
+}
+
+.city-typeahead-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 8px);
+  max-height: 400px;
+  overflow-y: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 1000;
+  margin-top: 4px;
+}
+
+/* Sidebar-specific positioning */
+.sidebar-city-typeahead .city-typeahead-dropdown {
+  /* Ensure dropdown stays within viewport */
+  max-height: min(400px, calc(100vh - 200px));
+  /* Ensure it appears above sidebar content */
+  z-index: 1001;
+}
+
+.city-typeahead-option {
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  transition: background-color 0.15s ease;
+}
+
+.city-typeahead-option:hover {
+  background: var(--bg-tertiary, rgba(17, 24, 39, 0.05));
+}
+
+.city-typeahead-option[aria-selected="true"] {
+  background: var(--bg-tertiary, rgba(17, 24, 39, 0.05));
+}
+
+.city-typeahead-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.city-typeahead-save-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  opacity: 0.6;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.city-typeahead-save-btn:hover {
+  opacity: 1;
+  color: var(--brand-primary, rgba(173, 53, 250, 0.8));
+}
+
+.city-typeahead-save-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.city-typeahead-save-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .city-typeahead-dropdown {
+    background: var(--bg-primary);
+    border-color: var(--border-primary);
+  }
+  
+  .city-typeahead-input {
+    background: var(--bg-primary);
+    border-color: var(--border-primary);
+    color: var(--text-primary);
+  }
+}
+
