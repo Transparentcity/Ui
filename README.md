@@ -1,5 +1,10 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Repository
+
+This project is part of the TransparentCity platform:
+- **Repository**: [transparentcity/transparentcity-ui](https://github.com/transparentcity/transparentcity-ui)
+
 ## Getting Started
 
 First, run the development server:
