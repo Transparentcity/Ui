@@ -34,7 +34,16 @@ export default function SessionList({
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  const isLoadingSessionsRef = useRef(false);
+  const sessionsLoadedRef = useRef(false);
+
   const loadSessions = async () => {
+    // Prevent duplicate simultaneous requests
+    if (isLoadingSessionsRef.current) {
+      return;
+    }
+
+    isLoadingSessionsRef.current = true;
     try {
       setLoading(true);
       setError(null);
@@ -53,17 +62,24 @@ export default function SessionList({
 
       const data = await response.json();
       setSessions(data);
+      sessionsLoadedRef.current = true;
     } catch (err) {
       console.error("Error loading sessions:", err);
       setError("Failed to load sessions");
     } finally {
       setLoading(false);
+      isLoadingSessionsRef.current = false;
     }
   };
 
   useEffect(() => {
-    loadSessions();
-  }, [getAccessTokenSilently]);
+    // Only load once on mount
+    if (!sessionsLoadedRef.current) {
+      loadSessions();
+    }
+    // Remove getAccessTokenSilently from deps to prevent re-renders
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - only run once on mount
 
   // Close menu when clicking outside
   useEffect(() => {

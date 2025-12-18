@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { listJobs, getJob, cancelJob as cancelJobAPI, type Job as APIJob } from "./apiClient";
 
 export interface Job {
   job_id: string;
@@ -42,39 +43,76 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const shouldReconnectRef = useRef(true);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isLoadingJobsRef = useRef(false);
+  const tokenRef = useRef<string | null>(token);
 
-  // Load initial jobs
+  // Keep token ref in sync
+  useEffect(() => {
+    tokenRef.current = token;
+  }, [token]);
+
+  // Load initial jobs with deduplication
   const loadJobs = useCallback(async () => {
-    if (!token) {
+    // Prevent duplicate simultaneous requests
+    if (isLoadingJobsRef.current) {
+      console.log("⏸️ Job WebSocket: Job load already in progress, skipping");
+      return;
+    }
+
+    const currentToken = tokenRef.current;
+    if (!currentToken) {
       console.log("⏸️ Job WebSocket: No token available, skipping job load");
       return;
     }
 
+    isLoadingJobsRef.current = true;
     try {
       console.log("📥 Job WebSocket: Loading initial jobs from", `${API_BASE}/api/jobs?limit=20`);
-      const response = await fetch(`${API_BASE}/api/jobs?limit=20`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      
+      // Use the apiClient function for consistency and better error handling
+      const data = await listJobs(currentToken, 20);
+      
+      console.log("✅ Job WebSocket: Loaded", data.jobs?.length || 0, "jobs");
+      const jobsMap = new Map<string, Job>();
+      data.jobs?.forEach((job: APIJob) => {
+        // Convert APIJob to Job format
+        const jobData: Job = {
+          job_id: job.job_id,
+          status: job.status,
+          description: job.description,
+          status_message: job.status_message,
+          progress: job.progress,
+          created_at: job.created_at,
+          started_at: job.started_at ?? undefined,
+          completed_at: job.completed_at ?? undefined,
+          error: job.error || job.error_message || undefined,
+        };
+        jobsMap.set(job.job_id, jobData);
+        console.log(`  - Job ${job.job_id}: ${job.status} - ${job.description}`);
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log("✅ Job WebSocket: Loaded", data.jobs?.length || 0, "jobs");
-        const jobsMap = new Map<string, Job>();
-        data.jobs?.forEach((job: Job) => {
-          jobsMap.set(job.job_id, job);
-          console.log(`  - Job ${job.job_id}: ${job.status} - ${job.description}`);
-        });
-        setJobs(jobsMap);
-      } else {
-        const errorText = await response.text().catch(() => "");
-        console.error(`❌ Job WebSocket: Failed to load jobs: ${response.status} ${errorText}`);
-      }
+      setJobs(jobsMap);
     } catch (error) {
+      // Enhanced error logging
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorDetails = {
+        message: errorMessage,
+        apiBase: API_BASE,
+        endpoint: `${API_BASE}/api/jobs?limit=20`,
+        hasToken: !!currentToken,
+        tokenLength: currentToken?.length || 0,
+      };
       console.error("❌ Job WebSocket: Error loading jobs:", error);
+      console.error("❌ Error details:", errorDetails);
+      
+      // Log network-specific errors
+      if (errorMessage.includes("Failed to fetch") || errorMessage.includes("NetworkError")) {
+        console.error("❌ Network error - Check if API is accessible:", API_BASE);
+        console.error("❌ Possible causes: CORS issue, API not running, or incorrect API_BASE_URL");
+      }
+    } finally {
+      isLoadingJobsRef.current = false;
     }
-  }, [token]);
+  }, []); // Remove token from deps, use ref instead
 
   // Fetch a specific job by ID immediately (for when we get job_id from API response)
   const fetchJob = useCallback(
@@ -86,33 +124,44 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
 
       try {
         console.log(`🔍 Job WebSocket: Fetching job ${jobId} immediately`);
-        const response = await fetch(`${API_BASE}/api/jobs/${jobId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        
+        // Use the apiClient function for consistency
+        const apiJob = await getJob(jobId, token);
+        
+        // Convert APIJob to Job format
+        const job: Job = {
+          job_id: apiJob.job_id,
+          status: apiJob.status,
+          description: apiJob.description,
+          status_message: apiJob.status_message,
+          progress: apiJob.progress,
+          created_at: apiJob.created_at,
+          started_at: apiJob.started_at ?? undefined,
+          completed_at: apiJob.completed_at ?? undefined,
+          error: apiJob.error || apiJob.error_message || undefined,
+        };
+        
+        console.log(`✅ Job WebSocket: Fetched job ${jobId}:`, {
+          status: job.status,
+          description: job.description?.substring(0, 50),
         });
 
-        if (response.ok) {
-          const job: Job = await response.json();
-          console.log(`✅ Job WebSocket: Fetched job ${jobId}:`, {
-            status: job.status,
-            description: job.description?.substring(0, 50),
-          });
-
-          setJobs((prevJobs) => {
-            const newJobs = new Map(prevJobs);
-            newJobs.set(job.job_id, job);
-            const activeCount = Array.from(newJobs.values()).filter(
-              (j) => j.status === "running" || j.status === "pending"
-            ).length;
-            console.log(`📊 Job WebSocket: Added job ${jobId}, Active: ${activeCount}`);
-            return newJobs;
-          });
-        } else {
-          console.error(`❌ Job WebSocket: Failed to fetch job ${jobId}: ${response.status}`);
-        }
+        setJobs((prevJobs) => {
+          const newJobs = new Map(prevJobs);
+          newJobs.set(job.job_id, job);
+          const activeCount = Array.from(newJobs.values()).filter(
+            (j) => j.status === "running" || j.status === "pending"
+          ).length;
+          console.log(`📊 Job WebSocket: Added job ${jobId}, Active: ${activeCount}`);
+          return newJobs;
+        });
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(`❌ Job WebSocket: Error fetching job ${jobId}:`, error);
+        console.error(`❌ Error details:`, {
+          message: errorMessage,
+          endpoint: `${API_BASE}/api/jobs/${jobId}`,
+        });
       }
     },
     [token]
@@ -257,25 +306,17 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
       if (!token) return;
 
       try {
-        const response = await fetch(`${API_BASE}/api/jobs/${jobId}/cancel`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log(`Job ${jobId} cancelled successfully:`, data);
-          // The WebSocket will update the job status
-        } else {
-          const error = await response.json();
-          console.error(`Failed to cancel job ${jobId}:`, error);
-          throw new Error(error.message || "Failed to cancel job");
-        }
+        // Use the apiClient function for consistency
+        const data = await cancelJobAPI(jobId, token);
+        console.log(`Job ${jobId} cancelled successfully:`, data);
+        // The WebSocket will update the job status
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(`Error cancelling job ${jobId}:`, error);
+        console.error(`Error details:`, {
+          message: errorMessage,
+          endpoint: `${API_BASE}/api/jobs/${jobId}/cancel`,
+        });
         throw error;
       }
     },
@@ -306,13 +347,7 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
     if (enabled && token) {
       loadJobs();
       connect();
-      // Also poll once after a short delay to catch any jobs created right after mount
-      const initialPollTimeout = setTimeout(() => {
-        loadJobs();
-      }, 1000);
-      return () => {
-        clearTimeout(initialPollTimeout);
-      };
+      // Removed duplicate delayed poll - WebSocket will handle updates
     }
 
     return () => {

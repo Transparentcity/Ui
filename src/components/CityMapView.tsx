@@ -17,6 +17,7 @@ import "./CityMapView.css";
 interface CityMapViewProps {
   cityId: number;
   isAdmin?: boolean;
+  cityData?: CityDetail | null; // Optional city data to avoid duplicate API calls
 }
 
 interface GeographicStructure {
@@ -26,13 +27,14 @@ interface GeographicStructure {
   identifier_field?: string;
 }
 
-export default function CityMapView({ cityId, isAdmin = false }: CityMapViewProps) {
+export default function CityMapView({ cityId, isAdmin = false, cityData: propCityData }: CityMapViewProps) {
   const { getAccessTokenSilently } = useAuth0();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
-  const [loading, setLoading] = useState(true);
+  const loadingRef = useRef<{ cityId: number | null; inProgress: boolean }>({ cityId: null, inProgress: false });
+  const [loading, setLoading] = useState(!propCityData); // Don't show loading if cityData is provided
   const [error, setError] = useState<string | null>(null);
-  const [cityData, setCityData] = useState<CityDetail | null>(null);
+  const [cityData, setCityData] = useState<CityDetail | null>(propCityData || null);
   const [cityStructure, setCityStructure] = useState<CityStructureData | null>(null);
   const [leaders, setLeaders] = useState<CityLeader[]>([]);
   const [shapefiles, setShapefiles] = useState<CityShapefile[]>([]);
@@ -40,6 +42,13 @@ export default function CityMapView({ cityId, isAdmin = false }: CityMapViewProp
   const [selectedGeographicStructure, setSelectedGeographicStructure] = useState<string | null>(null);
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   const [mapZoom, setMapZoom] = useState<number>(11);
+  
+  // Update cityData when prop changes
+  useEffect(() => {
+    if (propCityData) {
+      setCityData(propCityData);
+    }
+  }, [propCityData]);
 
   // Calculate map center from shapefiles
   const calculateMapCenter = useCallback((shapefilesToCheck: CityShapefile[]) => {
@@ -104,20 +113,40 @@ export default function CityMapView({ cityId, isAdmin = false }: CityMapViewProp
   useEffect(() => {
     let cancelled = false;
 
+    // Prevent duplicate calls for the same cityId
+    if (loadingRef.current.cityId === cityId && loadingRef.current.inProgress) {
+      return;
+    }
+    
+    // Reset loading ref when cityId changes
+    if (loadingRef.current.cityId !== cityId) {
+      loadingRef.current = { cityId, inProgress: false };
+    }
+    
+    loadingRef.current.inProgress = true;
+
     const loadData = async () => {
       try {
-        setLoading(true);
+        // Only show loading if we don't have cityData yet
+        if (!propCityData && !cityData) {
+          setLoading(true);
+        }
         setError(null);
         const token = await getAccessTokenSilently();
 
         if (cancelled) return;
 
-        console.log("Loading data for cityId:", cityId, "isAdmin:", isAdmin);
+        console.log("Loading data for cityId:", cityId, "isAdmin:", isAdmin, "hasPropCityData:", !!propCityData, "hasCityData:", !!cityData);
+
+        // Only fetch city data if not provided as prop
+        const cityPromise = (propCityData || cityData)
+          ? Promise.resolve(propCityData || cityData)
+          : getCity(cityId, token);
 
         // Fetch city data and structure in parallel
         // getCityStructure returns the full structure, which includes leaders and shapefiles
         const [city, structureData] = await Promise.all([
-          getCity(cityId, token),
+          cityPromise,
           isAdmin
             ? getCityStructure(cityId, token).catch((err) => {
                 console.error("Failed to load city structure:", err);
@@ -178,6 +207,7 @@ export default function CityMapView({ cityId, isAdmin = false }: CityMapViewProp
       } finally {
         if (!cancelled) {
           setLoading(false);
+          loadingRef.current.inProgress = false;
         }
       }
     };
@@ -186,8 +216,10 @@ export default function CityMapView({ cityId, isAdmin = false }: CityMapViewProp
 
     return () => {
       cancelled = true;
+      loadingRef.current.inProgress = false;
     };
-  }, [cityId, isAdmin]); // Removed getAccessTokenSilently and calculateMapCenter from deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cityId, isAdmin]); // Only depend on cityId and isAdmin - propCityData is handled separately
 
   // Initialize Mapbox map
   useEffect(() => {

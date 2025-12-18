@@ -3,6 +3,19 @@ const API_BASE =
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
+// Request deduplication cache for getSavedCities
+const savedCitiesCache: {
+  promise: Promise<any[]> | null;
+  timestamp: number;
+  token: string | null;
+} = {
+  promise: null,
+  timestamp: 0,
+  token: null,
+};
+
+const SAVED_CITIES_CACHE_TTL = 5000; // 5 seconds cache
+
 async function request<T>(
   path: string,
   method: HttpMethod = "GET",
@@ -223,11 +236,12 @@ export function refreshCityMetadata(cityId: number, token: string): Promise<JobR
   );
 }
 
-export function restructureCity(cityId: number, token: string): Promise<JobResponse> {
+export function restructureCity(cityId: number, model?: string, token?: string): Promise<JobResponse> {
+  const body = model ? { model } : undefined;
   return request<JobResponse>(
     `/api/template-metrics/cities/${cityId}/structure/restructure`,
     "POST",
-    undefined,
+    body,
     token
   );
 }
@@ -1103,10 +1117,43 @@ export interface SavedCity {
 }
 
 export function getSavedCities(token: string): Promise<SavedCity[]> {
-  return request<SavedCity[]>("/api/cities/saved", "GET", undefined, token);
+  const now = Date.now();
+  
+  // Check if we have a valid cached promise for the same token
+  if (
+    savedCitiesCache.promise &&
+    savedCitiesCache.token === token &&
+    (now - savedCitiesCache.timestamp) < SAVED_CITIES_CACHE_TTL
+  ) {
+    return savedCitiesCache.promise as Promise<SavedCity[]>;
+  }
+  
+  // Create new request and cache it
+  const promise = request<SavedCity[]>("/api/cities/saved", "GET", undefined, token);
+  savedCitiesCache.promise = promise;
+  savedCitiesCache.timestamp = now;
+  savedCitiesCache.token = token;
+  
+  // Clear cache on error to allow retry
+  promise.catch(() => {
+    if (savedCitiesCache.promise === promise) {
+      savedCitiesCache.promise = null;
+      savedCitiesCache.timestamp = 0;
+    }
+  });
+  
+  return promise;
+}
+
+// Clear the saved cities cache (call this when cities are saved/unsaved)
+export function clearSavedCitiesCache(): void {
+  savedCitiesCache.promise = null;
+  savedCitiesCache.timestamp = 0;
+  savedCitiesCache.token = null;
 }
 
 export function saveCity(cityId: number, token: string): Promise<{ message: string; city_id: number }> {
+  clearSavedCitiesCache(); // Clear cache when saving
   return request<{ message: string; city_id: number }>(
     `/api/cities/${cityId}/save`,
     "POST",
@@ -1116,6 +1163,7 @@ export function saveCity(cityId: number, token: string): Promise<{ message: stri
 }
 
 export function unsaveCity(cityId: number, token: string): Promise<{ message: string; city_id: number }> {
+  clearSavedCitiesCache(); // Clear cache when unsaving
   return request<{ message: string; city_id: number }>(
     `/api/cities/${cityId}/save`,
     "DELETE",

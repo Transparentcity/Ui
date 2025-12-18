@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { searchPublicCities, type PublicCitySearchResult } from "@/lib/publicApiClient";
 import { getSavedCities, saveCity, unsaveCity } from "@/lib/apiClient";
-import { emitSavedCitiesChanged } from "@/lib/uiEvents";
+import { emitSavedCitiesChanged, SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEvents";
 import "./CityTypeahead.css";
 
 interface CityTypeaheadProps {
@@ -247,10 +247,23 @@ export default function CityTypeahead({
     }
   };
 
-  // Load saved cities on mount and when active city changes
+  // Load saved cities on mount only (cache handles deduplication)
   useEffect(() => {
     void loadSavedCities();
-  }, [activeCityId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only load once on mount - cache will handle deduplication
+
+  // Listen for saved cities changes to update local state
+  useEffect(() => {
+    const handleSavedCitiesChanged = () => {
+      void loadSavedCities();
+    };
+
+    window.addEventListener(SAVED_CITIES_CHANGED_EVENT, handleSavedCitiesChanged);
+    return () => {
+      window.removeEventListener(SAVED_CITIES_CHANGED_EVENT, handleSavedCitiesChanged);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     return () => {

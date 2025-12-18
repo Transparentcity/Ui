@@ -137,19 +137,33 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
     }
   }, [onSessionChange, currentSessionId]);
 
-  // Load available models on mount
+  // Load available models on mount (with deduplication)
+  const isLoadingModelsRef = useRef(false);
+  const modelsLoadedRef = useRef(false);
+  
   useEffect(() => {
+    // Prevent duplicate loads
+    if (isLoadingModelsRef.current || modelsLoadedRef.current) {
+      return;
+    }
+
     const loadModels = async () => {
+      isLoadingModelsRef.current = true;
       try {
         const token = await getAccessTokenSilently();
         const models = await getAvailableModels(token);
         setAvailableModels(models);
+        modelsLoadedRef.current = true;
       } catch (error) {
         console.error("Failed to load models:", error);
+      } finally {
+        isLoadingModelsRef.current = false;
       }
     };
     loadModels();
-  }, [getAccessTokenSilently]);
+    // Only load once on mount - remove getAccessTokenSilently from deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - only run once on mount
 
   const handleSend = async () => {
     if (!message.trim() || isStreaming) return;

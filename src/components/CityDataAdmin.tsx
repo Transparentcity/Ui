@@ -17,6 +17,8 @@ import {
   updateCityLeader,
   deleteCityLeader,
   CityLeader,
+  getAvailableModels,
+  ModelGroupInfo,
 } from "@/lib/apiClient";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import DatasetsList from "@/components/DatasetsList";
@@ -109,9 +111,31 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
     isNew: boolean;
   } | null>(null);
 
+  const [availableModels, setAvailableModels] = useState<ModelGroupInfo[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [hoveredQuery, setHoveredQuery] = useState<{ config: any; x: number; y: number } | null>(null);
+
   useEffect(() => {
     loadCityData();
+    loadAvailableModels();
   }, [cityId]);
+
+  const loadAvailableModels = async () => {
+    try {
+      const token = await getAccessTokenSilently();
+      const models = await getAvailableModels(token);
+      setAvailableModels(models);
+      // Set default model (first available model from first group)
+      if (models.length > 0 && models[0].models.length > 0) {
+        const firstAvailable = models[0].models.find(m => m.is_available);
+        if (firstAvailable) {
+          setSelectedModel(firstAvailable.key);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading available models:", err);
+    }
+  };
 
   const loadCityData = async () => {
     try {
@@ -288,7 +312,7 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
 
     try {
       const token = await getAccessTokenSilently();
-      const result = await restructureCity(cityId, token);
+      const result = await restructureCity(cityId, selectedModel || undefined, token);
       notifyJobCreated(result.job_id);
       alert(`Re-structuring started! Job ID: ${result.job_id}\n\nYou can monitor progress in the jobs badge at the top of the page.`);
     } catch (err: any) {
@@ -856,64 +880,6 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                     </td>
                   </tr>
                 )}
-                <tr>
-                  <th
-                    style={{
-                      textAlign: "left",
-                      padding: "12px",
-                      background: "var(--bg-secondary)",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Structure Status
-                  </th>
-                  <td style={{ padding: "12px", borderBottom: "1px solid var(--border-primary)" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <span
-                        style={{
-                          padding: "4px 8px",
-                          borderRadius: "4px",
-                          fontSize: "12px",
-                          fontWeight: 500,
-                          background:
-                            cityData.structure_status === "complete"
-                              ? "#d1fae5"
-                              : cityData.structure_status === "partial"
-                              ? "#fef3c7"
-                              : "#fee2e2",
-                          color:
-                            cityData.structure_status === "complete"
-                              ? "#065f46"
-                              : cityData.structure_status === "partial"
-                              ? "#92400e"
-                              : "#991b1b",
-                        }}
-                      >
-                        {(cityData.structure_status || "not_started").toUpperCase()}
-                      </span>
-                      <button
-                        onClick={handleRestructure}
-                        style={{
-                          padding: "6px 12px",
-                          background: "#f59e0b",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          fontWeight: 500,
-                          fontSize: "12px",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "4px",
-                        }}
-                        title="Re-structure this city (deletes existing and runs fresh analysis)"
-                      >
-                        <span>🔄</span>
-                        <span>Re-structure</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
               </tbody>
             </table>
           </div>
@@ -929,21 +895,80 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
               justifyContent: "space-between",
               alignItems: "center",
               marginBottom: "16px",
+              flexWrap: "wrap",
+              gap: "12px",
             }}
           >
-            <h3 style={{ margin: 0 }}>City Structure</h3>
-            <div style={{ display: "flex", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+              <h3 style={{ margin: 0 }}>City Structure</h3>
+              {cityData.structure_status && (
+                <span
+                  style={{
+                    padding: "4px 12px",
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    background:
+                      cityData.structure_status === "complete"
+                        ? "#d1fae5"
+                        : cityData.structure_status === "partial"
+                        ? "#fef3c7"
+                        : "#fee2e2",
+                    color:
+                      cityData.structure_status === "complete"
+                        ? "#065f46"
+                        : cityData.structure_status === "partial"
+                        ? "#92400e"
+                        : "#991b1b",
+                  }}
+                >
+                  Status: {(cityData.structure_status || "not_started").toUpperCase()}
+                </span>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 500 }}>
+                  Model:
+                </label>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  style={{
+                    padding: "6px 12px",
+                    border: "1px solid var(--border-primary)",
+                    borderRadius: "4px",
+                    background: "var(--bg-tertiary)",
+                    color: "var(--text-primary)",
+                    fontSize: "12px",
+                    minWidth: "200px",
+                  }}
+                >
+                  {availableModels.map((group) =>
+                    group.models
+                      .filter((m) => m.is_available)
+                      .map((model) => (
+                        <option key={model.key} value={model.key}>
+                          {group.emoji} {model.name}
+                        </option>
+                      ))
+                  )}
+                </select>
+              </div>
               <button
                 onClick={handleRestructure}
+                disabled={!selectedModel}
                 style={{
                   padding: "8px 16px",
-                  background: "#f59e0b",
+                  background: selectedModel ? "#f59e0b" : "#ccc",
                   color: "white",
                   border: "none",
                   borderRadius: "4px",
-                  cursor: "pointer",
+                  cursor: selectedModel ? "pointer" : "not-allowed",
                   fontWeight: 500,
+                  opacity: selectedModel ? 1 : 0.6,
                 }}
+                title={selectedModel ? "Re-structure this city using the selected model" : "Please select a model"}
               >
                 🔄 Re-structure
               </button>
@@ -1065,7 +1090,37 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                     return (
                       <div key={geographicConfig.id || index} style={{ marginBottom: index < geographicConfigs.length - 1 ? "16px" : "0" }}>
                         <div style={{ marginBottom: "8px", fontWeight: 600, fontSize: "13px", display: "flex", alignItems: "center", gap: "8px" }}>
-                          {geographicConfig.structure_name || `Geographic Structure ${index + 1}`}
+                          <span
+                            style={{
+                              cursor: geographicConfig.query ? "pointer" : "default",
+                              textDecoration: geographicConfig.query ? "underline" : "none",
+                              color: geographicConfig.query ? "var(--brand-primary)" : "var(--text-primary)",
+                            }}
+                            onClick={(e) => {
+                              if (geographicConfig.query) {
+                                setHoveredQuery({
+                                  config: geographicConfig,
+                                  x: e.clientX,
+                                  y: e.clientY,
+                                });
+                              }
+                            }}
+                            onMouseEnter={(e) => {
+                              if (geographicConfig.query) {
+                                setHoveredQuery({
+                                  config: geographicConfig,
+                                  x: e.clientX,
+                                  y: e.clientY,
+                                });
+                              }
+                            }}
+                            onMouseLeave={() => {
+                              // Don't clear on mouse leave - let click handle it
+                            }}
+                            title={geographicConfig.query ? "Click or hover to view query" : ""}
+                          >
+                            {geographicConfig.structure_name || `Geographic Structure ${index + 1}`}
+                          </span>
                           {(() => {
                             const confidence = geographicConfig.metadata?.confidence || geographicConfig.confidence;
                             if (confidence) {
@@ -1126,6 +1181,58 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
             );
             const officialsData = leadersConfig?.query_output || [];
             const storedLeaders = structureData?.leaders || [];
+            
+            // Helper function to find district field dynamically
+            const findDistrictField = (config: any, sampleData: any[]): string | null => {
+              // Check metadata for district field
+              if (config?.metadata?.district_field) {
+                return config.metadata.district_field;
+              }
+              
+              // Check query string for district-related fields (case-insensitive search, but return original case)
+              if (config?.query) {
+                // Extract field names from SELECT clause
+                const selectMatch = config.query.match(/SELECT\s+(.+?)(?:\s+FROM|\s+WHERE|$)/i);
+                if (selectMatch) {
+                  const fields = selectMatch[1].split(',').map((f: string) => f.trim());
+                  // Look for district-related fields
+                  const distField = fields.find((f: string) => {
+                    const fLower = f.toLowerCase();
+                    return fLower.includes('dist') || fLower.includes('ward') || fLower.includes('precinct');
+                  });
+                  if (distField) {
+                    // Prefer numeric variants
+                    if (distField.toLowerCase().includes('num') || distField.toLowerCase().includes('dist_num')) {
+                      return distField;
+                    }
+                    // Otherwise return the first match
+                    return distField;
+                  }
+                }
+              }
+              
+              // Check sample data for fields containing "dist" that have numeric values
+              if (sampleData && sampleData.length > 0) {
+                const sample = sampleData[0];
+                const distFields = Object.keys(sample).filter(key => {
+                  const keyLower = key.toLowerCase();
+                  return (keyLower.includes('dist') || keyLower.includes('ward') || keyLower.includes('precinct')) &&
+                    (typeof sample[key] === 'number' || (typeof sample[key] === 'string' && !isNaN(Number(sample[key])) && sample[key] !== ''));
+                });
+                if (distFields.length > 0) {
+                  // Prefer fields with "num" or "dist_num"
+                  const preferred = distFields.find(f => {
+                    const fLower = f.toLowerCase();
+                    return fLower.includes('num') || fLower.includes('dist_num');
+                  });
+                  return preferred || distFields[0];
+                }
+              }
+              
+              return null;
+            };
+            
+            const districtField = findDistrictField(leadersConfig, officialsData);
             
             // Create a map of stored leaders by name+title+district for quick lookup
             const storedLeadersMap = new Map<string, any>();
@@ -1217,7 +1324,34 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                   }}
                 >
                   <h4 style={{ margin: 0, display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                    City Officials
+                    <span
+                      style={{
+                        cursor: leadersConfig?.query ? "pointer" : "default",
+                        textDecoration: leadersConfig?.query ? "underline" : "none",
+                        color: leadersConfig?.query ? "var(--brand-primary)" : "var(--text-primary)",
+                      }}
+                      onClick={(e) => {
+                        if (leadersConfig?.query) {
+                          setHoveredQuery({
+                            config: leadersConfig,
+                            x: e.clientX,
+                            y: e.clientY,
+                          });
+                        }
+                      }}
+                      onMouseEnter={(e) => {
+                        if (leadersConfig?.query) {
+                          setHoveredQuery({
+                            config: leadersConfig,
+                            x: e.clientX,
+                            y: e.clientY,
+                          });
+                        }
+                      }}
+                      title={leadersConfig?.query ? "Click or hover to view query" : ""}
+                    >
+                      City Officials
+                    </span>
                     {officialsData.length > 0 && (
                       <span style={{ fontSize: "12px", fontWeight: "normal", color: "var(--text-secondary)" }}>
                         ({storedLeaders.length} stored / {officialsData.length} in query output)
@@ -1279,11 +1413,35 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                           let stored = 0;
                           let errors = 0;
                           
+                          // Get identifier field from config to extract name
+                          // CRITICAL: identifier_field should be the NAME field, not district field
+                          const identifierField = leadersConfig?.identifier_field || "";
+                          // Check if identifier_field is actually a district field (should not be used as name)
+                          const isDistrictField = identifierField && (
+                            identifierField.toLowerCase().includes('district') ||
+                            identifierField.toLowerCase().includes('ward') ||
+                            identifierField.toLowerCase().includes('precinct') ||
+                            identifierField.toLowerCase().includes('dist') ||
+                            identifierField.toLowerCase().includes('num')
+                          );
+                          // Only use identifier_field as name if it's NOT a district field
+                          const nameField = (!isDistrictField && identifierField) ? identifierField : null;
+                          
                           for (const official of officialsData) {
                             try {
-                              const officialName = official.name || official.supervisor || official.councilmember || "";
+                              // Use identifier_field from config ONLY if it's a name field, otherwise use common name patterns
+                              const officialName = nameField 
+                                ? (official[nameField] || official.name || official.supervisor || official.councilmember || "")
+                                : (official.name || official.supervisor || official.councilmember || official.official || "");
                               const officialTitle = official.title || official.position || "Supervisor";
-                              const officialDistrict = official.district || official.supervisor_district || official.council_district || null;
+                              // Use dynamically found district field, with fallback to common field names
+                              const officialDistrict = districtField 
+                                ? (official[districtField] !== undefined && official[districtField] !== null ? Number(official[districtField]) : null)
+                                : (official.district || official.supervisor_district || official.council_district || official.sup_dist || official.sup_dist_num || null);
+                              // Convert to number if it's a string
+                              const districtNum = officialDistrict !== null && officialDistrict !== undefined 
+                                ? (typeof officialDistrict === 'string' ? (isNaN(Number(officialDistrict)) ? null : Number(officialDistrict)) : officialDistrict)
+                                : null;
                               
                               if (!officialName) continue;
                               
@@ -1291,7 +1449,7 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                                 city_id: cityId,
                                 name: officialName,
                                 title: officialTitle,
-                                district: officialDistrict,
+                                district: districtNum,
                                 geographic_structure_id: matchingGeoStructure?.id || null,
                                 governance_structure_id: matchingGovStructure?.id || null,
                                 metadata: official,
@@ -1375,10 +1533,34 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                         </thead>
                         <tbody>
                           {officialsData.map((official: any, index: number) => {
+                            // Get identifier field from config to extract name
+                            // CRITICAL: identifier_field should be the NAME field, not district field
+                            const identifierField = leadersConfig?.identifier_field || "";
+                            // Check if identifier_field is actually a district field (should not be used as name)
+                            const isDistrictField = identifierField && (
+                              identifierField.toLowerCase().includes('district') ||
+                              identifierField.toLowerCase().includes('ward') ||
+                              identifierField.toLowerCase().includes('precinct') ||
+                              identifierField.toLowerCase().includes('dist') ||
+                              identifierField.toLowerCase().includes('num')
+                            );
+                            // Only use identifier_field as name if it's NOT a district field
+                            const nameField = (!isDistrictField && identifierField) ? identifierField : null;
+                            
                             // Try to find matching stored leader
-                            const officialName = official.name || official.supervisor || official.councilmember || "";
+                            // Use identifier_field from config ONLY if it's a name field, otherwise use common name patterns
+                            const officialName = nameField 
+                              ? (official[nameField] || official.name || official.supervisor || official.councilmember || "")
+                              : (official.name || official.supervisor || official.councilmember || official.official || "");
                             const officialTitle = official.title || official.position || "Supervisor";
-                            const officialDistrict = official.district || official.supervisor_district || official.council_district || null;
+                            // Use dynamically found district field, with fallback to common field names
+                            const officialDistrictRaw = districtField 
+                              ? (official[districtField] !== undefined && official[districtField] !== null ? official[districtField] : null)
+                              : (official.district || official.supervisor_district || official.council_district || official.sup_dist || official.sup_dist_num || null);
+                            // Convert to number if it's a string
+                            const officialDistrict = officialDistrictRaw !== null && officialDistrictRaw !== undefined 
+                              ? (typeof officialDistrictRaw === 'string' ? (isNaN(Number(officialDistrictRaw)) ? null : Number(officialDistrictRaw)) : officialDistrictRaw)
+                              : null;
                             const key = `${officialName}_${officialTitle}_${officialDistrict ?? "null"}`;
                             const storedLeader = storedLeadersMap.get(key);
                             const isStored = !!storedLeader;
@@ -1726,6 +1908,85 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
       {activeTab === "datasets" && (
         <div>
           <DatasetsList cityId={cityId} showStats={false} showCityFilter={false} />
+        </div>
+      )}
+
+      {/* Query Popup */}
+      {hoveredQuery && (
+        <div
+          style={{
+            position: "fixed",
+            top: hoveredQuery.y + 10,
+            left: hoveredQuery.x + 10,
+            background: "var(--bg-primary)",
+            border: "2px solid var(--brand-primary)",
+            borderRadius: "8px",
+            padding: "16px",
+            maxWidth: "600px",
+            maxHeight: "400px",
+            overflow: "auto",
+            zIndex: 10000,
+            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+          }}
+          onMouseLeave={() => setHoveredQuery(null)}
+          onClick={() => setHoveredQuery(null)}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <h5 style={{ margin: 0, fontSize: "14px", fontWeight: 600 }}>
+              Query: {hoveredQuery.config.structure_name || hoveredQuery.config.structure_type}
+            </h5>
+            <button
+              onClick={() => setHoveredQuery(null)}
+              style={{
+                background: "transparent",
+                border: "none",
+                fontSize: "18px",
+                cursor: "pointer",
+                color: "var(--text-secondary)",
+                padding: "0",
+                width: "24px",
+                height: "24px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              ×
+            </button>
+          </div>
+          {hoveredQuery.config.endpoint && (
+            <div style={{ marginBottom: "8px" }}>
+              <strong style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Endpoint:</strong>
+              <div style={{ fontSize: "12px", fontFamily: "monospace", marginTop: "4px", wordBreak: "break-all" }}>
+                {hoveredQuery.config.endpoint}
+              </div>
+            </div>
+          )}
+          {hoveredQuery.config.query && (
+            <div>
+              <strong style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Query:</strong>
+              <pre
+                style={{
+                  fontSize: "11px",
+                  fontFamily: "monospace",
+                  background: "var(--bg-secondary)",
+                  padding: "8px",
+                  borderRadius: "4px",
+                  marginTop: "4px",
+                  overflow: "auto",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                {hoveredQuery.config.query}
+              </pre>
+            </div>
+          )}
+          {hoveredQuery.config.description && (
+            <div style={{ marginTop: "8px", fontSize: "12px", color: "var(--text-secondary)" }}>
+              <strong>Description:</strong> {hoveredQuery.config.description}
+            </div>
+          )}
         </div>
       )}
     </div>

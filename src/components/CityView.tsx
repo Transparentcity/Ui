@@ -1,11 +1,11 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import CityDataAdmin from "@/components/CityDataAdmin";
 import CityMapView from "@/components/CityMapView";
 import { CityDetail, getCity, getSavedCities, saveCity, unsaveCity } from "@/lib/apiClient";
-import { emitSavedCitiesChanged } from "@/lib/uiEvents";
+import { emitSavedCitiesChanged, SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEvents";
 import "./CityView.css";
 
 interface CityViewProps {
@@ -23,13 +23,16 @@ export default function CityView({ cityId, isAdmin }: CityViewProps) {
   const [isCitySaved, setIsCitySaved] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("map"); // Default to map tab
   const [saving, setSaving] = useState(false);
+  const loadingRef = useRef<{ cityId: number | null; inProgress: boolean }>({ cityId: null, inProgress: false });
 
-  useEffect(() => {
-    loadCityData();
-    checkCitySavedStatus();
-  }, [cityId]);
-
-  const loadCityData = async () => {
+  const loadCityData = useCallback(async () => {
+    // Prevent duplicate calls for the same cityId
+    if (loadingRef.current.cityId === cityId && loadingRef.current.inProgress) {
+      return;
+    }
+    
+    loadingRef.current = { cityId, inProgress: true };
+    
     try {
       setLoading(true);
       setError(null);
@@ -43,10 +46,11 @@ export default function CityView({ cityId, isAdmin }: CityViewProps) {
       console.error("Error loading city data:", err);
     } finally {
       setLoading(false);
+      loadingRef.current.inProgress = false;
     }
-  };
+  }, [cityId, getAccessTokenSilently]);
 
-  const checkCitySavedStatus = async () => {
+  const checkCitySavedStatus = useCallback(async () => {
     try {
       const token = await getAccessTokenSilently();
       const savedCities = await getSavedCities(token);
@@ -54,7 +58,31 @@ export default function CityView({ cityId, isAdmin }: CityViewProps) {
     } catch (err) {
       console.error("Error checking saved status:", err);
     }
-  };
+  }, [cityId, getAccessTokenSilently]);
+
+  useEffect(() => {
+    // Reset loading ref when cityId changes
+    if (loadingRef.current.cityId !== cityId) {
+      loadingRef.current = { cityId, inProgress: false };
+    }
+    
+    loadCityData();
+    checkCitySavedStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cityId]); // Only depend on cityId - callbacks are memoized and stable
+
+  // Listen for saved cities changes to update status without refetching
+  useEffect(() => {
+    const handleSavedCitiesChanged = () => {
+      // Only refetch if we need to update the saved status
+      checkCitySavedStatus();
+    };
+
+    window.addEventListener(SAVED_CITIES_CHANGED_EVENT, handleSavedCitiesChanged);
+    return () => {
+      window.removeEventListener(SAVED_CITIES_CHANGED_EVENT, handleSavedCitiesChanged);
+    };
+  }, [checkCitySavedStatus]);
 
   const handleToggleSave = async () => {
     try {
@@ -161,7 +189,7 @@ export default function CityView({ cityId, isAdmin }: CityViewProps) {
       {/* Map Tab */}
       {activeTab === "map" && (
         <div className="tab-content active" id="map-tab">
-          <CityMapView cityId={cityId} isAdmin={isAdmin} />
+          <CityMapView cityId={cityId} isAdmin={isAdmin} cityData={cityData} />
         </div>
       )}
 
