@@ -56,12 +56,14 @@ interface Metric {
 }
 
 interface GeographicStructure {
+  id?: number;
   structure_name?: string;
   structure_type?: string;
   identifier_field?: string;
 }
 
 interface GovernanceStructure {
+  id?: number;
   body_name?: string;
   structure_type?: string;
   selection_method?: string;
@@ -69,9 +71,11 @@ interface GovernanceStructure {
 
 interface CityStructure {
   geographic_structures?: GeographicStructure[];
+  governance_structures?: any[];
   leaders?: any[];
   query_configs?: any[];
   shapefiles?: any[];
+  mappings?: any[];
 }
 
 interface CityDataAdminProps {

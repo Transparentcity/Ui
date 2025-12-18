@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, ReactElement } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import ReactMarkdown from "react-markdown";
 import ChatSessionLoader from "./ChatSessionLoader";
@@ -498,7 +498,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
         return timeA - timeB;
       });
 
-      const elements: JSX.Element[] = [];
+      const elements: ReactElement[] = [];
       let currentTextContent = "";
       let lastEventType: string | null = null;
 

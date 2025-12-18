@@ -747,7 +747,7 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
           id: sf.id,
           structure_name: sf.shapefile_name,
           structure_type: sf.structure_type,
-          identifier_field: sf.identifier_field,
+          identifier_field: sf.identifier_field || undefined,
         });
         console.log("Added shapefile to dropdown:", sf.shapefile_name, "type:", sf.structure_type);
       } else {

@@ -15,7 +15,7 @@ interface ContextMenuProps {
 }
 
 interface AdminMenuItem {
-  icon: JSX.Element;
+  icon: React.ReactElement;
   label: string;
   view: string;
 }
