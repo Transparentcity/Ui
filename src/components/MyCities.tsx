@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
-import { getSavedCities, unsaveCity, SavedCity } from "@/lib/apiClient";
+import { getSavedCities, unsaveCity, SavedCity, prefetchCity } from "@/lib/apiClient";
 import { SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEvents";
+import Loader from "./Loader";
 
 interface MyCitiesProps {
   onCityClick?: (cityId: number) => void;
@@ -17,9 +18,18 @@ export default function MyCities({ onCityClick, activeCityId }: MyCitiesProps) {
   const [expanded, setExpanded] = useState(true);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const menuRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+  const prefetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastPrefetchedCityId = useRef<number | null>(null);
 
   useEffect(() => {
     loadCities();
+    
+    // Cleanup prefetch timeout on unmount
+    return () => {
+      if (prefetchTimeoutRef.current) {
+        clearTimeout(prefetchTimeoutRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -76,6 +86,29 @@ export default function MyCities({ onCityClick, activeCityId }: MyCitiesProps) {
     }
   };
 
+  const handleCityHover = (cityId: number) => {
+    // Debounce prefetch to avoid excessive requests
+    // Only prefetch if different city and after a short delay
+    if (prefetchTimeoutRef.current) {
+      clearTimeout(prefetchTimeoutRef.current);
+    }
+
+    // Skip if we just prefetched this city
+    if (lastPrefetchedCityId.current === cityId) {
+      return;
+    }
+
+    prefetchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const token = await getAccessTokenSilently();
+        prefetchCity(cityId, token);
+        lastPrefetchedCityId.current = cityId;
+      } catch (error) {
+        // Silently fail on prefetch errors
+      }
+    }, 300); // 300ms debounce
+  };
+
   const handleMenuToggle = (event: React.MouseEvent, cityId: number) => {
     event.stopPropagation();
     setOpenMenuId(openMenuId === cityId ? null : cityId);
@@ -124,7 +157,10 @@ export default function MyCities({ onCityClick, activeCityId }: MyCitiesProps) {
       {expanded && (
         <div id="my-cities-list">
           {loading ? (
-            <div className="session-empty-state">Loading cities...</div>
+            <div className="session-empty-state" style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center" }}>
+              <Loader size="sm" color="dark" />
+              <span>Loading cities...</span>
+            </div>
           ) : cities.length === 0 ? (
             <div className="session-empty-state">No saved cities</div>
           ) : (
@@ -135,6 +171,7 @@ export default function MyCities({ onCityClick, activeCityId }: MyCitiesProps) {
                   activeCityId === city.id ? "active" : ""
                 }`}
                 data-city-id={city.id}
+                onMouseEnter={() => handleCityHover(city.id)}
                 onClick={(e) => {
                   // Only trigger if clicking on the item itself, not the menu button
                   if (!(e.target as HTMLElement).closest(".session-menu-btn") &&

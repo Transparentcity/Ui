@@ -15,6 +15,7 @@ import {
 } from "@/lib/apiClient";
 import { emitSavedCitiesChanged } from "@/lib/uiEvents";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
+import Loader from "./Loader";
 
 interface CityDataTableProps {
   onOpenCity?: (cityId: number) => void;
@@ -486,8 +487,9 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
 
   if (loading) {
     return (
-      <div className="admin-container" style={{ padding: "48px", textAlign: "center" }}>
-        <div className="loader">Loading cities...</div>
+      <div className="admin-container" style={{ padding: "48px", display: "flex", alignItems: "center", justifyContent: "center", gap: "12px" }}>
+        <Loader size="sm" color="dark" />
+        <span>Loading cities...</span>
       </div>
     );
   }

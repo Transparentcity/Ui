@@ -13,6 +13,7 @@ import {
   type Dataset,
   type CityListItem,
 } from "@/lib/apiClient";
+import Loader from "./Loader";
 import styles from "./DatasetsList.module.css";
 
 interface DatasetsListProps {
@@ -205,8 +206,8 @@ URL: ${dataset.url || "N/A"}
 
   if (loading && !stats && showStats) {
     return (
-      <div className={styles.loadingContainer}>
-        <div className={styles.loadingSpinner}></div>
+      <div className={styles.loadingContainer} style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center" }}>
+        <Loader size="sm" color="dark" />
         <span className={styles.loadingText}>Loading datasets...</span>
       </div>
     );
@@ -377,7 +378,10 @@ URL: ${dataset.url || "N/A"}
             <div className={styles.filterSummary}>
               <span className={styles.datasetCount}>
                 {loading ? (
-                  <span className={styles.loadingText}>Loading...</span>
+                  <span className={styles.loadingText} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <Loader size="sm" color="dark" />
+                    Loading...
+                  </span>
                 ) : (
                   <>
                     <strong>{datasets.length}</strong> dataset{datasets.length !== 1 ? "s" : ""} found
@@ -474,8 +478,8 @@ URL: ${dataset.url || "N/A"}
               {loading ? (
                 <tr>
                   <td colSpan={cityId ? 9 : 10} className={styles.tableCell} style={{ textAlign: "center" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <div className={styles.loadingSpinner}></div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                      <Loader size="sm" color="dark" />
                       <span className={styles.loadingText}>Loading datasets...</span>
                     </div>
                   </td>

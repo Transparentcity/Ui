@@ -8,6 +8,7 @@ interface ThemeContextType {
   theme: Theme;
   toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
+  mounted: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -21,7 +22,7 @@ function getDomTheme(): Theme | null {
   return null;
 }
 
-function getInitialTheme(): Theme {
+function getClientTheme(): Theme {
   if (typeof window === "undefined") return "light";
 
   const savedTheme = localStorage.getItem("theme");
@@ -40,7 +41,9 @@ function getInitialTheme(): Theme {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => getInitialTheme());
+  // Always start with "light" on server to prevent hydration mismatch
+  const [theme, setThemeState] = useState<Theme>("light");
+  const [mounted, setMounted] = useState(false);
 
   const applyTheme = (newTheme: Theme) => {
     if (typeof document === "undefined") return;
@@ -54,13 +57,25 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Only read from localStorage/system after hydration
   useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+    setMounted(true);
+    const clientTheme = getClientTheme();
+    setThemeState(clientTheme);
+    applyTheme(clientTheme);
+  }, []);
+
+  useEffect(() => {
+    if (mounted) {
+      applyTheme(theme);
+    }
+  }, [theme, mounted]);
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
-    localStorage.setItem("theme", newTheme);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("theme", newTheme);
+    }
     applyTheme(newTheme);
   };
 
@@ -70,7 +85,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme, mounted }}>
       {children}
     </ThemeContext.Provider>
   );

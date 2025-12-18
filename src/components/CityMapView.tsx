@@ -12,6 +12,7 @@ import {
   type CityDetail,
   type CityStructureData,
 } from "@/lib/apiClient";
+import Loader from "./Loader";
 import "./CityMapView.css";
 
 interface CityMapViewProps {
@@ -42,6 +43,7 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
   const [selectedGeographicStructure, setSelectedGeographicStructure] = useState<string | null>(null);
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   const [mapZoom, setMapZoom] = useState<number>(11);
+  const [structureDataReady, setStructureDataReady] = useState(false);
   
   // Update cityData when prop changes
   useEffect(() => {
@@ -50,64 +52,6 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
     }
   }, [propCityData]);
 
-  // Calculate map center from shapefiles
-  const calculateMapCenter = useCallback((shapefilesToCheck: CityShapefile[]) => {
-    if (shapefilesToCheck.length === 0) return;
-
-    let minLng = 180;
-    let maxLng = -180;
-    let minLat = 90;
-    let maxLat = -90;
-    let hasBounds = false;
-
-    shapefilesToCheck.forEach((shapefile) => {
-      const geometryData = shapefile.geometry_data;
-      if (geometryData && geometryData.type === "FeatureCollection") {
-        geometryData.features.forEach((feature: any) => {
-          if (feature.geometry && feature.geometry.coordinates) {
-            const coords = feature.geometry.coordinates;
-            if (feature.geometry.type === "Polygon") {
-              coords[0].forEach((coord: [number, number]) => {
-                minLng = Math.min(minLng, coord[0]);
-                maxLng = Math.max(maxLng, coord[0]);
-                minLat = Math.min(minLat, coord[1]);
-                maxLat = Math.max(maxLat, coord[1]);
-                hasBounds = true;
-              });
-            } else if (feature.geometry.type === "MultiPolygon") {
-              coords.forEach((polygon: any) => {
-                polygon[0].forEach((coord: [number, number]) => {
-                  minLng = Math.min(minLng, coord[0]);
-                  maxLng = Math.max(maxLng, coord[0]);
-                  minLat = Math.min(minLat, coord[1]);
-                  maxLat = Math.max(maxLat, coord[1]);
-                  hasBounds = true;
-                });
-              });
-            }
-          }
-        });
-      }
-    });
-
-    if (hasBounds) {
-      const centerLng = (minLng + maxLng) / 2;
-      const centerLat = (minLat + maxLat) / 2;
-      setMapCenter([centerLng, centerLat]);
-      
-      // Calculate appropriate zoom level based on bounds
-      const lngDiff = maxLng - minLng;
-      const latDiff = maxLat - minLat;
-      const maxDiff = Math.max(lngDiff, latDiff);
-      
-      // Rough zoom calculation
-      if (maxDiff > 1) setMapZoom(8);
-      else if (maxDiff > 0.5) setMapZoom(9);
-      else if (maxDiff > 0.2) setMapZoom(10);
-      else if (maxDiff > 0.1) setMapZoom(11);
-      else setMapZoom(12);
-    }
-  }, []);
 
   // Load city data, leaders, and shapefiles
   useEffect(() => {
@@ -118,9 +62,11 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
       return;
     }
     
-    // Reset loading ref when cityId changes
+        // Reset loading ref when cityId changes
     if (loadingRef.current.cityId !== cityId) {
       loadingRef.current = { cityId, inProgress: false };
+      // Reset structure data ready state when city changes
+      setStructureDataReady(false);
     }
     
     loadingRef.current.inProgress = true;
@@ -143,17 +89,25 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
           ? Promise.resolve(propCityData || cityData)
           : getCity(cityId, token);
 
-        // Fetch city data and structure in parallel
-        // getCityStructure returns the full structure, which includes leaders and shapefiles
-        const [city, structureData] = await Promise.all([
-          cityPromise,
-          isAdmin
-            ? getCityStructure(cityId, token).catch((err) => {
-                console.error("Failed to load city structure:", err);
-                return null;
-              })
-            : Promise.resolve(null),
-        ]);
+        // Load city data first for faster initial render
+        const city = await cityPromise;
+
+        if (cancelled) return;
+
+        // Set city data immediately so UI can render
+        setCityData(city);
+
+        // Load structure data in background (heavy operation)
+        // For non-admin users, we still need leaders for the dropdown
+        let structureData = null;
+        try {
+          structureData = await getCityStructure(cityId, token).catch((err) => {
+            console.error("Failed to load city structure:", err);
+            return null;
+          });
+        } catch (err) {
+          console.error("Error loading city structure:", err);
+        }
 
         if (cancelled) return;
 
@@ -184,22 +138,90 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
           console.warn(`  Query configs: ${queryConfigs.length}`);
           console.warn(`  Configs with endpoints: ${configsWithEndpoints.length}`);
         }
+        
+        // Calculate map center from shapefiles BEFORE updating state
+        // This ensures we have the center ready when map initializes
+        let calculatedCenter: [number, number] | null = null;
+        let calculatedZoom = 11;
+        
+        if (shapefilesData.length > 0) {
+          // Calculate center from shapefiles
+          let minLng = 180;
+          let maxLng = -180;
+          let minLat = 90;
+          let maxLat = -90;
+          let hasBounds = false;
 
-        if (cancelled) return;
+          shapefilesData.forEach((shapefile) => {
+            const geometryData = shapefile.geometry_data;
+            if (geometryData && geometryData.type === "FeatureCollection") {
+              geometryData.features.forEach((feature: any) => {
+                if (feature.geometry && feature.geometry.coordinates) {
+                  const coords = feature.geometry.coordinates;
+                  if (feature.geometry.type === "Polygon") {
+                    coords[0].forEach((coord: [number, number]) => {
+                      minLng = Math.min(minLng, coord[0]);
+                      maxLng = Math.max(maxLng, coord[0]);
+                      minLat = Math.min(minLat, coord[1]);
+                      maxLat = Math.max(maxLat, coord[1]);
+                      hasBounds = true;
+                    });
+                  } else if (feature.geometry.type === "MultiPolygon") {
+                    coords.forEach((polygon: any) => {
+                      polygon[0].forEach((coord: [number, number]) => {
+                        minLng = Math.min(minLng, coord[0]);
+                        maxLng = Math.max(maxLng, coord[0]);
+                        minLat = Math.min(minLat, coord[1]);
+                        maxLat = Math.max(maxLat, coord[1]);
+                        hasBounds = true;
+                      });
+                    });
+                  }
+                }
+              });
+            }
+          });
 
-        setCityData(city);
+          if (hasBounds) {
+            const centerLng = (minLng + maxLng) / 2;
+            const centerLat = (minLat + maxLat) / 2;
+            calculatedCenter = [centerLng, centerLat];
+            
+            // Calculate appropriate zoom level based on bounds
+            const lngDiff = maxLng - minLng;
+            const latDiff = maxLat - minLat;
+            const maxDiff = Math.max(lngDiff, latDiff);
+            
+            if (maxDiff > 1) calculatedZoom = 8;
+            else if (maxDiff > 0.5) calculatedZoom = 9;
+            else if (maxDiff > 0.2) calculatedZoom = 10;
+            else if (maxDiff > 0.1) calculatedZoom = 11;
+            else calculatedZoom = 12;
+          }
+        }
+
+        // Batch all state updates together to minimize re-renders
+        // Update structure-related state and map center in one batch
         setCityStructure(structureData);
         setLeaders(leadersData);
         setShapefiles(shapefilesData);
-
-        // Calculate map center from shapefiles if available
-        if (shapefilesData.length > 0) {
-          calculateMapCenter(shapefilesData);
-        } else if (city) {
-          // Try to get center from city metadata or use a reasonable default
-          // For now, we'll wait for shapefiles or use a fallback
-          setMapCenter(null); // Will be set when map initializes
+        
+        if (calculatedCenter) {
+          setMapCenter(calculatedCenter);
+          setMapZoom(calculatedZoom);
+        } else {
+          // No shapefiles available - use a reasonable default center
+          // For US cities, use center of US; for others, we'll need city coordinates
+          // This allows map to initialize even without shapefiles
+          const defaultCenter: [number, number] = city?.country === "United States" || !city?.country
+            ? [-98.5795, 39.8283] // Center of US
+            : [-98.5795, 39.8283]; // Generic default (could be improved with city coordinates)
+          setMapCenter(defaultCenter);
+          setMapZoom(10); // Reasonable default zoom
         }
+        
+        // Mark structure data as ready - this allows map to initialize
+        setStructureDataReady(true);
       } catch (err: any) {
         if (cancelled) return;
         console.error("Error loading city data:", err);
@@ -221,9 +243,10 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cityId, isAdmin]); // Only depend on cityId and isAdmin - propCityData is handled separately
 
-  // Initialize Mapbox map
+  // Initialize Mapbox map - wait for structure data to be ready
+  // This ensures we have the correct center before initializing
   useEffect(() => {
-    if (!mapContainerRef.current || loading) return;
+    if (!mapContainerRef.current || loading || !structureDataReady) return;
 
     const loadMapbox = async () => {
       try {
@@ -275,10 +298,15 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
 
       mapboxgl.accessToken = mapboxToken;
 
-      // Use calculated center or fallback to a generic center
-      // We'll use a default that works for most US cities, but ideally should come from city data
-      const center: [number, number] = mapCenter || [-98.5795, 39.8283]; // Center of US
-      const zoom = mapCenter ? mapZoom : 4;
+      // Use calculated center from shapefiles, or default center
+      // mapCenter should always be set by now (either from shapefiles or default)
+      if (!mapCenter) {
+        console.log("Waiting for map center calculation...");
+        return;
+      }
+      
+      const center: [number, number] = mapCenter;
+      const zoom = mapZoom;
 
       // Create map
       const map = new mapboxgl.Map({
@@ -310,7 +338,7 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
         mapInstanceRef.current = null;
       }
     };
-  }, [loading, mapCenter, mapZoom, isAdmin, selectedGeographicStructure, shapefiles]);
+  }, [loading, structureDataReady, mapCenter, mapZoom, isAdmin, selectedGeographicStructure, shapefiles]);
 
   // Get color for shapefile based on index
   const getShapefileColor = (index: number): string => {
@@ -441,11 +469,55 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
             const props = feature.properties || {};
             const identifier = props[shapefile.identifier_field || ""] || "N/A";
             
+            // Find matching leader for this district
+            let leaderName = "";
+            // Convert identifier to number for comparison
+            let districtNumber: number | null = null;
+            if (typeof identifier === "number") {
+              districtNumber = identifier;
+            } else if (typeof identifier === "string") {
+              const parsed = parseInt(identifier, 10);
+              if (!isNaN(parsed)) {
+                districtNumber = parsed;
+              }
+            }
+            
+            // Try to find matching leader
+            if (districtNumber !== null) {
+              let matchingLeader = null;
+              
+              // First, try matching by geographic_structure_id if both exist (preferred method)
+              if (shapefile.geographic_structure_id) {
+                matchingLeader = leaders.find((leader) => {
+                  return leader.district === districtNumber && 
+                         leader.geographic_structure_id === shapefile.geographic_structure_id;
+                });
+              }
+              
+              // If no match found and geographic_structure_id method didn't work, try matching by district alone (fallback)
+              if (!matchingLeader) {
+                matchingLeader = leaders.find((leader) => {
+                  return leader.district === districtNumber;
+                });
+              }
+              
+              if (matchingLeader) {
+                leaderName = matchingLeader.name;
+              }
+            }
+            
+            // Build popup HTML
+            let popupHTML = `<div><strong>${shapefile.shapefile_name}</strong><br/>Type: ${shapefile.structure_type}<br/>${shapefile.identifier_field ? `${shapefile.identifier_field}: ${identifier}` : ""}`;
+            
+            if (leaderName) {
+              popupHTML += `<br/>Leader: ${leaderName}`;
+            }
+            
+            popupHTML += `</div>`;
+            
             new (window as any).mapboxgl.Popup()
               .setLngLat(e.lngLat)
-              .setHTML(
-                `<div><strong>${shapefile.shapefile_name}</strong><br/>Type: ${shapefile.structure_type}<br/>${shapefile.identifier_field ? `${shapefile.identifier_field}: ${identifier}` : ""}</div>`
-              )
+              .setHTML(popupHTML)
               .addTo(map);
           }
         });
@@ -455,7 +527,7 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
     } catch (err) {
       console.error(`Error adding shapefile ${shapefile.id} to map:`, err);
     }
-  }, []);
+  }, [leaders]);
 
   // Fit map to shapefile bounds
   const fitMapToShapefiles = useCallback((map: any, shapefilesToFit: CityShapefile[]) => {
@@ -546,49 +618,92 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
       return;
     }
 
-    // Find the shapefile that matches the leader's geographic_structure_id
-    const matchingShapefile = shapefiles.find(
-      (sf) => sf.geographic_structure_id === leader.geographic_structure_id
-    );
+    // Try to find matching shapefile - first by geographic_structure_id, then by district match
+    let matchingShapefile = null;
+    let districtFeature = null;
+
+    // First, try matching by geographic_structure_id if both exist (preferred method)
+    if (leader.geographic_structure_id) {
+      matchingShapefile = shapefiles.find(
+        (sf) => sf.geographic_structure_id === leader.geographic_structure_id
+      );
+    }
+
+    // If no match found, try to find any shapefile that contains the district (fallback)
+    if (!matchingShapefile) {
+      // Search through all shapefiles to find one that contains this district
+      for (const shapefile of shapefiles) {
+        const geometryData = shapefile.geometry_data;
+        if (!geometryData || geometryData.type !== "FeatureCollection") {
+          continue;
+        }
+
+        const identifierField = shapefile.identifier_field || "district";
+        
+        // Try to find the district feature in this shapefile
+        const feature = geometryData.features.find((feature: any) => {
+          const props = feature.properties || {};
+          const districtValue = props[identifierField];
+          
+          // Handle both string and number comparisons
+          if (typeof districtValue === "number") {
+            return districtValue === leader.district;
+          } else if (typeof districtValue === "string") {
+            // Try to parse as number
+            const parsed = parseInt(districtValue, 10);
+            if (!isNaN(parsed)) {
+              return parsed === leader.district;
+            }
+            // Also try direct string comparison
+            return districtValue === String(leader.district);
+          }
+          return false;
+        });
+
+        if (feature && feature.geometry) {
+          matchingShapefile = shapefile;
+          districtFeature = feature;
+          break;
+        }
+      }
+    } else {
+      // We found a shapefile by geographic_structure_id, now find the district feature
+      const geometryData = matchingShapefile.geometry_data;
+      if (!geometryData || geometryData.type !== "FeatureCollection") {
+        console.warn("Invalid geometry data for shapefile:", matchingShapefile.id);
+        return;
+      }
+
+      const identifierField = matchingShapefile.identifier_field || "district";
+      
+      districtFeature = geometryData.features.find((feature: any) => {
+        const props = feature.properties || {};
+        const districtValue = props[identifierField];
+        
+        // Handle both string and number comparisons
+        if (typeof districtValue === "number") {
+          return districtValue === leader.district;
+        } else if (typeof districtValue === "string") {
+          // Try to parse as number
+          const parsed = parseInt(districtValue, 10);
+          if (!isNaN(parsed)) {
+            return parsed === leader.district;
+          }
+          // Also try direct string comparison
+          return districtValue === String(leader.district);
+        }
+        return false;
+      });
+    }
 
     if (!matchingShapefile) {
-      console.warn("No shapefile found for leader's geographic structure:", leader.geographic_structure_id);
+      console.warn("No shapefile found containing district", leader.district);
       return;
     }
-
-    // Find the feature in the shapefile that matches the leader's district
-    const geometryData = matchingShapefile.geometry_data;
-    if (!geometryData || geometryData.type !== "FeatureCollection") {
-      console.warn("Invalid geometry data for shapefile:", matchingShapefile.id);
-      return;
-    }
-
-    // Get the identifier field from the shapefile
-    const identifierField = matchingShapefile.identifier_field || "district";
-    
-    // Find the feature matching the district number
-    const districtFeature = geometryData.features.find((feature: any) => {
-      const props = feature.properties || {};
-      const districtValue = props[identifierField];
-      
-      // Handle both string and number comparisons
-      if (typeof districtValue === "number") {
-        return districtValue === leader.district;
-      } else if (typeof districtValue === "string") {
-        // Try to parse as number
-        const parsed = parseInt(districtValue, 10);
-        if (!isNaN(parsed)) {
-          return parsed === leader.district;
-        }
-        // Also try direct string comparison
-        return districtValue === String(leader.district);
-      }
-      return false;
-    });
 
     if (!districtFeature || !districtFeature.geometry) {
       console.warn(
-        `No feature found for district ${leader.district} in shapefile ${matchingShapefile.shapefile_name} using field ${identifierField}`
+        `No feature found for district ${leader.district} in shapefile ${matchingShapefile.shapefile_name}`
       );
       return;
     }
@@ -634,8 +749,8 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
       return;
     }
 
-    // If leader has a geographic_structure_id, automatically select that structure (admin only)
-    if (leader.geographic_structure_id && isAdmin) {
+    // If leader has a geographic_structure_id, automatically select and display that structure (for all users)
+    if (leader.geographic_structure_id) {
       const matchingShapefile = shapefiles.find(
         (sf) => sf.geographic_structure_id === leader.geographic_structure_id
       );
@@ -669,7 +784,7 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
     }
 
     centerMapOnLeaderDistrict(selectedLeaderId);
-  }, [selectedLeaderId, shapefiles, leaders, isAdmin, selectedGeographicStructure, centerMapOnLeaderDistrict]);
+  }, [selectedLeaderId, shapefiles, leaders, selectedGeographicStructure, centerMapOnLeaderDistrict]);
 
   // Update map when geographic structure selection changes
   useEffect(() => {
@@ -685,7 +800,7 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
         if (mapInstanceRef.current && mapInstanceRef.current.loaded()) {
           clearInterval(checkMapLoaded);
           // Trigger update after map loads
-          if (isAdmin && selectedGeographicStructure && shapefiles.length > 0) {
+          if (selectedGeographicStructure && shapefiles.length > 0) {
             console.log("Map now loaded, updating with structure");
             updateMapWithSelectedStructure(mapInstanceRef.current, selectedGeographicStructure);
           }
@@ -695,9 +810,11 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
       return () => clearInterval(checkMapLoaded);
     }
     
-    if (!isAdmin || !selectedGeographicStructure) {
-      // Remove all shapefile layers if not in admin mode or no selection
-      console.log("Removing shapefiles - isAdmin:", isAdmin, "selectedStructure:", selectedGeographicStructure);
+    // Display geographic structure if selected (for all users, not just admin)
+    // Only allow manual selection in admin mode, but auto-display when leader is selected
+    if (!selectedGeographicStructure) {
+      // Remove all shapefile layers if no selection
+      console.log("Removing shapefiles - no selectedStructure");
       removeAllShapefileLayers(mapInstanceRef.current);
       return;
     }
@@ -709,7 +826,7 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
 
     console.log("Updating map with structure:", selectedGeographicStructure, "shapefiles:", shapefiles.length);
     updateMapWithSelectedStructure(mapInstanceRef.current, selectedGeographicStructure);
-  }, [selectedGeographicStructure, isAdmin, shapefiles, removeAllShapefileLayers, updateMapWithSelectedStructure]);
+  }, [selectedGeographicStructure, shapefiles, removeAllShapefileLayers, updateMapWithSelectedStructure]);
 
   // Get unique geographic structure types from shapefiles
   const getAvailableGeographicStructures = (): GeographicStructure[] => {
@@ -819,8 +936,9 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
 
   if (loading) {
     return (
-      <div className="city-map-view-loading">
-        <div>Loading map...</div>
+      <div className="city-map-view-loading" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", padding: "40px" }}>
+        <Loader size="sm" color="dark" />
+        <span>Loading map...</span>
       </div>
     );
   }

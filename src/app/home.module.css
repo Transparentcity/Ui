@@ -452,4 +452,49 @@
   }
 }
 
+@media (max-width: 768px) {
+  .navRight .link {
+    display: none;
+  }
+
+  .navRight .button {
+    white-space: nowrap;
+    min-width: auto;
+  }
+
+  .menuWrap {
+    flex: 0 0 auto;
+  }
+
+  .menuWrap .buttonPrimary {
+    white-space: nowrap;
+    min-width: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .brand {
+    min-width: auto;
+  }
+
+  .brandText {
+    font-size: 16px;
+  }
+
+  .navRight {
+    gap: 6px;
+  }
+
+  .navRight .button {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  .menuWrap .buttonPrimary {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+}
+
+
 

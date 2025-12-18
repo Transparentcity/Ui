@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import TitleBar from "@/components/TitleBar";
 import Sidebar from "@/components/Sidebar";
@@ -14,7 +14,8 @@ import MetricsAdmin from "@/components/MetricsAdmin";
 import UserManagement from "@/components/UserManagement";
 import JobLogsViewer from "@/components/JobLogsViewer";
 import { useTheme } from "@/contexts/ThemeContext";
-import { getMyPermissions } from "@/lib/apiClient";
+import { getMyPermissions, getSavedCities } from "@/lib/apiClient";
+import Loader from "@/components/Loader";
 import "./dashboard.css";
 
 type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "metrics-admin" | "datasets-admin" | "city" | "metric" | "job-logs";
@@ -48,6 +49,7 @@ export default function DashboardPage() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [selectedCityId, setSelectedCityId] = useState<number | null>(null);
   const [activeCityId, setActiveCityId] = useState<number | null>(null);
+  const hasAutoSelectedCity = useRef(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -103,6 +105,42 @@ export default function DashboardPage() {
     }
   }, [isAuthenticated, user, getAccessTokenSilently]);
 
+  // Auto-select first city from MyCities on initial load (default to map view)
+  useEffect(() => {
+    const autoSelectFirstCity = async () => {
+      // Only run once, when authenticated and no city is currently active
+      if (
+        !isAuthenticated ||
+        isLoading ||
+        activeCityId !== null ||
+        hasAutoSelectedCity.current
+      ) {
+        return;
+      }
+
+      try {
+        const token = await getAccessTokenSilently();
+        const savedCities = await getSavedCities(token);
+        
+        // If user has saved cities and no city is active, select the first one
+        if (savedCities.length > 0 && activeCityId === null) {
+          const firstCityId = savedCities[0].id;
+          setActiveCityId(firstCityId);
+          setCurrentView("city"); // Default to map view
+          hasAutoSelectedCity.current = true;
+          console.log("Auto-selected first city from MyCities:", firstCityId);
+        }
+      } catch (error) {
+        console.error("Error auto-selecting first city:", error);
+        // Don't mark as attempted if there was an error, so we can retry
+      }
+    };
+
+    if (isAuthenticated && !isLoading) {
+      autoSelectFirstCity();
+    }
+  }, [isAuthenticated, isLoading, activeCityId, getAccessTokenSilently]);
+
   const handleMenuToggle = () => {
     setSidebarOpen(!sidebarOpen);
   };
@@ -154,8 +192,9 @@ export default function DashboardPage() {
 
   if (isLoading || isCheckingAdmin) {
     return (
-      <div className="dashboard-loading">
-        <div className="loader">Loading...</div>
+      <div className="dashboard-loading" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px" }}>
+        <Loader size="sm" color="dark" />
+        <span>Loading...</span>
       </div>
     );
   }

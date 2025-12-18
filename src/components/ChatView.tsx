@@ -180,33 +180,12 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
     setIsTyping(true);
     setIsStreaming(true);
 
-    // Create assistant message placeholder for streaming
+    // Create assistant message ID for streaming (but don't add to messages until content arrives)
     const assistantMessageId = `assistant-${Date.now()}`;
     setCurrentAssistantMessageId(assistantMessageId);
-    const assistantMessage: Message = {
-      id: assistantMessageId,
-      role: "assistant",
-      content: "",
-      tool_calls: [],
-      intermediate_events: [],
-    };
-    console.log("➕ Creating assistant message:", assistantMessageId);
+    console.log("➕ Preparing assistant message:", assistantMessageId);
     
-    // Use functional update to ensure we're working with latest state
-    setMessages((prev) => {
-      // Check if message already exists (shouldn't, but be safe)
-      if (prev.some((msg) => msg.id === assistantMessageId)) {
-        console.warn("⚠️ Assistant message already exists, skipping creation");
-        return prev;
-      }
-      const updated = [...prev, assistantMessage];
-      console.log("📋 Messages after adding assistant:", updated.length, "messages");
-      console.log("📋 Last message:", updated[updated.length - 1]);
-      return updated;
-    });
-    
-    // Force a small delay to ensure state is set before streaming starts
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    // Don't add empty message to messages array - wait for first token
 
     try {
       const token = await getAccessTokenSilently();
@@ -286,7 +265,8 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
               
               const messageExists = prev.some((msg) => msg.id === assistantMessageId);
               if (!messageExists) {
-                console.warn("⚠️ Assistant message not found in state, creating it");
+                // First token - create the message now that we have content
+                console.log("✅ Creating assistant message with first token");
                 return [
                   ...prev,
                   {
@@ -337,17 +317,32 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
               timestamp: now,
             });
 
-            // Update message with tool call start
-            setMessages((prev) =>
-              prev.map((msg) =>
+            // Update message with tool call start (create if doesn't exist yet)
+            setMessages((prev) => {
+              const messageExists = prev.some((msg) => msg.id === assistantMessageId);
+              if (!messageExists) {
+                // Create message with tool call even if no text content yet
+                console.log("✅ Creating assistant message with tool call");
+                return [
+                  ...prev,
+                  {
+                    id: assistantMessageId,
+                    role: "assistant" as const,
+                    content: streamingStateRef.current!.fullResponse,
+                    tool_calls: [],
+                    intermediate_events: [...streamingStateRef.current!.intermediateEvents],
+                  },
+                ];
+              }
+              return prev.map((msg) =>
                 msg.id === assistantMessageId
                   ? {
                       ...msg,
                       intermediate_events: [...streamingStateRef.current!.intermediateEvents],
                     }
                   : msg
-              )
-            );
+              );
+            });
           } else if (event.type === "tool_call_args" && event.tool_id) {
             if (streamingStateRef.current?.toolCallMap[event.tool_id]) {
               streamingStateRef.current.toolCallMap[event.tool_id].arguments = event.arguments;
@@ -411,33 +406,38 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
       const finalToolCalls = [...streamingStateRef.current.toolCalls];
       const finalEvents = [...streamingStateRef.current.intermediateEvents];
       
-      setMessages((prev) => {
-        const messageExists = prev.some((msg) => msg.id === assistantMessageId);
-        if (!messageExists) {
-          console.warn("⚠️ Assistant message not found when finalizing, creating it");
-          return [
-            ...prev,
-            {
-              id: assistantMessageId,
-              role: "assistant" as const,
-              content: finalContent,
-              tool_calls: finalToolCalls,
-              intermediate_events: finalEvents,
-            },
-          ];
-        }
-        
-        return prev.map((msg) =>
-          msg.id === assistantMessageId
-            ? {
-                ...msg,
+      // Only create/update message if there's actual content, tool calls, or events
+      if (finalContent.trim() || finalToolCalls.length > 0 || finalEvents.length > 0) {
+        setMessages((prev) => {
+          const messageExists = prev.some((msg) => msg.id === assistantMessageId);
+          if (!messageExists) {
+            console.log("✅ Creating assistant message during finalization");
+            return [
+              ...prev,
+              {
+                id: assistantMessageId,
+                role: "assistant" as const,
                 content: finalContent,
                 tool_calls: finalToolCalls,
                 intermediate_events: finalEvents,
-              }
-            : msg
-        );
-      });
+              },
+            ];
+          }
+          
+          return prev.map((msg) =>
+            msg.id === assistantMessageId
+              ? {
+                  ...msg,
+                  content: finalContent,
+                  tool_calls: finalToolCalls,
+                  intermediate_events: finalEvents,
+                }
+              : msg
+          );
+        });
+      } else {
+        console.log("⚠️ No content, tool calls, or events - not creating message");
+      }
       
       console.log("✅ Finalized message with content length:", finalContent.length);
       console.log("✅ Final message preview:", finalContent.substring(0, 100));
@@ -613,26 +613,34 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
               No messages yet. Start a conversation!
             </div>
           ) : (
-            messages.map((msg) => {
-              console.log("🎨 Rendering message:", msg.id, "content length:", msg.content?.length || 0);
-              return (
-                <div
-                  key={msg.id}
-                  className={`chat-message ${
-                    msg.role === "user" ? "user-message" : "assistant-message"
-                  }`}
-                >
-                  {msg.role === "assistant" ? (
-                    <div className="assistant-bubble">
-                      <div className="assistant-name">Seymour</div>
-                      {renderAssistantMessage(msg)}
-                    </div>
-                  ) : (
-                    <div className="message-content">{msg.content}</div>
-                  )}
-                </div>
-              );
-            })
+            messages
+              .filter((msg) => {
+                // Filter out assistant messages with no content and no tool calls
+                if (msg.role === "assistant" && !msg.content && (!msg.tool_calls || msg.tool_calls.length === 0) && (!msg.intermediate_events || msg.intermediate_events.length === 0)) {
+                  return false;
+                }
+                return true;
+              })
+              .map((msg) => {
+                console.log("🎨 Rendering message:", msg.id, "content length:", msg.content?.length || 0);
+                return (
+                  <div
+                    key={msg.id}
+                    className={`chat-message ${
+                      msg.role === "user" ? "user-message" : "assistant-message"
+                    }`}
+                  >
+                    {msg.role === "assistant" ? (
+                      <div className="assistant-bubble">
+                        <div className="assistant-name">Seymour</div>
+                        {renderAssistantMessage(msg)}
+                      </div>
+                    ) : (
+                      <div className="message-content">{msg.content}</div>
+                    )}
+                  </div>
+                );
+              })
           )}
           <div ref={messagesEndRef} />
         </div>

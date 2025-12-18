@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { listJobSessions, deleteSession } from "@/lib/apiClient";
+import Loader from "./Loader";
 
 interface Session {
   session_id: string;
@@ -116,16 +117,9 @@ export default function JobSessionList({
 
   if (loading) {
     return (
-      <div className="session-empty-state">
-        <div
-          style={{
-            textAlign: "center",
-            padding: "12px",
-            color: "var(--text-secondary)",
-          }}
-        >
-          Loading job sessions...
-        </div>
+      <div className="session-empty-state" style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center", padding: "12px" }}>
+        <Loader size="sm" color="dark" />
+        <span style={{ color: "var(--text-secondary)" }}>Loading job sessions...</span>
       </div>
     );
   }

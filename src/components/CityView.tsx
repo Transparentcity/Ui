@@ -6,6 +6,7 @@ import CityDataAdmin from "@/components/CityDataAdmin";
 import CityMapView from "@/components/CityMapView";
 import { CityDetail, getCity, getSavedCities, saveCity, unsaveCity } from "@/lib/apiClient";
 import { emitSavedCitiesChanged, SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEvents";
+import Loader from "@/components/Loader";
 import "./CityView.css";
 
 interface CityViewProps {
@@ -38,9 +39,14 @@ export default function CityView({ cityId, isAdmin }: CityViewProps) {
       setError(null);
       const token = await getAccessTokenSilently();
       
-      // Load basic city data
-      const city = await getCity(cityId, token);
+      // Load city data and saved status in parallel for better performance
+      const [city, savedCities] = await Promise.all([
+        getCity(cityId, token),
+        getSavedCities(token).catch(() => []), // Don't fail if saved cities check fails
+      ]);
+      
       setCityData(city);
+      setIsCitySaved(savedCities.some((city) => city.id === cityId));
     } catch (err: any) {
       setError(err.message || "Failed to load city data");
       console.error("Error loading city data:", err);
@@ -66,8 +72,8 @@ export default function CityView({ cityId, isAdmin }: CityViewProps) {
       loadingRef.current = { cityId, inProgress: false };
     }
     
+    // loadCityData now handles both city data and saved status in parallel
     loadCityData();
-    checkCitySavedStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cityId]); // Only depend on cityId - callbacks are memoized and stable
 
@@ -107,8 +113,9 @@ export default function CityView({ cityId, isAdmin }: CityViewProps) {
 
   if (loading) {
     return (
-      <div className="city-view-loading">
-        <div className="loader">Loading city data...</div>
+      <div className="city-view-loading" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", padding: "40px" }}>
+        <Loader size="sm" color="dark" />
+        <span>Loading city data...</span>
       </div>
     );
   }

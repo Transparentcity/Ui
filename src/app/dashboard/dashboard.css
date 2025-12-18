@@ -382,6 +382,7 @@
 
 .title-bar .logo-corners .brace {
   fill: #1f2937;
+  animation: none !important; /* Ensure logo is static */
 }
 
 .title-bar .logo-text {

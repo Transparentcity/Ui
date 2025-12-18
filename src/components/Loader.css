@@ -1,0 +1,103 @@
+/* TransparentCity Branded Loader Styles */
+
+/* Base loader styles */
+.tc-loader {
+  position: relative;
+  display: inline-block;
+}
+
+.tc-loader svg {
+  display: block;
+}
+
+/* Size variants */
+.tc-loader-sm {
+  width: 24px;
+  height: 24px;
+}
+
+.tc-loader-md {
+  width: 40px;
+  height: 40px;
+}
+
+.tc-loader-lg {
+  width: 80px;
+  height: 80px;
+}
+
+/* Breathing animation - braces meet and separate */
+@keyframes breathe-tr {
+  0%,
+  100% {
+    transform: translate(0%, 0%);
+  }
+  50% {
+    transform: translate(-23.5%, 23.5%);
+  }
+}
+
+@keyframes breathe-bl {
+  0%,
+  100% {
+    transform: translate(0%, 0%);
+  }
+  50% {
+    transform: translate(23.5%, -23.5%);
+  }
+}
+
+/* Apply animations to diagonal braces */
+.brace-tr {
+  animation: breathe-tr 4s ease-in-out infinite;
+  transform-origin: 50% 50%;
+}
+
+.brace-bl {
+  animation: breathe-bl 4s ease-in-out infinite;
+  transform-origin: 50% 50%;
+}
+
+/* Color variants */
+.loader-purple .brace {
+  fill: #ad35fa;
+}
+
+.loader-blue .brace {
+  fill: #3b82f6;
+}
+
+.loader-green .brace {
+  fill: #10b981;
+}
+
+.loader-orange .brace {
+  fill: #f59e0b;
+}
+
+.loader-white .brace {
+  fill: #ffffff;
+}
+
+.loader-dark .brace {
+  fill: #1f2937;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .brace-tr,
+  .brace-bl {
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.6;
+    }
+  }
+}
+

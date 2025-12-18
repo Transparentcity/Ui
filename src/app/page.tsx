@@ -11,42 +11,9 @@ import {
   searchPublicCities,
   type PublicCitySearchResult,
 } from "@/lib/publicApiClient";
+import Loader from "@/components/Loader";
 
 import "./landing.css";
-
-type ResearchCard = {
-  id: number;
-  title: string;
-  text: string;
-  permalinkPath: string;
-  meta: string;
-  visual_elements: Array<{
-    type: string;
-    placeholder: string;
-    description: string;
-    url: string;
-  }>;
-};
-
-// Fallback cards if API fails
-const FALLBACK_RESEARCH_CARDS: ResearchCard[] = [
-  {
-    id: 15,
-    title: "Traffic calming — where the risk actually is",
-    text: "A civic question answered with public data, charts, and spatial context.",
-    permalinkPath: "/api/research/permalink/15",
-    meta: "Research",
-    visual_elements: [],
-  },
-  {
-    id: 1,
-    title: "A city problem, looked at spatially",
-    text: "A demonstration of why maps matter: overlap, clustering, and change over time.",
-    permalinkPath: "/api/research/permalink/1",
-    meta: "Research",
-    visual_elements: [],
-  },
-];
 
 export default function Home() {
   const { isAuthenticated, isLoading, user, loginWithRedirect } = useAuth0();
@@ -65,14 +32,8 @@ export default function Home() {
   const lastRequestIdRef = useRef(0);
   const cityPickerRef = useRef<HTMLDivElement | null>(null);
 
-  // Research permalinks are served by the backend (HTML).
-  const apiBase =
-    process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-
   // Landing-hero screenshot carousel (matches original landing page)
   const [activeSlide, setActiveSlide] = useState(0);
-  const [researchCards, setResearchCards] = useState<ResearchCard[]>([]);
-  const [researchLoading, setResearchLoading] = useState(true);
 
   const normalizedCityQuery = useMemo(() => cityQuery.trim(), [cityQuery]);
 
@@ -193,48 +154,6 @@ export default function Home() {
     }, 8000);
 
     return () => window.clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      setResearchLoading(true);
-      try {
-        const res = await fetch("/api/research/public?limit=6&status=completed");
-        if (!res.ok) {
-          throw new Error(`Failed to fetch research: ${res.status}`);
-        }
-        const data = (await res.json()) as { reports: ResearchCard[] };
-        if (cancelled) return;
-
-        if (data.reports && data.reports.length > 0) {
-          setResearchCards(
-            data.reports.map((r) => ({
-              ...r,
-              meta: "Research",
-            })),
-          );
-        } else {
-          // Fallback to hardcoded cards
-          setResearchCards(FALLBACK_RESEARCH_CARDS);
-        }
-      } catch (e) {
-        console.error("Failed to load research cards:", e);
-        if (cancelled) return;
-        // Fallback to hardcoded cards on error
-        setResearchCards(FALLBACK_RESEARCH_CARDS);
-      } finally {
-        if (!cancelled) {
-          setResearchLoading(false);
-        }
-      }
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   const handleLogin = async () => {
@@ -623,13 +542,12 @@ export default function Home() {
             {/* Use the original landing-page hero language + imagery */}
             <div className="hero-content">
               <div className="hero-text">
-                <span className="badge">📊 Democratizing city data</span>
+                <span className="badge">📊 Your city's data, made clear</span>
                 <h1 className="hero-title">Everyone Deserves Transparent Government</h1>
                 <p className="hero-description">
-                  Transparent.city turns public city data into clear, source-linked
-                  views of what’s changing. It’s built for accountability and shared
-                  understanding—so residents, researchers, and leaders can work from
-                  the same facts.
+                  See what's changing in your city. Get clear, source-linked views 
+                  of the metrics, trends, and issues that matter to you as a resident— 
+                  so you can stay informed and engaged with what's happening in your community.
                 </p>
 
                 <div className="hero-carousel" id="hero-carousel">
@@ -742,37 +660,12 @@ export default function Home() {
           </div>
         </section>
 
-        <section className={styles.section}>
-          <div className={styles.container}>
-            <div className={styles.grid}>
-              <div className={`${styles.card} ${styles.tile}`}>
-                <div className={styles.tileTitle}>Maps</div>
-                <div className={styles.tileBody}>
-                  Make place legible. “Where is this happening?” becomes a fast answer.
-                </div>
-              </div>
-              <div className={`${styles.card} ${styles.tile}`}>
-                <div className={styles.tileTitle}>Metrics</div>
-                <div className={styles.tileBody}>
-                  Make change legible. Track what moved, how much, and how quickly.
-                </div>
-              </div>
-              <div className={`${styles.card} ${styles.tile}`}>
-                <div className={styles.tileTitle}>Research</div>
-                <div className={styles.tileBody}>
-                  Make meaning legible. Short writeups that connect data to civic questions.
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
         <section className={styles.section} id="who-this-is-for">
           <div className={styles.container}>
-            <h2 className={styles.sectionTitle}>For the people doing the work</h2>
+            <h2 className={styles.sectionTitle}>Built for how you work</h2>
             <p className={styles.sectionLead}>
-              Transparent.city is a public-benefit project: clarity for residents, support
-              for accountability reporting, and better feedback loops for policy.
+              Get the clarity you need: understand your city as a resident, build 
+              stronger stories as a researcher, and make better decisions as a leader.
             </p>
 
             <div className={styles.grid}>
@@ -828,68 +721,6 @@ export default function Home() {
             </div>
           </div>
         </section>
-
-        <section className={styles.section}>
-          <div className={styles.container}>
-            <h2 className={styles.sectionTitle}>Recent research</h2>
-            <p className={styles.sectionLead}>
-              A few examples of the “question → public data → map/metrics → plain-language explanation”
-              workflow.
-            </p>
-
-            <div className={styles.researchList}>
-              {researchLoading ? (
-                <div className={styles.tileBody}>Loading research...</div>
-              ) : researchCards.length === 0 ? (
-                <div className={styles.tileBody}>No research available</div>
-              ) : (
-                researchCards.map((r) => (
-                  <div key={r.id} className={`${styles.card} ${styles.tile}`}>
-                    <div className={styles.researchMeta}>{r.meta}</div>
-                    <div className={styles.researchMedia}>
-                      {r.visual_elements && r.visual_elements.length > 0 && r.visual_elements[0].url ? (
-                        <>
-                          <iframe
-                            className={styles.researchIframe}
-                            src={r.visual_elements[0].url}
-                            title={r.visual_elements[0].description || `${r.title} chart preview`}
-                            loading="lazy"
-                          />
-                          <div className={styles.researchMediaOverlay} />
-                        </>
-                      ) : (
-                        <>
-                          <iframe
-                            className={styles.researchIframe}
-                            src={`${apiBase}${r.permalinkPath}`}
-                            title={`${r.title} preview`}
-                            loading="lazy"
-                          />
-                          <div className={styles.researchMediaOverlay} />
-                        </>
-                      )}
-                    </div>
-                    <div className={styles.researchTitle}>{r.title}</div>
-                    <div className={styles.tileBody}>{r.text}</div>
-                    <div className={styles.ctaRow} style={{ marginTop: 12 }}>
-                      <a
-                        className={`${styles.button} ${styles.buttonPrimary}`}
-                        href={`${apiBase}${r.permalinkPath}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Open
-                      </a>
-                      <a className={styles.button} href="/landing">
-                        See product page
-                      </a>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </section>
       </main>
 
       <footer className={styles.footer}>
@@ -907,13 +738,16 @@ export default function Home() {
               <div className={styles.sideTitle}>Start</div>
               <div style={{ display: "grid", gap: 6, marginTop: 8 }}>
                 <Link className={styles.link} href="/landing">
-                  Product page
+                  Learn more
                 </Link>
                 <Link className={styles.link} href="/pro">
                   Pro
                 </Link>
                 <Link className={styles.link} href="/debug/health">
                   API health
+                </Link>
+                <Link className={styles.link} href="/sitemap">
+                  Site map
                 </Link>
               </div>
             </div>
@@ -933,10 +767,6 @@ export default function Home() {
                 </a>
               </div>
             </div>
-          </div>
-
-          <div className={styles.finePrint}>
-            The difference between knowing and guessing is agency.
           </div>
         </div>
       </footer>

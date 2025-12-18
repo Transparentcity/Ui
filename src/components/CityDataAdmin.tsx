@@ -22,6 +22,7 @@ import {
 } from "@/lib/apiClient";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import DatasetsList from "@/components/DatasetsList";
+import Loader from "./Loader";
 
 interface CityData {
   id: number;
@@ -351,8 +352,9 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
 
   if (loading) {
     return (
-      <div className="admin-container" style={{ padding: "48px", textAlign: "center" }}>
-        <div className="loader">Loading city data...</div>
+      <div className="admin-container" style={{ padding: "48px", display: "flex", alignItems: "center", justifyContent: "center", gap: "12px" }}>
+        <Loader size="sm" color="dark" />
+        <span>Loading city data...</span>
       </div>
     );
   }
@@ -409,25 +411,6 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
         }}
       >
         <div style={{ flex: 1 }} />
-        <button
-          onClick={handleRefreshMetadata}
-          style={{
-            padding: "8px 16px",
-            background: "var(--brand-primary)",
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-            fontWeight: 500,
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-          }}
-          title="Re-load datasets and metadata for this city (fetches latest URLs and detailed metadata for all datasets)"
-        >
-          <span>🔄</span>
-          <span>Re-load datasets and metadata</span>
-        </button>
       </div>
 
       {/* Tabs */}
@@ -930,69 +913,102 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                 </span>
               )}
             </div>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <label style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 500 }}>
-                  Model:
-                </label>
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  style={{
-                    padding: "6px 12px",
-                    border: "1px solid var(--border-primary)",
-                    borderRadius: "4px",
-                    background: "var(--bg-tertiary)",
-                    color: "var(--text-primary)",
-                    fontSize: "12px",
-                    minWidth: "200px",
-                  }}
-                >
-                  {availableModels.map((group) =>
-                    group.models
-                      .filter((m) => m.is_available)
-                      .map((model) => (
-                        <option key={model.key} value={model.key}>
-                          {group.emoji} {model.name}
-                        </option>
-                      ))
-                  )}
-                </select>
-              </div>
-              <button
-                onClick={handleRestructure}
-                disabled={!selectedModel}
+          </div>
+
+          {/* Action Bar */}
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              alignItems: "center",
+              flexWrap: "wrap",
+              padding: "12px 16px",
+              background: "var(--bg-secondary)",
+              borderRadius: "8px",
+              marginBottom: "24px",
+              border: "1px solid var(--border-primary)",
+            }}
+          >
+            <button
+              onClick={handleRefreshMetadata}
+              style={{
+                padding: "8px 16px",
+                background: "var(--brand-primary)",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontWeight: 500,
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+              title="Re-load datasets and metadata for this city (fetches latest URLs and detailed metadata for all datasets)"
+            >
+              <span>🔄</span>
+              <span>Re-load datasets and metadata</span>
+            </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <label style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 500 }}>
+                Model:
+              </label>
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
                 style={{
-                  padding: "8px 16px",
-                  background: selectedModel ? "#f59e0b" : "#ccc",
-                  color: "white",
-                  border: "none",
+                  padding: "6px 12px",
+                  border: "1px solid var(--border-primary)",
                   borderRadius: "4px",
-                  cursor: selectedModel ? "pointer" : "not-allowed",
-                  fontWeight: 500,
-                  opacity: selectedModel ? 1 : 0.6,
-                }}
-                title={selectedModel ? "Re-structure this city using the selected model" : "Please select a model"}
-              >
-                🔄 Re-structure
-              </button>
-              <button
-                onClick={handleSaveStructure}
-                disabled={saving}
-                style={{
-                  padding: "8px 16px",
-                  background: "var(--brand-primary)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: saving ? "not-allowed" : "pointer",
-                  fontWeight: 500,
-                  opacity: saving ? 0.6 : 1,
+                  background: "var(--bg-tertiary)",
+                  color: "var(--text-primary)",
+                  fontSize: "12px",
+                  minWidth: "200px",
                 }}
               >
-                {saving ? "Saving..." : "Save Structure"}
-              </button>
+                {availableModels.map((group) =>
+                  group.models
+                    .filter((m) => m.is_available)
+                    .map((model) => (
+                      <option key={model.key} value={model.key}>
+                        {group.emoji} {model.name}
+                      </option>
+                    ))
+                )}
+              </select>
             </div>
+            <button
+              onClick={handleRestructure}
+              disabled={!selectedModel}
+              style={{
+                padding: "8px 16px",
+                background: selectedModel ? "#f59e0b" : "#ccc",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: selectedModel ? "pointer" : "not-allowed",
+                fontWeight: 500,
+                opacity: selectedModel ? 1 : 0.6,
+              }}
+              title={selectedModel ? "Re-structure this city using the selected model" : "Please select a model"}
+            >
+              🔄 Re-structure
+            </button>
+            <button
+              onClick={handleSaveStructure}
+              disabled={saving}
+              style={{
+                padding: "8px 16px",
+                background: "var(--brand-primary)",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: saving ? "not-allowed" : "pointer",
+                fontWeight: 500,
+                opacity: saving ? 0.6 : 1,
+              }}
+            >
+              {saving ? "Saving..." : "Save Structure"}
+            </button>
           </div>
 
           {/* Geographic Structures Box */}
@@ -1238,11 +1254,30 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
             
             const districtField = findDistrictField(leadersConfig, officialsData);
             
+            // Debug: Log stored leaders and officials data for troubleshooting
+            console.log("CityDataAdmin - Stored leaders:", storedLeaders.length, storedLeaders.slice(0, 3));
+            console.log("CityDataAdmin - Officials data:", officialsData.length, officialsData.slice(0, 3));
+            console.log("CityDataAdmin - District field:", districtField);
+            
             // Create a map of stored leaders by name+title+district for quick lookup
+            // Use normalized keys to handle variations in spacing, case, etc.
             const storedLeadersMap = new Map<string, any>();
             storedLeaders.forEach((leader: any) => {
-              const key = `${leader.name || ""}_${leader.title || ""}_${leader.district ?? "null"}`;
+              // Normalize the key: trim whitespace, lowercase, handle nulls
+              const normalizedName = (leader.name || "").trim().toLowerCase();
+              const normalizedTitle = (leader.title || "").trim().toLowerCase();
+              const districtValue = leader.district ?? "null";
+              const key = `${normalizedName}_${normalizedTitle}_${districtValue}`;
               storedLeadersMap.set(key, leader);
+              
+              // Also create alternative keys for fuzzy matching
+              // Try with different title variations
+              if (normalizedTitle === "supervisor") {
+                storedLeadersMap.set(`${normalizedName}_councilmember_${districtValue}`, leader);
+              }
+              if (normalizedTitle === "councilmember" || normalizedTitle === "council member") {
+                storedLeadersMap.set(`${normalizedName}_supervisor_${districtValue}`, leader);
+              }
             });
             
             // Get geographic structures for dropdown
@@ -1565,8 +1600,36 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                             const officialDistrict = officialDistrictRaw !== null && officialDistrictRaw !== undefined 
                               ? (typeof officialDistrictRaw === 'string' ? (isNaN(Number(officialDistrictRaw)) ? null : Number(officialDistrictRaw)) : officialDistrictRaw)
                               : null;
-                            const key = `${officialName}_${officialTitle}_${officialDistrict ?? "null"}`;
-                            const storedLeader = storedLeadersMap.get(key);
+                            
+                            // Normalize the key to match stored leaders (trim, lowercase, handle nulls)
+                            const normalizedName = (officialName || "").trim().toLowerCase();
+                            const normalizedTitle = (officialTitle || "").trim().toLowerCase();
+                            const districtValue = officialDistrict ?? "null";
+                            const key = `${normalizedName}_${normalizedTitle}_${districtValue}`;
+                            
+                            // Try exact match first
+                            let storedLeader = storedLeadersMap.get(key);
+                            
+                            // If no exact match, try fuzzy matching with alternative titles
+                            if (!storedLeader) {
+                              if (normalizedTitle === "supervisor") {
+                                storedLeader = storedLeadersMap.get(`${normalizedName}_councilmember_${districtValue}`);
+                              }
+                              if (!storedLeader && (normalizedTitle === "councilmember" || normalizedTitle === "council member")) {
+                                storedLeader = storedLeadersMap.get(`${normalizedName}_supervisor_${districtValue}`);
+                              }
+                            }
+                            
+                            // If still no match, try matching by name and district only (ignore title variations)
+                            if (!storedLeader && normalizedName) {
+                              for (const [mapKey, leader] of storedLeadersMap.entries()) {
+                                if (mapKey.startsWith(`${normalizedName}_`) && mapKey.endsWith(`_${districtValue}`)) {
+                                  storedLeader = leader;
+                                  break;
+                                }
+                              }
+                            }
+                            
                             const isStored = !!storedLeader;
                             
                             return (

@@ -11,6 +11,7 @@ import {
   type UserUpdateRequest,
   type UserStats,
 } from "@/lib/apiClient";
+import Loader from "./Loader";
 import styles from "./UserManagement.module.css";
 
 export default function UserManagement() {
@@ -176,8 +177,8 @@ export default function UserManagement() {
 
   if (loading && !stats) {
     return (
-      <div className={styles.loadingContainer}>
-        <div className={styles.loadingSpinner}></div>
+      <div className={styles.loadingContainer} style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center" }}>
+        <Loader size="sm" color="dark" />
         <span className={styles.loadingText}>Loading users...</span>
       </div>
     );
@@ -323,8 +324,8 @@ export default function UserManagement() {
               {loading ? (
                 <tr>
                   <td colSpan={7} className={styles.tableCell} style={{ textAlign: "center" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <div className={styles.loadingSpinner}></div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                      <Loader size="sm" color="dark" />
                       <span className={styles.loadingText}>Loading users...</span>
                     </div>
                   </td>
@@ -458,3 +459,4 @@ export default function UserManagement() {
     </div>
   );
 }
+

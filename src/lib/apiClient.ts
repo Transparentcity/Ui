@@ -16,6 +16,18 @@ const savedCitiesCache: {
 
 const SAVED_CITIES_CACHE_TTL = 5000; // 5 seconds cache
 
+// City data cache for getCity (using any to avoid forward reference issues)
+const cityDataCache: {
+  [cityId: number]: {
+    data: any | null;
+    promise: Promise<any> | null;
+    timestamp: number;
+    token: string | null;
+  };
+} = {};
+
+const CITY_DATA_CACHE_TTL = 30000; // 30 seconds cache
+
 async function request<T>(
   path: string,
   method: HttpMethod = "GET",
@@ -992,7 +1004,93 @@ export interface CityDetail {
 }
 
 export function getCity(cityId: number, token: string): Promise<CityDetail> {
-  return request<CityDetail>(`/api/cities/${cityId}`, "GET", undefined, token);
+  const now = Date.now();
+  const cacheKey = cityId;
+  const cached = cityDataCache[cacheKey];
+
+  // Return cached data if valid
+  if (
+    cached?.data &&
+    cached.token === token &&
+    (now - cached.timestamp) < CITY_DATA_CACHE_TTL
+  ) {
+    return Promise.resolve(cached.data);
+  }
+
+  // Return existing promise if request is in flight
+  if (
+    cached?.promise &&
+    cached.token === token &&
+    (now - cached.timestamp) < CITY_DATA_CACHE_TTL
+  ) {
+    return cached.promise;
+  }
+
+  // Create new request and cache it
+  const promise = request<CityDetail>(`/api/cities/${cityId}`, "GET", undefined, token)
+    .then((data: CityDetail) => {
+      // Cache the result
+      if (cityDataCache[cacheKey]?.promise === promise) {
+        cityDataCache[cacheKey] = {
+          data,
+          promise: null,
+          timestamp: now,
+          token,
+        };
+      }
+      return data;
+    })
+    .catch((error) => {
+      // Clear cache on error to allow retry
+      if (cityDataCache[cacheKey]?.promise === promise) {
+        delete cityDataCache[cacheKey];
+      }
+      throw error;
+    });
+
+  // Cache the promise
+  cityDataCache[cacheKey] = {
+    data: null,
+    promise,
+    timestamp: now,
+    token,
+  };
+
+  return promise;
+}
+
+// Clear city data cache (call this when city data might have changed)
+export function clearCityDataCache(cityId?: number): void {
+  if (cityId !== undefined) {
+    delete cityDataCache[cityId];
+  } else {
+    // Clear all city data cache
+    Object.keys(cityDataCache).forEach((key) => {
+      delete cityDataCache[Number(key)];
+    });
+  }
+}
+
+// Prefetch city data (for hover prefetching)
+export function prefetchCity(cityId: number, token: string): void {
+  // Only prefetch if not already cached or in-flight
+  const now = Date.now();
+  const cacheKey = cityId;
+  const cached = cityDataCache[cacheKey];
+
+  if (
+    cached &&
+    cached.token === token &&
+    (now - cached.timestamp) < CITY_DATA_CACHE_TTL
+  ) {
+    // Already cached or in-flight, skip
+    return;
+  }
+
+  // Trigger prefetch (don't await, fire and forget)
+  getCity(cityId, token).catch(() => {
+    // Silently fail on prefetch errors
+  });
 }
 
 // City Leaders API

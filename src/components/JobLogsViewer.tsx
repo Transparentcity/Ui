@@ -3,6 +3,7 @@
 import { useAuth0 } from "@auth0/auth0-react";
 import { useEffect, useState } from "react";
 import { Job, listJobs, getJob, getJobStats, JobStats } from "@/lib/apiClient";
+import Loader from "./Loader";
 import styles from "./JobLogsViewer.module.css";
 
 export default function JobLogsViewer() {
@@ -114,8 +115,9 @@ export default function JobLogsViewer() {
 
   if (loading && jobs.length === 0) {
     return (
-      <div className={styles.container}>
-        <div className={styles.loading}>Loading jobs...</div>
+      <div className={styles.container} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", padding: "48px" }}>
+        <Loader size="sm" color="dark" />
+        <span>Loading jobs...</span>
       </div>
     );
   }
