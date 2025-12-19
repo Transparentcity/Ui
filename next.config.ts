@@ -27,12 +27,9 @@ const nextConfig: NextConfig = {
   async rewrites() {
     // Optional: Proxy API requests in development to avoid CORS issues
     if (process.env.NODE_ENV === "development") {
-      // Use production API in production, localhost in dev
+      // In development, use env var or default to localhost
       const apiBase =
-        process.env.NEXT_PUBLIC_API_BASE_URL ||
-        (process.env.NODE_ENV === "production"
-          ? "https://api.transparent.city"
-          : "http://localhost:8001");
+        process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
       return [
         {
           source: "/api/:path*",
