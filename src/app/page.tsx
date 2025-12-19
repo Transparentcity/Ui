@@ -346,6 +346,7 @@ export default function Home() {
                   </mask>
                 </defs>
                 <rect
+                  className={styles.logoBrace}
                   x="0"
                   y="0"
                   width="100"
@@ -353,10 +354,10 @@ export default function Home() {
                   rx="3"
                   ry="3"
                   mask="url(#logo-mask-bl-home)"
-                  fill="#111827"
                   transform="translate(23.5%, -23.5%)"
                 />
                 <rect
+                  className={styles.logoBrace}
                   x="0"
                   y="0"
                   width="100"
@@ -364,7 +365,6 @@ export default function Home() {
                   rx="3"
                   ry="3"
                   mask="url(#logo-mask-tr-home)"
-                  fill="#111827"
                   transform="translate(-23.5%, 23.5%)"
                 />
               </svg>

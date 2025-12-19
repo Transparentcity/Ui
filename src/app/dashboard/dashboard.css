@@ -385,6 +385,11 @@
   animation: none !important; /* Ensure logo is static */
 }
 
+[data-theme="dark"] .title-bar .logo-corners .brace,
+.dark .title-bar .logo-corners .brace {
+  fill: #ffffff;
+}
+
 .title-bar .logo-text {
   font-weight: 700;
   font-size: 18px;

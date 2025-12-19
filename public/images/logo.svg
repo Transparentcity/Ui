@@ -79,6 +79,12 @@
       />
     </mask>
   </defs>
+  <style>
+    .brace { fill: #1f2937; }
+    @media (prefers-color-scheme: dark) {
+      .brace { fill: #ffffff; }
+    }
+  </style>
   <!-- Bottom-left bracket - static in open position -->
   <rect
     class="brace brace-bl"
@@ -89,7 +95,6 @@
     rx="3"
     ry="3"
     mask="url(#logo-mask-bl)"
-    fill="#1f2937"
     transform="translate(23.5%, -23.5%)"
   />
   <!-- Top-right bracket - static in open position -->
@@ -102,7 +107,6 @@
     rx="3"
     ry="3"
     mask="url(#logo-mask-tr)"
-    fill="#1f2937"
     transform="translate(-23.5%, 23.5%)"
   />
 </svg>

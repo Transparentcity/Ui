@@ -150,7 +150,6 @@ export default function LandingPage() {
                     rx="3"
                     ry="3"
                     mask="url(#logo-mask-bl-landing)"
-                    fill="#1f2937"
                     transform="translate(23.5%, -23.5%)"
                   />
                   <rect
@@ -162,7 +161,6 @@ export default function LandingPage() {
                     rx="3"
                     ry="3"
                     mask="url(#logo-mask-tr-landing)"
-                    fill="#1f2937"
                     transform="translate(-23.5%, 23.5%)"
                   />
                 </svg>
@@ -966,5 +964,6 @@ export default function LandingPage() {
     </>
   );
 }
+
 
 

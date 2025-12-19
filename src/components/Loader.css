@@ -83,6 +83,12 @@
   fill: #1f2937;
 }
 
+/* Dark mode support for loader-dark */
+[data-theme="dark"] .loader-dark .brace,
+.dark .loader-dark .brace {
+  fill: #ffffff;
+}
+
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
   .brace-tr,

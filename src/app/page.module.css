@@ -122,9 +122,18 @@ a.secondary {
   }
 }
 
+.logoBrace {
+  fill: #111827;
+}
+
+[data-theme="dark"] .logoBrace,
+.dark .logoBrace {
+  fill: #ffffff;
+}
+
 @media (prefers-color-scheme: dark) {
-  .logo {
-    filter: invert();
+  .logoBrace {
+    fill: #ffffff;
   }
 
   .page {

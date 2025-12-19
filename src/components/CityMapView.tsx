@@ -12,6 +12,7 @@ import {
   type CityDetail,
   type CityStructureData,
 } from "@/lib/apiClient";
+import { useTheme } from "@/contexts/ThemeContext";
 import Loader from "./Loader";
 import "./CityMapView.css";
 
@@ -30,6 +31,7 @@ interface GeographicStructure {
 
 export default function CityMapView({ cityId, isAdmin = false, cityData: propCityData }: CityMapViewProps) {
   const { getAccessTokenSilently } = useAuth0();
+  const { theme } = useTheme();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
   const loadingRef = useRef<{ cityId: number | null; inProgress: boolean }>({ cityId: null, inProgress: false });
@@ -312,10 +314,15 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
       const center: [number, number] = mapCenter;
       const zoom = mapZoom;
 
+      // Determine map style based on theme
+      const mapStyle = theme === "dark" 
+        ? "mapbox://styles/mapbox/dark-v11"
+        : "mapbox://styles/mapbox/light-v11";
+
       // Create map
       const map = new mapboxgl.Map({
         container: mapContainerRef.current,
-        style: "mapbox://styles/mapbox/light-v11",
+        style: mapStyle,
         center: center,
         zoom: zoom,
       });
@@ -342,7 +349,28 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
         mapInstanceRef.current = null;
       }
     };
-  }, [loading, structureDataReady, mapCenter, mapZoom, isAdmin, selectedGeographicStructure, shapefiles]);
+  }, [loading, structureDataReady, mapCenter, mapZoom, isAdmin, selectedGeographicStructure, shapefiles, theme]);
+
+  // Update map style when theme changes
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+
+    const map = mapInstanceRef.current;
+    const mapStyle = theme === "dark" 
+      ? "mapbox://styles/mapbox/dark-v11"
+      : "mapbox://styles/mapbox/light-v11";
+
+    // Update map style when theme changes
+    // Mapbox will handle optimization internally
+    if (map.loaded()) {
+      map.setStyle(mapStyle);
+    } else {
+      // If map isn't loaded yet, wait for it
+      map.once("load", () => {
+        map.setStyle(mapStyle);
+      });
+    }
+  }, [theme]);
 
   // Get color for shapefile based on index
   const getShapefileColor = (index: number): string => {

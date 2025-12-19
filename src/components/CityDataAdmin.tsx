@@ -127,7 +127,13 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
 
   const loadAvailableModels = async () => {
     try {
-      const token = await getAccessTokenSilently();
+      // Try to get token, but don't fail if it's not available
+      let token: string | undefined;
+      try {
+        token = await getAccessTokenSilently();
+      } catch (tokenError) {
+        console.warn("Could not get auth token, trying without authentication:", tokenError);
+      }
       const models = await getAvailableModels(token);
       setAvailableModels(models);
       // Set default model (first available model from first group)
@@ -135,10 +141,14 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
         const firstAvailable = models[0].models.find(m => m.is_available);
         if (firstAvailable) {
           setSelectedModel(firstAvailable.key);
+        } else {
+          // If no models are available, still set the first one (will be disabled)
+          setSelectedModel(models[0].models[0].key);
         }
       }
     } catch (err) {
       console.error("Error loading available models:", err);
+      setAvailableModels([]);
     }
   };
 
@@ -965,14 +975,20 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                   minWidth: "200px",
                 }}
               >
-                {availableModels.map((group) =>
-                  group.models
-                    .filter((m) => m.is_available)
-                    .map((model) => (
-                      <option key={model.key} value={model.key}>
-                        {group.emoji} {model.name}
+                {availableModels.length === 0 ? (
+                  <option value="">Loading models...</option>
+                ) : (
+                  availableModels.map((group) =>
+                    group.models.map((model) => (
+                      <option 
+                        key={model.key} 
+                        value={model.key}
+                        disabled={!model.is_available}
+                      >
+                        {group.emoji} {model.name}{!model.is_available ? " (API key not configured)" : ""}
                       </option>
                     ))
+                  )
                 )}
               </select>
             </div>

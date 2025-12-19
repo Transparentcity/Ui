@@ -150,12 +150,31 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
     const loadModels = async () => {
       isLoadingModelsRef.current = true;
       try {
-        const token = await getAccessTokenSilently();
+        // Try to get token, but don't fail if it's not available
+        let token: string | undefined;
+        try {
+          token = await getAccessTokenSilently();
+        } catch (tokenError) {
+          console.warn("Could not get auth token, trying without authentication:", tokenError);
+        }
         const models = await getAvailableModels(token);
         setAvailableModels(models);
         modelsLoadedRef.current = true;
+        
+        // Set default model (first available model, or first model if none available)
+        if (models.length > 0 && models[0].models.length > 0) {
+          const firstAvailable = models[0].models.find(m => m.is_available);
+          if (firstAvailable) {
+            setSelectedModel(firstAvailable.key);
+          } else {
+            // If no models are available, still set the first one (will be disabled)
+            setSelectedModel(models[0].models[0].key);
+          }
+        }
       } catch (error) {
         console.error("Failed to load models:", error);
+        // Set empty array so UI shows "Loading models..." state
+        setAvailableModels([]);
       } finally {
         isLoadingModelsRef.current = false;
       }
@@ -682,13 +701,15 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
                 <option value="">Loading models...</option>
               ) : (
                 availableModels.flatMap((group) =>
-                  group.models
-                    .filter((m) => m.is_available)
-                    .map((model) => (
-                      <option key={model.key} value={model.key}>
-                        {group.emoji} {model.name}
-                      </option>
-                    ))
+                  group.models.map((model) => (
+                    <option 
+                      key={model.key} 
+                      value={model.key}
+                      disabled={!model.is_available}
+                    >
+                      {group.emoji} {model.name}{!model.is_available ? " (API key not configured)" : ""}
+                    </option>
+                  ))
                 )
               )}
             </select>
