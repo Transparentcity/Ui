@@ -354,7 +354,7 @@ export default function Home() {
                   ry="3"
                   mask="url(#logo-mask-bl-home)"
                   fill="#111827"
-                  style={{ transform: "translate(23.5%, -23.5%)" }}
+                  transform="translate(23.5%, -23.5%)"
                 />
                 <rect
                   x="0"
@@ -365,7 +365,7 @@ export default function Home() {
                   ry="3"
                   mask="url(#logo-mask-tr-home)"
                   fill="#111827"
-                  style={{ transform: "translate(-23.5%, 23.5%)" }}
+                  transform="translate(-23.5%, 23.5%)"
                 />
               </svg>
               <span className={styles.brandText}>

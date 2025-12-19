@@ -11,7 +11,7 @@
   position: absolute;
   top: 104px; /* Below header (56px) and tabs (48px) overlays */
   right: 24px;
-  z-index: 998;
+  z-index: 1001; /* Above header (1000) and tabs (999) to ensure visibility */
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
   border: 1px solid var(--border-primary, #e5e7eb);
@@ -19,6 +19,9 @@
   padding: 12px 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   min-width: 300px;
+  max-width: calc(100vw - 48px); /* Prevent going off-screen */
+  max-height: calc(100vh - 120px); /* Prevent going below viewport */
+  overflow-y: auto; /* Allow scrolling if content is too tall */
 }
 
 .city-map-header {
@@ -34,21 +37,26 @@
 
 .city-map-controls {
   display: flex;
-  align-items: center;
+  align-items: flex-start; /* Align to start to handle wrapping better */
   gap: 16px;
   flex-wrap: wrap;
+  flex-direction: row; /* Keep side by side, but allow wrapping if needed */
 }
 
 .leader-dropdown-container {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1 1 auto; /* Allow flexing but maintain minimum size */
+  min-width: 280px; /* Minimum width to prevent too much shrinking */
 }
 
 .leader-dropdown-container label {
   font-size: 14px;
   color: var(--text-secondary, #6b7280);
   font-weight: 500;
+  white-space: nowrap; /* Prevent label from wrapping */
+  flex-shrink: 0; /* Don't shrink the label */
 }
 
 .leader-select {
@@ -59,6 +67,7 @@
   background: var(--background-primary, #ffffff);
   color: var(--text-primary, #111827);
   min-width: 200px;
+  flex: 1; /* Grow to fill available space in container */
   cursor: pointer;
 }
 
@@ -72,12 +81,16 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1 1 auto; /* Allow flexing but maintain minimum size */
+  min-width: 280px; /* Minimum width to prevent too much shrinking */
 }
 
 .geographic-structure-dropdown-container label {
   font-size: 14px;
   color: var(--text-secondary, #6b7280);
   font-weight: 500;
+  white-space: nowrap; /* Prevent label from wrapping */
+  flex-shrink: 0; /* Don't shrink the label */
 }
 
 .geographic-structure-select {
@@ -88,6 +101,7 @@
   background: var(--background-primary, #ffffff);
   color: var(--text-primary, #111827);
   min-width: 200px;
+  flex: 1; /* Grow to fill available space in container */
   cursor: pointer;
 }
 
@@ -286,6 +300,7 @@
     left: 12px;
     min-width: unset;
     width: auto;
+    max-width: calc(100vw - 24px); /* Account for left/right padding */
   }
 
   .city-map-controls {
