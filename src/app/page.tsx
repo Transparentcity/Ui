@@ -15,6 +15,20 @@ import Loader from "@/components/Loader";
 
 import "./landing.css";
 
+type ResearchCard = {
+  id: number;
+  title: string;
+  text: string;
+  permalinkPath: string;
+  meta: string;
+  visual_elements: Array<{
+    type: string;
+    placeholder: string;
+    description: string;
+    url: string;
+  }>;
+};
+
 export default function Home() {
   const { isAuthenticated, isLoading, user, loginWithRedirect } = useAuth0();
   const router = useRouter();
@@ -34,8 +48,17 @@ export default function Home() {
 
   // Landing-hero screenshot carousel (matches original landing page)
   const [activeSlide, setActiveSlide] = useState(0);
+  const [researchCards, setResearchCards] = useState<ResearchCard[]>([]);
+  const [researchLoading, setResearchLoading] = useState(true);
 
   const normalizedCityQuery = useMemo(() => cityQuery.trim(), [cityQuery]);
+
+  const isImageUrl = (url: string): boolean => {
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
+    const lowerUrl = url.toLowerCase();
+    return imageExtensions.some(ext => lowerUrl.includes(ext)) || 
+           lowerUrl.startsWith('data:image/');
+  };
 
   const slugify = (text: string): string => {
     const slug = text.trim().toLowerCase();
@@ -154,6 +177,46 @@ export default function Home() {
     }, 8000);
 
     return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setResearchLoading(true);
+      try {
+        const res = await fetch("/api/research/public?limit=6&status=completed");
+        if (!res.ok) {
+          throw new Error(`Failed to fetch research: ${res.status}`);
+        }
+        const data = (await res.json()) as { reports: ResearchCard[] };
+        if (cancelled) return;
+
+        if (data.reports && data.reports.length > 0) {
+          setResearchCards(
+            data.reports.map((r) => ({
+              ...r,
+              meta: "Research",
+            })),
+          );
+        } else {
+          setResearchCards([]);
+        }
+      } catch (e) {
+        console.error("Failed to load research cards:", e);
+        if (cancelled) return;
+        setResearchCards([]);
+      } finally {
+        if (!cancelled) {
+          setResearchLoading(false);
+        }
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleLogin = async () => {
@@ -291,7 +354,7 @@ export default function Home() {
                   ry="3"
                   mask="url(#logo-mask-bl-home)"
                   fill="#111827"
-                  transform="translate(23.5%, -23.5%)"
+                  style={{ transform: "translate(23.5%, -23.5%)" }}
                 />
                 <rect
                   x="0"
@@ -302,7 +365,7 @@ export default function Home() {
                   ry="3"
                   mask="url(#logo-mask-tr-home)"
                   fill="#111827"
-                  transform="translate(-23.5%, 23.5%)"
+                  style={{ transform: "translate(-23.5%, 23.5%)" }}
                 />
               </svg>
               <span className={styles.brandText}>
@@ -718,6 +781,59 @@ export default function Home() {
                   </Link>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.container}>
+            <h2 className={styles.sectionTitle}>Recent research</h2>
+            <p className={styles.sectionLead}>
+              See how civic questions get answered with public data, maps, and 
+              plain-language explanations you can understand and share.
+            </p>
+
+            <div className={styles.researchGrid}>
+              {researchLoading ? (
+                <div className={styles.tileBody}>Loading research...</div>
+              ) : researchCards.length === 0 ? (
+                <div className={styles.tileBody}>No research available</div>
+              ) : (
+                researchCards.map((r) => (
+                  <Link
+                    key={r.id}
+                    href={r.permalinkPath}
+                    className={styles.researchCard}
+                  >
+                    <div className={styles.researchImageWrapper}>
+                      {r.visual_elements && r.visual_elements.length > 0 && r.visual_elements[0].url ? (
+                        isImageUrl(r.visual_elements[0].url) ? (
+                          <Image
+                            src={r.visual_elements[0].url}
+                            alt={r.visual_elements[0].description || `${r.title} preview`}
+                            fill
+                            style={{ objectFit: 'cover' }}
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className={styles.researchChartPlaceholder}>
+                            <span>📊 Chart</span>
+                          </div>
+                        )
+                      ) : (
+                        <div className={styles.researchImagePlaceholder}>
+                          <span>📄</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className={styles.researchContent}>
+                      <div className={styles.researchMeta}>{r.meta}</div>
+                      <h3 className={styles.researchHeadline}>{r.title}</h3>
+                      <p className={styles.researchDescription}>{r.text}</p>
+                    </div>
+                  </Link>
+                ))
+              )}
             </div>
           </div>
         </section>

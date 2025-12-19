@@ -136,68 +136,129 @@ export default function CityView({ cityId, isAdmin }: CityViewProps) {
   }
 
   return (
-    <div className="city-view">
-      {/* Header */}
-      <div className="city-header">
-        <div className="city-header-left">
-          {cityData.emoji && (
-            <span className="city-emoji-icon">{cityData.emoji}</span>
-          )}
-          <h1 className="city-name">{cityData.name}</h1>
-        </div>
-        <div className="city-header-right">
-          <button
-            id="save-city-btn"
-            className={`save-city-btn ${isCitySaved ? "saved" : ""}`}
-            onClick={handleToggleSave}
-            disabled={saving}
-            title={isCitySaved ? "Remove from My Cities" : "Save to My Cities"}
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill={isCitySaved ? "currentColor" : "none"}
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="tabs-container">
-        <button
-          className={`tab-btn ${activeTab === "map" ? "active" : ""}`}
-          onClick={() => setActiveTab("map")}
-        >
-          Map
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "dashboard" ? "active" : ""}`}
-          onClick={() => setActiveTab("dashboard")}
-        >
-          Dashboard
-        </button>
-        {isAdmin && (
-          <button
-            className={`tab-btn ${activeTab === "admin" ? "active" : ""}`}
-            onClick={() => setActiveTab("admin")}
-          >
-            Admin
-          </button>
-        )}
-      </div>
-
-      {/* Map Tab */}
+    <div className={`city-view ${activeTab === "map" ? "map-view-active" : ""}`}>
+      {/* Map Tab - Full Screen with Overlays */}
       {activeTab === "map" && (
-        <div className="tab-content active" id="map-tab">
+        <div className="tab-content active map-tab-fullscreen" id="map-tab">
           <CityMapView cityId={cityId} isAdmin={isAdmin} cityData={cityData} />
+          
+          {/* Header Overlay */}
+          <div className="city-header-overlay">
+            <div className="city-header-left">
+              {cityData.emoji && (
+                <span className="city-emoji-icon">{cityData.emoji}</span>
+              )}
+              <h1 className="city-name">{cityData.name}</h1>
+            </div>
+            <div className="city-header-right">
+              <button
+                id="save-city-btn"
+                className={`save-city-btn ${isCitySaved ? "saved" : ""}`}
+                onClick={handleToggleSave}
+                disabled={saving}
+                title={isCitySaved ? "Remove from My Cities" : "Save to My Cities"}
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill={isCitySaved ? "currentColor" : "none"}
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Tabs Overlay */}
+          <div className="tabs-container-overlay">
+            <button
+              className="tab-btn active"
+              onClick={() => setActiveTab("map")}
+            >
+              Map
+            </button>
+            <button
+              className="tab-btn"
+              onClick={() => setActiveTab("dashboard")}
+            >
+              Dashboard
+            </button>
+            {isAdmin && (
+              <button
+                className="tab-btn"
+                onClick={() => setActiveTab("admin")}
+              >
+                Admin
+              </button>
+            )}
+          </div>
         </div>
+      )}
+
+      {/* Non-Map Tabs - Standard Layout */}
+      {activeTab !== "map" && (
+        <>
+          {/* Header */}
+          <div className="city-header">
+            <div className="city-header-left">
+              {cityData.emoji && (
+                <span className="city-emoji-icon">{cityData.emoji}</span>
+              )}
+              <h1 className="city-name">{cityData.name}</h1>
+            </div>
+            <div className="city-header-right">
+              <button
+                id="save-city-btn"
+                className={`save-city-btn ${isCitySaved ? "saved" : ""}`}
+                onClick={handleToggleSave}
+                disabled={saving}
+                title={isCitySaved ? "Remove from My Cities" : "Save to My Cities"}
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill={isCitySaved ? "currentColor" : "none"}
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="tabs-container">
+            <button
+              className="tab-btn"
+              onClick={() => setActiveTab("map")}
+            >
+              Map
+            </button>
+            <button
+              className={`tab-btn ${activeTab === "dashboard" ? "active" : ""}`}
+              onClick={() => setActiveTab("dashboard")}
+            >
+              Dashboard
+            </button>
+            {isAdmin && (
+              <button
+                className={`tab-btn ${activeTab === "admin" ? "active" : ""}`}
+                onClick={() => setActiveTab("admin")}
+              >
+                Admin
+              </button>
+            )}
+          </div>
+        </>
       )}
 
       {/* Dashboard Tab */}

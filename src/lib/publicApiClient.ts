@@ -1,24 +1,48 @@
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+import { API_BASE } from "./apiBase";
 
 async function requestPublic<T>(path: string): Promise<T> {
   const url = `${API_BASE}${path}`;
 
-  const res = await fetch(url, {
-    method: "GET",
-    credentials: "include",
-    headers: {
-      Accept: "application/json",
-    },
-    // Public SEO endpoints are safe to cache/revalidate at the route level.
-  });
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        Accept: "application/json",
+      },
+      // Public SEO endpoints are safe to cache/revalidate at the route level.
+    });
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API GET ${path} failed: ${res.status} ${text}`);
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      let errorMessage = `API GET ${path} failed: ${res.status}`;
+      if (text) {
+        try {
+          const errorJson = JSON.parse(text);
+          errorMessage = errorJson.message || errorJson.detail || errorMessage;
+        } catch {
+          errorMessage = `${errorMessage} - ${text.substring(0, 200)}`;
+        }
+      }
+      throw new Error(errorMessage);
+    }
+
+    return (await res.json()) as T;
+  } catch (error) {
+    // Handle network errors, CORS errors, and other fetch failures
+    if (error instanceof TypeError && error.message.includes("fetch")) {
+      // Network error - API might be unreachable
+      throw new Error(
+        `Failed to connect to API at ${API_BASE}. Please check if the API server is running and accessible.`
+      );
+    }
+    // Re-throw if it's already an Error we created
+    if (error instanceof Error) {
+      throw error;
+    }
+    // Unknown error
+    throw new Error(`Unexpected error fetching ${path}: ${String(error)}`);
   }
-
-  return (await res.json()) as T;
 }
 
 export type PublicCitySitemapItem = {
@@ -75,4 +99,5 @@ export function searchPublicCities(
     `/api/public/cities/search?${params.toString()}`,
   ).then(sortUsCitiesFirst);
 }
+
 

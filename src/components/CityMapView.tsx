@@ -44,6 +44,7 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   const [mapZoom, setMapZoom] = useState<number>(11);
   const [structureDataReady, setStructureDataReady] = useState(false);
+  const [defaultStructureSet, setDefaultStructureSet] = useState(false);
   
   // Update cityData when prop changes
   useEffect(() => {
@@ -222,6 +223,9 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
         
         // Mark structure data as ready - this allows map to initialize
         setStructureDataReady(true);
+        
+        // Reset default structure flag when city changes
+        setDefaultStructureSet(false);
       } catch (err: any) {
         if (cancelled) return;
         console.error("Error loading city data:", err);
@@ -951,75 +955,119 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
     );
   }
 
+  // Set default geographic structure based on leaders' geographic_structure_id
+  useEffect(() => {
+    // Only set default once when data is ready and not already set
+    if (defaultStructureSet || !structureDataReady || shapefiles.length === 0 || leaders.length === 0) {
+      return;
+    }
+
+    // Find the most common geographic_structure_id among leaders
+    const structureIdCounts = new Map<number, number>();
+    leaders.forEach((leader) => {
+      if (leader.geographic_structure_id) {
+        const count = structureIdCounts.get(leader.geographic_structure_id) || 0;
+        structureIdCounts.set(leader.geographic_structure_id, count + 1);
+      }
+    });
+
+    if (structureIdCounts.size === 0) {
+      return;
+    }
+
+    // Find the most common geographic_structure_id
+    let mostCommonStructureId: number | null = null;
+    let maxCount = 0;
+    structureIdCounts.forEach((count, structureId) => {
+      if (count > maxCount) {
+        maxCount = count;
+        mostCommonStructureId = structureId;
+      }
+    });
+
+    if (mostCommonStructureId) {
+      // Find the shapefile matching this structure ID
+      const matchingShapefile = shapefiles.find(
+        (sf) => sf.geographic_structure_id === mostCommonStructureId
+      );
+
+      if (matchingShapefile && matchingShapefile.shapefile_name) {
+        setSelectedGeographicStructure(matchingShapefile.shapefile_name);
+        setDefaultStructureSet(true);
+        console.log("Set default geographic structure to:", matchingShapefile.shapefile_name, "based on leaders");
+      }
+    }
+  }, [structureDataReady, shapefiles, leaders, defaultStructureSet]);
+
   const geographicStructures = getAvailableGeographicStructures();
 
   return (
     <div className="city-map-view">
-      {/* Controls bar with leader dropdown and geographic structure selector */}
-      <div className="city-map-header">
-        <div className="city-map-controls">
-          {/* Leader dropdown */}
-          {leaders.length > 0 && (
-            <div className="leader-dropdown-container">
-              <label htmlFor="leader-select">Leader:</label>
-              <select
-                id="leader-select"
-                value={selectedLeaderId || ""}
-                onChange={(e) => setSelectedLeaderId(e.target.value || null)}
-                className="leader-select"
-              >
-                <option value="">All Leaders</option>
-                {leaders.map((leader) => (
-                  <option key={leader.id} value={String(leader.id)}>
-                    {leader.name} - {leader.title}
-                    {leader.district !== null && leader.district !== undefined
-                      ? ` (District ${leader.district})`
-                      : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Geographic Structure dropdown (Admin only) */}
-          {isAdmin && geographicStructures.length > 0 && (
-            <div className="geographic-structure-dropdown-container">
-              <label htmlFor="geographic-structure-select">Geographic Structure:</label>
-              <select
-                id="geographic-structure-select"
-                value={selectedGeographicStructure || ""}
-                onChange={(e) => setSelectedGeographicStructure(e.target.value || null)}
-                className="geographic-structure-select"
-              >
-                <option value="">Select a structure...</option>
-                {geographicStructures.map((structure, index) => {
-                  // Use shapefile_name as value if available, otherwise use structure_type
-                  // This ensures each shapefile is uniquely identifiable
-                  const value = structure.structure_name || structure.structure_type || "";
-                  const hasShapefile = shapefiles.some(
-                    (sf) => sf.shapefile_name?.toLowerCase() === structure.structure_name?.toLowerCase()
-                  );
-                  const displayName = hasShapefile 
-                    ? structure.structure_name || structure.structure_type || "Unknown"
-                    : `${structure.structure_name || structure.structure_type || "Unknown"} (needs reload)`;
-                  return (
-                    <option
-                      key={structure.id || index}
-                      value={value}
-                    >
-                      {displayName}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Map container */}
+      {/* Map container - full screen */}
       <div className="city-map-container">
         <div ref={mapContainerRef} className="map-container" />
+        
+        {/* Controls overlay - positioned on top of map */}
+        <div className="city-map-controls-overlay">
+          <div className="city-map-controls">
+            {/* Leader dropdown */}
+            {leaders.length > 0 && (
+              <div className="leader-dropdown-container">
+                <label htmlFor="leader-select">Leader:</label>
+                <select
+                  id="leader-select"
+                  value={selectedLeaderId || ""}
+                  onChange={(e) => setSelectedLeaderId(e.target.value || null)}
+                  className="leader-select"
+                >
+                  <option value="">All Leaders</option>
+                  {leaders.map((leader) => (
+                    <option key={leader.id} value={String(leader.id)}>
+                      {leader.name} - {leader.title}
+                      {leader.district !== null && leader.district !== undefined
+                        ? ` (District ${leader.district})`
+                        : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Geographic Structure dropdown (Admin only) */}
+            {isAdmin && geographicStructures.length > 0 && (
+              <div className="geographic-structure-dropdown-container">
+                <label htmlFor="geographic-structure-select">Geographic Structure:</label>
+                <select
+                  id="geographic-structure-select"
+                  value={selectedGeographicStructure || ""}
+                  onChange={(e) => setSelectedGeographicStructure(e.target.value || null)}
+                  className="geographic-structure-select"
+                >
+                  <option value="">Select a structure...</option>
+                  {geographicStructures.map((structure, index) => {
+                    // Use shapefile_name as value if available, otherwise use structure_type
+                    // This ensures each shapefile is uniquely identifiable
+                    const value = structure.structure_name || structure.structure_type || "";
+                    const hasShapefile = shapefiles.some(
+                      (sf) => sf.shapefile_name?.toLowerCase() === structure.structure_name?.toLowerCase()
+                    );
+                    const displayName = hasShapefile 
+                      ? structure.structure_name || structure.structure_type || "Unknown"
+                      : `${structure.structure_name || structure.structure_type || "Unknown"} (needs reload)`;
+                    return (
+                      <option
+                        key={structure.id || index}
+                        value={value}
+                      >
+                        {displayName}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
+          </div>
+        </div>
         
         {/* Message when no shapefiles available but structure is selected */}
         {isAdmin && selectedGeographicStructure && shapefiles.length === 0 && (

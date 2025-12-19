@@ -1,6 +1,21 @@
 import { NextResponse } from "next/server";
+import { API_BASE } from "@/lib/apiBase";
 
 export const revalidate = 300;
+
+/**
+ * Get the research API base URL.
+ * Research API is hosted on platform.transparentsf.com, not api.transparent.city
+ */
+function getResearchApiBase(): string {
+  // Allow override via environment variable
+  if (process.env.NEXT_PUBLIC_RESEARCH_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_RESEARCH_API_BASE_URL;
+  }
+  
+  // Default to platform.transparentsf.com for research API
+  return "https://platform.transparentsf.com";
+}
 
 type ResearchMediaResponse = {
   charts: string[];
@@ -58,8 +73,8 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
 
-  const upstreamBase =
-    process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+  // Research API is on platform.transparentsf.com, not the main API
+  const upstreamBase = getResearchApiBase();
   const upstreamBaseUrl = new URL(upstreamBase);
   const upstreamUrl = new URL(permalinkPath, upstreamBaseUrl);
 
@@ -99,5 +114,6 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
 }
+
 
 

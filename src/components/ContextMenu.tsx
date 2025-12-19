@@ -4,8 +4,7 @@ import { forwardRef } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useRouter } from "next/navigation";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+import { API_BASE } from "@/lib/apiBase";
 
 interface ContextMenuProps {
   isOpen: boolean;

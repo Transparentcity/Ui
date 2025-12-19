@@ -19,7 +19,7 @@ interface JobUpdateMessage {
   data: Job;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+import { API_BASE } from "./apiBase";
 
 /**
  * Utility function to notify the job WebSocket hook that a new job was created.
@@ -244,17 +244,24 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
       };
 
       ws.onclose = (event) => {
-        console.log("❌ Job WebSocket disconnected", {
-          code: event.code,
-          reason: event.reason,
-          wasClean: event.wasClean,
-        });
+        // Only log if it was a clean close or unexpected close (not initial connection failure)
+        if (event.wasClean || event.code !== 1006) {
+          console.log("❌ Job WebSocket disconnected", {
+            code: event.code,
+            reason: event.reason,
+            wasClean: event.wasClean,
+          });
+        } else {
+          // Code 1006 is abnormal closure (connection failed)
+          // This is expected if WebSocket server is not available, so log at debug level
+          console.debug("Job WebSocket connection unavailable (using fallback polling)");
+        }
         setIsConnected(false);
 
-        // Reconnect after 5 seconds if we should
+        // Reconnect after 5 seconds if we should (but limit retries to avoid spam)
         if (shouldReconnectRef.current && enabled) {
           reconnectTimeoutRef.current = setTimeout(() => {
-            console.log("🔄 Reconnecting job WebSocket...");
+            console.debug("🔄 Reconnecting job WebSocket...");
             connect();
           }, 5000);
         }
@@ -264,18 +271,21 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
         // WebSocket error events don't provide detailed error info
         // Check the readyState to see if connection failed
         const state = ws.readyState;
-        console.error("Job WebSocket error:", {
-          readyState: state,
-          readyStateText:
-            state === WebSocket.CONNECTING
-              ? "CONNECTING"
-              : state === WebSocket.OPEN
-              ? "OPEN"
-              : state === WebSocket.CLOSING
-              ? "CLOSING"
-              : "CLOSED",
-          url: wsUrl,
-        });
+        // Only log errors if we're not already closed (to avoid duplicate error logs)
+        if (state !== WebSocket.CLOSED) {
+          console.warn("Job WebSocket connection error (fallback polling will be used):", {
+            readyState: state,
+            readyStateText:
+              state === WebSocket.CONNECTING
+                ? "CONNECTING"
+                : state === WebSocket.OPEN
+                ? "OPEN"
+                : state === WebSocket.CLOSING
+                ? "CLOSING"
+                : "CLOSED",
+            url: wsUrl,
+          });
+        }
         setIsConnected(false);
       };
 

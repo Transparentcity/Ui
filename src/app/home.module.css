@@ -410,6 +410,73 @@
   margin-bottom: 10px;
 }
 
+.researchGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+
+.researchCard {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 12px;
+  border: 1px solid rgba(17, 24, 39, 0.10);
+  background: rgba(255, 255, 255, 0.86);
+  overflow: hidden;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+
+.researchCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+}
+
+.researchImageWrapper {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  background: rgba(17, 24, 39, 0.03);
+  overflow: hidden;
+}
+
+.researchImagePlaceholder,
+.researchChartPlaceholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(17, 24, 39, 0.04);
+  color: rgba(17, 24, 39, 0.4);
+  font-size: 32px;
+}
+
+.researchContent {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.researchHeadline {
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  margin: 8px 0 10px 0;
+  color: rgba(17, 24, 39, 0.95);
+}
+
+.researchDescription {
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(17, 24, 39, 0.7);
+  margin: 0;
+  flex: 1;
+}
+
 .footer {
   border-top: 1px solid rgba(17, 24, 39, 0.08);
   padding: 26px 0;
@@ -444,6 +511,10 @@
   }
 
   .researchList {
+    grid-template-columns: 1fr;
+  }
+
+  .researchGrid {
     grid-template-columns: 1fr;
   }
 

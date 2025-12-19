@@ -5,6 +5,7 @@ import "../landing.css";
 import styles from "./sitemap.module.css";
 
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
+import { API_BASE } from "@/lib/apiBase";
 
 export const revalidate = 3600;
 
@@ -97,7 +98,17 @@ export default async function SiteMapPage() {
   try {
     cities = await listPublicCitiesForSitemap();
   } catch (e) {
-    error = e instanceof Error ? e.message : "Unknown error";
+    if (e instanceof Error) {
+      error = e.message;
+      // Log error details for debugging (only in server-side, won't expose to client)
+      console.error(
+        `[SiteMap] Failed to load cities from ${API_BASE}/api/public/cities/sitemap:`,
+        e.message
+      );
+    } else {
+      error = `Unknown error: ${String(e)}`;
+      console.error("[SiteMap] Unexpected error:", e);
+    }
   }
 
   const groups = groupCitiesByCountryAndState(cities);
@@ -255,4 +266,5 @@ export default async function SiteMapPage() {
     </>
   );
 }
+
 
