@@ -539,7 +539,7 @@ export default function CityMetricsMap({
               mapTitle: mapData.title,
               mapId: String(mapData.metric_id),
               _isAggregated: true,
-              _featureDate: earliestDate ? earliestDate.toISOString() : null,
+              _featureDate: earliestDate instanceof Date ? earliestDate.toISOString() : null,
             };
             
             // Add category summaries
