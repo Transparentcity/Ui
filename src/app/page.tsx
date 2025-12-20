@@ -53,6 +53,20 @@ export default function Home() {
 
   const normalizedCityQuery = useMemo(() => cityQuery.trim(), [cityQuery]);
 
+  const handleSignup = async (intent: "resident" | "public-servant") => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("transparentcity.signup_intent", intent);
+    }
+
+    await loginWithRedirect({
+      authorizationParams: {
+        screen_hint: "signup",
+        prompt: "login",
+      },
+      appState: { returnTo: `/dashboard?signup=${intent}` },
+    });
+  };
+
   const isImageUrl = (url: string): boolean => {
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
     const lowerUrl = url.toLowerCase();
