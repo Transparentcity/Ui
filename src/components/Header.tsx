@@ -13,7 +13,7 @@ interface HeaderProps {
     id: number;
     name: string;
     display_name: string;
-    emoji?: string;
+    emoji?: string | null;
   }>;
   cityLoading?: boolean;
   cityError?: string | null;
@@ -22,7 +22,7 @@ interface HeaderProps {
     id: number;
     name: string;
     display_name: string;
-    emoji?: string;
+    emoji?: string | null;
   }) => void;
   onCityKeyDown?: (e: React.KeyboardEvent) => void;
   cityDropdownOpen?: boolean;
