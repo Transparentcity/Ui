@@ -17,6 +17,8 @@ export const LAYER_COLOR_PALETTE = [
   "#FCBAD3", // Light pink
 ] as const;
 
+export type LayerColor = typeof LAYER_COLOR_PALETTE[number];
+
 function hashStringToInt(key: string): number {
   // Simple deterministic hash (32-bit)
   let hash = 0;

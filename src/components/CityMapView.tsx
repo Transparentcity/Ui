@@ -16,7 +16,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import Loader from "./Loader";
 import CityMetricsMap from "./CityMetricsMap";
 import "./CityMapView.css";
-import { LAYER_COLOR_PALETTE } from "@/lib/layerColors";
+import { LAYER_COLOR_PALETTE, type LayerColor } from "@/lib/layerColors";
 import type { MetricDateRange } from "@/lib/dateRange";
 
 // Helper function to zoom map to a GPS location with 150m radius
@@ -792,9 +792,9 @@ export default function CityMapView({
       .filter((o) => enabledLayerInstanceIds.has(o.instance_id))
       .map((o) => ({
         shapefile: shapefiles.find((sf) => sf.id === o.instance_id),
-        color: o.color,
+        color: o.color as LayerColor,
       }))
-      .filter((x): x is { shapefile: CityShapefile; color: string } => !!x.shapefile);
+      .filter((x): x is { shapefile: CityShapefile; color: LayerColor } => !!x.shapefile);
 
     // Remove existing layers for all shapefiles (keeps logic simple and robust)
     removeAllShapefileLayers(map, shapefiles);
