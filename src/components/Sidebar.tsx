@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import UserProfile from "./UserProfile";
 import SessionList from "./SessionList";
 import JobSessionList from "./JobSessionList";
 import MyCities from "./MyCities";
-import CityTypeahead from "./CityTypeahead";
+import styles from "./Sidebar.module.css";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -21,6 +21,15 @@ interface SidebarProps {
   onCityClick?: (cityId: number) => void;
   activeCityId?: number | null;
 }
+
+// Mobile breakpoint (matches CSS media query)
+const MOBILE_BREAKPOINT = 768;
+
+// Helper function to check if screen is narrow (mobile)
+const isNarrowScreen = (): boolean => {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth <= MOBILE_BREAKPOINT;
+};
 
 export default function Sidebar({
   isOpen,
@@ -39,13 +48,26 @@ export default function Sidebar({
   const [recentChatsExpanded, setRecentChatsExpanded] = useState(true);
   const [jobSessionsExpanded, setJobSessionsExpanded] = useState(false);
 
+  // Helper to close sidebar in narrow mode after action
+  const handleActionWithClose = (action: () => void) => {
+    action();
+    // Auto-close sidebar in narrow mode after selection
+    if (isNarrowScreen() && onClose) {
+      onClose();
+    }
+  };
+
   return (
     <>
-      <aside className={`sidebar ${isOpen ? "open" : "collapsed"}`} id="sidebar">
-        <div className="nav-items" id="nav-items">
+      <aside className={`${styles.sidebar} ${isOpen ? styles.open : styles.collapsed}`} id="sidebar">
+        <div className={styles.navItems} id="nav-items">
           {/* Top Navigation Items */}
-          <button className="nav-item new-chat-btn" id="new-chat-btn" onClick={onNewChat}>
-            <span className="nav-icon">
+          <button 
+            className={`${styles.navItem} ${styles.newChatBtn}`} 
+            id="new-chat-btn" 
+            onClick={() => handleActionWithClose(onNewChat)}
+          >
+            <span className={styles.navIcon}>
               <svg
                 width="20"
                 height="20"
@@ -63,24 +85,8 @@ export default function Sidebar({
             <span>New Chat</span>
           </button>
 
-          <div className="nav-item-search-wrapper">
-            <CityTypeahead
-              onCitySelect={(cityId) => {
-                if (onCityClick) {
-                  onCityClick(cityId);
-                }
-                if (onViewChange) {
-                  onViewChange("city");
-                }
-              }}
-              placeholder="Search cities..."
-              className="sidebar-city-typeahead"
-              activeCityId={activeCityId}
-            />
-          </div>
-
           {/* Spacing */}
-          <div className="nav-section-spacer"></div>
+          <div className={styles.navSectionSpacer}></div>
 
           {/* My Cities Section */}
           <MyCities
@@ -91,24 +97,28 @@ export default function Sidebar({
               if (onViewChange) {
                 onViewChange("city");
               }
+              // Auto-close sidebar in narrow mode after city selection
+              if (isNarrowScreen() && onClose) {
+                onClose();
+              }
             }}
             activeCityId={activeCityId}
           />
 
           {/* Spacing */}
-          <div className="nav-section-spacer"></div>
+          <div className={styles.navSectionSpacer}></div>
 
           {/* Recent Chats Section */}
           <div id="recent-chats-section">
             <div
-              className="nav-section-header nav-section-collapsible"
+              className={`${styles.navSectionHeader} ${styles.navSectionCollapsible}` }
               id="recent-chats-header"
               onClick={() => setRecentChatsExpanded(!recentChatsExpanded)}
             >
               <span>Recent Chats</span>
               <span
                 id="recent-chats-chevron"
-                className="nav-section-chevron"
+                className={styles.navSectionChevron}
               >
                 {recentChatsExpanded ? "▼" : "▶"}
               </span>
@@ -123,6 +133,10 @@ export default function Sidebar({
                     if (onViewChange) {
                       onViewChange("chat");
                     }
+                    // Auto-close sidebar in narrow mode after session selection
+                    if (isNarrowScreen() && onClose) {
+                      onClose();
+                    }
                   }}
                   currentSessionId={currentSessionId}
                   onSessionDeleted={onSessionDeleted}
@@ -135,21 +149,17 @@ export default function Sidebar({
           {isAdmin && (
             <div
               id="job-sessions-section"
-              style={{
-                display: "block",
-                borderTop: "1px solid var(--border-primary)",
-                marginTop: "8px",
-              }}
+              className={styles.jobSessionsSection}
             >
               <div
                 id="job-sessions-header"
-                className="nav-section-header nav-section-collapsible"
+                className={`${styles.navSectionHeader} ${styles.navSectionCollapsible}` }
                 onClick={() => setJobSessionsExpanded(!jobSessionsExpanded)}
               >
                 <span>Job Sessions</span>
                 <span
                   id="job-sessions-chevron"
-                  className="nav-section-chevron"
+                  className={styles.navSectionChevron}
                 >
                   {jobSessionsExpanded ? "▼" : "▶"}
                 </span>
@@ -164,6 +174,10 @@ export default function Sidebar({
                       if (onViewChange) {
                         onViewChange("chat");
                       }
+                      // Auto-close sidebar in narrow mode after session selection
+                      if (isNarrowScreen() && onClose) {
+                        onClose();
+                      }
                     }}
                     currentSessionId={currentSessionId}
                     onSessionDeleted={onSessionDeleted}
@@ -175,14 +189,29 @@ export default function Sidebar({
         </div>
 
         {/* Sidebar Footer */}
-        <div className="sidebar-footer">
-          <div className="sidebar-footer-content">
-            <UserProfile isAdmin={isAdmin} onViewChange={onViewChange} />
+        <div className={styles.sidebarFooter}>
+          <div className={styles.sidebarFooterContent}>
+            <UserProfile 
+              isAdmin={isAdmin} 
+              onViewChange={(view) => {
+                if (onViewChange) {
+                  onViewChange(view);
+                }
+                // Auto-close sidebar in narrow mode after view change
+                if (isNarrowScreen() && onClose) {
+                  onClose();
+                }
+              }} 
+            />
             <button
-              className="settings-icon-btn"
+              className={styles.settingsIconBtn}
               id="settings-icon-btn"
               title="Settings"
-              onClick={() => onOpenSettings?.()}
+              onClick={() => {
+                if (onOpenSettings) {
+                  handleActionWithClose(onOpenSettings);
+                }
+              }}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -204,7 +233,7 @@ export default function Sidebar({
       {/* Sidebar Overlay (Mobile) */}
       {isOpen && (
         <div
-          className="sidebar-overlay"
+          className={styles.overlay}
           id="sidebar-overlay"
           onClick={() => {
             if (onClose) {

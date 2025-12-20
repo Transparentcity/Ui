@@ -1,0 +1,187 @@
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border-primary);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  left: 0;
+  top: var(--header-height);
+  height: calc(100vh - var(--header-height));
+  z-index: 1000;
+  transition: transform 0.3s ease, width 0.3s ease;
+}
+
+.collapsed {
+  transform: translateX(-100%);
+  width: var(--sidebar-width);
+}
+
+.open {
+  transform: translateX(0);
+}
+
+.overlay {
+  display: block;
+  position: fixed;
+  top: var(--header-height);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-overlay);
+  z-index: 10000;
+  transition: opacity 0.3s ease;
+}
+
+@media (min-width: 769px) {
+  .overlay {
+    display: none;
+  }
+}
+
+.navItems {
+  flex: 1;
+  padding: var(--space-lg) 0 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  font-size: 14px;
+  text-align: left;
+}
+
+.navItem:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.navItemActive {
+  background: var(--bg-tertiary);
+  color: var(--brand-primary);
+  font-weight: 600;
+  border-left: 3px solid var(--brand-primary);
+}
+
+.navIcon {
+  width: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.navSectionSpacer {
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.navSectionHeader {
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.navSectionCollapsible {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: color 0.15s ease;
+}
+
+.navSectionCollapsible:hover {
+  color: var(--text-primary);
+}
+
+.navSectionChevron {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  transition: transform 0.2s ease;
+  display: inline-block;
+  opacity: 0.6;
+}
+
+.newChatBtn {
+  font-size: 15px;
+  font-weight: 500;
+  padding: var(--space-md) var(--space-md);
+  text-align: left;
+  justify-content: flex-start;
+  margin-bottom: 2px;
+}
+
+.jobSessionsSection {
+  display: block;
+  border-top: 1px solid var(--border-primary);
+  margin-top: 8px;
+}
+
+.sidebarFooter {
+  padding: var(--space-md);
+  border-top: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  flex-shrink: 0;
+  position: relative;
+}
+
+.sidebarFooterContent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.settingsIconBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background 0.2s ease;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.settingsIconBtn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.settingsIconBtn svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  filter: grayscale(100%);
+  transition: filter 0.2s ease;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    z-index: 10001;
+  }
+}

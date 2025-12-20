@@ -20,9 +20,11 @@ import {
   getAvailableModels,
   ModelGroupInfo,
 } from "@/lib/apiClient";
+import { pickDefaultModelKey } from "@/lib/modelDefaults";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import DatasetsList from "@/components/DatasetsList";
 import Loader from "./Loader";
+import styles from "./CityDataAdmin.module.css";
 
 interface CityData {
   id: number;
@@ -82,9 +84,14 @@ interface CityStructure {
 interface CityDataAdminProps {
   cityId: number;
   onBack?: () => void;
+  embedded?: boolean;
 }
 
-export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
+export default function CityDataAdmin({
+  cityId,
+  onBack,
+  embedded = false,
+}: CityDataAdminProps) {
   const { getAccessTokenSilently } = useAuth0();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -119,6 +126,7 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
   const [availableModels, setAvailableModels] = useState<ModelGroupInfo[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [hoveredQuery, setHoveredQuery] = useState<{ config: any; x: number; y: number } | null>(null);
+  // Note: model defaults are centralized in `lib/modelDefaults.ts`
 
   useEffect(() => {
     loadCityData();
@@ -136,15 +144,9 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
       }
       const models = await getAvailableModels(token);
       setAvailableModels(models);
-      // Set default model (first available model from first group)
-      if (models.length > 0 && models[0].models.length > 0) {
-        const firstAvailable = models[0].models.find(m => m.is_available);
-        if (firstAvailable) {
-          setSelectedModel(firstAvailable.key);
-        } else {
-          // If no models are available, still set the first one (will be disabled)
-          setSelectedModel(models[0].models[0].key);
-        }
+      const defaultKey = pickDefaultModelKey(models);
+      if (defaultKey) {
+        setSelectedModel(defaultKey);
       }
     } catch (err) {
       console.error("Error loading available models:", err);
@@ -245,7 +247,7 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
           ? JSON.parse(structureFormData.leaders)
           : [];
       } catch (e) {
-        throw new Error("Invalid JSON in City Leaders");
+        throw new Error("Invalid JSON in City Elected Officials");
       }
 
       try {
@@ -338,13 +340,13 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
   const handleReloadOfficials = async () => {
     try {
       const token = await getAccessTokenSilently();
-      // Find the leaders query config
+      // Find the elected officials query config
       const leadersConfig = structureData?.query_configs?.find(
         (qc: any) => qc.structure_type === "leaders"
       );
       
       if (!leadersConfig || !leadersConfig.id) {
-        alert("No leaders query configuration found. Please run re-structure first.");
+        alert("No elected officials query configuration found. Please run re-structure first.");
         return;
       }
 
@@ -354,15 +356,24 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
       const structure = await getCityStructure(cityId, token);
       setStructureData(structure);
       
-      alert(`Officials reloaded! Found ${result.record_count} records.`);
+      alert(`Elected officials reloaded! Found ${result.record_count} records.`);
     } catch (err: any) {
-      alert("Failed to reload officials: " + err.message);
+      alert("Failed to reload elected officials: " + err.message);
     }
   };
 
   if (loading) {
     return (
-      <div className="admin-container" style={{ padding: "48px", display: "flex", alignItems: "center", justifyContent: "center", gap: "12px" }}>
+      <div
+        className={styles.container}
+        style={{
+          padding: embedded ? "24px" : "48px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "12px",
+        }}
+      >
         <Loader size="sm" color="dark" />
         <span>Loading city data...</span>
       </div>
@@ -371,7 +382,14 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
 
   if (error && !cityData) {
     return (
-      <div className="admin-container" style={{ padding: "48px", textAlign: "center", color: "#dc2626" }}>
+      <div
+        className={styles.container}
+        style={{
+          padding: embedded ? "24px" : "48px",
+          textAlign: "center",
+          color: "#dc2626",
+        }}
+      >
         <p>Error loading city data: {error}</p>
         <button onClick={loadCityData} style={{ marginTop: "16px", padding: "8px 16px" }}>
           Retry
@@ -393,7 +411,7 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
   const metricsCount = cityData.metrics?.length || 0;
 
   return (
-    <div className="admin-container" style={{ padding: "24px" }}>
+    <div className={`${styles.container} ${embedded ? styles.containerEmbedded : ""}`}>
       {onBack && (
         <button
           onClick={onBack}
@@ -411,40 +429,31 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
           ← Back to City List
         </button>
       )}
-      {/* Header Actions */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "16px",
-        }}
-      >
-        <div style={{ flex: 1 }} />
-      </div>
 
       {/* Tabs */}
-      <div className="tabs-container" style={{ marginBottom: "24px" }}>
+      <div
+        className={`${styles.tabsContainer} ${embedded ? styles.tabsContainerEmbedded : ""}` }
+      >
         <button
-          className={`tab-btn ${activeTab === "data" ? "active" : ""}`}
+          className={`${styles.tabBtn} ${activeTab === "data" ? styles.tabBtnActive : ""}` }
           onClick={() => setActiveTab("data")}
         >
           City Data
         </button>
         <button
-          className={`tab-btn ${activeTab === "structure" ? "active" : ""}`}
+          className={`${styles.tabBtn} ${activeTab === "structure" ? styles.tabBtnActive : ""}` }
           onClick={() => setActiveTab("structure")}
         >
           City Structure
         </button>
         <button
-          className={`tab-btn ${activeTab === "metrics" ? "active" : ""}`}
+          className={`${styles.tabBtn} ${activeTab === "metrics" ? styles.tabBtnActive : ""}` }
           onClick={() => setActiveTab("metrics")}
         >
           Metrics
         </button>
         <button
-          className={`tab-btn ${activeTab === "datasets" ? "active" : ""}`}
+          className={`${styles.tabBtn} ${activeTab === "datasets" ? styles.tabBtnActive : ""}` }
           onClick={() => setActiveTab("datasets")}
         >
           Datasets
@@ -520,7 +529,7 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
               </button>
             </div>
             <table
-              className="editable-table"
+              className={styles.editableTable}
               style={{ width: "100%", borderCollapse: "collapse" }}
             >
               <tbody>
@@ -799,7 +808,7 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                 </button>
               </div>
             </div>
-            <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+            <table className={styles.dataTable} style={{ width: "100%", borderCollapse: "collapse" }}>
               <tbody>
                 <tr>
                   <th
@@ -1210,7 +1219,7 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
             );
           })()}
 
-          {/* City Officials Box */}
+          {/* Elected Officials Box */}
           {(() => {
             const leadersConfig = structureData?.query_configs?.find(
               (qc: any) => qc.structure_type === "leaders"
@@ -1331,17 +1340,17 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                 
                 setEditingLeader(null);
                 await loadCityData();
-                alert("Leader saved successfully!");
+                alert("Elected official saved successfully!");
               } catch (err: any) {
-                setError(err.message || "Failed to save leader");
-                alert("Failed to save leader: " + err.message);
+                setError(err.message || "Failed to save elected official");
+                alert("Failed to save elected official: " + err.message);
               } finally {
                 setSaving(false);
               }
             };
             
             const handleDeleteLeader = async (leaderId: number) => {
-              if (!confirm("Are you sure you want to delete this leader?")) {
+              if (!confirm("Are you sure you want to delete this elected official?")) {
                 return;
               }
               
@@ -1351,10 +1360,10 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                 const token = await getAccessTokenSilently();
                 await deleteCityLeader(cityId, leaderId, token);
                 await loadCityData();
-                alert("Leader deleted successfully!");
+                alert("Elected official deleted successfully!");
               } catch (err: any) {
-                setError(err.message || "Failed to delete leader");
-                alert("Failed to delete leader: " + err.message);
+                setError(err.message || "Failed to delete elected official");
+                alert("Failed to delete elected official: " + err.message);
               } finally {
                 setSaving(false);
               }
@@ -1405,7 +1414,7 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                       }}
                       title={leadersConfig?.query ? "Click or hover to view query" : ""}
                     >
-                      City Officials
+                      Elected Officials
                     </span>
                     {officialsData.length > 0 && (
                       <span style={{ fontSize: "12px", fontWeight: "normal", color: "var(--text-secondary)" }}>
@@ -1438,10 +1447,10 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                     <button
                       onClick={async () => {
                         if (!leadersConfig || !officialsData.length) {
-                          alert("No officials data available to store.");
+                          alert("No elected officials data available to store.");
                           return;
                         }
-                        if (!confirm(`Store all ${officialsData.length} officials from query output?`)) {
+                        if (!confirm(`Store all ${officialsData.length} elected officials from query output?`)) {
                           return;
                         }
                         try {
@@ -1517,10 +1526,10 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                           }
                           
                           await loadCityData();
-                          alert(`Stored ${stored} officials${errors > 0 ? ` (${errors} errors)` : ""}!`);
+                          alert(`Stored ${stored} elected officials${errors > 0 ? ` (${errors} errors)` : ""}!`);
                         } catch (err: any) {
-                          setError(err.message || "Failed to store all officials");
-                          alert("Failed to store all officials: " + err.message);
+                          setError(err.message || "Failed to store all elected officials");
+                          alert("Failed to store all elected officials: " + err.message);
                         } finally {
                           setSaving(false);
                         }
@@ -1536,7 +1545,7 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                         fontWeight: 500,
                         fontSize: "12px",
                       }}
-                      title={leadersConfig && officialsData.length ? `Store all ${officialsData.length} officials from query output` : "No officials data available"}
+                      title={leadersConfig && officialsData.length ? `Store all ${officialsData.length} elected officials from query output` : "No elected officials data available"}
                     >
                       Store All ({officialsData.length})
                     </button>
@@ -1553,18 +1562,18 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                         fontWeight: 500,
                         fontSize: "12px",
                       }}
-                      title={leadersConfig ? "Re-run query and reload officials data" : "No query configuration found"}
+                      title={leadersConfig ? "Re-run query and reload elected officials data" : "No query configuration found"}
                     >
                       Re-load
                     </button>
                   </div>
                 </div>
                 
-                {/* Show all officials from query output with mapping status */}
+                {/* Show all elected officials from query output with mapping status */}
                 {officialsData.length > 0 ? (
                   <div style={{ marginBottom: "16px" }}>
                     <h5 style={{ margin: "0 0 8px 0", fontSize: "13px", fontWeight: 600 }}>
-                      All Officials from Query Output ({officialsData.length})
+                      All Elected Officials from Query Output ({officialsData.length})
                     </h5>
                     <div style={{ overflowX: "auto" }}>
                       <table
@@ -1740,11 +1749,11 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                   </div>
                 ) : (
                   <div style={{ fontSize: "12px", color: "var(--text-secondary)", padding: "12px" }}>
-                    No officials data in query output. Click Re-load to fetch from query.
+                    No elected officials data in query output. Click Re-load to fetch from query.
                   </div>
                 )}
                 
-                {/* Edit/Add Leader Modal */}
+                {/* Edit/Add Elected Official Modal */}
                 {editingLeader && (
                   <div
                     style={{
@@ -1775,7 +1784,7 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
                       onClick={(e) => e.stopPropagation()}
                     >
                       <h3 style={{ margin: "0 0 16px 0" }}>
-                        {editingLeader.isNew ? "Add Leader" : "Edit Leader"}
+                        {editingLeader.isNew ? "Add Elected Official" : "Edit Elected Official"}
                       </h3>
                       
                       <div style={{ marginBottom: "12px" }}>
@@ -1954,7 +1963,7 @@ export default function CityDataAdmin({ cityId, onBack }: CityDataAdminProps) {
               {cityData.metrics.map((metric) => (
                 <div
                   key={metric.id}
-                  className="metric-card"
+                  className={styles.metricCard}
                   style={{
                     padding: "16px",
                     border: "1px solid var(--border-primary)",

@@ -4,36 +4,62 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
   getCity,
-  getCityLeaders,
-  getCityShapefiles,
   getCityStructure,
+  getCityShapeLayers,
   type CityLeader,
   type CityShapefile,
   type CityDetail,
   type CityStructureData,
+  type CityShapeLayerListItem,
 } from "@/lib/apiClient";
 import { useTheme } from "@/contexts/ThemeContext";
 import Loader from "./Loader";
+import CityMetricsMap from "./CityMetricsMap";
 import "./CityMapView.css";
+import { LAYER_COLOR_PALETTE } from "@/lib/layerColors";
+import type { MetricDateRange } from "@/lib/dateRange";
+
+// Helper function to zoom map to a GPS location with 150m radius
+function zoomToGPSLocation(map: any, lat: number, lng: number) {
+  // 150 meters in degrees (approximate, varies slightly by latitude)
+  // At equator: 1 degree ≈ 111km, so 150m ≈ 0.00135 degrees
+  // We'll use a slightly larger value to account for latitude variation
+  const radiusInDegrees = 0.0015; // ~150m radius
+  
+  // Create bounding box around the GPS point
+  const bounds = [
+    [lng - radiusInDegrees, lat - radiusInDegrees], // Southwest corner
+    [lng + radiusInDegrees, lat + radiusInDegrees], // Northeast corner
+  ] as [[number, number], [number, number]];
+  
+  // Use fitBounds to zoom to the bounding box with padding
+  map.fitBounds(bounds, {
+    padding: { top: 20, bottom: 20, left: 20, right: 20 },
+    maxZoom: 18, // Don't zoom in too close
+    duration: 1000, // Smooth animation
+  });
+}
 
 interface CityMapViewProps {
   cityId: number;
   isAdmin?: boolean;
   cityData?: CityDetail | null; // Optional city data to avoid duplicate API calls
+  metricDateRange?: MetricDateRange;
+  gpsLocation?: { lat: number; lng: number } | null; // GPS coordinates to zoom to
 }
 
-interface GeographicStructure {
-  id?: number;
-  structure_name?: string;
-  structure_type?: string;
-  identifier_field?: string;
-}
-
-export default function CityMapView({ cityId, isAdmin = false, cityData: propCityData }: CityMapViewProps) {
+export default function CityMapView({
+  cityId,
+  isAdmin = false,
+  cityData: propCityData,
+  metricDateRange,
+  gpsLocation,
+}: CityMapViewProps) {
   const { getAccessTokenSilently } = useAuth0();
   const { theme } = useTheme();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
+  const mapCityIdRef = useRef<number | null>(null);
   const loadingRef = useRef<{ cityId: number | null; inProgress: boolean }>({ cityId: null, inProgress: false });
   const [loading, setLoading] = useState(!propCityData); // Don't show loading if cityData is provided
   const [error, setError] = useState<string | null>(null);
@@ -41,12 +67,17 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
   const [cityStructure, setCityStructure] = useState<CityStructureData | null>(null);
   const [leaders, setLeaders] = useState<CityLeader[]>([]);
   const [shapefiles, setShapefiles] = useState<CityShapefile[]>([]);
-  const [selectedLeaderId, setSelectedLeaderId] = useState<string | null>(null);
-  const [selectedGeographicStructure, setSelectedGeographicStructure] = useState<string | null>(null);
+  const [shapeLayers, setShapeLayers] = useState<CityShapeLayerListItem[]>([]);
+  const [enabledLayerInstanceIds, setEnabledLayerInstanceIds] = useState<Set<number>>(new Set());
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   const [mapZoom, setMapZoom] = useState<number>(11);
   const [structureDataReady, setStructureDataReady] = useState(false);
   const [defaultStructureSet, setDefaultStructureSet] = useState(false);
+  const [mapStyleVersion, setMapStyleVersion] = useState(0);
+
+  // Keep latest state accessible to Mapbox event handlers (which outlive renders).
+  const shapefilesRef = useRef<CityShapefile[]>([]);
+  const updateMapWithEnabledLayersRef = useRef<(map: any) => void>(() => {});
   
   // Update cityData when prop changes
   useEffect(() => {
@@ -54,6 +85,10 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
       setCityData(propCityData);
     }
   }, [propCityData]);
+
+  useEffect(() => {
+    shapefilesRef.current = shapefiles;
+  }, [shapefiles]);
 
 
   // Load city data, leaders, and shapefiles
@@ -101,7 +136,7 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
         setCityData(city);
 
         // Load structure data in background (heavy operation)
-        // For non-admin users, we still need leaders for the dropdown
+        // For non-admin users, we still need elected officials for map labels/popups
         let structureData = null;
         try {
           structureData = await getCityStructure(cityId, token).catch((err) => {
@@ -114,9 +149,28 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
 
         if (cancelled) return;
 
-        // Extract leaders and shapefiles from structure data
+        // Extract leaders from structure data (used for popups and defaults)
         const leadersData = structureData?.leaders || [];
-        const shapefilesData = structureData?.shapefiles || [];
+        let layersData: CityShapeLayerListItem[] = [];
+        try {
+          layersData = await getCityShapeLayers(cityId, token, true);
+        } catch (err) {
+          console.error("Failed to load city shape layers:", err);
+          layersData = [];
+        }
+
+        const shapefilesData: CityShapefile[] = layersData
+          .map((l) => l.instance)
+          .filter((i): i is CityShapefile => !!i);
+
+        // Default enabled set: instances with status=active and geometry present
+        const defaultEnabled = new Set<number>();
+        shapefilesData.forEach((sf) => {
+          const status = (sf as any).status || "active";
+          if (status === "active" && sf.geometry_data) {
+            defaultEnabled.add(sf.id);
+          }
+        });
 
         console.log("Loaded data - city:", city?.name, "leaders:", leadersData.length, "shapefiles:", shapefilesData.length);
         console.log("Shapefiles details:", shapefilesData.map((sf: any) => ({
@@ -135,7 +189,7 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
           const structuresWithUrls = geoStructures.filter((gs: any) => gs.shapefile_url);
           const configsWithEndpoints = queryConfigs.filter((qc: any) => qc.endpoint);
           
-          console.warn("⚠️ No shapefiles loaded for admin user.");
+          console.warn("⚠️ No shape layer instances loaded for admin user.");
           console.warn(`  Geographic structures: ${geoStructures.length}`);
           console.warn(`  Structures with shapefile_url: ${structuresWithUrls.length}`);
           console.warn(`  Query configs: ${queryConfigs.length}`);
@@ -147,7 +201,11 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
         let calculatedCenter: [number, number] | null = null;
         let calculatedZoom = 11;
         
-        if (shapefilesData.length > 0) {
+        const enabledForBounds = shapefilesData.filter((sf) =>
+          defaultEnabled.has(sf.id)
+        );
+
+        if (enabledForBounds.length > 0) {
           // Calculate center from shapefiles
           let minLng = 180;
           let maxLng = -180;
@@ -155,7 +213,7 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
           let maxLat = -90;
           let hasBounds = false;
 
-          shapefilesData.forEach((shapefile) => {
+          enabledForBounds.forEach((shapefile) => {
             const geometryData = shapefile.geometry_data;
             if (geometryData && geometryData.type === "FeatureCollection") {
               geometryData.features.forEach((feature: any) => {
@@ -208,6 +266,8 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
         setCityStructure(structureData);
         setLeaders(leadersData);
         setShapefiles(shapefilesData);
+        setShapeLayers(layersData);
+        setEnabledLayerInstanceIds(defaultEnabled);
         
         if (calculatedCenter) {
           setMapCenter(calculatedCenter);
@@ -256,6 +316,26 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
 
     const loadMapbox = async () => {
       try {
+        // IMPORTANT:
+        // Do not recreate the Mapbox instance just because a layer toggle changed.
+        // Recreating the map clears all custom layers/sources (including metric "dots"),
+        // and the metric component does not automatically re-add them on ref.current changes.
+        if (mapInstanceRef.current && mapCityIdRef.current === cityId) {
+          return;
+        }
+
+        // If we have a map from a previous city, remove it before creating a new one.
+        if (mapInstanceRef.current && mapCityIdRef.current !== cityId) {
+          try {
+            mapInstanceRef.current.remove();
+          } catch (err) {
+            console.warn("Error removing previous map instance:", err);
+          } finally {
+            mapInstanceRef.current = null;
+            mapCityIdRef.current = null;
+          }
+        }
+
         // Check if Mapbox is already loaded
         if (typeof window !== "undefined" && (window as any).mapboxgl) {
           initializeMap();
@@ -328,28 +408,72 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
       });
 
       mapInstanceRef.current = map;
+      mapCityIdRef.current = cityId;
 
       map.on("load", () => {
-        console.log("Map loaded, isAdmin:", isAdmin, "selectedStructure:", selectedGeographicStructure, "shapefiles:", shapefiles.length);
-        // If we have shapefiles and a selected structure, add them
-        if (isAdmin && selectedGeographicStructure && shapefiles.length > 0) {
-          console.log("Map loaded with structure selected, updating map");
-          updateMapWithSelectedStructure(map, selectedGeographicStructure);
-        } else {
-          console.log("Map loaded but not updating - isAdmin:", isAdmin, "hasSelection:", !!selectedGeographicStructure, "hasShapefiles:", shapefiles.length > 0);
+        console.log(
+          "Map loaded - shapefiles:",
+          shapefilesRef.current.length,
+          "enabled:",
+          enabledLayerInstanceIds.size
+        );
+        if (shapefilesRef.current.length > 0) {
+          updateMapWithEnabledLayersRef.current(map);
+        }
+        // Signal to child components that the map style is ready (initial load).
+        setMapStyleVersion((v) => v + 1);
+        
+        // Zoom to GPS location if provided
+        if (gpsLocation) {
+          zoomToGPSLocation(map, gpsLocation.lat, gpsLocation.lng);
+        }
+      });
+
+      // IMPORTANT: setStyle() clears custom layers/sources; re-hydrate after style reload.
+      map.on("style.load", () => {
+        try {
+          if (shapefilesRef.current.length > 0) {
+            updateMapWithEnabledLayersRef.current(map);
+          }
+        } finally {
+          setMapStyleVersion((v) => v + 1);
         }
       });
     };
 
     loadMapbox();
+  }, [loading, structureDataReady, mapCenter, mapZoom, cityId, theme]);
 
+  // Cleanup map on unmount (only)
+  useEffect(() => {
     return () => {
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
+        try {
+          mapInstanceRef.current.remove();
+        } catch (err) {
+          console.warn("Error removing map on unmount:", err);
+        } finally {
+          mapInstanceRef.current = null;
+          mapCityIdRef.current = null;
+        }
       }
     };
-  }, [loading, structureDataReady, mapCenter, mapZoom, isAdmin, selectedGeographicStructure, shapefiles, theme]);
+  }, []);
+
+  // Zoom to GPS location when provided (after map is loaded)
+  useEffect(() => {
+    if (!mapInstanceRef.current || !gpsLocation) return;
+    
+    const map = mapInstanceRef.current;
+    // Wait for map to be fully loaded
+    if (map.loaded()) {
+      zoomToGPSLocation(map, gpsLocation.lat, gpsLocation.lng);
+    } else {
+      map.once("load", () => {
+        zoomToGPSLocation(map, gpsLocation.lat, gpsLocation.lng);
+      });
+    }
+  }, [gpsLocation]);
 
   // Update map style when theme changes
   useEffect(() => {
@@ -372,19 +496,64 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
     }
   }, [theme]);
 
-  // Get color for shapefile based on index
-  const getShapefileColor = (index: number): string => {
-    const colors = [
-      "#ad35fa", // Bright purple
-      "#FF6B5A", // Warm coral
-      "#4ECDC4", // Turquoise
-      "#FFE66D", // Yellow
-      "#95E1D3", // Mint
-      "#F38181", // Pink
-      "#AA96DA", // Lavender
-      "#FCBAD3", // Light pink
-    ];
-    return colors[index % colors.length];
+  const getCategoryRank = (category?: string | null): number => {
+    const c = (category || "").toLowerCase();
+    if (c === "governance") return 0;
+    if (c === "neighborhood") return 1;
+    if (c === "planning") return 2;
+    return 3;
+  };
+
+  const getGovernanceTypeRank = (structureType?: string | null): number => {
+    const t = (structureType || "").toLowerCase();
+    if (t === "district") return 0;
+    if (t === "ward") return 1;
+    if (t === "precinct") return 2;
+    return 99;
+  };
+
+  const getOrderedShapeLayerItems = () => {
+    const items = shapeLayers
+      .map((l) => ({
+        template: l.template,
+        instance: l.instance as any,
+      }))
+      .filter((x) => !!x.instance && !!x.instance.geometry_data)
+      .map((x) => ({
+        instance_id: x.instance.id as number,
+        label:
+          x.instance.shapefile_name ||
+          x.template?.default_display_name ||
+          `Layer ${x.instance.id}`,
+        icon: x.template?.icon || null,
+        category: x.template?.category || null,
+        structure_type: x.instance.structure_type || null,
+        render_order: x.instance.render_order ?? null,
+      }))
+      .sort((a, b) => {
+        const ar = getCategoryRank(a.category);
+        const br = getCategoryRank(b.category);
+        if (ar !== br) return ar - br;
+
+        // Ensure the primary governance boundary sits first within governance
+        if (ar === 0) {
+          const at = getGovernanceTypeRank(a.structure_type);
+          const bt = getGovernanceTypeRank(b.structure_type);
+          if (at !== bt) return at - bt;
+        }
+
+        const ao = a.render_order ?? 999999;
+        const bo = b.render_order ?? 999999;
+        if (ao !== bo) return ao - bo;
+        return (a.label || "").localeCompare(b.label || "");
+      });
+
+    // Assign palette colors by position in the *full* ordered list (stable on/off)
+    return items.map((item, idx) => ({
+      ...item,
+      color: LAYER_COLOR_PALETTE[idx % LAYER_COLOR_PALETTE.length],
+      color_index: idx % LAYER_COLOR_PALETTE.length,
+    }));
   };
 
   // Remove all shapefile layers from map
@@ -414,7 +583,7 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
   }, [shapefiles]);
 
   // Add a single shapefile to the map
-  const addShapefileToMap = useCallback((map: any, shapefile: CityShapefile, index: number) => {
+  const addShapefileToMap = useCallback((map: any, shapefile: CityShapefile, assignedColor: string) => {
     const sourceId = `shapefile-${shapefile.id}`;
     const layerId = `shapefile-layer-${shapefile.id}`;
     const outlineLayerId = `${layerId}-outline`;
@@ -456,14 +625,22 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
           data: geometryData,
         });
 
+        const styleOverrides = (shapefile as any).style_overrides_json || {};
+        // Enforce palette colors for consistency across UI + map.
+        // Only allow non-color overrides (opacity/line width).
+        const fillColor = assignedColor;
+        const fillOpacity = styleOverrides["fill-opacity"] ?? styleOverrides.fillOpacity ?? 0.3;
+        const lineColor = assignedColor;
+        const lineWidth = styleOverrides["line-width"] ?? styleOverrides.lineWidth ?? 2;
+
         // Add fill layer
         map.addLayer({
           id: layerId,
           type: "fill",
           source: sourceId,
           paint: {
-            "fill-color": getShapefileColor(index),
-            "fill-opacity": 0.3,
+            "fill-color": fillColor,
+            "fill-opacity": fillOpacity,
           },
         });
 
@@ -475,8 +652,8 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
           type: "line",
           source: sourceId,
           paint: {
-            "line-color": getShapefileColor(index),
-            "line-width": 2,
+            "line-color": lineColor,
+            "line-width": lineWidth,
           },
         });
 
@@ -542,15 +719,24 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
             let popupHTML = `<div><strong>${shapefile.shapefile_name}</strong><br/>Type: ${shapefile.structure_type}<br/>${shapefile.identifier_field ? `${shapefile.identifier_field}: ${identifier}` : ""}`;
             
             if (leaderName) {
-              popupHTML += `<br/>Leader: ${leaderName}`;
+              popupHTML += `<br/>Elected Official: ${leaderName}`;
             }
             
             popupHTML += `</div>`;
             
-            new (window as any).mapboxgl.Popup()
+            const popup = new (window as any).mapboxgl.Popup()
               .setLngLat(e.lngLat)
               .setHTML(popupHTML)
               .addTo(map);
+            
+            // Fix accessibility issue with popup close button
+            // Mapbox sets aria-hidden="true" on the close button, which causes accessibility errors
+            setTimeout(() => {
+              const closeButton = document.querySelector('.mapboxgl-popup-close-button');
+              if (closeButton && closeButton.hasAttribute('aria-hidden')) {
+                closeButton.removeAttribute('aria-hidden');
+              }
+            }, 10);
           }
         });
       } else {
@@ -597,228 +783,30 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
     }
   }, []);
 
-  // Update map with selected geographic structure
-  const updateMapWithSelectedStructure = useCallback((map: any, selectedValue: string) => {
-    console.log("updateMapWithSelectedStructure called with:", selectedValue);
-    console.log("Available shapefiles:", shapefiles.map(sf => ({ id: sf.id, name: sf.shapefile_name, type: sf.structure_type })));
-    
-    // Remove existing shapefile layers first (use current shapefiles state)
+  const updateMapWithEnabledLayers = useCallback((map: any) => {
+    const ordered = getOrderedShapeLayerItems();
+    const colorById = new Map<number, string>();
+    ordered.forEach((o) => colorById.set(o.instance_id, o.color));
+
+    const enabled = ordered
+      .filter((o) => enabledLayerInstanceIds.has(o.instance_id))
+      .map((o) => ({
+        shapefile: shapefiles.find((sf) => sf.id === o.instance_id),
+        color: o.color,
+      }))
+      .filter((x): x is { shapefile: CityShapefile; color: string } => !!x.shapefile);
+
+    // Remove existing layers for all shapefiles (keeps logic simple and robust)
     removeAllShapefileLayers(map, shapefiles);
 
-    // Find shapefiles matching the selected value
-    // The value is shapefile_name (from dropdown), so match by name or structure_type as fallback
-    const matchingShapefiles = shapefiles.filter(
-      (sf) => sf.shapefile_name === selectedValue || sf.structure_type === selectedValue
-    );
+    enabled.forEach((entry) => addShapefileToMap(map, entry.shapefile, entry.color));
+    fitMapToShapefiles(map, enabled.map((e) => e.shapefile));
+  }, [shapefiles, enabledLayerInstanceIds, removeAllShapefileLayers, addShapefileToMap, fitMapToShapefiles]);
+  // Keep this ref updated synchronously to avoid a race where Mapbox "load" fires
+  // before a useEffect runs.
+  updateMapWithEnabledLayersRef.current = updateMapWithEnabledLayers;
 
-    console.log("Matching shapefiles:", matchingShapefiles.length, matchingShapefiles.map(sf => ({ id: sf.id, name: sf.shapefile_name, type: sf.structure_type })));
-
-    if (matchingShapefiles.length === 0) {
-      console.warn("No shapefiles found matching:", selectedValue);
-      console.warn("Available shapefiles:", shapefiles.map(sf => ({ name: sf.shapefile_name, type: sf.structure_type })));
-      // Show a message that this structure needs to be reloaded
-      alert(`No shapefile data available for "${selectedValue}".\n\nPlease go to the Admin tab and click "Re-load All" for geographic structures to fetch and store the shapefile data.`);
-      return;
-    }
-
-    // Add all matching shapefiles
-    matchingShapefiles.forEach((shapefile, index) => {
-      console.log("Adding shapefile to map:", shapefile.shapefile_name, "index:", index);
-      addShapefileToMap(map, shapefile, index);
-    });
-
-    // Fit map to bounds of selected shapefiles
-    fitMapToShapefiles(map, matchingShapefiles);
-  }, [shapefiles, removeAllShapefileLayers, addShapefileToMap, fitMapToShapefiles]);
-
-  // Function to center map on a leader's district
-  const centerMapOnLeaderDistrict = useCallback((leaderId: string) => {
-    if (!mapInstanceRef.current || !mapInstanceRef.current.loaded()) {
-      return;
-    }
-
-    // Find the selected leader
-    const leader = leaders.find((l) => String(l.id) === leaderId);
-    if (!leader) {
-      console.warn("Leader not found:", leaderId);
-      return;
-    }
-
-    // Check if leader has a district
-    if (leader.district === null || leader.district === undefined) {
-      console.log("Leader has no district, cannot center map");
-      return;
-    }
-
-    // Try to find matching shapefile - first by geographic_structure_id, then by district match
-    let matchingShapefile = null;
-    let districtFeature = null;
-
-    // First, try matching by geographic_structure_id if both exist (preferred method)
-    if (leader.geographic_structure_id) {
-      matchingShapefile = shapefiles.find(
-        (sf) => sf.geographic_structure_id === leader.geographic_structure_id
-      );
-    }
-
-    // If no match found, try to find any shapefile that contains the district (fallback)
-    if (!matchingShapefile) {
-      // Search through all shapefiles to find one that contains this district
-      for (const shapefile of shapefiles) {
-        const geometryData = shapefile.geometry_data;
-        if (!geometryData || geometryData.type !== "FeatureCollection") {
-          continue;
-        }
-
-        const identifierField = shapefile.identifier_field || "district";
-        
-        // Try to find the district feature in this shapefile
-        const feature = geometryData.features.find((feature: any) => {
-          const props = feature.properties || {};
-          const districtValue = props[identifierField];
-          
-          // Handle both string and number comparisons
-          if (typeof districtValue === "number") {
-            return districtValue === leader.district;
-          } else if (typeof districtValue === "string") {
-            // Try to parse as number
-            const parsed = parseInt(districtValue, 10);
-            if (!isNaN(parsed)) {
-              return parsed === leader.district;
-            }
-            // Also try direct string comparison
-            return districtValue === String(leader.district);
-          }
-          return false;
-        });
-
-        if (feature && feature.geometry) {
-          matchingShapefile = shapefile;
-          districtFeature = feature;
-          break;
-        }
-      }
-    } else {
-      // We found a shapefile by geographic_structure_id, now find the district feature
-      const geometryData = matchingShapefile.geometry_data;
-      if (!geometryData || geometryData.type !== "FeatureCollection") {
-        console.warn("Invalid geometry data for shapefile:", matchingShapefile.id);
-        return;
-      }
-
-      const identifierField = matchingShapefile.identifier_field || "district";
-      
-      districtFeature = geometryData.features.find((feature: any) => {
-        const props = feature.properties || {};
-        const districtValue = props[identifierField];
-        
-        // Handle both string and number comparisons
-        if (typeof districtValue === "number") {
-          return districtValue === leader.district;
-        } else if (typeof districtValue === "string") {
-          // Try to parse as number
-          const parsed = parseInt(districtValue, 10);
-          if (!isNaN(parsed)) {
-            return parsed === leader.district;
-          }
-          // Also try direct string comparison
-          return districtValue === String(leader.district);
-        }
-        return false;
-      });
-    }
-
-    if (!matchingShapefile) {
-      console.warn("No shapefile found containing district", leader.district);
-      return;
-    }
-
-    if (!districtFeature || !districtFeature.geometry) {
-      console.warn(
-        `No feature found for district ${leader.district} in shapefile ${matchingShapefile.shapefile_name}`
-      );
-      return;
-    }
-
-    // Calculate bounds for the district feature
-    const bounds = new (window as any).mapboxgl.LngLatBounds();
-    const coords = districtFeature.geometry.coordinates;
-
-    if (districtFeature.geometry.type === "Polygon") {
-      coords[0].forEach((coord: [number, number]) => {
-        bounds.extend(coord);
-      });
-    } else if (districtFeature.geometry.type === "MultiPolygon") {
-      coords.forEach((polygon: any) => {
-        polygon[0].forEach((coord: [number, number]) => {
-          bounds.extend(coord);
-        });
-      });
-    } else {
-      console.warn("Unsupported geometry type:", districtFeature.geometry.type);
-      return;
-    }
-
-    // Fit map to the district bounds with padding
-    mapInstanceRef.current.fitBounds(bounds, {
-      padding: 50,
-      duration: 1000, // Smooth animation
-    });
-
-    console.log(`Centered map on ${leader.name}'s District ${leader.district}`);
-  }, [leaders, shapefiles]);
-
-  // Center map on selected leader's district and show their geographic structure
-  useEffect(() => {
-    // If no leader is selected, don't do anything
-    if (!selectedLeaderId) {
-      return;
-    }
-
-    // Find the selected leader
-    const leader = leaders.find((l) => String(l.id) === selectedLeaderId);
-    if (!leader) {
-      return;
-    }
-
-    // If leader has a geographic_structure_id, automatically select and display that structure (for all users)
-    if (leader.geographic_structure_id) {
-      const matchingShapefile = shapefiles.find(
-        (sf) => sf.geographic_structure_id === leader.geographic_structure_id
-      );
-      
-      if (matchingShapefile && matchingShapefile.shapefile_name) {
-        // Only update if it's different to avoid infinite loops
-        if (selectedGeographicStructure !== matchingShapefile.shapefile_name) {
-          setSelectedGeographicStructure(matchingShapefile.shapefile_name);
-        }
-      }
-    }
-
-    // Center map on the district (will wait for map to be ready)
-    if (!mapInstanceRef.current) {
-      return;
-    }
-
-    if (!mapInstanceRef.current.loaded()) {
-      // Wait for map to load
-      const checkMapLoaded = setInterval(() => {
-        if (mapInstanceRef.current && mapInstanceRef.current.loaded()) {
-          clearInterval(checkMapLoaded);
-          // Retry centering after map loads
-          if (selectedLeaderId) {
-            centerMapOnLeaderDistrict(selectedLeaderId);
-          }
-        }
-      }, 100);
-      
-      return () => clearInterval(checkMapLoaded);
-    }
-
-    centerMapOnLeaderDistrict(selectedLeaderId);
-  }, [selectedLeaderId, shapefiles, leaders, selectedGeographicStructure, centerMapOnLeaderDistrict]);
-
-  // Update map when geographic structure selection changes
+  // Update map when enabled layers change
   useEffect(() => {
     if (!mapInstanceRef.current) {
       console.log("Map instance not ready yet");
@@ -831,140 +819,22 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
       const checkMapLoaded = setInterval(() => {
         if (mapInstanceRef.current && mapInstanceRef.current.loaded()) {
           clearInterval(checkMapLoaded);
-          // Trigger update after map loads
-          if (selectedGeographicStructure && shapefiles.length > 0) {
-            console.log("Map now loaded, updating with structure");
-            updateMapWithSelectedStructure(mapInstanceRef.current, selectedGeographicStructure);
-          }
+          updateMapWithEnabledLayers(mapInstanceRef.current);
         }
       }, 100);
       
       return () => clearInterval(checkMapLoaded);
     }
-    
-    // Display geographic structure if selected (for all users, not just admin)
-    // Only allow manual selection in admin mode, but auto-display when leader is selected
-    if (!selectedGeographicStructure) {
-      // Remove all shapefile layers if no selection
-      console.log("Removing shapefiles - no selectedStructure");
-      removeAllShapefileLayers(mapInstanceRef.current);
-      return;
-    }
 
-    if (shapefiles.length === 0) {
-      console.warn("No shapefiles available to display for structure:", selectedGeographicStructure);
-      return;
-    }
+    updateMapWithEnabledLayers(mapInstanceRef.current);
+  }, [enabledLayerInstanceIds, shapefiles, removeAllShapefileLayers, updateMapWithEnabledLayers]);
 
-    console.log("Updating map with structure:", selectedGeographicStructure, "shapefiles:", shapefiles.length);
-    updateMapWithSelectedStructure(mapInstanceRef.current, selectedGeographicStructure);
-  }, [selectedGeographicStructure, shapefiles, removeAllShapefileLayers, updateMapWithSelectedStructure]);
-
-  // Get unique geographic structure types from shapefiles
-  const getAvailableGeographicStructures = (): GeographicStructure[] => {
-    console.log("getAvailableGeographicStructures - cityStructure:", cityStructure?.geographic_structures?.length || 0, "cityData:", cityData?.geographic_structures?.length || 0, "shapefiles:", shapefiles.length, "query_configs:", cityStructure?.query_configs?.length || 0);
-    
-    // Build list from shapefiles - use shapefile_name as unique identifier
-    // Multiple shapefiles can have the same structure_type, so we need to show all of them
-    const shapefileStructures: GeographicStructure[] = [];
-    const seenNames = new Set<string>();
-    
-    console.log("Processing shapefiles:", shapefiles.map(sf => ({
-      id: sf.id,
-      shapefile_name: sf.shapefile_name,
-      structure_type: sf.structure_type,
-      has_name: !!sf.shapefile_name,
-      has_type: !!sf.structure_type
-    })));
-    
-    shapefiles.forEach((sf) => {
-      // Check if shapefile has required fields
-      if (!sf.shapefile_name) {
-        console.warn("Shapefile missing shapefile_name:", sf);
-        return;
-      }
-      if (!sf.structure_type) {
-        console.warn("Shapefile missing structure_type:", sf);
-        return;
-      }
-      
-      // Use shapefile_name as the unique key to avoid duplicates
-      const key = sf.shapefile_name.toLowerCase().trim();
-      if (!seenNames.has(key)) {
-        seenNames.add(key);
-        shapefileStructures.push({
-          id: sf.id,
-          structure_name: sf.shapefile_name,
-          structure_type: sf.structure_type,
-          identifier_field: sf.identifier_field || undefined,
-        });
-        console.log("Added shapefile to dropdown:", sf.shapefile_name, "type:", sf.structure_type);
-      } else {
-        console.log("Skipping duplicate shapefile:", sf.shapefile_name);
-      }
-    });
-    
-    // Also check query configs for geographic structures that don't have shapefiles yet
-    // This ensures we show all available structures, even if they haven't been converted to shapefiles
-    const queryConfigStructures: GeographicStructure[] = [];
-    if (cityStructure?.query_configs) {
-      cityStructure.query_configs
-        .filter((qc: any) => qc.structure_type === "geographic")
-        .forEach((qc: any) => {
-          // Check if this query config already has a shapefile
-          const hasShapefile = shapefileStructures.some(
-            (sf) => sf.structure_name?.toLowerCase() === qc.structure_name?.toLowerCase()
-          );
-          
-          if (!hasShapefile) {
-            // Try to determine structure_type from identifier_field or use a default
-            let structureType = "district";
-            if (qc.identifier_field) {
-              const idField = qc.identifier_field.toLowerCase();
-              if (idField.includes("district")) structureType = "district";
-              else if (idField.includes("neighborhood")) structureType = "neighborhood";
-              else if (idField.includes("precinct")) structureType = "precinct";
-              else if (idField.includes("ward")) structureType = "ward";
-            }
-            
-            queryConfigStructures.push({
-              structure_name: qc.structure_name || structureType,
-              structure_type: structureType,
-              identifier_field: qc.identifier_field,
-            });
-            console.log("Added query config without shapefile to dropdown:", qc.structure_name);
-          }
-        });
-    }
-    
-    // Combine shapefiles and query configs (shapefiles first, then query configs without shapefiles)
-    const allStructures = [...shapefileStructures, ...queryConfigStructures];
-    
-    if (allStructures.length > 0) {
-      console.log("Using geographic structures (shapefiles + query configs):", allStructures);
-      return allStructures;
-    }
-    
-    // Last resort: use geographic_structures from cityStructure
-    if (cityStructure?.geographic_structures && cityStructure.geographic_structures.length > 0) {
-      console.log("Using geographic structures from cityStructure:", cityStructure.geographic_structures);
-      return cityStructure.geographic_structures.map((gs) => ({
-        id: gs.id,
-        structure_name: gs.structure_name,
-        structure_type: gs.structure_type,
-        identifier_field: gs.identifier_field,
-      }));
-    }
-    
-    // Final fallback: use cityData
-    if (cityData?.geographic_structures && cityData.geographic_structures.length > 0) {
-      console.log("Using geographic structures from cityData:", cityData.geographic_structures);
-      return cityData.geographic_structures;
-    }
-    
-    console.log("No geographic structures found");
-    return [];
-  };
+  const availableShapeLayerInstances = getOrderedShapeLayerItems().map((x) => ({
+    instance_id: x.instance_id,
+    label: x.label,
+    icon: x.icon,
+    color: x.color,
+  }));
 
   if (loading) {
     return (
@@ -983,7 +853,7 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
     );
   }
 
-  // Set default geographic structure based on leaders' geographic_structure_id
+  // Set default enabled layers based on leaders' geographic_structure_id (best effort)
   useEffect(() => {
     // Only set default once when data is ready and not already set
     if (defaultStructureSet || !structureDataReady || shapefiles.length === 0 || leaders.length === 0) {
@@ -1014,20 +884,21 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
     });
 
     if (mostCommonStructureId) {
-      // Find the shapefile matching this structure ID
-      const matchingShapefile = shapefiles.find(
+      const matching = shapefiles.filter(
         (sf) => sf.geographic_structure_id === mostCommonStructureId
       );
 
-      if (matchingShapefile && matchingShapefile.shapefile_name) {
-        setSelectedGeographicStructure(matchingShapefile.shapefile_name);
+      if (matching.length > 0) {
+        setEnabledLayerInstanceIds((prev) => {
+          const next = new Set(prev);
+          matching.forEach((m) => next.add(m.id));
+          return next;
+        });
         setDefaultStructureSet(true);
-        console.log("Set default geographic structure to:", matchingShapefile.shapefile_name, "based on leaders");
+        console.log("Enabled default layers based on leaders");
       }
     }
   }, [structureDataReady, shapefiles, leaders, defaultStructureSet]);
-
-  const geographicStructures = getAvailableGeographicStructures();
 
   return (
     <div className="city-map-view">
@@ -1035,123 +906,17 @@ export default function CityMapView({ cityId, isAdmin = false, cityData: propCit
       <div className="city-map-container">
         <div ref={mapContainerRef} className="map-container" />
         
-        {/* Controls overlay - positioned on top of map */}
-        <div className="city-map-controls-overlay">
-          <div className="city-map-controls">
-            {/* Leader dropdown */}
-            {leaders.length > 0 && (
-              <div className="leader-dropdown-container">
-                <label htmlFor="leader-select">Leader:</label>
-                <select
-                  id="leader-select"
-                  value={selectedLeaderId || ""}
-                  onChange={(e) => setSelectedLeaderId(e.target.value || null)}
-                  className="leader-select"
-                >
-                  <option value="">All Leaders</option>
-                  {leaders.map((leader) => (
-                    <option key={leader.id} value={String(leader.id)}>
-                      {leader.name} - {leader.title}
-                      {leader.district !== null && leader.district !== undefined
-                        ? ` (District ${leader.district})`
-                        : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Geographic Structure dropdown (Admin only) */}
-            {isAdmin && geographicStructures.length > 0 && (
-              <div className="geographic-structure-dropdown-container">
-                <label htmlFor="geographic-structure-select">Geographic Structure:</label>
-                <select
-                  id="geographic-structure-select"
-                  value={selectedGeographicStructure || ""}
-                  onChange={(e) => setSelectedGeographicStructure(e.target.value || null)}
-                  className="geographic-structure-select"
-                >
-                  <option value="">Select a structure...</option>
-                  {geographicStructures.map((structure, index) => {
-                    // Use shapefile_name as value if available, otherwise use structure_type
-                    // This ensures each shapefile is uniquely identifiable
-                    const value = structure.structure_name || structure.structure_type || "";
-                    const hasShapefile = shapefiles.some(
-                      (sf) => sf.shapefile_name?.toLowerCase() === structure.structure_name?.toLowerCase()
-                    );
-                    const displayName = hasShapefile 
-                      ? structure.structure_name || structure.structure_type || "Unknown"
-                      : `${structure.structure_name || structure.structure_type || "Unknown"} (needs reload)`;
-                    return (
-                      <option
-                        key={structure.id || index}
-                        value={value}
-                      >
-                        {displayName}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-            )}
-          </div>
-        </div>
-        
-        {/* Message when no shapefiles available but structure is selected */}
-        {isAdmin && selectedGeographicStructure && shapefiles.length === 0 && (
-          <div className="no-shapefiles-message">
-            <div className="no-shapefiles-content">
-              <p><strong>No shapefiles available</strong></p>
-              <p>
-                The geographic structure "{geographicStructures.find(s => s.structure_type === selectedGeographicStructure)?.structure_name || selectedGeographicStructure}" 
-                is configured, but no shapefile data has been fetched and stored yet.
-              </p>
-              {cityStructure && (
-                <>
-                  {(() => {
-                    const selectedStruct = cityStructure.geographic_structures?.find(
-                      (gs) => gs.structure_type === selectedGeographicStructure
-                    );
-                    const queryConfig = cityStructure.query_configs?.find(
-                      (qc) => qc.structure_type === "geographic" && qc.structure_name?.toLowerCase().includes(selectedGeographicStructure.toLowerCase())
-                    );
-                    
-                    if (selectedStruct?.shapefile_url) {
-                      return (
-                        <p className="no-shapefiles-hint">
-                          This structure has a shapefile URL configured: <code>{selectedStruct.shapefile_url}</code>
-                          <br />
-                          Use the "fetch_and_store_shapefile" tool to fetch and store the shapefile data.
-                        </p>
-                      );
-                    } else if (queryConfig?.endpoint) {
-                      return (
-                        <p className="no-shapefiles-hint">
-                          This structure has a query config with endpoint: <code>{queryConfig.endpoint}</code>
-                          <br />
-                          Use the "fetch_and_store_shapefile" tool with this endpoint to fetch and store the shapefile data.
-                        </p>
-                      );
-                    } else {
-                      return (
-                        <p className="no-shapefiles-hint">
-                          Shapefiles need to be fetched and stored in the database before they can be displayed on the map.
-                          <br />
-                          Check the City Structure tab in Admin to see available geographic structures and their configuration.
-                        </p>
-                      );
-                    }
-                  })()}
-                  <p className="no-shapefiles-stats">
-                    Total geographic structures: {cityStructure.geographic_structures?.length || 0} | 
-                    Stored shapefiles: {shapefiles.length} | 
-                    Query configs: {cityStructure.query_configs?.length || 0}
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-        )}
+        {/* City Metrics Map Component */}
+        <CityMetricsMap
+          cityId={cityId}
+          isActive={!loading && structureDataReady}
+          mapInstanceRef={mapInstanceRef}
+          mapStyleVersion={mapStyleVersion}
+          shapeLayers={availableShapeLayerInstances}
+          enabledShapeLayerInstanceIds={enabledLayerInstanceIds}
+          setEnabledShapeLayerInstanceIds={setEnabledLayerInstanceIds}
+          metricDateRange={metricDateRange}
+        />
       </div>
     </div>
   );

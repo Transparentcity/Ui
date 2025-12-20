@@ -5,6 +5,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import ReactMarkdown from "react-markdown";
 import ChatSessionLoader from "./ChatSessionLoader";
 import ToolCall from "./ToolCall";
+import styles from "./ChatView.module.css";
 import {
   sendChatMessageStream,
   createNewSession,
@@ -12,6 +13,10 @@ import {
   type ModelGroupInfo,
   type StreamEvent,
 } from "@/lib/apiClient";
+import {
+  PREFERRED_DEFAULT_MODEL_KEY,
+  pickDefaultModelKey,
+} from "@/lib/modelDefaults";
 
 interface Message {
   id: string;
@@ -42,11 +47,15 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(sessionId);
   const [currentSession, setCurrentSession] = useState<any>(null);
-  const [selectedModel, setSelectedModel] = useState<string>("gpt-5");
+  const [selectedModel, setSelectedModel] = useState<string>(
+    PREFERRED_DEFAULT_MODEL_KEY
+  );
   const [availableModels, setAvailableModels] = useState<ModelGroupInfo[]>([]);
   const [currentAssistantMessageId, setCurrentAssistantMessageId] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasShownWelcome = useRef(false);
+  const hasPendingSendRef = useRef(false);
+  const pendingSessionIdRef = useRef<string | null>(null);
   
   // Refs for streaming state (reused across stream calls)
   const streamingStateRef = useRef<{
@@ -65,15 +74,24 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
   // Update when sessionId prop changes
   useEffect(() => {
     if (sessionId !== currentSessionId) {
-      // Cancel any active stream when switching sessions
-      if (abortControllerRef.current) {
+      const isBootstrappedSessionAssignment =
+        pendingSessionIdRef.current !== null &&
+        sessionId === pendingSessionIdRef.current;
+
+      // Cancel any active stream when switching sessions (but NOT when the
+      // sessionId is being assigned as part of the current send/bootstrap)
+      if (!isBootstrappedSessionAssignment && abortControllerRef.current) {
         abortControllerRef.current.abort();
+        hasPendingSendRef.current = false;
         setIsTyping(false);
         setIsStreaming(false);
         setCurrentAssistantMessageId(null);
       }
       
       setCurrentSessionId(sessionId);
+      if (isBootstrappedSessionAssignment) {
+        pendingSessionIdRef.current = null;
+      }
       // Reset welcome flag when session changes
       if (!sessionId) {
         hasShownWelcome.current = false;
@@ -105,6 +123,13 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
   }, [messages]);
 
   const handleMessagesLoaded = useCallback((loadedMessages: Message[]) => {
+    // If we're in the middle of sending/streaming, ignore loader updates.
+    // This prevents a race where the session fetch returns before the first
+    // message is persisted, wiping the optimistic user message.
+    if (hasPendingSendRef.current || isStreaming) {
+      return;
+    }
+
     if (loadedMessages.length > 0) {
       setMessages(loadedMessages);
       hasShownWelcome.current = false; // Reset flag when messages are loaded
@@ -125,7 +150,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
         setMessages([]);
       }
     }
-  }, [currentSessionId]);
+  }, [currentSessionId, isStreaming]);
 
   const handleSessionLoaded = useCallback((session: any) => {
     // Store session data for intermediate_steps access
@@ -160,16 +185,11 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
         const models = await getAvailableModels(token);
         setAvailableModels(models);
         modelsLoadedRef.current = true;
-        
-        // Set default model (first available model, or first model if none available)
-        if (models.length > 0 && models[0].models.length > 0) {
-          const firstAvailable = models[0].models.find(m => m.is_available);
-          if (firstAvailable) {
-            setSelectedModel(firstAvailable.key);
-          } else {
-            // If no models are available, still set the first one (will be disabled)
-            setSelectedModel(models[0].models[0].key);
-          }
+
+        // Prefer Claude Sonnet 4 if present; otherwise fall back gracefully.
+        const defaultKey = pickDefaultModelKey(models);
+        if (defaultKey) {
+          setSelectedModel(defaultKey);
         }
       } catch (error) {
         console.error("Failed to load models:", error);
@@ -198,6 +218,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
     setMessage("");
     setIsTyping(true);
     setIsStreaming(true);
+    hasPendingSendRef.current = true;
 
     // Create assistant message ID for streaming (but don't add to messages until content arrives)
     const assistantMessageId = `assistant-${Date.now()}`;
@@ -215,6 +236,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
         try {
           const newSession = await createNewSession(selectedModel, undefined, token);
           sessionIdToUse = newSession.session_id;
+          pendingSessionIdRef.current = sessionIdToUse;
           setCurrentSessionId(sessionIdToUse);
           if (onSessionChange) {
             onSessionChange(sessionIdToUse);
@@ -258,9 +280,16 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
           if (event.type === "session_id" && event.content) {
             const newSessionId = event.content;
             if (newSessionId !== sessionIdToUse) {
+              pendingSessionIdRef.current = newSessionId;
               setCurrentSessionId(newSessionId);
               if (onSessionChange) {
                 onSessionChange(newSessionId);
+              }
+              // Nudge sidebar session list to refresh
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(
+                  new CustomEvent("chat:sessions:invalidate")
+                );
               }
             }
           } else if (event.type === "token" && event.content) {
@@ -397,6 +426,10 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
           } else if (event.type === "title_update" && event.title) {
             // Title update - could notify parent component
             console.log("Session title updated:", event.title);
+            // Nudge sidebar session list to refresh (so it can show the new title)
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("chat:sessions:invalidate"));
+            }
           } else if (event.type === "end") {
             // Stream ended
             console.log("🏁 Stream ended");
@@ -477,6 +510,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
       );
     } finally {
       console.log("🧹 Cleaning up stream state");
+      hasPendingSendRef.current = false;
       setIsTyping(false);
       setIsStreaming(false);
       setCurrentAssistantMessageId(null);
@@ -488,6 +522,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
+    hasPendingSendRef.current = false;
     setIsTyping(false);
     setIsStreaming(false);
     setCurrentAssistantMessageId(null);
@@ -528,7 +563,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
             // Finalize previous text div if it exists
             if (currentTextContent.trim()) {
               elements.push(
-                <div key={`text-${idx}`} className="message-content">
+                <div key={`text-${idx}`} className={styles.messageContent}>
                   <ReactMarkdown>{currentTextContent}</ReactMarkdown>
                 </div>
               );
@@ -544,7 +579,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
           // Finalize current text div before adding tool call
           if (currentTextContent.trim()) {
             elements.push(
-              <div key={`text-before-tool-${idx}`} className="message-content">
+              <div key={`text-before-tool-${idx}`} className={styles.messageContent}>
                 <ReactMarkdown>{currentTextContent}</ReactMarkdown>
               </div>
             );
@@ -571,7 +606,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
       // Finalize the last text segment
       if (currentTextContent.trim()) {
         elements.push(
-          <div key="text-final" className="message-content">
+          <div key="text-final" className={styles.messageContent}>
             <ReactMarkdown>{currentTextContent}</ReactMarkdown>
           </div>
         );
@@ -588,7 +623,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
         // Only add if the message content is different from what we've already rendered
         if (msg.content.trim() !== allTextFromEvents.trim()) {
           elements.push(
-            <div key="message-content-final" className="message-content">
+            <div key="message-content-final" className={styles.messageContent}>
               <ReactMarkdown>{msg.content}</ReactMarkdown>
             </div>
           );
@@ -608,7 +643,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
             ))}
           {/* Render markdown content */}
           {msg.content && (
-            <div className="message-content">
+            <div className={styles.messageContent}>
               <ReactMarkdown>{msg.content}</ReactMarkdown>
             </div>
           )}
@@ -618,15 +653,15 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
   };
 
   return (
-    <div id="chat-view" className="content-view active">
+    <div id="chat-view" className={styles.chatViewRoot}>
       <ChatSessionLoader
         sessionId={currentSessionId}
         onMessagesLoaded={handleMessagesLoaded}
         onSessionLoaded={handleSessionLoaded}
       />
-      <div className="chat-container">
+      <div className={styles.chatContainer}>
         {/* Chat Messages Area */}
-        <div id="chat-messages" className="chat-messages">
+        <div id="chat-messages" className={styles.chatMessages}>
           {messages.length === 0 ? (
             <div style={{ padding: "20px", color: "var(--text-secondary)", textAlign: "center" }}>
               No messages yet. Start a conversation!
@@ -645,17 +680,15 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
                 return (
                   <div
                     key={msg.id}
-                    className={`chat-message ${
-                      msg.role === "user" ? "user-message" : "assistant-message"
-                    }`}
+                    className={`${styles.chatMessage} ${msg.role === "user" ? styles.userMessage : styles.assistantMessage}` }
                   >
                     {msg.role === "assistant" ? (
-                      <div className="assistant-bubble">
-                        <div className="assistant-name">Seymour</div>
+                      <div className={styles.assistantBubble}>
+                        <div className={styles.assistantName}>Seymour</div>
                         {renderAssistantMessage(msg)}
                       </div>
                     ) : (
-                      <div className="message-content">{msg.content}</div>
+                      <div className={styles.messageContent}>{msg.content}</div>
                     )}
                   </div>
                 );
@@ -666,24 +699,24 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
 
         {/* Typing Indicator */}
         {isTyping && (
-          <div id="typing-indicator" className="typing-indicator">
-            <div className="typing-bubble">
-              <div className="typing-dots">
-                <div className="typing-dot"></div>
-                <div className="typing-dot"></div>
-                <div className="typing-dot"></div>
+          <div id="typing-indicator" className={styles.typingIndicator}>
+            <div className={styles.typingBubble}>
+              <div className={styles.typingDots}>
+                <div className={styles.typingDot}></div>
+                <div className={styles.typingDot}></div>
+                <div className={styles.typingDot}></div>
               </div>
-              <span className="text-secondary">Seymour is thinking...</span>
+              <span className={styles.textSecondary}>Seymour is thinking...</span>
             </div>
           </div>
         )}
 
         {/* Chat Input Area */}
-        <div className="chat-input-area">
-          <div className="chat-input-container">
+        <div className={styles.chatInputArea}>
+          <div className={styles.chatInputContainer}>
             <textarea
               id="chat-input"
-              className="chat-input"
+              className={styles.chatInput}
               placeholder="Ask me anything about civic data..."
               rows={1}
               value={message}
@@ -692,7 +725,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
             />
             <select
               id="model-select"
-              className="model-select"
+              className={styles.modelSelect}
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
               disabled={isStreaming}

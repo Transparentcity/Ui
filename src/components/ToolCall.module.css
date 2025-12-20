@@ -1,0 +1,112 @@
+.toolCall {
+  display: inline-block;
+  width: auto;
+  margin: 2px 0;
+  padding: 4px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  text-align: left;
+  font-size: 11px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  background: var(--bg-tertiary);
+  border-left: 2px solid var(--border-primary);
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+.toolCall:hover {
+  opacity: 0.8;
+}
+
+.running {
+  background: var(--bg-secondary);
+  border-left: 2px solid var(--warning);
+}
+
+.completed {
+  background: var(--bg-secondary);
+  border-left: 2px solid var(--success);
+}
+
+.error {
+  background: var(--bg-secondary);
+  border-left: 2px solid var(--error);
+}
+
+.error .toolCallName {
+  color: var(--error);
+}
+
+/* Quieter styling for set_dataset */
+.toolCall[data-tool-name="set_dataset"] {
+  background: var(--bg-secondary);
+  border-left: 2px solid var(--border-primary);
+}
+
+.toolCall[data-tool-name="set_dataset"].running {
+  border-left: 2px solid var(--warning);
+}
+
+.toolCall[data-tool-name="set_dataset"].completed {
+  border-left: 2px solid var(--success);
+}
+
+.toolCall[data-tool-name="set_dataset"].error {
+  border-left: 2px solid var(--error);
+}
+
+.toolCall[data-tool-name="set_dataset"] .toolCallName {
+  color: var(--success);
+}
+
+.toolCallContent {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  width: auto;
+}
+
+.toolCallName {
+  font-weight: 500;
+  color: var(--brand-primary);
+  font-size: 11px;
+}
+
+.toolCallDetails {
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+  color: var(--text-primary);
+}
+
+.toolCallDetails h4 {
+  margin: 0 0 var(--space-sm) 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.toolCallDetails pre {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+  white-space: pre-wrap;
+  font-size: 11px;
+  margin: 4px 0;
+  max-width: 100%;
+  border: 1px solid var(--border-primary);
+}

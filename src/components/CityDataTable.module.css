@@ -1,0 +1,261 @@
+.loadingContainer {
+  padding: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.container {
+  padding: 24px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.cityStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+}
+
+.linkBtn {
+  background: none;
+  border: none;
+  color: var(--brand-primary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+  text-decoration: underline;
+}
+
+.linkBtn:hover {
+  background: var(--bg-tertiary);
+}
+
+.linkBtnDanger {
+  color: var(--error);
+}
+
+.tableContainer {
+  overflow-x: auto;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--bg-primary);
+}
+
+.cityTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.cityTable thead {
+  background: var(--bg-secondary);
+  border-bottom: 2px solid var(--border-primary);
+}
+
+.cityTable th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.cityTable tbody tr {
+  border-bottom: 1px solid var(--border-primary);
+  transition: background-color 0.2s;
+}
+
+.cityTable tbody tr:hover {
+  background: var(--bg-secondary);
+}
+
+.rowError {
+  background: #fef2f2;
+}
+
+:global([data-theme="dark"]) .rowError,
+:global(.dark) .rowError {
+  background: #4b2a2a;
+}
+
+.stateHeaderRow {
+  background: var(--bg-secondary);
+  border-top: 2px solid var(--border-primary);
+}
+
+.stateHeaderCell {
+  padding: 12px 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.cityTable td {
+  padding: 12px 16px;
+  vertical-align: middle;
+  color: var(--text-primary);
+}
+
+.checkboxCol {
+  width: 40px;
+  text-align: center;
+}
+
+.nameCol {
+  min-width: 180px;
+}
+
+.stateCol {
+  min-width: 80px;
+}
+
+.countryCol {
+  min-width: 120px;
+}
+
+.populationCol {
+  min-width: 100px;
+}
+
+.platformCol {
+  min-width: 100px;
+}
+
+.datasetsCol {
+  min-width: 80px;
+  text-align: center;
+}
+
+.vectorDbCol {
+  min-width: 100px;
+  text-align: center;
+}
+
+.lastFetchCol {
+  min-width: 120px;
+}
+
+.statusCol {
+  min-width: 100px;
+}
+
+.platformBadge {
+  padding: 4px 8px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.vectorDbBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 44px;
+  height: 28px;
+  padding: 0 8px;
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.vectorDbBtn:hover:not(:disabled) {
+  background: var(--bg-secondary);
+  border-color: color-mix(in srgb, var(--border-primary) 70%, var(--text-primary));
+}
+
+.vectorDbBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.vectorDbBtnStatsLoaded {
+  border-color: color-mix(in srgb, var(--border-primary) 70%, var(--brand-primary));
+}
+
+.loadingSpinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.statusBadge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.statusSuccess {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.statusError {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.statusUnknown {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+:global([data-theme="dark"]) .statusError,
+:global(.dark) .statusError {
+  background: #4b2a2a;
+  color: #fca5a5;
+}
+
+.searchInput {
+  padding: 8px 10px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+}
+
+
+.emptyState {
+  padding: 48px;
+  text-align: center;
+  color: var(--text-secondary);
+}

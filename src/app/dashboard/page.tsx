@@ -16,7 +16,7 @@ import JobLogsViewer from "@/components/JobLogsViewer";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getMyPermissions, getSavedCities } from "@/lib/apiClient";
 import Loader from "@/components/Loader";
-import "./dashboard.css";
+import styles from "./page.module.css";
 
 type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "metrics-admin" | "datasets-admin" | "city" | "metric" | "job-logs";
 
@@ -35,20 +35,16 @@ export default function DashboardPage() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [cityLeadCityIds, setCityLeadCityIds] = useState<number[]>([]);
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
-  // Initialize sidebar as closed on narrow screens (mobile)
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
-    // Only check window width on client side
-    if (typeof window !== "undefined") {
-      return !isNarrowScreen();
-    }
-    // Default to open on server (will be updated on mount)
-    return true;
-  });
+  // Initialize sidebar state - always start with false to match server render
+  // Will be updated on client mount based on screen size
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState<ViewType>("chat");
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [selectedCityId, setSelectedCityId] = useState<number | null>(null);
   const [activeCityId, setActiveCityId] = useState<number | null>(null);
+  const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number } | null>(null);
   const hasAutoSelectedCity = useRef(false);
 
   useEffect(() => {
@@ -56,6 +52,16 @@ export default function DashboardPage() {
       router.push("/");
     }
   }, [isLoading, isAuthenticated, router]);
+
+  // Set initial sidebar state based on screen size after mount
+  useEffect(() => {
+    // Only run on client side
+    if (typeof window === "undefined") return;
+    
+    // Set initial state based on screen width
+    const isNarrow = isNarrowScreen();
+    setSidebarOpen(!isNarrow);
+  }, []);
 
   // Handle window resize to update sidebar state for mobile/desktop
   useEffect(() => {
@@ -90,12 +96,14 @@ export default function DashboardPage() {
         const token = await getAccessTokenSilently();
         const permissions = await getMyPermissions(token);
         setIsAdmin(permissions.is_admin || false);
+        setCityLeadCityIds(permissions.city_lead_city_ids || []);
         console.log("Admin status checked:", { isAdmin: permissions.is_admin, role: permissions.role });
         setIsCheckingAdmin(false);
       } catch (error) {
         console.error("Error checking admin status:", error);
         // On error, default to false (non-admin)
         setIsAdmin(false);
+        setCityLeadCityIds([]);
         setIsCheckingAdmin(false);
       }
     };
@@ -177,6 +185,7 @@ export default function DashboardPage() {
     // Reset active city when switching away from city view
     if (nextView !== "city") {
       setActiveCityId(null);
+      setGpsLocation(null); // Clear GPS location when leaving city view
     }
     // Don't close sidebar when navigating - only close on hamburger click
   };
@@ -184,6 +193,8 @@ export default function DashboardPage() {
   const handleCityClick = (cityId: number) => {
     setActiveCityId(cityId);
     setCurrentView("city");
+    // Clear GPS location when city is selected via sidebar
+    setGpsLocation(null);
   };
 
   const handleOpenSettings = () => {
@@ -192,7 +203,7 @@ export default function DashboardPage() {
 
   if (isLoading || isCheckingAdmin) {
     return (
-      <div className="dashboard-loading" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px" }}>
+      <div className={styles.dashboardLoading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px" }}>
         <Loader size="sm" color="dark" />
         <span>Loading...</span>
       </div>
@@ -204,8 +215,24 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className={`dashboard-layout ${sidebarOpen ? "sidebar-open" : "sidebar-collapsed"}`}>
-      <TitleBar onMenuToggle={handleMenuToggle} isAdmin={isAdmin} />
+    <div className={`${styles.dashboardLayout} ${sidebarOpen ? "sidebar-open" : "sidebar-collapsed"}`}>
+      <TitleBar
+        onMenuToggle={handleMenuToggle}
+        isAdmin={isAdmin}
+        onCitySelect={(cityId) => {
+          setActiveCityId(cityId);
+          setCurrentView("city");
+          // Clear GPS location when city is selected normally (not via GPS)
+          setGpsLocation(null);
+          // Close sidebar on narrow screens to show the map immediately.
+          if (isNarrowScreen()) {
+            setSidebarOpen(false);
+          }
+        }}
+        onGPSLocation={(location) => {
+          setGpsLocation(location);
+        }}
+      />
       
       <Sidebar
         isOpen={sidebarOpen}
@@ -222,10 +249,10 @@ export default function DashboardPage() {
         activeCityId={activeCityId}
       />
 
-      <main className="main-content" id="main-content">
-        <div className="views-container">
+      <main className={`${styles.mainContent} ${sidebarOpen ? "" : styles.mainContentCollapsed}`} id="main-content">
+        <div className={styles.viewsContainer}>
           {currentView === "chat" && (
-            <div className="content-view active">
+            <div className={`${styles.contentView} ${styles.contentViewActive}`}>
               <ChatView
                 sessionId={currentSessionId}
                 onSessionChange={setCurrentSessionId}
@@ -235,9 +262,9 @@ export default function DashboardPage() {
           
           {/* Admin Views */}
           {currentView === "city-data" && (
-            <div id="city-data-view" className="content-view active">
+            <div id="city-data-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
               {selectedCityId ? (
-                <div className="admin-container">
+                <div className={styles.adminContainer}>
                   <CityDataAdmin cityId={selectedCityId} onBack={() => setSelectedCityId(null)} />
                 </div>
               ) : (
@@ -249,8 +276,8 @@ export default function DashboardPage() {
           )}
 
           {currentView === "system-stats" && (
-            <div id="system-stats-view" className="content-view active">
-              <div className="admin-container">
+            <div id="system-stats-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
+              <div className={styles.adminContainer}>
                 <h2>Settings & System Statistics</h2>
                 <div style={{ marginTop: "16px" }}>
                   <div
@@ -307,16 +334,16 @@ export default function DashboardPage() {
           )}
 
           {currentView === "user-management" && (
-            <div id="user-management-view" className="content-view active">
-              <div className="admin-container">
+            <div id="user-management-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
+              <div className={styles.adminContainer}>
                 <UserManagement />
               </div>
             </div>
           )}
 
           {currentView === "metrics-admin" && (
-            <div id="metrics-admin-view" className="content-view active">
-              <div className="admin-container">
+            <div id="metrics-admin-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
+              <div className={styles.adminContainer}>
                 <h2 style={{ margin: "0 0 24px 0", padding: 0, color: "var(--text-primary)", fontSize: "24px" }}>
                   Metrics Administration
                 </h2>
@@ -332,8 +359,8 @@ export default function DashboardPage() {
           )}
 
           {currentView === "datasets-admin" && (
-            <div id="datasets-admin-view" className="content-view active">
-              <div className="admin-container">
+            <div id="datasets-admin-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
+              <div className={styles.adminContainer}>
                 <h2 style={{ margin: "0 0 24px 0", padding: 0, color: "var(--text-primary)", fontSize: "24px" }}>
                   Datasets Administration
                 </h2>
@@ -343,19 +370,20 @@ export default function DashboardPage() {
           )}
 
           {currentView === "city" && activeCityId && (
-            <div id="city-view" className="content-view active">
-              <div className="admin-container">
+            <div id="city-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
+              <div className={`${styles.adminContainer} ${styles.cityViewContainer}`}>
                 <CityView
                   cityId={activeCityId}
-                  isAdmin={isAdmin}
+                  isAdmin={isAdmin || cityLeadCityIds.includes(activeCityId)}
+                  gpsLocation={gpsLocation}
                 />
               </div>
             </div>
           )}
 
           {currentView === "metric" && (
-            <div id="metric-view" className="content-view active">
-              <div className="admin-container">
+            <div id="metric-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
+              <div className={styles.adminContainer}>
                 <h2>Metric View</h2>
                 <p>Metric view coming soon...</p>
               </div>
@@ -363,8 +391,8 @@ export default function DashboardPage() {
           )}
 
           {currentView === "job-logs" && isAdmin && (
-            <div id="job-logs-view" className="content-view active">
-              <div className="admin-container">
+            <div id="job-logs-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
+              <div className={styles.adminContainer}>
                 <JobLogsViewer />
               </div>
             </div>

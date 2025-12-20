@@ -4,19 +4,22 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useEffect, useState, useCallback, useRef } from "react";
 import CityDataAdmin from "@/components/CityDataAdmin";
 import CityMapView from "@/components/CityMapView";
+import CityHeader from "@/components/CityHeader";
 import { CityDetail, getCity, getSavedCities, saveCity, unsaveCity } from "@/lib/apiClient";
 import { emitSavedCitiesChanged, SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEvents";
+import { getPresetMetricDateRange, getDefaultDateRangeFromMetrics, type MetricDateRange } from "@/lib/dateRange";
 import Loader from "@/components/Loader";
 import "./CityView.css";
 
 interface CityViewProps {
   cityId: number;
   isAdmin: boolean;
+  gpsLocation?: { lat: number; lng: number } | null; // GPS coordinates to zoom to
 }
 
 type TabType = "map" | "dashboard" | "admin";
 
-export default function CityView({ cityId, isAdmin }: CityViewProps) {
+export default function CityView({ cityId, isAdmin, gpsLocation }: CityViewProps) {
   const { getAccessTokenSilently } = useAuth0();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +27,13 @@ export default function CityView({ cityId, isAdmin }: CityViewProps) {
   const [isCitySaved, setIsCitySaved] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("map"); // Default to map tab
   const [saving, setSaving] = useState(false);
+  const [headerVisible, setHeaderVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+  const [metricDateRange, setMetricDateRange] = useState<MetricDateRange>(
+    getPresetMetricDateRange("all")
+  );
   const loadingRef = useRef<{ cityId: number | null; inProgress: boolean }>({ cityId: null, inProgress: false });
+  const mapTabRef = useRef<HTMLDivElement | null>(null);
 
   const loadCityData = useCallback(async () => {
     // Prevent duplicate calls for the same cityId
@@ -47,6 +56,19 @@ export default function CityView({ cityId, isAdmin }: CityViewProps) {
       
       setCityData(city);
       setIsCitySaved(savedCities.some((city) => city.id === cityId));
+      
+      // Set default date range based on most recent metric data date
+      // Log metrics for debugging
+      if (city.metrics && city.metrics.length > 0) {
+        console.log("City metrics:", city.metrics.map(m => ({
+          name: m.metric_name,
+          most_recent_data_date: m.most_recent_data_date,
+          last_execution_at: m.last_execution_at
+        })));
+      }
+      const defaultDateRange = getDefaultDateRangeFromMetrics(city.metrics);
+      console.log("Calculated default date range:", defaultDateRange);
+      setMetricDateRange(defaultDateRange);
     } catch (err: any) {
       setError(err.message || "Failed to load city data");
       console.error("Error loading city data:", err);
@@ -70,6 +92,9 @@ export default function CityView({ cityId, isAdmin }: CityViewProps) {
     // Reset loading ref when cityId changes
     if (loadingRef.current.cityId !== cityId) {
       loadingRef.current = { cityId, inProgress: false };
+      // Reset date range to "all" when switching cities
+      // It will be updated once the new city data loads
+      setMetricDateRange(getPresetMetricDateRange("all"));
     }
     
     // loadCityData now handles both city data and saved status in parallel
@@ -89,6 +114,37 @@ export default function CityView({ cityId, isAdmin }: CityViewProps) {
       window.removeEventListener(SAVED_CITIES_CHANGED_EVENT, handleSavedCitiesChanged);
     };
   }, [checkCitySavedStatus]);
+
+  // Handle scroll to hide/show header on mobile in map view
+  useEffect(() => {
+    if (activeTab !== "map" || !mapTabRef.current) return;
+
+    const handleScroll = () => {
+      // Only apply scroll behavior on narrow screens (mobile)
+      if (window.innerWidth > 768) {
+        setHeaderVisible(true);
+        return;
+      }
+
+      const currentScrollY = window.scrollY;
+      const scrollThreshold = 10; // Small threshold to prevent jitter
+
+      if (currentScrollY > lastScrollY && currentScrollY > scrollThreshold) {
+        // Scrolling down - hide header
+        setHeaderVisible(false);
+      } else if (currentScrollY < lastScrollY) {
+        // Scrolling up - show header
+        setHeaderVisible(true);
+      }
+
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, [activeTab, lastScrollY]);
 
   const handleToggleSave = async () => {
     try {
@@ -136,46 +192,37 @@ export default function CityView({ cityId, isAdmin }: CityViewProps) {
   }
 
   return (
-    <div className={`city-view ${activeTab === "map" ? "map-view-active" : ""}`}>
+    <div className={`city-view ${activeTab === "map" ? "map-view-active" : "tab-view-active"}`}>
       {/* Map Tab - Full Screen with Overlays */}
       {activeTab === "map" && (
-        <div className="tab-content active map-tab-fullscreen" id="map-tab">
-          <CityMapView cityId={cityId} isAdmin={isAdmin} cityData={cityData} />
+        <div 
+          ref={mapTabRef}
+          className={`tab-content active map-tab-fullscreen ${headerVisible ? "header-visible" : "header-hidden"}`}
+          id="map-tab"
+        >
+          <CityMapView
+            cityId={cityId}
+            isAdmin={isAdmin}
+            cityData={cityData}
+            metricDateRange={metricDateRange}
+            gpsLocation={gpsLocation}
+          />
           
           {/* Header Overlay */}
-          <div className="city-header-overlay">
-            <div className="city-header-left">
-              {cityData.emoji && (
-                <span className="city-emoji-icon">{cityData.emoji}</span>
-              )}
-              <h1 className="city-name">{cityData.name}</h1>
-            </div>
-            <div className="city-header-right">
-              <button
-                id="save-city-btn"
-                className={`save-city-btn ${isCitySaved ? "saved" : ""}`}
-                onClick={handleToggleSave}
-                disabled={saving}
-                title={isCitySaved ? "Remove from My Cities" : "Save to My Cities"}
-              >
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill={isCitySaved ? "currentColor" : "none"}
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-                </svg>
-              </button>
-            </div>
-          </div>
+          <CityHeader
+            emoji={cityData.emoji || undefined}
+            name={cityData.name}
+            isCitySaved={isCitySaved}
+            saving={saving}
+            onToggleSave={handleToggleSave}
+            metricDateRange={metricDateRange}
+            onMetricDateRangeChange={setMetricDateRange}
+            variant="overlay"
+            visible={headerVisible}
+          />
 
           {/* Tabs Overlay */}
-          <div className="tabs-container-overlay">
+          <div className={`tabs-container-overlay ${headerVisible ? "visible" : "hidden"}`}>
             <button
               className="tab-btn active"
               onClick={() => setActiveTab("map")}
@@ -200,43 +247,24 @@ export default function CityView({ cityId, isAdmin }: CityViewProps) {
         </div>
       )}
 
-      {/* Non-Map Tabs - Standard Layout */}
+      {/* Non-Map Tabs - Full Width Layout with Attached Header */}
       {activeTab !== "map" && (
-        <>
-          {/* Header */}
-          <div className="city-header">
-            <div className="city-header-left">
-              {cityData.emoji && (
-                <span className="city-emoji-icon">{cityData.emoji}</span>
-              )}
-              <h1 className="city-name">{cityData.name}</h1>
-            </div>
-            <div className="city-header-right">
-              <button
-                id="save-city-btn"
-                className={`save-city-btn ${isCitySaved ? "saved" : ""}`}
-                onClick={handleToggleSave}
-                disabled={saving}
-                title={isCitySaved ? "Remove from My Cities" : "Save to My Cities"}
-              >
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill={isCitySaved ? "currentColor" : "none"}
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-                </svg>
-              </button>
-            </div>
-          </div>
+        <div className={`tab-content-wrapper ${activeTab === "dashboard" ? "dashboard-tab" : "admin-tab"}`}>
+          {/* Header - Attached to top */}
+          <CityHeader
+            emoji={cityData.emoji || undefined}
+            name={cityData.name}
+            isCitySaved={isCitySaved}
+            saving={saving}
+            onToggleSave={handleToggleSave}
+            metricDateRange={metricDateRange}
+            onMetricDateRangeChange={setMetricDateRange}
+            variant="overlay"
+            visible={true}
+          />
 
-          {/* Tabs */}
-          <div className="tabs-container">
+          {/* Tabs - Below header */}
+          <div className="tabs-container-overlay">
             <button
               className="tab-btn"
               onClick={() => setActiveTab("map")}
@@ -258,29 +286,33 @@ export default function CityView({ cityId, isAdmin }: CityViewProps) {
               </button>
             )}
           </div>
-        </>
-      )}
 
-      {/* Dashboard Tab */}
-      {activeTab === "dashboard" && (
-        <div className="tab-content active" id="dashboard-tab">
-          <div className="dashboard-section">
-            <h2>Year-to-Date Changes</h2>
-            <div className="ytd-placeholder">
-              <p>YTD metrics dashboard coming soon...</p>
-              <p className="text-secondary">
-                This will show year-to-date changes in key metrics for this city.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+          {/* Tab Content */}
+          <div className={`tab-content active ${activeTab}-content`}>
+            {activeTab === "dashboard" && (
+              <div className="dashboard-section">
+                <h2>Metrics</h2>
+                {cityData.metrics && cityData.metrics.length > 0 ? (
+                  <div className="metrics-list">
+                    {cityData.metrics.map((metric) => (
+                      <div key={metric.id} className="metric-item">
+                        <span className="metric-name">{metric.metric_name}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="ytd-placeholder">
+                    <p>No metrics defined for this city.</p>
+                  </div>
+                )}
+              </div>
+            )}
 
-      {/* Admin Tab */}
-      {activeTab === "admin" && isAdmin && (
-        <div className="tab-content active" id="admin-tab">
-          <div className="admin-section">
-            <CityDataAdmin cityId={cityId} />
+            {activeTab === "admin" && isAdmin && (
+              <div className="admin-section">
+                <CityDataAdmin cityId={cityId} embedded />
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
+
+import styles from "./ToolCall.module.css";
 
 interface ToolCallProps {
   toolCall: {
@@ -20,8 +22,9 @@ interface ToolCallProps {
 
 export default function ToolCall({ toolCall }: ToolCallProps) {
   const [showDetails, setShowDetails] = useState(false);
+  const fallbackId = useId();
 
-  const toolId = toolCall.tool_id || `tool-${Date.now()}`;
+  const toolId = toolCall.tool_id || `tool-${fallbackId}`;
   const toolName = toolCall.tool_name || toolCall.toolName || "Tool Call";
   const success = toolCall.success !== false;
   const statusClass = success ? "completed" : "error";
@@ -46,6 +49,16 @@ export default function ToolCall({ toolCall }: ToolCallProps) {
   };
 
   const escapeHtml = (text: string): string => {
+    // Safe for SSR - only escape on client
+    if (typeof document === "undefined") {
+      // Simple server-side escaping
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
     const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
@@ -54,18 +67,18 @@ export default function ToolCall({ toolCall }: ToolCallProps) {
   return (
     <div
       id={toolId}
-      className={`tool-call ${statusClass}`}
+      className={`${styles.toolCall} ${success ? styles.completed : styles.error}` }
       data-tool-name={toolName}
     >
       <div
-        className="tool-call-content"
+        className={styles.toolCallContent}
         onClick={() => setShowDetails(!showDetails)}
         style={{ cursor: "pointer" }}
       >
-        <div className="tool-call-name">🔧 {toolName}</div>
+        <div className={styles.toolCallName}>🔧 {toolName}</div>
       </div>
       {showDetails && (
-        <div className="tool-call-details show">
+        <div className={styles.toolCallDetails}>
           <h4>Tool Call Details</h4>
           <div>
             <strong>Function:</strong> {toolName}

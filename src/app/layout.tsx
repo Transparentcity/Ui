@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./tokens.css";
+import "./ui.css";
 import { AuthProvider } from "./providers";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { getSiteOrigin } from "@/lib/siteUrl";

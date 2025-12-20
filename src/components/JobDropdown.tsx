@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef } from "react";
 import { Job } from "@/lib/useJobWebSocket";
 
+import styles from "./JobDropdown.module.css";
+
 interface JobDropdownProps {
   jobs: Job[];
   isOpen: boolean;
@@ -81,20 +83,20 @@ function JobItem({ job, onCancel }: { job: Job; onCancel: (jobId: string) => Pro
     .replace(/>/g, "&gt;");
 
   return (
-    <div className="job-item" data-job-id={job.job_id}>
-      <div className="job-item-header">
-        <h4 className="job-item-title" dangerouslySetInnerHTML={{ __html: description }} />
-        <span className={`job-status-badge ${job.status}`}>{job.status}</span>
+    <div className={styles.item} data-job-id={job.job_id}>
+      <div className={styles.itemHeader}>
+        <h4 className={styles.itemTitle} dangerouslySetInnerHTML={{ __html: description }} />
+        <span className={`${styles.statusBadge} ${job.status === "running" ? styles.statusRunning : job.status === "completed" ? styles.statusCompleted : job.status === "failed" ? styles.statusFailed : job.status === "cancelled" ? styles.statusCancelled : styles.statusPending}`}>{job.status}</span>
       </div>
-      <div className="job-status-message" dangerouslySetInnerHTML={{ __html: statusMessage }} />
-      <div className="job-progress-bar">
-        <div className="job-progress-fill" style={{ width: `${job.progress}%` }} />
+      <div className={styles.statusMessage} dangerouslySetInnerHTML={{ __html: statusMessage }} />
+      <div className={styles.progressBar}>
+        <div className={styles.progressFill} style={{ width: `${job.progress}%` }} />
       </div>
-      <div className="job-item-footer">
-        <span className="job-elapsed-time">{elapsedTime}</span>
+      <div className={styles.itemFooter}>
+        <span className={styles.elapsed}>{elapsedTime}</span>
         {canCancel && (
           <button
-            className="job-cancel-btn"
+            className={styles.cancelBtn}
             data-job-id={job.job_id}
             onClick={handleCancel}
             disabled={isCancelling}
@@ -143,16 +145,16 @@ export default function JobDropdown({
   });
 
   return (
-    <div className="job-dropdown" ref={dropdownRef}>
-      <div className="job-dropdown-header">
+    <div className={styles.dropdown} ref={dropdownRef}>
+      <div className={styles.header}>
         <h3>Background Jobs</h3>
-        <button className="job-close-btn" onClick={onClose} aria-label="Close">
+        <button className={styles.closeBtn} onClick={onClose} aria-label="Close">
           ✕
         </button>
       </div>
-      <div className="job-list">
+      <div className={styles.list}>
         {sortedJobs.length === 0 ? (
-          <div className="job-empty-state">No active jobs</div>
+          <div className={styles.emptyState}>No active jobs</div>
         ) : (
           sortedJobs.map((job) => (
             <JobItem key={job.job_id} job={job} onCancel={onCancelJob} />

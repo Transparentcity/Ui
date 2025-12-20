@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import Loader from "./Loader";
+import styles from "./SidebarLists.module.css";
 
 interface Session {
   session_id: string;
@@ -32,7 +33,7 @@ export default function SessionList({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const isLoadingSessionsRef = useRef(false);
   const sessionsLoadedRef = useRef(false);
@@ -81,25 +82,64 @@ export default function SessionList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run once on mount
 
+  // Allow other parts of the UI (e.g. ChatView) to trigger a sessions refresh
+  // when a new session is created or a title is updated.
+  useEffect(() => {
+    const handler = () => {
+      loadSessions();
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("chat:sessions:invalidate", handler);
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("chat:sessions:invalidate", handler);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // If a session becomes active that we haven't loaded yet (common when a new
+  // chat session is created), optimistically add it and then refresh the list.
+  useEffect(() => {
+    if (!currentSessionId) return;
+
+    const exists = sessions.some((s) => s.session_id === currentSessionId);
+    if (exists) return;
+
+    const now = new Date().toISOString();
+    const placeholder: Session = {
+      session_id: currentSessionId,
+      title: "New Chat",
+      message_count: 0,
+      last_message_at: now,
+      created_at: now,
+      is_active: true,
+    };
+
+    setSessions((prev) => [placeholder, ...prev]);
+    loadSessions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSessionId]); // Intentionally exclude `sessions` to avoid loops
+
   // Close menu when clicking outside
   useEffect(() => {
+    if (!openMenuId) return;
+
     const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      // Close if clicking outside any menu or menu button
-      if (
-        !target.closest(".session-menu") &&
-        !target.closest(".session-menu-btn")
-      ) {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (rootRef.current && !rootRef.current.contains(target)) {
         setOpenMenuId(null);
       }
     };
 
-    if (openMenuId) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => {
-        document.removeEventListener("mousedown", handleClickOutside);
-      };
-    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, [openMenuId]);
 
   const handleSessionClick = (sessionId: string) => {
@@ -152,7 +192,7 @@ export default function SessionList({
 
   if (loading) {
     return (
-      <div className="session-empty-state" style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center", padding: "12px" }}>
+      <div className={styles.emptyState} style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center", padding: "12px" }}>
         <Loader size="sm" color="dark" />
         <span style={{ color: "var(--text-secondary)" }}>Loading sessions...</span>
       </div>
@@ -161,7 +201,7 @@ export default function SessionList({
 
   if (error) {
     return (
-      <div className="session-empty-state">
+      <div className={styles.emptyState}>
         <div style={{ textAlign: "center", padding: "12px", color: "var(--error)" }}>
           {error}
         </div>
@@ -171,7 +211,7 @@ export default function SessionList({
 
   if (sessions.length === 0) {
     return (
-      <div className="session-empty-state">
+      <div className={styles.emptyState}>
         <div style={{ padding: "12px 20px", color: "var(--text-secondary)", fontSize: "13px", textAlign: "center" }}>
           No previous chats
         </div>
@@ -180,38 +220,34 @@ export default function SessionList({
   }
 
   return (
-    <div ref={menuRef}>
+    <div ref={rootRef}>
       {sessions.map((session) => (
         <div
           key={session.session_id}
-          className={`session-item ${
-            session.session_id === currentSessionId ? "active" : ""
-          }`}
+          className={`${styles.item} ${session.session_id === currentSessionId ? styles.itemActive : ""}` }
         >
           <div
-            className="session-content"
+            className={styles.content}
             data-session-id={session.session_id}
             onClick={() => handleSessionClick(session.session_id)}
           >
-            <div className="session-title">
+            <div className={styles.title}>
               {session.title || "New Chat"}
             </div>
           </div>
           <button
-            className="session-menu-btn"
+            className={styles.menuBtn}
             onClick={(e) => toggleSessionMenu(e, session.session_id)}
             title="Options"
           >
             ⋮
           </button>
           <div
-            className={`session-menu ${
-              openMenuId === session.session_id ? "show" : ""
-            }`}
+            className={`${styles.menu} ${openMenuId === session.session_id ? styles.menuShow : ""}` }
             id={`menu-${session.session_id}`}
           >
             <div
-              className="session-menu-item delete"
+              className={`${styles.menuItem} ${styles.menuItemDelete}` }
               onClick={(e) => deleteSession(e, session.session_id)}
             >
               🗑️ Delete

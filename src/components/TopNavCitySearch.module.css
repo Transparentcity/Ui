@@ -1,0 +1,212 @@
+.root {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.iconBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.searchExpanded {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.gpsBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.gpsBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.gpsBtn:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+}
+
+.inputWrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  max-width: 100%;
+  min-width: 0;
+  overflow: visible;
+}
+
+.leadingIcon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.input {
+  width: min(42vw, 460px);
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 14px;
+  flex: 1 1 auto;
+}
+
+@media (max-width: 768px) {
+  .searchExpanded {
+    gap: 6px;
+  }
+  
+  .input {
+    width: min(calc(100vw - 200px), 200px);
+    max-width: 200px;
+    font-size: 13px;
+  }
+  
+  .inputWrap {
+    gap: 4px;
+    padding: 6px 4px;
+    max-width: calc(100vw - 140px);
+  }
+  
+  .iconBtn {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    min-width: 28px;
+  }
+  
+  .gpsBtn {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .leadingIcon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .searchExpanded {
+    gap: 4px;
+  }
+  
+  .input {
+    width: min(calc(100vw - 180px), 150px);
+    max-width: 150px;
+    font-size: 12px;
+  }
+  
+  .inputWrap {
+    gap: 3px;
+    padding: 5px 3px;
+    max-width: calc(100vw - 120px);
+  }
+  
+  .iconBtn {
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    min-width: 26px;
+  }
+  
+  .gpsBtn {
+    width: 26px;
+    height: 26px;
+  }
+  
+  .leadingIcon {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+  }
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+  max-width: 100vw;
+}
+
+@media (max-width: 768px) {
+  .dropdown {
+    left: -8px;
+    right: -8px;
+    max-width: calc(100vw - 16px);
+  }
+}
+
+.option {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.optionBtn {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.optionBtn:hover,
+.optionBtn[aria-selected="true"] {
+  background: rgba(17, 24, 39, 0.05);
+}
+
+:global([data-theme="dark"]) .optionBtn:hover,
+:global([data-theme="dark"]) .optionBtn[aria-selected="true"],
+:global(.dark) .optionBtn:hover,
+:global(.dark) .optionBtn[aria-selected="true"] {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.meta {
+  color: var(--text-secondary);
+  font-size: 12px;
+}

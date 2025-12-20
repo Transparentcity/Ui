@@ -1,0 +1,225 @@
+.metric-date-range-selector {
+  display: inline-flex;
+  align-items: center;
+}
+
+.metric-date-range-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(229, 231, 235, 0.8);
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+  color: var(--text-primary, #111827);
+  font-size: 13px;
+  line-height: 1;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.metric-date-range-pill:hover {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(173, 53, 250, 0.45);
+}
+
+.metric-date-range-pill-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.metric-date-range-pill-label {
+  white-space: nowrap;
+}
+
+.metric-date-range-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 11000; /* Above map overlays + layer selector + title bar */
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.metric-date-range-modal {
+  width: min(520px, 92vw);
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #111827);
+  border-radius: 12px;
+  border: 1px solid rgba(229, 231, 235, 1);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.metric-date-range-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(229, 231, 235, 1);
+}
+
+.metric-date-range-modal-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.metric-date-range-modal-close {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.metric-date-range-modal-close:hover {
+  background: var(--bg-secondary, #f3f4f6);
+  color: var(--text-primary, #111827);
+}
+
+.metric-date-range-modal-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.metric-date-range-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.metric-date-range-preset {
+  border: 1px solid rgba(229, 231, 235, 1);
+  background: var(--bg-secondary, #f9fafb);
+  border-radius: 999px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary, #111827);
+}
+
+.metric-date-range-preset.active {
+  border-color: rgba(173, 53, 250, 0.65);
+  background: rgba(173, 53, 250, 0.08);
+}
+
+.metric-date-range-custom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.metric-date-range-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.metric-date-range-field-label {
+  color: var(--text-secondary, #6b7280);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.metric-date-range-field input[type="date"] {
+  border: 1px solid rgba(229, 231, 235, 1);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #111827);
+}
+
+.metric-date-range-error {
+  color: #dc2626;
+  font-size: 12px;
+}
+
+.metric-date-range-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 16px;
+  border-top: 1px solid rgba(229, 231, 235, 1);
+}
+
+.metric-date-range-button {
+  border: 1px solid rgba(173, 53, 250, 0.65);
+  background: rgba(173, 53, 250, 0.95);
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.metric-date-range-button.secondary {
+  border-color: rgba(229, 231, 235, 1);
+  background: var(--bg-secondary, #f3f4f6);
+  color: var(--text-primary, #111827);
+  font-weight: 600;
+}
+
+.metric-date-range-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 520px) {
+  .metric-date-range-custom {
+    grid-template-columns: 1fr;
+  }
+}
+
+[data-theme="dark"] .metric-date-range-pill,
+.dark .metric-date-range-pill {
+  background: rgba(31, 41, 55, 0.65);
+  border-color: rgba(55, 65, 81, 0.8);
+  color: var(--text-primary, #f1f5f9);
+}
+
+[data-theme="dark"] .metric-date-range-pill:hover,
+.dark .metric-date-range-pill:hover {
+  background: rgba(31, 41, 55, 0.8);
+  border-color: rgba(173, 53, 250, 0.55);
+}
+
+[data-theme="dark"] .metric-date-range-modal,
+.dark .metric-date-range-modal {
+  background: var(--bg-primary, #111827);
+  border-color: rgba(55, 65, 81, 1);
+  color: var(--text-primary, #f1f5f9);
+}
+
+[data-theme="dark"] .metric-date-range-modal-header,
+[data-theme="dark"] .metric-date-range-modal-footer,
+.dark .metric-date-range-modal-header,
+.dark .metric-date-range-modal-footer {
+  border-color: rgba(55, 65, 81, 1);
+}
+
+[data-theme="dark"] .metric-date-range-preset,
+.dark .metric-date-range-preset {
+  border-color: rgba(55, 65, 81, 1);
+  background: rgba(31, 41, 55, 0.9);
+  color: var(--text-primary, #f1f5f9);
+}
+
+[data-theme="dark"] .metric-date-range-field input[type="date"],
+.dark .metric-date-range-field input[type="date"] {
+  border-color: rgba(55, 65, 81, 1);
+  background: rgba(31, 41, 55, 0.9);
+  color: var(--text-primary, #f1f5f9);
+}
+
+

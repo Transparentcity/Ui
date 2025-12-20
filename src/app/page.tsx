@@ -12,6 +12,7 @@ import {
   type PublicCitySearchResult,
 } from "@/lib/publicApiClient";
 import Loader from "@/components/Loader";
+import Header from "@/components/Header";
 
 import "./landing.css";
 
@@ -44,7 +45,6 @@ export default function Home() {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const searchTimeoutRef = useRef<number | null>(null);
   const lastRequestIdRef = useRef(0);
-  const cityPickerRef = useRef<HTMLDivElement | null>(null);
 
   // Landing-hero screenshot carousel (matches original landing page)
   const [activeSlide, setActiveSlide] = useState(0);
@@ -156,19 +156,6 @@ export default function Home() {
     };
   }, []);
 
-  useEffect(() => {
-    const onDocumentClick = (e: MouseEvent) => {
-      const target = e.target as Node | null;
-      if (!target) return;
-      if (cityPickerRef.current && !cityPickerRef.current.contains(target)) {
-        setCityDropdownOpen(false);
-        setSelectedIndex(-1);
-      }
-    };
-
-    document.addEventListener("click", onDocumentClick);
-    return () => document.removeEventListener("click", onDocumentClick);
-  }, []);
 
   useEffect(() => {
     const slideCount = 2;
@@ -219,385 +206,70 @@ export default function Home() {
     };
   }, []);
 
-  const handleLogin = async () => {
-    await loginWithRedirect({
-      authorizationParams: {
-        screen_hint: "login",
-        prompt: "login",
-      },
-      appState: { returnTo: "/dashboard" },
-    });
+
+  const handleCityQueryChange = (query: string) => {
+    setCityQuery(query);
+    setCityDropdownOpen(true);
+    scheduleCitySearch(query);
   };
 
-  const handleSignup = async (intent: "resident" | "public-servant") => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("transparentcity.signup_intent", intent);
+  const handleCityFocus = () => {
+    setCityDropdownOpen(true);
+    const q = cityQuery.trim();
+    if (q.length < 2) {
+      if (suggestedCities.length) {
+        setCityResults(suggestedCities);
+        setSelectedIndex(-1);
+      } else {
+        setCityLoading(true);
+        void loadSuggestedCities();
+      }
+      return;
     }
+    scheduleCitySearch(cityQuery);
+  };
 
-    await loginWithRedirect({
-      authorizationParams: {
-        screen_hint: "signup",
-        prompt: "login",
-      },
-      appState: { returnTo: `/dashboard?signup=${intent}` },
-    });
+  const handleCityDropdownClose = () => {
+    setCityDropdownOpen(false);
+    setSelectedIndex(-1);
+  };
+
+  const handleCityKeyDown = (e: React.KeyboardEvent) => {
+    if (!cityDropdownOpen) return;
+    if (!cityResults.length) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex((prev) => Math.min(prev + 1, cityResults.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex((prev) => Math.max(prev - 1, -1));
+    } else if (e.key === "Enter" && selectedIndex >= 0) {
+      e.preventDefault();
+      const city = cityResults[selectedIndex];
+      if (city) selectCity(city);
+    } else if (e.key === "Escape") {
+      setCityDropdownOpen(false);
+      setSelectedIndex(-1);
+    }
   };
 
   return (
     <div className={styles.page}>
-      <header className={styles.header}>
-        <div className={styles.container}>
-          <div className={styles.headerInner}>
-            <Link
-              href="/"
-              className={styles.brand}
-              aria-label="Transparent.city home"
-            >
-              <svg
-                className={styles.brandMark}
-                viewBox="0 0 100 100"
-                xmlns="http://www.w3.org/2000/svg"
-                style={{ overflow: "visible" }}
-              >
-                <defs>
-                  <mask
-                    id="logo-mask-bl-home"
-                    x="-400"
-                    y="-400"
-                    width="1200"
-                    height="1200"
-                    maskUnits="userSpaceOnUse"
-                    maskContentUnits="userSpaceOnUse"
-                  >
-                    <rect
-                      x="-400"
-                      y="-400"
-                      width="1200"
-                      height="1200"
-                      fill="white"
-                    />
-                    <rect
-                      x="8.333"
-                      y="8.333"
-                      width="83.333"
-                      height="83.333"
-                      rx="3"
-                      ry="3"
-                      fill="black"
-                    />
-                    <rect
-                      x="16.666"
-                      y="-33.333"
-                      width="66.666"
-                      height="166.666"
-                      fill="black"
-                      transform="rotate(-45 50 50)"
-                    />
-                    <rect
-                      x="50"
-                      y="-400"
-                      width="1200"
-                      height="1200"
-                      fill="black"
-                      transform="rotate(-45 50 50)"
-                    />
-                  </mask>
-                  <mask
-                    id="logo-mask-tr-home"
-                    x="-400"
-                    y="-400"
-                    width="1200"
-                    height="1200"
-                    maskUnits="userSpaceOnUse"
-                    maskContentUnits="userSpaceOnUse"
-                  >
-                    <rect
-                      x="-400"
-                      y="-400"
-                      width="1200"
-                      height="1200"
-                      fill="white"
-                    />
-                    <rect
-                      x="8.333"
-                      y="8.333"
-                      width="83.333"
-                      height="83.333"
-                      rx="3"
-                      ry="3"
-                      fill="black"
-                    />
-                    <rect
-                      x="16.666"
-                      y="-33.333"
-                      width="66.666"
-                      height="166.666"
-                      fill="black"
-                      transform="rotate(-45 50 50)"
-                    />
-                    <rect
-                      x="-1150"
-                      y="-400"
-                      width="1200"
-                      height="1200"
-                      fill="black"
-                      transform="rotate(-45 50 50)"
-                    />
-                  </mask>
-                </defs>
-                <rect
-                  className={styles.logoBrace}
-                  x="0"
-                  y="0"
-                  width="100"
-                  height="100"
-                  rx="3"
-                  ry="3"
-                  mask="url(#logo-mask-bl-home)"
-                  transform="translate(23.5%, -23.5%)"
-                />
-                <rect
-                  className={styles.logoBrace}
-                  x="0"
-                  y="0"
-                  width="100"
-                  height="100"
-                  rx="3"
-                  ry="3"
-                  mask="url(#logo-mask-tr-home)"
-                  transform="translate(-23.5%, 23.5%)"
-                />
-              </svg>
-              <span className={styles.brandText}>
-                transparent<span className={styles.brandDotCity}>.city</span>
-              </span>
-            </Link>
-
-            <div className={styles.cityPicker} ref={cityPickerRef}>
-              <input
-                className={styles.cityInput}
-                value={cityQuery}
-                placeholder="Start with San Francisco — or search for your city…"
-                onChange={(e) => {
-                  setCityQuery(e.target.value);
-                  setCityDropdownOpen(true);
-                  scheduleCitySearch(e.target.value);
-                }}
-                onFocus={() => {
-                  setCityDropdownOpen(true);
-                  const q = cityQuery.trim();
-                  if (q.length < 2) {
-                    if (suggestedCities.length) {
-                      setCityResults(suggestedCities);
-                      setSelectedIndex(-1);
-                    } else {
-                      setCityLoading(true);
-                      void loadSuggestedCities();
-                    }
-                    return;
-                  }
-
-                  scheduleCitySearch(cityQuery);
-                }}
-                onKeyDown={(e) => {
-                  if (!cityDropdownOpen) return;
-                  if (!cityResults.length) return;
-
-                  if (e.key === "ArrowDown") {
-                    e.preventDefault();
-                    setSelectedIndex((prev) => Math.min(prev + 1, cityResults.length - 1));
-                  } else if (e.key === "ArrowUp") {
-                    e.preventDefault();
-                    setSelectedIndex((prev) => Math.max(prev - 1, -1));
-                  } else if (e.key === "Enter" && selectedIndex >= 0) {
-                    e.preventDefault();
-                    const city = cityResults[selectedIndex];
-                    if (city) selectCity(city);
-                  } else if (e.key === "Escape") {
-                    setCityDropdownOpen(false);
-                    setSelectedIndex(-1);
-                  }
-                }}
-              />
-
-              {cityDropdownOpen && (
-                <div
-                  className={styles.cityDropdown}
-                  role="listbox"
-                  aria-label="City options"
-                >
-                  {cityLoading && (
-                    <div className={styles.cityOption} role="option" aria-selected={false}>
-                      <div>Searching…</div>
-                      <div className={styles.cityMeta}>Type at least 2 characters</div>
-                    </div>
-                  )}
-
-                  {!cityLoading && cityError && (
-                    <div className={styles.cityOption} role="option" aria-selected={false}>
-                      <div>City search unavailable</div>
-                      <div className={styles.cityMeta}>{cityError}</div>
-                    </div>
-                  )}
-
-                  {!cityLoading && !cityError && normalizedCityQuery.length < 2 && (
-                    <>
-                      {cityResults.length ? null : (
-                        <div
-                          className={styles.cityOption}
-                          role="option"
-                          aria-selected={false}
-                        >
-                          <div>Start with San Francisco</div>
-                          <div className={styles.cityMeta}>
-                            Or search by city, state, or country
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {!cityLoading &&
-                    !cityError &&
-                    normalizedCityQuery.length >= 2 &&
-                    cityResults.map((city, idx) => (
-                      <div
-                        key={`${city.id}-${city.display_name}`}
-                        className={styles.cityOption}
-                        role="option"
-                        aria-selected={idx === selectedIndex}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          selectCity(city);
-                        }}
-                        style={{
-                          background:
-                            idx === selectedIndex ? "rgba(17, 24, 39, 0.05)" : "transparent",
-                        }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          {city.emoji ? (
-                            <span aria-hidden style={{ fontSize: 18 }}>
-                              {city.emoji}
-                            </span>
-                          ) : null}
-                          <div>{city.display_name}</div>
-                        </div>
-                        <div className={styles.cityMeta}>Browse</div>
-                      </div>
-                    ))}
-
-                  {/* Suggested cities (shown before typing) */}
-                  {!cityLoading &&
-                    !cityError &&
-                    normalizedCityQuery.length < 2 &&
-                    cityResults.map((city, idx) => (
-                      <div
-                        key={`${city.id}-${city.display_name}`}
-                        className={styles.cityOption}
-                        role="option"
-                        aria-selected={idx === selectedIndex}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          selectCity(city);
-                        }}
-                        style={{
-                          background:
-                            idx === selectedIndex
-                              ? "rgba(17, 24, 39, 0.05)"
-                              : "transparent",
-                        }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          {city.emoji ? (
-                            <span aria-hidden style={{ fontSize: 18 }}>
-                              {city.emoji}
-                            </span>
-                          ) : null}
-                          <div>{city.display_name}</div>
-                        </div>
-                        <div className={styles.cityMeta}>Suggested</div>
-                      </div>
-                    ))}
-
-                  {!cityLoading &&
-                    !cityError &&
-                    normalizedCityQuery.length >= 2 &&
-                    cityResults.length === 0 && (
-                      <div className={styles.cityOption} role="option" aria-selected={false}>
-                        <div>No cities found</div>
-                        <div className={styles.cityMeta}>Try another spelling</div>
-                      </div>
-                    )}
-                </div>
-              )}
-            </div>
-
-            <nav className={styles.navRight} aria-label="Top navigation">
-              <a
-                className={styles.link}
-                href="https://www.transparentsf.com"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Newsletter
-              </a>
-              <Link className={styles.link} href="/pro">
-                For city staff
-              </Link>
-              <Link className={styles.link} href="/landing">
-                Product
-              </Link>
-
-              <button
-                className={styles.button}
-                onClick={handleLogin}
-                disabled={isLoading}
-              >
-                {isAuthenticated ? "Dashboard" : "Sign in"}
-              </button>
-
-              <div className={styles.menuWrap}>
-                <button
-                  className={`${styles.button} ${styles.buttonPrimary}`}
-                  onClick={() => setSignupMenuOpen((v) => !v)}
-                  disabled={isLoading}
-                  aria-haspopup="menu"
-                  aria-expanded={signupMenuOpen}
-                >
-                  {isAuthenticated ? "Go to dashboard" : "Sign up"}
-                </button>
-                {signupMenuOpen && !isAuthenticated && (
-                  <div className={styles.menu} role="menu" aria-label="Sign up options">
-                    <button
-                      className={styles.menuItem}
-                      role="menuitem"
-                      onClick={() => handleSignup("resident")}
-                      disabled={isLoading}
-                    >
-                      <div className={styles.menuItemTitle}>I’m a resident</div>
-                      <div className={styles.menuItemDesc}>
-                        Follow a city, read research, and get the map view.
-                      </div>
-                    </button>
-                    <button
-                      className={styles.menuItem}
-                      role="menuitem"
-                      onClick={() => handleSignup("public-servant")}
-                      disabled={isLoading}
-                    >
-                      <div className={styles.menuItemTitle}>I’m a public servant</div>
-                      <div className={styles.menuItemDesc}>
-                        Tools for staff: briefs, context, and operational clarity.
-                      </div>
-                    </button>
-                  </div>
-                )}
-              </div>
-            </nav>
-          </div>
-        </div>
-      </header>
+      <Header
+        showCityPicker={true}
+        cityQuery={cityQuery}
+        onCityQueryChange={handleCityQueryChange}
+        cityResults={cityResults}
+        cityLoading={cityLoading}
+        cityError={cityError}
+        selectedIndex={selectedIndex}
+        onCitySelect={selectCity}
+        onCityKeyDown={handleCityKeyDown}
+        cityDropdownOpen={cityDropdownOpen}
+        onCityFocus={handleCityFocus}
+        onCityDropdownClose={handleCityDropdownClose}
+      />
 
       <main>
         <section className={styles.hero}>
@@ -728,7 +400,7 @@ export default function Home() {
             <h2 className={styles.sectionTitle}>Built for how you work</h2>
             <p className={styles.sectionLead}>
               Get the clarity you need: understand your city as a resident, build 
-              stronger stories as a researcher, and make better decisions as a leader.
+              stronger stories as a researcher, and make better decisions as an elected official.
             </p>
 
             <div className={styles.grid}>
@@ -847,7 +519,7 @@ export default function Home() {
                 transparent<span className={styles.brandDotCity}>.city</span>
               </div>
               <div className={styles.finePrint}>
-                Facts for residents. Evidence for leaders. Accountability for everyone.
+                Facts for residents. Evidence for elected officials. Accountability for everyone.
               </div>
             </div>
             <div>

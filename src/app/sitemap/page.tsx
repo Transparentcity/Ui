@@ -236,7 +236,7 @@ export default async function SiteMapPage() {
               </div>
               <p className="footer-description">
                 Maps, metrics, and research built from public city data—so
-                residents and leaders can share the same picture of what’s
+                residents and elected officials can share the same picture of what’s
                 happening.
               </p>
             </div>

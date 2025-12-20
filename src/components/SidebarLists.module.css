@@ -1,0 +1,162 @@
+.emptyState {
+  padding: var(--space-md);
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.item {
+  padding: var(--space-xs) var(--space-md);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  border-left: 3px solid transparent;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.item:hover {
+  background: var(--bg-tertiary);
+}
+
+.itemActive {
+  background: var(--bg-tertiary);
+  border-left-color: var(--brand-primary);
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.title {
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menuBtn {
+  opacity: 0;
+  padding: 4px 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  transition: opacity 0.2s, background 0.2s;
+  position: relative;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.item:hover .menuBtn {
+  opacity: 1;
+}
+
+.menuBtn:hover {
+  background: var(--border-primary);
+}
+
+.menu {
+  position: absolute;
+  right: 40px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  display: none;
+  z-index: 1000;
+  min-width: 120px;
+  pointer-events: none;
+}
+
+.menuShow {
+  display: block;
+  pointer-events: auto;
+}
+
+.menuItem {
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.menuItem:hover {
+  background: var(--bg-tertiary);
+}
+
+.menuItemDelete {
+  color: var(--error);
+}
+
+.menuItemDelete:hover {
+  background: #fee2e2;
+}
+
+/* My Cities extras */
+.myCitiesItemWrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.myCitiesEmoji {
+  font-size: 16px;
+  flex-shrink: 0;
+  line-height: 1;
+  filter: grayscale(100%);
+  transition: filter 0.2s ease;
+}
+
+.itemActive .myCitiesEmoji {
+  filter: grayscale(0%);
+}
+
+.myCitiesName {
+  font-size: 13px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+.sectionHeader {
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.sectionCollapsible {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: color 0.15s ease;
+}
+
+.sectionCollapsible:hover {
+  color: var(--text-primary);
+}
+
+.sectionChevron {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  display: inline-block;
+  opacity: 0.6;
+}

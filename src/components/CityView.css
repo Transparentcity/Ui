@@ -4,6 +4,17 @@
   width: 100%;
 }
 
+/* Full width for dashboard and admin tabs */
+.city-view.tab-view-active {
+  max-width: 100%;
+  margin: 0;
+  width: 100%;
+  height: 100vh;
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+}
+
 /* Full screen map view */
 .city-view.map-view-active {
   max-width: 100%;
@@ -12,6 +23,105 @@
   height: 100vh;
   position: relative;
   overflow: hidden;
+  padding: 0;
+}
+
+/* Full width layout for dashboard and admin tabs */
+.city-view .tab-content-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Map background in non-map tabs - positioned behind header and tabs */
+.city-view .tab-content-wrapper-map-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1; /* Behind header (1000) and tabs (999), but visible */
+  pointer-events: none; /* Allow clicks to pass through to content */
+}
+
+.city-view .tab-content-wrapper-map-background .city-map-view {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* Header in dashboard/admin tabs - fixed at top like map view */
+.city-view .tab-content-wrapper .city-header-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100vw;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 24px;
+  background: rgba(255, 255, 255, 0.65); /* Transparent to show content behind */
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border-primary);
+  z-index: 1000;
+  box-shadow: none;
+  height: 56px;
+  transition: none;
+}
+
+/* Tabs in dashboard/admin tabs - fixed below header */
+.city-view .tab-content-wrapper .tabs-container-overlay {
+  position: fixed;
+  top: 56px; /* Below fixed header */
+  left: 0;
+  right: 0;
+  width: 100vw;
+  display: flex;
+  gap: 8px;
+  padding: 0 24px;
+  background: rgba(255, 255, 255, 0.65); /* Transparent to show content behind */
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border-primary);
+  z-index: 999;
+  box-shadow: none;
+  height: 48px;
+  align-items: center;
+  transition: none;
+}
+
+/* Content area - account for fixed header (56px) and tabs (48px) = 104px */
+.city-view .tab-content-wrapper .tab-content {
+  position: relative;
+  z-index: 2; /* Above map background (1), but below header (1000) and tabs (999) */
+  margin-top: 104px; /* Space for fixed header + tabs */
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 24px 24px;
+  height: calc(100vh - 104px);
+  background: var(--bg-primary, #ffffff); /* Opaque background for content readability */
+  overscroll-behavior: contain;
+}
+
+[data-theme="dark"] .city-view .tab-content-wrapper .tab-content,
+.dark .city-view .tab-content-wrapper .tab-content {
+  background: var(--bg-primary, #111827); /* Opaque dark background for content readability */
+}
+
+/* On mobile, ensure full width with no padding */
+@media (max-width: 768px) {
+  .city-view.map-view-active {
+    padding: 0;
+    margin: 0;
+    width: 100vw;
+    max-width: 100vw;
+  }
 }
 
 .city-view-loading,
@@ -57,7 +167,7 @@
 
 .city-name {
   margin: 0;
-  font-size: 28px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -135,7 +245,7 @@
   display: block;
 }
 
-/* Map Tab - full screen */
+/* Map Tab - full screen, starts below title bar */
 .tab-content#map-tab.active.map-tab-fullscreen {
   display: block;
   position: absolute;
@@ -148,35 +258,79 @@
   z-index: 1;
   margin: 0;
   padding: 0;
+  overflow: hidden;
+}
+
+/* Ensure no padding on mobile */
+@media (max-width: 768px) {
+  .tab-content#map-tab.active.map-tab-fullscreen {
+    padding: 0;
+    margin: 0;
+    left: 0;
+    right: 0;
+    width: 100vw;
+  }
 }
 
 .tab-content#map-tab.active.map-tab-fullscreen .city-map-view {
   width: 100%;
   height: 100%;
   position: relative;
+  z-index: 1; /* Map layer - below overlays */
 }
 
-/* Header overlay for map view */
+/* Header overlay for map view - positioned on top of map */
 .city-header-overlay {
   position: absolute;
-  top: 0;
+  top: 0; /* Start at top of map container (which is below title bar) */
   left: 0;
   right: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 12px 24px;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.65); /* More transparent to show map */
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border-primary);
   z-index: 1000;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: none;
   height: 56px;
+  /* IMPORTANT:
+   * Avoid applying transform in the default/visible state.
+   * If an ancestor has transform, descendants with position: fixed
+   * become fixed relative to that ancestor (modal backdrop can appear off-screen).
+   */
+  transform: none;
+  transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+}
+
+/* Removed - header now uses fixed positioning in all tabs */
+
+.city-header-overlay.hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.city-header-overlay.visible {
+  opacity: 1;
 }
 
 [data-theme="dark"] .city-header-overlay,
 .dark .city-header-overlay {
-  background: rgba(31, 41, 55, 0.95);
+  background: rgba(31, 41, 55, 0.65); /* More transparent to show map */
+  border-bottom-color: var(--border-primary, #374151);
+}
+
+[data-theme="dark"] .tab-content-wrapper .city-header-overlay,
+.dark .tab-content-wrapper .city-header-overlay {
+  background: rgba(31, 41, 55, 0.65); /* Transparent to show content behind */
+  border-bottom-color: var(--border-primary, #374151);
+}
+
+[data-theme="dark"] .tab-content-wrapper .tabs-container-overlay,
+.dark .tab-content-wrapper .tabs-container-overlay {
+  background: rgba(31, 41, 55, 0.65); /* Transparent to show content behind */
   border-bottom-color: var(--border-primary, #374151);
 }
 
@@ -193,7 +347,7 @@
 
 .city-header-overlay .city-name {
   margin: 0;
-  font-size: 28px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -204,7 +358,7 @@
   gap: 12px;
 }
 
-/* Tabs overlay for map view */
+/* Tabs overlay for map view - positioned below header on top of map */
 .tabs-container-overlay {
   position: absolute;
   top: 56px; /* Below header overlay */
@@ -213,18 +367,32 @@
   display: flex;
   gap: 8px;
   padding: 0 24px;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.65); /* More transparent to show map */
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border-primary);
   z-index: 999;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: none; /* Removed drop shadow */
   height: 48px;
   align-items: center;
+  transform: none;
+  transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+}
+
+/* Removed - tabs now use fixed positioning in all tabs */
+
+.tabs-container-overlay.hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tabs-container-overlay.visible {
+  opacity: 1;
 }
 
 [data-theme="dark"] .tabs-container-overlay,
 .dark .tabs-container-overlay {
-  background: rgba(31, 41, 55, 0.95);
+  background: rgba(31, 41, 55, 0.65); /* More transparent to show map */
   border-bottom-color: var(--border-primary, #374151);
 }
 
@@ -251,7 +419,7 @@
 
 /* Dashboard Tab */
 .dashboard-section {
-  padding: 24px 0;
+  padding: 0;
 }
 
 .dashboard-section h2 {
@@ -280,7 +448,7 @@
 
 /* Admin Tab */
 .admin-section {
-  padding: 24px 0;
+  padding: 0;
 }
 
 .admin-section h2 {
@@ -507,12 +675,55 @@
   color: var(--text-secondary);
 }
 
+/* Dashboard Metrics List */
+.metrics-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.metric-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.metric-item:hover {
+  border-color: var(--brand-primary);
+  background: var(--bg-secondary);
+}
+
+.metric-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .city-header {
     flex-direction: row;
     align-items: center;
     gap: 12px;
+    padding: 12px 16px;
+    margin-bottom: 0;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    height: 56px;
+    border-bottom: 1px solid var(--border-primary);
+  }
+
+  [data-theme="dark"] .city-header,
+  .dark .city-header {
+    background: rgba(31, 41, 55, 0.95);
+    border-bottom-color: var(--border-primary, #374151);
   }
 
   .city-header-left {
@@ -521,7 +732,7 @@
   }
 
   .city-name {
-    font-size: 24px;
+    font-size: 20px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -541,6 +752,57 @@
 
   .statistics-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Remove padding from overlays on mobile for full-width map */
+  .city-header-overlay {
+    padding: 0;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .city-header-overlay .city-header-left,
+  .city-header-overlay .city-header-right {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .tabs-container-overlay {
+    padding: 0;
+  }
+
+  .tabs-container-overlay .tab-btn:first-child {
+    margin-left: 16px;
+  }
+
+  .tabs-container-overlay .tab-btn:last-child {
+    margin-right: 16px;
+  }
+
+  /* Ensure map tab has no padding on mobile */
+  .tab-content#map-tab.active.map-tab-fullscreen {
+    padding: 0;
+    margin: 0;
+  }
+
+  /* Adjust tab content padding on mobile */
+  .tab-content-wrapper .tab-content {
+    padding: 12px 16px 16px;
+    margin-top: 104px; /* Same as desktop - header (56px) + tabs (48px) */
+    height: calc(100vh - 104px);
+  }
+
+  /* Ensure header and tabs are full width on mobile */
+  .tab-content-wrapper .city-header-overlay {
+    left: 0;
+    right: 0;
+    width: 100vw;
+  }
+
+  .tab-content-wrapper .tabs-container-overlay {
+    left: 0;
+    right: 0;
+    width: 100vw;
   }
 }
 

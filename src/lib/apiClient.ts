@@ -378,6 +378,8 @@ export interface UserPermissions {
   role: string;
   permissions: string[];
   is_admin: boolean;
+  city_lead_city_ids?: number[];
+  is_city_lead?: boolean;
 }
 
 export function getMyPermissions(token: string): Promise<UserPermissions> {
@@ -426,6 +428,8 @@ export interface AdminMetricListItem {
   data_source_type?: string | null;
   city_id?: number | null;
   city_name?: string | null;
+  map_query?: string | null;
+  template_id?: number | null;
 }
 
 export interface AdminMetricDetail {
@@ -663,6 +667,68 @@ export function getAdminMetricCityStructure(metricId: number, token: string): Pr
   return request<any>(`/api/admin/metrics/${metricId}/city-structure`, "GET", undefined, token);
 }
 
+// Map Data API
+export interface MapDataPoint {
+  lat: number;
+  lon: number;
+  [key: string]: any; // Additional properties from the data
+}
+
+export interface MapData {
+  id?: number;
+  title: string;
+  type?: string;
+  location_data: MapDataPoint[] | string; // JSON string or array
+  metadata?: string | Record<string, any>; // JSON string or object
+  created_at?: string;
+  published_url?: string;
+  chart_id?: number;
+  metric_id: string | number;
+  active?: boolean;
+}
+
+export interface GetMapDataRequest {
+  metric_id: number;
+  start_date?: string | null;
+  end_date?: string | null;
+  districts?: number[] | null;
+}
+
+export interface GetMapDataResponse {
+  status: string;
+  map_data?: MapData;
+  location_data?: MapDataPoint[];
+  error?: string;
+}
+
+export function getMetricMapData(
+  payload: GetMapDataRequest,
+  token: string
+): Promise<GetMapDataResponse> {
+  return request<GetMapDataResponse>(
+    `/api/admin/metrics/${payload.metric_id}/map-data`,
+    "POST",
+    {
+      start_date: payload.start_date,
+      end_date: payload.end_date,
+      districts: payload.districts,
+    },
+    token
+  );
+}
+
+// Get all metrics for a city (for map view)
+export function getCityMetricsForMap(
+  cityId: number,
+  token: string
+): Promise<AdminMetricListItem[]> {
+  return listAdminMetrics(token, {
+    city_id: cityId,
+    is_active: true,
+    limit: 500,
+  });
+}
+
 // Chat API
 export interface ChatMessageRequest {
   message: string;
@@ -743,7 +809,7 @@ export function sendChatMessage(
 }
 
 export function createNewSession(
-  model_key: string = "gpt-5",
+  model_key: string = "claude-sonnet-4",
   tool_groups?: string[],
   token?: string
 ): Promise<SessionSummary> {
@@ -999,6 +1065,8 @@ export interface CityDetail {
     category?: string;
     subcategory?: string;
     last_execution_status?: string;
+    last_execution_at?: string | null;
+    most_recent_data_date?: string | null;
   }>;
 }
 
@@ -1162,6 +1230,7 @@ export interface CityShapefile {
   id: number;
   city_id: number;
   geographic_structure_id?: number | null;
+  template_layer_id?: number | null;
   shapefile_name: string;
   structure_type: string;
   geometry_data: any; // GeoJSON FeatureCollection
@@ -1171,10 +1240,55 @@ export interface CityShapefile {
   source_url?: string | null;
   feature_count?: number | null;
   identifier_field?: string | null;
+  status?: "active" | "disabled" | "needs_refresh";
+  render_order?: number | null;
+  style_overrides_json?: Record<string, any> | null;
   metadata?: Record<string, any>;
   created_at?: string;
   updated_at?: string;
   last_fetched_at?: string | null;
+}
+
+// Shape Layers API (templates + city instances)
+export interface TemplateShapeLayer {
+  id: number;
+  layer_key: string;
+  default_display_name: string;
+  category: string;
+  icon?: string | null;
+  geometry_kind: string;
+  default_identifier_field?: string | null;
+  default_style_json?: Record<string, any>;
+  source_strategy: string;
+  source_defaults_json?: Record<string, any>;
+  is_active?: boolean;
+  metadata?: Record<string, any>;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CityShapeLayerInstance extends CityShapefile {
+  // Reuse CityShapefile fields (city_shapefiles row)
+}
+
+export interface CityShapeLayerListItem {
+  template: TemplateShapeLayer | null;
+  instance: CityShapeLayerInstance | null;
+}
+
+export function getCityShapeLayers(
+  cityId: number,
+  token: string,
+  includeGeometry: boolean = true
+): Promise<CityShapeLayerListItem[]> {
+  const params = new URLSearchParams();
+  params.set("include_geometry", includeGeometry ? "true" : "false");
+  return request<CityShapeLayerListItem[]>(
+    `/api/shape-layers/cities/${cityId}?${params.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
 }
 
 
@@ -1344,6 +1458,8 @@ export interface User {
   is_active: boolean;
   created_at: string;
   last_login_at: string | null;
+  city_lead_city_ids?: number[];
+  is_city_lead?: boolean;
 }
 
 export interface UserUpdateRequest {
@@ -1358,6 +1474,7 @@ export interface UserStats {
   admin_count: number;
   analyst_count: number;
   viewer_count: number;
+  city_lead_count?: number;
   users_by_role: Record<string, number>;
   total_cities: number;
   active_cities: number;
@@ -1372,6 +1489,7 @@ export function listUsers(
   options?: {
     role?: string;
     is_active?: boolean;
+    is_city_lead?: boolean;
     skip?: number;
     limit?: number;
   }
@@ -1379,12 +1497,38 @@ export function listUsers(
   const params = new URLSearchParams();
   if (options?.role) params.append("role", options.role);
   if (options?.is_active !== undefined) params.append("is_active", options.is_active.toString());
+  if (options?.is_city_lead !== undefined) params.append("is_city_lead", options.is_city_lead.toString());
   if (options?.skip) params.append("skip", options.skip.toString());
   if (options?.limit) params.append("limit", options.limit.toString());
   
   const query = params.toString();
   const path = `/api/admin/users${query ? `?${query}` : ""}`;
   return request<User[]>(path, "GET", undefined, token);
+}
+
+export function getUserCityLeads(
+  userId: number,
+  token: string
+): Promise<{ user_id: number; city_ids: number[] }> {
+  return request<{ user_id: number; city_ids: number[] }>(
+    `/api/admin/users/${userId}/city-leads`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function setUserCityLeads(
+  userId: number,
+  cityIds: number[],
+  token: string
+): Promise<{ status: string; user_id: number; city_ids: number[] }> {
+  return request<{ status: string; user_id: number; city_ids: number[] }>(
+    `/api/admin/users/${userId}/city-leads`,
+    "PUT",
+    { city_ids: cityIds },
+    token
+  );
 }
 
 export function getUser(userId: number, token: string): Promise<User> {

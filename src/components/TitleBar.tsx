@@ -5,13 +5,22 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useJobWebSocket } from "@/lib/useJobWebSocket";
 import JobBadge from "./JobBadge";
 import JobDropdown from "./JobDropdown";
+import TopNavCitySearch from "./TopNavCitySearch";
+import styles from "./TitleBar.module.css";
 
 interface TitleBarProps {
   onMenuToggle: () => void;
   isAdmin?: boolean;
+  onCitySelect?: (cityId: number) => void;
+  onGPSLocation?: (location: { lat: number; lng: number }) => void;
 }
 
-export default function TitleBar({ onMenuToggle, isAdmin = false }: TitleBarProps) {
+export default function TitleBar({
+  onMenuToggle,
+  isAdmin = false,
+  onCitySelect,
+  onGPSLocation,
+}: TitleBarProps) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   const [isJobDropdownOpen, setIsJobDropdownOpen] = useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -41,15 +50,15 @@ export default function TitleBar({ onMenuToggle, isAdmin = false }: TitleBarProp
   };
 
   return (
-    <header className="title-bar">
-      <div className="title-bar-left">
-        <button className="menu-toggle" id="menu-toggle" onClick={onMenuToggle}>
+    <header className={styles.titleBar}>
+      <div className={styles.titleBarLeft}>
+        <button className={styles.menuToggle} id="menu-toggle" onClick={onMenuToggle}>
           <span></span>
           <span></span>
           <span></span>
         </button>
-        <div className="logo">
-          <div className="logo-corners">
+        <div className={styles.logo}>
+          <div className={styles.logoCorners}>
             <svg
               viewBox="0 0 100 100"
               xmlns="http://www.w3.org/2000/svg"
@@ -142,7 +151,7 @@ export default function TitleBar({ onMenuToggle, isAdmin = false }: TitleBarProp
                 </mask>
               </defs>
               <rect
-                className="brace brace-bl"
+                className={styles.brace}
                 x="0"
                 y="0"
                 width="100"
@@ -154,7 +163,7 @@ export default function TitleBar({ onMenuToggle, isAdmin = false }: TitleBarProp
                 transform="translate(23.5%, -23.5%)"
               />
               <rect
-                className="brace brace-tr"
+                className={styles.brace}
                 x="0"
                 y="0"
                 width="100"
@@ -167,18 +176,26 @@ export default function TitleBar({ onMenuToggle, isAdmin = false }: TitleBarProp
               />
             </svg>
           </div>
-          <span className="logo-text">
-            <span className="logo-transparent">transparent</span>
-            <span className="logo-city">.city</span>
+          <span className={styles.logoText}>
+            <span className={styles.logoTransparent}>transparent</span>
+            <span className={styles.logoCity}>.city</span>
           </span>
         </div>
       </div>
-      <div className="title-bar-right">
+      <div className={styles.titleBarRight}>
+        {onCitySelect ? (
+          <div className={styles.citySearchWrap}>
+            <TopNavCitySearch 
+              onCitySelect={onCitySelect}
+              onGPSLocation={onGPSLocation}
+            />
+          </div>
+        ) : null}
+
         {/* Job Status Badge - Show for all authenticated users */}
         {isAuthenticated && (
           <div
-            className="job-badge-container"
-            style={{ marginRight: "16px" }}
+            className={styles.jobBadgeContainer}
           >
             <JobBadge
               activeJobCount={activeJobs.length}

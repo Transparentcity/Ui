@@ -7,9 +7,13 @@ import {
   updateUser,
   makeUserAdmin,
   getUserStats,
+  listCities,
+  getUserCityLeads,
+  setUserCityLeads,
   type User,
   type UserUpdateRequest,
   type UserStats,
+  type CityListItem,
 } from "@/lib/apiClient";
 import Loader from "./Loader";
 import styles from "./UserManagement.module.css";
@@ -18,6 +22,7 @@ export default function UserManagement() {
   const { getAccessTokenSilently } = useAuth0();
   const [stats, setStats] = useState<UserStats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [cities, setCities] = useState<CityListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,10 +30,15 @@ export default function UserManagement() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRole, setSelectedRole] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<boolean | null>(null);
+  const [selectedCityLead, setSelectedCityLead] = useState<boolean | null>(null);
 
   // Edit modal state
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editForm, setEditForm] = useState<UserUpdateRequest>({});
+  const [editCityLeadCityIds, setEditCityLeadCityIds] = useState<number[]>([]);
+  const [editCityLeadLoading, setEditCityLeadLoading] = useState(false);
+  const [editCityLeadDirty, setEditCityLeadDirty] = useState(false);
+  const [addCityLeadCityId, setAddCityLeadCityId] = useState<number | "">("");
 
   // Load initial data
   const loadData = useCallback(async () => {
@@ -37,14 +47,16 @@ export default function UserManagement() {
       setError(null);
       const token = await getAccessTokenSilently();
 
-      // Load stats and users in parallel
-      const [statsData, usersData] = await Promise.all([
+      // Load stats, users, and cities in parallel
+      const [statsData, usersData, citiesData] = await Promise.all([
         getUserStats(token),
         listUsers(token, { limit: 1000 }),
+        listCities(token),
       ]);
 
       setStats(statsData);
       setUsers(usersData);
+      setCities(citiesData);
     } catch (err) {
       console.error("Error loading user management data:", err);
       setError(err instanceof Error ? err.message : "Failed to load data");
@@ -64,6 +76,7 @@ export default function UserManagement() {
         limit: 1000,
         role: selectedRole || undefined,
         is_active: selectedStatus !== null ? selectedStatus : undefined,
+        is_city_lead: selectedCityLead !== null ? selectedCityLead : undefined,
       });
 
       // Apply search filter client-side
@@ -74,7 +87,8 @@ export default function UserManagement() {
           (user) =>
             user.email.toLowerCase().includes(query) ||
             (user.name && user.name.toLowerCase().includes(query)) ||
-            user.role.toLowerCase().includes(query)
+            user.role.toLowerCase().includes(query) ||
+            (query.includes("city lead") && !!user.is_city_lead)
         );
       }
 
@@ -85,7 +99,7 @@ export default function UserManagement() {
     } finally {
       setLoading(false);
     }
-  }, [getAccessTokenSilently, selectedRole, selectedStatus, searchQuery]);
+  }, [getAccessTokenSilently, selectedRole, selectedStatus, selectedCityLead, searchQuery]);
 
   useEffect(() => {
     loadData();
@@ -93,7 +107,7 @@ export default function UserManagement() {
 
   useEffect(() => {
     loadUsers();
-  }, [selectedRole, selectedStatus, loadUsers]);
+  }, [selectedRole, selectedStatus, selectedCityLead, loadUsers]);
 
   // Debounced search
   useEffect(() => {
@@ -109,12 +123,39 @@ export default function UserManagement() {
       role: user.role as "admin" | "analyst" | "viewer",
       is_active: user.is_active,
     });
+    setEditCityLeadCityIds(user.city_lead_city_ids || []);
+    setEditCityLeadDirty(false);
+    setAddCityLeadCityId("");
   };
 
   const handleCloseEdit = () => {
     setEditingUser(null);
     setEditForm({});
+    setEditCityLeadCityIds([]);
+    setEditCityLeadDirty(false);
+    setEditCityLeadLoading(false);
+    setAddCityLeadCityId("");
   };
+
+  // Load city lead assignments fresh when modal opens (source of truth is backend)
+  useEffect(() => {
+    const loadCityLeads = async () => {
+      if (!editingUser) return;
+      try {
+        setEditCityLeadLoading(true);
+        const token = await getAccessTokenSilently();
+        const res = await getUserCityLeads(editingUser.id, token);
+        setEditCityLeadCityIds(res.city_ids || []);
+        setEditCityLeadDirty(false);
+      } catch (err) {
+        // Not fatal; keep whatever we already have from the user list
+        console.warn("Failed to load user city lead assignments:", err);
+      } finally {
+        setEditCityLeadLoading(false);
+      }
+    };
+    loadCityLeads();
+  }, [editingUser, getAccessTokenSilently]);
 
   const handleSaveEdit = async () => {
     if (!editingUser) return;
@@ -123,6 +164,11 @@ export default function UserManagement() {
       setError(null);
       const token = await getAccessTokenSilently();
       await updateUser(editingUser.id, editForm, token);
+
+      if (editCityLeadDirty) {
+        await setUserCityLeads(editingUser.id, editCityLeadCityIds, token);
+      }
+
       await loadUsers();
       await loadData(); // Refresh stats
       handleCloseEdit();
@@ -174,6 +220,28 @@ export default function UserManagement() {
         return "";
     }
   };
+
+  const formatCityDisplayName = (city: CityListItem): string => {
+    const parts = [city.city_name];
+    if (city.state) parts.push(city.state);
+    if (city.country) parts.push(city.country);
+    return parts.filter(Boolean).join(", ");
+  };
+
+  const cityNameById = useCallback(() => {
+    const map = new Map<number, string>();
+    for (const c of cities) {
+      map.set(c.city_id, formatCityDisplayName(c));
+    }
+    return map;
+  }, [cities]);
+
+  const getCityName = useCallback(
+    (cityId: number): string => {
+      return cityNameById().get(cityId) || `City ${cityId}`;
+    },
+    [cityNameById],
+  );
 
   if (loading && !stats) {
     return (
@@ -255,6 +323,23 @@ export default function UserManagement() {
             </div>
           </div>
         </div>
+
+        <div className={styles.statCard}>
+          <div className={styles.statCardContent}>
+            <div className={styles.statCardInner}>
+              <div className={styles.statIcon}>
+                <i
+                  className="fas fa-city"
+                  style={{ fontSize: "32px", color: "var(--brand-primary)" }}
+                ></i>
+              </div>
+              <div className={styles.statText}>
+                <div className={styles.statLabel}>City Leads</div>
+                <div className={styles.statValue}>{stats?.city_lead_count ?? 0}</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Filters and Search */}
@@ -276,6 +361,18 @@ export default function UserManagement() {
             <option value="admin">Admin</option>
             <option value="analyst">Analyst</option>
             <option value="viewer">Viewer</option>
+          </select>
+          <select
+            value={selectedCityLead === null ? "" : selectedCityLead.toString()}
+            onChange={(e) => {
+              const value = e.target.value;
+              setSelectedCityLead(value === "" ? null : value === "true");
+            }}
+            className={styles.select}
+          >
+            <option value="">City Lead (Any)</option>
+            <option value="true">City Lead</option>
+            <option value="false">Not City Lead</option>
           </select>
           <select
             value={selectedStatus === null ? "" : selectedStatus.toString()}
@@ -314,6 +411,7 @@ export default function UserManagement() {
                 <th className={styles.tableHeaderCell}>Email</th>
                 <th className={styles.tableHeaderCell}>Name</th>
                 <th className={styles.tableHeaderCell}>Role</th>
+                <th className={styles.tableHeaderCell}>City Lead Cities</th>
                 <th className={styles.tableHeaderCell}>Status</th>
                 <th className={styles.tableHeaderCell}>Last Login</th>
                 <th className={styles.tableHeaderCell}>Created</th>
@@ -323,7 +421,7 @@ export default function UserManagement() {
             <tbody className={styles.tableBody}>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className={styles.tableCell} style={{ textAlign: "center" }}>
+                  <td colSpan={8} className={styles.tableCell} style={{ textAlign: "center" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
                       <Loader size="sm" color="dark" />
                       <span className={styles.loadingText}>Loading users...</span>
@@ -332,7 +430,7 @@ export default function UserManagement() {
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className={styles.emptyState}>
+                  <td colSpan={8} className={styles.emptyState}>
                     No users found matching the current filters.
                   </td>
                 </tr>
@@ -347,9 +445,34 @@ export default function UserManagement() {
                       {user.name || <span style={{ color: "var(--text-tertiary)" }}>N/A</span>}
                     </td>
                     <td className={styles.tableCell}>
-                      <span className={`${styles.roleBadge} ${getRoleBadgeClass(user.role)}`}>
-                        {user.role}
-                      </span>
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        <span className={`${styles.roleBadge} ${getRoleBadgeClass(user.role)}`}>
+                          {user.role}
+                        </span>
+                        {user.is_city_lead && (
+                          <span className={`${styles.roleBadge} ${styles.roleCityLead}`}>
+                            City Lead
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className={styles.tableCell}>
+                      {user.city_lead_city_ids && user.city_lead_city_ids.length > 0 ? (
+                        <div className={styles.cityPills}>
+                          {user.city_lead_city_ids.slice(0, 3).map((cid) => (
+                            <span key={cid} className={styles.cityPill} title={getCityName(cid)}>
+                              {getCityName(cid)}
+                            </span>
+                          ))}
+                          {user.city_lead_city_ids.length > 3 && (
+                            <span className={styles.cityPillMuted}>
+                              +{user.city_lead_city_ids.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ color: "var(--text-tertiary)" }}>—</span>
+                      )}
                     </td>
                     <td className={styles.tableCell}>
                       <span
@@ -432,6 +555,93 @@ export default function UserManagement() {
                   <option value="analyst">Analyst</option>
                   <option value="admin">Admin</option>
                 </select>
+              </div>
+
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>City Lead Cities</label>
+                {editCityLeadLoading ? (
+                  <div className={styles.loadingText}>Loading city lead assignments…</div>
+                ) : (
+                  <>
+                    <div className={styles.cityLeadRow}>
+                      <select
+                        value={addCityLeadCityId}
+                        onChange={(e) =>
+                          setAddCityLeadCityId(
+                            e.target.value === "" ? "" : Number(e.target.value),
+                          )
+                        }
+                        className={styles.formSelect}
+                      >
+                        <option value="">Add a city…</option>
+                        {cities
+                          .filter((c) => !editCityLeadCityIds.includes(c.city_id))
+                          .slice(0, 500)
+                          .map((c) => (
+                            <option key={c.city_id} value={c.city_id}>
+                              {formatCityDisplayName(c)}
+                            </option>
+                          ))}
+                      </select>
+                      <button
+                        type="button"
+                        className={styles.addCityBtn}
+                        disabled={addCityLeadCityId === ""}
+                        onClick={() => {
+                          if (addCityLeadCityId === "") return;
+                          const next = Array.from(
+                            new Set([...editCityLeadCityIds, Number(addCityLeadCityId)]),
+                          ).sort((a, b) => a - b);
+                          setEditCityLeadCityIds(next);
+                          setEditCityLeadDirty(true);
+                          setAddCityLeadCityId("");
+                        }}
+                      >
+                        Add
+                      </button>
+                    </div>
+
+                    {editCityLeadCityIds.length > 0 ? (
+                      <div className={styles.cityPills} style={{ marginTop: "10px" }}>
+                        {editCityLeadCityIds.map((cid) => (
+                          <span key={cid} className={styles.cityPill}>
+                            {getCityName(cid)}
+                            <button
+                              type="button"
+                              className={styles.removeCityBtn}
+                              title="Remove"
+                              onClick={() => {
+                                setEditCityLeadCityIds((prev) =>
+                                  prev.filter((x) => x !== cid),
+                                );
+                                setEditCityLeadDirty(true);
+                              }}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className={styles.helpText}>
+                        No city lead cities assigned.
+                      </div>
+                    )}
+
+                    {editCityLeadCityIds.length > 0 && (
+                      <button
+                        type="button"
+                        className={styles.clearCitiesBtn}
+                        onClick={() => {
+                          setEditCityLeadCityIds([]);
+                          setEditCityLeadDirty(true);
+                        }}
+                      >
+                        Clear all city lead cities
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>

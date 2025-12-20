@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { listJobSessions, deleteSession } from "@/lib/apiClient";
 import Loader from "./Loader";
+import styles from "./SidebarLists.module.css";
 
 interface Session {
   session_id: string;
@@ -31,7 +32,7 @@ export default function JobSessionList({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const loadSessions = async () => {
     try {
@@ -55,23 +56,20 @@ export default function JobSessionList({
 
   // Close menu when clicking outside
   useEffect(() => {
+    if (!openMenuId) return;
+
     const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      // Close if clicking outside any menu or menu button
-      if (
-        !target.closest(".session-menu") &&
-        !target.closest(".session-menu-btn")
-      ) {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (rootRef.current && !rootRef.current.contains(target)) {
         setOpenMenuId(null);
       }
     };
 
-    if (openMenuId) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => {
-        document.removeEventListener("mousedown", handleClickOutside);
-      };
-    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, [openMenuId]);
 
   const handleSessionClick = (sessionId: string) => {
@@ -117,7 +115,7 @@ export default function JobSessionList({
 
   if (loading) {
     return (
-      <div className="session-empty-state" style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center", padding: "12px" }}>
+      <div className={styles.emptyState} style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center", padding: "12px" }}>
         <Loader size="sm" color="dark" />
         <span style={{ color: "var(--text-secondary)" }}>Loading job sessions...</span>
       </div>
@@ -126,7 +124,7 @@ export default function JobSessionList({
 
   if (error) {
     return (
-      <div className="session-empty-state">
+      <div className={styles.emptyState}>
         <div
           style={{
             textAlign: "center",
@@ -142,7 +140,7 @@ export default function JobSessionList({
 
   if (sessions.length === 0) {
     return (
-      <div className="session-empty-state">
+      <div className={styles.emptyState}>
         <div
           style={{
             padding: "12px 20px",
@@ -158,38 +156,34 @@ export default function JobSessionList({
   }
 
   return (
-    <div ref={menuRef}>
+    <div ref={rootRef}>
       {sessions.map((session) => (
         <div
           key={session.session_id}
-          className={`session-item ${
-            session.session_id === currentSessionId ? "active" : ""
-          }`}
+          className={`${styles.item} ${session.session_id === currentSessionId ? styles.itemActive : ""}` }
         >
           <div
-            className="session-content"
+            className={styles.content}
             data-session-id={session.session_id}
             onClick={() => handleSessionClick(session.session_id)}
           >
-            <div className="session-title">
+            <div className={styles.title}>
               {session.title || "Job Session"}
             </div>
           </div>
           <button
-            className="session-menu-btn"
+            className={styles.menuBtn}
             onClick={(e) => toggleSessionMenu(e, session.session_id)}
             title="Options"
           >
             ⋮
           </button>
           <div
-            className={`session-menu ${
-              openMenuId === session.session_id ? "show" : ""
-            }`}
+            className={`${styles.menu} ${openMenuId === session.session_id ? styles.menuShow : ""}` }
             id={`menu-${session.session_id}`}
           >
             <div
-              className="session-menu-item delete"
+              className={`${styles.menuItem} ${styles.menuItemDelete}` }
               onClick={(e) => deleteSessionHandler(e, session.session_id)}
             >
               🗑️ Delete

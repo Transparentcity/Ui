@@ -16,6 +16,7 @@ import {
 import { emitSavedCitiesChanged } from "@/lib/uiEvents";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import Loader from "./Loader";
+import styles from "./CityDataTable.module.css";
 
 interface CityDataTableProps {
   onOpenCity?: (cityId: number) => void;
@@ -487,7 +488,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
 
   if (loading) {
     return (
-      <div className="admin-container" style={{ padding: "48px", display: "flex", alignItems: "center", justifyContent: "center", gap: "12px" }}>
+      <div className={styles.loadingContainer}>
         <Loader size="sm" color="dark" />
         <span>Loading cities...</span>
       </div>
@@ -495,9 +496,9 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
   }
 
   return (
-    <div className="admin-container" style={{ padding: "24px", height: "100%", overflowY: "auto" }}>
+    <div className={styles.container}>
       {/* Stats Header */}
-      <div className="card" style={{ marginBottom: "24px" }}>
+      <div className={styles.card}>
         <div className="city-stats-header">
           {/* Worldwide Row */}
           <div className="stats-row" style={{ marginBottom: "24px" }}>
@@ -505,7 +506,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
               Worldwide
             </div>
             <div
-              className="city-stats-grid"
+              className={styles.cityStatsGrid}
               style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
@@ -566,7 +567,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
           <div className="stats-row">
             <div className="stats-row-label" style={{ fontWeight: 600, marginBottom: "12px" }}>US</div>
             <div
-              className="city-stats-grid"
+              className={styles.cityStatsGrid}
               style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
@@ -627,7 +628,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
       </div>
 
       {/* Action Buttons */}
-      <div className="card" style={{ marginBottom: "24px" }}>
+      <div className={styles.card}>
         <div className="city-actions-header" style={{ marginBottom: "16px" }}>
           <h3 className="city-actions-title" style={{ margin: 0, fontSize: "18px", fontWeight: 600 }}>
             City Data Actions
@@ -689,7 +690,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
       </div>
 
       {/* City List Card */}
-      <div className="card">
+      <div className={styles.card}>
         <div className="city-list-header" style={{ marginBottom: "16px" }}>
           <h3 className="city-list-title" style={{ margin: "0 0 16px 0", fontSize: "18px", fontWeight: 600 }}>
             Cities
@@ -703,7 +704,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
               value={citySearchQuery}
               onChange={(e) => setCitySearchQuery(e.target.value)}
               placeholder="Search cities..."
-              className="city-search-input"
+              className={styles.searchInput}
               style={{
                 padding: "8px 12px",
                 border: "1px solid var(--border-primary)",
@@ -736,7 +737,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
           >
             <button
               onClick={selectAllCities}
-              className="link-btn"
+              className={styles.linkBtn}
               style={{
                 background: "none",
                 border: "none",
@@ -749,7 +750,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
             </button>
             <button
               onClick={selectAllCitiesWithPortals}
-              className="link-btn"
+              className={styles.linkBtn}
               style={{
                 background: "none",
                 border: "none",
@@ -762,7 +763,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
             </button>
             <button
               onClick={clearSelectedCities}
-              className="link-btn danger"
+              className={`${styles.linkBtn} ${styles.linkBtnDanger}` }
               style={{
                 background: "none",
                 border: "none",
@@ -775,7 +776,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
             </button>
             <button
               onClick={loadCities}
-              className="link-btn"
+              className={styles.linkBtn}
               disabled={loading}
               style={{
                 background: "none",
@@ -791,42 +792,42 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
           </div>
         </div>
 
-        <div className="city-table-container" style={{ overflowX: "auto" }}>
-          <table className="city-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+        <div className={styles.tableContainer} style={{ overflowX: "auto" }}>
+          <table className={styles.cityTable} style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <th className="checkbox-col" style={{ padding: "12px", textAlign: "left", width: "40px" }}>
+                <th className={styles.checkboxCol} style={{ padding: "12px", textAlign: "left", width: "40px" }}>
                   <input
                     type="checkbox"
                     checked={allCitiesSelected}
                     onChange={toggleAllCities}
                   />
                 </th>
-                <th className="name-col" style={{ padding: "12px", textAlign: "left" }}>
+                <th className={styles.nameCol} style={{ padding: "12px", textAlign: "left" }}>
                   City Name
                 </th>
-                <th className="state-col" style={{ padding: "12px", textAlign: "left" }}>
+                <th className={styles.stateCol} style={{ padding: "12px", textAlign: "left" }}>
                   State
                 </th>
-                <th className="country-col" style={{ padding: "12px", textAlign: "left" }}>
+                <th className={styles.countryCol} style={{ padding: "12px", textAlign: "left" }}>
                   Country
                 </th>
-                <th className="population-col" style={{ padding: "12px", textAlign: "left" }}>
+                <th className={styles.populationCol} style={{ padding: "12px", textAlign: "left" }}>
                   Population
                 </th>
-                <th className="platform-col" style={{ padding: "12px", textAlign: "left" }}>
+                <th className={styles.platformCol} style={{ padding: "12px", textAlign: "left" }}>
                   Platform
                 </th>
-                <th className="datasets-col" style={{ padding: "12px", textAlign: "left" }}>
+                <th className={styles.datasetsCol} style={{ padding: "12px", textAlign: "left" }}>
                   Datasets
                 </th>
-                <th className="vector-db-col" style={{ padding: "12px", textAlign: "left" }}>
+                <th className={styles.vectorDbCol} style={{ padding: "12px", textAlign: "left" }}>
                   Vector DB
                 </th>
-                <th className="last-fetch-col" style={{ padding: "12px", textAlign: "left" }}>
+                <th className={styles.lastFetchCol} style={{ padding: "12px", textAlign: "left" }}>
                   Last Fetch
                 </th>
-                <th className="status-col" style={{ padding: "12px", textAlign: "left" }}>
+                <th className={styles.statusCol} style={{ padding: "12px", textAlign: "left" }}>
                   Status
                 </th>
               </tr>
@@ -834,10 +835,10 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
             <tbody>
               {citiesByState.map((stateGroup) => (
                 <React.Fragment key={`state-${stateGroup.state}`}>
-                  <tr className="state-header-row">
+                  <tr className={styles.stateHeaderRow}>
                     <td
                       colSpan={10}
-                      className="state-header-cell"
+                      className={styles.stateHeaderCell}
                       style={{
                         padding: "12px",
                         background: "var(--bg-secondary)",
@@ -861,19 +862,19 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
                     return (
                       <tr
                         key={city.city_id}
-                        className="city-row"
+                        
                         style={{
                           borderBottom: "1px solid var(--border-primary)",
                         }}
                       >
-                        <td className="checkbox-col" style={{ padding: "12px" }}>
+                        <td className={styles.checkboxCol} style={{ padding: "12px" }}>
                           <input
                             type="checkbox"
                             checked={isSelected}
                             onChange={(e) => toggleCitySelection(city.city_id, e.target.checked)}
                           />
                         </td>
-                        <td className="name-col" style={{ padding: "12px" }}>
+                        <td className={styles.nameCol} style={{ padding: "12px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                             <button
                               type="button"
@@ -940,18 +941,18 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
                             </button>
                           </div>
                         </td>
-                        <td className="state-col" style={{ padding: "12px" }}>
+                        <td className={styles.stateCol} style={{ padding: "12px" }}>
                           {getStateAbbreviation(city.state)}
                         </td>
-                        <td className="country-col" style={{ padding: "12px" }}>
+                        <td className={styles.countryCol} style={{ padding: "12px" }}>
                           {city.country || "—"}
                         </td>
-                        <td className="population-col" style={{ padding: "12px" }}>
+                        <td className={styles.populationCol} style={{ padding: "12px" }}>
                           {formatPopulation(city.population)}
                         </td>
-                        <td className="platform-col" style={{ padding: "12px" }}>
+                        <td className={styles.platformCol} style={{ padding: "12px" }}>
                           <span
-                            className="platform-badge"
+                            className={styles.platformBadge}
                             style={{
                               padding: "4px 8px",
                               background: "var(--bg-secondary)",
@@ -962,7 +963,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
                             {getPlatformType(city)}
                           </span>
                         </td>
-                        <td className="datasets-col" style={{ padding: "12px" }}>
+                        <td className={styles.datasetsCol} style={{ padding: "12px" }}>
                           {hasPortalUrl && portalUrl ? (
                             <a
                               href={portalUrl}
@@ -981,21 +982,21 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
                             <span style={{ fontWeight: 600 }}>{city.datasets_count || 0}</span>
                           )}
                         </td>
-                        <td className="vector-db-col" style={{ padding: "12px" }}>
+                        <td className={styles.vectorDbCol} style={{ padding: "12px" }}>
                           {vectorStatsLoadingCityIds.has(city.city_id) ? (
                             <button
                               type="button"
-                              className="vector-db-btn"
+                              className={styles.vectorDbBtn}
                               disabled
                               title="Loading Vector DB stats..."
                             >
-                              <span className="loading-spinner" aria-hidden="true" />
+                              <span className={styles.loadingSpinner} aria-hidden="true" />
                             </button>
                           ) : city.vector_db_points !== null &&
                             city.vector_db_points !== undefined ? (
                             <button
                               type="button"
-                              className="vector-db-btn stats-loaded"
+                              className={`${styles.vectorDbBtn} ${styles.vectorDbBtnStatsLoaded}` }
                               title={`Vector DB: ${city.vector_db_points} points, ${(
                                 city.vector_db_size_mb || 0
                               ).toFixed(2)} MB`}
@@ -1013,7 +1014,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
                           ) : (
                             <button
                               type="button"
-                              className="vector-db-btn"
+                              className={styles.vectorDbBtn}
                               title={
                                 vectorStatsErrorCityIds.has(city.city_id)
                                   ? "Failed to load Vector DB stats — click to retry"
@@ -1052,32 +1053,23 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
                             </button>
                           )}
                         </td>
-                        <td className="last-fetch-col" style={{ padding: "12px", fontSize: "12px" }}>
+                        <td className={styles.lastFetchCol} style={{ padding: "12px", fontSize: "12px" }}>
                           {formatLastFetch(city.last_fetch_at)}
                         </td>
-                        <td className="status-col" style={{ padding: "12px" }}>
-                          <span
-                            className={`status-badge ${getStatusClass(city.last_fetch_status)}`}
-                            style={{
-                              padding: "4px 8px",
-                              borderRadius: "4px",
-                              fontSize: "11px",
-                              background:
-                                getStatusClass(city.last_fetch_status) === "success"
-                                  ? "#d1fae5"
-                                  : getStatusClass(city.last_fetch_status) === "error"
-                                  ? "#fee2e2"
-                                  : "#f3f4f6",
-                              color:
-                                getStatusClass(city.last_fetch_status) === "success"
-                                  ? "#065f46"
-                                  : getStatusClass(city.last_fetch_status) === "error"
-                                  ? "#991b1b"
-                                  : "#374151",
-                            }}
-                          >
-                            {formatStatus(city.last_fetch_status)}
-                          </span>
+                        <td className={styles.statusCol} style={{ padding: "12px" }}>{(() => {
+                          const status = getStatusClass(city.last_fetch_status);
+                          const statusClassName =
+                            status === "success"
+                              ? styles.statusSuccess
+                              : status === "error"
+                              ? styles.statusError
+                              : styles.statusUnknown;
+                          return (
+                            <span className={`${styles.statusBadge} ${statusClassName}`}>
+                              {formatStatus(city.last_fetch_status)}
+                            </span>
+                          );
+                        })()}
                         </td>
                       </tr>
                     );
@@ -1087,7 +1079,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
             </tbody>
           </table>
           {filteredCities.length === 0 && (
-            <div className="empty-state" style={{ padding: "48px", textAlign: "center", color: "var(--text-secondary)" }}>
+            <div className={styles.emptyState}>
               No cities found matching filters.
             </div>
           )}

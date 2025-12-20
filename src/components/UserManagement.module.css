@@ -245,6 +245,105 @@
   color: #6b7280;
 }
 
+.roleCityLead {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+}
+
+.cityPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cityPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.25;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cityPillMuted {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-primary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.cityLeadRow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.addCityBtn {
+  padding: 10px 14px;
+  background: var(--brand-primary);
+  color: var(--text-inverse);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.addCityBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.removeCityBtn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+}
+
+.removeCityBtn:hover {
+  color: var(--text-primary);
+}
+
+.clearCitiesBtn {
+  margin-top: 10px;
+  background: none;
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.clearCitiesBtn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.helpText {
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
 .statusBadge {
   padding: 4px 8px;
   display: inline-flex;
@@ -480,3 +579,4 @@
 .modalButtonSecondary:hover {
   background: var(--bg-tertiary);
 }
+

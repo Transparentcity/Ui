@@ -8,6 +8,7 @@ import "../landing.css";
 import { useAuth0 } from "@auth0/auth0-react";
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import Header from "@/components/Header";
 
 export default function LandingPage() {
   const { isAuthenticated, isLoading, user, loginWithRedirect } = useAuth0();
@@ -22,16 +23,6 @@ export default function LandingPage() {
     return () => window.clearInterval(interval);
   }, []);
 
-  const handleLogin = async () => {
-    await loginWithRedirect({
-      authorizationParams: {
-        screen_hint: "login",
-        prompt: "login",
-      },
-      appState: { returnTo: "/dashboard" },
-    });
-  };
-
   const handleSignup = async () => {
     await loginWithRedirect({
       authorizationParams: {
@@ -44,170 +35,7 @@ export default function LandingPage() {
 
   return (
     <>
-      {/* Navigation */}
-      <nav className="navbar">
-        <div className="container">
-          <div className="nav-content">
-            <div className="logo">
-              <div className="logo-corners">
-                <svg
-                  viewBox="0 0 100 100"
-                  xmlns="http://www.w3.org/2000/svg"
-                  style={{ overflow: "visible" }}
-                >
-                  <defs>
-                    <mask
-                      id="logo-mask-bl-landing"
-                      x="-400"
-                      y="-400"
-                      width="1200"
-                      height="1200"
-                      maskUnits="userSpaceOnUse"
-                      maskContentUnits="userSpaceOnUse"
-                    >
-                      <rect
-                        x="-400"
-                        y="-400"
-                        width="1200"
-                        height="1200"
-                        fill="white"
-                      />
-                      <rect
-                        x="8.333"
-                        y="8.333"
-                        width="83.333"
-                        height="83.333"
-                        rx="3"
-                        ry="3"
-                        fill="black"
-                      />
-                      <rect
-                        x="16.666"
-                        y="-33.333"
-                        width="66.666"
-                        height="166.666"
-                        fill="black"
-                        transform="rotate(-45 50 50)"
-                      />
-                      <rect
-                        x="50"
-                        y="-400"
-                        width="1200"
-                        height="1200"
-                        fill="black"
-                        transform="rotate(-45 50 50)"
-                      />
-                    </mask>
-                    <mask
-                      id="logo-mask-tr-landing"
-                      x="-400"
-                      y="-400"
-                      width="1200"
-                      height="1200"
-                      maskUnits="userSpaceOnUse"
-                      maskContentUnits="userSpaceOnUse"
-                    >
-                      <rect
-                        x="-400"
-                        y="-400"
-                        width="1200"
-                        height="1200"
-                        fill="white"
-                      />
-                      <rect
-                        x="8.333"
-                        y="8.333"
-                        width="83.333"
-                        height="83.333"
-                        rx="3"
-                        ry="3"
-                        fill="black"
-                      />
-                      <rect
-                        x="16.666"
-                        y="-33.333"
-                        width="66.666"
-                        height="166.666"
-                        fill="black"
-                        transform="rotate(-45 50 50)"
-                      />
-                      <rect
-                        x="-1150"
-                        y="-400"
-                        width="1200"
-                        height="1200"
-                        fill="black"
-                        transform="rotate(-45 50 50)"
-                      />
-                    </mask>
-                  </defs>
-                  <rect
-                    className="brace brace-bl"
-                    x="0"
-                    y="0"
-                    width="100"
-                    height="100"
-                    rx="3"
-                    ry="3"
-                    mask="url(#logo-mask-bl-landing)"
-                    transform="translate(23.5%, -23.5%)"
-                  />
-                  <rect
-                    className="brace brace-tr"
-                    x="0"
-                    y="0"
-                    width="100"
-                    height="100"
-                    rx="3"
-                    ry="3"
-                    mask="url(#logo-mask-tr-landing)"
-                    transform="translate(-23.5%, 23.5%)"
-                  />
-                </svg>
-              </div>
-              <span className="logo-text">
-                <span className="logo-transparent">transparent</span>
-                <span className="logo-city">.city</span>
-              </span>
-            </div>
-            <div className="nav-links">
-              <a href="#who-we-serve" className="nav-link">
-                Who We Serve
-              </a>
-              <a href="#features" className="nav-link">
-                Product
-              </a>
-              <a href="#how-it-works" className="nav-link">
-                How It Works
-              </a>
-              <a href="#pricing" className="nav-link">
-                Pricing
-              </a>
-              <button
-                id="login-btn"
-                className="btn btn-secondary"
-                onClick={handleLogin}
-                disabled={isLoading}
-              >
-                {isAuthenticated ? "Dashboard" : "Sign In"}
-              </button>
-            </div>
-            <button
-              id="signup-btn"
-              className="btn btn-primary nav-signup"
-              onClick={handleSignup}
-              disabled={isLoading}
-            >
-              {isAuthenticated ? "Go to Dashboard" : "Get Started"}
-            </button>
-            <button className="mobile-menu-toggle" id="mobile-menu-toggle">
-              <span />
-              <span />
-              <span />
-            </button>
-          </div>
-        </div>
-      </nav>
+      <Header showCityPicker={false} />
 
       {/* Hero Section (simplified version of landing.html) */}
       <section className="hero">

@@ -2,6 +2,8 @@
 
 import { Job } from "@/lib/useJobWebSocket";
 
+import styles from "./JobBadge.module.css";
+
 interface JobBadgeProps {
   activeJobCount: number;
   onClick: () => void;
@@ -13,9 +15,9 @@ export default function JobBadge({ activeJobCount, onClick }: JobBadgeProps) {
   }
 
   return (
-    <button className="job-badge" onClick={onClick}>
-      <span className="job-icon">⚙️</span>
-      <span className="job-count">{activeJobCount}</span>
+    <button className={styles.jobBadge} onClick={onClick}>
+      <span className={styles.jobIcon}>⚙️</span>
+      <span className={styles.jobCount}>{activeJobCount}</span>
     </button>
   );
 }

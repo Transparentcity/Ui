@@ -5,6 +5,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { getSavedCities, unsaveCity, SavedCity, prefetchCity } from "@/lib/apiClient";
 import { SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEvents";
 import Loader from "./Loader";
+import styles from "./SidebarLists.module.css";
 
 interface MyCitiesProps {
   onCityClick?: (cityId: number) => void;
@@ -17,6 +18,7 @@ export default function MyCities({ onCityClick, activeCityId }: MyCitiesProps) {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(true);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const menuRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
   const prefetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastPrefetchedCityId = useRef<number | null>(null);
@@ -50,22 +52,21 @@ export default function MyCities({ onCityClick, activeCityId }: MyCitiesProps) {
   }, []);
 
   useEffect(() => {
-    // Close menus when clicking outside
     const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (
-        !target.closest(".session-menu") &&
-        !target.closest(".session-menu-btn")
-      ) {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (rootRef.current && !rootRef.current.contains(target)) {
         setOpenMenuId(null);
       }
     };
 
-    document.addEventListener("click", handleClickOutside);
-    return () => {
-      document.removeEventListener("click", handleClickOutside);
-    };
-  }, []);
+    if (openMenuId !== null) {
+      document.addEventListener("click", handleClickOutside);
+      return () => {
+        document.removeEventListener("click", handleClickOutside);
+      };
+    }
+  }, [openMenuId]);
 
   const loadCities = async () => {
     try {
@@ -143,53 +144,45 @@ export default function MyCities({ onCityClick, activeCityId }: MyCitiesProps) {
   }
 
   return (
-    <div id="my-cities-section" style={{ display: "block" }}>
+    <div ref={rootRef} id="my-cities-section" style={{ display: "block" }}>
       <div
-        className="nav-section-header nav-section-collapsible"
+        className={`${styles.sectionHeader} ${styles.sectionCollapsible}` }
         id="my-cities-header"
         onClick={() => setExpanded(!expanded)}
       >
         <span>My Cities</span>
-        <span id="my-cities-chevron" className="nav-section-chevron">
+        <span id="my-cities-chevron" className={styles.sectionChevron}>
           {expanded ? "▼" : "▶"}
         </span>
       </div>
       {expanded && (
         <div id="my-cities-list">
           {loading ? (
-            <div className="session-empty-state" style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center" }}>
+            <div className={styles.emptyState} style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center" }}>
               <Loader size="sm" color="dark" />
               <span>Loading cities...</span>
             </div>
           ) : cities.length === 0 ? (
-            <div className="session-empty-state">No saved cities</div>
+            <div className={styles.emptyState}>No saved cities</div>
           ) : (
             cities.map((city) => (
               <div
                 key={city.id}
-                className={`my-cities-item ${
-                  activeCityId === city.id ? "active" : ""
-                }`}
+                className={`${styles.item} ${activeCityId === city.id ? styles.itemActive : ""}` }
                 data-city-id={city.id}
                 onMouseEnter={() => handleCityHover(city.id)}
-                onClick={(e) => {
-                  // Only trigger if clicking on the item itself, not the menu button
-                  if (!(e.target as HTMLElement).closest(".session-menu-btn") &&
-                      !(e.target as HTMLElement).closest(".session-menu")) {
-                    handleCityClick(city.id);
-                  }
-                }}
+                onClick={() => handleCityClick(city.id)}
               >
-                <div className="my-cities-item-content">
-                  <div className="my-cities-item-wrapper">
+                <div className={styles.content}>
+                  <div className={styles.myCitiesItemWrapper}>
                     {city.emoji && (
-                      <span className="my-cities-item-emoji">{city.emoji}</span>
+                      <span className={styles.myCitiesEmoji}>{city.emoji}</span>
                     )}
-                    <div className="my-cities-item-name">{city.display_name}</div>
+                    <div className={styles.myCitiesName}>{city.display_name}</div>
                   </div>
                 </div>
                 <button
-                  className="session-menu-btn"
+                  className={styles.menuBtn}
                   onClick={(e) => handleMenuToggle(e, city.id)}
                   title="Options"
                 >
@@ -199,11 +192,11 @@ export default function MyCities({ onCityClick, activeCityId }: MyCitiesProps) {
                   ref={(el) => {
                     menuRefs.current[city.id] = el;
                   }}
-                  className={`session-menu ${openMenuId === city.id ? "show" : ""}`}
+                  className={`${styles.menu} ${openMenuId === city.id ? styles.menuShow : ""}` }
                   id={`city-menu-${city.id}`}
                 >
                   <div
-                    className="session-menu-item delete"
+                    className={`${styles.menuItem} ${styles.menuItemDelete}` }
                     onClick={(e) =>
                       handleUnsaveCity(e, city.id, city.display_name)
                     }

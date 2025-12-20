@@ -1,0 +1,104 @@
+/* Global design tokens (colors, spacing, radii, shadows).
+ *
+ * Keep this file small + stable: route-level and component-level CSS should
+ * consume these variables, not redefine them.
+ */
+
+:root {
+  /* Brand Colors */
+  --brand-primary: #ad35fa;
+  --brand-primary-hover: #7c3aed;
+  --brand-primary-light: rgba(173, 53, 250, 0.1);
+  --brand-secondary: rgba(173, 53, 250, 0.1);
+  --brand-secondary-hover: rgba(173, 53, 250, 0.15);
+
+  /* Legacy aliases (marketing + older pages) */
+  --primary: var(--brand-primary);
+  --primary-dark: var(--brand-primary-hover);
+  --secondary: #8b5cf6;
+
+  /* Light Mode Colors */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #f3f4f6;
+  --bg-overlay: rgba(0, 0, 0, 0.5);
+
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  --text-muted: #9ca3af;
+  --text-inverse: #ffffff;
+
+  --border: #e5e7eb;
+  --border-primary: #e5e7eb;
+  --border-secondary: #d1d5db;
+
+  /* Status Colors */
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --danger: var(--error);
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  /* Marketing uses these names */
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+
+  /* Border Radius */
+  --radius: 12px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Transitions */
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Layout */
+  --sidebar-width: 280px;
+  --header-height: 64px;
+}
+
+/* Dark Mode Variables */
+[data-theme="dark"],
+.dark {
+  /* Brand Colors (same in dark mode) */
+  --brand-primary: #ad35fa;
+  --brand-primary-hover: #7c3aed;
+  --brand-primary-light: rgba(173, 53, 250, 0.15);
+  --brand-secondary: rgba(173, 53, 250, 0.15);
+  --brand-secondary-hover: rgba(173, 53, 250, 0.2);
+
+  /* Dark Mode Colors */
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --bg-overlay: rgba(0, 0, 0, 0.7);
+
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-tertiary: #94a3b8;
+  --text-muted: #94a3b8;
+  --text-inverse: #0f172a;
+
+  --border: #334155;
+  --border-primary: #334155;
+  --border-secondary: #475569;
+
+  /* Shadows (heavier in dark mode) */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.4);
+}

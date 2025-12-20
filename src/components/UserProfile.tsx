@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import ContextMenu from "./ContextMenu";
+import styles from "./UserProfile.module.css";
 
 interface UserProfileProps {
   isAdmin?: boolean;
@@ -56,13 +57,13 @@ export default function UserProfile({ isAdmin = false, onViewChange }: UserProfi
     <>
       <div
         ref={profileRef}
-        className="user-profile"
+        className={styles.userProfile}
         id="user-profile"
         onClick={toggleMenu}
         style={{ position: "relative" }}
       >
         <div
-          className={`user-avatar ${isAdmin ? "admin-avatar" : ""}`}
+          className={`${styles.userAvatar} ${isAdmin ? styles.adminAvatar : ""}` }
           id="user-avatar"
           title={isAdmin ? "Administrator" : ""}
         >

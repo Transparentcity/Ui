@@ -337,6 +337,119 @@
   position: relative;
 }
 
+.titlebar-city-search-wrap {
+  margin-right: 10px;
+  display: flex;
+  align-items: center;
+}
+
+.topnav-city-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.topnav-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.topnav-icon-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.topnav-search-expanded {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.topnav-search-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+}
+
+.topnav-search-leading-icon {
+  color: var(--text-secondary);
+}
+
+.topnav-search-input {
+  width: min(42vw, 460px);
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .topnav-search-input {
+    width: min(60vw, 340px);
+  }
+}
+
+.topnav-search-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+}
+
+.topnav-search-option {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.topnav-search-option-btn {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.topnav-search-option-btn:hover,
+.topnav-search-option-btn[aria-selected="true"] {
+  background: rgba(17, 24, 39, 0.05);
+}
+
+[data-theme="dark"] .topnav-search-option-btn:hover,
+[data-theme="dark"] .topnav-search-option-btn[aria-selected="true"],
+.dark .topnav-search-option-btn:hover,
+.dark .topnav-search-option-btn[aria-selected="true"] {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.topnav-search-meta {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
 .title-bar .menu-toggle {
   background: none;
   border: none;
@@ -661,12 +774,14 @@
   width: 100vw !important;
 }
 
-/* When sidebar is open, position main content next to it */
-.dashboard-layout.sidebar-open .main-content,
-.dashboard-layout .sidebar.open ~ .main-content,
-.sidebar.open ~ .main-content {
-  left: var(--sidebar-width) !important;
-  width: calc(100vw - var(--sidebar-width)) !important;
+/* When sidebar is open, position main content next to it (desktop only) */
+@media (min-width: 769px) {
+  .dashboard-layout.sidebar-open .main-content,
+  .dashboard-layout .sidebar.open ~ .main-content,
+  .sidebar.open ~ .main-content {
+    left: var(--sidebar-width) !important;
+    width: calc(100vw - var(--sidebar-width)) !important;
+  }
 }
 
 .sidebar-overlay {
@@ -677,7 +792,8 @@
   right: 0;
   bottom: 0;
   background: var(--bg-overlay);
-  z-index: 999;
+  z-index: 10000; /* Above main content, below sidebar */
+  transition: opacity 0.3s ease;
 }
 
 .sidebar-overlay.show {
@@ -686,6 +802,10 @@
 
 /* Hide overlay when sidebar is collapsed on desktop */
 @media (min-width: 769px) {
+  .sidebar-overlay {
+    display: none !important;
+  }
+  
   .sidebar.collapsed ~ .sidebar-overlay {
     display: none !important;
   }
@@ -872,6 +992,25 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding: 24px;
+}
+
+/* Remove padding when city view is in map mode */
+.admin-container:has(.city-view.map-view-active) {
+  padding: 0;
+  overflow: hidden;
+}
+
+/* On mobile, ensure full width with no padding */
+@media (max-width: 768px) {
+  .admin-container:has(.city-view.map-view-active) {
+    padding: 0;
+    overflow: hidden;
+  }
+  
+  .content-view.active:has(.city-view.map-view-active) {
+    padding: 0;
+    overflow: hidden;
+  }
 }
 
 /* ===== CHAT INTERFACE ===== */
@@ -1640,16 +1779,31 @@
     display: block;
   }
 
+  /* In narrow mode, main content always stays full width and doesn't move */
   .main-content {
     left: 0 !important;
     width: 100vw !important;
     padding: 0;
   }
 
+  /* Override any sidebar-open state - content should never shift in narrow mode */
+  .dashboard-layout.sidebar-open .main-content,
+  .dashboard-layout .sidebar.open ~ .main-content,
+  .sidebar.open ~ .main-content,
   .sidebar.collapsed ~ .main-content,
   .sidebar:not(.open) ~ .main-content {
     left: 0 !important;
     width: 100vw !important;
+  }
+
+  /* Ensure sidebar overlays content in narrow mode */
+  .sidebar {
+    z-index: 10001; /* Above main content but below title bar */
+  }
+
+  /* Overlay is conditionally rendered by React, but ensure it displays when present */
+  .sidebar-overlay {
+    display: block;
   }
 
   .chat-messages {
@@ -1672,6 +1826,12 @@
 
   .admin-container {
     padding: var(--space-lg) !important;
+  }
+  
+  /* Remove padding for map view on mobile */
+  .admin-container:has(.city-view.map-view-active) {
+    padding: 0 !important;
+    overflow: hidden !important;
   }
 
   .city-search-modal-overlay {

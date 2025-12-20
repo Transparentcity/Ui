@@ -1,0 +1,303 @@
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  border-bottom: 1px solid var(--border-primary, rgba(17, 24, 39, 0.08));
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(10px);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+[data-theme="dark"] .header,
+.dark .header {
+  background: rgba(15, 23, 42, 0.85);
+  border-bottom-color: var(--border-primary, rgba(255, 255, 255, 0.1));
+}
+
+.headerInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 210px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.logoCorners {
+  display: flex;
+  align-items: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.logoCorners svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.brace {
+  fill: var(--text-primary, #1f2937);
+  transition: fill 0.2s ease;
+}
+
+[data-theme="dark"] .brace,
+.dark .brace {
+  fill: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  .brace {
+    fill: #ffffff;
+  }
+}
+
+.brandText {
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.logoTransparent {
+  color: var(--text-primary);
+}
+
+.logoCity {
+  color: var(--brand-primary, #ad35fa);
+}
+
+.navRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.link {
+  font-size: 14px;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.72));
+  text-decoration: none;
+  padding: 8px 10px;
+  border-radius: 10px;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.link:hover {
+  background: var(--bg-secondary, rgba(17, 24, 39, 0.06));
+  color: var(--text-primary, rgba(17, 24, 39, 0.92));
+}
+
+.button {
+  border: 1px solid var(--border-primary, rgba(17, 24, 39, 0.14));
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, rgba(17, 24, 39, 0.92));
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease,
+    border-color 120ms ease, color 120ms ease;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.button:hover:not(:disabled) {
+  box-shadow: var(--shadow-md, 0 8px 18px rgba(0, 0, 0, 0.08));
+  transform: translateY(-1px);
+}
+
+[data-theme="dark"] .button:hover:not(:disabled),
+.dark .button:hover:not(:disabled) {
+  box-shadow: var(--shadow-md, 0 8px 18px rgba(0, 0, 0, 0.3));
+}
+
+.buttonPrimary {
+  background: linear-gradient(
+    135deg,
+    var(--brand-primary, #ad35fa) 0%,
+    var(--brand-primary-hover, #8b5cf6) 100%
+  );
+  border-color: rgba(173, 53, 250, 0.35);
+  color: var(--text-inverse, #ffffff);
+}
+
+.menuWrap {
+  position: relative;
+}
+
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  width: 260px;
+  border-radius: 14px;
+  border: 1px solid var(--border-primary, rgba(17, 24, 39, 0.12));
+  background: var(--bg-primary, rgba(255, 255, 255, 0.98));
+  box-shadow: var(--shadow-lg, 0 18px 38px rgba(0, 0, 0, 0.12));
+  overflow: hidden;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+[data-theme="dark"] .menu,
+.dark .menu {
+  box-shadow: var(--shadow-lg, 0 18px 38px rgba(0, 0, 0, 0.4));
+}
+
+.menuItem {
+  width: 100%;
+  text-align: left;
+  padding: 12px 12px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  gap: 2px;
+  transition: background-color 120ms ease;
+}
+
+.menuItem:hover {
+  background: var(--bg-secondary, rgba(17, 24, 39, 0.05));
+}
+
+.menuItemTitle {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-primary, rgba(17, 24, 39, 0.92));
+}
+
+.menuItemDesc {
+  font-size: 12.5px;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.6));
+}
+
+.cityPicker {
+  flex: 1 1 auto;
+  max-width: 520px;
+  min-width: 260px;
+  position: relative;
+}
+
+.cityInput {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border-primary, rgba(17, 24, 39, 0.14));
+  background: var(--bg-primary, rgba(255, 255, 255, 0.9));
+  color: var(--text-primary, #111827);
+  font-size: 14px;
+  outline: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.cityInput:focus {
+  border-color: var(--brand-primary, rgba(173, 53, 250, 0.5));
+  box-shadow: 0 0 0 4px var(--brand-primary-light, rgba(173, 53, 250, 0.12));
+}
+
+.cityDropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 10px);
+  border-radius: 14px;
+  border: 1px solid var(--border-primary, rgba(17, 24, 39, 0.12));
+  background: var(--bg-primary, rgba(255, 255, 255, 0.98));
+  box-shadow: var(--shadow-lg, 0 18px 38px rgba(0, 0, 0, 0.12));
+  overflow: hidden;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+[data-theme="dark"] .cityDropdown,
+.dark .cityDropdown {
+  box-shadow: var(--shadow-lg, 0 18px 38px rgba(0, 0, 0, 0.4));
+}
+
+.cityOption {
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  transition: background-color 120ms ease;
+  color: var(--text-primary, #111827);
+}
+
+.cityOption:hover {
+  background: var(--bg-secondary, rgba(17, 24, 39, 0.05));
+}
+
+.cityMeta {
+  font-size: 12.5px;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.6));
+}
+
+@media (max-width: 960px) {
+  .cityPicker {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .navRight .link {
+    display: none;
+  }
+
+  .navRight .button {
+    white-space: nowrap;
+    min-width: auto;
+  }
+
+  .menuWrap {
+    flex: 0 0 auto;
+  }
+
+  .menuWrap .buttonPrimary {
+    white-space: nowrap;
+    min-width: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .brand {
+    min-width: auto;
+  }
+
+  .brandText {
+    font-size: 18px;
+  }
+
+  .navRight {
+    gap: 6px;
+  }
+
+  .navRight .button {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  .menuWrap .buttonPrimary {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+}
+

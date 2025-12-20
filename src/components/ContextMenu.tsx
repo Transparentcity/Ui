@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 
 import { API_BASE } from "@/lib/apiBase";
 
+import styles from "./ContextMenu.module.css";
+
 interface ContextMenuProps {
   isOpen: boolean;
   isAdmin?: boolean;
@@ -176,12 +178,12 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
     return (
       <div
         ref={ref}
-        className={`context-menu ${isOpen ? "show" : ""}`}
+        className={`${styles.menu} ${isOpen ? styles.open : ""}` }
         id="context-menu"
       >
         <a
           href={`${API_BASE}/admin/docs`}
-          className="context-menu-item"
+          className={styles.item}
           id="api-docs-menu-item"
           onClick={handleApiDocsClick}
         >
@@ -217,11 +219,11 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
 
         {isAdmin && (
           <>
-            <div className="context-menu-divider">Administration</div>
+            <div className={styles.divider}>Administration</div>
             {adminMenuItems.map((item) => (
               <div
                 key={item.view}
-                className="context-menu-item"
+                className={styles.item}
                 data-view={item.view}
                 onClick={() => handleAdminView(item.view)}
               >
@@ -242,7 +244,7 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
           </>
         )}
 
-        <div className="context-menu-item" id="logout-btn" onClick={handleLogout}>
+        <div className={styles.item} id="logout-btn" onClick={handleLogout}>
           <span
             style={{
               display: "inline-flex",

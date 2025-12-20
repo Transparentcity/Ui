@@ -1,0 +1,89 @@
+.container {
+  padding: 24px;
+  width: 100%;
+}
+
+.containerEmbedded {
+  padding: 0;
+}
+
+.tabsContainer {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-primary);
+  margin-bottom: 24px;
+}
+
+.tabsContainerEmbedded {
+  margin-bottom: 12px;
+}
+
+.tabBtn {
+  padding: 12px 24px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.tabBtn:hover {
+  color: var(--text-primary);
+}
+
+.tabBtnActive {
+  color: var(--brand-primary);
+  border-bottom-color: var(--brand-primary);
+}
+
+.dataTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.dataTable th {
+  text-align: left;
+  padding: 12px;
+  background: var(--bg-secondary);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.dataTable td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border-primary);
+  font-size: 14px;
+}
+
+.editableTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.editableTable th {
+  text-align: left;
+  padding: 12px;
+  background: var(--bg-secondary);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.editableTable td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.metricCard {
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.metricCard:hover {
+  border-color: var(--brand-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
