@@ -529,6 +529,7 @@ export default function CityMetricsMap({
             });
             
             // Build aggregated properties
+            const featureDateStr = earliestDate ? (earliestDate as Date).toISOString() : null;
             const aggregatedProps: Record<string, any> = {
               title: `${count} points at this location`,
               description: `Aggregated data from ${count} points`,
@@ -539,7 +540,7 @@ export default function CityMetricsMap({
               mapTitle: mapData.title,
               mapId: String(mapData.metric_id),
               _isAggregated: true,
-              _featureDate: earliestDate instanceof Date ? earliestDate.toISOString() : null,
+              _featureDate: featureDateStr,
             };
             
             // Add category summaries
