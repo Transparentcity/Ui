@@ -164,3 +164,12 @@ After applying fixes:
 4. Test API endpoint directly with `curl` or Postman
 5. Compare working dev environment with production configuration
 
+
+
+
+
+
+
+
+
+

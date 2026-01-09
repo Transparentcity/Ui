@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import Link from "next/link";
 
 import styles from "./ToolCall.module.css";
 
@@ -20,6 +21,268 @@ interface ToolCallProps {
   };
 }
 
+// Try to parse response as JSON if it's a string
+function parseResponse(response: any): any {
+  if (typeof response === "string") {
+    try {
+      return JSON.parse(response);
+    } catch {
+      return response;
+    }
+  }
+  return response;
+}
+
+// Check if this is a map result (only show_map, not generate_map)
+function isMapResult(toolName: string, response: any): boolean {
+  const parsed = parseResponse(response);
+  // Only show embedded map for show_map, not generate_map
+  const isShowMapTool = toolName === "show_map";
+  return isShowMapTool && (parsed?.data?.short_hash || parsed?.short_hash);
+}
+
+// Check if this is an anomaly result (show_anomaly)
+function isAnomalyResult(toolName: string, response: any): boolean {
+  const parsed = parseResponse(response);
+  const isAnomalyTool = toolName === "show_anomaly";
+  return isAnomalyTool && (parsed?.data?.id || parsed?.id);
+}
+
+// Check if this is a time series result (show_time_series)
+function isTimeSeriesResult(toolName: string, response: any): boolean {
+  const parsed = parseResponse(response);
+  const isTimeSeriesTool = toolName === "show_time_series";
+  return isTimeSeriesTool && (parsed?.data?.chart_id || parsed?.chart_id);
+}
+
+// Get map data from response
+function getMapData(response: any): any {
+  const parsed = parseResponse(response);
+  // Handle both formats: {data: {short_hash, ...}} and {short_hash, ...}
+  return parsed?.data || parsed;
+}
+
+// Get anomaly data from response
+function getAnomalyData(response: any): any {
+  const parsed = parseResponse(response);
+  // Handle both formats: {data: {id, ...}} and {id, ...}
+  return parsed?.data || parsed;
+}
+
+// Get time series data from response
+function getTimeSeriesData(response: any): any {
+  const parsed = parseResponse(response);
+  // Handle both formats: {data: {chart_id, ...}} and {chart_id, ...}
+  return parsed?.data || parsed;
+}
+
+// Render an embedded map with iframe
+function EmbeddedMapCard({ data }: { data: any }) {
+  const [showEmbed, setShowEmbed] = useState(true);
+  const mapData = getMapData(data);
+  const shortHash = mapData.short_hash;
+  const title = mapData.title || "Map";
+  const pointCount = mapData.point_count || 0;
+  const mapType = mapData.map_type || "point";
+  const isPublic = mapData.is_public;
+  const viewUrl = mapData.view_url || `/m/${shortHash}`;
+  const embedUrl = `${viewUrl}?embedded=true`;
+  
+  return (
+    <div className={styles.mapEmbed}>
+      {/* Header bar */}
+      <div className={styles.mapEmbedHeader}>
+        <div className={styles.mapEmbedInfo}>
+          <span className={styles.mapEmbedIcon}>🗺️</span>
+          <div className={styles.mapEmbedTitle}>{title}</div>
+        </div>
+        <div className={styles.mapEmbedMeta}>
+          <span>{pointCount.toLocaleString()} locations</span>
+          <span className={styles.mapPreviewDot}>•</span>
+          <span>{mapType}</span>
+          {isPublic && (
+            <>
+              <span className={styles.mapPreviewDot}>•</span>
+              <span className={styles.mapPreviewPublic}>Public</span>
+            </>
+          )}
+        </div>
+        <div className={styles.mapEmbedActions}>
+          <button
+            className={styles.mapEmbedToggle}
+            onClick={() => setShowEmbed(!showEmbed)}
+            title={showEmbed ? "Collapse map" : "Expand map"}
+          >
+            {showEmbed ? "▼" : "▶"}
+          </button>
+          <Link href={viewUrl} target="_blank" className={styles.mapEmbedLink}>
+            Open ↗
+          </Link>
+        </div>
+      </div>
+      
+      {/* Embedded map iframe */}
+      {showEmbed && (
+        <div className={styles.mapEmbedContainer}>
+          <iframe
+            src={embedUrl}
+            className={styles.mapEmbedIframe}
+            title={title}
+            loading="lazy"
+            allowFullScreen
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Render an embedded anomaly chart with iframe
+function EmbeddedAnomalyCard({ data }: { data: any }) {
+  const [showEmbed, setShowEmbed] = useState(true);
+  const anomalyData = getAnomalyData(data);
+  const anomalyId = anomalyData.id;
+  const metricName = anomalyData.metric_name || "Anomaly";
+  const periodType = anomalyData.period_type || "N/A";
+  const isAnomaly = anomalyData.is_anomaly || false;
+  const pctChange = anomalyData.pct_change || 0;
+  const viewUrl = anomalyData.view_url || `/a/${anomalyId}`;
+  const embedUrl = anomalyData.embed_url || `${viewUrl}?embedded=true`;
+  
+  // Build title with anomaly info
+  const changeType = pctChange > 0 ? "Spike" : "Drop";
+  const title = `${changeType}: ${metricName} (${periodType})`;
+  
+  return (
+    <div className={styles.mapEmbed}>
+      {/* Header bar */}
+      <div className={styles.mapEmbedHeader}>
+        <div className={styles.mapEmbedInfo}>
+          <span className={styles.mapEmbedIcon}>📊</span>
+          <div className={styles.mapEmbedTitle}>{title}</div>
+        </div>
+        <div className={styles.mapEmbedMeta}>
+          <span>{periodType}</span>
+          {anomalyData.group_value && (
+            <>
+              <span className={styles.mapPreviewDot}>•</span>
+              <span>{anomalyData.group_value}</span>
+            </>
+          )}
+          {isAnomaly && (
+            <>
+              <span className={styles.mapPreviewDot}>•</span>
+              <span style={{ color: "var(--warning-text, #f59e0b)" }}>Anomaly</span>
+            </>
+          )}
+          {pctChange !== 0 && (
+            <>
+              <span className={styles.mapPreviewDot}>•</span>
+              <span style={{ 
+                color: pctChange > 0 ? "var(--error-text, #ef4444)" : "var(--success-text, #10b981)" 
+              }}>
+                {pctChange > 0 ? "+" : ""}{pctChange.toFixed(1)}%
+              </span>
+            </>
+          )}
+        </div>
+        <div className={styles.mapEmbedActions}>
+          <button
+            className={styles.mapEmbedToggle}
+            onClick={() => setShowEmbed(!showEmbed)}
+            title={showEmbed ? "Collapse chart" : "Expand chart"}
+          >
+            {showEmbed ? "▼" : "▶"}
+          </button>
+          <Link href={viewUrl} target="_blank" className={styles.mapEmbedLink}>
+            Open ↗
+          </Link>
+        </div>
+      </div>
+      
+      {/* Embedded anomaly chart iframe */}
+      {showEmbed && (
+        <div className={styles.mapEmbedContainer}>
+          <iframe
+            src={embedUrl}
+            className={styles.mapEmbedIframe}
+            title={title}
+            loading="lazy"
+            allowFullScreen
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Render an embedded time series chart with iframe
+function EmbeddedTimeSeriesCard({ data }: { data: any }) {
+  const [showEmbed, setShowEmbed] = useState(true);
+  const timeSeriesData = getTimeSeriesData(data);
+  const chartId = timeSeriesData.chart_id;
+  const metricName = timeSeriesData.metric_name || "Time Series";
+  const periodType = timeSeriesData.period_type || "N/A";
+  const dataPointCount = timeSeriesData.data_point_count || 0;
+  const viewUrl = timeSeriesData.view_url || `/t/${chartId}`;
+  const embedUrl = timeSeriesData.embed_url || `${viewUrl}?embedded=true`;
+  
+  // Build title
+  const title = `${metricName} (${periodType})`;
+  
+  return (
+    <div className={styles.mapEmbed}>
+      {/* Header bar */}
+      <div className={styles.mapEmbedHeader}>
+        <div className={styles.mapEmbedInfo}>
+          <span className={styles.mapEmbedIcon}>📈</span>
+          <div className={styles.mapEmbedTitle}>{title}</div>
+        </div>
+        <div className={styles.mapEmbedMeta}>
+          <span>{periodType}</span>
+          {timeSeriesData.group_field && timeSeriesData.group_value && (
+            <>
+              <span className={styles.mapPreviewDot}>•</span>
+              <span>{timeSeriesData.group_value}</span>
+            </>
+          )}
+          {dataPointCount > 0 && (
+            <>
+              <span className={styles.mapPreviewDot}>•</span>
+              <span>{dataPointCount} points</span>
+            </>
+          )}
+        </div>
+        <div className={styles.mapEmbedActions}>
+          <button
+            className={styles.mapEmbedToggle}
+            onClick={() => setShowEmbed(!showEmbed)}
+            title={showEmbed ? "Collapse chart" : "Expand chart"}
+          >
+            {showEmbed ? "▼" : "▶"}
+          </button>
+          <Link href={viewUrl} target="_blank" className={styles.mapEmbedLink}>
+            Open ↗
+          </Link>
+        </div>
+      </div>
+      
+      {/* Embedded time series chart iframe */}
+      {showEmbed && (
+        <div className={styles.mapEmbedContainer}>
+          <iframe
+            src={embedUrl}
+            className={styles.mapEmbedIframe}
+            title={title}
+            loading="lazy"
+            allowFullScreen
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ToolCall({ toolCall }: ToolCallProps) {
   const [showDetails, setShowDetails] = useState(false);
   const fallbackId = useId();
@@ -27,8 +290,6 @@ export default function ToolCall({ toolCall }: ToolCallProps) {
   const toolId = toolCall.tool_id || `tool-${fallbackId}`;
   const toolName = toolCall.tool_name || toolCall.toolName || "Tool Call";
   const success = toolCall.success !== false;
-  const statusClass = success ? "completed" : "error";
-  const statusText = success ? "✅ Success" : "❌ Failed";
 
   const args =
     toolCall.arguments ||
@@ -48,21 +309,12 @@ export default function ToolCall({ toolCall }: ToolCallProps) {
     }
   };
 
-  const escapeHtml = (text: string): string => {
-    // Safe for SSR - only escape on client
-    if (typeof document === "undefined") {
-      // Simple server-side escaping
-      return text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-    }
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
-  };
+  // Check if this is a successful map generation
+  const showMapPreview = success && isMapResult(toolName, response);
+  // Check if this is a successful anomaly display
+  const showAnomalyPreview = success && isAnomalyResult(toolName, response);
+  // Check if this is a successful time series display
+  const showTimeSeriesPreview = success && isTimeSeriesResult(toolName, response);
 
   return (
     <div
@@ -75,8 +327,26 @@ export default function ToolCall({ toolCall }: ToolCallProps) {
         onClick={() => setShowDetails(!showDetails)}
         style={{ cursor: "pointer" }}
       >
-        <div className={styles.toolCallName}>🔧 {toolName}</div>
+        <div className={styles.toolCallName}>
+          {showMapPreview ? "🗺️" : showAnomalyPreview ? "📊" : showTimeSeriesPreview ? "📈" : "🔧"} {toolName}
+        </div>
       </div>
+      
+      {/* Show embedded map for generate_map tool */}
+      {showMapPreview && (
+        <EmbeddedMapCard data={response} />
+      )}
+      
+      {/* Show embedded anomaly chart for show_anomaly tool */}
+      {showAnomalyPreview && (
+        <EmbeddedAnomalyCard data={response} />
+      )}
+      
+      {/* Show embedded time series chart for show_time_series tool */}
+      {showTimeSeriesPreview && (
+        <EmbeddedTimeSeriesCard data={response} />
+      )}
+      
       {showDetails && (
         <div className={styles.toolCallDetails}>
           <h4>Tool Call Details</h4>

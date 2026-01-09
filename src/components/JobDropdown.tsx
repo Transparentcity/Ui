@@ -137,8 +137,21 @@ export default function JobDropdown({
     return null;
   }
 
-  // Sort jobs by created_at (newest first)
+  // Sort jobs: running/pending jobs first, then by created_at (newest first)
   const sortedJobs = [...jobs].sort((a, b) => {
+    // Check if jobs are currently running or pending
+    const aIsRunning = a.status === "running" || a.status === "pending";
+    const bIsRunning = b.status === "running" || b.status === "pending";
+    
+    // Running jobs always come first
+    if (aIsRunning && !bIsRunning) {
+      return -1;
+    }
+    if (!aIsRunning && bIsRunning) {
+      return 1;
+    }
+    
+    // Within the same group (both running or both not running), sort by created_at (newest first)
     const dateA = new Date(a.created_at).getTime();
     const dateB = new Date(b.created_at).getTime();
     return dateB - dateA;
@@ -164,5 +177,14 @@ export default function JobDropdown({
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
 
 

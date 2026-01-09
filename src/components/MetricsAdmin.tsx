@@ -4,33 +4,29 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  createAdminMetric,
-  deleteAdminMetric,
-  executeAdminMetric,
-  getAdminMetric,
-  getAdminMetricCityStructure,
-  getAdminMetricTimeSeries,
-  getAdminMetricTimeSeriesDetail,
-  getAdminMetricsSummary,
-  listAdminMetricCategories,
-  listAdminMetricCities,
-  listAdminMetricTypes,
-  listAdminMetrics,
-  updateAdminMetric,
-  type AdminMetricCategory,
-  type AdminMetricCity,
-  type AdminMetricDetail,
-  type AdminMetricListItem,
-  type AdminMetricSummary,
-  type AdminMetricTimeSeries,
-  type AdminMetricTimeSeriesDetail,
-  type AdminMetricType,
   type CreateAdminMetricRequest,
   type UpdateAdminMetricRequest,
 } from "@/lib/apiClient";
-
-import styles from "./MetricsAdmin.module.css";
+import {
+  useMetrics,
+  useMetric,
+  useMetricsSummary,
+  useMetricCategories,
+  useMetricTypes,
+  useMetricCities,
+  useMetricCityStructure,
+  useCreateMetric,
+  useUpdateMetric,
+  useDeleteMetric,
+  useExecuteMetric,
+  useValidateMetricFreshness,
+} from "@/lib/hooks/useMetrics";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
+import TemplateOrderEditor from "./TemplateOrderEditor";
+import MetricActions from "./MetricActions";
+import MetricEditModal from "./MetricEditModal";
+import MetricChartsModal from "./MetricChartsModal";
+import styles from "./MetricsAdmin.module.css";
 
 type StatusFilter = "" | "true" | "false";
 
@@ -39,6 +35,13 @@ function formatDateTime(value?: string | null): string {
   const dt = new Date(value);
   if (Number.isNaN(dt.getTime())) return value;
   return dt.toLocaleString();
+}
+
+function formatDate(value?: string | null): string {
+  if (!value) return "—";
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return value;
+  return dt.toLocaleDateString();
 }
 
 function safeNumber(value: unknown): number | null {
@@ -63,6 +66,35 @@ function makeSparklinePoints(values: number[], width: number, height: number): s
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
+}
+
+function FreshnessBadge({
+  freshness,
+}: {
+  freshness?: { update_frequency?: string | null; lag_days?: number | null; is_stale?: boolean | null } | null;
+}) {
+  if (!freshness || !freshness.update_frequency) {
+    return <span className={`${styles.badge} ${styles.muted}`}>Unknown</span>;
+  }
+
+  const lag = freshness.lag_days ?? 0;
+  const frequency = freshness.update_frequency || 'unknown';
+  const isStale = freshness.is_stale ?? false;
+
+  let colorClass = styles.badgeSuccess;
+  if (lag >= 7 || isStale) {
+    colorClass = styles.badgeDanger;
+  } else if (lag >= 3) {
+    colorClass = styles.badgeWarning;
+  }
+
+  const displayText = `${frequency}${lag > 0 ? ` (${lag}d)` : ''}`;
+
+  return (
+    <span className={`${styles.badge} ${colorClass}`} title={`Updated ${frequency}, ${lag} days behind`}>
+      {displayText}
+    </span>
+  );
 }
 
 function StatusBadge({
@@ -91,34 +123,91 @@ function StatusBadge({
 export default function MetricsAdmin() {
   const { getAccessTokenSilently } = useAuth0();
 
-  const [summary, setSummary] = useState<AdminMetricSummary | null>(null);
-  const [categories, setCategories] = useState<AdminMetricCategory[]>([]);
-  const [types, setTypes] = useState<AdminMetricType[]>([]);
-  const [cities, setCities] = useState<AdminMetricCity[]>([]);
-  const [metrics, setMetrics] = useState<AdminMetricListItem[]>([]);
-
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedType, setSelectedType] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("");
-
+  const [selectedUpdateFrequency, setSelectedUpdateFrequency] = useState("");
+  const [maxLagDays, setMaxLagDays] = useState<number | null>(null);
+  
   // City dropdown filter
   const [citySearchQuery, setCitySearchQuery] = useState("");
   const [selectedCityId, setSelectedCityId] = useState<number | null>(null);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
+  
+  // Debounced search query for React Query
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  
+  // React Query hooks for data fetching
+  const summaryQuery = useMetricsSummary();
+  const categoriesQuery = useMetricCategories();
+  const typesQuery = useMetricTypes();
+  const citiesQuery = useMetricCities();
+  
+  // Metrics query with filters
+  const metricsQuery = useMetrics({
+    limit: 100,
+    search: debouncedSearchQuery || undefined,
+    category: selectedCategory || undefined,
+    metric_type: selectedType || undefined,
+    is_active: selectedStatus === "" ? undefined : selectedStatus === "true",
+    city_id: selectedCityId || undefined,
+  });
+  
+  // Mutation hooks
+  const createMetricMutation = useCreateMetric();
+  const updateMetricMutation = useUpdateMetric();
+  const deleteMetricMutation = useDeleteMetric();
+  const executeMetricMutation = useExecuteMetric();
+  const validateFreshnessMutation = useValidateMetricFreshness();
+  
+  // Execute metric configuration modal state
+  const [showExecuteModal, setShowExecuteModal] = useState(false);
+  const [executeMetricId, setExecuteMetricId] = useState<number | null>(null);
+  const [executePeriodType, setExecutePeriodType] = useState<string>("day");
+  const [executeStartDate, setExecuteStartDate] = useState<string>("");
+  const [executeEndDate, setExecuteEndDate] = useState<string>("");
+  
+  // Derived data
+  const summary = summaryQuery.data ?? null;
+  const categories = categoriesQuery.data ?? [];
+  const types = typesQuery.data ?? [];
+  const cities = citiesQuery.data ?? [];
+  
+  // Apply client-side freshness filters
+  const metrics = useMemo(() => {
+    let filtered = metricsQuery.data ?? [];
+    
+    if (selectedUpdateFrequency) {
+      filtered = filtered.filter(
+        (m) => m.freshness?.update_frequency === selectedUpdateFrequency
+      );
+    }
+    
+    if (maxLagDays !== null) {
+      filtered = filtered.filter(
+        (m) => (m.freshness?.lag_days ?? Infinity) <= maxLagDays
+      );
+    }
+    
+    return filtered;
+  }, [metricsQuery.data, selectedUpdateFrequency, maxLagDays]);
+  
+  const loading = summaryQuery.isLoading || categoriesQuery.isLoading || 
+                  typesQuery.isLoading || citiesQuery.isLoading || metricsQuery.isLoading;
+  const error = summaryQuery.error || categoriesQuery.error || 
+                typesQuery.error || citiesQuery.error || metricsQuery.error
+                ? (summaryQuery.error || categoriesQuery.error || 
+                   typesQuery.error || citiesQuery.error || metricsQuery.error)?.message || "Failed to load data"
+                : null;
 
   // Modals
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detail, setDetail] = useState<AdminMetricDetail | null>(null);
-  const [detailCityStructure, setDetailCityStructure] = useState<any | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editModalMetricId, setEditModalMetricId] = useState<number | null>(null);
 
   const [chartsOpen, setChartsOpen] = useState(false);
-  const [chartsData, setChartsData] = useState<AdminMetricTimeSeries | null>(null);
-  const [chartDetail, setChartDetail] = useState<AdminMetricTimeSeriesDetail | null>(null);
+  const [chartsMetricId, setChartsMetricId] = useState<number | null>(null);
 
   const [editOpen, setEditOpen] = useState(false);
   const [editMode, setEditMode] = useState<"create" | "edit">("create");
@@ -149,6 +238,17 @@ export default function MetricsAdmin() {
     endpoint: "",
     aggregation_type: "COUNT",
   });
+  const [editQueryConfig, setEditQueryConfig] = useState<Record<string, any> | null>(null);
+  const [showQueryConfig, setShowQueryConfig] = useState(false);
+  const [editMapFields, setEditMapFields] = useState<{
+    map_query: string | null;
+    map_filters: Record<string, any> | null;
+    map_config: Record<string, any> | null;
+    location_fields: any[] | null;
+    category_fields: any[] | null;
+  } | null>(null);
+  const [showMapFields, setShowMapFields] = useState(false);
+  const [showAllGaps, setShowAllGaps] = useState(false);
 
   // Debounce refs
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -168,90 +268,16 @@ export default function MetricsAdmin() {
       .slice(0, 50);
   }, [cities, citySearchQuery]);
 
-  const loadAll = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const token = await getAccessTokenSilently();
-      const [summaryData, categoriesData, typesData, citiesData, metricsData] =
-        await Promise.all([
-          getAdminMetricsSummary(token),
-          listAdminMetricCategories(token),
-          listAdminMetricTypes(token),
-          listAdminMetricCities(token),
-          listAdminMetrics(token, { limit: 100 }),
-        ]);
-      setSummary(summaryData);
-      setCategories(categoriesData);
-      setTypes(typesData);
-      setCities(citiesData);
-      setMetrics(metricsData);
-    } catch (err) {
-      console.error("Error loading metrics admin data:", err);
-      setError(err instanceof Error ? err.message : "Failed to load metrics admin data");
-    } finally {
-      setLoading(false);
-    }
-  }, [getAccessTokenSilently]);
-
-  const loadMetrics = useCallback(
-    async (forceRefresh: boolean = false) => {
-      try {
-        setLoading(true);
-        setError(null);
-        const token = await getAccessTokenSilently();
-        const metricsData = await listAdminMetrics(token, {
-          limit: 100,
-          search: searchQuery || undefined,
-          category: selectedCategory || undefined,
-          metric_type: selectedType || undefined,
-          is_active:
-            selectedStatus === "" ? undefined : selectedStatus === "true",
-          city_id: selectedCityId || undefined,
-          force_refresh: forceRefresh,
-        });
-        setMetrics(metricsData);
-        const summaryData = await getAdminMetricsSummary(token);
-        setSummary(summaryData);
-      } catch (err) {
-        console.error("Error loading metrics:", err);
-        setError(err instanceof Error ? err.message : "Failed to load metrics");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [
-      getAccessTokenSilently,
-      searchQuery,
-      selectedCategory,
-      selectedType,
-      selectedStatus,
-      selectedCityId,
-    ],
-  );
-
-  const debouncedSearch = useCallback(() => {
+  // Debounce search query
+  useEffect(() => {
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     searchTimeoutRef.current = setTimeout(() => {
-      loadMetrics();
+      setDebouncedSearchQuery(searchQuery);
     }, 500);
-  }, [loadMetrics]);
-
-  useEffect(() => {
-    loadAll();
-  }, [loadAll]);
-
-  useEffect(() => {
-    debouncedSearch();
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
-  }, [searchQuery, debouncedSearch]);
-
-  useEffect(() => {
-    loadMetrics();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategory, selectedType, selectedStatus, selectedCityId]);
+  }, [searchQuery]);
 
   // Keep city input synced when selection changes programmatically
   useEffect(() => {
@@ -261,87 +287,89 @@ export default function MetricsAdmin() {
     // We intentionally do not clear citySearchQuery when selection clears
   }, [selectedCityId, selectedCityDisplayName]);
 
-  const openDetail = async (metricId: number) => {
-    try {
-      setError(null);
-      const token = await getAccessTokenSilently();
-      const [metric, cityStructure] = await Promise.all([
-        getAdminMetric(metricId, token),
-        getAdminMetricCityStructure(metricId, token).catch(() => null),
-      ]);
-      setDetail(metric);
-      setDetailCityStructure(cityStructure);
-      setDetailOpen(true);
-    } catch (err) {
-      console.error("Error loading metric detail:", err);
-      setError(err instanceof Error ? err.message : "Failed to load metric detail");
-    }
+
+  const openEditModal = (metricId: number) => {
+    setEditModalMetricId(metricId);
+    setEditModalOpen(true);
   };
 
-  const closeDetail = () => {
-    setDetailOpen(false);
-    setDetail(null);
-    setDetailCityStructure(null);
+  const closeEditModal = () => {
+    setEditModalOpen(false);
+    setEditModalMetricId(null);
   };
 
-  const openCharts = async (metricId: number) => {
-    try {
-      setError(null);
-      setChartDetail(null);
-      const token = await getAccessTokenSilently();
-      const ts = await getAdminMetricTimeSeries(metricId, token);
-      setChartsData(ts);
-      setChartsOpen(true);
-    } catch (err) {
-      console.error("Error loading time series:", err);
-      setError(err instanceof Error ? err.message : "Failed to load time series");
-    }
+  const openCharts = (metricId: number) => {
+    setChartsMetricId(metricId);
+    setChartsOpen(true);
   };
 
   const closeCharts = () => {
     setChartsOpen(false);
-    setChartsData(null);
-    setChartDetail(null);
+    setChartsMetricId(null);
   };
 
-  const openChartDetail = async (metricId: number, chartId: number) => {
-    try {
-      setError(null);
-      const token = await getAccessTokenSilently();
-      const detailData = await getAdminMetricTimeSeriesDetail(metricId, chartId, token);
-      setChartDetail(detailData);
-    } catch (err) {
-      console.error("Error loading chart detail:", err);
-      setError(err instanceof Error ? err.message : "Failed to load chart detail");
-    }
+  const openExecuteModal = (metricId: number) => {
+    // Set default values: Daily period from Jan 1, 2023 to today
+    const today = new Date();
+    const startDate = new Date(2023, 0, 1); // Jan 1, 2023
+    const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    setExecuteMetricId(metricId);
+    setExecutePeriodType("day");
+    setExecuteStartDate(startDate.toISOString().split('T')[0]);
+    setExecuteEndDate(endDate.toISOString().split('T')[0]);
+    setShowExecuteModal(true);
   };
 
-  const executeMetric = async (metricId: number) => {
-    if (!confirm(`Execute metric ${metricId}?`)) return;
+  const closeExecuteModal = () => {
+    setShowExecuteModal(false);
+    setExecuteMetricId(null);
+  };
+
+  const executeMetric = async () => {
+    if (!executeMetricId) return;
+    
     try {
-      setError(null);
-      const token = await getAccessTokenSilently();
-      const res = await executeAdminMetric(metricId, { period_type: "month" }, token);
-      notifyJobCreated(res.job_id);
-      alert(`Metric execution started.\nJob ID: ${res.job_id}`);
-      await loadMetrics(true);
+      executeMetricMutation.mutate(
+        { 
+          metricId: executeMetricId, 
+          payload: { 
+            period_type: executePeriodType,
+            start_date: executeStartDate || null,
+            end_date: executeEndDate || null
+          } 
+        },
+        {
+          onSuccess: (res) => {
+            notifyJobCreated(res.job_id);
+            alert(`Metric execution started.\nJob ID: ${res.job_id}`);
+            closeExecuteModal();
+          },
+          onError: (err) => {
+            console.error("Error executing metric:", err);
+            alert(err instanceof Error ? err.message : "Failed to execute metric");
+          },
+        }
+      );
     } catch (err) {
       console.error("Error executing metric:", err);
-      setError(err instanceof Error ? err.message : "Failed to execute metric");
     }
   };
 
   const deleteMetric = async (metricId: number) => {
     if (!confirm("Delete this metric? This cannot be undone.")) return;
     try {
-      setError(null);
-      const token = await getAccessTokenSilently();
-      const res = await deleteAdminMetric(metricId, token);
-      alert(res.message || `Deleted metric ${metricId}`);
-      await loadMetrics(true);
+      deleteMetricMutation.mutate(metricId, {
+        onSuccess: (res) => {
+          alert(res.message || `Deleted metric ${metricId}`);
+        },
+        onError: (err) => {
+          console.error("Error deleting metric:", err);
+          alert(err instanceof Error ? err.message : "Failed to delete metric");
+        },
+      });
     } catch (err) {
       console.error("Error deleting metric:", err);
-      setError(err instanceof Error ? err.message : "Failed to delete metric");
     }
   };
 
@@ -361,16 +389,20 @@ export default function MetricsAdmin() {
       endpoint: "",
       aggregation_type: "COUNT",
     });
+    setEditQueryConfig(null);
+    setShowQueryConfig(false);
+    setEditMapFields(null);
+    setShowMapFields(false);
     setEditOpen(true);
   };
 
-  const openEdit = async (metricId: number) => {
-    try {
-      setError(null);
-      const token = await getAccessTokenSilently();
-      const metric = await getAdminMetric(metricId, token);
-      setEditMode("edit");
-      setEditMetricId(metricId);
+  // Hook for edit metric (only active when editMetricId is set)
+  const editMetricQuery = useMetric(editMetricId);
+  
+  // Update edit form when metric data loads
+  useEffect(() => {
+    if (editMode === "edit" && editMetricId && editMetricQuery.data) {
+      const metric = editMetricQuery.data;
       setEditForm({
         metric_name: metric.metric_name || "",
         metric_key: metric.metric_key || "",
@@ -384,11 +416,27 @@ export default function MetricsAdmin() {
         endpoint: "",
         aggregation_type: "COUNT",
       });
-      setEditOpen(true);
-    } catch (err) {
-      console.error("Error loading metric for edit:", err);
-      setError(err instanceof Error ? err.message : "Failed to load metric for edit");
+      setEditQueryConfig(metric.metadata?.query_config || null);
+      setEditMapFields({
+        map_query: metric.map_query || null,
+        map_filters: metric.map_filters || null,
+        map_config: metric.map_config || null,
+        location_fields: metric.location_fields || null,
+        category_fields: metric.category_fields || null,
+      });
     }
+    if (editMetricQuery.isError) {
+      console.error("Error loading metric for edit:", editMetricQuery.error);
+      alert(editMetricQuery.error instanceof Error ? editMetricQuery.error.message : "Failed to load metric for edit");
+    }
+  }, [editMode, editMetricId, editMetricQuery.data, editMetricQuery.isError]);
+
+  const openEdit = (metricId: number) => {
+    setEditMode("edit");
+    setEditMetricId(metricId);
+    setShowQueryConfig(false);
+    setShowMapFields(false);
+    setEditOpen(true);
   };
 
   const closeEdit = () => {
@@ -400,48 +448,59 @@ export default function MetricsAdmin() {
       alert("Please fill in Metric Name and Category.");
       return;
     }
-    try {
-      setError(null);
-      const token = await getAccessTokenSilently();
-      if (editMode === "create") {
-        if (!editForm.metric_key.trim() || !editForm.date_field.trim() || !editForm.endpoint.trim()) {
-          alert("For create, please fill Metric Key, Date Field, and Endpoint.");
-          return;
-        }
-        const payload: CreateAdminMetricRequest = {
-          metric_name: editForm.metric_name.trim(),
-          metric_key: editForm.metric_key.trim(),
-          category: editForm.category.trim(),
-          subcategory: editForm.subcategory.trim() || null,
-          summary: editForm.summary.trim() || null,
-          definition: editForm.definition.trim() || null,
-          date_field: editForm.date_field.trim(),
-          endpoint: editForm.endpoint.trim(),
-          aggregation_type: editForm.aggregation_type,
-          is_active: editForm.is_active,
-          show_on_dash: editForm.show_on_dash,
-        };
-        const res = await createAdminMetric(payload, token);
-        alert(res.message || `Created metric ${res.metric_id}`);
-      } else {
-        if (!editMetricId) return;
-        const payload: UpdateAdminMetricRequest = {
-          metric_name: editForm.metric_name.trim(),
-          category: editForm.category.trim(),
-          subcategory: editForm.subcategory.trim() || null,
-          summary: editForm.summary.trim() || null,
-          definition: editForm.definition.trim() || null,
-          is_active: editForm.is_active,
-          show_on_dash: editForm.show_on_dash,
-        };
-        const res = await updateAdminMetric(editMetricId, payload, token);
-        alert(res.message || `Updated metric ${editMetricId}`);
+    
+    if (editMode === "create") {
+      if (!editForm.metric_key.trim() || !editForm.date_field.trim() || !editForm.endpoint.trim()) {
+        alert("For create, please fill Metric Key, Date Field, and Endpoint.");
+        return;
       }
-      closeEdit();
-      await loadMetrics(true);
-    } catch (err) {
-      console.error("Error saving metric:", err);
-      setError(err instanceof Error ? err.message : "Failed to save metric");
+      const payload: CreateAdminMetricRequest = {
+        metric_name: editForm.metric_name.trim(),
+        metric_key: editForm.metric_key.trim(),
+        category: editForm.category.trim(),
+        subcategory: editForm.subcategory.trim() || null,
+        summary: editForm.summary.trim() || null,
+        definition: editForm.definition.trim() || null,
+        date_field: editForm.date_field.trim(),
+        endpoint: editForm.endpoint.trim(),
+        aggregation_type: editForm.aggregation_type,
+        is_active: editForm.is_active,
+        show_on_dash: editForm.show_on_dash,
+      };
+      createMetricMutation.mutate(payload, {
+        onSuccess: (res) => {
+          alert(res.message || `Created metric ${res.metric_id}`);
+          closeEdit();
+        },
+        onError: (err) => {
+          console.error("Error saving metric:", err);
+          alert(err instanceof Error ? err.message : "Failed to save metric");
+        },
+      });
+    } else {
+      if (!editMetricId) return;
+      const payload: UpdateAdminMetricRequest = {
+        metric_name: editForm.metric_name.trim(),
+        category: editForm.category.trim(),
+        subcategory: editForm.subcategory.trim() || null,
+        summary: editForm.summary.trim() || null,
+        definition: editForm.definition.trim() || null,
+        is_active: editForm.is_active,
+        show_on_dash: editForm.show_on_dash,
+      };
+      updateMetricMutation.mutate(
+        { metricId: editMetricId, payload },
+        {
+          onSuccess: (res) => {
+            alert(res.message || `Updated metric ${editMetricId}`);
+            closeEdit();
+          },
+          onError: (err) => {
+            console.error("Error saving metric:", err);
+            alert(err instanceof Error ? err.message : "Failed to save metric");
+          },
+        }
+      );
     }
   };
 
@@ -470,7 +529,7 @@ export default function MetricsAdmin() {
 
   return (
     <div className={styles.metricsAdmin}>
-      {error && <div className={styles.errorMessage}>{error}</div>}
+      {error && <div className={styles.errorMessage}>{String(error)}</div>}
 
       {/* Stats */}
       <div className={styles.statsGrid}>
@@ -478,7 +537,7 @@ export default function MetricsAdmin() {
           <div className={styles.statCardContent}>
             <div className={styles.statCardInner}>
               <div className={styles.statIcon}>
-                <i className="fas fa-chart-bar" style={{ color: "var(--brand-primary)", fontSize: 28 }} />
+                <i className="fas fa-chart-bar" style={{ color: "var(--brand-primary)", fontSize: 20 }} />
               </div>
               <div className={styles.statText}>
                 <div className={styles.statLabel}>Total Metrics</div>
@@ -492,7 +551,7 @@ export default function MetricsAdmin() {
           <div className={styles.statCardContent}>
             <div className={styles.statCardInner}>
               <div className={styles.statIcon}>
-                <i className="fas fa-check-circle" style={{ color: "var(--success)", fontSize: 28 }} />
+                <i className="fas fa-check-circle" style={{ color: "var(--success)", fontSize: 20 }} />
               </div>
               <div className={styles.statText}>
                 <div className={styles.statLabel}>Active Metrics</div>
@@ -506,7 +565,7 @@ export default function MetricsAdmin() {
           <div className={styles.statCardContent}>
             <div className={styles.statCardInner}>
               <div className={styles.statIcon}>
-                <i className="fas fa-play-circle" style={{ color: "var(--brand-primary)", fontSize: 28 }} />
+                <i className="fas fa-play-circle" style={{ color: "var(--brand-primary)", fontSize: 20 }} />
               </div>
               <div className={styles.statText}>
                 <div className={styles.statLabel}>Completed</div>
@@ -520,7 +579,7 @@ export default function MetricsAdmin() {
           <div className={styles.statCardContent}>
             <div className={styles.statCardInner}>
               <div className={styles.statIcon}>
-                <i className="fas fa-exclamation-triangle" style={{ color: "var(--error)", fontSize: 28 }} />
+                <i className="fas fa-exclamation-triangle" style={{ color: "var(--error)", fontSize: 20 }} />
               </div>
               <div className={styles.statText}>
                 <div className={styles.statLabel}>Failed</div>
@@ -530,6 +589,11 @@ export default function MetricsAdmin() {
           </div>
         </div>
       </div>
+
+      {/* Template Ordering */}
+      <TemplateOrderEditor
+        templates={metrics.filter((m) => m.metric_type === "template")}
+      />
 
       {/* Filters */}
       <div className={styles.filtersContainer}>
@@ -615,7 +679,39 @@ export default function MetricsAdmin() {
             <option value="false">Inactive</option>
           </select>
 
-          <button className={styles.primaryBtn} onClick={() => loadMetrics(true)} disabled={loading}>
+          <select
+            className={styles.select}
+            value={selectedUpdateFrequency}
+            onChange={(e) => setSelectedUpdateFrequency(e.target.value)}
+          >
+            <option value="">All Frequencies</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+
+          <select
+            className={styles.select}
+            value={maxLagDays === null ? "" : maxLagDays.toString()}
+            onChange={(e) => setMaxLagDays(e.target.value === "" ? null : parseInt(e.target.value))}
+          >
+            <option value="">All Lag Times</option>
+            <option value="3">≤ 3 days</option>
+            <option value="7">≤ 7 days</option>
+            <option value="14">≤ 14 days</option>
+            <option value="30">≤ 30 days</option>
+          </select>
+
+          <button 
+            className={styles.primaryBtn} 
+            onClick={() => {
+              metricsQuery.refetch();
+              summaryQuery.refetch();
+            }} 
+            disabled={loading}
+          >
             <i className="fas fa-sync-alt" /> Refresh
           </button>
 
@@ -640,6 +736,7 @@ export default function MetricsAdmin() {
                 <th className={styles.th}>Category</th>
                 <th className={styles.th}>Type</th>
                 <th className={styles.th}>Last Execution</th>
+                <th className={styles.th}>Freshness</th>
                 <th className={styles.th}>Status</th>
                 <th className={styles.th}>Actions</th>
               </tr>
@@ -647,7 +744,7 @@ export default function MetricsAdmin() {
             <tbody>
               {loading && (
                 <tr>
-                  <td className={styles.td} colSpan={8}>
+                  <td className={styles.td} colSpan={9}>
                     <span className={styles.muted}>Loading…</span>
                   </td>
                 </tr>
@@ -655,7 +752,7 @@ export default function MetricsAdmin() {
 
               {tableEmpty && (
                 <tr>
-                  <td className={styles.td} colSpan={8}>
+                  <td className={styles.td} colSpan={9}>
                     <span className={styles.muted}>No metrics found matching the current filters.</span>
                   </td>
                 </tr>
@@ -689,30 +786,57 @@ export default function MetricsAdmin() {
                       <span className={styles.muted}>{formatDateTime(m.last_execution_at)}</span>
                     </td>
                     <td className={styles.td}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <FreshnessBadge freshness={m.freshness} />
+                        {(m.earliest_data_date || m.most_recent_data_date) && (
+                          <div style={{ fontSize: 11, color: "var(--text-secondary)", display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                            {m.earliest_data_date && (
+                              <span title="First date">
+                                <i className="fas fa-calendar-alt" style={{ fontSize: 9, marginRight: 2 }} />
+                                {formatDate(m.earliest_data_date)}
+                              </span>
+                            )}
+                            {m.earliest_data_date && m.most_recent_data_date && (
+                              <span style={{ color: "var(--text-tertiary)" }}>→</span>
+                            )}
+                            {m.most_recent_data_date && (
+                              <span title="Last date">
+                                {formatDate(m.most_recent_data_date)}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {m.execution_count !== null && m.execution_count !== undefined && (
+                          <div style={{ fontSize: 11, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                            <span>Count: {m.execution_count}</span>
+                            {m.most_recent_data_date && (
+                              <>
+                                <span style={{ color: "var(--text-tertiary)" }}>•</span>
+                                <span title="Most recent data date">
+                                  Latest: {formatDate(m.most_recent_data_date)}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        )}
+                        {m.freshness?.update_frequency && m.freshness.lag_days !== undefined && m.freshness.lag_days !== null && m.freshness.lag_days > 0 && (
+                          <div style={{ fontSize: 10, color: "var(--text-tertiary)" }}>
+                            {m.freshness.lag_days}d lag
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className={styles.td}>
                       <StatusBadge isActive={m.is_active} lastExecutionStatus={m.last_execution_status} />
                     </td>
                     <td className={styles.td}>
-                      <div className={styles.actions}>
-                        <button className={styles.iconBtn} onClick={() => openDetail(m.id)} title="View details">
-                          <i className="fas fa-eye" />
-                        </button>
-                        <button className={styles.iconBtn} onClick={() => openCharts(m.id)} title="Time series">
-                          <i className="fas fa-chart-line" />
-                        </button>
-                        <button className={styles.iconBtn} onClick={() => openEdit(m.id)} title="Edit">
-                          <i className="fas fa-edit" />
-                        </button>
-                        <button className={styles.iconBtn} onClick={() => executeMetric(m.id)} title="Execute">
-                          <i className="fas fa-play" />
-                        </button>
-                        <button
-                          className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
-                          onClick={() => deleteMetric(m.id)}
-                          title="Delete"
-                        >
-                          <i className="fas fa-trash" />
-                        </button>
-                      </div>
+                      <MetricActions
+                        metricId={m.id}
+                        onEdit={() => openEditModal(m.id)}
+                        onViewCharts={() => openCharts(m.id)}
+                        onExecute={() => openExecuteModal(m.id)}
+                        onDelete={() => deleteMetric(m.id)}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -721,8 +845,22 @@ export default function MetricsAdmin() {
         </div>
       </div>
 
-      {/* Detail Modal */}
-      {detailOpen && detail && (
+      {/* Edit Modal */}
+      <MetricEditModal
+        metricId={editModalMetricId ?? 0}
+        isOpen={editModalOpen}
+        onClose={closeEditModal}
+        onExecute={(metricId) => {
+          closeEditModal();
+          openExecuteModal(metricId);
+        }}
+        onSave={() => {
+          metricsQuery.refetch();
+        }}
+      />
+
+      {/* Old Detail Modal - REMOVED */}
+      {false && (
         <div className={styles.modalOverlay} onMouseDown={closeDetail}>
           <div className={styles.modal} onMouseDown={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
@@ -784,6 +922,57 @@ export default function MetricsAdmin() {
               )}
 
               <div style={{ marginTop: 16 }}>
+                <div className={styles.fieldLabel}>Location Fields (JSON array)</div>
+                <textarea
+                  className={styles.textarea}
+                  value={detailLocationFields}
+                  onChange={(e) => setDetailLocationFields(e.target.value)}
+                  rows={6}
+                  style={{ fontFamily: "monospace" }}
+                />
+                <div className={styles.muted} style={{ marginTop: 4 }}>
+                  Current count: {detail.location_fields?.length ?? 0}
+                </div>
+                <div className={styles.fieldLabel} style={{ marginTop: 12 }}>
+                  Category Fields (JSON array)
+                </div>
+                <textarea
+                  className={styles.textarea}
+                  value={detailCategoryFields}
+                  onChange={(e) => setDetailCategoryFields(e.target.value)}
+                  rows={6}
+                  style={{ fontFamily: "monospace" }}
+                />
+                <div className={styles.muted} style={{ marginTop: 4 }}>
+                  Current count: {detail.category_fields?.length ?? 0}
+                </div>
+                {detailFieldsError && (
+                  <div className={styles.errorMessage} style={{ marginTop: 8 }}>
+                    {detailFieldsError}
+                  </div>
+                )}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: 8,
+                    marginTop: 8,
+                  }}
+                >
+                  <button className={styles.secondaryBtn} onClick={resetDetailFields}>
+                    Reset
+                  </button>
+                  <button
+                    className={styles.primaryBtn}
+                    onClick={saveDetailFields}
+                    disabled={detailFieldsSaving}
+                  >
+                    {detailFieldsSaving ? "Saving..." : "Save Fields"}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 16 }}>
                 <div className={styles.fieldLabel}>Execution</div>
                 <div className={styles.fieldValue}>
                   <div className={styles.chartMeta}>
@@ -808,6 +997,184 @@ export default function MetricsAdmin() {
                   )}
                 </div>
               </div>
+
+              {detail.data_freshness_metadata && (
+                <div style={{ marginTop: 16 }}>
+                  <div className={styles.fieldLabel}>Data Freshness</div>
+                  <div className={styles.fieldValue}>
+                    <div className={styles.grid2}>
+                      <div>
+                        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>
+                          Update Frequency
+                        </div>
+                        <div>
+                          <FreshnessBadge freshness={{
+                            update_frequency: detail.data_freshness_metadata.detected_update_frequency,
+                            lag_days: detail.data_freshness_metadata.lag_days,
+                            is_stale: (detail.data_freshness_metadata.lag_days ?? 0) > 7
+                          }} />
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>
+                          Lag Time
+                        </div>
+                        <div>
+                          {detail.data_freshness_metadata.lag_days !== undefined
+                            ? `${detail.data_freshness_metadata.lag_days} days behind`
+                            : "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>
+                          First Date
+                        </div>
+                        <div style={{ fontSize: 13 }}>
+                          {detail.earliest_data_date || detail.data_freshness_metadata.earliest_data_date
+                            ? formatDate(detail.earliest_data_date || detail.data_freshness_metadata.earliest_data_date)
+                            : "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>
+                          Last Date
+                        </div>
+                        <div style={{ fontSize: 13 }}>
+                          {detail.most_recent_data_date || detail.data_freshness_metadata.most_recent_data_date
+                            ? formatDate(detail.most_recent_data_date || detail.data_freshness_metadata.most_recent_data_date)
+                            : "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>
+                          Date Grouping
+                        </div>
+                        <div>
+                          {detail.data_freshness_metadata.date_grouping_level || "—"}
+                        </div>
+                      </div>
+                      {detail.data_freshness_metadata.last_validation_date && (
+                        <div>
+                          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>
+                            Last Validated
+                          </div>
+                          <div>
+                            {formatDateTime(detail.data_freshness_metadata.last_validation_date)}
+                          </div>
+                        </div>
+                      )}
+                      {detail.data_freshness_metadata.validation_confidence !== undefined && (
+                        <div>
+                          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>
+                            Confidence
+                          </div>
+                          <div>
+                            {Math.round(detail.data_freshness_metadata.validation_confidence * 100)}%
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {detail.data_freshness_metadata.gaps_detected &&
+                      detail.data_freshness_metadata.gaps_detected.length > 0 && (
+                        <div style={{ marginTop: 12 }}>
+                          <div style={{ 
+                            display: "flex", 
+                            alignItems: "center", 
+                            justifyContent: "space-between",
+                            marginBottom: 8 
+                          }}>
+                            <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                              Data Gaps ({detail.data_freshness_metadata.gaps_detected.length})
+                            </div>
+                            {detail.data_freshness_metadata.gaps_detected.length > 3 && (
+                              <button
+                                onClick={() => setShowAllGaps(!showAllGaps)}
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  color: "var(--brand-primary)",
+                                  cursor: "pointer",
+                                  fontSize: 11,
+                                  padding: "2px 4px",
+                                  textDecoration: "underline"
+                                }}
+                              >
+                                {showAllGaps ? "Show less" : "Show all"}
+                              </button>
+                            )}
+                          </div>
+                          <div style={{ 
+                            display: "flex", 
+                            flexDirection: "column", 
+                            gap: 6,
+                            fontSize: 11,
+                            color: "var(--text-secondary)"
+                          }}>
+                            {(showAllGaps 
+                              ? detail.data_freshness_metadata.gaps_detected 
+                              : detail.data_freshness_metadata.gaps_detected.slice(0, 3)
+                            ).map((gap: { start: string; end: string; gap_days: number }, idx: number) => (
+                              <div 
+                                key={idx}
+                                style={{
+                                  padding: "6px 8px",
+                                  backgroundColor: "var(--bg-secondary)",
+                                  borderRadius: "4px",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: 2
+                                }}
+                              >
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+                                  <span style={{ fontWeight: 500 }}>
+                                    {formatDate(gap.start)} → {formatDate(gap.end)}
+                                  </span>
+                                  <span style={{ color: "var(--text-tertiary)" }}>
+                                    ({gap.gap_days} days)
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                            {!showAllGaps && detail.data_freshness_metadata.gaps_detected.length > 3 && (
+                              <div style={{ 
+                                fontSize: 11, 
+                                color: "var(--text-tertiary)",
+                                fontStyle: "italic",
+                                paddingLeft: 4
+                              }}>
+                                +{detail.data_freshness_metadata.gaps_detected.length - 3} more gap(s)
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    <div style={{ marginTop: 12 }}>
+                      <button
+                        className={styles.secondaryBtn}
+                        onClick={() => {
+                          if (!detail?.id) return;
+                          validateFreshnessMutation.mutate(
+                            { metricId: detail.id, payload: { days_to_analyze: 90 } },
+                            {
+                              onSuccess: (res) => {
+                                alert(res.message || "Freshness validation completed");
+                                // Refresh detail view
+                                detailQuery.refetch();
+                              },
+                              onError: (err) => {
+                                console.error("Error validating freshness:", err);
+                                alert("Failed to validate freshness");
+                              },
+                            }
+                          );
+                        }}
+                      >
+                        <i className="fas fa-sync-alt" /> Validate Freshness
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {(detail.data_sf_url || detail.source_url) && (
                 <div style={{ marginTop: 16 }}>
@@ -888,7 +1255,7 @@ export default function MetricsAdmin() {
               <button className={styles.secondaryBtn} onClick={closeDetail}>
                 Close
               </button>
-              <button className={styles.primaryBtn} onClick={() => executeMetric(detail.id)}>
+              <button className={styles.primaryBtn} onClick={() => openExecuteModal(detail.id)}>
                 <i className="fas fa-play" /> Execute
               </button>
             </div>
@@ -897,139 +1264,11 @@ export default function MetricsAdmin() {
       )}
 
       {/* Charts Modal */}
-      {chartsOpen && chartsData && (
-        <div className={styles.modalOverlay} onMouseDown={closeCharts}>
-          <div className={styles.modal} onMouseDown={(e) => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <div className={styles.modalTitle}>
-                Time Series — {chartsData.metric_name} ({chartsData.count})
-              </div>
-              <button className={styles.iconBtn} onClick={closeCharts} title="Close">
-                <i className="fas fa-times" />
-              </button>
-            </div>
-            <div className={styles.modalBody}>
-              {chartDetail ? (
-                <>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                    <button className={styles.secondaryBtn} onClick={() => setChartDetail(null)}>
-                      <i className="fas fa-arrow-left" /> Back to list
-                    </button>
-                    <div className={styles.muted} style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                      <span>
-                        <strong>Points:</strong> {chartDetail.count}
-                      </span>
-                      <span>
-                        <strong>Chart ID:</strong> {chartDetail.metadata?.chart_id ?? "—"}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: 14 }}>
-                    <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>
-                      {chartDetail.metadata?.chart_title || "Time Series"}
-                    </div>
-                    {chartDetail.metadata?.caption && (
-                      <div className={styles.muted} style={{ marginTop: 4 }}>
-                        {chartDetail.metadata.caption}
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ marginTop: 14 }} className={styles.chartPreview}>
-                    {(() => {
-                      const values = chartDetail.data
-                        .map((d) => safeNumber(d.numeric_value))
-                        .filter((v): v is number => v !== null);
-                      if (values.length < 2) {
-                        return <span className={styles.muted}>Not enough data to render chart.</span>;
-                      }
-                      const points = makeSparklinePoints(values, 1000, 260);
-                      return (
-                        <svg viewBox="0 0 1000 260" width="100%" height="100%" preserveAspectRatio="none">
-                          <polyline
-                            points={points}
-                            fill="rgba(173, 53, 250, 0.12)"
-                            stroke="var(--brand-primary)"
-                            strokeWidth="3"
-                            vectorEffect="non-scaling-stroke"
-                          />
-                        </svg>
-                      );
-                    })()}
-                  </div>
-
-                  <table className={styles.miniTable}>
-                    <thead>
-                      <tr>
-                        <th className={styles.miniTh}>Time Period</th>
-                        <th className={styles.miniTh}>Value</th>
-                        <th className={styles.miniTh}>Group</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {chartDetail.data.map((d, idx) => (
-                        <tr key={idx}>
-                          <td className={styles.miniTd}>{d.time_period}</td>
-                          <td className={styles.miniTd}>
-                            {typeof d.numeric_value === "number"
-                              ? d.numeric_value.toLocaleString()
-                              : String(d.numeric_value)}
-                          </td>
-                          <td className={styles.miniTd}>{d.group_value ?? "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </>
-              ) : chartsData.count === 0 ? (
-                <div className={styles.muted} style={{ padding: 16 }}>
-                  No time series data found for this metric. Execute the metric to generate time series.
-                </div>
-              ) : (
-                <>
-                  <table className={styles.miniTable}>
-                    <thead>
-                      <tr>
-                        <th className={styles.miniTh}>Chart</th>
-                        <th className={styles.miniTh}>Period</th>
-                        <th className={styles.miniTh}>District</th>
-                        <th className={styles.miniTh}>Points</th>
-                        <th className={styles.miniTh}>Created</th>
-                        <th className={styles.miniTh}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {chartsData.time_series.map((ts) => (
-                        <tr key={ts.chart_id}>
-                          <td className={styles.miniTd}>{ts.chart_title || `Chart ${ts.chart_id}`}</td>
-                          <td className={styles.miniTd}>{ts.period_type}</td>
-                          <td className={styles.miniTd}>{ts.district}</td>
-                          <td className={styles.miniTd}>{ts.data_point_count ?? 0}</td>
-                          <td className={styles.miniTd}>{formatDateTime(ts.created_at)}</td>
-                          <td className={styles.miniTd}>
-                            <button
-                              className={styles.primaryBtn}
-                              onClick={() => openChartDetail(chartsData.metric_id, ts.chart_id)}
-                            >
-                              <i className="fas fa-chart-line" /> View
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </>
-              )}
-            </div>
-            <div className={styles.modalFooter}>
-              <button className={styles.secondaryBtn} onClick={closeCharts}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <MetricChartsModal
+        metricId={chartsMetricId}
+        isOpen={chartsOpen}
+        onClose={closeCharts}
+      />
 
       {/* Create/Edit Modal */}
       {editOpen && (
@@ -1065,6 +1304,29 @@ export default function MetricsAdmin() {
                     onChange={(e) => setEditForm((p) => ({ ...p, metric_key: e.target.value }))}
                   />
                 </div>
+
+                {editMode === "edit" && editMetricQuery.data && (
+                  <>
+                    <div>
+                      <div className={styles.fieldLabel}>Metric ID (read-only)</div>
+                      <input
+                        className={styles.input}
+                        value={editMetricQuery.data.id || ""}
+                        disabled
+                        style={{ backgroundColor: "var(--bg-secondary)", color: "var(--text-secondary)" }}
+                      />
+                    </div>
+                    <div>
+                      <div className={styles.fieldLabel}>Item Noun (read-only)</div>
+                      <input
+                        className={styles.input}
+                        value={editMetricQuery.data.item_noun || ""}
+                        disabled
+                        style={{ backgroundColor: "var(--bg-secondary)", color: "var(--text-secondary)" }}
+                      />
+                    </div>
+                  </>
+                )}
 
                 <div>
                   <div className={styles.fieldLabel}>Category *</div>
@@ -1155,6 +1417,257 @@ export default function MetricsAdmin() {
                   />
                   <span className={styles.muted}>Show on Dashboard</span>
                 </div>
+
+                {editMode === "edit" && editQueryConfig && (
+                  <div style={{ gridColumn: "1 / -1", marginTop: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                      <div className={styles.fieldLabel}>Structured Query Configuration</div>
+                      <button
+                        type="button"
+                        className={styles.secondaryBtn}
+                        onClick={() => setShowQueryConfig(!showQueryConfig)}
+                        style={{ padding: "4px 12px", fontSize: 12 }}
+                      >
+                        <i className={`fas fa-${showQueryConfig ? "chevron-up" : "chevron-down"}`} />{" "}
+                        {showQueryConfig ? "Hide" : "Show"}
+                      </button>
+                    </div>
+                    {showQueryConfig && (
+                      <div style={{ marginTop: 8 }}>
+                        <textarea
+                          className={styles.textarea}
+                          value={JSON.stringify(editQueryConfig, null, 2)}
+                          readOnly
+                          style={{
+                            fontFamily: "monospace",
+                            fontSize: 12,
+                            minHeight: 300,
+                            backgroundColor: "var(--bg-secondary)",
+                            color: "var(--text-primary)",
+                          }}
+                        />
+                        <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-secondary)" }}>
+                          <div style={{ marginBottom: 4 }}>
+                            <strong>Version:</strong> {editQueryConfig.version || "1.0"}
+                          </div>
+                          {editQueryConfig.description && (
+                            <div style={{ marginBottom: 4 }}>
+                              <strong>Description:</strong> {editQueryConfig.description}
+                            </div>
+                          )}
+                          <div style={{ marginBottom: 4 }}>
+                            <strong>Use Same Config:</strong> {editQueryConfig.use_same_config ? "Yes" : "No"}
+                          </div>
+                          {editQueryConfig.ytd_config && (
+                            <div style={{ marginTop: 8 }}>
+                              <strong>YTD Config:</strong>
+                              <div style={{ marginLeft: 16, marginTop: 4 }}>
+                                <div>
+                                  <strong>Date Field:</strong> {editQueryConfig.ytd_config.date_field?.field_name || "—"}
+                                  {editQueryConfig.ytd_config.date_field?.trunc_type && (
+                                    <span> (trunc: {editQueryConfig.ytd_config.date_field.trunc_type})</span>
+                                  )}
+                                </div>
+                                <div>
+                                  <strong>Aggregation:</strong> {editQueryConfig.ytd_config.aggregation?.type || "—"}
+                                  {editQueryConfig.ytd_config.aggregation?.field && (
+                                    <span> on {editQueryConfig.ytd_config.aggregation.field}</span>
+                                  )}
+                                </div>
+                                <div>
+                                  <strong>Supports Districts:</strong> {editQueryConfig.ytd_config.supports_districts ? "Yes" : "No"}
+                                </div>
+                                {editQueryConfig.ytd_config.custom_where_conditions?.length > 0 && (
+                                  <div>
+                                    <strong>Custom WHERE Conditions:</strong> {editQueryConfig.ytd_config.custom_where_conditions.length} condition(s)
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          {editQueryConfig.metric_config && !editQueryConfig.use_same_config && (
+                            <div style={{ marginTop: 8 }}>
+                              <strong>Metric Config:</strong>
+                              <div style={{ marginLeft: 16, marginTop: 4 }}>
+                                <div>
+                                  <strong>Date Field:</strong> {editQueryConfig.metric_config.date_field?.field_name || "—"}
+                                  {editQueryConfig.metric_config.date_field?.trunc_type && (
+                                    <span> (trunc: {editQueryConfig.metric_config.date_field.trunc_type})</span>
+                                  )}
+                                </div>
+                                <div>
+                                  <strong>Aggregation:</strong> {editQueryConfig.metric_config.aggregation?.type || "—"}
+                                  {editQueryConfig.metric_config.aggregation?.field && (
+                                    <span> on {editQueryConfig.metric_config.aggregation.field}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {editMode === "edit" && editMapFields && (
+                  <div style={{ gridColumn: "1 / -1", marginTop: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                      <div className={styles.fieldLabel}>Map Configuration</div>
+                      <button
+                        type="button"
+                        className={styles.secondaryBtn}
+                        onClick={() => setShowMapFields(!showMapFields)}
+                        style={{ padding: "4px 12px", fontSize: 12 }}
+                      >
+                        <i className={`fas fa-${showMapFields ? "chevron-up" : "chevron-down"}`} />{" "}
+                        {showMapFields ? "Hide" : "Show"}
+                      </button>
+                    </div>
+                    {showMapFields && (
+                      <div style={{ marginTop: 8 }}>
+                        {editMapFields.map_query && (
+                          <div style={{ marginBottom: 12 }}>
+                            <div className={styles.fieldLabel} style={{ marginBottom: 4 }}>Map Query</div>
+                            <textarea
+                              className={styles.textarea}
+                              value={editMapFields.map_query}
+                              readOnly
+                              style={{
+                                fontFamily: "monospace",
+                                fontSize: 12,
+                                minHeight: 80,
+                                backgroundColor: "var(--bg-secondary)",
+                                color: "var(--text-primary)",
+                              }}
+                            />
+                          </div>
+                        )}
+                        {editMapFields.map_filters && Object.keys(editMapFields.map_filters).length > 0 && (
+                          <div style={{ marginBottom: 12 }}>
+                            <div className={styles.fieldLabel} style={{ marginBottom: 4 }}>Map Filters</div>
+                            <textarea
+                              className={styles.textarea}
+                              value={JSON.stringify(editMapFields.map_filters, null, 2)}
+                              readOnly
+                              style={{
+                                fontFamily: "monospace",
+                                fontSize: 12,
+                                minHeight: 150,
+                                backgroundColor: "var(--bg-secondary)",
+                                color: "var(--text-primary)",
+                              }}
+                            />
+                            <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-secondary)" }}>
+                              {editMapFields.map_filters.geometry && (
+                                <div style={{ marginBottom: 4 }}>
+                                  <strong>Geometry Filter:</strong> {editMapFields.map_filters.geometry.type || "—"}
+                                </div>
+                              )}
+                              {editMapFields.map_filters.date_range && (
+                                <div style={{ marginBottom: 4 }}>
+                                  <strong>Date Range Filter:</strong> {editMapFields.map_filters.date_range.field || "—"}
+                                </div>
+                              )}
+                              {editMapFields.map_filters.static_filters && Array.isArray(editMapFields.map_filters.static_filters) && (
+                                <div style={{ marginBottom: 4 }}>
+                                  <strong>Static Filters:</strong> {editMapFields.map_filters.static_filters.length} condition(s)
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {editMapFields.map_config && Object.keys(editMapFields.map_config).length > 0 && (
+                          <div style={{ marginBottom: 12 }}>
+                            <div className={styles.fieldLabel} style={{ marginBottom: 4 }}>Map Config</div>
+                            <textarea
+                              className={styles.textarea}
+                              value={JSON.stringify(editMapFields.map_config, null, 2)}
+                              readOnly
+                              style={{
+                                fontFamily: "monospace",
+                                fontSize: 12,
+                                minHeight: 150,
+                                backgroundColor: "var(--bg-secondary)",
+                                color: "var(--text-primary)",
+                              }}
+                            />
+                            <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-secondary)" }}>
+                              {editMapFields.map_config.date_field && (
+                                <div style={{ marginBottom: 4 }}>
+                                  <strong>Date Field:</strong> {editMapFields.map_config.date_field}
+                                </div>
+                              )}
+                              {editMapFields.map_config.location_field && (
+                                <div style={{ marginBottom: 4 }}>
+                                  <strong>Location Field:</strong> {editMapFields.map_config.location_field}
+                                </div>
+                              )}
+                              {editMapFields.map_config.chart_type_preference && (
+                                <div style={{ marginBottom: 4 }}>
+                                  <strong>Chart Type Preference:</strong> {editMapFields.map_config.chart_type_preference}
+                                </div>
+                              )}
+                              {editMapFields.map_config.supports_districts !== undefined && (
+                                <div style={{ marginBottom: 4 }}>
+                                  <strong>Supports Districts:</strong> {editMapFields.map_config.supports_districts ? "Yes" : "No"}
+                                </div>
+                              )}
+                              {editMapFields.map_config.data_point_threshold && (
+                                <div style={{ marginBottom: 4 }}>
+                                  <strong>Data Point Threshold:</strong> {editMapFields.map_config.data_point_threshold}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {editMapFields.location_fields && editMapFields.location_fields.length > 0 && (
+                          <div style={{ marginBottom: 12 }}>
+                            <div className={styles.fieldLabel} style={{ marginBottom: 4 }}>Location Fields ({editMapFields.location_fields.length})</div>
+                            <textarea
+                              className={styles.textarea}
+                              value={JSON.stringify(editMapFields.location_fields, null, 2)}
+                              readOnly
+                              style={{
+                                fontFamily: "monospace",
+                                fontSize: 12,
+                                minHeight: 100,
+                                backgroundColor: "var(--bg-secondary)",
+                                color: "var(--text-primary)",
+                              }}
+                            />
+                          </div>
+                        )}
+                        {editMapFields.category_fields && editMapFields.category_fields.length > 0 && (
+                          <div style={{ marginBottom: 12 }}>
+                            <div className={styles.fieldLabel} style={{ marginBottom: 4 }}>Category Fields ({editMapFields.category_fields.length})</div>
+                            <textarea
+                              className={styles.textarea}
+                              value={JSON.stringify(editMapFields.category_fields, null, 2)}
+                              readOnly
+                              style={{
+                                fontFamily: "monospace",
+                                fontSize: 12,
+                                minHeight: 100,
+                                backgroundColor: "var(--bg-secondary)",
+                                color: "var(--text-primary)",
+                              }}
+                            />
+                          </div>
+                        )}
+                        {!editMapFields.map_query && 
+                         (!editMapFields.map_filters || Object.keys(editMapFields.map_filters).length === 0) &&
+                         (!editMapFields.map_config || Object.keys(editMapFields.map_config).length === 0) &&
+                         (!editMapFields.location_fields || editMapFields.location_fields.length === 0) &&
+                         (!editMapFields.category_fields || editMapFields.category_fields.length === 0) && (
+                          <div style={{ padding: 12, backgroundColor: "var(--bg-secondary)", borderRadius: 4, color: "var(--text-secondary)" }}>
+                            No map configuration available for this metric.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <div className={styles.modalFooter}>
@@ -1163,6 +1676,92 @@ export default function MetricsAdmin() {
               </button>
               <button className={styles.primaryBtn} onClick={saveEdit}>
                 <i className="fas fa-save" /> Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Execute Metric Configuration Modal */}
+      {showExecuteModal && (
+        <div className={styles.modalOverlay} onClick={closeExecuteModal}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h2>Execute Metric {executeMetricId}</h2>
+              <button className={styles.modalClose} onClick={closeExecuteModal}>
+                ×
+              </button>
+            </div>
+            <div className={styles.modalBody}>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", marginBottom: 8, fontWeight: 500 }}>
+                  Period Type
+                </label>
+                <select
+                  value={executePeriodType}
+                  onChange={(e) => setExecutePeriodType(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: 8,
+                    borderRadius: 4,
+                    border: "1px solid var(--border-color)",
+                    backgroundColor: "var(--bg-primary)",
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  <option value="day">Daily</option>
+                  <option value="month">Monthly</option>
+                  <option value="year">Yearly</option>
+                  <option value="ytd">Year-to-Date</option>
+                </select>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", marginBottom: 8, fontWeight: 500 }}>
+                  Start Date
+                </label>
+                <input
+                  type="date"
+                  value={executeStartDate}
+                  onChange={(e) => setExecuteStartDate(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: 8,
+                    borderRadius: 4,
+                    border: "1px solid var(--border-color)",
+                    backgroundColor: "var(--bg-primary)",
+                    color: "var(--text-primary)",
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", marginBottom: 8, fontWeight: 500 }}>
+                  End Date
+                </label>
+                <input
+                  type="date"
+                  value={executeEndDate}
+                  onChange={(e) => setExecuteEndDate(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: 8,
+                    borderRadius: 4,
+                    border: "1px solid var(--border-color)",
+                    backgroundColor: "var(--bg-primary)",
+                    color: "var(--text-primary)",
+                  }}
+                />
+              </div>
+            </div>
+            <div className={styles.modalFooter}>
+              <button className={styles.secondaryBtn} onClick={closeExecuteModal}>
+                Cancel
+              </button>
+              <button
+                className={styles.primaryBtn}
+                onClick={executeMetric}
+                disabled={executeMetricMutation.isPending}
+              >
+                <i className="fas fa-play" /> Execute
               </button>
             </div>
           </div>

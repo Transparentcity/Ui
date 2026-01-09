@@ -26,6 +26,9 @@ interface Session {
   message_count: number;
   created_at: string;
   last_message_at?: string;
+  total_tokens_used?: number;
+  llm_call_count?: number;
+  total_execution_time_ms?: number;
   intermediate_steps?: Array<{
     type: string;
     content?: string;
@@ -38,12 +41,14 @@ interface ChatSessionLoaderProps {
   sessionId: string | null;
   onMessagesLoaded: (messages: Message[]) => void;
   onSessionLoaded: (session: Session) => void;
+  onLoadingChange?: (loading: boolean) => void;
 }
 
 export default function ChatSessionLoader({
   sessionId,
   onMessagesLoaded,
   onSessionLoaded,
+  onLoadingChange,
 }: ChatSessionLoaderProps) {
   const { getAccessTokenSilently } = useAuth0();
   const [loading, setLoading] = useState(false);
@@ -52,6 +57,7 @@ export default function ChatSessionLoader({
     if (!sessionId) {
       // Reset to welcome message
       onMessagesLoaded([]);
+      onLoadingChange?.(false);
       return;
     }
 
@@ -60,6 +66,7 @@ export default function ChatSessionLoader({
     const loadSession = async () => {
       try {
         setLoading(true);
+        onLoadingChange?.(true);
         const token = await getAccessTokenSilently();
 
         const response = await fetch(
@@ -102,6 +109,7 @@ export default function ChatSessionLoader({
       } finally {
         if (!cancelled) {
           setLoading(false);
+          onLoadingChange?.(false);
         }
       }
     };

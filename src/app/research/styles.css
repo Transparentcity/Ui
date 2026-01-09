@@ -1,0 +1,260 @@
+.research-detail-page {
+  min-height: 100vh;
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.research-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.research-header h1 {
+  margin: 0;
+  font-size: 2rem;
+  color: #1a1a1a;
+}
+
+.status-badge {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-completed {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-failed {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.status-running,
+.status-synthesizing {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+.status-draft {
+  background: #e2e3e5;
+  color: #383d41;
+}
+
+.research-meta {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+  margin-bottom: 2rem;
+}
+
+.meta-item {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.meta-item strong {
+  color: #333;
+  margin-right: 0.5rem;
+}
+
+.research-question {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+.research-question h2 {
+  margin: 0 0 1rem 0;
+  font-size: 1.3rem;
+  color: #333;
+}
+
+.research-question p {
+  margin: 0;
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: #555;
+}
+
+.progress-section {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+.progress-section h2 {
+  margin: 0 0 1rem 0;
+  font-size: 1.3rem;
+  color: #333;
+}
+
+.progress-bar {
+  height: 24px;
+  background: #e9ecef;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #007bff, #0056b3);
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  text-align: center;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.results-section {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+.results-section h2 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.5rem;
+  color: #333;
+}
+
+.report-html {
+  line-height: 1.8;
+  color: #333;
+}
+
+.report-html h1 {
+  font-size: 1.8rem;
+  margin: 1.5rem 0 1rem 0;
+}
+
+.report-html h2 {
+  font-size: 1.4rem;
+  margin: 1.2rem 0 0.8rem 0;
+}
+
+.report-html h3 {
+  font-size: 1.2rem;
+  margin: 1rem 0 0.6rem 0;
+}
+
+.report-html p {
+  margin: 0.8rem 0;
+}
+
+.report-html ul,
+.report-html ol {
+  margin: 0.8rem 0;
+  padding-left: 2rem;
+}
+
+.share-section {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+.share-section h2 {
+  margin: 0 0 1rem 0;
+  font-size: 1.3rem;
+  color: #333;
+}
+
+.public-link {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.public-link code {
+  padding: 0.5rem 1rem;
+  background: #f8f9fa;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.9rem;
+}
+
+.copy-button {
+  padding: 0.5rem 1rem;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.copy-button:hover {
+  background: #0056b3;
+}
+
+.not-public {
+  padding: 1rem;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  color: #856404;
+}
+
+.error-section {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+}
+
+.error-section h2 {
+  margin: 0 0 1rem 0;
+  color: #721c24;
+}
+
+.error-section .error-message {
+  margin: 0;
+  color: #721c24;
+}
+
+@media (max-width: 768px) {
+  .research-detail-page {
+    padding: 1rem;
+  }
+  
+  .research-header h1 {
+    font-size: 1.5rem;
+  }
+  
+  .research-meta {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .public-link {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+

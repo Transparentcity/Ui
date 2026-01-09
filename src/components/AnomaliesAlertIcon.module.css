@@ -1,0 +1,68 @@
+/* Anomalies Alert Icon Styles */
+.alertButton {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  color: var(--text-primary, #222);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.alertButton:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+  color: var(--brand-primary, #ad35fa);
+}
+
+.alertButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--error, #ef4444);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  border-radius: 9px;
+  pointer-events: none;
+  transform: translate(25%, -25%);
+}
+
+/* Pulsing animation for when there are anomalies */
+.alertButton:has(.badge) svg {
+  animation: bellShake 0.5s ease-in-out;
+  animation-iteration-count: 1;
+}
+
+@keyframes bellShake {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  20% {
+    transform: rotate(10deg);
+  }
+  40% {
+    transform: rotate(-10deg);
+  }
+  60% {
+    transform: rotate(6deg);
+  }
+  80% {
+    transform: rotate(-6deg);
+  }
+}

@@ -1,0 +1,624 @@
+/* Media Gallery Component Styles */
+
+.media-gallery {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-primary, #ffffff);
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: height 0.3s ease-out;
+  pointer-events: auto;
+  isolation: isolate;
+}
+
+[data-theme="dark"] .media-gallery,
+.dark .media-gallery {
+  background: var(--bg-primary, #1f2937);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Split View - Half height with image on top */
+.media-gallery.split {
+  height: 50vh;
+  max-height: 50vh;
+}
+
+/* Gallery View - Nearly full height */
+.media-gallery.gallery {
+  height: 85vh;
+  max-height: 85vh;
+}
+
+/* Fullscreen View */
+.media-gallery.fullscreen {
+  height: 100vh;
+  max-height: 100vh;
+  border-radius: 0;
+}
+
+/* Header */
+.media-gallery-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  flex-shrink: 0;
+  background: var(--bg-secondary, #f9fafb);
+  position: relative;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+[data-theme="dark"] .media-gallery-header,
+.dark .media-gallery-header {
+  background: var(--bg-secondary, #111827);
+  border-bottom-color: var(--border-primary, #374151);
+}
+
+.media-gallery-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-primary, #111827);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+[data-theme="dark"] .media-gallery-title,
+.dark .media-gallery-title {
+  color: var(--text-primary, #f9fafb);
+}
+
+.media-gallery-icon {
+  font-size: 1.1rem;
+}
+
+.media-gallery-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.media-gallery-mode-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #111827);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  position: relative;
+  z-index: 11;
+  pointer-events: auto;
+}
+
+.media-gallery-mode-btn:hover {
+  background: var(--bg-tertiary, #f3f4f6);
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+.media-gallery-mode-btn.active {
+  background: var(--brand-primary, #ad35fa);
+  color: #ffffff;
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+[data-theme="dark"] .media-gallery-mode-btn,
+.dark .media-gallery-mode-btn {
+  background: var(--bg-primary, #1f2937);
+  border-color: var(--border-primary, #374151);
+  color: var(--text-primary, #f9fafb);
+}
+
+[data-theme="dark"] .media-gallery-mode-btn:hover,
+.dark .media-gallery-mode-btn:hover {
+  background: var(--bg-secondary, #111827);
+}
+
+[data-theme="dark"] .media-gallery-mode-btn.active,
+.dark .media-gallery-mode-btn.active {
+  background: var(--brand-primary, #ad35fa);
+  color: #ffffff;
+}
+
+.media-gallery-close-btn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border: none;
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #111827);
+  font-size: 1.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  line-height: 1;
+  padding: 0;
+  position: relative;
+  z-index: 11;
+  pointer-events: auto;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(173, 53, 250, 0.2);
+}
+
+.media-gallery-close-btn:hover {
+  background: var(--bg-tertiary, #f3f4f6);
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.media-gallery-close-btn:active {
+  transform: scale(0.95);
+  background: var(--bg-tertiary, #f3f4f6);
+}
+
+[data-theme="dark"] .media-gallery-close-btn,
+.dark .media-gallery-close-btn {
+  background: var(--bg-primary, #1f2937);
+  color: var(--text-primary, #f9fafb);
+  border-color: var(--border-primary, #374151);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .media-gallery-close-btn:hover,
+.dark .media-gallery-close-btn:hover {
+  background: var(--bg-secondary, #111827);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Split View Content */
+.media-gallery-split {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.media-gallery-image-container {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary, #f3f4f6);
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+[data-theme="dark"] .media-gallery-image-container,
+.dark .media-gallery-image-container {
+  background: var(--bg-secondary, #111827);
+}
+
+.media-gallery-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+
+.media-gallery-loading {
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.9rem;
+  padding: 20px;
+}
+
+.media-gallery-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.9rem;
+}
+
+.media-gallery-error-link {
+  color: var(--brand-primary, #ad35fa);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.media-gallery-error-link:hover {
+  text-decoration: underline;
+}
+
+.media-gallery-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: rgba(0, 0, 0, 0.7);
+  color: #ffffff;
+  font-size: 1.8rem;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  z-index: 30;
+  line-height: 1;
+  padding: 0;
+  pointer-events: auto;
+  user-select: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.media-gallery-nav-btn:hover {
+  background: rgba(0, 0, 0, 0.9);
+  transform: translateY(-50%) scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.media-gallery-nav-prev {
+  left: 16px;
+}
+
+.media-gallery-nav-next {
+  right: 16px;
+}
+
+.media-gallery-caption {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-primary, #e5e7eb);
+  background: var(--bg-secondary, #f9fafb);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .media-gallery-caption,
+.dark .media-gallery-caption {
+  background: var(--bg-secondary, #111827);
+  border-top-color: var(--border-primary, #374151);
+}
+
+.media-gallery-caption strong {
+  color: var(--text-primary, #111827);
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+[data-theme="dark"] .media-gallery-caption strong,
+.dark .media-gallery-caption strong {
+  color: var(--text-primary, #f9fafb);
+}
+
+.media-gallery-description {
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.85rem;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Gallery Grid View */
+.media-gallery-grid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.media-gallery-thumbnail {
+  position: relative;
+  cursor: pointer;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid var(--border-primary, #e5e7eb);
+  transition: all 0.2s;
+  aspect-ratio: 1;
+  background: var(--bg-tertiary, #f3f4f6);
+}
+
+.media-gallery-thumbnail:hover {
+  border-color: var(--brand-primary, #ad35fa);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(173, 53, 250, 0.2);
+}
+
+.media-gallery-thumbnail.active {
+  border-color: var(--brand-primary, #ad35fa);
+  border-width: 3px;
+  box-shadow: 0 0 0 2px rgba(173, 53, 250, 0.2);
+}
+
+[data-theme="dark"] .media-gallery-thumbnail,
+.dark .media-gallery-thumbnail {
+  border-color: var(--border-primary, #374151);
+  background: var(--bg-secondary, #111827);
+}
+
+.media-gallery-thumbnail-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.media-gallery-thumbnail-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.8rem;
+  padding: 8px;
+  text-align: center;
+}
+
+.media-gallery-thumbnail-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--brand-primary, #ad35fa);
+  color: #ffffff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Fullscreen View */
+.media-gallery-fullscreen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.media-gallery-fullscreen-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  background: var(--bg-secondary, #f9fafb);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+[data-theme="dark"] .media-gallery-fullscreen-header,
+.dark .media-gallery-fullscreen-header {
+  background: var(--bg-secondary, #111827);
+  border-bottom-color: var(--border-primary, #374151);
+}
+
+.media-gallery-back-btn {
+  padding: 8px 16px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #111827);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(173, 53, 250, 0.2);
+}
+
+.media-gallery-back-btn:hover {
+  background: var(--bg-tertiary, #f3f4f6);
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+[data-theme="dark"] .media-gallery-back-btn,
+.dark .media-gallery-back-btn {
+  background: var(--bg-primary, #1f2937);
+  border-color: var(--border-primary, #374151);
+  color: var(--text-primary, #f9fafb);
+}
+
+[data-theme="dark"] .media-gallery-back-btn:hover,
+.dark .media-gallery-back-btn:hover {
+  background: var(--bg-secondary, #111827);
+}
+
+.media-gallery-fullscreen-image-container {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary, #f3f4f6);
+  overflow: hidden;
+}
+
+[data-theme="dark"] .media-gallery-fullscreen-image-container,
+.dark .media-gallery-fullscreen-image-container {
+  background: #000000;
+}
+
+.media-gallery-fullscreen-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+
+.media-gallery-fullscreen-caption {
+  padding: 16px;
+  border-top: 1px solid var(--border-primary, #e5e7eb);
+  background: var(--bg-secondary, #f9fafb);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .media-gallery-fullscreen-caption,
+.dark .media-gallery-fullscreen-caption {
+  background: var(--bg-secondary, #111827);
+  border-top-color: var(--border-primary, #374151);
+}
+
+.media-gallery-fullscreen-caption strong {
+  color: var(--text-primary, #111827);
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+[data-theme="dark"] .media-gallery-fullscreen-caption strong,
+.dark .media-gallery-fullscreen-caption strong {
+  color: var(--text-primary, #f9fafb);
+}
+
+.media-gallery-fullscreen-caption span {
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.9rem;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Floating close button for fullscreen */
+.media-gallery-close-btn-floating {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 2001;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .media-gallery-close-btn-floating,
+.dark .media-gallery-close-btn-floating {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+/* Close button in fullscreen header */
+.media-gallery-close-btn-fullscreen {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .media-gallery.split {
+    height: 45vh;
+    max-height: 45vh;
+  }
+
+  .media-gallery.gallery {
+    height: 80vh;
+    max-height: 80vh;
+  }
+
+  .media-gallery-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .media-gallery-nav-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 1.5rem;
+  }
+
+  .media-gallery-nav-prev {
+    left: 12px;
+  }
+
+  .media-gallery-nav-next {
+    right: 12px;
+  }
+
+  /* Ensure close button is always visible and tappable on mobile */
+  .media-gallery-close-btn {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    min-height: 48px;
+    font-size: 2rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    background: var(--bg-primary, #ffffff);
+  }
+
+  [data-theme="dark"] .media-gallery-close-btn,
+  .dark .media-gallery-close-btn {
+    background: var(--bg-primary, #1f2937);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Ensure header is always visible on mobile */
+  .media-gallery-header {
+    padding: 12px 16px;
+    min-height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  /* Make controls more visible on mobile */
+  .media-gallery-controls {
+    gap: 8px;
+  }
+
+  /* Hide mode buttons on mobile in fullscreen to make room for close button */
+  .media-gallery.fullscreen .media-gallery-mode-btn {
+    display: none;
+  }
+
+  /* Larger floating close button on mobile */
+  .media-gallery-close-btn-floating {
+    top: 12px;
+    right: 12px;
+    width: 52px;
+    height: 52px;
+    min-width: 52px;
+    min-height: 52px;
+    font-size: 2.2rem;
+  }
+
+  /* Ensure fullscreen header close button is visible */
+  .media-gallery-fullscreen-header .media-gallery-close-btn {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    min-height: 48px;
+    font-size: 2rem;
+  }
+}
+

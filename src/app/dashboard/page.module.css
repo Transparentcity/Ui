@@ -61,7 +61,8 @@
   flex-direction: column;
   visibility: visible;
   opacity: 1;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .adminContainer {

@@ -10,17 +10,25 @@
     "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start -p 3001",
-    "lint": "eslint"
+    "lint": "eslint",
+    "verify-auth0": "node scripts/verify-auth0-config.js",
+    "generate-auth0-assets": "node scripts/generate-auth0-assets.js"
   },
   "dependencies": {
     "@auth0/auth0-react": "^2.2.4",
+    "@tanstack/react-query": "^5.90.12",
+    "@tanstack/react-query-devtools": "^5.91.1",
     "next": "16.0.8",
+    "plotly.js": "^2.35.2",
     "react": "19.2.1",
     "react-dom": "19.2.1",
-    "react-markdown": "^10.1.0"
+    "react-markdown": "^10.1.0",
+    "react-plotly.js": "^2.6.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/plotly.js": "^2.12.29",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "canvas": "^3.2.0",

@@ -89,6 +89,13 @@
   fill: #ffffff;
 }
 
+/* Static loader variant - no animation, open position */
+.tc-loader.loaderStatic .brace-tr,
+.tc-loader.loaderStatic .brace-bl {
+  animation: none !important;
+  transform: translate(0%, 0%) !important;
+}
+
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
   .brace-tr,

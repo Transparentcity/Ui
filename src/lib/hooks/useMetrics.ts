@@ -1,0 +1,390 @@
+"use client";
+
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth0 } from "@auth0/auth0-react";
+import {
+  listAdminMetrics,
+  getAdminMetric,
+  getAdminMetricsSummary,
+  listAdminMetricCategories,
+  listAdminMetricTypes,
+  listAdminMetricCities,
+  getAdminMetricTimeSeries,
+  getAdminMetricTimeSeriesDetail,
+  getAdminMetricCityStructure,
+  createAdminMetric,
+  updateAdminMetric,
+  deleteAdminMetric,
+  executeAdminMetric,
+  validateMetricFreshness,
+  getMetricMapData,
+  getCityMetricsForMap,
+  type AdminMetricListItem,
+  type AdminMetricDetail,
+  type AdminMetricSummary,
+  type AdminMetricCategory,
+  type AdminMetricType,
+  type AdminMetricCity,
+  type AdminMetricTimeSeries,
+  type AdminMetricTimeSeriesDetail,
+  type CreateAdminMetricRequest,
+  type UpdateAdminMetricRequest,
+  type ExecuteAdminMetricRequest,
+  type ValidateFreshnessRequest,
+  type GetMapDataRequest,
+  type MapData,
+} from "@/lib/apiClient";
+
+// Query keys factory for metrics
+export const metricKeys = {
+  all: ["metrics"] as const,
+  lists: () => [...metricKeys.all, "list"] as const,
+  list: (filters?: Record<string, any>) => [...metricKeys.lists(), filters] as const,
+  details: () => [...metricKeys.all, "detail"] as const,
+  detail: (id: number) => [...metricKeys.details(), id] as const,
+  summary: () => [...metricKeys.all, "summary"] as const,
+  categories: () => [...metricKeys.all, "categories"] as const,
+  types: () => [...metricKeys.all, "types"] as const,
+  cities: () => [...metricKeys.all, "cities"] as const,
+  timeSeries: (id: number) => [...metricKeys.all, "time-series", id] as const,
+  timeSeriesDetail: (metricId: number, chartId: number) =>
+    [...metricKeys.all, "time-series", metricId, chartId] as const,
+  cityStructure: (id: number) => [...metricKeys.all, "city-structure", id] as const,
+  mapData: (metricId: number, startDate?: string | null, endDate?: string | null, districts?: number[] | null) =>
+    [...metricKeys.all, "map-data", metricId, startDate, endDate, districts] as const,
+  cityMetricsForMap: (cityId: number) => [...metricKeys.all, "city-metrics-map", cityId] as const,
+};
+
+export interface UseMetricsOptions {
+  limit?: number;
+  search?: string;
+  category?: string;
+  metric_type?: string;
+  is_active?: boolean;
+  city_id?: number;
+  force_refresh?: boolean;
+}
+
+/**
+ * Hook to fetch list of metrics with filtering options.
+ * Cache time: 2 minutes (metrics change frequently)
+ */
+export function useMetrics(options: UseMetricsOptions = {}) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: metricKeys.list(options),
+    queryFn: async () => {
+      const token = await getAccessTokenSilently();
+      return listAdminMetrics(token, options);
+    },
+    staleTime: 2 * 60 * 1000, // 2 minutes - metrics can change frequently
+    enabled: true,
+  });
+}
+
+/**
+ * Hook to fetch a single metric by ID.
+ * Cache time: 5 minutes
+ */
+export function useMetric(metricId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: metricKeys.detail(metricId!),
+    queryFn: async () => {
+      if (!metricId) throw new Error("Metric ID is required");
+      const token = await getAccessTokenSilently();
+      return getAdminMetric(metricId, token);
+    },
+    enabled: !!metricId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+/**
+ * Hook to fetch metrics summary (stats).
+ * Cache time: 1 minute (summary changes frequently)
+ */
+export function useMetricsSummary() {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: metricKeys.summary(),
+    queryFn: async () => {
+      const token = await getAccessTokenSilently();
+      return getAdminMetricsSummary(token);
+    },
+    staleTime: 1 * 60 * 1000, // 1 minute
+  });
+}
+
+/**
+ * Hook to fetch metric categories.
+ * Cache time: 10 minutes (categories change rarely)
+ */
+export function useMetricCategories() {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: metricKeys.categories(),
+    queryFn: async () => {
+      const token = await getAccessTokenSilently();
+      return listAdminMetricCategories(token);
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
+}
+
+/**
+ * Hook to fetch metric types.
+ * Cache time: 10 minutes (types change rarely)
+ */
+export function useMetricTypes() {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: metricKeys.types(),
+    queryFn: async () => {
+      const token = await getAccessTokenSilently();
+      return listAdminMetricTypes(token);
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
+}
+
+/**
+ * Hook to fetch cities for metrics.
+ * Cache time: 5 minutes
+ */
+export function useMetricCities() {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: metricKeys.cities(),
+    queryFn: async () => {
+      const token = await getAccessTokenSilently();
+      return listAdminMetricCities(token);
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+/**
+ * Hook to fetch time series data for a metric.
+ * Cache time: 5 minutes
+ */
+export function useMetricTimeSeries(metricId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: metricKeys.timeSeries(metricId!),
+    queryFn: async () => {
+      if (!metricId) throw new Error("Metric ID is required");
+      const token = await getAccessTokenSilently();
+      return getAdminMetricTimeSeries(metricId, token);
+    },
+    enabled: !!metricId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+/**
+ * Hook to fetch time series detail for a specific chart.
+ * Cache time: 5 minutes
+ */
+export function useMetricTimeSeriesDetail(metricId: number | null, chartId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: metricKeys.timeSeriesDetail(metricId!, chartId!),
+    queryFn: async () => {
+      if (!metricId || !chartId) throw new Error("Metric ID and Chart ID are required");
+      const token = await getAccessTokenSilently();
+      return getAdminMetricTimeSeriesDetail(metricId, chartId, token);
+    },
+    enabled: !!metricId && !!chartId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+/**
+ * Hook to fetch city structure for a metric.
+ * Cache time: 10 minutes (structure changes rarely)
+ */
+export function useMetricCityStructure(metricId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: metricKeys.cityStructure(metricId!),
+    queryFn: async () => {
+      if (!metricId) throw new Error("Metric ID is required");
+      const token = await getAccessTokenSilently();
+      return getAdminMetricCityStructure(metricId, token);
+    },
+    enabled: !!metricId,
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
+}
+
+/**
+ * Hook to create a new metric.
+ * Invalidates metrics list on success.
+ */
+export function useCreateMetric() {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: CreateAdminMetricRequest) => {
+      const token = await getAccessTokenSilently();
+      return createAdminMetric(payload, token);
+    },
+    onSuccess: () => {
+      // Invalidate metrics list and summary
+      queryClient.invalidateQueries({ queryKey: metricKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: metricKeys.summary() });
+    },
+  });
+}
+
+/**
+ * Hook to update a metric.
+ * Invalidates the specific metric and metrics list on success.
+ */
+export function useUpdateMetric() {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ metricId, payload }: { metricId: number; payload: UpdateAdminMetricRequest }) => {
+      const token = await getAccessTokenSilently();
+      return updateAdminMetric(metricId, payload, token);
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate the specific metric and list
+      queryClient.invalidateQueries({ queryKey: metricKeys.detail(variables.metricId) });
+      queryClient.invalidateQueries({ queryKey: metricKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: metricKeys.summary() });
+    },
+  });
+}
+
+/**
+ * Hook to delete a metric.
+ * Invalidates metrics list and summary on success.
+ */
+export function useDeleteMetric() {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (metricId: number) => {
+      const token = await getAccessTokenSilently();
+      return deleteAdminMetric(metricId, token);
+    },
+    onSuccess: () => {
+      // Invalidate metrics list and summary
+      queryClient.invalidateQueries({ queryKey: metricKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: metricKeys.summary() });
+    },
+  });
+}
+
+/**
+ * Hook to execute a metric.
+ * Invalidates the metric and its time series on success.
+ */
+export function useExecuteMetric() {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ metricId, payload }: { metricId: number; payload: ExecuteAdminMetricRequest }) => {
+      const token = await getAccessTokenSilently();
+      return executeAdminMetric(metricId, payload, token);
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate the metric, its time series, and list
+      queryClient.invalidateQueries({ queryKey: metricKeys.detail(variables.metricId) });
+      queryClient.invalidateQueries({ queryKey: metricKeys.timeSeries(variables.metricId) });
+      queryClient.invalidateQueries({ queryKey: metricKeys.lists() });
+    },
+  });
+}
+
+/**
+ * Hook to validate metric freshness.
+ * Invalidates the metric on success.
+ */
+export function useValidateMetricFreshness() {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ metricId, payload }: { metricId: number; payload: ValidateFreshnessRequest }) => {
+      const token = await getAccessTokenSilently();
+      return validateMetricFreshness(metricId, payload, token);
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate the metric to refresh freshness data
+      queryClient.invalidateQueries({ queryKey: metricKeys.detail(variables.metricId) });
+    },
+  });
+}
+
+/**
+ * Hook to fetch map data for a metric.
+ * Cache time: 5 minutes (map data changes with date range)
+ */
+export function useMetricMapData(
+  metricId: number | null,
+  startDate: string | null = null,
+  endDate: string | null = null
+) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: metricKeys.mapData(metricId!, startDate, endDate),
+    queryFn: async () => {
+      if (!metricId) throw new Error("Metric ID is required");
+      const token = await getAccessTokenSilently();
+      const request: GetMapDataRequest = {
+        metric_id: metricId,
+        start_date: startDate,
+        end_date: endDate,
+      };
+      const response = await getMetricMapData(request, token);
+      if (response.status === "success" && response.map_data) {
+        return response.map_data;
+      }
+      throw new Error(response.error || "Failed to load map data");
+    },
+    enabled: !!metricId,
+    staleTime: 5 * 60 * 1000, // 5 minutes - map data is relatively stable
+    gcTime: 10 * 60 * 1000, // 10 minutes - keep in cache for fast switching
+  });
+}
+
+/**
+ * Hook to fetch all metrics for a city (for map view).
+ * Cache time: 2 minutes
+ */
+export function useCityMetricsForMap(cityId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: metricKeys.cityMetricsForMap(cityId!),
+    queryFn: async () => {
+      if (!cityId) throw new Error("City ID is required");
+      const token = await getAccessTokenSilently();
+      const metrics = await getCityMetricsForMap(cityId, token);
+      // Filter to only metrics that have map_query configured
+      return metrics.filter((m) => m.map_query && m.map_query.trim().length > 0);
+    },
+    enabled: !!cityId,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    gcTime: 5 * 60 * 1000, // 5 minutes - keep in cache for fast switching
+  });
+}
+

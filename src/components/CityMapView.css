@@ -7,6 +7,51 @@
   z-index: 1; /* Base layer for map */
 }
 
+/* GPS Location Marker - Blue pulsing dot */
+.gps-location-marker {
+  position: relative;
+  width: 24px;
+  height: 24px;
+}
+
+.gps-marker-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  background: #2563eb; /* Vibrant blue */
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.5);
+  z-index: 2;
+}
+
+.gps-marker-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
+  background: rgba(37, 99, 235, 0.3);
+  border-radius: 50%;
+  animation: gps-pulse 2s infinite;
+  z-index: 1;
+}
+
+@keyframes gps-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.5);
+    opacity: 0;
+  }
+}
+
 /* Controls overlay - positioned on top of map */
 .city-map-controls-overlay {
   position: absolute;

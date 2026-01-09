@@ -207,3 +207,12 @@ After DNS is configured:
 4. [ ] Test backend API at `https://api.transparent.city/health`
 5. [ ] Proceed with Vercel deployment setup
 
+
+
+
+
+
+
+
+
+

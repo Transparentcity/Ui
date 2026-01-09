@@ -102,3 +102,12 @@ The `.env.local` file takes precedence, so it will override any other settings.
 - Changes to `.env.local` require restarting the dev server
 - This setup is only for testing - production deployments use Vercel environment variables
 
+
+
+
+
+
+
+
+
+

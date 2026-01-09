@@ -6,8 +6,8 @@
 .statsGrid {
   display: grid;
   grid-template-columns: repeat(1, 1fr);
-  gap: 20px;
-  margin-bottom: 32px;
+  gap: 12px;
+  margin-bottom: 20px;
 }
 
 @media (min-width: 640px) {
@@ -31,7 +31,7 @@
 }
 
 .statCardContent {
-  padding: 20px;
+  padding: 12px 16px;
 }
 
 .statCardInner {
@@ -44,13 +44,13 @@
 }
 
 .statText {
-  margin-left: 20px;
+  margin-left: 12px;
   flex: 1;
   min-width: 0;
 }
 
 .statLabel {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
   overflow: hidden;
@@ -59,25 +59,26 @@
 }
 
 .statValue {
-  font-size: 30px;
+  font-size: 24px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-top: 4px;
+  margin-top: 2px;
+  line-height: 1.2;
 }
 
 .filtersContainer {
   background: var(--bg-primary);
   box-shadow: var(--shadow-sm);
   border-radius: var(--radius-md);
-  padding: 24px;
-  margin-bottom: 24px;
+  padding: 16px;
+  margin-bottom: 16px;
   border: 1px solid var(--border-primary);
 }
 
 .filtersRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 12px;
 }
 
 .searchInput {
@@ -360,6 +361,8 @@
   padding: 6px;
   border-radius: 8px;
   color: var(--text-secondary);
+  position: relative;
+  z-index: 10062;
 }
 
 .iconBtn:hover {
@@ -376,7 +379,7 @@
   position: fixed;
   inset: 0;
   background: var(--bg-overlay);
-  z-index: 10050;
+  z-index: 100000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -391,6 +394,8 @@
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
+  position: relative;
+  z-index: 100001;
 }
 
 .modalHeader {
@@ -400,12 +405,27 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  position: relative;
+  z-index: 100001;
 }
 
 .modalTitle {
   font-size: 16px;
   font-weight: 700;
   color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.modalTitleText {
+  word-break: break-word;
+}
+
+/* Anomaly filter styles */
+.anomalyFilter {
+  margin-bottom: 12px;
 }
 
 .modalBody {
@@ -504,6 +524,271 @@
   color: var(--text-primary);
 }
 
+/* Anomaly Table Styles */
+.anomalyTableWrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 12px;
+}
+
+.anomalyTable {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px; /* Ensure table doesn't get too compressed */
+}
+
+@media (max-width: 768px) {
+  .anomalyTable {
+    min-width: 500px; /* More compact on mobile */
+  }
+}
+
+@media (max-width: 480px) {
+  .anomalyTable {
+    min-width: 400px; /* Very compact on small mobile */
+  }
+}
+
+.anomalyTh {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  border-bottom: 2px solid var(--border-primary);
+  padding: 10px 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  background: var(--bg-secondary);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.anomalyThShort {
+  display: none;
+}
+
+.anomalyThFull {
+  display: inline;
+}
+
+.anomalyTr {
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.anomalyTd {
+  font-size: 13px;
+  padding: 12px;
+  color: var(--text-primary);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.anomalyGroup {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.anomalyGroupLabel {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.anomalyGroupValue {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.anomalyDeviation {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Tablet optimizations */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .modal {
+    max-width: 92vw !important;
+    width: 92vw !important;
+  }
+  
+  .anomalyTh,
+  .anomalyTd {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  
+  .anomalyTh {
+    font-size: 10px;
+    padding: 8px 6px;
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .modal {
+    max-width: 95vw !important;
+    width: 95vw !important;
+    max-height: 95vh;
+    margin: 2.5vh auto;
+  }
+  
+  .modalHeader {
+    padding: 12px 16px;
+  }
+  
+  .modalTitle {
+    font-size: 14px;
+  }
+  
+  .modalTitleText {
+    font-size: 13px;
+    line-height: 1.3;
+  }
+  
+  .modalBody {
+    padding: 12px 16px;
+  }
+  
+  .anomalyTh,
+  .anomalyTd {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  
+  .anomalyTh {
+    font-size: 9px;
+    padding: 6px 4px;
+    letter-spacing: 0.3px;
+  }
+  
+  .anomalyTh:first-child,
+  .anomalyTd:first-child {
+    display: none; /* Hide sparkline on mobile */
+  }
+  
+  .anomalyGroupLabel {
+    font-size: 10px;
+  }
+  
+  .anomalyGroupValue {
+    font-size: 11px;
+  }
+  
+  .anomalyDeviation {
+    font-size: 10px;
+  }
+  
+  .anomalyFilter {
+    margin-bottom: 10px;
+  }
+  
+  .anomalyFilter label {
+    font-size: 11px !important;
+  }
+  
+  .anomalyFilter select {
+    font-size: 11px !important;
+    padding: 3px 6px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal {
+    max-width: 98vw !important;
+    width: 98vw !important;
+    max-height: 98vh;
+    margin: 1vh auto;
+    border-radius: 8px;
+  }
+  
+  .modalHeader {
+    padding: 10px 12px;
+  }
+  
+  .modalTitle {
+    font-size: 12px;
+  }
+  
+  .modalTitleText {
+    font-size: 11px;
+    line-height: 1.2;
+  }
+  
+  .modalBody {
+    padding: 10px 12px;
+  }
+  
+  .anomalyTh,
+  .anomalyTd {
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+  
+  .anomalyTh {
+    font-size: 8px;
+    padding: 4px 3px;
+    letter-spacing: 0.2px;
+  }
+  
+  /* Show short headers on very small screens */
+  .anomalyThShort {
+    display: inline;
+  }
+  
+  .anomalyThFull {
+    display: none;
+  }
+  
+  .anomalyGroup {
+    gap: 1px;
+  }
+  
+  .anomalyGroupLabel {
+    font-size: 9px;
+  }
+  
+  .anomalyGroupValue {
+    font-size: 10px;
+  }
+  
+  .anomalyDeviation {
+    font-size: 9px;
+  }
+  
+  /* Hide less critical columns on very small screens */
+  .anomalyTh:nth-child(3),
+  .anomalyTd:nth-child(3) {
+    display: none; /* Hide Recent Date */
+  }
+  
+  .anomalyTh:nth-child(5),
+  .anomalyTd:nth-child(5) {
+    display: none; /* Hide Comparison Mean */
+  }
+  
+  .anomalyFilter {
+    margin-bottom: 8px;
+  }
+  
+  .anomalyFilter label {
+    font-size: 10px !important;
+  }
+  
+  .anomalyFilter select {
+    font-size: 10px !important;
+    padding: 2px 4px !important;
+    min-width: 100px !important;
+  }
+}
+
 .chartPreview {
   width: 100%;
   height: 260px;
@@ -528,5 +813,51 @@
   color: var(--text-secondary);
   font-size: 13px;
 }
+
+/* Collapsible Section */
+.collapsibleSection {
+  margin-top: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.collapsibleHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-tertiary);
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.collapsibleHeader:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.collapsibleHeader i {
+  font-size: 11px;
+  width: 12px;
+  transition: transform 0.15s ease;
+}
+
+.collapsibleSection .miniTable {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  border-top: 1px solid var(--border-color);
+}
+
+
+
+
 
 

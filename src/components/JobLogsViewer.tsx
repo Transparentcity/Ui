@@ -1,40 +1,69 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
-import { useEffect, useState } from "react";
-import { Job, listJobs, getJob, getJobStats, JobStats } from "@/lib/apiClient";
+import { useEffect, useState, useRef } from "react";
+import { Job, getJob, getJobStats, JobStats } from "@/lib/apiClient";
+import { useJobWebSocketContext, type Job as WebSocketJob } from "@/contexts/JobWebSocketContext";
 import Loader from "./Loader";
 import styles from "./JobLogsViewer.module.css";
 
 export default function JobLogsViewer() {
-  const { getAccessTokenSilently } = useAuth0();
-  const [jobs, setJobs] = useState<Job[]>([]);
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  const [token, setToken] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<JobStats | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterType, setFilterType] = useState<string>("");
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const selectedJobRef = useRef<Job | null>(null);
 
-  const loadJobs = async () => {
-    try {
-      setError(null);
-      const token = await getAccessTokenSilently();
-      const response = await listJobs(token, 100, filterStatus || undefined);
-      setJobs(response.jobs);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load jobs");
-      console.error("Error loading jobs:", err);
-    } finally {
-      setLoading(false);
+  // Get token for API calls (not needed for WebSocket - handled by context)
+  useEffect(() => {
+    if (isAuthenticated) {
+      getAccessTokenSilently()
+        .then((t) => {
+          setToken(t);
+        })
+        .catch((err) => {
+          console.error("Failed to get token:", err);
+        });
+    } else {
+      setToken(null);
     }
-  };
+  }, [isAuthenticated, getAccessTokenSilently]);
 
+  // Use shared WebSocket context for real-time job updates (no polling needed)
+  const { jobs: webSocketJobs, isConnected } = useJobWebSocketContext();
+
+  // Convert WebSocket jobs to API Job format and apply filters
+  const jobs: Job[] = webSocketJobs
+    .filter((job) => {
+      if (filterStatus && job.status !== filterStatus) return false;
+      return true;
+    })
+    .map((wsJob: WebSocketJob) => ({
+      job_id: wsJob.job_id,
+      job_type: wsJob.job_type || "unknown", // Use job_type from WebSocket, fallback to "unknown"
+      status: wsJob.status,
+      description: wsJob.description,
+      status_message: wsJob.status_message,
+      progress: wsJob.progress,
+      created_at: wsJob.created_at,
+      started_at: wsJob.started_at || null,
+      completed_at: wsJob.completed_at || null,
+      error_message: wsJob.error || null,
+      duration_seconds: null,
+      logs: [],
+      result: null,
+      job_metadata: {},
+    }));
+
+  // Load stats function
   const loadStats = async () => {
     try {
-      const token = await getAccessTokenSilently();
-      const response = await getJobStats(token);
+      const currentToken = token || (await getAccessTokenSilently());
+      const response = await getJobStats(currentToken);
       setStats(response.stats);
     } catch (err) {
       console.error("Error loading job stats:", err);
@@ -43,33 +72,125 @@ export default function JobLogsViewer() {
 
   const loadJobDetails = async (jobId: string) => {
     try {
-      const token = await getAccessTokenSilently();
-      const job = await getJob(jobId, token);
+      const currentToken = token || (await getAccessTokenSilently());
+      const job = await getJob(jobId, currentToken);
       setSelectedJob(job);
+      selectedJobRef.current = job;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load job details");
       console.error("Error loading job details:", err);
     }
   };
 
+  // Load stats on mount and when filter changes
   useEffect(() => {
-    loadJobs();
-    loadStats();
-  }, [filterStatus]);
-
-  useEffect(() => {
-    if (!autoRefresh) return;
-
-    const interval = setInterval(() => {
-      loadJobs();
+    if (token) {
       loadStats();
-      if (selectedJob && (selectedJob.status === "pending" || selectedJob.status === "running")) {
-        loadJobDetails(selectedJob.job_id);
-      }
-    }, 5000); // Refresh every 5 seconds
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterStatus, token]);
 
-    return () => clearInterval(interval);
-  }, [autoRefresh, selectedJob]);
+  // Update selected job when it changes via WebSocket
+  useEffect(() => {
+    if (selectedJobRef.current) {
+      const updatedJob = webSocketJobs.find(
+        (job) => job.job_id === selectedJobRef.current?.job_id
+      );
+      if (updatedJob) {
+        // When WebSocket is connected, just update local state from WebSocket data
+        // Only fetch full details when job completes (to get final logs/result) or if WebSocket is disconnected
+        if (isConnected) {
+          // WebSocket connected: update state from WebSocket data, no API call needed
+          setSelectedJob((prev) => {
+            if (prev && prev.job_id === updatedJob.job_id) {
+              return {
+                ...prev,
+                status: updatedJob.status,
+                progress: updatedJob.progress,
+                status_message: updatedJob.status_message,
+                started_at: updatedJob.started_at || null,
+                completed_at: updatedJob.completed_at || null,
+                error_message: updatedJob.error || null,
+              };
+            }
+            return prev;
+          });
+          
+          // Only fetch full details when job completes (to get logs/result)
+          if (updatedJob.status === "completed" || updatedJob.status === "failed" || updatedJob.status === "cancelled") {
+            loadJobDetails(updatedJob.job_id);
+          }
+        } else {
+          // WebSocket disconnected: fallback to polling for full details
+          if (updatedJob.status === "running" || updatedJob.status === "pending") {
+            loadJobDetails(updatedJob.job_id);
+          } else {
+            // Job completed, fetch final details
+            loadJobDetails(updatedJob.job_id);
+          }
+        }
+      }
+    }
+  }, [webSocketJobs, isConnected]);
+
+  // Listen for job update events from WebSocket
+  useEffect(() => {
+    const handleJobUpdate = (event: CustomEvent<{ job_id: string; data: WebSocketJob }>) => {
+      const { job_id, data } = event.detail;
+      
+      // If this is the selected job, update it
+      if (selectedJobRef.current?.job_id === job_id) {
+        if (isConnected) {
+          // WebSocket connected: update state from WebSocket data, no API call needed
+          setSelectedJob((prev) => {
+            if (prev && prev.job_id === job_id) {
+              return {
+                ...prev,
+                status: data.status,
+                progress: data.progress,
+                status_message: data.status_message,
+                started_at: data.started_at || null,
+                completed_at: data.completed_at || null,
+                error_message: data.error || null,
+              };
+            }
+            return prev;
+          });
+          
+          // Only fetch full details when job completes (to get logs/result)
+          if (data.status === "completed" || data.status === "failed" || data.status === "cancelled") {
+            loadJobDetails(job_id);
+          }
+        } else {
+          // WebSocket disconnected: fallback to polling for full details
+          if (data.status === "running" || data.status === "pending") {
+            loadJobDetails(job_id);
+          } else {
+            // Job completed, fetch final details
+            loadJobDetails(job_id);
+          }
+        }
+      }
+      
+      // Refresh stats when jobs update (debounce to avoid too many calls)
+      if (token) {
+        setTimeout(() => loadStats(), 1000);
+      }
+    };
+
+    window.addEventListener("job:update", handleJobUpdate as EventListener);
+    return () => {
+      window.removeEventListener("job:update", handleJobUpdate as EventListener);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, isConnected]);
+
+  // Set loading to false once we have jobs or WebSocket is connected
+  useEffect(() => {
+    if (isAuthenticated && (isConnected || jobs.length > 0)) {
+      setLoading(false);
+    }
+  }, [isAuthenticated, isConnected, jobs.length]);
 
   const formatDuration = (seconds: number | null | undefined): string => {
     if (!seconds) return "N/A";
@@ -127,16 +248,15 @@ export default function JobLogsViewer() {
       <div className={styles.header}>
         <h2>Job Logs</h2>
         <div className={styles.headerActions}>
-          <label className={styles.autoRefreshLabel}>
-            <input
-              type="checkbox"
-              checked={autoRefresh}
-              onChange={(e) => setAutoRefresh(e.target.checked)}
-            />
-            Auto-refresh
-          </label>
-          <button onClick={loadJobs} className={styles.refreshButton}>
-            Refresh
+          <div className={styles.connectionStatus}>
+            {isConnected ? (
+              <span className={styles.connected}>🟢 Real-time updates</span>
+            ) : (
+              <span className={styles.disconnected}>🟡 Polling fallback</span>
+            )}
+          </div>
+          <button onClick={loadStats} className={styles.refreshButton}>
+            Refresh Stats
           </button>
         </div>
       </div>

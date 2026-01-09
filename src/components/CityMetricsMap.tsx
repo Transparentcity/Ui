@@ -3,19 +3,33 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useQueryClient } from "@tanstack/react-query";
 import {
-  getMetricMapData,
-  getCityMetricsForMap,
   type MapData,
   type MapDataPoint,
   type AdminMetricListItem,
   type GetMapDataRequest,
+  getMetricMapData,
+  getCityStructure,
+  type CityStructureData,
 } from "@/lib/apiClient";
+import { useCityMetricsForMap, metricKeys } from "@/lib/hooks/useMetrics";
+import { useCityAdminStructure } from "@/lib/hooks/useCityAdmin";
 import type { MetricDateRange } from "@/lib/dateRange";
 import Loader from "@/components/Loader";
 import MapTimeline from "@/components/MapTimeline";
+import MediaGallery, { type MediaViewMode } from "@/components/MediaGallery";
+import { extractMediaFromPoint, extractMediaFromPoints, type MediaItem } from "@/lib/mediaUtils";
 import "./CityMetricsMap.css";
 import { getStableColorForKey, getStableColorIndexForKey, LAYER_COLOR_PALETTE } from "@/lib/layerColors";
+import {
+  sortAndGroupMetrics,
+  getColorIndexForTemplate,
+  getColorForTemplate,
+  getOrderForTemplate,
+  getCategoryDisplayName,
+  type GroupedMetric,
+} from "@/lib/metricTemplateConfig";
 
 interface CityMetricsMapProps {
   cityId: number;
@@ -36,6 +50,8 @@ interface CityMetricsMapProps {
   }>;
   enabledShapeLayerInstanceIds?: Set<number>;
   setEnabledShapeLayerInstanceIds?: React.Dispatch<React.SetStateAction<Set<number>>>;
+  gpsLocation?: { lat: number; lng: number } | null; // GPS coordinates - when set, prevents dynamic zooming
+  selectedDistrict?: number | null; // Selected district number for filtering data
 }
 
 export default function CityMetricsMap({
@@ -47,6 +63,8 @@ export default function CityMetricsMap({
   shapeLayers = [],
   enabledShapeLayerInstanceIds,
   setEnabledShapeLayerInstanceIds,
+  gpsLocation,
+  selectedDistrict,
 }: CityMetricsMapProps) {
   const { getAccessTokenSilently } = useAuth0();
   const { theme } = useTheme();
@@ -66,36 +84,117 @@ export default function CityMetricsMap({
   const currentAnimationDateRef = useRef<string | null>(null); // Track current date during animation
   const panelRef = useRef<HTMLDivElement | null>(null);
   const layerSelectorScrollRef = useRef<HTMLDivElement | null>(null);
+  
+  // Media gallery state
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+  const [mediaViewMode, setMediaViewMode] = useState<MediaViewMode>("split");
+  const [showMediaGallery, setShowMediaGallery] = useState(false);
 
   // Track if we've set default metrics to avoid re-enabling them
   const defaultMetricsSetRef = useRef(false);
+  const previousCityIdRef = useRef<number | null>(null);
 
-  // Load available metrics for this city
+  // Load available metrics for this city using React Query
+  const metricsQuery = useCityMetricsForMap(cityId && isActive ? cityId : null);
+  
+  // Load city structure for district information
+  const structureQuery = useCityAdminStructure(cityId && isActive ? cityId : null);
+  
   useEffect(() => {
-    if (!cityId || !isActive) return;
+    if (metricsQuery.data) {
+      setAvailableMetrics(metricsQuery.data);
+    }
+    if (metricsQuery.error) {
+      setError(metricsQuery.error.message || "Failed to load metrics");
+    }
+  }, [metricsQuery.data, metricsQuery.error]);
 
-    const loadMetrics = async () => {
-      try {
-        const token = await getAccessTokenSilently();
-        const metrics = await getCityMetricsForMap(cityId, token);
-        // Filter to only metrics that have map_query configured
-        const metricsWithMap = metrics.filter(
-          (m) => m.map_query && m.map_query.trim().length > 0
-        );
-        setAvailableMetrics(metricsWithMap);
-        
-        // Reset default metrics flag when city changes
-        if (defaultMetricsSetRef.current) {
-          defaultMetricsSetRef.current = false;
-        }
-      } catch (err: any) {
-        console.error("Error loading metrics:", err);
-        setError(err.message || "Failed to load metrics");
+  const removeMetricLayerFromMap = useCallback((map: any, metricIdStr: string) => {
+    const layerId = `metric-layer-${metricIdStr}`;
+    const strokeLayerId = `${layerId}-stroke`;
+    const sourceId = `metric-source-${metricIdStr}`;
+    
+    // Remove all layers that use this source before removing the source
+    // For choropleth mode, there are two layers: fill and stroke
+    try {
+      if (map.getLayer && map.getLayer(strokeLayerId)) {
+        map.removeLayer(strokeLayerId);
       }
-    };
+    } catch (e) {
+      // ignore
+    }
+    try {
+      if (map.getLayer && map.getLayer(layerId)) {
+        map.removeLayer(layerId);
+      }
+    } catch (e) {
+      // ignore
+    }
+    
+    // Now safe to remove the source after all layers are removed
+    try {
+      if (map.getSource && map.getSource(sourceId)) {
+        map.removeSource(sourceId);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
 
-    loadMetrics();
-  }, [cityId, isActive, getAccessTokenSilently]);
+  // Reset map layers and state when city changes
+  useEffect(() => {
+    if (previousCityIdRef.current !== null && previousCityIdRef.current !== cityId) {
+      // City has changed - reset everything
+      console.log(`[CityMetricsMap] City changed from ${previousCityIdRef.current} to ${cityId}, resetting map layers`);
+      
+      // Store current state before clearing
+      const currentMaps = maps;
+      const currentSelectedIds = selectedMetricIds;
+      
+      // Clear selected metrics
+      setSelectedMetricIds(new Set());
+      
+      // Clear map data
+      setMaps([]);
+      
+      // Clear loading states
+      setLoadingMaps(new Set());
+      loadingMapsRef.current.clear();
+      attemptedLoadsRef.current.clear();
+      loadedMetricsRef.current.clear();
+      
+      // Clear visible/hidden layers
+      setVisibleLayers(new Set());
+      setHiddenLayers(new Set());
+      
+      // Reset timeline
+      setSelectedTimelineDate(null);
+      setIsTimelinePlaying(false);
+      currentAnimationDateRef.current = null;
+      
+      // Reset default metrics flag
+      defaultMetricsSetRef.current = false;
+      
+      // Remove all metric layers from map
+      if (mapInstanceRef.current) {
+        const map = mapInstanceRef.current;
+        // Get all metric layer IDs and remove them
+        const allMetricIds = new Set<string>();
+        currentMaps.forEach((m) => allMetricIds.add(String(m.metric_id)));
+        currentSelectedIds.forEach((id) => allMetricIds.add(id));
+        
+        allMetricIds.forEach((id) => {
+          removeMetricLayerFromMap(map, id);
+        });
+        
+        // Reset map bounds - let parent CityMapView handle recentering
+        // The map will be recentered when the new city's shapefiles load
+      }
+    }
+    
+    previousCityIdRef.current = cityId;
+  }, [cityId, mapInstanceRef, maps, selectedMetricIds, removeMetricLayerFromMap]);
 
   // Auto-enable metrics with template_id 18 (Violent Crime) or 44 (Property Crime) by default
   useEffect(() => {
@@ -126,14 +225,19 @@ export default function CityMetricsMap({
     }
   }, [availableMetrics]);
 
-  // Get color index for a metric based on a stable key (no reassignment on toggle)
-  const getColorIndexForMetric = useCallback((metricId: string): number => {
+  // Get color index for a metric based on metric_id (each metric gets unique color)
+  // This ensures that even metrics sharing the same template_id get different colors
+  // Can accept either a metric object or a metric ID string
+  const getColorIndexForMetric = useCallback((metricOrId: AdminMetricListItem | string): number => {
+    // Always use metric_id for color assignment to ensure unique colors per metric
+    const metricId = typeof metricOrId === "string" ? metricOrId : String(metricOrId.id);
     return getStableColorIndexForKey(`metric:${metricId}`);
   }, []);
 
   // Track which metrics we've attempted to load to prevent infinite loops
+  // Key format: "metricId:district" (e.g., "123:5" for metric 123, district 5, or "123:null" for no district)
   const attemptedLoadsRef = useRef<Set<string>>(new Set());
-  // Track which metrics have successfully loaded map data
+  // Track which metrics have successfully loaded map data (keyed by metricId:district)
   const loadedMetricsRef = useRef<Set<string>>(new Set());
 
   // Helper to extract date from feature properties
@@ -243,25 +347,6 @@ export default function CityMetricsMap({
 
   const dateKey = `${metricDateRange?.start_date || ""}|${metricDateRange?.end_date || ""}`;
 
-  const removeMetricLayerFromMap = useCallback((map: any, metricIdStr: string) => {
-    const layerId = `metric-layer-${metricIdStr}`;
-    const sourceId = `metric-source-${metricIdStr}`;
-    try {
-      if (map.getLayer && map.getLayer(layerId)) {
-        map.removeLayer(layerId);
-      }
-    } catch (e) {
-      // ignore
-    }
-    try {
-      if (map.getSource && map.getSource(sourceId)) {
-        map.removeSource(sourceId);
-      }
-    } catch (e) {
-      // ignore
-    }
-  }, []);
-
   // When date range changes, clear caches and remove existing metric layers so data reloads.
   useEffect(() => {
     attemptedLoadsRef.current.clear();
@@ -280,37 +365,79 @@ export default function CityMetricsMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateKey]);
 
-  // Load map data for a metric
+  const queryClient = useQueryClient();
+
+  // Load map data for a metric (using React Query cache for fast switching)
   const loadMapData = useCallback(async (metricId: number) => {
     const metricIdStr = String(metricId);
     
+    // Create a unique key that includes both metric ID and district
+    // This ensures we reload data when district changes, even for the same metric
+    const districtKey = selectedDistrict !== null && selectedDistrict !== 0 
+      ? String(selectedDistrict) 
+      : "null";
+    const loadKey = `${metricIdStr}:${districtKey}`;
+    
     // Prevent duplicate loads
-    if (loadingMapsRef.current.has(metricIdStr) || attemptedLoadsRef.current.has(metricIdStr)) {
+    if (loadingMapsRef.current.has(metricIdStr) || attemptedLoadsRef.current.has(loadKey)) {
       return;
     }
 
-    // Check if we already have map data
-    if (loadedMetricsRef.current.has(metricIdStr)) {
+    // Check if we already have map data for this metric+district combination
+    if (loadedMetricsRef.current.has(loadKey)) {
       return;
     }
 
-    // Mark as attempted
-    attemptedLoadsRef.current.add(metricIdStr);
+    // Check React Query cache first
+    const districts: number[] | null = (selectedDistrict !== null && selectedDistrict !== 0 && typeof selectedDistrict === 'number')
+      ? [selectedDistrict]
+      : null;
+    const cacheKey = metricKeys.mapData(
+      metricId,
+      metricDateRange?.start_date ?? null,
+      metricDateRange?.end_date ?? null,
+      districts
+    );
+    const cachedData = queryClient.getQueryData<MapData>(cacheKey);
+    
+    if (cachedData) {
+      // Use cached data immediately
+      loadedMetricsRef.current.add(loadKey);
+      setMaps((prev) => {
+        const filtered = prev.filter((m) => String(m.metric_id) !== metricIdStr);
+        return [...filtered, cachedData];
+      });
+      return;
+    }
+
+    // Mark as attempted and loading
+    attemptedLoadsRef.current.add(loadKey);
     setLoadingMaps((prev) => new Set(prev).add(metricIdStr));
 
     try {
       const token = await getAccessTokenSilently();
-      const request: GetMapDataRequest = {
+      // Build request payload - always include districts if we have a valid district number
+      const requestPayload: any = {
         metric_id: metricId,
         start_date: metricDateRange?.start_date ?? null,
         end_date: metricDateRange?.end_date ?? null,
       };
+      
+      // Add districts parameter to WHERE clause if we have a valid district number (not null, not 0)
+      // District 0 is citywide, so we don't filter by district in that case
+      if (selectedDistrict !== null && selectedDistrict !== 0) {
+        requestPayload.districts = [selectedDistrict];
+      }
+      
+      const request: GetMapDataRequest = requestPayload;
       const response = await getMetricMapData(request, token);
 
       if (response.status === "success" && response.map_data) {
-        loadedMetricsRef.current.add(metricIdStr);
+        // Cache the data in React Query for fast switching
+        queryClient.setQueryData(cacheKey, response.map_data);
+        
+        loadedMetricsRef.current.add(loadKey);
         setMaps((prev) => {
-          // Remove existing map for this metric if any
           const filtered = prev.filter((m) => String(m.metric_id) !== metricIdStr);
           return [...filtered, response.map_data!];
         });
@@ -322,7 +449,7 @@ export default function CityMetricsMap({
     } catch (err: any) {
       console.error(`Error loading map data for metric ${metricId}:`, err);
       // On error, remove from attempted loads so we can retry later if needed
-      attemptedLoadsRef.current.delete(metricIdStr);
+      attemptedLoadsRef.current.delete(loadKey);
     } finally {
       setLoadingMaps((prev) => {
         const updated = new Set(prev);
@@ -330,7 +457,7 @@ export default function CityMetricsMap({
         return updated;
       });
     }
-  }, [getAccessTokenSilently, metricDateRange?.start_date, metricDateRange?.end_date]);
+  }, [getAccessTokenSilently, metricDateRange?.start_date, metricDateRange?.end_date, selectedDistrict, queryClient]);
 
   // Load map data when metrics are selected
   useEffect(() => {
@@ -339,25 +466,72 @@ export default function CityMetricsMap({
     selectedMetricIds.forEach((metricIdStr) => {
       const metricId = parseInt(metricIdStr, 10);
       if (!isNaN(metricId)) {
-        // Check if we already have map data for this metric
-        const hasMapData = loadedMetricsRef.current.has(metricIdStr);
+        // Create load key that includes district to check if this specific metric+district combo is loaded
+        const districtKey = selectedDistrict !== null && selectedDistrict !== 0 
+          ? String(selectedDistrict) 
+          : "null";
+        const loadKey = `${metricIdStr}:${districtKey}`;
+        
+        // Check if we already have map data for this metric+district combination
+        const hasMapData = loadedMetricsRef.current.has(loadKey);
         const isAlreadyLoading = loadingMaps.has(metricIdStr);
-        const hasAttempted = attemptedLoadsRef.current.has(metricIdStr);
+        const hasAttempted = attemptedLoadsRef.current.has(loadKey);
         
         if (!hasMapData && !isAlreadyLoading && !hasAttempted) {
           loadMapData(metricId);
         }
       }
     });
-  }, [selectedMetricIds, isActive, mapInstanceRef, loadMapData]);
+  }, [selectedMetricIds, selectedDistrict, isActive, mapInstanceRef, loadMapData, loadingMaps]);
+
+  // Reload map data when district changes (to apply district filter)
+  useEffect(() => {
+    if (!isActive || !mapInstanceRef.current) return;
+    
+    // When district changes, clear all loaded metrics for this district combination and reload them
+    // This ensures we get fresh data filtered by the new district
+    selectedMetricIds.forEach((metricIdStr) => {
+      const metricId = parseInt(metricIdStr, 10);
+      if (!isNaN(metricId)) {
+        // Clear all load keys for this metric (for any district)
+        // We need to clear all because the district key format changed
+        const keysToDelete: string[] = [];
+        loadedMetricsRef.current.forEach((key) => {
+          if (key.startsWith(`${metricIdStr}:`)) {
+            keysToDelete.push(key);
+          }
+        });
+        keysToDelete.forEach((key) => loadedMetricsRef.current.delete(key));
+        
+        attemptedLoadsRef.current.forEach((key) => {
+          if (key.startsWith(`${metricIdStr}:`)) {
+            attemptedLoadsRef.current.delete(key);
+          }
+        });
+        
+        // Remove from maps state so it will be reloaded
+        setMaps((prev) => prev.filter((m) => String(m.metric_id) !== metricIdStr));
+        
+        // Remove metric layer from map
+        if (mapInstanceRef.current) {
+          removeMetricLayerFromMap(mapInstanceRef.current, metricIdStr);
+        }
+        
+        // Trigger reload with new district filter
+        loadMapData(metricId);
+      }
+    });
+  }, [selectedDistrict, isActive, mapInstanceRef, loadMapData, selectedMetricIds, removeMetricLayerFromMap]);
 
   // Reset attempted loads when selectedMetricIds changes (user selects different metrics)
   useEffect(() => {
     // Clear attempted loads and loaded metrics for metrics that are no longer selected
-    attemptedLoadsRef.current.forEach((metricIdStr) => {
+    // Note: load keys are now in format "metricId:district", so we need to check the prefix
+    attemptedLoadsRef.current.forEach((loadKey) => {
+      const metricIdStr = loadKey.split(':')[0];
       if (!selectedMetricIds.has(metricIdStr)) {
-        attemptedLoadsRef.current.delete(metricIdStr);
-        loadedMetricsRef.current.delete(metricIdStr);
+        attemptedLoadsRef.current.delete(loadKey);
+        loadedMetricsRef.current.delete(loadKey);
       }
     });
   }, [selectedMetricIds]);
@@ -383,6 +557,9 @@ export default function CityMetricsMap({
           locationData = mapData.location_data;
         }
 
+        const pointCount = locationData.length;
+        const useChoropleth = pointCount > 1000;
+
         if (locationData.length === 0) {
           return {
             mapData,
@@ -392,6 +569,24 @@ export default function CityMetricsMap({
             features: [],
             bounds: null,
             hasData: false,
+            pointCount: 0,
+            useChoropleth: false,
+          };
+        }
+
+        // If using choropleth, we'll handle it differently
+        if (useChoropleth) {
+          return {
+            mapData,
+            uniqueId: String(mapData.metric_id),
+            colorIndex: getColorIndexForMetric(String(mapData.metric_id)),
+            layerColor: LAYER_COLOR_PALETTE[getColorIndexForMetric(String(mapData.metric_id)) % LAYER_COLOR_PALETTE.length],
+            features: [],
+            bounds: null,
+            hasData: true,
+            pointCount,
+            useChoropleth: true,
+            locationData, // Keep raw data for choropleth processing
           };
         }
 
@@ -459,6 +654,9 @@ export default function CityMetricsMap({
           if (points.length === 1) {
             const item = points[0];
             const featureDate = getDateFromFeature({ properties: item });
+            // Check if this point has media
+            const mediaItems = extractMediaFromPoint(item, coordinates);
+            const hasMedia = mediaItems.length > 0;
             features.push({
               type: "Feature",
               properties: {
@@ -470,6 +668,7 @@ export default function CityMetricsMap({
                 mapTitle: mapData.title,
                 mapId: String(mapData.metric_id),
                 _featureDate: featureDate ? featureDate.toISOString() : null,
+                hasMedia, // Flag indicating this point has media
                 ...item, // Include all other properties
               },
               geometry: { type: "Point", coordinates },
@@ -572,6 +771,17 @@ export default function CityMetricsMap({
             // Include all other fields from the first point (as representative)
             Object.assign(aggregatedProps, allFields);
             
+            // Check if any of the aggregated points have media
+            let hasMedia = false;
+            for (const point of points) {
+              const mediaItems = extractMediaFromPoint(point, coordinates);
+              if (mediaItems.length > 0) {
+                hasMedia = true;
+                break;
+              }
+            }
+            aggregatedProps.hasMedia = hasMedia;
+            
             features.push({
               type: "Feature",
               properties: aggregatedProps,
@@ -588,6 +798,8 @@ export default function CityMetricsMap({
           features,
           bounds: hasValidBounds ? { sw: [minLng, minLat], ne: [maxLng, maxLat] } : null,
           hasData: true,
+          pointCount,
+          useChoropleth: false,
         };
       } catch (err) {
         console.error("Error processing map data:", err);
@@ -595,6 +807,103 @@ export default function CityMetricsMap({
       }
     }).filter(Boolean) as any[];
   }, [maps, getColorIndexForMetric, getDateFromFeature]);
+
+  // Helper to find district field from city structure
+  const findDistrictField = useCallback((structureData: CityStructureData | undefined): { field: string; shapefile: any; districtFields: string[] } | null => {
+    if (!structureData) return null;
+
+    // Common geographic structure keywords (ordered by priority for district-based data)
+    const districtKeywords = [
+      'district', 'council', 'ward', 'precinct', 'borough', 
+      'community', 'neighborhood', 'zone', 'region', 'area'
+    ];
+    
+    // Helper to check if a string contains any district-related keyword
+    const containsDistrictKeyword = (str: string | undefined | null): boolean => {
+      if (!str) return false;
+      const lower = str.toLowerCase();
+      return districtKeywords.some(kw => lower.includes(kw));
+    };
+
+    // Get all district field names from city structure (including district_fields list)
+    const districtFields: string[] = [];
+    if (structureData.district_fields && Array.isArray(structureData.district_fields)) {
+      districtFields.push(...structureData.district_fields);
+    }
+    if (structureData.district_field && !districtFields.includes(structureData.district_field)) {
+      districtFields.push(structureData.district_field);
+    }
+
+    // Look for geographic structures with district-related names
+    const districtStructure = structureData.geographic_structures?.find(
+      (gs) => containsDistrictKeyword(gs.structure_name) ||
+              containsDistrictKeyword(gs.structure_type)
+    );
+
+    if (districtStructure && districtStructure.identifier_field) {
+      // Add identifier_field to district fields if not already present
+      if (!districtFields.includes(districtStructure.identifier_field)) {
+        districtFields.push(districtStructure.identifier_field);
+      }
+      
+      // Find matching shapefile
+      const shapefile = structureData.shapefiles?.find(
+        (sf) => sf.geographic_structure_id === districtStructure.id
+      );
+
+      if (shapefile) {
+        return {
+          field: districtStructure.identifier_field,
+          shapefile,
+          districtFields,
+        };
+      }
+    }
+
+    // Fallback: look for query configs with district fields
+    const districtQueryConfig = structureData.query_configs?.find(
+      (qc) => containsDistrictKeyword(qc.identifier_field) ||
+              containsDistrictKeyword(qc.structure_type)
+    );
+
+    if (districtQueryConfig && districtQueryConfig.identifier_field) {
+      // Add identifier_field to district fields if not already present
+      if (!districtFields.includes(districtQueryConfig.identifier_field)) {
+        districtFields.push(districtQueryConfig.identifier_field);
+      }
+      
+      // Find matching shapefile
+      const shapefile = structureData.shapefiles?.find(
+        (sf) => sf.structure_type === districtQueryConfig.structure_type
+      );
+
+      if (shapefile) {
+        return {
+          field: districtQueryConfig.identifier_field,
+          shapefile,
+          districtFields,
+        };
+      }
+    }
+
+    // If we have district fields but no shapefile, still return the fields for matching
+    if (districtFields.length > 0) {
+      // Try to find any shapefile that might work
+      const shapefile = structureData.shapefiles?.find(
+        (sf) => containsDistrictKeyword(sf.structure_type)
+      );
+      
+      if (shapefile) {
+        return {
+          field: districtFields[0],
+          shapefile,
+          districtFields,
+        };
+      }
+    }
+
+    return null;
+  }, []);
 
   // Collect all features for timeline (must be before any conditional returns)
   const allFeatures = useMemo(() => {
@@ -620,11 +929,14 @@ export default function CityMetricsMap({
     if (!mapInstanceRef.current) return;
     
     mapFeatures.forEach((featureData: any) => {
-      const { uniqueId, features, layerColor } = featureData;
+      const { uniqueId, features, layerColor, useChoropleth } = featureData;
       const layerId = `metric-layer-${uniqueId}`;
       const sourceId = `metric-source-${uniqueId}`;
       
       if (!map.getLayer(layerId) || !map.getSource(sourceId)) return;
+      
+      // Skip choropleth layers (fill/line) - they don't support opacity transitions the same way
+      if (useChoropleth) return;
       
       // Use ref date during animation to avoid state update delays
       const dateToUse = isTimelinePlaying && currentAnimationDateRef.current 
@@ -656,50 +968,60 @@ export default function CityMetricsMap({
       }
       
       // Update layer paint to use opacity and color properties with smooth transitions
-      if (map.getLayer(layerId)) {
-        // Set transition duration - shorter when playing for more immediate updates
-        // Use 0 duration for dots that should disappear immediately to prevent flash
-        const transitionDuration = isTimelinePlaying ? 50 : 150;
-        map.setPaintProperty(layerId, "circle-opacity-transition", {
-          duration: transitionDuration, // Faster transition during animation
-        });
-        
-        map.setPaintProperty(layerId, "circle-opacity", [
-          "case",
-          ["has", "_opacity"],
-          ["get", "_opacity"],
-          0, // Default opacity
-        ]);
-        
-        // Update color - use grey if _useGrey is true, otherwise use original color
-        // Only apply grey color if opacity is above 0 to prevent black flash
-        map.setPaintProperty(layerId, "circle-color-transition", {
-          duration: transitionDuration, // Match opacity transition
-        });
-        
-        map.setPaintProperty(layerId, "circle-color", [
-          "case",
-          // If opacity is 0, use original color (won't be visible anyway)
-          ["<", ["case", ["has", "_opacity"], ["get", "_opacity"], 0.8], 0.01],
-          [
+      // Only update circle layers (skip fill/line choropleth layers)
+      const layer = map.getLayer(layerId);
+      if (layer) {
+        try {
+          // Only process circle layers (choropleth layers are fill/line and don't need this)
+          if (layer.type !== 'circle') return;
+          
+          // Set transition duration - shorter when playing for more immediate updates
+          // Use 0 duration for dots that should disappear immediately to prevent flash
+          const transitionDuration = isTimelinePlaying ? 50 : 150;
+          map.setPaintProperty(layerId, "circle-opacity-transition", {
+            duration: transitionDuration, // Faster transition during animation
+          });
+          
+          map.setPaintProperty(layerId, "circle-opacity", [
             "case",
-            ["has", "_originalColor"],
-            ["get", "_originalColor"],
-            ["case", ["has", "color"], ["get", "color"], layerColor],
-          ],
-          // Otherwise, use grey if _useGrey is true
-          [
+            ["has", "_opacity"],
+            ["get", "_opacity"],
+            0, // Default opacity
+          ]);
+          
+          // Update color - use grey if _useGrey is true, otherwise use original color
+          // Only apply grey color if opacity is above 0 to prevent black flash
+          map.setPaintProperty(layerId, "circle-color-transition", {
+            duration: transitionDuration, // Match opacity transition
+          });
+          
+          map.setPaintProperty(layerId, "circle-color", [
             "case",
-            ["get", "_useGrey"],
-            "#808080", // Grey color for older dots
+            // If opacity is 0, use original color (won't be visible anyway)
+            ["<", ["case", ["has", "_opacity"], ["get", "_opacity"], 0.8], 0.01],
             [
               "case",
               ["has", "_originalColor"],
               ["get", "_originalColor"],
               ["case", ["has", "color"], ["get", "color"], layerColor],
             ],
-          ],
-        ]);
+            // Otherwise, use grey if _useGrey is true
+            [
+              "case",
+              ["get", "_useGrey"],
+              "#808080", // Grey color for older dots
+              [
+                "case",
+                ["has", "_originalColor"],
+                ["get", "_originalColor"],
+                ["case", ["has", "color"], ["get", "color"], layerColor],
+              ],
+            ],
+          ]);
+        } catch (err) {
+          // Silently skip if layer type check fails or layer doesn't support these properties
+          console.warn(`Skipping opacity update for layer ${layerId}:`, err);
+        }
       }
     });
   }, [mapFeatures, selectedTimelineDate, isTimelinePlaying, calculateFeatureStyle]);
@@ -724,14 +1046,428 @@ export default function CityMetricsMap({
     }
 
     mapFeatures.forEach((featureData: any) => {
-      const { uniqueId, layerColor, features, bounds: layerBoundsData, hasData } = featureData;
+      const { uniqueId, layerColor, features, bounds: layerBoundsData, hasData, useChoropleth, locationData } = featureData;
       
       if (!hasData) return;
 
       const layerId = `metric-layer-${uniqueId}`;
       const sourceId = `metric-source-${uniqueId}`;
       
-      // Update bounds
+      // Determine visibility
+      const metricIdStr = String(featureData.mapData.metric_id);
+      const isSelected = selectedMetricIds.has(metricIdStr);
+      const isVisible = isSelected && !hiddenLayers.has(uniqueId);
+
+      // Handle choropleth mode for >1000 points
+      if (useChoropleth && locationData) {
+        const districtInfo = findDistrictField(structureQuery.data);
+        
+        // Debug logging to understand why choropleth might not render
+        if (!structureQuery.data) {
+          console.warn('Choropleth: No city structure data available');
+        } else if (!districtInfo) {
+          console.warn('Choropleth: findDistrictField returned null. Structure data:', {
+            hasGeographicStructures: !!structureQuery.data?.geographic_structures?.length,
+            hasShapefiles: !!structureQuery.data?.shapefiles?.length,
+            hasQueryConfigs: !!structureQuery.data?.query_configs?.length,
+            districtFields: structureQuery.data?.district_fields,
+          });
+        } else if (!districtInfo.shapefile) {
+          console.warn('Choropleth: District info found but no shapefile. districtInfo:', districtInfo);
+        }
+        
+        if (districtInfo && districtInfo.shapefile) {
+          // Debug: Log available fields from first point
+          if (locationData.length > 0) {
+            console.log('Choropleth: First point fields:', Object.keys(locationData[0]));
+            console.log('Choropleth: Looking for district field:', districtInfo.field);
+            console.log('Choropleth: First point district value:', locationData[0][districtInfo.field]);
+          }
+          
+          // Try to find district field - check city's district_fields list first, then common patterns
+          // Extended list to handle various city naming conventions
+          const possibleDistrictFields = [
+            ...(districtInfo.districtFields || []), // Use city's district_fields list
+            districtInfo.field,
+            // Common district field names
+            'district',
+            'council_district',
+            'council_dist',
+            'cncldist',
+            'supervisor_district',
+            'sup_dist_num',
+            'district_id',
+            'district_num',
+            'district_number',
+            // Ward variants
+            'ward',
+            'ward_id',
+            'ward_num',
+            'ward_number',
+            // Precinct variants  
+            'precinct',
+            'precinct_id',
+            'pct',
+            // Borough (NYC)
+            'borough',
+            'boro',
+            'boro_nm',
+            // Community board (NYC)
+            'community_board',
+            'cb',
+            'cb_num',
+            // Generic
+            'geo_id',
+            'area_id',
+            'region_id',
+            'zone_id',
+          ];
+          
+          let actualDistrictField: string | null = null;
+          for (const fieldName of possibleDistrictFields) {
+            if (locationData.length > 0 && locationData[0][fieldName] !== undefined && locationData[0][fieldName] !== null) {
+              actualDistrictField = fieldName;
+              console.log('Choropleth: Found district field:', fieldName);
+              break;
+            }
+          }
+          
+          if (!actualDistrictField) {
+            console.warn('Choropleth: No district field found in location data. Available fields:', 
+              locationData.length > 0 ? Object.keys(locationData[0]) : []);
+            // Fall back to requesting district-aggregated data from API
+            return; // Skip choropleth rendering for now
+          }
+          
+          // Process choropleth data
+          const districtCounts = new Map<string, number>();
+          
+          locationData.forEach((item: any) => {
+            const districtValue = item[actualDistrictField!];
+            if (districtValue !== null && districtValue !== undefined) {
+              // Normalize district value (handle numeric vs string, float vs int)
+              const normalizedValue = String(Number(districtValue)); // Convert "1.0" -> "1", "1" -> "1"
+              districtCounts.set(normalizedValue, (districtCounts.get(normalizedValue) || 0) + 1);
+              // Also store original string version for fallback matching
+              const originalKey = String(districtValue);
+              if (originalKey !== normalizedValue) {
+                districtCounts.set(originalKey, (districtCounts.get(originalKey) || 0) + 1);
+              }
+            }
+          });
+          
+            console.log('Choropleth: District counts:', Array.from(districtCounts.entries()).slice(0, 10));
+            console.log('Choropleth: Total districts with data:', districtCounts.size);
+
+          // Get shapefile geometry
+          let geometryData = districtInfo.shapefile.geometry_data;
+          
+          // Check if geometry_data exists
+          if (!geometryData) {
+            console.warn('Choropleth: Shapefile has no geometry_data. Shapefile:', {
+              id: districtInfo.shapefile.id,
+              shapefile_name: districtInfo.shapefile.shapefile_name,
+              structure_type: districtInfo.shapefile.structure_type,
+            });
+            return; // Skip choropleth rendering
+          }
+          
+          if (typeof geometryData === 'string') {
+            try {
+              geometryData = JSON.parse(geometryData);
+            } catch (e) {
+              console.error("Failed to parse shapefile geometry:", e);
+              return;
+            }
+          }
+
+          if (geometryData && geometryData.features) {
+            // Merge district data with boundaries
+            // Try to match district IDs - check city's district_fields list first, then common patterns
+            // Extended list to handle various city naming conventions
+            const possibleIdFields = [
+              ...(districtInfo.districtFields || []), // Use city's district_fields list
+              districtInfo.field,
+              districtInfo.shapefile.identifier_field, // Use shapefile's configured identifier field
+              // Common district field names
+              'district',
+              'council_district',
+              'council_dist',
+              'cncldist',
+              'supervisor_district',
+              'sup_dist_num',
+              'district_id',
+              'district_num',
+              'district_number',
+              // Ward variants
+              'ward',
+              'ward_id',
+              'ward_num',
+              'ward_number',
+              // Precinct variants  
+              'precinct',
+              'precinct_id',
+              'pct',
+              // Borough (NYC)
+              'borough',
+              'boro',
+              'boro_nm',
+              // Community board (NYC)
+              'community_board',
+              'cb',
+              'cb_num',
+              // Generic
+              'geo_id',
+              'area_id',
+              'region_id',
+              'zone_id',
+              'id',
+              'ID',
+              'name',
+              'NAME',
+            ].filter(Boolean);
+            
+            // Find the ID field in the shapefile first
+            let actualIdField: string | null = null;
+            if (geometryData.features.length > 0) {
+              for (const fieldName of possibleIdFields) {
+                if (geometryData.features[0].properties[fieldName] !== undefined) {
+                  actualIdField = fieldName;
+                  console.log('Choropleth: Found ID field in shapefile:', fieldName);
+                  break;
+                }
+              }
+            }
+            
+            if (!actualIdField) {
+              console.warn('Choropleth: No ID field found in shapefile. Available properties:', 
+                geometryData.features.length > 0 ? Object.keys(geometryData.features[0].properties) : []);
+              return; // Skip choropleth rendering
+            }
+            
+            // Calculate min/max for color scaling
+            const counts = Array.from(districtCounts.values());
+            const minValue = counts.length > 0 ? Math.min(...counts) : 0;
+            const maxValue = counts.length > 0 ? Math.max(...counts) : 0;
+            
+            console.log('Choropleth: Value range:', { minValue, maxValue, totalFeatures: geometryData.features.length });
+            
+            // Count how many features will have data (now that actualIdField is determined)
+            let featuresWithData = 0;
+            geometryData.features.forEach((feature: any) => {
+              const districtId = feature.properties[actualIdField!];
+              const normalizedDistrictId = districtId !== null && districtId !== undefined 
+                ? String(Number(districtId))
+                : null;
+              if (normalizedDistrictId && districtCounts.has(normalizedDistrictId)) {
+                featuresWithData++;
+              }
+            });
+            console.log('Choropleth: Features with matching data:', featuresWithData, 'out of', geometryData.features.length);
+            
+            // Helper function to convert hex to RGB
+            const hexToRgb = (hex: string): [number, number, number] => {
+              const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+              return result
+                ? [
+                    parseInt(result[1], 16),
+                    parseInt(result[2], 16),
+                    parseInt(result[3], 16),
+                  ]
+                : [173, 53, 250]; // Fallback to purple if parsing fails
+            };
+
+            const choroplethFeatures = geometryData.features.map((feature: any) => {
+              const districtId = feature.properties[actualIdField!];
+              // Normalize district ID for matching (handle numeric vs string, float vs int)
+              const normalizedDistrictId = districtId !== null && districtId !== undefined 
+                ? String(Number(districtId)) // Convert to number then string to normalize "1.0" -> "1"
+                : null;
+              const count = normalizedDistrictId 
+                ? (districtCounts.get(normalizedDistrictId) || districtCounts.get(String(districtId)) || 0)
+                : 0;
+              
+              // Calculate color using the metric's assigned color (from layerColor) to white gradient
+              // Use a darker default for no data so it's visible
+              let calculatedColor = '#e0e0e0'; // Slightly darker default for no data
+              if (count > 0 && maxValue > 0) {
+                // Ensure ratio is between 0 and 1
+                const ratio = Math.max(0, Math.min(1, (count - minValue) / (maxValue - minValue || 1)));
+                // Use the metric's assigned color instead of hardcoded purple
+                const metricColor = hexToRgb(layerColor);
+                const white = [255, 255, 255];
+                // Create a lighter version of the metric color (90% towards white)
+                const lightMetricColor = [
+                  Math.round(metricColor[0] + (white[0] - metricColor[0]) * 0.85),
+                  Math.round(metricColor[1] + (white[1] - metricColor[1]) * 0.85),
+                  Math.round(metricColor[2] + (white[2] - metricColor[2]) * 0.85)
+                ];
+                
+                // Interpolate between light color (min) and full metric color (max)
+                const r = Math.round(lightMetricColor[0] + (metricColor[0] - lightMetricColor[0]) * ratio);
+                const g = Math.round(lightMetricColor[1] + (metricColor[1] - lightMetricColor[1]) * ratio);
+                const b = Math.round(lightMetricColor[2] + (metricColor[2] - lightMetricColor[2]) * ratio);
+                
+                calculatedColor = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+              }
+
+              return {
+                ...feature,
+                properties: {
+                  ...feature.properties,
+                  value: count,
+                  color: calculatedColor,
+                }
+              };
+            });
+
+            // Remove existing layer if it exists
+            if (map.getLayer(layerId)) {
+              map.removeLayer(layerId);
+            }
+            if (map.getLayer(`${layerId}-stroke`)) {
+              map.removeLayer(`${layerId}-stroke`);
+            }
+            if (map.getSource(sourceId)) {
+              map.removeSource(sourceId);
+            }
+
+            // Add choropleth source and layers
+            map.addSource(sourceId, {
+              type: 'geojson',
+              data: {
+                type: 'FeatureCollection',
+                features: choroplethFeatures
+              }
+            });
+
+            // Add fill layer
+            map.addLayer({
+              id: layerId,
+              type: 'fill',
+              source: sourceId,
+              layout: {
+                visibility: isVisible ? 'visible' : 'none',
+              },
+              paint: {
+                'fill-color': ['get', 'color'],
+                'fill-opacity': 0.7 // Slightly more visible
+              }
+            });
+            
+            console.log('Choropleth: Added fill layer', layerId, 'with visibility', isVisible ? 'visible' : 'none', 'and', choroplethFeatures.length, 'features');
+
+            // Add stroke layer
+            map.addLayer({
+              id: `${layerId}-stroke`,
+              type: 'line',
+              source: sourceId,
+              layout: {
+                visibility: isVisible ? 'visible' : 'none',
+              },
+              paint: {
+                'line-color': '#666666',
+                'line-width': 0.5,
+                'line-opacity': 0.8
+              }
+            });
+
+            // Add click handler
+            const clickHandlerIdField = actualIdField || districtInfo.field;
+            const leaders = structureQuery.data?.leaders || [];
+            map.on('click', layerId, (e: any) => {
+              const features = map.queryRenderedFeatures(e.point, { layers: [layerId] });
+              if (features.length > 0) {
+                const props = features[0].properties;
+                const districtIdentifier = props[clickHandlerIdField];
+                
+                // Convert district identifier to number for comparison
+                let districtNumber: number | null = null;
+                if (typeof districtIdentifier === "number") {
+                  districtNumber = districtIdentifier;
+                } else if (typeof districtIdentifier === "string") {
+                  const parsed = parseInt(districtIdentifier, 10);
+                  if (!isNaN(parsed)) {
+                    districtNumber = parsed;
+                  }
+                }
+                
+                // Find matching leader
+                let matchingLeader: any = null;
+                if (districtNumber !== null) {
+                  // First, try matching by geographic_structure_id if both exist (preferred method)
+                  if (districtInfo.shapefile?.geographic_structure_id) {
+                    matchingLeader = leaders.find((leader: any) => {
+                      return leader.district === districtNumber && 
+                             leader.geographic_structure_id === districtInfo.shapefile.geographic_structure_id;
+                    });
+                  }
+                  
+                  // If no match found, try matching by district alone (fallback)
+                  if (!matchingLeader) {
+                    matchingLeader = leaders.find((leader: any) => {
+                      return leader.district === districtNumber;
+                    });
+                  }
+                }
+                
+                // Get item_noun from metric metadata (fallback to 'items' if not available)
+                const metricId = featureData.mapData?.metric_id;
+                const metric = availableMetrics.find((m: any) => m.id === metricId);
+                // AdminMetricListItem doesn't have item_noun, use default
+                const itemNoun = 'items';
+                const countValue = props.value || 0;
+                const countText = `${countValue} ${itemNoun}`;
+                
+                // Build unified popup HTML
+                let popupHTML = '<div>';
+                
+                if (matchingLeader) {
+                  // Show leader name and title, district number, and count
+                  const leaderName = matchingLeader.name || 'Unknown';
+                  const leaderTitle = matchingLeader.title || '';
+                  const nameAndTitle = leaderTitle 
+                    ? `${leaderName}, ${leaderTitle}`
+                    : leaderName;
+                  
+                  popupHTML += `<strong>${nameAndTitle}</strong><br/>`;
+                  
+                  if (districtNumber !== null) {
+                    popupHTML += `District ${districtNumber}<br/>`;
+                  }
+                  
+                  popupHTML += countText;
+                } else {
+                  // Fallback: show district identifier and count if no leader found
+                  const districtDisplay = districtNumber !== null 
+                    ? `District ${districtNumber}` 
+                    : (districtIdentifier || 'District');
+                  popupHTML += `<strong>${districtDisplay}</strong><br/>${countText}`;
+                }
+                
+                popupHTML += '</div>';
+                
+                const popup = new (window as any).mapboxgl.Popup()
+                  .setLngLat(e.lngLat)
+                  .setHTML(popupHTML)
+                  .addTo(map);
+                
+                // Fix accessibility issue with popup close button
+                setTimeout(() => {
+                  const closeButton = document.querySelector('.mapboxgl-popup-close-button');
+                  if (closeButton && closeButton.hasAttribute('aria-hidden')) {
+                    closeButton.removeAttribute('aria-hidden');
+                  }
+                }, 10);
+              }
+            });
+
+            return; // Skip point layer rendering
+          }
+        }
+      }
+      
+      // Update bounds for point layers
       if (layerBoundsData && layerBoundsData.sw && layerBoundsData.ne && bounds) {
         try {
           const sw = Array.isArray(layerBoundsData.sw) ? layerBoundsData.sw : [layerBoundsData.sw.lng, layerBoundsData.sw.lat];
@@ -749,11 +1485,6 @@ export default function CityMetricsMap({
         }
       }
 
-      // Determine visibility
-      const metricIdStr = String(featureData.mapData.metric_id);
-      const isSelected = selectedMetricIds.has(metricIdStr);
-      const isVisible = isSelected && !hiddenLayers.has(uniqueId);
-
       // Check if source exists
       const source = map.getSource(sourceId);
       if (source) {
@@ -765,6 +1496,19 @@ export default function CityMetricsMap({
         }
         if (map.getLayer(layerId)) {
           map.setLayoutProperty(layerId, "visibility", isVisible ? "visible" : "none");
+          // Update paint properties to ensure media indicators are shown
+          map.setPaintProperty(layerId, "circle-stroke-color", [
+            "case",
+            ["get", "hasMedia"],
+            "#FFD700", // Gold - unique color not used by any series
+            "#ffffff"  // White for points without media
+          ]);
+          map.setPaintProperty(layerId, "circle-stroke-width", [
+            "case",
+            ["get", "hasMedia"],
+            2,  // Thicker stroke for points with media (reduced from 3)
+            1   // Normal stroke for points without media
+          ]);
         }
       } else {
         map.addSource(sourceId, {
@@ -785,8 +1529,20 @@ export default function CityMetricsMap({
           paint: {
             "circle-radius": ["case", ["has", "scale"], ["max", ["*", ["get", "scale"], 15], 4], 6],
             "circle-color": ["case", ["has", "color"], ["get", "color"], layerColor],
-            "circle-stroke-color": "#ffffff",
-            "circle-stroke-width": 1,
+            // Use unique gold color for points with media (not in any series palette)
+            "circle-stroke-color": [
+              "case",
+              ["get", "hasMedia"],
+              "#FFD700", // Gold - unique color not used by any series
+              "#ffffff"  // White for points without media
+            ],
+            // Slightly thicker stroke for points with media
+            "circle-stroke-width": [
+              "case",
+              ["get", "hasMedia"],
+              2,  // Thicker stroke for points with media (reduced from 3)
+              1   // Normal stroke for points without media
+            ],
             "circle-opacity": [
               "case",
               ["has", "_opacity"],
@@ -816,8 +1572,65 @@ export default function CityMetricsMap({
           if (features.length > 0) {
             const feature = features[0];
             const props = feature.properties || {};
+            const coordinates: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+            
+            // Collect ALL media from ALL points in this layer (not just clicked point)
+            const allMedia: MediaItem[] = [];
+            
+            // Get all features from the source for this layer using public API
+            try {
+              const allSourceFeatures = map.querySourceFeatures(sourceId);
+              if (allSourceFeatures && allSourceFeatures.length > 0) {
+              // Extract media from all features in this layer
+              allSourceFeatures.forEach((f: any) => {
+                const fProps = f.properties || {};
+                const fCoords: [number, number] | undefined = f.geometry?.coordinates 
+                  ? [f.geometry.coordinates[0], f.geometry.coordinates[1]]
+                  : undefined;
+                // Only extract media if coordinates are valid
+                if (fCoords) {
+                  const media = extractMediaFromPoint(fProps, fCoords);
+                  allMedia.push(...media);
+                }
+              });
+              }
+            } catch (err) {
+              console.warn("Error querying source features:", err);
+            }
+            
+            // If no media found from source, try clicked feature as fallback
+            if (allMedia.length === 0) {
+              const clickedMedia = extractMediaFromPoint(props, coordinates);
+              allMedia.push(...clickedMedia);
+            }
+            
+            // If media found, show gallery with all media from this layer
+            if (allMedia.length > 0) {
+              // Remove duplicates by URL
+              const uniqueMedia = Array.from(
+                new Map(allMedia.map((item) => [item.url, item])).values()
+              );
+              
+              // Find the index of the clicked point's media (if any)
+              let startIndex = 0;
+              const clickedMedia = extractMediaFromPoint(props, coordinates);
+              if (clickedMedia.length > 0 && clickedMedia[0].url) {
+                const clickedUrl = clickedMedia[0].url;
+                const foundIndex = uniqueMedia.findIndex(item => item.url === clickedUrl);
+                if (foundIndex >= 0) {
+                  startIndex = foundIndex;
+                }
+              }
+              
+              setMediaItems(uniqueMedia);
+              setCurrentMediaIndex(startIndex);
+              setMediaViewMode("split");
+              setShowMediaGallery(true);
+              return; // Don't show popup if we have media
+            }
             
             // Fields to exclude (only internal rendering properties)
+            // Note: underscore-prefixed fields (e.g., _opacity, _useGrey, _originalColor) are filtered separately
             const excludedFields = new Set([
               'color',
               'mapTitle',
@@ -826,8 +1639,7 @@ export default function CityMetricsMap({
               'lon',
               'lat',
               'coordinates',
-              'location',
-              '_isAggregated' // Internal flag
+              'location'
             ]);
             
             // Build popup HTML with all fields from map query
@@ -863,6 +1675,8 @@ export default function CityMetricsMap({
               .filter(([key]) => {
                 // Exclude internal fields
                 if (excludedFields.has(key)) return false;
+                // Exclude underscore-prefixed metadata fields (e.g., _opacity, _useGrey, _originalColor)
+                if (key.startsWith('_')) return false;
                 // For aggregated points, skip fields we already showed
                 if (isAggregated) {
                   if (key === 'count' || key === 'title' || key === 'description' || 
@@ -927,7 +1741,8 @@ export default function CityMetricsMap({
     });
 
     // Fit map to bounds if we have valid bounds
-    if (hasValidBounds && bounds) {
+    // Skip dynamic zooming if GPS is active - keep map centered on GPS location
+    if (hasValidBounds && bounds && !gpsLocation) {
       try {
         const boundsArray = bounds.toArray();
         if (boundsArray && boundsArray.length >= 2) {
@@ -948,7 +1763,7 @@ export default function CityMetricsMap({
     
     // Update opacity after adding layers
     updateLayerOpacity(map);
-  }, [maps, mapFeatures, selectedMetricIds, hiddenLayers, updateLayerOpacity]);
+  }, [maps, mapFeatures, selectedMetricIds, hiddenLayers, updateLayerOpacity, structureQuery.data, findDistrictField, availableMetrics, gpsLocation]);
 
   // Update layers when maps change
   useEffect(() => {
@@ -1006,11 +1821,14 @@ export default function CityMetricsMap({
   }, [selectedTimelineDate, isTimelinePlaying, isActive, mapInstanceRef, updateLayerOpacity]);
 
   const toggleLayer = (uniqueId: string) => {
-    const newVisibleLayers = new Set(visibleLayers);
-    const isCurrentlyVisible = newVisibleLayers.has(uniqueId);
+    // Use the same visibility logic as the rest of the component
+    // uniqueId is the same as metricId (String(metric.id))
+    const metricId = uniqueId;
+    const isSelected = selectedMetricIds.has(metricId);
+    const isCurrentlyVisible = isSelected && !hiddenLayers.has(uniqueId);
     
     if (isCurrentlyVisible) {
-      newVisibleLayers.delete(uniqueId);
+      // Hide the layer by adding it to hiddenLayers
       setHiddenLayers((prev) => new Set(prev).add(uniqueId));
       if (mapInstanceRef.current) {
         const layerId = `metric-layer-${uniqueId}`;
@@ -1019,7 +1837,7 @@ export default function CityMetricsMap({
         }
       }
     } else {
-      newVisibleLayers.add(uniqueId);
+      // Show the layer by removing it from hiddenLayers
       setHiddenLayers((prev) => {
         const updated = new Set(prev);
         updated.delete(uniqueId);
@@ -1032,7 +1850,6 @@ export default function CityMetricsMap({
         }
       }
     }
-    setVisibleLayers(newVisibleLayers);
   };
 
   const handleMetricToggle = (metricId: string) => {
@@ -1042,8 +1859,19 @@ export default function CityMetricsMap({
         updated.delete(metricId);
         // Remove map data for this metric
         setMaps((prevMaps) => prevMaps.filter((m) => String(m.metric_id) !== metricId));
-        attemptedLoadsRef.current.delete(metricId);
-        loadedMetricsRef.current.delete(metricId);
+        
+        // Clear all load keys for this metric (for all districts)
+        const keysToDelete: string[] = [];
+        loadedMetricsRef.current.forEach((key) => {
+          if (key.startsWith(`${metricId}:`)) {
+            keysToDelete.push(key);
+          }
+        });
+        keysToDelete.forEach((key) => {
+          loadedMetricsRef.current.delete(key);
+          attemptedLoadsRef.current.delete(key);
+        });
+        
         if (mapInstanceRef.current) {
           removeMetricLayerFromMap(mapInstanceRef.current, metricId);
         }
@@ -1056,21 +1884,27 @@ export default function CityMetricsMap({
 
   if (!isActive) return null;
 
-  const filteredMetrics = availableMetrics
-    .filter((metric) => {
-      // Only show active metrics
-      return metric.is_active;
-    })
-    .sort((a, b) => {
-      // Sort by category, then by name
-      if (a.category !== b.category) {
-        return (a.category || "").localeCompare(b.category || "");
-      }
-      return (a.metric_name || "").localeCompare(b.metric_name || "");
-    });
+  // Filter and sort metrics by template order
+  const filteredMetrics = availableMetrics.filter((metric) => {
+    // Only show active metrics
+    return metric.is_active;
+  });
+
+  // Group metrics by category for display with headers
+  const groupedMetrics = sortAndGroupMetrics(
+    filteredMetrics.map((m) => ({
+      id: m.id,
+      metric_name: m.metric_name || "",
+      template_id: m.template_id,
+      category: m.category || "other",
+      subcategory: m.subcategory || null,
+    }))
+  );
 
   // Only show panel if there are any metric layers or shape layers to display
   const hasMetricLayers = filteredMetrics.length > 0;
+  // Flatten grouped metrics for emoji view (maintains order)
+  const flatMetricsForEmoji = groupedMetrics.flatMap((group) => group.metrics);
   const hasShapeLayers = shapeLayers.length > 0;
   if (!hasMetricLayers && !hasShapeLayers) return null;
 
@@ -1133,12 +1967,11 @@ export default function CityMetricsMap({
               minHeight: 0,
             }}
           >
-            {filteredMetrics.map((metric) => {
+            {flatMetricsForEmoji.map((metric) => {
               const metricId = String(metric.id);
               const isSelected = selectedMetricIds.has(metricId);
               const isLoading = loadingMaps.has(metricId);
-              const colorIndex = getColorIndexForMetric(metricId);
-              const layerColor = LAYER_COLOR_PALETTE[colorIndex % LAYER_COLOR_PALETTE.length];
+              const layerColor = metric.color;
               const uniqueId = metricId;
               const isVisible = isSelected && !hiddenLayers.has(uniqueId);
               
@@ -1157,9 +1990,14 @@ export default function CityMetricsMap({
                   key={`emoji-${metric.id}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (isSelected) {
+                    if (isVisible) {
+                      // If visible, deselect the metric (remove from selectedMetricIds)
+                      handleMetricToggle(metricId);
+                    } else if (isSelected) {
+                      // If hidden but still selected, show it again (remove from hiddenLayers)
                       toggleLayer(uniqueId);
                     } else {
+                      // If not selected, select it
                       handleMetricToggle(metricId);
                     }
                   }}
@@ -1281,61 +2119,95 @@ export default function CityMetricsMap({
             className="city-metrics-map-layers-selector"
           >
             {hasMetricLayers && (
-              <div
-                style={{
-                  fontSize: "0.85rem",
-                  opacity: 0.8,
-                  marginBottom: "8px",
-                  fontWeight: 600,
-                }}
-              >
-                Metrics
-              </div>
-            )}
-            {filteredMetrics.map((metric) => {
-              const metricId = String(metric.id);
-              const isSelected = selectedMetricIds.has(metricId);
-              const isLoading = loadingMaps.has(metricId);
-              const colorIndex = getColorIndexForMetric(metricId);
-              const layerColor = LAYER_COLOR_PALETTE[colorIndex % LAYER_COLOR_PALETTE.length];
-              const uniqueId = metricId;
-              const isVisible = isSelected && !hiddenLayers.has(uniqueId);
-
-              return (
-                <div key={metric.id} className="city-metrics-map-layer-item">
-                  <span
-                    className="city-metrics-map-layer-name"
-                    onClick={() => handleMetricToggle(metricId)}
-                  >
-                    {isLoading && (
-                      <span style={{ display: "inline-flex", alignItems: "center", marginRight: "8px" }}>
-                        <Loader size="sm" color="purple" />
-                      </span>
-                    )}
-                    {metric.metric_name}
-                  </span>
-                  <label className="city-metrics-map-toggle-switch">
-                    <input
-                      type="checkbox"
-                      checked={isVisible}
-                      onChange={() => {
-                        if (isSelected) {
-                          toggleLayer(uniqueId);
-                        } else {
-                          handleMetricToggle(metricId);
-                        }
-                      }}
-                    />
-                    <span
-                      className="city-metrics-map-slider"
+              <>
+                {groupedMetrics.map((group) => (
+                  <div key={group.category}>
+                    {/* Category Header */}
+                    <div
                       style={{
-                        backgroundColor: isVisible ? layerColor : "#ccc",
+                        fontSize: "0.85rem",
+                        opacity: 0.8,
+                        marginTop: group.category === groupedMetrics[0].category ? "0" : "16px",
+                        marginBottom: "8px",
+                        fontWeight: 600,
+                        textTransform: "capitalize",
                       }}
-                    />
-                  </label>
-                </div>
-              );
-            })}
+                    >
+                      {group.categoryDisplayName}
+                    </div>
+                    {/* Metrics in this category */}
+                    {group.metrics.map((metric) => {
+                      const metricId = String(metric.id);
+                      const isSelected = selectedMetricIds.has(metricId);
+                      const isLoading = loadingMaps.has(metricId);
+                      const layerColor = metric.color;
+                      const uniqueId = metricId;
+                      const isVisible = isSelected && !hiddenLayers.has(uniqueId);
+                      
+                      // Get point count for this metric
+                      const metricMapData = mapFeatures.find((mf) => String(mf.mapData.metric_id) === metricId);
+                      const pointCount = metricMapData?.pointCount || 0;
+
+                      return (
+                        <div key={metric.id} className="city-metrics-map-layer-item">
+                          <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+                            <span
+                              className="city-metrics-map-layer-name"
+                              onClick={() => handleMetricToggle(metricId)}
+                            >
+                              {isLoading && (
+                                <span style={{ display: "inline-flex", alignItems: "center", marginRight: "8px" }}>
+                                  <Loader size="sm" color="purple" />
+                                </span>
+                              )}
+                              {metric.metric_name}
+                            </span>
+                            {pointCount > 0 && (
+                              <span
+                                style={{
+                                  fontSize: "0.7rem",
+                                  color: "var(--text-secondary)",
+                                  opacity: 0.7,
+                                  marginTop: "2px",
+                                  marginLeft: "0",
+                                }}
+                              >
+                                {pointCount.toLocaleString()} {pointCount === 1 ? "point" : "points"}
+                                {pointCount > 1000 && " (choropleth)"}
+                              </span>
+                            )}
+                          </div>
+                          <label className="city-metrics-map-toggle-switch">
+                            <input
+                              type="checkbox"
+                              checked={isVisible}
+                              onChange={() => {
+                                if (isVisible) {
+                                  // If visible, deselect the metric (remove from selectedMetricIds)
+                                  handleMetricToggle(metricId);
+                                } else if (isSelected) {
+                                  // If hidden but still selected, show it again (remove from hiddenLayers)
+                                  toggleLayer(uniqueId);
+                                } else {
+                                  // If not selected, select it
+                                  handleMetricToggle(metricId);
+                                }
+                              }}
+                            />
+                            <span
+                              className="city-metrics-map-slider"
+                              style={{
+                                backgroundColor: isVisible ? layerColor : "#ccc",
+                              }}
+                            />
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </>
+            )}
 
             {/* Shapes below metrics */}
             {hasShapeLayers && (
@@ -1393,6 +2265,33 @@ export default function CityMetricsMap({
           </div>
         )}
       </div>
+      
+      {/* Media Gallery */}
+      {showMediaGallery && mediaItems.length > 0 && (
+        <MediaGallery
+          mediaItems={mediaItems}
+          currentIndex={currentMediaIndex}
+          onIndexChange={setCurrentMediaIndex}
+          onClose={() => {
+            setShowMediaGallery(false);
+            setMediaItems([]);
+            setCurrentMediaIndex(0);
+          }}
+          viewMode={mediaViewMode}
+          onViewModeChange={setMediaViewMode}
+          mapInstanceRef={mapInstanceRef}
+          onNavigateToLocation={(coordinates) => {
+            if (mapInstanceRef.current) {
+              const map = mapInstanceRef.current;
+              map.flyTo({
+                center: coordinates,
+                zoom: Math.max(map.getZoom(), 15),
+                duration: 500,
+              });
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

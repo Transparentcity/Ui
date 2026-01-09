@@ -1,12 +1,15 @@
 .chatViewRoot {
   height: 100%;
   width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .chatContainer {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   width: 100%;
 }
@@ -183,6 +186,8 @@
   display: flex;
   gap: var(--space-md);
   align-items: flex-end;
+  overflow: visible;
+  min-width: 0;
 }
 
 .chatInput {
@@ -203,16 +208,198 @@
   border-color: var(--brand-primary);
 }
 
-.modelSelect {
-  padding: var(--space-sm);
+.chatButton {
+  flex-shrink: 0;
+  min-width: fit-content;
+  white-space: nowrap;
+  padding: var(--space-sm) var(--space-md);
+  font-size: 14px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+}
+
+.stopButton {
+  flex-shrink: 0;
+  min-width: fit-content;
+  white-space: nowrap;
+  padding: var(--space-sm) var(--space-md);
+  font-size: 14px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+}
+
+.modelDropdownWrapper {
+  position: relative;
+  display: inline-block;
+  z-index: 100000;
+}
+
+.modelSelectButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   font-size: 13px;
   cursor: pointer;
   font-family: inherit;
-  max-width: 200px;
   background: var(--bg-primary);
   color: var(--text-primary);
+  min-width: 36px;
+  height: 36px;
+  transition: all 0.2s ease;
+}
+
+.modelSelectButton:hover:not(:disabled) {
+  border-color: var(--brand-primary);
+  background: var(--bg-secondary);
+}
+
+.modelSelectButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.modelSelectButtonOpen {
+  border-color: var(--brand-primary);
+  background: var(--bg-secondary);
+}
+
+.modelSelectEmoji {
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modelSelectText {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.modelSelectLoading {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.modelDropdownMenu {
+  position: absolute;
+  bottom: calc(100% + var(--space-xs));
+  right: 0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  min-width: 280px;
+  max-width: 400px;
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 100001;
+  margin-bottom: var(--space-xs);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+}
+
+.modelDropdownMenuWelcome {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: auto;
+  right: auto;
+  margin-bottom: 0;
+  z-index: 1000000;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 2px solid var(--brand-primary);
+}
+
+.modelDropdownOption {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.modelDropdownOption:hover:not(:disabled) {
+  background: var(--bg-secondary);
+}
+
+.modelDropdownOption:disabled {
+  cursor: not-allowed;
+}
+
+.modelDropdownOptionSelected {
+  background: var(--brand-primary-light);
+  border: 1px solid var(--brand-primary);
+}
+
+.modelDropdownOptionDisabled {
+  opacity: 0.5;
+}
+
+.modelDropdownOptionHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.modelDropdownOptionEmoji {
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.modelDropdownOptionName {
+  flex: 1;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.modelDropdownOptionCheck {
+  color: var(--brand-primary);
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.modelDropdownOptionDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: 30px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.modelDropdownOptionCost {
+  font-family: "Courier New", monospace;
+}
+
+.modelDropdownOptionUnavailable {
+  margin-left: 30px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-style: italic;
 }
 
 .typingIndicator {
@@ -270,6 +457,210 @@
   color: var(--text-secondary);
 }
 
+/* ============================
+   Welcome Composer (New Chat State)
+   ============================ */
+.welcomeContainer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl);
+  min-height: 0;
+  background: linear-gradient(
+    180deg,
+    var(--bg-secondary) 0%,
+    var(--bg-primary) 100%
+  );
+}
+
+.welcomeContent {
+  width: 100%;
+  max-width: 680px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xl);
+}
+
+.welcomeHeader {
+  text-align: center;
+}
+
+.welcomeBracket {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: var(--space-md);
+}
+
+.welcomeTitle {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-sm);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.welcomeSubtitle {
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.welcomeComposer {
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 16px;
+  box-shadow: 
+    0 4px 24px rgba(0, 0, 0, 0.06),
+    0 1px 3px rgba(0, 0, 0, 0.04);
+  overflow: visible;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.welcomeComposer:focus-within {
+  border-color: var(--brand-primary);
+  box-shadow: 
+    0 4px 24px rgba(173, 53, 250, 0.1),
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    0 0 0 3px rgba(173, 53, 250, 0.08);
+}
+
+.welcomeTextarea {
+  width: 100%;
+  border: none;
+  resize: none;
+  padding: var(--space-lg) var(--space-lg) 0 var(--space-lg);
+  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: transparent;
+  min-height: 100px;
+  max-height: 200px;
+}
+
+.welcomeTextarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+.welcomeTextarea:focus {
+  outline: none;
+}
+
+.welcomeActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-secondary);
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 16px;
+  overflow: hidden;
+}
+
+.welcomeModelSelect {
+  position: relative;
+  z-index: 100000;
+}
+
+.welcomeModelButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.welcomeModelButton:hover {
+  border-color: var(--brand-primary);
+  background: var(--bg-tertiary);
+}
+
+.welcomeModelEmoji {
+  font-size: 16px;
+}
+
+.welcomeModelName {
+  font-weight: 500;
+}
+
+.welcomeModelChevron {
+  font-size: 10px;
+  color: var(--text-secondary);
+  transition: transform 0.15s ease;
+}
+
+.welcomeModelChevronOpen {
+  transform: rotate(180deg);
+}
+
+.welcomeSendButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--brand-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  color: white;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.welcomeSendButton:hover:not(:disabled) {
+  background: var(--brand-primary-hover);
+  transform: translateY(-1px);
+}
+
+.welcomeSendButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.welcomeSendIcon {
+  font-size: 16px;
+}
+
+.welcomeHints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  justify-content: center;
+}
+
+.welcomeHint {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 20px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.welcomeHint:hover {
+  background: var(--brand-primary-light);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+}
+
 @media (max-width: 768px) {
   .chatMessages {
     padding: var(--space-sm);
@@ -287,5 +678,84 @@
   .assistantMessage {
     max-width: 98%;
     width: fit-content;
+  }
+
+  .modelDropdownMenu {
+    min-width: 260px;
+    max-width: calc(100vw - var(--space-lg) * 2);
+    max-height: 300px;
+  }
+
+  .welcomeContainer {
+    padding: var(--space-lg);
+  }
+
+  .welcomeBracket {
+    font-size: 36px;
+  }
+
+  .welcomeTitle {
+    font-size: 22px;
+  }
+
+  .welcomeSubtitle {
+    font-size: 14px;
+  }
+
+  .welcomeTextarea {
+    font-size: 15px;
+    min-height: 80px;
+  }
+
+  .welcomeActions {
+    flex-direction: column;
+    gap: var(--space-md);
+    align-items: stretch;
+  }
+
+  .welcomeModelButton {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .welcomeSendButton {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .welcomeHints {
+    display: none;
+  }
+
+  .chatInputArea {
+    padding: var(--space-md);
+  }
+
+  .chatInputContainer {
+    gap: var(--space-sm);
+    flex-wrap: nowrap;
+    overflow: visible;
+  }
+
+  .chatInput {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .chatButton,
+  .stopButton {
+    flex-shrink: 0;
+    min-width: 60px;
+    padding: var(--space-sm) var(--space-sm);
+    font-size: 13px;
+    height: 36px;
+  }
+
+  .stopButton {
+    min-width: 70px;
+  }
+
+  .modelDropdownWrapper {
+    flex-shrink: 0;
   }
 }

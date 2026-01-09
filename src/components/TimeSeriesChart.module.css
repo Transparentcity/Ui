@@ -1,0 +1,66 @@
+.container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.periodSelector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.periodSelector label {
+  font-weight: 500;
+  color: var(--text-primary, #222222);
+}
+
+.select {
+  padding: 6px 12px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 4px;
+  background-color: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #222222);
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.select:hover {
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--brand-primary, #ad35fa);
+  box-shadow: 0 0 0 3px rgba(173, 53, 250, 0.1);
+}
+
+.caption {
+  font-size: 12px;
+  color: var(--text-secondary, #666666);
+  margin-top: -4px;
+}
+
+.chartWrapper {
+  width: 100%;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 4px;
+  padding: 8px;
+  background-color: var(--bg-primary, #ffffff);
+}
+
+.emptyState {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-secondary, #666666);
+  font-size: 14px;
+}
+
+
+
+
+

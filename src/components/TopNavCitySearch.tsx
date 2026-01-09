@@ -6,56 +6,18 @@ import {
   searchPublicCities,
   type PublicCitySearchResult,
 } from "@/lib/publicApiClient";
+import {
+  isLikelyZipcode,
+  isLikelyAddress,
+  isGeographicQuery,
+  geocodeQuery,
+  reverseGeocode,
+  getCurrentLocation,
+  resolveCityFromGeocode,
+  type GeocodeResult,
+} from "@/lib/locationSearchUtils";
 
 import styles from "./TopNavCitySearch.module.css";
-
-type GeocodeAddress = {
-  city?: string;
-  town?: string;
-  village?: string;
-  hamlet?: string;
-  municipality?: string;
-  county?: string;
-  state?: string;
-  country?: string;
-  postcode?: string;
-};
-
-type GeocodeResult = {
-  lat: string;
-  lon: string;
-  display_name?: string;
-  address?: GeocodeAddress;
-  cityName?: string | null;
-  stateName?: string | null;
-  countryName?: string | null;
-};
-
-function isLikelyZipcode(q: string): boolean {
-  const s = q.trim();
-  return /^\d{5}(-\d{4})?$/.test(s);
-}
-
-function isLikelyAddress(q: string): boolean {
-  const s = q.trim();
-  if (s.length < 4) return false;
-  const hasDigits = /\d/.test(s);
-  const hasLetters = /[a-zA-Z]/.test(s);
-  if (!hasDigits || !hasLetters) return false;
-  return s.includes(" ") || s.includes(",");
-}
-
-function extractCityName(addr?: GeocodeAddress): string | null {
-  if (!addr) return null;
-  return (
-    addr.city ||
-    addr.town ||
-    addr.village ||
-    addr.municipality ||
-    addr.hamlet ||
-    null
-  );
-}
 
 export default function TopNavCitySearch({
   onCitySelect,
@@ -74,6 +36,7 @@ export default function TopNavCitySearch({
   const [geoLoading, setGeoLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [storedGPSLocation, setStoredGPSLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -82,7 +45,7 @@ export default function TopNavCitySearch({
 
   const trimmed = useMemo(() => query.trim(), [query]);
   const queryIsGeo = useMemo(
-    () => isLikelyZipcode(trimmed) || isLikelyAddress(trimmed),
+    () => isGeographicQuery(trimmed),
     [trimmed],
   );
 
@@ -128,7 +91,8 @@ export default function TopNavCitySearch({
       return;
     }
 
-    if (isLikelyZipcode(s) || isLikelyAddress(s)) {
+    // Don't run city search for zipcodes/addresses - they need geocoding
+    if (isGeographicQuery(s)) {
       setResults([]);
       setLoading(false);
       setError(null);
@@ -162,46 +126,24 @@ export default function TopNavCitySearch({
     onCitySelect(city.id);
   };
 
-  const resolveCityFromGeocode = async (geo: GeocodeResult) => {
-    const cityName = geo.cityName || extractCityName(geo.address);
-    const stateName = geo.stateName || geo.address?.state || null;
-
-    if (!cityName) {
-      throw new Error("Couldn't determine a city from that location.");
-    }
-
-    const cityQuery = stateName ? `${cityName}, ${stateName}` : cityName;
-    const cityResults = await searchPublicCities(cityQuery, 10);
-    const list = Array.isArray(cityResults) ? cityResults : [];
-    if (!list.length) {
-      throw new Error(`No matching city found for "${cityQuery}".`);
-    }
-
-    const normalized = cityName.trim().toLowerCase();
-    const best =
-      list.find((c) => (c.name || "").trim().toLowerCase() === normalized) ||
-      list[0];
-    
-    console.log("GPS resolved city:", best);
-    selectCity(best);
-  };
-
   const handleGeocodeQuery = async () => {
     const s = trimmed;
     if (!s) return;
     setGeoLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/geocode?q=${encodeURIComponent(s)}`, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-      });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || `Geocoding failed (${res.status})`);
+      const geo = await geocodeQuery(s);
+      const { city, coordinates } = await resolveCityFromGeocode(geo, searchPublicCities);
+      
+      // Store GPS location if we have coordinates
+      if (coordinates) {
+        setStoredGPSLocation(coordinates);
+        if (onGPSLocation) {
+          onGPSLocation(coordinates);
+        }
       }
-      const geo = (await res.json()) as GeocodeResult;
-      await resolveCityFromGeocode(geo);
+      
+      selectCity(city);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Geocoding failed");
     } finally {
@@ -210,8 +152,10 @@ export default function TopNavCitySearch({
   };
 
   const handleUseCurrentLocation = async () => {
-    if (!("geolocation" in navigator)) {
-      setError("Geolocation isn't available in this browser.");
+    // If we already have a stored GPS location, re-center the map on it
+    // Create a new object reference to ensure React sees it as a change
+    if (storedGPSLocation && onGPSLocation) {
+      onGPSLocation({ lat: storedGPSLocation.lat, lng: storedGPSLocation.lng });
       return;
     }
 
@@ -219,38 +163,38 @@ export default function TopNavCitySearch({
     setError(null);
     setDropdownOpen(true);
     try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 12000,
-          maximumAge: 30000,
-        });
-      });
-
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
+      // Get current location using shared utility
+      const location = await getCurrentLocation();
+      
+      // Store the GPS location for future re-centering
+      setStoredGPSLocation(location);
       
       // Notify parent about GPS location for map zooming
       if (onGPSLocation) {
-        onGPSLocation({ lat, lng });
+        onGPSLocation(location);
       }
       
-      const res = await fetch(
-        `/api/reverse-geocode?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`,
-        {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        },
-      );
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || `Reverse geocoding failed (${res.status})`);
-      }
-      const geo = (await res.json()) as GeocodeResult;
-      await resolveCityFromGeocode(geo);
+      // Reverse geocode to get city
+      const geo = await reverseGeocode(location.lat, location.lng);
+      const { city } = await resolveCityFromGeocode(geo, searchPublicCities);
+      
+      selectCity(city);
+      
+      // Reset loading state after successful completion
+      setGeoLoading(false);
     } catch (e) {
       console.error("GPS location error:", e);
-      setError(e instanceof Error ? e.message : "Failed to use current location.");
+      const errorMessage = e instanceof Error ? e.message : "Failed to use current location.";
+      
+      // Handle specific geolocation errors
+      if (errorMessage.includes("denied")) {
+        setError("Location access denied. Please enter your city manually.");
+      } else if (errorMessage.includes("timeout")) {
+        setError("Location request timed out. Please try again.");
+      } else {
+        setError(errorMessage);
+      }
+      
       setGeoLoading(false);
     }
   };
@@ -287,8 +231,8 @@ export default function TopNavCitySearch({
           <div className={styles.inputWrap}>
             <svg
               className={styles.leadingIcon}
-              width="16"
-              height="16"
+              width="14"
+              height="14"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -304,7 +248,7 @@ export default function TopNavCitySearch({
               ref={inputRef}
               className={styles.input}
               value={query}
-              placeholder={placeholder}
+              placeholder="Enter city, ZIP code, or address"
               onChange={(e) => {
                 setQuery(e.target.value);
                 setDropdownOpen(true);
@@ -320,15 +264,17 @@ export default function TopNavCitySearch({
                 }
 
                 if (e.key === "Enter") {
-                  if (queryIsGeo) {
-                    e.preventDefault();
+                  e.preventDefault();
+                  // Auto-trigger geocoding for zipcodes/addresses on Enter
+                  if (queryIsGeo && trimmed.length > 0) {
                     void handleGeocodeQuery();
                     return;
                   }
+                  // Select city if one is selected
                   if (selectedIndex >= 0 && results[selectedIndex]) {
-                    e.preventDefault();
                     selectCity(results[selectedIndex]);
                   }
+                  return;
                 }
 
                 if (!dropdownOpen) return;
@@ -358,8 +304,8 @@ export default function TopNavCitySearch({
               }}
             >
               <svg
-                width="18"
-                height="18"
+                width="16"
+                height="16"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -375,14 +321,14 @@ export default function TopNavCitySearch({
           <button
             type="button"
             className={styles.gpsBtn}
-            title="Use current location"
-            aria-label="Use current location"
+            title={storedGPSLocation ? "Re-center map on your location" : "Use current location"}
+            aria-label={storedGPSLocation ? "Re-center map on your location" : "Use current location"}
             onClick={() => void handleUseCurrentLocation()}
-            disabled={geoLoading}
+            disabled={geoLoading && !storedGPSLocation}
           >
             <svg
-              width="18"
-              height="18"
+              width="16"
+              height="16"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"

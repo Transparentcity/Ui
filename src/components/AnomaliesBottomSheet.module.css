@@ -1,0 +1,397 @@
+/* Anomalies Bottom Sheet Styles */
+.bottomSheet {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 0;
+  width: 100%;
+  max-width: 500px;
+  background: var(--bg-primary, #fff);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 999999; /* Very high z-index to be over everything including layer panel */
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.25s ease-out forwards;
+}
+
+@keyframes slideUp {
+  0% {
+    transform: translateX(-50%) translateY(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Expanded state */
+.bottomSheet[data-collapsed="false"] {
+  max-height: 50vh;
+}
+
+/* Collapsed state */
+.bottomSheet[data-collapsed="true"] {
+  padding: 0;
+  border-radius: 12px 12px 0 0;
+}
+
+/* Drag handle */
+.dragHandle {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 4px 0;
+  cursor: grab;
+}
+
+.dragBar {
+  width: 40px;
+  height: 4px;
+  background: var(--border-primary, #e5e7eb);
+  border-radius: 2px;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px 12px 16px;
+  border-bottom: 1px solid var(--border-secondary, #f0f0f0);
+}
+
+.headerTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #222);
+  display: flex;
+  align-items: center;
+}
+
+.closeBtn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  color: var(--text-secondary, #666);
+  transition: background-color 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.closeBtn:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+  color: var(--text-primary, #222);
+}
+
+/* Collapsed close button positioning */
+.bottomSheet[data-collapsed="true"] .closeBtn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+}
+
+/* Content */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px 16px 16px;
+}
+
+/* State containers */
+.stateContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-secondary, #666);
+  font-size: 13px;
+}
+
+.stateContainer i {
+  font-size: 24px;
+  color: var(--text-tertiary, #999);
+}
+
+.stateContainer[data-error="true"] {
+  color: var(--error, #ef4444);
+}
+
+.stateContainer[data-error="true"] i {
+  color: var(--error, #ef4444);
+}
+
+/* Anomalies List */
+.anomaliesList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Metric Group */
+.metricGroup {
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+  background: var(--bg-primary, #fff);
+}
+
+.metricHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-secondary, #f9fafb);
+  border-bottom: 1px solid var(--border-secondary, #f0f0f0);
+}
+
+.metricName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #222);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expandBtn {
+  display: flex;
+  align-items: center;
+  padding: 3px 8px;
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--brand-primary, #ad35fa);
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.expandBtn:hover {
+  background: var(--brand-primary-light, rgba(173, 53, 250, 0.1));
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+/* Anomaly Card */
+.anomalyCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg-primary, #fff);
+  border: none;
+  border-left: 4px solid var(--error, #ef4444);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s;
+}
+
+.anomalyCard:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.02));
+}
+
+.anomalyCard[data-is-positive="false"] {
+  border-left-color: var(--success, #10b981);
+}
+
+.sparklineContainer {
+  flex-shrink: 0;
+  width: 120px;
+  height: 60px;
+  border-radius: var(--radius-sm, 6px);
+  overflow: hidden;
+  background: var(--bg-secondary, #f9fafb);
+}
+
+.anomalyInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.anomalyText {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-primary, #222);
+}
+
+.anomalyText i {
+  color: var(--error, #ef4444);
+}
+
+.anomalyCard[data-is-positive="false"] .anomalyText i {
+  color: var(--success, #10b981);
+}
+
+.anomalyStats {
+  font-size: 11px;
+  color: var(--text-secondary, #666);
+}
+
+.dateRange {
+  font-size: 10px;
+  color: var(--text-tertiary, #888);
+  margin-top: 1px;
+}
+
+/* Sub-Anomalies */
+.subAnomalies {
+  display: flex;
+  flex-direction: column;
+  padding: 0 8px 8px 8px;
+  gap: 4px;
+}
+
+.subAnomalyCard {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--bg-secondary, #f9fafb);
+  border: none;
+  border-left: 3px solid var(--error, #ef4444);
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  text-align: left;
+  font-size: 11px;
+  color: var(--text-primary, #222);
+  transition: background-color 0.15s;
+}
+
+.subAnomalyCard:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.04));
+}
+
+.subAnomalyCard[data-is-positive="false"] {
+  border-left-color: var(--success, #10b981);
+}
+
+.subAnomalyCard i {
+  color: var(--error, #ef4444);
+}
+
+.subAnomalyCard[data-is-positive="false"] i {
+  color: var(--success, #10b981);
+}
+
+.subAnomalyDate {
+  font-size: 10px;
+  color: var(--text-tertiary, #888);
+  font-weight: normal;
+}
+
+/* Collapsed Card */
+.collapsedCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 48px 12px 12px; /* Extra padding on right for close button */
+  background: var(--bg-primary, #fff);
+  border: none;
+  border-left: 4px solid var(--error, #ef4444);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s;
+}
+
+.collapsedCard:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.02));
+}
+
+.collapsedCard[data-is-positive="false"] {
+  border-left-color: var(--success, #10b981);
+}
+
+.collapsedSparkline {
+  flex-shrink: 0;
+  width: 100px;
+  height: 50px;
+  border-radius: var(--radius-sm, 6px);
+  overflow: hidden;
+  background: var(--bg-secondary, #f9fafb);
+}
+
+.collapsedInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.collapsedMetric {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #222);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collapsedText {
+  font-size: 11px;
+  color: var(--text-secondary, #666);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.collapsedText i {
+  color: var(--error, #ef4444);
+}
+
+.collapsedCard[data-is-positive="false"] .collapsedText i {
+  color: var(--success, #10b981);
+}
+
+.collapsedDate {
+  font-size: 10px;
+  color: var(--text-tertiary, #888);
+  margin-top: 1px;
+}
+
+.collapsedActions {
+  flex-shrink: 0;
+  color: var(--brand-primary, #ad35fa);
+  font-size: 14px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 540px) {
+  .bottomSheet {
+    max-width: 100%;
+    left: 0;
+    right: 0;
+    transform: none;
+    border-radius: 12px 12px 0 0;
+  }
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .bottomSheet[data-collapsed="false"] {
+    max-height: 60vh;
+  }
+}

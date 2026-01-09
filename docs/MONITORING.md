@@ -408,3 +408,12 @@ After setting up monitoring:
 - **LogRocket**: https://docs.logrocket.com/docs/nextjs
 - **Google Analytics**: https://developers.google.com/analytics
 
+
+
+
+
+
+
+
+
+

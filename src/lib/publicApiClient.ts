@@ -100,4 +100,18 @@ export function searchPublicCities(
   ).then(sortUsCitiesFirst);
 }
 
+// Public maps for sitemap
+export type PublicMapSitemapItem = {
+  id: number;
+  short_hash: string;
+  title: string;
+  city_name: string | null;
+};
+
+export function listPublicMapsForSitemap(): Promise<PublicMapSitemapItem[]> {
+  return requestPublic<{ maps: PublicMapSitemapItem[] }>("/api/maps/public").then(
+    (response) => response.maps || []
+  );
+}
+
 

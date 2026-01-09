@@ -1,7 +1,9 @@
 "use client";
 
 import MetricDateRangeSelector from "@/components/MetricDateRangeSelector";
+import AnomaliesAlertIcon from "@/components/AnomaliesAlertIcon";
 import type { MetricDateRange } from "@/lib/dateRange";
+import type { AnomalyResult } from "@/lib/hooks/useAnomalies";
 
 interface CityHeaderProps {
   emoji?: string;
@@ -13,6 +15,11 @@ interface CityHeaderProps {
   onMetricDateRangeChange?: (next: MetricDateRange) => void;
   variant?: "overlay" | "standard";
   visible?: boolean;
+  showDateRange?: boolean; // Control whether to show date range in header
+  cityId?: number; // City ID for anomaly alerts
+  selectedDistrict?: number | null; // District filter for anomalies (synced with map)
+  selectedAnomaly?: AnomalyResult | null; // Currently selected anomaly
+  onAnomalySelect?: (anomaly: AnomalyResult | null) => void; // Callback when anomaly is selected/cleared
 }
 
 export default function CityHeader({
@@ -25,6 +32,11 @@ export default function CityHeader({
   onMetricDateRangeChange,
   variant = "standard",
   visible = true,
+  showDateRange = true, // Default to showing date range
+  cityId,
+  selectedDistrict,
+  selectedAnomaly,
+  onAnomalySelect,
 }: CityHeaderProps) {
   const className = variant === "overlay" 
     ? `city-header-overlay ${visible ? "visible" : "hidden"}`
@@ -35,7 +47,7 @@ export default function CityHeader({
       <div className="city-header-left">
         {emoji && <span className="city-emoji-icon">{emoji}</span>}
         <h1 className="city-name">{name}</h1>
-        {metricDateRange && onMetricDateRangeChange ? (
+        {showDateRange && metricDateRange && onMetricDateRangeChange ? (
           <MetricDateRangeSelector
             value={metricDateRange}
             onChange={onMetricDateRangeChange}
@@ -43,6 +55,15 @@ export default function CityHeader({
         ) : null}
       </div>
       <div className="city-header-right">
+        {/* Anomaly Alert Icon */}
+        {cityId && (
+          <AnomaliesAlertIcon
+            cityId={cityId}
+            district={selectedDistrict}
+            selectedAnomaly={selectedAnomaly}
+            onAnomalySelect={onAnomalySelect}
+          />
+        )}
         <button
           id="save-city-btn"
           className={`save-city-btn ${isCitySaved ? "saved" : ""}`}

@@ -16,3 +16,12 @@ export default function robots(): MetadataRoute.Robots {
     sitemap: `${origin}/sitemap.xml`,
   };
 }
+
+
+
+
+
+
+
+
+

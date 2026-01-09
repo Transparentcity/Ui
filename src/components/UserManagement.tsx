@@ -7,6 +7,7 @@ import {
   updateUser,
   makeUserAdmin,
   getUserStats,
+  getDatabaseSize,
   listCities,
   getUserCityLeads,
   setUserCityLeads,
@@ -14,6 +15,7 @@ import {
   type UserUpdateRequest,
   type UserStats,
   type CityListItem,
+  type DatabaseSizeResponse,
 } from "@/lib/apiClient";
 import Loader from "./Loader";
 import styles from "./UserManagement.module.css";
@@ -21,6 +23,9 @@ import styles from "./UserManagement.module.css";
 export default function UserManagement() {
   const { getAccessTokenSilently } = useAuth0();
   const [stats, setStats] = useState<UserStats | null>(null);
+  const [dbSize, setDbSize] = useState<DatabaseSizeResponse | null>(null);
+  const [dbSizeLoading, setDbSizeLoading] = useState(false);
+  const [showDbSize, setShowDbSize] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [cities, setCities] = useState<CityListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,6 +67,20 @@ export default function UserManagement() {
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
       setLoading(false);
+    }
+  }, [getAccessTokenSilently]);
+
+  // Load database size data
+  const loadDatabaseSize = useCallback(async () => {
+    try {
+      setDbSizeLoading(true);
+      const token = await getAccessTokenSilently();
+      const sizeData = await getDatabaseSize(token);
+      setDbSize(sizeData);
+    } catch (err) {
+      console.error("Error loading database size:", err);
+    } finally {
+      setDbSizeLoading(false);
     }
   }, [getAccessTokenSilently]);
 
@@ -340,7 +359,174 @@ export default function UserManagement() {
             </div>
           </div>
         </div>
+
+        {/* Database Size Card */}
+        <div className={styles.statCard} style={{ gridColumn: "span 2" }}>
+          <div className={styles.statCardContent}>
+            <div className={styles.statCardInner} style={{ justifyContent: "space-between", width: "100%", flexWrap: "wrap", gap: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "16px", flex: 1 }}>
+                <div className={styles.statIcon}>
+                  <i
+                    className="fas fa-database"
+                    style={{ fontSize: "32px", color: "var(--brand-primary)" }}
+                  ></i>
+                </div>
+                <div className={styles.statText} style={{ flex: 1 }}>
+                  <div className={styles.statLabel}>Database Size</div>
+                  <div className={styles.statValue}>
+                    {dbSize?.total_size_with_indexes ?? stats?.database_size ?? "—"}
+                  </div>
+                  {dbSize && (
+                    <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>
+                      Data: {dbSize.total_database_size} • Indexes: {dbSize.indexes_size}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  if (!showDbSize && !dbSize) {
+                    loadDatabaseSize();
+                  }
+                  setShowDbSize(!showDbSize);
+                }}
+                className={styles.refreshBtn}
+                style={{ marginLeft: "auto" }}
+              >
+                <i className={`fas fa-${showDbSize ? "chevron-up" : "chevron-down"}`} style={{ marginRight: "4px" }}></i>
+                {showDbSize ? " Hide Details" : " Show Details"}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Database Size Details */}
+      {showDbSize && (
+        <div style={{ marginTop: "24px", marginBottom: "24px" }}>
+          <div className={styles.tableContainer}>
+            <div className={styles.tableHeader}>
+              <h3 className={styles.tableTitle}>Database Size by Table</h3>
+              <button
+                onClick={loadDatabaseSize}
+                className={styles.refreshBtn}
+                disabled={dbSizeLoading}
+              >
+                <i 
+                  className="fas fa-sync-alt" 
+                  style={{ 
+                    animation: dbSizeLoading ? "spin 1s linear infinite" : "none",
+                    display: "inline-block"
+                  }}
+                ></i>
+                Refresh
+              </button>
+            </div>
+            {dbSizeLoading && !dbSize ? (
+              <div style={{ padding: "24px", textAlign: "center" }}>
+                <Loader size="sm" color="dark" />
+                <span className={styles.loadingText} style={{ marginLeft: "8px" }}>Loading database size...</span>
+              </div>
+            ) : dbSize ? (
+              <>
+                {dbSize.note && (
+                  <div style={{ 
+                    padding: "12px 16px", 
+                    marginBottom: "16px", 
+                    backgroundColor: "var(--bg-secondary)", 
+                    borderRadius: "var(--radius-sm)",
+                    fontSize: "13px",
+                    color: "var(--text-secondary)",
+                    borderLeft: "3px solid var(--brand-primary)"
+                  }}>
+                    <i className="fas fa-info-circle" style={{ marginRight: "8px" }}></i>
+                    {dbSize.note}
+                  </div>
+                )}
+                <div style={{ marginBottom: "16px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
+                  <div style={{ padding: "12px", backgroundColor: "var(--bg-secondary)", borderRadius: "var(--radius-sm)" }}>
+                    <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "4px" }}>Data Size</div>
+                    <div style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)" }}>
+                      {dbSize.total_database_size}
+                    </div>
+                  </div>
+                  <div style={{ padding: "12px", backgroundColor: "var(--bg-secondary)", borderRadius: "var(--radius-sm)" }}>
+                    <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "4px" }}>Indexes Size</div>
+                    <div style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)" }}>
+                      {dbSize.indexes_size}
+                    </div>
+                  </div>
+                  <div style={{ padding: "12px", backgroundColor: "var(--bg-secondary)", borderRadius: "var(--radius-sm)" }}>
+                    <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "4px" }}>Total (Data + Indexes)</div>
+                    <div style={{ fontSize: "16px", fontWeight: 600, color: "var(--brand-primary)" }}>
+                      {dbSize.total_size_with_indexes}
+                    </div>
+                  </div>
+                </div>
+                <div className={styles.tableWrapper}>
+                  <table className={styles.table}>
+                    <thead className={styles.tableHead}>
+                      <tr>
+                        <th className={styles.tableHeaderCell}>Table</th>
+                        <th className={styles.tableHeaderCell}>Size</th>
+                        <th className={styles.tableHeaderCell}>Rows</th>
+                        <th className={styles.tableHeaderCell}>Inactive Rows</th>
+                      </tr>
+                    </thead>
+                    <tbody className={styles.tableBody}>
+                      {dbSize.tables.map((table) => (
+                        <tr key={table.table_name} className={styles.tableRow}>
+                          <td className={styles.tableCell}>
+                            <code style={{ fontSize: "13px", color: "var(--text-primary)" }}>
+                              {table.table_name}
+                            </code>
+                          </td>
+                          <td className={styles.tableCell}>
+                            <strong>{table.size}</strong>
+                          </td>
+                          <td className={styles.tableCell}>
+                            {table.row_count.toLocaleString()}
+                          </td>
+                          <td className={styles.tableCell}>
+                            {table.inactive_rows > 0 ? (
+                              <span style={{ color: "var(--warning)" }}>
+                                {table.inactive_rows.toLocaleString()}
+                              </span>
+                            ) : (
+                              <span style={{ color: "var(--text-tertiary)" }}>—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className={styles.tableRow} style={{ backgroundColor: "var(--bg-secondary)", fontWeight: 600 }}>
+                        <td className={styles.tableCell}>
+                          <strong>Total</strong>
+                        </td>
+                        <td className={styles.tableCell}>
+                          <strong>{dbSize.total_size_with_indexes}</strong>
+                        </td>
+                        <td className={styles.tableCell}>
+                          {dbSize.tables.reduce((sum, t) => sum + t.row_count, 0).toLocaleString()}
+                        </td>
+                        <td className={styles.tableCell}>
+                          {dbSize.tables.reduce((sum, t) => sum + t.inactive_rows, 0).toLocaleString()}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div style={{ padding: "12px", fontSize: "12px", color: "var(--text-tertiary)", textAlign: "right" }}>
+                    Last updated: {new Date(dbSize.timestamp).toLocaleString()}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div style={{ padding: "24px", textAlign: "center", color: "var(--text-secondary)" }}>
+                Click "Show Details" to load database size information
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Filters and Search */}
       <div className={styles.filtersContainer}>

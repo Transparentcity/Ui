@@ -23,3 +23,12 @@ export default function JobBadge({ activeJobCount, onClick }: JobBadgeProps) {
 }
 
 
+
+
+
+
+
+
+
+
+

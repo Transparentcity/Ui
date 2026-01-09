@@ -16,6 +16,12 @@ interface Session {
   is_active: boolean;
 }
 
+// Helper function to check if a session is a synthesis session
+function isSynthesisSession(session: Session): boolean {
+  const title = session.title?.toLowerCase() || "";
+  return title.includes("synthesis") || title.startsWith("research synthesis");
+}
+
 interface JobSessionListProps {
   onSessionClick: (sessionId: string) => void;
   currentSessionId?: string | null;
@@ -168,7 +174,25 @@ export default function JobSessionList({
             onClick={() => handleSessionClick(session.session_id)}
           >
             <div className={styles.title}>
-              {session.title || "Job Session"}
+              {isSynthesisSession(session) ? (
+                <>
+                  <span style={{ 
+                    color: "var(--text-primary)", 
+                    fontSize: "0.9em",
+                    marginRight: "8px",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px"
+                  }}>
+                    Synthesis
+                  </span>
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    {session.title.replace(/^research synthesis:\s*/i, "") || "Session"}
+                  </span>
+                </>
+              ) : (
+                session.title || "Job Session"
+              )}
             </div>
           </div>
           <button

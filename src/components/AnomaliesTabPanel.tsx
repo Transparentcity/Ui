@@ -1,0 +1,458 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import { useCityAnomalies, type AnomalyResult } from "@/lib/hooks/useAnomalies";
+import { useCityLeaders } from "@/lib/hooks/useCities";
+import AnomalySparkline from "./AnomalySparkline";
+import AnomalyChartModal from "./AnomalyChartModal";
+import styles from "./AnomaliesTabPanel.module.css";
+
+interface AnomaliesTabPanelProps {
+  cityId: number;
+  initialDistrict?: number | null;
+}
+
+// Period type options
+const PERIOD_TYPES = [
+  { value: "week", label: "Weekly" },
+  { value: "day", label: "Daily" },
+  { value: "month", label: "Monthly" },
+] as const;
+
+// Helper to group anomalies by metric
+interface AnomalyGroup {
+  metricId: number;
+  metricName: string;
+  itemNoun: string;
+  anomalies: AnomalyResult[];
+}
+
+function groupAnomaliesByMetric(anomalies: AnomalyResult[]): AnomalyGroup[] {
+  const groupMap = new Map<number, AnomalyGroup>();
+
+  anomalies.forEach((anomaly) => {
+    const metricId = anomaly.metric_id;
+    if (!groupMap.has(metricId)) {
+      groupMap.set(metricId, {
+        metricId,
+        metricName: anomaly.metric_name || anomaly.object_name || `Metric ${metricId}`,
+        itemNoun: anomaly.item_noun || "items",
+        anomalies: [],
+      });
+    }
+    groupMap.get(metricId)!.anomalies.push(anomaly);
+  });
+
+  return Array.from(groupMap.values());
+}
+
+// Helper to format a date string for display
+function formatDateForDisplay(dateStr: string): string {
+  try {
+    // Handle ISO week format: "2025-W02"
+    if (dateStr.includes("-W")) {
+      const [year, weekPart] = dateStr.split("-W");
+      return `Week ${parseInt(weekPart)} of ${year}`;
+    }
+    // Handle month format: "2025-01"
+    if (/^\d{4}-\d{2}$/.test(dateStr)) {
+      const [year, month] = dateStr.split("-");
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      return `${monthNames[parseInt(month) - 1]} ${year}`;
+    }
+    // Handle full date format: "2025-01-08"
+    const date = new Date(dateStr);
+    if (!isNaN(date.getTime())) {
+      return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    }
+    return dateStr;
+  } catch {
+    return dateStr;
+  }
+}
+
+// Helper to extract date ranges from chart_payload
+function getDateRangeInfo(chartPayload: Record<string, any> | null | undefined) {
+  if (!chartPayload?.dates || !chartPayload?.periods) {
+    return null;
+  }
+
+  const dates = chartPayload.dates as string[];
+  const periods = chartPayload.periods as string[];
+  
+  // Find recent and comparison dates
+  const recentDates: string[] = [];
+  const comparisonDates: string[] = [];
+  
+  dates.forEach((date, idx) => {
+    const period = periods[idx];
+    if (period === "recent") {
+      recentDates.push(date);
+    } else if (period === "comparison") {
+      comparisonDates.push(date);
+    }
+  });
+
+  // Get the recent date (should be the most recent)
+  const recentDate = recentDates.length > 0 
+    ? formatDateForDisplay(recentDates[recentDates.length - 1])
+    : null;
+
+  // Get comparison range
+  let comparisonRange: string | null = null;
+  if (comparisonDates.length > 0) {
+    const firstComp = formatDateForDisplay(comparisonDates[0]);
+    const lastComp = formatDateForDisplay(comparisonDates[comparisonDates.length - 1]);
+    if (firstComp === lastComp) {
+      comparisonRange = firstComp;
+    } else {
+      comparisonRange = `${firstComp} – ${lastComp}`;
+    }
+  }
+
+  return {
+    recentDate,
+    comparisonRange,
+    recentCount: recentDates.length,
+    comparisonCount: comparisonDates.length,
+  };
+}
+
+// Helper to format anomaly display info
+function getAnomalyDisplayInfo(anomaly: AnomalyResult, itemNoun: string) {
+  const recentMean = anomaly.recent_mean ?? 0;
+  const comparisonMean = anomaly.comparison_mean ?? 0;
+  const diff = recentMean - comparisonMean;
+  const absDiff = Math.abs(diff);
+  const isUp = diff > 0;
+  const moreOrFewer = isUp ? "more" : "fewer";
+
+  const displayNoun =
+    Math.round(absDiff) === 1
+      ? itemNoun
+      : itemNoun.endsWith("s")
+      ? itemNoun
+      : `${itemNoun}s`;
+
+  let locationDisplay = anomaly.group_value || "";
+  if (!locationDisplay) {
+    if (anomaly.district === 0) {
+      locationDisplay = "Citywide";
+    } else {
+      locationDisplay = `District ${anomaly.district}`;
+    }
+  }
+
+  const groupFieldLabel = anomaly.group_field || "Location";
+  
+  // Get date range info
+  const dateInfo = getDateRangeInfo(anomaly.chart_payload);
+
+  return {
+    recentMean,
+    comparisonMean,
+    diff,
+    absDiff,
+    isUp,
+    moreOrFewer,
+    displayNoun,
+    locationDisplay,
+    groupFieldLabel,
+    recentDate: dateInfo?.recentDate,
+    comparisonRange: dateInfo?.comparisonRange,
+  };
+}
+
+export default function AnomaliesTabPanel({
+  cityId,
+  initialDistrict,
+}: AnomaliesTabPanelProps) {
+  // -1 = all districts, 0 = citywide only, >0 = specific district
+  const [districtFilter, setDistrictFilter] = useState<number | null>(
+    initialDistrict ?? 0
+  );
+  const [periodType, setPeriodType] = useState<string>("week");
+  const [expandedMetricIds, setExpandedMetricIds] = useState<Set<number>>(
+    new Set()
+  );
+  const [selectedAnomalyId, setSelectedAnomalyId] = useState<number | null>(null);
+
+  // Fetch city leaders to get district options
+  const { data: leaders = [] } = useCityLeaders(cityId);
+
+  // Extract unique districts from leaders (excluding null/undefined/0)
+  const districtOptions = useMemo(() => {
+    const districts = new Set<number>();
+    leaders.forEach((leader) => {
+      if (leader.district && leader.district > 0) {
+        districts.add(leader.district);
+      }
+    });
+    return Array.from(districts).sort((a, b) => a - b);
+  }, [leaders]);
+
+  // Fetch anomalies
+  const { data: anomaliesData, isLoading, error } = useCityAnomalies(cityId, {
+    district: districtFilter === -1 ? undefined : districtFilter ?? undefined,
+    period_type: periodType,
+    is_anomaly: true,
+    limit: 100,
+  });
+
+  const anomalies = anomaliesData?.results ?? [];
+
+  // Group anomalies by metric
+  const groupedAnomalies = useMemo(
+    () => groupAnomaliesByMetric(anomalies),
+    [anomalies]
+  );
+
+  const toggleMetricExpanded = (metricId: number) => {
+    setExpandedMetricIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(metricId)) {
+        next.delete(metricId);
+      } else {
+        next.add(metricId);
+      }
+      return next;
+    });
+  };
+
+  const handleAnomalyClick = (anomaly: AnomalyResult) => {
+    if (anomaly.id) {
+      setSelectedAnomalyId(anomaly.id);
+    }
+  };
+
+  return (
+    <div className={styles.container}>
+      {/* Header */}
+      <div className={styles.header}>
+        <h2 className={styles.title}>
+          <i className="fas fa-bell" style={{ marginRight: "8px" }} />
+          Anomaly Alerts
+        </h2>
+        <div className={styles.filterRow}>
+          {/* Period Type Filter */}
+          <label className={styles.filterLabel}>Period:</label>
+          <select
+            className={styles.filterSelect}
+            value={periodType}
+            onChange={(e) => setPeriodType(e.target.value)}
+          >
+            {PERIOD_TYPES.map((pt) => (
+              <option key={pt.value} value={pt.value}>
+                {pt.label}
+              </option>
+            ))}
+          </select>
+
+          {/* District Filter */}
+          <label className={styles.filterLabel}>Area:</label>
+          <select
+            className={styles.filterSelect}
+            value={districtFilter ?? -1}
+            onChange={(e) => {
+              const val = parseInt(e.target.value, 10);
+              setDistrictFilter(val === -1 ? null : val);
+            }}
+          >
+            <option value={0}>Citywide Only</option>
+            <option value={-1}>Citywide + All Districts</option>
+            {districtOptions.length > 0 && (
+              <optgroup label="Individual Districts">
+                {districtOptions.map((d) => (
+                  <option key={d} value={d}>
+                    District {d}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className={styles.content}>
+        {/* Loading State */}
+        {isLoading && (
+          <div className={styles.loadingContainer}>
+            <i className="fas fa-spinner fa-spin" />
+            <span>Loading anomalies...</span>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && !isLoading && (
+          <div className={styles.errorContainer}>
+            <i className="fas fa-exclamation-triangle" />
+            <span>
+              Failed to load anomalies:{" "}
+              {error instanceof Error ? error.message : "Unknown error"}
+            </span>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!isLoading && !error && anomalies.length === 0 && (
+          <div className={styles.emptyContainer}>
+            <i className="fas fa-check-circle" />
+            <span>No significant anomalies detected</span>
+            <p className={styles.emptySubtext}>
+              Anomalies are detected when data significantly deviates from historical patterns.
+            </p>
+          </div>
+        )}
+
+        {/* Anomaly List */}
+        {!isLoading && !error && anomalies.length > 0 && (
+          <div className={styles.anomaliesList}>
+            {groupedAnomalies.map((group) => {
+              const topAnomaly = group.anomalies[0];
+              const remainingAnomalies = group.anomalies.slice(1);
+              const isExpanded = expandedMetricIds.has(group.metricId);
+              const topInfo = getAnomalyDisplayInfo(topAnomaly, group.itemNoun);
+
+              return (
+                <div key={group.metricId} className={styles.metricGroup}>
+                  {/* Metric Header */}
+                  <div className={styles.metricHeader}>
+                    <span className={styles.metricName}>{group.metricName}</span>
+                    {remainingAnomalies.length > 0 && (
+                      <button
+                        className={styles.expandBtn}
+                        onClick={() => toggleMetricExpanded(group.metricId)}
+                      >
+                        {isExpanded
+                          ? "Hide"
+                          : `+${remainingAnomalies.length} more`}
+                        <i
+                          className={`fas fa-chevron-${
+                            isExpanded ? "up" : "down"
+                          }`}
+                          style={{ marginLeft: "4px" }}
+                        />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Top Anomaly Card */}
+                  <button
+                    className={styles.anomalyCard}
+                    onClick={() => handleAnomalyClick(topAnomaly)}
+                    data-is-positive={topInfo.isUp}
+                  >
+                    {/* Sparkline Chart */}
+                    {topAnomaly.chart_payload && (
+                      <div className={styles.sparklineContainer}>
+                        <AnomalySparkline
+                          chartData={{
+                            dates: topAnomaly.chart_payload.dates || [],
+                            values: topAnomaly.chart_payload.values || [],
+                            periods: topAnomaly.chart_payload.periods || [],
+                          }}
+                          height={80}
+                          width={150}
+                          showAverage={true}
+                          showAnnotations={true}
+                        />
+                      </div>
+                    )}
+
+                    {/* Anomaly Info */}
+                    <div className={styles.anomalyInfo}>
+                      <div className={styles.anomalyText}>
+                        <i
+                          className={`fas fa-arrow-${topInfo.isUp ? "up" : "down"}`}
+                          style={{ marginRight: "4px" }}
+                        />
+                        <strong>
+                          {Math.round(topInfo.absDiff).toLocaleString()}
+                        </strong>{" "}
+                        {topInfo.moreOrFewer} {topInfo.displayNoun} than average
+                        for{" "}
+                        <strong>{topInfo.locationDisplay}</strong>
+                      </div>
+                      {/* Date Range Info */}
+                      {topInfo.recentDate && (
+                        <div className={styles.dateRange}>
+                          <span className={styles.dateLabel}>Recent:</span> {topInfo.recentDate}
+                          {topInfo.comparisonRange && (
+                            <>
+                              <span className={styles.dateSeparator}>•</span>
+                              <span className={styles.dateLabel}>Compared to:</span> {topInfo.comparisonRange}
+                            </>
+                          )}
+                        </div>
+                      )}
+                      <div className={styles.anomalyStats}>
+                        Historic Avg:{" "}
+                        {Math.round(topInfo.comparisonMean).toLocaleString()} |
+                        Recent:{" "}
+                        {Math.round(topInfo.recentMean).toLocaleString()}
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Expanded Sub-Anomalies */}
+                  {isExpanded && remainingAnomalies.length > 0 && (
+                    <div className={styles.subAnomalies}>
+                      {remainingAnomalies.map((anomaly, idx) => {
+                        const info = getAnomalyDisplayInfo(
+                          anomaly,
+                          group.itemNoun
+                        );
+                        return (
+                          <button
+                            key={anomaly.id ?? idx}
+                            className={styles.subAnomalyCard}
+                            onClick={() => handleAnomalyClick(anomaly)}
+                            data-is-positive={info.isUp}
+                          >
+                            <div className={styles.subAnomalyMain}>
+                              <i
+                                className={`fas fa-arrow-${
+                                  info.isUp ? "up" : "down"
+                                }`}
+                                style={{ marginRight: "6px" }}
+                              />
+                              <span>
+                                <strong>
+                                  {Math.round(info.absDiff).toLocaleString()}
+                                </strong>{" "}
+                                {info.moreOrFewer} {info.displayNoun} for{" "}
+                                <strong>{info.locationDisplay}</strong>
+                              </span>
+                            </div>
+                            {info.recentDate && (
+                              <span className={styles.subAnomalyDate}>
+                                {info.recentDate}
+                                {info.comparisonRange && ` vs ${info.comparisonRange}`}
+                              </span>
+                            )}
+                            <span className={styles.subAnomalyStats}>
+                              Avg: {Math.round(info.comparisonMean).toLocaleString()}{" "}
+                              | Recent: {Math.round(info.recentMean).toLocaleString()}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Anomaly Chart Modal */}
+      <AnomalyChartModal
+        anomalyId={selectedAnomalyId}
+        isOpen={selectedAnomalyId !== null}
+        onClose={() => setSelectedAnomalyId(null)}
+      />
+    </div>
+  );
+}

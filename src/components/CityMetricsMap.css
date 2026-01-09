@@ -17,7 +17,7 @@
   bottom: 48px;
   width: 280px;
   max-width: 85vw;
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.5);
   backdrop-filter: blur(10px);
   border-left: 1px solid var(--border-primary);
   box-shadow: none;
@@ -32,12 +32,18 @@
 
 [data-theme="dark"] .city-metrics-map-panel,
 .dark .city-metrics-map-panel {
-  background: rgba(30, 30, 30, 0.7);
+  background: rgba(30, 30, 30, 0.5);
   border-left-color: var(--border-primary, #374151);
 }
 
 .city-metrics-map-panel.closed {
   width: 50px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+[data-theme="dark"] .city-metrics-map-panel.closed,
+.dark .city-metrics-map-panel.closed {
+  background: rgba(30, 30, 30, 0.35);
 }
 
 .city-metrics-map-panel-header {
@@ -48,14 +54,14 @@
   border-bottom: 1px solid var(--border-primary);
   flex-shrink: 0;
   min-height: 36px;
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.6);
   cursor: grab;
   user-select: none;
 }
 
 [data-theme="dark"] .city-metrics-map-panel-header,
 .dark .city-metrics-map-panel-header {
-  background: rgba(30, 30, 30, 0.75);
+  background: rgba(30, 30, 30, 0.6);
 }
 
 .city-metrics-map-panel-toggle {

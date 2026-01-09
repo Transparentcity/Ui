@@ -19,25 +19,202 @@ import "./CityMapView.css";
 import { LAYER_COLOR_PALETTE, type LayerColor } from "@/lib/layerColors";
 import type { MetricDateRange } from "@/lib/dateRange";
 
-// Helper function to zoom map to a GPS location with 150m radius
-function zoomToGPSLocation(map: any, lat: number, lng: number) {
-  // 150 meters in degrees (approximate, varies slightly by latitude)
-  // At equator: 1 degree ≈ 111km, so 150m ≈ 0.00135 degrees
-  // We'll use a slightly larger value to account for latitude variation
-  const radiusInDegrees = 0.0015; // ~150m radius
+// Helper function to check if a point is inside a polygon (ray casting algorithm)
+function pointInPolygon(point: [number, number], polygon: [number, number][]): boolean {
+  const [x, y] = point;
+  let inside = false;
   
-  // Create bounding box around the GPS point
-  const bounds = [
-    [lng - radiusInDegrees, lat - radiusInDegrees], // Southwest corner
-    [lng + radiusInDegrees, lat + radiusInDegrees], // Northeast corner
-  ] as [[number, number], [number, number]];
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i];
+    const [xj, yj] = polygon[j];
+    
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
   
-  // Use fitBounds to zoom to the bounding box with padding
-  map.fitBounds(bounds, {
-    padding: { top: 20, bottom: 20, left: 20, right: 20 },
-    maxZoom: 18, // Don't zoom in too close
-    duration: 1000, // Smooth animation
+  return inside;
+}
+
+// Find which district contains the GPS point
+// Prioritizes shapefiles that match the primary geographic structure (used by leaders)
+function findDistrictContainingPoint(
+  lat: number, 
+  lng: number, 
+  shapefiles: CityShapefile[],
+  cityStructure?: CityStructureData | null,
+  leaders?: CityLeader[]
+): { shapefile: CityShapefile; feature: any; identifier: string | number } | null {
+  const point: [number, number] = [lng, lat];
+  
+  // Find the primary geographic structure (the one used by most leaders)
+  let primaryGeographicStructureId: number | null = null;
+  
+  if (cityStructure && leaders && leaders.length > 0) {
+    // Count which geographic_structure_id is used by most leaders
+    const structureIdCounts = new Map<number, number>();
+    leaders.forEach((leader) => {
+      if (leader.geographic_structure_id) {
+        const count = structureIdCounts.get(leader.geographic_structure_id) || 0;
+        structureIdCounts.set(leader.geographic_structure_id, count + 1);
+      }
+    });
+    
+    // Find the most common geographic_structure_id
+    let maxCount = 0;
+    structureIdCounts.forEach((count, structureId) => {
+      if (count > maxCount) {
+        maxCount = count;
+        primaryGeographicStructureId = structureId;
+      }
+    });
+    
+    // If no clear winner, try to find by name (supervisor, council, etc.)
+    if (!primaryGeographicStructureId && cityStructure.geographic_structures) {
+      const districtStructure = cityStructure.geographic_structures.find(
+        (gs) => gs.structure_name?.toLowerCase().includes('supervisor') ||
+                gs.structure_name?.toLowerCase().includes('council') ||
+                gs.structure_name?.toLowerCase().includes('ward') ||
+                gs.structure_type?.toLowerCase().includes('supervisor') ||
+                gs.structure_type?.toLowerCase().includes('council')
+      );
+      if (districtStructure && districtStructure.id !== undefined) {
+        primaryGeographicStructureId = districtStructure.id;
+      }
+    }
+  }
+  
+  // Separate shapefiles into primary (matching primary structure) and others
+  const primaryShapefiles: CityShapefile[] = [];
+  const otherShapefiles: CityShapefile[] = [];
+  
+  shapefiles.forEach((shapefile) => {
+    if (primaryGeographicStructureId && shapefile.geographic_structure_id === primaryGeographicStructureId) {
+      primaryShapefiles.push(shapefile);
+    } else {
+      otherShapefiles.push(shapefile);
+    }
   });
+  
+  // Check primary shapefiles first
+  const shapefilesToCheck = [...primaryShapefiles, ...otherShapefiles];
+  
+  for (const shapefile of shapefilesToCheck) {
+    const geometryData = shapefile.geometry_data;
+    if (!geometryData || geometryData.type !== "FeatureCollection") continue;
+    
+    for (const feature of geometryData.features) {
+      if (!feature.geometry || !feature.geometry.coordinates) continue;
+      
+      let rings: [number, number][][] = [];
+      
+      if (feature.geometry.type === "Polygon") {
+        rings = [feature.geometry.coordinates[0] as [number, number][]];
+      } else if (feature.geometry.type === "MultiPolygon") {
+        // Check each polygon in the multipolygon
+        rings = feature.geometry.coordinates.map((poly: any) => poly[0] as [number, number][]);
+      }
+      
+      for (const ring of rings) {
+        if (pointInPolygon(point, ring)) {
+          const identifier = feature.properties?.[shapefile.identifier_field || ""] || "Unknown";
+          return { shapefile, feature, identifier };
+        }
+      }
+    }
+  }
+  
+  return null;
+}
+
+// Helper function to add GPS location marker to map
+function addGPSMarker(map: any, lat: number, lng: number, markerRef: React.MutableRefObject<any>) {
+  const mapboxgl = (window as any).mapboxgl;
+  if (!mapboxgl) return;
+  
+  // Remove existing marker if any
+  if (markerRef.current) {
+    markerRef.current.remove();
+    markerRef.current = null;
+  }
+  
+  // Create a custom marker element (blue pulsing dot)
+  const el = document.createElement("div");
+  el.className = "gps-location-marker";
+  el.innerHTML = `
+    <div class="gps-marker-pulse"></div>
+    <div class="gps-marker-dot"></div>
+  `;
+  
+  // Create and add the marker
+  const marker = new mapboxgl.Marker({
+    element: el,
+    anchor: "center",
+  })
+    .setLngLat([lng, lat])
+    .addTo(map);
+  
+  markerRef.current = marker;
+  return marker;
+}
+
+// Helper function to zoom map to a GPS location - zooms in close by default
+function zoomToGPSLocation(map: any, lat: number, lng: number) {
+  // Zoom directly to the GPS point at a high zoom level (18 = street level)
+  // This provides a close-up view without constraining queries to a radius
+  map.flyTo({
+    center: [lng, lat],
+    zoom: 18, // High zoom level for close-up view
+    duration: 1000, // Smooth animation
+    essential: true, // Important animation, don't skip
+  });
+}
+
+// Zoom to district bounds containing GPS location
+// If district is found, zoom to show it, but still prioritize close-up view
+function zoomToDistrictWithGPS(
+  map: any,
+  lat: number,
+  lng: number,
+  feature: any
+) {
+  const mapboxgl = (window as any).mapboxgl;
+  if (!mapboxgl || !feature?.geometry?.coordinates) {
+    // Fallback to direct zoom if no valid feature
+    zoomToGPSLocation(map, lat, lng);
+    return;
+  }
+  
+  const bounds = new mapboxgl.LngLatBounds();
+  let hasBounds = false;
+  
+  const addCoords = (coords: [number, number][]) => {
+    coords.forEach((coord) => {
+      bounds.extend(coord);
+      hasBounds = true;
+    });
+  };
+  
+  if (feature.geometry.type === "Polygon") {
+    addCoords(feature.geometry.coordinates[0]);
+  } else if (feature.geometry.type === "MultiPolygon") {
+    feature.geometry.coordinates.forEach((poly: any) => {
+      addCoords(poly[0]);
+    });
+  }
+  
+  if (hasBounds) {
+    // Zoom to district but allow higher zoom levels for closer view
+    // This ensures we see the district context but can still zoom in close
+    map.fitBounds(bounds, {
+      padding: { top: 100, bottom: 100, left: 50, right: 50 },
+      maxZoom: 18, // Allow closer zoom than before (was 15)
+      duration: 1000,
+    });
+  } else {
+    // Fallback to direct GPS zoom if bounds couldn't be calculated
+    zoomToGPSLocation(map, lat, lng);
+  }
 }
 
 interface CityMapViewProps {
@@ -46,6 +223,9 @@ interface CityMapViewProps {
   cityData?: CityDetail | null; // Optional city data to avoid duplicate API calls
   metricDateRange?: MetricDateRange;
   gpsLocation?: { lat: number; lng: number } | null; // GPS coordinates to zoom to
+  selectedDistrict?: number | null; // Selected district number
+  onDistrictChange?: (district: number | null) => void; // Callback when district changes
+  onDataReady?: (data: { leaders: CityLeader[]; shapefiles: CityShapefile[] }) => void; // Callback when leaders and shapefiles are loaded
 }
 
 export default function CityMapView({
@@ -54,6 +234,9 @@ export default function CityMapView({
   cityData: propCityData,
   metricDateRange,
   gpsLocation,
+  selectedDistrict,
+  onDistrictChange,
+  onDataReady,
 }: CityMapViewProps) {
   const { getAccessTokenSilently } = useAuth0();
   const { theme } = useTheme();
@@ -77,7 +260,10 @@ export default function CityMapView({
 
   // Keep latest state accessible to Mapbox event handlers (which outlive renders).
   const shapefilesRef = useRef<CityShapefile[]>([]);
+  const cityStructureRef = useRef<CityStructureData | null>(null);
+  const leadersRef = useRef<CityLeader[]>([]);
   const updateMapWithEnabledLayersRef = useRef<(map: any) => void>(() => {});
+  const gpsMarkerRef = useRef<any>(null);
   
   // Update cityData when prop changes
   useEffect(() => {
@@ -89,6 +275,14 @@ export default function CityMapView({
   useEffect(() => {
     shapefilesRef.current = shapefiles;
   }, [shapefiles]);
+  
+  useEffect(() => {
+    cityStructureRef.current = cityStructure;
+  }, [cityStructure]);
+  
+  useEffect(() => {
+    leadersRef.current = leaders;
+  }, [leaders]);
 
 
   // Load city data, leaders, and shapefiles
@@ -163,14 +357,9 @@ export default function CityMapView({
           .map((l) => l.instance)
           .filter((i): i is CityShapefile => !!i);
 
-        // Default enabled set: instances with status=active and geometry present
+        // Default enabled set: empty by default (admins can manually enable layers)
+        // For non-admins, shape layers won't be shown at all
         const defaultEnabled = new Set<number>();
-        shapefilesData.forEach((sf) => {
-          const status = (sf as any).status || "active";
-          if (status === "active" && sf.geometry_data) {
-            defaultEnabled.add(sf.id);
-          }
-        });
 
         console.log("Loaded data - city:", city?.name, "leaders:", leadersData.length, "shapefiles:", shapefilesData.length);
         console.log("Shapefiles details:", shapefilesData.map((sf: any) => ({
@@ -198,14 +387,20 @@ export default function CityMapView({
         
         // Calculate map center from shapefiles BEFORE updating state
         // This ensures we have the center ready when map initializes
+        // Use enabled layers if available, otherwise use all shapefiles to center on the city
         let calculatedCenter: [number, number] | null = null;
         let calculatedZoom = 11;
         
         const enabledForBounds = shapefilesData.filter((sf) =>
           defaultEnabled.has(sf.id)
         );
+        
+        // If no layers are enabled, use all available shapefiles to center on the city
+        const shapefilesForBounds = enabledForBounds.length > 0 
+          ? enabledForBounds 
+          : shapefilesData;
 
-        if (enabledForBounds.length > 0) {
+        if (shapefilesForBounds.length > 0) {
           // Calculate center from shapefiles
           let minLng = 180;
           let maxLng = -180;
@@ -213,7 +408,7 @@ export default function CityMapView({
           let maxLat = -90;
           let hasBounds = false;
 
-          enabledForBounds.forEach((shapefile) => {
+          shapefilesForBounds.forEach((shapefile) => {
             const geometryData = shapefile.geometry_data;
             if (geometryData && geometryData.type === "FeatureCollection") {
               geometryData.features.forEach((feature: any) => {
@@ -269,13 +464,20 @@ export default function CityMapView({
         setShapeLayers(layersData);
         setEnabledLayerInstanceIds(defaultEnabled);
         
+        // Notify parent component that data is ready
+        if (onDataReady) {
+          onDataReady({
+            leaders: leadersData,
+            shapefiles: shapefilesData,
+          });
+        }
+        
         if (calculatedCenter) {
           setMapCenter(calculatedCenter);
           setMapZoom(calculatedZoom);
         } else {
           // No shapefiles available - use a reasonable default center
-          // For US cities, use center of US; for others, we'll need city coordinates
-          // This allows map to initialize even without shapefiles
+          // This fallback should rarely be needed since we use all shapefiles to center
           const defaultCenter: [number, number] = city?.country === "United States" || !city?.country
             ? [-98.5795, 39.8283] // Center of US
             : [-98.5795, 39.8283]; // Generic default (could be improved with city coordinates)
@@ -460,20 +662,95 @@ export default function CityMapView({
     };
   }, []);
 
-  // Zoom to GPS location when provided (after map is loaded)
+  // Handle GPS location: add marker, find district, zoom to it
+  // This effect runs whenever gpsLocation changes, including when it's cleared (null)
   useEffect(() => {
-    if (!mapInstanceRef.current || !gpsLocation) return;
+    if (!mapInstanceRef.current) return;
     
     const map = mapInstanceRef.current;
-    // Wait for map to be fully loaded
+    
+    // If GPS location is null, remove marker and zoom back to city default view
+    if (!gpsLocation) {
+      // Remove GPS marker if it exists
+      if (gpsMarkerRef.current) {
+        gpsMarkerRef.current.remove();
+        gpsMarkerRef.current = null;
+      }
+      
+      // Zoom back to city's default view (mapCenter and mapZoom)
+      if (mapCenter && mapZoom !== null) {
+        map.flyTo({
+          center: mapCenter,
+          zoom: mapZoom,
+          duration: 1000,
+          essential: true,
+        });
+      }
+      return;
+    }
+    
+    // GPS location is set - add marker and zoom to it
+    const handleGPSLocation = () => {
+      // Always add/update blue dot marker at GPS location (blinking indicator)
+      addGPSMarker(map, gpsLocation.lat, gpsLocation.lng, gpsMarkerRef);
+      
+      // Find which district contains the GPS location
+      // Prioritize shapefiles that match the primary geographic structure (supervisor districts)
+      const district = findDistrictContainingPoint(
+        gpsLocation.lat,
+        gpsLocation.lng,
+        shapefilesRef.current,
+        cityStructureRef.current,
+        leadersRef.current
+      );
+      
+      if (district) {
+        console.log("GPS location is in district:", district.identifier, "shapefile:", district.shapefile.shapefile_name);
+        
+        // Convert district identifier to number
+        let districtNum: number | null = null;
+        if (typeof district.identifier === "number") {
+          districtNum = district.identifier;
+        } else if (typeof district.identifier === "string") {
+          const parsed = parseInt(district.identifier, 10);
+          if (!isNaN(parsed)) {
+            districtNum = parsed;
+          }
+        }
+        
+        // Set the selected district to filter data to this district
+        if (districtNum !== null && onDistrictChange) {
+          onDistrictChange(districtNum);
+        }
+        
+        // Zoom to district bounds (not just GPS point) to show the full district context
+        zoomToDistrictWithGPS(map, gpsLocation.lat, gpsLocation.lng, district.feature);
+      } else {
+        console.log("GPS location is not within any known district - zooming to location");
+        // No district found, just zoom to the GPS location
+        zoomToGPSLocation(map, gpsLocation.lat, gpsLocation.lng);
+      }
+    };
+    
+    // Wait for map to be fully loaded, then handle GPS location
     if (map.loaded()) {
-      zoomToGPSLocation(map, gpsLocation.lat, gpsLocation.lng);
+      handleGPSLocation();
     } else {
       map.once("load", () => {
-        zoomToGPSLocation(map, gpsLocation.lat, gpsLocation.lng);
+        handleGPSLocation();
       });
     }
-  }, [gpsLocation]);
+  }, [gpsLocation, mapCenter, mapZoom]);
+  
+  // Cleanup GPS marker on unmount
+  useEffect(() => {
+    return () => {
+      if (gpsMarkerRef.current) {
+        gpsMarkerRef.current.remove();
+        gpsMarkerRef.current = null;
+      }
+    };
+  }, []);
 
   // Update map style when theme changes
   useEffect(() => {
@@ -829,12 +1106,100 @@ export default function CityMapView({
     updateMapWithEnabledLayers(mapInstanceRef.current);
   }, [enabledLayerInstanceIds, shapefiles, removeAllShapefileLayers, updateMapWithEnabledLayers]);
 
-  const availableShapeLayerInstances = getOrderedShapeLayerItems().map((x) => ({
-    instance_id: x.instance_id,
-    label: x.label,
-    icon: x.icon,
-    color: x.color,
-  }));
+  // Zoom to selected district when it changes (skip district 0 which is citywide)
+  useEffect(() => {
+    if (!mapInstanceRef.current || !mapInstanceRef.current.loaded() || selectedDistrict === null || selectedDistrict === 0) {
+      // For district 0 (citywide/mayor), don't zoom to a specific district - show the whole city
+      return;
+    }
+
+    const map = mapInstanceRef.current;
+    const mapboxgl = (window as any).mapboxgl;
+    if (!mapboxgl) return;
+
+    // Find the district feature in shapefiles
+    let districtFeature: any = null;
+    let districtShapefile: CityShapefile | null = null;
+
+    for (const shapefile of shapefiles) {
+      let geometryData = shapefile.geometry_data;
+      
+      // Handle case where geometry_data might be a string
+      if (typeof geometryData === 'string') {
+        try {
+          geometryData = JSON.parse(geometryData);
+        } catch (e) {
+          console.error("Failed to parse geometry_data as JSON:", e);
+          continue;
+        }
+      }
+      
+      if (!geometryData || geometryData.type !== "FeatureCollection") continue;
+
+      for (const feature of geometryData.features) {
+        const identifier = feature.properties?.[shapefile.identifier_field || ""];
+        let districtNum: number | null = null;
+
+        if (typeof identifier === "number") {
+          districtNum = identifier;
+        } else if (typeof identifier === "string") {
+          const parsed = parseInt(identifier, 10);
+          if (!isNaN(parsed)) {
+            districtNum = parsed;
+          }
+        }
+
+        if (districtNum === selectedDistrict) {
+          districtFeature = feature;
+          districtShapefile = shapefile;
+          break;
+        }
+      }
+
+      if (districtFeature) break;
+    }
+
+    if (districtFeature && districtFeature.geometry && districtFeature.geometry.coordinates) {
+      const bounds = new mapboxgl.LngLatBounds();
+      let hasBounds = false;
+
+      const coords = districtFeature.geometry.coordinates;
+      if (districtFeature.geometry.type === "Polygon") {
+        coords[0].forEach((coord: [number, number]) => {
+          bounds.extend(coord);
+          hasBounds = true;
+        });
+      } else if (districtFeature.geometry.type === "MultiPolygon") {
+        coords.forEach((polygon: any) => {
+          polygon[0].forEach((coord: [number, number]) => {
+            bounds.extend(coord);
+            hasBounds = true;
+          });
+        });
+      }
+
+      if (hasBounds) {
+        // Just zoom to district bounds - don't automatically enable shapefile layer
+        // User can manually enable shapefile layers if they want to see the boundaries
+        // Note: Use fitBounds() not flyTo() - flyTo() doesn't support bounds parameter
+        map.fitBounds(bounds, {
+          padding: { top: 100, bottom: 100, left: 50, right: 50 },
+          maxZoom: 14,
+          duration: 1000,
+        });
+      }
+    }
+  }, [selectedDistrict, shapefiles, mapInstanceRef, enabledLayerInstanceIds]);
+
+  // Only show shape layers for admins; non-admins won't see them at all
+  const availableShapeLayerInstances = isAdmin
+    ? getOrderedShapeLayerItems().map((x) => ({
+        instance_id: x.instance_id,
+        label: x.label,
+        icon: x.icon,
+        color: x.color,
+      }))
+    : [];
 
   if (loading) {
     return (
@@ -853,52 +1218,53 @@ export default function CityMapView({
     );
   }
 
-  // Set default enabled layers based on leaders' geographic_structure_id (best effort)
-  useEffect(() => {
-    // Only set default once when data is ready and not already set
-    if (defaultStructureSet || !structureDataReady || shapefiles.length === 0 || leaders.length === 0) {
-      return;
-    }
+  // Disabled: Set default enabled layers based on leaders' geographic_structure_id
+  // By default, no shape layers are activated in map mode - users must manually enable them
+  // useEffect(() => {
+  //   // Only set default once when data is ready and not already set
+  //   if (defaultStructureSet || !structureDataReady || shapefiles.length === 0 || leaders.length === 0) {
+  //     return;
+  //   }
 
-    // Find the most common geographic_structure_id among leaders
-    const structureIdCounts = new Map<number, number>();
-    leaders.forEach((leader) => {
-      if (leader.geographic_structure_id) {
-        const count = structureIdCounts.get(leader.geographic_structure_id) || 0;
-        structureIdCounts.set(leader.geographic_structure_id, count + 1);
-      }
-    });
+  //   // Find the most common geographic_structure_id among leaders
+  //   const structureIdCounts = new Map<number, number>();
+  //   leaders.forEach((leader) => {
+  //     if (leader.geographic_structure_id) {
+  //       const count = structureIdCounts.get(leader.geographic_structure_id) || 0;
+  //       structureIdCounts.set(leader.geographic_structure_id, count + 1);
+  //     }
+  //   });
 
-    if (structureIdCounts.size === 0) {
-      return;
-    }
+  //   if (structureIdCounts.size === 0) {
+  //     return;
+  //   }
 
-    // Find the most common geographic_structure_id
-    let mostCommonStructureId: number | null = null;
-    let maxCount = 0;
-    structureIdCounts.forEach((count, structureId) => {
-      if (count > maxCount) {
-        maxCount = count;
-        mostCommonStructureId = structureId;
-      }
-    });
+  //   // Find the most common geographic_structure_id
+  //   let mostCommonStructureId: number | null = null;
+  //   let maxCount = 0;
+  //   structureIdCounts.forEach((count, structureId) => {
+  //     if (count > maxCount) {
+  //       maxCount = count;
+  //       mostCommonStructureId = structureId;
+  //     }
+  //   });
 
-    if (mostCommonStructureId) {
-      const matching = shapefiles.filter(
-        (sf) => sf.geographic_structure_id === mostCommonStructureId
-      );
+  //   if (mostCommonStructureId) {
+  //     const matching = shapefiles.filter(
+  //       (sf) => sf.geographic_structure_id === mostCommonStructureId
+  //     );
 
-      if (matching.length > 0) {
-        setEnabledLayerInstanceIds((prev) => {
-          const next = new Set(prev);
-          matching.forEach((m) => next.add(m.id));
-          return next;
-        });
-        setDefaultStructureSet(true);
-        console.log("Enabled default layers based on leaders");
-      }
-    }
-  }, [structureDataReady, shapefiles, leaders, defaultStructureSet]);
+  //     if (matching.length > 0) {
+  //       setEnabledLayerInstanceIds((prev) => {
+  //         const next = new Set(prev);
+  //         matching.forEach((m) => next.add(m.id));
+  //         return next;
+  //       });
+  //       setDefaultStructureSet(true);
+  //       console.log("Enabled default layers based on leaders");
+  //     }
+  //   }
+  // }, [structureDataReady, shapefiles, leaders, defaultStructureSet]);
 
   return (
     <div className="city-map-view">
@@ -916,6 +1282,8 @@ export default function CityMapView({
           enabledShapeLayerInstanceIds={enabledLayerInstanceIds}
           setEnabledShapeLayerInstanceIds={setEnabledLayerInstanceIds}
           metricDateRange={metricDateRange}
+          gpsLocation={gpsLocation}
+          selectedDistrict={selectedDistrict}
         />
       </div>
     </div>

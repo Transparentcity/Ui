@@ -3,15 +3,20 @@
 import { useState, useRef, useEffect, useCallback, ReactElement } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import ChatSessionLoader from "./ChatSessionLoader";
 import ToolCall from "./ToolCall";
+import SessionHeader from "./SessionHeader";
+import Loader from "./Loader";
 import styles from "./ChatView.module.css";
 import {
   sendChatMessageStream,
   createNewSession,
   getAvailableModels,
+  getSessionStats,
   type ModelGroupInfo,
   type StreamEvent,
+  type SessionStats,
 } from "@/lib/apiClient";
 import {
   PREFERRED_DEFAULT_MODEL_KEY,
@@ -45,17 +50,47 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
   const [isTyping, setIsTyping] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(sessionId);
+  const [currentSessionId, setCurrentSessionIdInternal] = useState<string | null>(sessionId);
+  
+  // Wrap setCurrentSessionId to log all changes
+  const setCurrentSessionId = (newId: string | null) => {
+    console.log("📊 setCurrentSessionId called:", {
+      from: currentSessionId,
+      to: newId,
+      stack: new Error().stack?.split('\n').slice(2, 5).join('\n'),
+    });
+    setCurrentSessionIdInternal(newId);
+  };
   const [currentSession, setCurrentSession] = useState<any>(null);
   const [selectedModel, setSelectedModel] = useState<string>(
     PREFERRED_DEFAULT_MODEL_KEY
   );
   const [availableModels, setAvailableModels] = useState<ModelGroupInfo[]>([]);
   const [currentAssistantMessageId, setCurrentAssistantMessageId] = useState<string | null>(null);
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
+  const [sessionStats, setSessionStats] = useState<SessionStats | null>(() => {
+    // Initialize stats if sessionId is provided on mount
+    if (sessionId) {
+      console.log("📊 Initializing with sessionId, setting placeholder stats:", sessionId);
+      return {
+        session_id: sessionId,
+        total_tokens_used: 0,
+        llm_call_count: 0,
+        total_execution_time_ms: 0,
+        model_key: PREFERRED_DEFAULT_MODEL_KEY,
+        last_message_at: null,
+        created_at: new Date().toISOString(),
+      };
+    }
+    return null;
+  });
+  const modelDropdownRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasShownWelcome = useRef(false);
   const hasPendingSendRef = useRef(false);
   const pendingSessionIdRef = useRef<string | null>(null);
+  const statsSetFromSessionLoadRef = useRef<string | null>(null); // Track which session had stats set from handleSessionLoaded
   
   // Refs for streaming state (reused across stream calls)
   const streamingStateRef = useRef<{
@@ -72,8 +107,11 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
   } | null>(null);
 
   // Update when sessionId prop changes
+  // CRITICAL: This effect ensures stats are ALWAYS set when we have a sessionId
   useEffect(() => {
-    if (sessionId !== currentSessionId) {
+    // If sessionId prop is provided but currentSessionId doesn't match, update it
+    if (sessionId && sessionId !== currentSessionId) {
+      console.log("📊 sessionId prop changed, updating currentSessionId:", sessionId);
       const isBootstrappedSessionAssignment =
         pendingSessionIdRef.current !== null &&
         sessionId === pendingSessionIdRef.current;
@@ -88,16 +126,61 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
         setCurrentAssistantMessageId(null);
       }
       
+      // Set currentSessionId FIRST so the header knows we have a session
+      console.log("📊 Setting currentSessionId to:", sessionId);
       setCurrentSessionId(sessionId);
       if (isBootstrappedSessionAssignment) {
         pendingSessionIdRef.current = null;
       }
-      // Reset welcome flag when session changes
-      if (!sessionId) {
-        hasShownWelcome.current = false;
-      }
+      
+      // IMMEDIATELY set placeholder stats so header appears right away
+      // This is critical for old conversations - header should show immediately
+      setSessionStats((prevStats) => {
+        // Only set if we don't already have stats for this exact session
+        if (!prevStats || prevStats.session_id !== sessionId) {
+          console.log("📊 Setting initial placeholder stats for session:", sessionId);
+          return {
+            session_id: sessionId,
+            total_tokens_used: 0,
+            llm_call_count: 0,
+            total_execution_time_ms: 0,
+            model_key: selectedModel || PREFERRED_DEFAULT_MODEL_KEY,
+            last_message_at: null,
+            created_at: new Date().toISOString(),
+          };
+        }
+        // Keep existing stats for this session
+        return prevStats;
+      });
+    } else if (!sessionId && currentSessionId) {
+      // Reset when sessionId prop becomes null
+      console.log("📊 sessionId prop is null, clearing session and currentSessionId");
+      hasShownWelcome.current = false;
+      setSessionStats(null);
+      statsSetFromSessionLoadRef.current = null;
+      setCurrentSessionId(null);
+    } else if (sessionId && sessionId === currentSessionId) {
+      // Ensure stats exist even if they were cleared somehow
+      // This is a safety net to prevent header from disappearing
+      setSessionStats((prevStats) => {
+        if (!prevStats || prevStats.session_id !== sessionId) {
+          console.log("📊 Safety net: Ensuring stats exist for session:", sessionId);
+          return {
+            session_id: sessionId,
+            total_tokens_used: 0,
+            llm_call_count: 0,
+            total_execution_time_ms: 0,
+            model_key: selectedModel || PREFERRED_DEFAULT_MODEL_KEY,
+            last_message_at: null,
+            created_at: new Date().toISOString(),
+          };
+        }
+        return prevStats;
+      });
     }
-  }, [sessionId, currentSessionId]);
+    // Remove sessionStats from deps - we use functional update to access it
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, currentSessionId, selectedModel]);
 
   // Show welcome message when no session is loaded (only once)
   useEffect(() => {
@@ -121,6 +204,76 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Fetch session stats when session changes, but NOT during streaming
+  // This prevents the header from disappearing during message streaming
+  useEffect(() => {
+    // Don't fetch during streaming - wait until it's complete
+    if (isStreaming) {
+      return;
+    }
+
+    // Don't clear stats if we have a sessionId - keep them visible
+    if (!currentSessionId) {
+      // Only clear stats if we truly have no session and aren't waiting for one
+      if (!pendingSessionIdRef.current && !sessionId) {
+        setSessionStats(null);
+        statsSetFromSessionLoadRef.current = null;
+      }
+      return;
+    }
+
+    // CRITICAL: Always ensure we have stats when we have a sessionId
+    // Check if we need to set placeholder stats first
+    setSessionStats((prevStats) => {
+      // If we don't have stats for this session, set placeholder immediately
+      if (!prevStats || prevStats.session_id !== currentSessionId) {
+        console.log("📊 useEffect: Setting placeholder stats for session:", currentSessionId);
+        return {
+          session_id: currentSessionId,
+          total_tokens_used: 0,
+          llm_call_count: 0,
+          total_execution_time_ms: 0,
+          model_key: selectedModel || PREFERRED_DEFAULT_MODEL_KEY,
+          last_message_at: null,
+          created_at: new Date().toISOString(),
+        };
+      }
+      return prevStats;
+    });
+
+    // Fetch stats for the current session to ensure they're up to date
+    // But preserve existing stats if the fetch fails
+    const fetchStats = async () => {
+      try {
+        const token = await getAccessTokenSilently();
+        const stats = await getSessionStats(currentSessionId, token);
+        console.log("📊 useEffect: Fetched stats from API:", {
+          session_id: stats.session_id,
+          total_tokens_used: stats.total_tokens_used,
+          llm_call_count: stats.llm_call_count,
+          total_execution_time_ms: stats.total_execution_time_ms,
+          model_key: stats.model_key,
+          hasRealData: stats.total_tokens_used > 0 || stats.llm_call_count > 0,
+        });
+        // Always update with fresh stats (they may have changed after a new message)
+        // This ensures the header shows the latest token counts
+        setSessionStats(stats);
+        // Clear the flag since we now have real stats
+        statsSetFromSessionLoadRef.current = null;
+      } catch (error) {
+        console.error("Failed to fetch session stats:", error);
+        // Don't set to null on error - keep existing stats if available
+        // The placeholder stats we set above will remain visible
+        // This ensures the header stays visible even if the API call fails
+      }
+    };
+
+    // Fetch stats (will update if they've changed, but won't clear if fetch fails)
+    fetchStats();
+    // Remove sessionStats from deps to prevent infinite loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSessionId, isStreaming, sessionId, getAccessTokenSilently, selectedModel]);
 
   const handleMessagesLoaded = useCallback((loadedMessages: Message[]) => {
     // If we're in the middle of sending/streaming, ignore loader updates.
@@ -153,14 +306,59 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
   }, [currentSessionId, isStreaming]);
 
   const handleSessionLoaded = useCallback((session: any) => {
+    console.log("📊 handleSessionLoaded called with session:", {
+      session_id: session.session_id,
+      has_tokens: session.total_tokens_used !== undefined,
+      has_calls: session.llm_call_count !== undefined,
+      model_key: session.model_key,
+    });
+    
     // Store session data for intermediate_steps access
     setCurrentSession(session);
+    
+    // Update selected model from session if available
+    if (session.model_key) {
+      setSelectedModel(session.model_key);
+    }
+    
+    // Always set stats from session data (even if all 0 for old sessions)
+    // This ensures the header always displays when a session is loaded
+    // Use the model from session, or fall back to current selectedModel, or default
+    const modelKeyForStats = session.model_key || selectedModel || PREFERRED_DEFAULT_MODEL_KEY;
+    const stats = {
+      session_id: session.session_id,
+      total_tokens_used: session.total_tokens_used ?? 0,
+      llm_call_count: session.llm_call_count ?? 0,
+      total_execution_time_ms: session.total_execution_time_ms ?? 0,
+      model_key: modelKeyForStats,
+      last_message_at: session.last_message_at || null,
+      created_at: session.created_at || new Date().toISOString(),
+    };
+    
+    console.log("📊 Setting session stats from handleSessionLoaded:", {
+      session_id: stats.session_id,
+      total_tokens_used: stats.total_tokens_used,
+      llm_call_count: stats.llm_call_count,
+      total_execution_time_ms: stats.total_execution_time_ms,
+      model_key: stats.model_key,
+      fullStats: stats,
+    });
+    // Always set stats when session loads - this ensures header shows for old conversations
+    setSessionStats(stats);
+    // Mark that we've set stats from session load to prevent them from being cleared
+    statsSetFromSessionLoadRef.current = session.session_id;
+    
+    // Ensure currentSessionId is set if it's not already
+    if (session.session_id && session.session_id !== currentSessionId) {
+      console.log("📊 Updating currentSessionId from", currentSessionId, "to", session.session_id);
+      setCurrentSessionId(session.session_id);
+    }
+    
     // Session loaded, messages are already in handleMessagesLoaded
-    // Don't update currentSessionId here to avoid loops - it's already set via props
     if (onSessionChange && session.session_id !== currentSessionId) {
       onSessionChange(session.session_id);
     }
-  }, [onSessionChange, currentSessionId]);
+  }, [onSessionChange, currentSessionId, selectedModel]);
 
   // Load available models on mount (with deduplication)
   const isLoadingModelsRef = useRef(false);
@@ -240,6 +438,12 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
           setCurrentSessionId(sessionIdToUse);
           if (onSessionChange) {
             onSessionChange(sessionIdToUse);
+          }
+          // Immediately notify sidebar to refresh session list
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("chat:sessions:invalidate")
+            );
           }
         } catch (error) {
           console.error("Failed to create session:", error);
@@ -424,18 +628,67 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
               )
             );
           } else if (event.type === "title_update" && event.title) {
-            // Title update - could notify parent component
+            // Title update - notify sidebar to update immediately
             console.log("Session title updated:", event.title);
-            // Nudge sidebar session list to refresh (so it can show the new title)
-            if (typeof window !== "undefined") {
+            // Dispatch event with session ID and title for optimistic update
+            if (typeof window !== "undefined" && sessionIdToUse) {
+              window.dispatchEvent(
+                new CustomEvent("chat:session:title-updated", {
+                  detail: {
+                    session_id: sessionIdToUse,
+                    title: event.title,
+                  },
+                })
+              );
+              // Also trigger a refresh after a delay to ensure backend persistence
               window.dispatchEvent(new CustomEvent("chat:sessions:invalidate"));
             }
           } else if (event.type === "end") {
             // Stream ended
-            console.log("🏁 Stream ended");
+            console.log("🏁 Stream ended, fetching updated stats for session:", sessionIdToUse);
             setIsTyping(false);
             setIsStreaming(false);
             setCurrentAssistantMessageId(null);
+            
+            // Refresh session stats after streaming completes
+            // Add a small delay to ensure backend has persisted the stats
+            if (sessionIdToUse) {
+              setTimeout(() => {
+                console.log("📊 Fetching stats after stream end...");
+                getSessionStats(sessionIdToUse, token)
+                  .then((stats) => {
+                    console.log("📊 Updated stats after stream:", {
+                      session_id: stats.session_id,
+                      total_tokens_used: stats.total_tokens_used,
+                      llm_call_count: stats.llm_call_count,
+                      total_execution_time_ms: stats.total_execution_time_ms,
+                      hasRealData: stats.total_tokens_used > 0 || stats.llm_call_count > 0,
+                    });
+                    setSessionStats(stats);
+                  })
+                  .catch((error) => {
+                    console.error("Failed to refresh stats after stream:", error);
+                    // Keep existing stats - don't clear them
+                    // Use functional update to check current state
+                    setSessionStats((prevStats) => {
+                      // If we don't have stats or they're for a different session, set placeholder
+                      if (!prevStats || prevStats.session_id !== sessionIdToUse) {
+                        return {
+                          session_id: sessionIdToUse,
+                          total_tokens_used: 0,
+                          llm_call_count: 0,
+                          total_execution_time_ms: 0,
+                          model_key: selectedModel || PREFERRED_DEFAULT_MODEL_KEY,
+                          last_message_at: null,
+                          created_at: new Date().toISOString(),
+                        };
+                      }
+                      // Otherwise keep existing stats
+                      return prevStats;
+                    });
+                  });
+              }, 500); // Wait 500ms for backend to persist
+            }
           } else if (event.type === "error") {
             console.error("❌ Stream error event:", event);
             throw new Error(event.content || "Stream error occurred");
@@ -535,6 +788,38 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
     }
   };
 
+  // Close model dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        modelDropdownRef.current &&
+        !modelDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsModelDropdownOpen(false);
+      }
+    };
+
+    if (isModelDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }
+  }, [isModelDropdownOpen]);
+
+  // Get selected model info for display
+  const getSelectedModelInfo = () => {
+    for (const group of availableModels) {
+      const model = group.models.find((m) => m.key === selectedModel);
+      if (model) {
+        return { group, model };
+      }
+    }
+    return null;
+  };
+
+  const selectedModelInfo = getSelectedModelInfo();
+
   const renderAssistantMessage = (msg: Message) => {
     // Check if we have intermediate events for chronological rendering
     // Only use message-level events - session-level events contain ALL events from all messages
@@ -564,7 +849,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
             if (currentTextContent.trim()) {
               elements.push(
                 <div key={`text-${idx}`} className={styles.messageContent}>
-                  <ReactMarkdown>{currentTextContent}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentTextContent}</ReactMarkdown>
                 </div>
               );
             }
@@ -580,7 +865,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
           if (currentTextContent.trim()) {
             elements.push(
               <div key={`text-before-tool-${idx}`} className={styles.messageContent}>
-                <ReactMarkdown>{currentTextContent}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentTextContent}</ReactMarkdown>
               </div>
             );
             currentTextContent = "";
@@ -607,7 +892,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
       if (currentTextContent.trim()) {
         elements.push(
           <div key="text-final" className={styles.messageContent}>
-            <ReactMarkdown>{currentTextContent}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentTextContent}</ReactMarkdown>
           </div>
         );
       }
@@ -624,7 +909,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
         if (msg.content.trim() !== allTextFromEvents.trim()) {
           elements.push(
             <div key="message-content-final" className={styles.messageContent}>
-              <ReactMarkdown>{msg.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
             </div>
           );
         }
@@ -644,7 +929,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
           {/* Render markdown content */}
           {msg.content && (
             <div className={styles.messageContent}>
-              <ReactMarkdown>{msg.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
             </div>
           )}
         </>
@@ -652,17 +937,203 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
     }
   };
 
+  // Determine if we should show the welcome composer (new chat state)
+  const showWelcomeComposer = !currentSessionId && !isStreaming && messages.length <= 1;
+
+  // Quick prompts for the welcome view
+  const quickPrompts = [
+    "What are the crime trends in my neighborhood?",
+    "How's the budget allocated this year?",
+    "Show me 311 complaints by district",
+    "What is the drug crime enforcement data?",
+  ];
+
+  const handleQuickPrompt = (prompt: string) => {
+    setMessage(prompt);
+  };
+
+  // Render the model dropdown (reused in both views)
+  const renderModelDropdown = (isWelcome: boolean = false) => (
+    <div
+      ref={modelDropdownRef}
+      className={isWelcome ? styles.welcomeModelSelect : styles.modelDropdownWrapper}
+    >
+      <button
+        id="model-select"
+        className={isWelcome 
+          ? styles.welcomeModelButton 
+          : `${styles.modelSelectButton} ${isModelDropdownOpen ? styles.modelSelectButtonOpen : ""}`
+        }
+        onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+        disabled={isStreaming}
+        type="button"
+        aria-label="Select model"
+      >
+        {availableModels.length === 0 ? (
+          <span className={isWelcome ? styles.welcomeModelName : styles.modelSelectLoading}>Loading...</span>
+        ) : selectedModelInfo ? (
+          <>
+            <span className={isWelcome ? styles.welcomeModelEmoji : styles.modelSelectEmoji}>
+              {selectedModelInfo.group.emoji}
+            </span>
+            <span className={isWelcome ? styles.welcomeModelName : styles.modelSelectText}>
+              {selectedModelInfo.model.name}
+            </span>
+            {isWelcome && (
+              <span className={`${styles.welcomeModelChevron} ${isModelDropdownOpen ? styles.welcomeModelChevronOpen : ""}`}>
+                ▼
+              </span>
+            )}
+          </>
+        ) : (
+          <span className={isWelcome ? styles.welcomeModelName : styles.modelSelectText}>Select model</span>
+        )}
+      </button>
+      {isModelDropdownOpen && availableModels.length > 0 && (
+        <div className={`${styles.modelDropdownMenu} ${isWelcome ? styles.modelDropdownMenuWelcome : ""}`}>
+          {availableModels.flatMap((group) =>
+            group.models.map((model) => {
+              const isSelected = model.key === selectedModel;
+              const inputPricePerM = model.input_price
+                ? `$${Math.round(model.input_price)}`
+                : "N/A";
+              const outputPricePerM = model.output_price
+                ? `$${Math.round(model.output_price)}`
+                : "N/A";
+              
+              return (
+                <button
+                  key={model.key}
+                  className={`${styles.modelDropdownOption} ${isSelected ? styles.modelDropdownOptionSelected : ""} ${!model.is_available ? styles.modelDropdownOptionDisabled : ""}`}
+                  onClick={() => {
+                    if (model.is_available) {
+                      setSelectedModel(model.key);
+                      setIsModelDropdownOpen(false);
+                    }
+                  }}
+                  disabled={!model.is_available || isStreaming}
+                  type="button"
+                >
+                  <div className={styles.modelDropdownOptionHeader}>
+                    <span className={styles.modelDropdownOptionEmoji}>
+                      {group.emoji}
+                    </span>
+                    <span className={styles.modelDropdownOptionName}>
+                      {model.name}
+                    </span>
+                    {isSelected && (
+                      <span className={styles.modelDropdownOptionCheck}>
+                        ✓
+                      </span>
+                    )}
+                  </div>
+                  {model.is_available && (
+                    <div className={styles.modelDropdownOptionDetails}>
+                      <span className={styles.modelDropdownOptionCost}>
+                        Input: {inputPricePerM}/1M tokens
+                      </span>
+                      <span className={styles.modelDropdownOptionCost}>
+                        Output: {outputPricePerM}/1M tokens
+                      </span>
+                    </div>
+                  )}
+                  {!model.is_available && (
+                    <span className={styles.modelDropdownOptionUnavailable}>
+                      API key not configured
+                    </span>
+                  )}
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  // Welcome Composer View (New Chat State)
+  if (showWelcomeComposer) {
+    return (
+      <div id="chat-view" className={styles.chatViewRoot}>
+        <div className={styles.welcomeContainer}>
+          <div className={styles.welcomeContent}>
+            <div className={styles.welcomeHeader}>
+              <div className={styles.welcomeBracket}>
+                <Loader size="lg" color="dark" className="loaderStatic" />
+              </div>
+              <h1 className={styles.welcomeTitle}>What would you like to explore?</h1>
+              <p className={styles.welcomeSubtitle}>
+                Ask about crime data, city budgets, 311 complaints, permits, and more. 
+                Seymour will help you analyze public data.
+              </p>
+            </div>
+
+            <div className={styles.welcomeComposer}>
+              <textarea
+                id="chat-input"
+                className={styles.welcomeTextarea}
+                placeholder="Ask me anything about civic data..."
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyPress={handleKeyPress}
+                autoFocus
+              />
+              <div className={styles.welcomeActions}>
+                {renderModelDropdown(true)}
+                <button
+                  id="send-btn"
+                  className={styles.welcomeSendButton}
+                  onClick={handleSend}
+                  disabled={!message.trim() || isTyping}
+                >
+                  <span className={styles.welcomeSendIcon}>→</span>
+                  Send
+                </button>
+              </div>
+            </div>
+
+            <div className={styles.welcomeHints}>
+              {quickPrompts.map((prompt, idx) => (
+                <button
+                  key={idx}
+                  className={styles.welcomeHint}
+                  onClick={() => handleQuickPrompt(prompt)}
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Regular Chat View (Active Session)
   return (
     <div id="chat-view" className={styles.chatViewRoot}>
       <ChatSessionLoader
         sessionId={currentSessionId}
         onMessagesLoaded={handleMessagesLoaded}
         onSessionLoaded={handleSessionLoaded}
+        onLoadingChange={setIsLoadingSession}
+      />
+      <SessionHeader
+        sessionId={currentSessionId}
+        stats={sessionStats}
+        model={selectedModel || PREFERRED_DEFAULT_MODEL_KEY}
       />
       <div className={styles.chatContainer}>
         {/* Chat Messages Area */}
         <div id="chat-messages" className={styles.chatMessages}>
-          {messages.length === 0 ? (
+          {isLoadingSession ? (
+            <div style={{ padding: "40px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px" }}>
+              <Loader size="md" color="dark" />
+              <div style={{ color: "var(--text-secondary)", textAlign: "center" }}>
+                Loading conversation...
+              </div>
+            </div>
+          ) : messages.length === 0 ? (
             <div style={{ padding: "20px", color: "var(--text-secondary)", textAlign: "center" }}>
               No messages yet. Start a conversation!
             </div>
@@ -723,33 +1194,11 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
               onChange={(e) => setMessage(e.target.value)}
               onKeyPress={handleKeyPress}
             />
-            <select
-              id="model-select"
-              className={styles.modelSelect}
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              disabled={isStreaming}
-            >
-              {availableModels.length === 0 ? (
-                <option value="">Loading models...</option>
-              ) : (
-                availableModels.flatMap((group) =>
-                  group.models.map((model) => (
-                    <option 
-                      key={model.key} 
-                      value={model.key}
-                      disabled={!model.is_available}
-                    >
-                      {group.emoji} {model.name}{!model.is_available ? " (API key not configured)" : ""}
-                    </option>
-                  ))
-                )
-              )}
-            </select>
+            {renderModelDropdown(false)}
             {isStreaming ? (
               <button
                 id="stop-btn"
-                className="btn btn-danger"
+                className={`btn btn-danger ${styles.stopButton}`}
                 onClick={handleStop}
               >
                 ⏹ Stop
@@ -757,7 +1206,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
             ) : (
               <button
                 id="send-btn"
-                className="btn btn-primary"
+                className={`btn btn-primary ${styles.chatButton}`}
                 onClick={handleSend}
                 disabled={!message.trim() || isTyping}
               >

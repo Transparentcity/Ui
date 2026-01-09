@@ -11,6 +11,7 @@ import styles from "./ContextMenu.module.css";
 interface ContextMenuProps {
   isOpen: boolean;
   isAdmin?: boolean;
+  cityLeadCityIds?: number[];
   onClose: () => void;
   onViewChange?: (view: string) => void;
 }
@@ -22,9 +23,12 @@ interface AdminMenuItem {
 }
 
 const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
-  ({ isOpen, isAdmin = false, onClose, onViewChange }, ref) => {
+  ({ isOpen, isAdmin = false, cityLeadCityIds = [], onClose, onViewChange }, ref) => {
     const { logout, getAccessTokenSilently } = useAuth0();
     const router = useRouter();
+
+    // Check if user can access API docs (admin or city lead)
+    const canAccessApiDocs = isAdmin || cityLeadCityIds.length > 0;
 
     const handleLogout = async () => {
       try {
@@ -181,41 +185,44 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
         className={`${styles.menu} ${isOpen ? styles.open : ""}` }
         id="context-menu"
       >
-        <a
-          href={`${API_BASE}/admin/docs`}
-          className={styles.item}
-          id="api-docs-menu-item"
-          onClick={handleApiDocsClick}
-        >
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "20px",
-              height: "20px",
-            }}
+        {/* API Documentation - Only visible to admins or city leads */}
+        {canAccessApiDocs && (
+          <a
+            href={`${API_BASE}/admin/docs`}
+            className={styles.item}
+            id="api-docs-menu-item"
+            onClick={handleApiDocsClick}
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ filter: "grayscale(100%)" }}
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "20px",
+                height: "20px",
+              }}
             >
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-              <line x1="8" y1="7" x2="16" y2="7"></line>
-              <line x1="8" y1="11" x2="16" y2="11"></line>
-              <line x1="8" y1="15" x2="12" y2="15"></line>
-            </svg>
-          </span>
-          <span>API Documentation</span>
-        </a>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ filter: "grayscale(100%)" }}
+              >
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                <line x1="8" y1="7" x2="16" y2="7"></line>
+                <line x1="8" y1="11" x2="16" y2="11"></line>
+                <line x1="8" y1="15" x2="12" y2="15"></line>
+              </svg>
+            </span>
+            <span>API Documentation</span>
+          </a>
+        )}
 
         {isAdmin && (
           <>

@@ -5,21 +5,31 @@ import UserProfile from "./UserProfile";
 import SessionList from "./SessionList";
 import JobSessionList from "./JobSessionList";
 import MyCities from "./MyCities";
+import ResearchList from "./ResearchList";
+import SidebarCitySearch from "./SidebarCitySearch";
 import styles from "./Sidebar.module.css";
 
 interface SidebarProps {
   isOpen: boolean;
   isAdmin?: boolean;
+  cityLeadCityIds?: number[];
   onNewChat: () => void;
   onSearchCities?: () => void; // Optional for backward compatibility
   onOpenSettings?: () => void;
   onViewChange?: (view: string) => void;
   onSessionClick?: (sessionId: string) => void;
+  onJobSessionClick?: (sessionId: string) => void;
   currentSessionId?: string | null;
+  isCurrentSessionJobSession?: boolean;
   onSessionDeleted?: (sessionId: string) => void;
   onClose?: () => void;
   onCityClick?: (cityId: number) => void;
   activeCityId?: number | null;
+  onResearchClick?: (reportId: number) => void;
+  currentResearchId?: number | null;
+  onResearchDeleted?: (reportId: number) => void;
+  onCitySelect?: (cityId: number) => void;
+  onGPSLocation?: (location: { lat: number; lng: number } | null) => void;
 }
 
 // Mobile breakpoint (matches CSS media query)
@@ -34,19 +44,31 @@ const isNarrowScreen = (): boolean => {
 export default function Sidebar({
   isOpen,
   isAdmin = false,
+  cityLeadCityIds = [],
   onNewChat,
   onSearchCities,
   onOpenSettings,
   onViewChange,
   onSessionClick,
+  onJobSessionClick,
   currentSessionId,
+  isCurrentSessionJobSession = false,
   onSessionDeleted,
   onClose,
   onCityClick,
   activeCityId,
+  onResearchClick,
+  currentResearchId,
+  onResearchDeleted,
+  onCitySelect,
+  onGPSLocation,
 }: SidebarProps) {
   const [recentChatsExpanded, setRecentChatsExpanded] = useState(true);
+  const [researchExpanded, setResearchExpanded] = useState(false);
   const [jobSessionsExpanded, setJobSessionsExpanded] = useState(false);
+
+  // Check if user can access research (admin or city lead)
+  const canAccessResearch = isAdmin || cityLeadCityIds.length > 0;
 
   // Helper to close sidebar in narrow mode after action
   const handleActionWithClose = (action: () => void) => {
@@ -85,6 +107,53 @@ export default function Sidebar({
             <span>New Chat</span>
           </button>
 
+          {canAccessResearch && (
+            <button
+              className={`${styles.navItem} ${styles.newChatBtn}`}
+              id="new-research-report-btn"
+              onClick={() =>
+                handleActionWithClose(() => {
+                  if (onViewChange) {
+                    onViewChange("research-new");
+                  }
+                })
+              }
+            >
+              <span className={styles.navIcon}>
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="12" y1="12" x2="12" y2="18"></line>
+                  <line x1="9" y1="15" x2="15" y2="15"></line>
+                </svg>
+              </span>
+              <span>New Research Report</span>
+            </button>
+          )}
+
+          {/* City Search */}
+          {onCitySelect && (
+            <SidebarCitySearch
+              onCitySelect={(cityId) => {
+                onCitySelect(cityId);
+                // Auto-close sidebar in narrow mode after city selection
+                if (isNarrowScreen() && onClose) {
+                  onClose();
+                }
+              }}
+              onGPSLocation={onGPSLocation}
+            />
+          )}
+
           {/* Spacing */}
           <div className={styles.navSectionSpacer}></div>
 
@@ -107,6 +176,60 @@ export default function Sidebar({
 
           {/* Spacing */}
           <div className={styles.navSectionSpacer}></div>
+
+          {/* Research Section - Only visible to admins or city leads */}
+          {canAccessResearch && (
+            <>
+              <div id="research-section">
+                <div
+                  className={`${styles.navSectionHeader} ${styles.navSectionCollapsible}`}
+                  id="research-header"
+                  onClick={() => setResearchExpanded(!researchExpanded)}
+                >
+                  <span>Research</span>
+                  <span
+                    id="research-chevron"
+                    className={styles.navSectionChevron}
+                  >
+                    {researchExpanded ? "▼" : "▶"}
+                  </span>
+                </div>
+                {researchExpanded && (
+                  <div id="research-list">
+                    <ResearchList
+                      isAdmin={isAdmin}
+                      onResearchClick={(reportId) => {
+                        if (onResearchClick) {
+                          onResearchClick(reportId);
+                        }
+                        if (onViewChange) {
+                          onViewChange("research");
+                        }
+                        // Auto-close sidebar in narrow mode after research selection
+                        if (isNarrowScreen() && onClose) {
+                          onClose();
+                        }
+                      }}
+                      currentResearchId={currentResearchId}
+                      onResearchDeleted={onResearchDeleted}
+                      onCreateNew={() => {
+                        if (onViewChange) {
+                          onViewChange("research-new");
+                        }
+                        // Auto-close sidebar in narrow mode after action
+                        if (isNarrowScreen() && onClose) {
+                          onClose();
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Spacing */}
+              <div className={styles.navSectionSpacer}></div>
+            </>
+          )}
 
           {/* Recent Chats Section */}
           <div id="recent-chats-section">
@@ -139,6 +262,7 @@ export default function Sidebar({
                     }
                   }}
                   currentSessionId={currentSessionId}
+                  isCurrentSessionJobSession={isCurrentSessionJobSession}
                   onSessionDeleted={onSessionDeleted}
                 />
               </div>
@@ -168,7 +292,10 @@ export default function Sidebar({
                 <div id="job-session-list" style={{ display: "block" }}>
                   <JobSessionList
                     onSessionClick={(sessionId) => {
-                      if (onSessionClick) {
+                      if (onJobSessionClick) {
+                        onJobSessionClick(sessionId);
+                      } else if (onSessionClick) {
+                        // Fallback to regular handler if job handler not provided
                         onSessionClick(sessionId);
                       }
                       if (onViewChange) {
@@ -192,7 +319,8 @@ export default function Sidebar({
         <div className={styles.sidebarFooter}>
           <div className={styles.sidebarFooterContent}>
             <UserProfile 
-              isAdmin={isAdmin} 
+              isAdmin={isAdmin}
+              cityLeadCityIds={cityLeadCityIds}
               onViewChange={(view) => {
                 if (onViewChange) {
                   onViewChange(view);

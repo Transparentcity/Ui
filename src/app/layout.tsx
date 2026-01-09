@@ -4,6 +4,7 @@ import "./tokens.css";
 import "./ui.css";
 import { AuthProvider } from "./providers";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { JobWebSocketProvider } from "@/contexts/JobWebSocketContext";
 import { getSiteOrigin } from "@/lib/siteUrl";
 
 export const metadata: Metadata = {
@@ -74,7 +75,9 @@ export default function RootLayout({
       </head>
       <body>
         <AuthProvider>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider>
+            <JobWebSocketProvider>{children}</JobWebSocketProvider>
+          </ThemeProvider>
         </AuthProvider>
       </body>
     </html>

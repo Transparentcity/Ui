@@ -25,7 +25,27 @@ const cityDataCache: {
   };
 } = {};
 
+const cityStructureCache: {
+  [cityId: number]: {
+    data: any | null;
+    promise: Promise<any> | null;
+    timestamp: number;
+    token: string | null;
+  };
+} = {};
+
+const cityAdminCache: {
+  [cityId: number]: {
+    data: any | null;
+    promise: Promise<any> | null;
+    timestamp: number;
+    token: string | null;
+  };
+} = {};
+
 const CITY_DATA_CACHE_TTL = 30000; // 30 seconds cache
+const CITY_STRUCTURE_CACHE_TTL = 120000; // 2 minutes cache (structure changes less frequently)
+const CITY_ADMIN_CACHE_TTL = 60000; // 1 minute cache
 
 async function request<T>(
   path: string,
@@ -56,7 +76,11 @@ async function request<T>(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`API ${method} ${path} failed: ${res.status} ${text}`);
+    const error = new Error(`API ${method} ${path} failed: ${res.status} ${text}`);
+    // Attach status code to error for better error handling
+    (error as any).status = res.status;
+    (error as any).statusText = res.statusText;
+    throw error;
   }
 
   return (await res.json()) as T;
@@ -122,6 +146,8 @@ export interface CityStructureData {
   }>;
   shapefiles?: any[];
   mappings?: any[];
+  district_field?: string | null;
+  district_fields?: string[];
 }
 
 export interface CityStatsResponse {
@@ -160,6 +186,7 @@ export interface UpdateCityStructureRequest {
   leaders?: any[];
   query_configs?: any[];
   mappings?: any[];
+  district_fields?: string[];
 }
 
 export interface JobResponse {
@@ -168,7 +195,59 @@ export interface JobResponse {
 }
 
 export function getCityAdmin(cityId: number, token: string): Promise<CityAdminData> {
-  return request<CityAdminData>(`/api/admin/cities/${cityId}`, "GET", undefined, token);
+  const now = Date.now();
+  const cacheKey = cityId;
+  const cached = cityAdminCache[cacheKey];
+
+  // Return cached data if valid
+  if (
+    cached?.data &&
+    cached.token === token &&
+    (now - cached.timestamp) < CITY_ADMIN_CACHE_TTL
+  ) {
+    return Promise.resolve(cached.data);
+  }
+
+  // Return existing promise if request is in flight
+  if (
+    cached?.promise &&
+    cached.token === token &&
+    (now - cached.timestamp) < CITY_ADMIN_CACHE_TTL
+  ) {
+    return cached.promise;
+  }
+
+  // Create new request and cache it
+  const promise = request<CityAdminData>(`/api/admin/cities/${cityId}`, "GET", undefined, token)
+    .then((data: CityAdminData) => {
+      // Cache the result
+      if (cityAdminCache[cacheKey]?.promise === promise) {
+        cityAdminCache[cacheKey] = {
+          data,
+          promise: null,
+          timestamp: now,
+          token,
+        };
+      }
+      return data;
+    })
+    .catch((error) => {
+      // Clear cache on error to allow retry
+      if (cityAdminCache[cacheKey]?.promise === promise) {
+        delete cityAdminCache[cacheKey];
+      }
+      throw error;
+    });
+
+  // Cache the promise
+  cityAdminCache[cacheKey] = {
+    data: null,
+    promise,
+    timestamp: now,
+    token,
+  };
+
+  return promise;
 }
 
 export function getCityStats(cityId: number, token: string): Promise<CityStatsResponse> {
@@ -189,8 +268,31 @@ export function updateCity(
 }
 
 export function getCityStructure(cityId: number, token: string): Promise<CityStructureData> {
+  const now = Date.now();
+  const cacheKey = cityId;
+  const cached = cityStructureCache[cacheKey];
+
+  // Return cached data if valid
+  if (
+    cached?.data &&
+    cached.token === token &&
+    (now - cached.timestamp) < CITY_STRUCTURE_CACHE_TTL
+  ) {
+    return Promise.resolve(cached.data);
+  }
+
+  // Return existing promise if request is in flight
+  if (
+    cached?.promise &&
+    cached.token === token &&
+    (now - cached.timestamp) < CITY_STRUCTURE_CACHE_TTL
+  ) {
+    return cached.promise;
+  }
+
+  // Create new request and cache it
   // Try the main cities endpoint first, fallback to template-metrics endpoint
-  return request<CityStructureData>(
+  const promise = request<CityStructureData>(
     `/api/cities/${cityId}/structure`,
     "GET",
     undefined,
@@ -203,7 +305,40 @@ export function getCityStructure(cityId: number, token: string): Promise<CityStr
       undefined,
       token
     );
+  }).then((data: CityStructureData) => {
+    // Log the raw API response for debugging
+    console.log("getCityStructure - Raw API response:", data);
+    console.log("getCityStructure - district_field:", data.district_field);
+    console.log("getCityStructure - district_fields:", data.district_fields);
+    console.log("getCityStructure - typeof district_fields:", typeof data.district_fields);
+    
+    // Cache the result
+    if (cityStructureCache[cacheKey]?.promise === promise) {
+      cityStructureCache[cacheKey] = {
+        data,
+        promise: null,
+        timestamp: now,
+        token,
+      };
+    }
+    return data;
+  }).catch((error) => {
+    // Clear cache on error to allow retry
+    if (cityStructureCache[cacheKey]?.promise === promise) {
+      delete cityStructureCache[cacheKey];
+    }
+    throw error;
   });
+
+  // Cache the promise
+  cityStructureCache[cacheKey] = {
+    data: null,
+    promise,
+    timestamp: now,
+    token,
+  };
+
+  return promise;
 }
 
 export function updateCityStructure(
@@ -279,12 +414,60 @@ export interface ReloadAllGeographicResult {
   error?: string;
 }
 
+export function reExtractLeaders(
+  cityId: number,
+  token: string
+): Promise<{ message: string; structures_created: any; leaders_count: number; structure: any }> {
+  return request<{ message: string; structures_created: any; leaders_count: number; structure: any }>(
+    `/api/template-metrics/cities/${cityId}/structure/leaders/re-extract`,
+    "POST",
+    undefined,
+    token
+  );
+}
+
 export function reloadAllGeographicQueryConfigs(
   cityId: number,
   token: string
 ): Promise<{ status: string; message: string; total_configs: number; reloaded: number; shapefiles_created: number; results: ReloadAllGeographicResult[] }> {
   return request<{ status: string; message: string; total_configs: number; reloaded: number; shapefiles_created: number; results: ReloadAllGeographicResult[] }>(
     `/api/template-metrics/cities/${cityId}/structure/query-configs/reload-all-geographic`,
+    "POST",
+    undefined,
+    token
+  );
+}
+
+export interface RecreateStructureFromQueryConfigsResponse {
+  status: string;
+  message: string;
+  city_id: number;
+  city_name: string;
+  deleted: {
+    shapefiles: number;
+    leaders: number;
+    geographic_structures: number;
+    governance_structures: number;
+    mappings: number;
+  };
+  geographic_reload: {
+    status: string;
+    message: string;
+    shapefiles_created: number;
+  };
+  leaders_reload: {
+    status: string;
+    message: string;
+    leaders_created: number;
+  };
+}
+
+export function recreateStructureFromQueryConfigs(
+  cityId: number,
+  token: string
+): Promise<RecreateStructureFromQueryConfigsResponse> {
+  return request<RecreateStructureFromQueryConfigsResponse>(
+    `/api/template-metrics/cities/${cityId}/structure/recreate-from-query-configs`,
     "POST",
     undefined,
     token
@@ -371,6 +554,9 @@ export function batchAnalyzeCities(
   );
 }
 
+// Explicit re-export to ensure bundlers pick up the named export
+export { batchAnalyzeCities };
+
 // User Permissions API
 export interface UserPermissions {
   user_id: number;
@@ -414,6 +600,37 @@ export interface AdminMetricCity {
   display_name: string;
 }
 
+export interface MetricFreshnessSummary {
+  update_frequency?: string | null;
+  lag_days?: number | null;
+  most_recent_data_date?: string | null;
+  is_stale?: boolean | null;
+  last_validation_date?: string | null;
+  validation_confidence?: number | null;
+}
+
+export interface DataFreshnessMetadata {
+  most_recent_data_date?: string;
+  earliest_data_date?: string;
+  date_grouping_level?: 'day' | 'month' | 'quarter' | 'year' | 'fiscal_year';
+  detected_update_frequency?: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'irregular' | 'every_2_3_days' | 'biweekly';
+  lag_days?: number;
+  update_pattern?: 'regular' | 'irregular' | 'batch';
+  last_validation_date?: string;
+  validation_confidence?: number;
+  sample_periods_analyzed?: number;
+  gaps_detected?: Array<{
+    start: string;
+    end: string;
+    gap_days: number;
+  }>;
+  date_range_analysis?: {
+    total_days_covered: number;
+    data_points_count: number;
+    coverage_percentage: number;
+  };
+}
+
 export interface AdminMetricListItem {
   id: number;
   metric_name: string;
@@ -430,6 +647,9 @@ export interface AdminMetricListItem {
   city_name?: string | null;
   map_query?: string | null;
   template_id?: number | null;
+  freshness?: MetricFreshnessSummary | null;
+  most_recent_data_date?: string | null;
+  earliest_data_date?: string | null;
 }
 
 export interface AdminMetricDetail {
@@ -457,6 +677,9 @@ export interface AdminMetricDetail {
   metadata?: Record<string, any> | null;
   location_fields?: any[] | null;
   category_fields?: any[] | null;
+  map_query?: string | null;
+  map_filters?: Record<string, any> | null;
+  map_config?: Record<string, any> | null;
   last_execution_at?: string | null;
   last_execution_status?: string | null;
   last_execution_error?: string | null;
@@ -465,6 +688,9 @@ export interface AdminMetricDetail {
   created_at?: string | null;
   updated_at?: string | null;
   city_name?: string | null;
+  data_freshness_metadata?: DataFreshnessMetadata | null;
+  most_recent_data_date?: string | null;
+  earliest_data_date?: string | null;
 }
 
 export interface ExecuteAdminMetricRequest {
@@ -511,6 +737,13 @@ export interface UpdateAdminMetricRequest {
   definition?: string | null;
   is_active?: boolean | null;
   show_on_dash?: boolean | null;
+  greendirection?: string | null;
+  item_noun?: string | null;
+  map_query?: string | null;
+  map_filters?: Record<string, any> | null;
+  map_config?: Record<string, any> | null;
+  location_fields?: any[] | null;
+  category_fields?: any[] | null;
 }
 
 export interface AdminMetricWriteResponse {
@@ -667,6 +900,76 @@ export function getAdminMetricCityStructure(metricId: number, token: string): Pr
   return request<any>(`/api/admin/metrics/${metricId}/city-structure`, "GET", undefined, token);
 }
 
+export interface ValidateFreshnessRequest {
+  days_to_analyze?: number;
+  force_refresh?: boolean;
+}
+
+export interface ValidateFreshnessResponse {
+  message: string;
+  metric_id: number;
+  validation_passed: boolean;
+  warnings: string[];
+  errors: string[];
+  freshness_metadata?: DataFreshnessMetadata;
+  details?: Record<string, any>;
+  skipped?: boolean;
+  last_validation_date?: string;
+}
+
+export function validateMetricFreshness(
+  metricId: number,
+  payload: ValidateFreshnessRequest,
+  token: string
+): Promise<ValidateFreshnessResponse> {
+  return request<ValidateFreshnessResponse>(
+    `/api/admin/metrics/${metricId}/validate-freshness`,
+    "POST",
+    payload,
+    token
+  );
+}
+
+export interface MetricsByFrequencyResponse {
+  grouped_by_frequency: Record<string, Array<{
+    id: number;
+    metric_name: string;
+    metric_key: string;
+    category: string;
+    most_recent_data_date?: string | null;
+    lag_days?: number | null;
+    date_grouping_level?: string | null;
+    last_execution_at?: string | null;
+    is_active: boolean;
+  }>>;
+  total_metrics: number;
+  frequencies: string[];
+  summary: {
+    stale_metrics: number;
+    metrics_needing_validation: number;
+  };
+}
+
+export function listMetricsByUpdateFrequency(
+  token: string,
+  options?: {
+    update_frequency?: string;
+    max_lag_days?: number;
+    include_stale?: boolean;
+    min_confidence?: number;
+  }
+): Promise<MetricsByFrequencyResponse> {
+  const params = new URLSearchParams();
+  if (options?.update_frequency) params.append("update_frequency", options.update_frequency);
+  if (options?.max_lag_days !== undefined) params.append("max_lag_days", options.max_lag_days.toString());
+  if (options?.include_stale) params.append("include_stale", "true");
+  if (options?.min_confidence !== undefined) params.append("min_confidence", options.min_confidence.toString());
+  
+  const query = params.toString();
+  const path = `/api/admin/metrics/by-update-frequency${query ? `?${query}` : ""}`;
+  return request<MetricsByFrequencyResponse>(path, "GET", undefined, token);
+}
+
 // Map Data API
 export interface MapDataPoint {
   lat: number;
@@ -705,14 +1008,21 @@ export function getMetricMapData(
   payload: GetMapDataRequest,
   token: string
 ): Promise<GetMapDataResponse> {
+  // Build request body, only including districts if it has a value
+  const body: any = {
+    start_date: payload.start_date,
+    end_date: payload.end_date,
+  };
+  
+  // Only include districts if it's not null/undefined and has values
+  if (payload.districts && payload.districts.length > 0) {
+    body.districts = payload.districts;
+  }
+  
   return request<GetMapDataResponse>(
     `/api/admin/metrics/${payload.metric_id}/map-data`,
     "POST",
-    {
-      start_date: payload.start_date,
-      end_date: payload.end_date,
-      districts: payload.districts,
-    },
+    body,
     token
   );
 }
@@ -722,11 +1032,13 @@ export function getCityMetricsForMap(
   cityId: number,
   token: string
 ): Promise<AdminMetricListItem[]> {
-  return listAdminMetrics(token, {
-    city_id: cityId,
-    is_active: true,
-    limit: 500,
-  });
+  // Use the public city metrics endpoint instead of admin endpoint
+  return request<AdminMetricListItem[]>(
+    `/api/cities/${cityId}/metrics?is_active=true&limit=500`,
+    "GET",
+    undefined,
+    token
+  );
 }
 
 // Chat API
@@ -764,9 +1076,21 @@ export interface SessionDetail {
   tool_calls: any[];
   intermediate_steps: any[];
   total_execution_time_ms: number;
+  total_tokens_used: number;
+  llm_call_count: number;
   message_count: number;
   created_at: string;
   last_message_at?: string;
+}
+
+export interface SessionStats {
+  session_id: string;
+  total_tokens_used: number;
+  llm_call_count: number;
+  total_execution_time_ms: number;
+  model_key: string;
+  last_message_at: string | null;
+  created_at: string;
 }
 
 export interface ModelInfo {
@@ -861,6 +1185,22 @@ export function getSession(
   );
 }
 
+export function getSessionStats(
+  sessionId: string,
+  token: string
+): Promise<SessionStats> {
+  // Use getSession and extract stats from it
+  return getSession(sessionId, token).then((session) => ({
+    session_id: session.session_id,
+    total_tokens_used: session.total_tokens_used,
+    llm_call_count: session.llm_call_count,
+    total_execution_time_ms: session.total_execution_time_ms,
+    model_key: session.model_key || "",
+    last_message_at: session.last_message_at || null,
+    created_at: session.created_at,
+  }));
+}
+
 export function deleteSession(
   sessionId: string,
   token: string
@@ -884,6 +1224,23 @@ export function updateSessionTitle(
     { title },
     token
   );
+}
+
+export function toggleSessionPublic(
+  sessionId: string,
+  isPublic: boolean,
+  token: string
+): Promise<{ success: boolean; message: string; public_url?: string }> {
+  return request<{ success: boolean; message: string; public_url?: string }>(
+    `/api/chat/sessions/${sessionId}/toggle-public`,
+    "PUT",
+    { is_public: isPublic },
+    token
+  );
+}
+
+export function getPublicSession(shortHash: string): Promise<SessionDetail> {
+  return request<SessionDetail>(`/api/chat/public/${shortHash}`);
 }
 
 export function getAvailableModels(token?: string): Promise<ModelGroupInfo[]> {
@@ -1136,6 +1493,37 @@ export function clearCityDataCache(cityId?: number): void {
       delete cityDataCache[Number(key)];
     });
   }
+}
+
+// Clear city structure cache (call this when structure data might have changed)
+export function clearCityStructureCache(cityId?: number): void {
+  if (cityId !== undefined) {
+    delete cityStructureCache[cityId];
+  } else {
+    // Clear all city structure cache
+    Object.keys(cityStructureCache).forEach((key) => {
+      delete cityStructureCache[Number(key)];
+    });
+  }
+}
+
+// Clear city admin cache (call this when admin data might have changed)
+export function clearCityAdminCache(cityId?: number): void {
+  if (cityId !== undefined) {
+    delete cityAdminCache[cityId];
+  } else {
+    // Clear all city admin cache
+    Object.keys(cityAdminCache).forEach((key) => {
+      delete cityAdminCache[Number(key)];
+    });
+  }
+}
+
+// Clear all city-related caches for a city
+export function clearAllCityCaches(cityId?: number): void {
+  clearCityDataCache(cityId);
+  clearCityStructureCache(cityId);
+  clearCityAdminCache(cityId);
 }
 
 // Prefetch city data (for hover prefetching)
@@ -1559,4 +1947,653 @@ export function makeUserAdmin(userId: number, token: string): Promise<{ message:
 export function getUserStats(token: string): Promise<UserStats> {
   return request<UserStats>("/api/admin/stats", "GET", undefined, token);
 }
+
+export interface TableSizeInfo {
+  table_name: string;
+  size: string;
+  size_bytes: number;
+  row_count: number;
+  inactive_rows: number;
+}
+
+export interface DatabaseSizeResponse {
+  total_database_size: string;
+  total_database_size_bytes: number;
+  total_size_with_indexes: string;
+  total_size_with_indexes_bytes: number;
+  indexes_size: string;
+  indexes_size_bytes: number;
+  tables: TableSizeInfo[];
+  timestamp: string;
+  note?: string;
+}
+
+export function getDatabaseSize(token: string): Promise<DatabaseSizeResponse> {
+  return request<DatabaseSizeResponse>("/api/admin/database/size", "GET", undefined, token);
+}
+
+// Anomaly Detection API
+export interface WindowConfig {
+  label: string;
+  size: number;
+  match_weekday?: boolean;
+}
+
+export interface RunAnomalyRequest {
+  metric_id: number;
+  period_type?: string;
+  district?: number;
+  group_field?: string | null;
+  threshold_stddev?: number;
+  min_comparison_points?: number;
+  recent_window?: WindowConfig | null;
+  comparison_window?: WindowConfig | null;
+  use_time_series_cache?: boolean;
+}
+
+export interface AnomalyResult {
+  id?: number | null;
+  run_id?: number | null;
+  metric_id: number;
+  object_id: string;
+  object_name?: string | null;
+  metric_name?: string | null;
+  period_type: string;
+  group_field?: string | null;
+  group_value?: string | null;
+  district: number;
+  recent_mean?: number | null;
+  comparison_mean?: number | null;
+  stddev?: number | null;
+  difference?: number | null;
+  pct_change?: number | null;
+  is_anomaly: boolean;
+  chart_payload?: Record<string, any> | null;
+  item_noun?: string | null;
+  city_name?: string | null;
+  created_at?: string | null;
+}
+
+export interface RunAnomalyResponse {
+  run_id: number;
+  count: number;
+  results: AnomalyResult[];
+}
+
+export interface ListAnomaliesResponse {
+  results: AnomalyResult[];
+  count: number;
+}
+
+export function runAnomalyDetection(
+  payload: RunAnomalyRequest,
+  token: string
+): Promise<RunAnomalyResponse> {
+  return request<RunAnomalyResponse>("/api/anomalies/run", "POST", payload, token);
+}
+
+export function listAnomalies(
+  token: string,
+  options?: {
+    metric_id?: number;
+    is_anomaly?: boolean | null;
+    period_type?: string;
+    limit?: number;
+    city_id?: number;
+    district?: number | null;
+  }
+): Promise<ListAnomaliesResponse> {
+  const params = new URLSearchParams();
+  if (options?.city_id) params.append("city_id", options.city_id.toString());
+  if (options?.metric_id) params.append("metric_id", options.metric_id.toString());
+  // Only append is_anomaly if it's explicitly true or false (not null/undefined)
+  // null means "all results" and should not be sent as a parameter
+  if (options?.is_anomaly === true || options?.is_anomaly === false) {
+    params.append("is_anomaly", options.is_anomaly.toString());
+  }
+  if (options?.period_type) {
+    params.append("period_type", options.period_type);
+    console.log(`[API] listAnomalies called with period_type: ${options.period_type}`);
+  }
+  if (options?.limit) params.append("limit", options.limit.toString());
+  // district can be 0 (citywide) so check for not undefined/null
+  if (options?.district !== undefined && options?.district !== null) {
+    params.append("district", options.district.toString());
+  }
+  
+  const query = params.toString();
+  const path = `/api/anomalies${query ? `?${query}` : ""}`;
+  console.log(`[API] Fetching anomalies from: ${path}`);
+  return request<ListAnomaliesResponse>(path, "GET", undefined, token);
+}
+
+export function getAnomalyRun(runId: number, token: string): Promise<Record<string, any>> {
+  return request<Record<string, any>>(`/api/anomalies/run/${runId}`, "GET", undefined, token);
+}
+
+export function getAnomalyResult(resultId: number, token?: string): Promise<AnomalyResult> {
+  // Use public endpoint if no token provided (for logged-out users)
+  const path = token 
+    ? `/api/anomalies/result/${resultId}`
+    : `/api/anomalies/public/result/${resultId}`;
+  return request<AnomalyResult>(path, "GET", undefined, token);
+}
+
+// Research API
+export interface ResearchReport {
+  id: number;
+  short_hash: string;
+  title: string;
+  original_prompt: string;
+  city_id?: number | null;
+  district?: string | null;
+  status: string;
+  max_iterations: number;
+  max_subquestions: number;
+  current_iteration: number;
+  agenda?: Record<string, any> | null;
+  final_report_html?: string | null;
+  model_key?: string | null;
+  session_id?: string | null;
+  job_id?: string | null;
+  estimated_cost_usd?: number | null;
+  actual_cost_usd?: number | null;
+  total_items: number;
+  completed_items: number;
+  progress_percent: number;
+  is_public: boolean;
+  view_count: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ResearchItem {
+  id?: number;
+  report_id: number;
+  item_id: string;
+  research_question: string;
+  reason?: string | null;
+  priority?: number;
+  iteration_number?: number;
+  added_by?: string;
+  status: string;
+  result?: string | null;
+  session_id?: string | null;
+  error_message?: string | null;
+  metadata?: Record<string, any>;
+  started_at?: string | null;
+  completed_at?: string | null;
+  created_at?: string | null;
+}
+
+export interface ResearchItemsResponse {
+  report_id: number;
+  total_items: number;
+  items: ResearchItem[];
+}
+
+export interface CreateResearchRequest {
+  prompt: string;
+  city_id?: number | null;
+  district?: string | null;
+  max_iterations?: number;
+  max_subquestions?: number;
+  model_key?: string;
+  require_agenda_approval?: boolean;
+}
+
+export interface CreateResearchResponse {
+  report_id: number;
+  short_hash: string;
+  public_url: string;
+  estimated_cost: Record<string, any>;
+  status: string;
+  message: string;
+}
+
+export interface ResearchListResponse {
+  reports: ResearchReport[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export function createResearch(
+  payload: CreateResearchRequest,
+  token: string
+): Promise<CreateResearchResponse> {
+  return request<CreateResearchResponse>("/api/research/create", "POST", payload, token);
+}
+
+export function getResearch(reportId: number, token: string): Promise<ResearchReport> {
+  return request<ResearchReport>(`/api/research/${reportId}`, "GET", undefined, token);
+}
+
+export function getResearchItems(
+  reportId: number,
+  token: string
+): Promise<ResearchItemsResponse> {
+  return request<ResearchItemsResponse>(
+    `/api/research/${reportId}/items`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function runResearchFromAgenda(
+  reportId: number,
+  token: string
+): Promise<{ status: string; job_id: string; report_id: number; message: string }> {
+  return request<{ status: string; job_id: string; report_id: number; message: string }>(
+    `/api/research/${reportId}/run`,
+    "POST",
+    undefined,
+    token
+  );
+}
+
+export function cancelResearch(
+  reportId: number,
+  token: string
+): Promise<{ status: string; job_id: string; report_id: number }> {
+  return request<{ status: string; job_id: string; report_id: number }>(
+    `/api/research/${reportId}/cancel`,
+    "POST",
+    undefined,
+    token
+  );
+}
+
+export function getResearchByHash(hash: string): Promise<ResearchReport> {
+  return request<ResearchReport>(`/api/research/by-hash/${hash}`, "GET", undefined);
+}
+
+export function listResearch(
+  token: string,
+  options?: {
+    city_id?: number;
+    status_filter?: string;
+    limit?: number;
+    offset?: number;
+  }
+): Promise<ResearchListResponse> {
+  const params = new URLSearchParams();
+  if (options?.city_id) params.append("city_id", options.city_id.toString());
+  if (options?.status_filter) params.append("status_filter", options.status_filter);
+  if (options?.limit) params.append("limit", options.limit.toString());
+  if (options?.offset) params.append("offset", options.offset.toString());
+  
+  const query = params.toString();
+  const path = `/api/research/reports${query ? `?${query}` : ""}`;
+  return request<ResearchListResponse>(path, "GET", undefined, token);
+}
+
+export function publishResearch(
+  reportId: number,
+  isPublic: boolean,
+  token: string
+): Promise<{ success: boolean; message: string; public_url?: string }> {
+  return request<{ success: boolean; message: string; public_url?: string }>(
+    `/api/research/${reportId}/publish`,
+    "POST",
+    { is_public: isPublic },
+    token
+  );
+}
+
+export function deleteResearch(
+  reportId: number,
+  token: string
+): Promise<void> {
+  return fetch(`${API_BASE}/api/research/${reportId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+  }).then((res) => {
+    if (!res.ok && res.status !== 204) {
+      throw new Error(`Failed to delete research (${res.status})`);
+    }
+    // DELETE returns 204 No Content
+    return;
+  });
+}
+
+export interface RegenerateResearchRequest {
+  model_key?: string;
+}
+
+export interface RegenerateResearchResponse {
+  status: string;
+  job_id: string;
+  message: string;
+}
+
+export function regenerateResearch(
+  reportId: number,
+  reqData: RegenerateResearchRequest,
+  token: string
+): Promise<RegenerateResearchResponse> {
+  return request<RegenerateResearchResponse>(
+    `/api/research/${reportId}/regenerate`,
+    "POST",
+    reqData,
+    token
+  );
+}
+
+export interface ResynthesizeResearchRequest {
+  model_key?: string;
+}
+
+export interface ResynthesizeResearchResponse {
+  status: string;
+  job_id: string;
+  message: string;
+}
+
+export function resynthesizeResearch(
+  reportId: number,
+  reqData: ResynthesizeResearchRequest,
+  token: string
+): Promise<ResynthesizeResearchResponse> {
+  return request<ResynthesizeResearchResponse>(
+    `/api/research/${reportId}/resynthesize`,
+    "POST",
+    reqData,
+    token
+  );
+}
+
+export interface UpdateResearchTitleRequest {
+  title: string;
+}
+
+export interface UpdateResearchTitleResponse {
+  success: boolean;
+  message: string;
+  report_id: number;
+  title: string;
+}
+
+export function updateResearchTitle(
+  reportId: number,
+  title: string,
+  token: string
+): Promise<UpdateResearchTitleResponse> {
+  return request<UpdateResearchTitleResponse>(
+    `/api/research/${reportId}/title`,
+    "PUT",
+    { title },
+    token
+  );
+}
+
+// ============================================================================
+// SAVED MAPS API
+// ============================================================================
+
+export interface SavedMap {
+  id: number;
+  short_hash: string;
+  title: string;
+  description: string | null;
+  map_type: string;
+  location_data: Array<{ lat: number; lon: number; [key: string]: any }>;
+  map_config: Record<string, any>;
+  bounds: [[number, number], [number, number]] | null;
+  center: { lat: number; lng: number; zoom: number } | null;
+  city_id: number | null;
+  metric_id: number | null;
+  query_source: string | null;
+  is_public: boolean;
+  view_count: number;
+  user_id: string | null;
+  created_at: string;
+  updated_at: string;
+  public_url?: string | null;
+}
+
+export interface MapListItem {
+  id: number;
+  short_hash: string;
+  title: string;
+  description: string | null;
+  map_type: string;
+  city_id: number | null;
+  city_name: string | null;
+  metric_id: number | null;
+  is_public: boolean;
+  view_count: number;
+  user_id: string | null;
+  created_at: string;
+  point_count: number;
+  public_url?: string | null;
+}
+
+export interface MapListResponse {
+  maps: MapListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface CreateMapRequest {
+  title: string;
+  description?: string;
+  map_type: string;
+  location_data: Array<{ lat: number; lon: number; [key: string]: any }>;
+  map_config?: Record<string, any>;
+  bounds?: [[number, number], [number, number]];
+  center?: { lat: number; lng: number; zoom: number };
+  city_id?: number;
+  metric_id?: number;
+  query_source?: string;
+  is_public?: boolean;
+}
+
+export interface UpdateMapRequest {
+  title?: string;
+  description?: string;
+  is_public?: boolean;
+  map_config?: Record<string, any>;
+}
+
+export interface MapStatsResponse {
+  total_maps: number;
+  public_maps: number;
+  private_maps: number;
+  total_views: number;
+  maps_by_type: Record<string, number>;
+  maps_by_city: Record<string, number>;
+  top_viewed: MapListItem[];
+}
+
+// Create a new saved map
+export function createMap(mapData: CreateMapRequest, token: string): Promise<SavedMap> {
+  return request<SavedMap>("/api/maps", "POST", mapData, token);
+}
+
+// List user's maps
+export function listMyMaps(
+  token: string,
+  options?: {
+    city_id?: number;
+    is_public?: boolean;
+    map_type?: string;
+    limit?: number;
+    offset?: number;
+  }
+): Promise<MapListResponse> {
+  const params = new URLSearchParams();
+  if (options?.city_id) params.append("city_id", options.city_id.toString());
+  if (options?.is_public !== undefined) params.append("is_public", String(options.is_public));
+  if (options?.map_type) params.append("map_type", options.map_type);
+  if (options?.limit) params.append("limit", options.limit.toString());
+  if (options?.offset) params.append("offset", options.offset.toString());
+  
+  const query = params.toString();
+  const path = `/api/maps${query ? `?${query}` : ""}`;
+  return request<MapListResponse>(path, "GET", undefined, token);
+}
+
+// Get a specific map by ID
+export function getMapById(mapId: number, token: string): Promise<SavedMap> {
+  return request<SavedMap>(`/api/maps/${mapId}`, "GET", undefined, token);
+}
+
+// Get a public map by hash (no auth required)
+export function getPublicMap(hash: string): Promise<SavedMap> {
+  return request<SavedMap>(`/api/maps/public/${hash}`, "GET", undefined);
+}
+
+// Update a map
+export function updateMap(mapId: number, data: UpdateMapRequest, token: string): Promise<SavedMap> {
+  return request<SavedMap>(`/api/maps/${mapId}`, "PUT", data, token);
+}
+
+// Delete a map
+export function deleteMap(mapId: number, token: string): Promise<void> {
+  return fetch(`${API_BASE}/api/maps/${mapId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+  }).then((res) => {
+    if (!res.ok && res.status !== 204) {
+      throw new Error(`Failed to delete map (${res.status})`);
+    }
+    return;
+  });
+}
+
+// Publish or unpublish a map
+export function publishMap(
+  mapId: number,
+  isPublic: boolean,
+  token: string
+): Promise<SavedMap> {
+  return request<SavedMap>(
+    `/api/maps/${mapId}/publish`,
+    "POST",
+    { is_public: isPublic },
+    token
+  );
+}
+
+// Admin: List all maps
+export function adminListMaps(
+  token: string,
+  options?: {
+    user_id?: string;
+    city_id?: number;
+    is_public?: boolean;
+    map_type?: string;
+    limit?: number;
+    offset?: number;
+  }
+): Promise<MapListResponse> {
+  const params = new URLSearchParams();
+  if (options?.user_id) params.append("user_id", options.user_id);
+  if (options?.city_id) params.append("city_id", options.city_id.toString());
+  if (options?.is_public !== undefined) params.append("is_public", String(options.is_public));
+  if (options?.map_type) params.append("map_type", options.map_type);
+  if (options?.limit) params.append("limit", options.limit.toString());
+  if (options?.offset) params.append("offset", options.offset.toString());
+  
+  const query = params.toString();
+  const path = `/api/admin/maps${query ? `?${query}` : ""}`;
+  return request<MapListResponse>(path, "GET", undefined, token);
+}
+
+// Admin: Get map stats
+export function adminGetMapStats(token: string, cityId?: number): Promise<MapStatsResponse> {
+  const params = new URLSearchParams();
+  if (cityId) params.append("city_id", cityId.toString());
+  
+  const query = params.toString();
+  const path = `/api/admin/maps/stats${query ? `?${query}` : ""}`;
+  return request<MapStatsResponse>(path, "GET", undefined, token);
+}
+
+// Admin: Bulk delete maps
+export function adminBulkDeleteMaps(
+  mapIds: number[],
+  token: string
+): Promise<{ success: boolean; affected_count: number; message: string }> {
+  return request<{ success: boolean; affected_count: number; message: string }>(
+    "/api/admin/maps/bulk",
+    "DELETE",
+    { map_ids: mapIds },
+    token
+  );
+}
+
+// Admin: Bulk publish/unpublish maps
+export function adminBulkPublishMaps(
+  mapIds: number[],
+  isPublic: boolean,
+  token: string
+): Promise<{ success: boolean; affected_count: number; message: string }> {
+  return request<{ success: boolean; affected_count: number; message: string }>(
+    "/api/admin/maps/bulk/publish",
+    "PUT",
+    { map_ids: mapIds, is_public: isPublic },
+    token
+  );
+}
+
+// ============================================================================
+// USER PREFERENCES API
+// ============================================================================
+
+export interface UserPreferences {
+  has_completed_onboarding: boolean;
+  theme?: string | null;
+  extra?: Record<string, any> | null;
+}
+
+export interface UserPreferencesUpdateRequest {
+  has_completed_onboarding?: boolean;
+  theme?: string;
+  extra?: Record<string, any>;
+}
+
+export interface CityLeadInterestRequest {
+  city_name: string;
+  state?: string | null;
+  country?: string | null;
+}
+
+export interface CityLeadInterestResponse {
+  success: boolean;
+  message: string;
+  interest_id?: number | null;
+}
+
+// Get current user's preferences
+export function getUserPreferences(token: string): Promise<UserPreferences> {
+  return request<UserPreferences>("/api/admin/me/preferences", "GET", undefined, token);
+}
+
+// Update current user's preferences
+export function updateUserPreferences(
+  data: UserPreferencesUpdateRequest,
+  token: string
+): Promise<UserPreferences> {
+  return request<UserPreferences>("/api/admin/me/preferences", "PUT", data, token);
+}
+
+// Submit interest in a city that doesn't have data yet
+export function submitCityLeadInterest(
+  data: CityLeadInterestRequest,
+  token: string
+): Promise<CityLeadInterestResponse> {
+  return request<CityLeadInterestResponse>("/api/admin/cities/lead-interest", "POST", data, token);
+}
+
+// Force rebuild - all exports are defined above
 

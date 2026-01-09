@@ -1,0 +1,61 @@
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.actionsCompact {
+  gap: 4px;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.iconBtn:hover {
+  background: var(--bg-secondary);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+}
+
+.iconBtn:active {
+  transform: scale(0.95);
+}
+
+.iconBtnDanger {
+  color: var(--error-text, #c62828);
+}
+
+.iconBtnDanger:hover {
+  background: var(--error-bg, #fee);
+  border-color: var(--error-text, #c62828);
+  color: var(--error-text, #c62828);
+}
+
+@media (max-width: 640px) {
+  .actions {
+    gap: 4px;
+  }
+
+  .iconBtn {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+}
+

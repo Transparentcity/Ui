@@ -7,10 +7,11 @@ import styles from "./UserProfile.module.css";
 
 interface UserProfileProps {
   isAdmin?: boolean;
+  cityLeadCityIds?: number[];
   onViewChange?: (view: string) => void;
 }
 
-export default function UserProfile({ isAdmin = false, onViewChange }: UserProfileProps) {
+export default function UserProfile({ isAdmin = false, cityLeadCityIds = [], onViewChange }: UserProfileProps) {
   const { user } = useAuth0();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -78,6 +79,7 @@ export default function UserProfile({ isAdmin = false, onViewChange }: UserProfi
         ref={menuRef}
         isOpen={isMenuOpen}
         isAdmin={isAdmin}
+        cityLeadCityIds={cityLeadCityIds}
         onClose={() => setIsMenuOpen(false)}
         onViewChange={onViewChange}
       />

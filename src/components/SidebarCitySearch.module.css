@@ -1,0 +1,382 @@
+/* Container for nav item and GPS button */
+.navItemContainer {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 0 0 2px 0;
+  position: relative;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.navItemContainer:hover {
+  background: var(--bg-tertiary);
+}
+
+.navItemContainer:hover .navItem {
+  color: var(--text-primary);
+}
+
+.navItemContainer:hover .gpsBtn {
+  color: var(--text-primary);
+}
+
+/* Nav item - matches New Chat / New Research Report style */
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-md);
+  margin: 0;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: none;
+  background: none;
+  flex: 1;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.navIcon {
+  width: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.navLabel {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gpsBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  margin-right: var(--space-md);
+}
+
+.gpsBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.gpsBtn:hover:not(:disabled) {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.gpsBtnOn {
+  background: var(--bg-tertiary);
+  color: var(--brand-primary);
+}
+
+.gpsBtnActive {
+  background: var(--brand-primary) !important;
+  color: white !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  animation: gpsPulse 0.6s ease-out;
+}
+
+@keyframes gpsPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
+/* Modal overlay */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 100000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 80px 16px 16px;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modalContent {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 480px;
+  max-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.2s ease;
+  overflow: hidden;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.modalTitle {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.modalClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.modalClose:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* Search area */
+.modalSearch {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.inputWrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  transition: all 0.15s ease;
+}
+
+.inputWrap:focus-within {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.leadingIcon {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 15px;
+}
+
+.input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.modalGpsBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.modalGpsBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.modalGpsBtn:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--border-secondary);
+}
+
+/* Results */
+.modalResults {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  min-height: 120px;
+  max-height: 320px;
+}
+
+.resultItem {
+  padding: 12px 14px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.resultLoading {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+.resultHint {
+  color: var(--text-tertiary);
+}
+
+.resultError {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.resultEmpty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.resultBtn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 14px;
+  transition: all 0.1s ease;
+}
+
+.resultBtn:hover,
+.resultBtnSelected {
+  background: var(--bg-tertiary);
+}
+
+.resultCityRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.resultEmoji {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.resultCityName {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.resultMeta {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .modalOverlay {
+    padding: 60px 12px 12px;
+  }
+
+  .modalContent {
+    max-height: calc(100vh - 80px);
+  }
+
+  .modalHeader {
+    padding: 14px 16px;
+  }
+
+  .modalSearch {
+    padding: 14px 16px;
+  }
+
+  .inputWrap {
+    padding: 10px 12px;
+  }
+
+  .input {
+    font-size: 16px; /* Prevent iOS zoom */
+  }
+
+  .modalResults {
+    padding: 6px;
+    max-height: 280px;
+  }
+
+  .resultBtn {
+    padding: 10px 12px;
+  }
+}

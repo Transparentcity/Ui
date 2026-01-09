@@ -1,0 +1,212 @@
+.container {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.toggleButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.toggleButton:hover {
+  background: var(--bg-secondary);
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.headerActions {
+  display: flex;
+  gap: 8px;
+}
+
+.resetButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.resetButton:hover {
+  background: var(--bg-secondary);
+  border-color: var(--border-secondary);
+}
+
+.content {
+  padding: 16px;
+}
+
+.description {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.templateList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.templateItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-primary);
+  border: 2px solid var(--border-primary);
+  border-radius: 6px;
+  cursor: move;
+  transition: all 0.2s;
+}
+
+.templateItem:hover {
+  border-color: var(--border-secondary);
+  background: var(--bg-secondary);
+}
+
+.templateItem.dragging {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+.templateItem.dragOver {
+  border-color: var(--brand-primary);
+  background: var(--bg-tertiary);
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.templateDragHandle {
+  color: var(--text-tertiary);
+  cursor: grab;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.templateDragHandle:active {
+  cursor: grabbing;
+}
+
+.templateColor {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid var(--border-primary);
+  flex-shrink: 0;
+}
+
+.templateInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.templateName {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.templateMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.templateMeta .badge {
+  font-size: 10px;
+  padding: 2px 6px;
+}
+
+.muted {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.templateActions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.moveButton {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 12px;
+}
+
+.moveButton:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  border-color: var(--border-secondary);
+}
+
+.moveButton:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+
+
+
+
+

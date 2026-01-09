@@ -417,6 +417,63 @@
   border-bottom-color: var(--brand-primary);
 }
 
+/* District Navigation Overlay for Map View - Top Left, below tabs */
+.map-district-navigation-overlay {
+  position: absolute;
+  top: 110px; /* Below header (56px) + tabs (48px) + small gap */
+  left: 24px;
+  z-index: 998; /* Below header (1000) and tabs (999), but above map */
+  transform: none;
+  transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+  min-width: 300px;
+  max-width: 400px;
+}
+
+.map-district-navigation-overlay.hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.map-district-navigation-overlay.visible {
+  opacity: 1;
+}
+
+/* Date Range Overlay for Map View - Top Left, below district navigation */
+.map-date-range-overlay {
+  position: absolute;
+  top: 170px; /* Below header (56px) + tabs (48px) + district nav (~60px) + gap */
+  left: 24px;
+  z-index: 998; /* Below header (1000) and tabs (999), but above map */
+  transform: none;
+  transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+}
+
+.map-date-range-overlay.hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.map-date-range-overlay.visible {
+  opacity: 1;
+}
+
+/* Responsive adjustments for district navigation and date range overlay */
+@media (max-width: 768px) {
+  .map-district-navigation-overlay {
+    left: 16px;
+    top: 110px; /* Same as desktop - header (56px) + tabs (48px) + small gap */
+    min-width: calc(100% - 32px);
+    max-width: calc(100% - 32px);
+  }
+
+  .map-date-range-overlay {
+    left: 16px;
+    top: 170px; /* Below district navigation */
+  }
+}
+
 /* Dashboard Tab */
 .dashboard-section {
   padding: 0;
@@ -463,6 +520,21 @@
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+/* Anomalies Tab */
+.anomalies-section {
+  padding: 0;
+  height: 100%;
+  min-height: 0; /* Required for flex children */
+  display: flex;
+  flex-direction: column;
+}
+
+/* When anomalies tab is active, don't scroll the tab-content - let the panel handle it */
+.city-view .tab-content-wrapper.anomalies-tab .tab-content {
+  overflow-y: hidden;
+  padding-bottom: 0;
 }
 
 /* Statistics Section */
@@ -703,6 +775,102 @@
   font-weight: 500;
   color: var(--text-primary);
   line-height: 1.5;
+}
+
+/* Dashboard Metrics Table */
+.metrics-table-container {
+  margin-top: 16px;
+  overflow-x: auto;
+}
+
+.metrics-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.metrics-table thead {
+  background: var(--bg-secondary);
+}
+
+.metrics-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-primary);
+}
+
+.metrics-table th.ytd-column {
+  text-align: right;
+}
+
+.metrics-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-primary);
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.metrics-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.metrics-table .category-header-row {
+  background: var(--bg-tertiary);
+}
+
+.metrics-table .category-header {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-primary);
+  padding: 10px 16px;
+  border-bottom: 2px solid var(--border-primary);
+}
+
+.metrics-table .metric-row {
+  transition: background-color 0.2s;
+}
+
+.metrics-table .metric-row:hover {
+  background: var(--bg-secondary);
+}
+
+.metrics-table .metric-name-cell {
+  min-width: 200px;
+}
+
+.metrics-table .ytd-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  min-width: 120px;
+}
+
+.metrics-table .status-cell {
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 150px;
+}
+
+/* Responsive table */
+@media (max-width: 768px) {
+  .metrics-table-container {
+    overflow-x: scroll;
+  }
+  
+  .metrics-table {
+    min-width: 600px;
+  }
+  
+  .metrics-table th,
+  .metrics-table td {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
 }
 
 /* Responsive */

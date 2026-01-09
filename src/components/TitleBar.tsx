@@ -1,51 +1,28 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
-import { useJobWebSocket } from "@/lib/useJobWebSocket";
+import { useJobWebSocketContext } from "@/contexts/JobWebSocketContext";
 import JobBadge from "./JobBadge";
 import JobDropdown from "./JobDropdown";
-import TopNavCitySearch from "./TopNavCitySearch";
 import styles from "./TitleBar.module.css";
 
 interface TitleBarProps {
   onMenuToggle: () => void;
   isAdmin?: boolean;
-  onCitySelect?: (cityId: number) => void;
-  onGPSLocation?: (location: { lat: number; lng: number }) => void;
 }
 
 export default function TitleBar({
   onMenuToggle,
   isAdmin = false,
-  onCitySelect,
-  onGPSLocation,
 }: TitleBarProps) {
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  const { isAuthenticated } = useAuth0();
   const [isJobDropdownOpen, setIsJobDropdownOpen] = useState(false);
-  const [token, setToken] = useState<string | null>(null);
 
-  // Get token for WebSocket connection - enable for all authenticated users
-  useEffect(() => {
-    if (isAuthenticated) {
-      getAccessTokenSilently()
-        .then((t) => {
-          setToken(t);
-          console.log("✅ Job badge: Token obtained for WebSocket connection");
-        })
-        .catch((err) => {
-          console.error("❌ Job badge: Failed to get token:", err);
-        });
-    } else {
-      setToken(null);
-    }
-  }, [isAuthenticated, getAccessTokenSilently]);
-
-  // Enable job WebSocket for all authenticated users, not just admins
-  const { jobs, activeJobs, cancelJob } = useJobWebSocket(token, isAuthenticated);
+  // Use shared job WebSocket context (single connection for entire app)
+  const { jobs, activeJobs, cancelJob } = useJobWebSocketContext();
 
   const handleCancelJob = async (jobId: string) => {
-    if (!token) return;
     await cancelJob(jobId);
   };
 
@@ -183,15 +160,6 @@ export default function TitleBar({
         </div>
       </div>
       <div className={styles.titleBarRight}>
-        {onCitySelect ? (
-          <div className={styles.citySearchWrap}>
-            <TopNavCitySearch 
-              onCitySelect={onCitySelect}
-              onGPSLocation={onGPSLocation}
-            />
-          </div>
-        ) : null}
-
         {/* Job Status Badge - Show for all authenticated users */}
         {isAuthenticated && (
           <div

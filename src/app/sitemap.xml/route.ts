@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
+import { listPublicCitiesForSitemap, listPublicMapsForSitemap } from "@/lib/publicApiClient";
 import { getSiteOrigin } from "@/lib/siteUrl";
 
 export const revalidate = 3600;
@@ -45,12 +45,21 @@ function toSitemapXml(entries: SitemapEntry[]): string {
 export async function GET(): Promise<Response> {
   const origin = getSiteOrigin();
 
+  // Fetch cities
   let cities: Awaited<ReturnType<typeof listPublicCitiesForSitemap>> = [];
   try {
     cities = await listPublicCitiesForSitemap();
   } catch {
     // If the backend is temporarily unavailable, still emit a valid sitemap
     // containing the marketing pages. Search engines will retry.
+  }
+
+  // Fetch public maps
+  let maps: Awaited<ReturnType<typeof listPublicMapsForSitemap>> = [];
+  try {
+    maps = await listPublicMapsForSitemap();
+  } catch {
+    // If the backend is temporarily unavailable, continue without maps
   }
 
   const cityEntries: SitemapEntry[] = cities.map((city) => ({
@@ -60,11 +69,18 @@ export async function GET(): Promise<Response> {
     priority: 0.6,
   }));
 
+  const mapEntries: SitemapEntry[] = maps.map((map) => ({
+    loc: `${origin}/m/${map.short_hash}`,
+    changefreq: "monthly",
+    priority: 0.5,
+  }));
+
   const entries: SitemapEntry[] = [
     { loc: `${origin}/`, changefreq: "weekly", priority: 1.0 },
     { loc: `${origin}/sitemap`, changefreq: "daily", priority: 0.8 },
     { loc: `${origin}/landing`, changefreq: "monthly", priority: 0.4 },
     ...cityEntries,
+    ...mapEntries,
   ];
 
   const xml = toSitemapXml(entries);
@@ -75,5 +91,15 @@ export async function GET(): Promise<Response> {
     },
   });
 }
+
+
+
+
+
+
+
+
+
+
 
 

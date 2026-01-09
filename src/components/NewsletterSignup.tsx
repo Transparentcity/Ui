@@ -71,3 +71,12 @@ export default function NewsletterSignup({ cityName }: NewsletterSignupProps) {
   );
 }
 
+
+
+
+
+
+
+
+
+

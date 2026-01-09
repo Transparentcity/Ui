@@ -1,0 +1,325 @@
+/* Anomalies Tab Panel Styles */
+.container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary, #fff);
+  border-radius: var(--radius-lg, 12px);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  overflow: hidden;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--bg-secondary, #f9fafb);
+  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  flex-shrink: 0;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary, #222);
+  margin: 0;
+  display: flex;
+  align-items: center;
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.filterLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+}
+
+.filterSelect {
+  padding: 6px 12px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  font-size: 13px;
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #222);
+  cursor: pointer;
+}
+
+.filterSelect:focus {
+  outline: none;
+  border-color: var(--brand-primary, #ad35fa);
+  box-shadow: 0 0 0 2px var(--brand-primary-light, rgba(173, 53, 250, 0.15));
+}
+
+/* Content */
+.content {
+  flex: 1;
+  padding: 16px 20px;
+  overflow-y: auto;
+  min-height: 0; /* Required for flex scroll */
+}
+
+/* Loading / Error / Empty States */
+.loadingContainer,
+.errorContainer,
+.emptyContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-secondary, #666);
+}
+
+.loadingContainer i,
+.emptyContainer i {
+  font-size: 40px;
+  color: var(--text-tertiary, #999);
+}
+
+.errorContainer i {
+  font-size: 40px;
+  color: var(--error, #ef4444);
+}
+
+.errorContainer {
+  color: var(--error, #ef4444);
+}
+
+.emptySubtext {
+  font-size: 13px;
+  color: var(--text-tertiary, #999);
+  margin: 4px 0 0 0;
+  max-width: 400px;
+}
+
+/* Anomalies List */
+.anomaliesList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Metric Group */
+.metricGroup {
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+  background: var(--bg-primary, #fff);
+}
+
+.metricHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg-secondary, #f9fafb);
+  border-bottom: 1px solid var(--border-secondary, #f0f0f0);
+}
+
+.metricName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #222);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expandBtn {
+  display: flex;
+  align-items: center;
+  padding: 4px 10px;
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--brand-primary, #ad35fa);
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.expandBtn:hover {
+  background: var(--brand-primary-light, rgba(173, 53, 250, 0.1));
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+/* Anomaly Card */
+.anomalyCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--bg-primary, #fff);
+  border: none;
+  border-left: 4px solid var(--error, #ef4444);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s;
+}
+
+.anomalyCard:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.02));
+}
+
+.anomalyCard[data-is-positive="false"] {
+  border-left-color: var(--success, #10b981);
+}
+
+.sparklineContainer {
+  flex-shrink: 0;
+  width: 150px;
+  height: 80px;
+  border-radius: var(--radius-sm, 6px);
+  overflow: hidden;
+  background: var(--bg-secondary, #f9fafb);
+}
+
+.anomalyInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.anomalyText {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary, #222);
+}
+
+.anomalyText i {
+  color: var(--error, #ef4444);
+}
+
+.anomalyCard[data-is-positive="false"] .anomalyText i {
+  color: var(--success, #10b981);
+}
+
+.anomalyStats {
+  font-size: 12px;
+  color: var(--text-secondary, #666);
+}
+
+/* Date Range Styles */
+.dateRange {
+  font-size: 11px;
+  color: var(--text-secondary, #666);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.dateLabel {
+  font-weight: 500;
+  color: var(--text-tertiary, #888);
+}
+
+.dateSeparator {
+  color: var(--border-primary, #e5e7eb);
+  margin: 0 2px;
+}
+
+/* Sub-Anomalies */
+.subAnomalies {
+  display: flex;
+  flex-direction: column;
+  padding: 0 8px 8px 8px;
+  gap: 6px;
+}
+
+.subAnomalyCard {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 8px 12px;
+  background: var(--bg-secondary, #f9fafb);
+  border: none;
+  border-left: 3px solid var(--error, #ef4444);
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+  color: var(--text-primary, #222);
+  transition: background-color 0.15s;
+}
+
+.subAnomalyCard:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.04));
+}
+
+.subAnomalyCard[data-is-positive="false"] {
+  border-left-color: var(--success, #10b981);
+}
+
+.subAnomalyCard i {
+  color: var(--error, #ef4444);
+}
+
+.subAnomalyCard[data-is-positive="false"] i {
+  color: var(--success, #10b981);
+}
+
+.subAnomalyMain {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.subAnomalyDate {
+  font-size: 10px;
+  color: var(--text-tertiary, #888);
+  flex-basis: 100%;
+  margin-top: 2px;
+}
+
+.subAnomalyStats {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: var(--text-secondary, #666);
+  margin-top: 2px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 640px) {
+  .header {
+    padding: 12px 16px;
+  }
+
+  .title {
+    font-size: 16px;
+  }
+
+  .content {
+    padding: 12px 16px;
+  }
+
+  .anomalyCard {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .sparklineContainer {
+    width: 100%;
+    height: 60px;
+  }
+}
