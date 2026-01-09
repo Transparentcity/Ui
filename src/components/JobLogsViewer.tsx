@@ -3,7 +3,8 @@
 import { useAuth0 } from "@auth0/auth0-react";
 import { useEffect, useState, useRef } from "react";
 import { Job, getJob, getJobStats, JobStats } from "@/lib/apiClient";
-import { useJobWebSocketContext, type Job as WebSocketJob } from "@/contexts/JobWebSocketContext";
+import { useJobWebSocketContext } from "@/contexts/JobWebSocketContext";
+import type { Job as WebSocketJob } from "@/lib/useJobWebSocket";
 import Loader from "./Loader";
 import styles from "./JobLogsViewer.module.css";
 

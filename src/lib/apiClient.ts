@@ -2103,6 +2103,7 @@ export interface ResearchReport {
   progress_percent: number;
   is_public: boolean;
   view_count: number;
+  error_message?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -2149,6 +2150,7 @@ export interface CreateResearchResponse {
   estimated_cost: Record<string, any>;
   status: string;
   message: string;
+  job_id?: string;
 }
 
 export interface ResearchListResponse {

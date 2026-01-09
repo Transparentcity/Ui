@@ -123,7 +123,9 @@ export default function NewResearchPage() {
       };
       
       const response = await createResearch(payload, token);
-      notifyJobCreated(response.job_id);
+      if (response.job_id) {
+        notifyJobCreated(response.job_id);
+      }
       
       // Notify ResearchList to reload
       if (typeof window !== "undefined") {

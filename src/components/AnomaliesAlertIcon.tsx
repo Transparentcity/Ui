@@ -8,7 +8,7 @@ import styles from "./AnomaliesAlertIcon.module.css";
 interface AnomaliesAlertIconProps {
   cityId: number;
   district?: number | null;
-  onAnomalySelect?: (anomaly: AnomalyResult) => void;
+  onAnomalySelect?: (anomaly: AnomalyResult | null) => void;
   selectedAnomaly?: AnomalyResult | null;
 }
 

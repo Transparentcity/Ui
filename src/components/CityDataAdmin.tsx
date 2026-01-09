@@ -371,7 +371,10 @@ export default function CityDataAdmin({
     if (currentIndex === -1) return;
     
     const nextIndex = (currentIndex + 1) % filtered.length;
-    setSelectedAnomalyId(filtered[nextIndex].id);
+    const nextId = filtered[nextIndex].id;
+    if (nextId !== null && nextId !== undefined) {
+      setSelectedAnomalyId(nextId);
+    }
   };
 
   const goToPreviousAnomaly = () => {
@@ -382,7 +385,10 @@ export default function CityDataAdmin({
     if (currentIndex === -1) return;
     
     const prevIndex = currentIndex === 0 ? filtered.length - 1 : currentIndex - 1;
-    setSelectedAnomalyId(filtered[prevIndex].id);
+    const prevId = filtered[prevIndex].id;
+    if (prevId !== null && prevId !== undefined) {
+      setSelectedAnomalyId(prevId);
+    }
   };
 
   // Initialize form data when city data loads
@@ -3507,13 +3513,13 @@ export default function CityDataAdmin({
                             period_type: anomalyDetail.period_type || "month",
                           }}
                           metadata={{
-                            object_name: anomalyDetail.object_name,
-                            field_name: anomalyDetail.field_name,
+                            object_name: anomalyDetail.object_name ?? undefined,
+                            field_name: anomalyDetail.metric_name ?? undefined,
                             y_axis_label: undefined,
                             period_type: anomalyDetail.period_type,
-                            group_field_name: anomalyDetail.group_field,
-                            group_value: anomalyDetail.group_value,
-                            city_name: anomalyDetail.city_name,
+                            group_field_name: anomalyDetail.group_field ?? undefined,
+                            group_value: anomalyDetail.group_value ?? undefined,
+                            city_name: anomalyDetail.city_name ?? undefined,
                             district: anomalyDetail.district,
                           }}
                           height={400}
@@ -3904,7 +3910,11 @@ export default function CityDataAdmin({
                           <td className={metricStyles.anomalyTd}>
                             <button
                               className={metricStyles.primaryBtn}
-                              onClick={() => openAnomalyChart(anomaly.id)}
+                              onClick={() => {
+                                if (anomaly.id !== null && anomaly.id !== undefined) {
+                                  openAnomalyChart(anomaly.id);
+                                }
+                              }}
                               style={{
                                 display: "inline-flex",
                                 alignItems: "center",
@@ -3928,7 +3938,7 @@ export default function CityDataAdmin({
                   )}
                   <div style={{ marginTop: "16px", padding: "12px", background: "var(--bg-secondary)", borderRadius: "4px", fontSize: "12px", color: "var(--text-secondary)" }}>
                     <strong>Note:</strong> All anomaly detection results are stored, including those that don't meet the anomaly threshold. 
-                    Results flagged as anomalies exceed {anomaliesData.results[0]?.threshold_stddev ?? 2.0} standard deviations.
+                    Results flagged as anomalies exceed 2.0 standard deviations.
                   </div>
                 </div>
                 );

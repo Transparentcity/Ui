@@ -227,7 +227,7 @@ function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionPro
                       <td className="ytd-cell">
                         {metric.ytdLoading ? (
                           <Loader size="sm" color="dark" />
-                        ) : metric.ytdLastYear !== null ? (
+                        ) : metric.ytdLastYear !== null && metric.ytdLastYear !== undefined ? (
                           metric.ytdLastYear.toLocaleString()
                         ) : (
                           <span style={{ color: "var(--text-secondary)" }}>—</span>
@@ -236,7 +236,7 @@ function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionPro
                       <td className="ytd-cell">
                         {metric.ytdLoading ? (
                           <Loader size="sm" color="dark" />
-                        ) : metric.ytdThisYear !== null ? (
+                        ) : metric.ytdThisYear !== null && metric.ytdThisYear !== undefined ? (
                           metric.ytdThisYear.toLocaleString()
                         ) : (
                           <span style={{ color: "var(--text-secondary)" }}>—</span>
@@ -495,7 +495,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
           <div className={`map-district-navigation-overlay ${headerVisible ? "visible" : "hidden"}`}>
             <DistrictNavigation
               selectedDistrict={selectedDistrict}
-              leaders={mapLeaders.length > 0 ? mapLeaders : (cityData?.leaders || [])}
+              leaders={mapLeaders.length > 0 ? mapLeaders : []}
               shapefiles={mapShapefiles}
               onDistrictSelect={(district) => {
                 setSelectedDistrict(district);

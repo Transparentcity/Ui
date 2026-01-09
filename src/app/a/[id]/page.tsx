@@ -27,6 +27,7 @@ interface AnomalyMetadata {
   group_field_name?: string;
   group_value?: string;
   item_noun?: string;
+  city_name?: string;
 }
 
 interface Anomaly {

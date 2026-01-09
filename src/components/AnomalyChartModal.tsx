@@ -38,7 +38,7 @@ export default function AnomalyChartModal({
             Anomaly Chart
             {anomalyDetail && (
               <span style={{ marginLeft: "8px", fontSize: "0.9em", fontWeight: "normal", color: "var(--text-secondary)" }}>
-                {anomalyDetail.object_name || anomalyDetail.field_name || `Anomaly ${anomalyId}`}
+                {anomalyDetail.object_name || anomalyDetail.metric_name || `Anomaly ${anomalyId}`}
               </span>
             )}
           </div>
@@ -119,13 +119,13 @@ export default function AnomalyChartModal({
                     period_type: anomalyDetail.period_type || "month",
                   }}
                   metadata={{
-                    object_name: anomalyDetail.object_name,
-                    field_name: anomalyDetail.field_name,
+                    object_name: anomalyDetail.object_name ?? undefined,
+                    field_name: anomalyDetail.metric_name ?? undefined,
                     y_axis_label: undefined,
                     period_type: anomalyDetail.period_type,
-                    group_field_name: anomalyDetail.group_field,
-                    group_value: anomalyDetail.group_value,
-                    city_name: anomalyDetail.city_name,
+                    group_field_name: anomalyDetail.group_field ?? undefined,
+                    group_value: anomalyDetail.group_value ?? undefined,
+                    city_name: anomalyDetail.city_name ?? undefined,
                     district: anomalyDetail.district,
                   }}
                   height={400}

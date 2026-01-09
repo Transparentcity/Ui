@@ -861,11 +861,12 @@ export default function MetricsAdmin() {
 
       {/* Old Detail Modal - REMOVED */}
       {false && (
-        <div className={styles.modalOverlay} onMouseDown={closeDetail}>
+        <div className={styles.modalOverlay} onMouseDown={() => {}}>
           <div className={styles.modal} onMouseDown={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
+              {/* @ts-expect-error - Dead code */}
               <div className={styles.modalTitle}>{detail.metric_name}</div>
-              <button className={styles.iconBtn} onClick={closeDetail} title="Close">
+              <button className={styles.iconBtn} onClick={() => {}} title="Close">
                 <i className="fas fa-times" />
               </button>
             </div>
@@ -1252,7 +1253,7 @@ export default function MetricsAdmin() {
               )}
             </div>
             <div className={styles.modalFooter}>
-              <button className={styles.secondaryBtn} onClick={closeDetail}>
+              <button className={styles.secondaryBtn} onClick={() => {}}>
                 Close
               </button>
               <button className={styles.primaryBtn} onClick={() => openExecuteModal(detail.id)}>
