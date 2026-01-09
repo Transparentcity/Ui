@@ -554,9 +554,6 @@ export function batchAnalyzeCities(
   );
 }
 
-// Explicit re-export to ensure bundlers pick up the named export
-export { batchAnalyzeCities };
-
 // User Permissions API
 export interface UserPermissions {
   user_id: number;

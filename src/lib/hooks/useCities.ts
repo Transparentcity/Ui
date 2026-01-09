@@ -66,7 +66,11 @@ export function useCities(options?: { includeInactive?: boolean; limit?: number;
     queryKey: cityKeys.list(options),
     queryFn: async () => {
       const token = await getAccessTokenSilently();
-      return listCities(token, options?.includeInactive, options?.limit, options?.offset);
+      // Convert includeInactive to is_active parameter
+      // includeInactive=true means is_active should be undefined (show all)
+      // includeInactive=false means is_active should be true (show only active)
+      const is_active = options?.includeInactive === false ? true : undefined;
+      return listCities(token, undefined, undefined, is_active);
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });

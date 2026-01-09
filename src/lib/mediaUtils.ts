@@ -184,10 +184,10 @@ export function extractMediaFromPoints(
   const allMedia: MediaItem[] = [];
 
   points.forEach((point) => {
-    const coordinates = getCoordinates
+    const coordinates: [number, number] | undefined = getCoordinates
       ? getCoordinates(point)
       : point.lon && point.lat
-      ? [point.lon, point.lat]
+      ? [point.lon, point.lat] as [number, number]
       : undefined;
 
     const mediaItems = extractMediaFromPoint(point, coordinates);
