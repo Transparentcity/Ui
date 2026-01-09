@@ -18,6 +18,9 @@ export interface TimeSeriesDataPoint {
   group_value?: string | null;
 }
 
+// Extended type for internal processing with parsed dates
+type TimeSeriesDataPointWithDate = TimeSeriesDataPoint & { date: Date };
+
 export interface TimeSeriesChartProps {
   data: TimeSeriesDataPoint[];
   metadata?: {
@@ -102,7 +105,7 @@ function aggregateDataByGroup(
       }
       return { ...point, date };
     })
-    .filter((p): p is TimeSeriesDataPoint & { date: Date } => p !== null);
+    .filter((p): p is TimeSeriesDataPointWithDate => p !== null);
 
   if (dataWithDates.length === 0) {
     console.warn('TimeSeriesChart: No valid dates found in data', data);
@@ -119,7 +122,7 @@ function aggregateDataByGroup(
     
     if (hasOriginalGroups) {
       // If we have groups, group by original group_value first, then by year
-      const groupedByOriginalGroup = new Map<string, Map<string, TimeSeriesDataPoint[]>>();
+      const groupedByOriginalGroup = new Map<string, Map<string, TimeSeriesDataPointWithDate[]>>();
       
       for (const point of dataWithDates) {
         const originalGroup = point.group_value || "";
@@ -143,9 +146,11 @@ function aggregateDataByGroup(
       for (const [originalGroup, yearGroups] of groupedByOriginalGroup.entries()) {
         for (const [year, points] of yearGroups.entries()) {
           // Group by day-of-year within each year+group combination
-          const dayGroups = new Map<number, TimeSeriesDataPoint[]>();
+          const dayGroups = new Map<number, TimeSeriesDataPointWithDate[]>();
           
-          for (const point of points) {
+          // TypeScript needs explicit type here
+          const typedPoints: TimeSeriesDataPointWithDate[] = points;
+          for (const point of typedPoints) {
             const dayOfYear = getDayOfYear(point.date);
             
             if (!dayGroups.has(dayOfYear)) {
@@ -187,7 +192,7 @@ function aggregateDataByGroup(
       return aggregatedByGroup;
     } else {
       // No original groups - just group by year
-      const groupedByYear = new Map<string, TimeSeriesDataPoint[]>();
+      const groupedByYear = new Map<string, TimeSeriesDataPointWithDate[]>();
       
       for (const point of dataWithDates) {
         const year = point.date.getFullYear().toString();
@@ -203,9 +208,11 @@ function aggregateDataByGroup(
       
       for (const [year, points] of groupedByYear.entries()) {
         // Group by day-of-year within each year
-        const dayGroups = new Map<number, TimeSeriesDataPoint[]>();
+        const dayGroups = new Map<number, TimeSeriesDataPointWithDate[]>();
         
-        for (const point of points) {
+        // TypeScript needs explicit type here
+        const typedPoints: TimeSeriesDataPointWithDate[] = points;
+        for (const point of typedPoints) {
           const dayOfYear = getDayOfYear(point.date);
           
           if (!dayGroups.has(dayOfYear)) {
@@ -247,7 +254,7 @@ function aggregateDataByGroup(
 
   // For non-YTD periods, use standard aggregation
   // Group by period AND group_value
-  const grouped = new Map<string, TimeSeriesDataPoint[]>();
+  const grouped = new Map<string, TimeSeriesDataPointWithDate[]>();
 
   for (const point of dataWithDates) {
     let timeKey: string;
