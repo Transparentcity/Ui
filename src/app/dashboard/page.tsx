@@ -46,6 +46,7 @@ export default function DashboardPage() {
   // Initialize sidebar state - always start with false to match server render
   // Will be updated on client mount based on screen size
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [currentView, setCurrentView] = useState<ViewType>("chat");
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isCurrentSessionJobSession, setIsCurrentSessionJobSession] = useState(false);
@@ -61,12 +62,29 @@ export default function DashboardPage() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [homeCity, setHomeCity] = useState<any>(null);
   const [loadingPreferences, setLoadingPreferences] = useState(false);
+  const [savingPreferences, setSavingPreferences] = useState(false);
+  
+  // Editable preference state
+  const [editableAnomalyAlerts, setEditableAnomalyAlerts] = useState(false);
+  const [editableWeeklyDigest, setEditableWeeklyDigest] = useState(false);
+  const [editableMonthlyReport, setEditableMonthlyReport] = useState(false);
+  const [editableReportScope, setEditableReportScope] = useState<"district" | "city">("district");
+  const [editableCategories, setEditableCategories] = useState<string[]>([]);
+  const [editableLearningFocus, setEditableLearningFocus] = useState("");
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/");
     }
   }, [isLoading, isAuthenticated, router]);
+
+  // Reload preferences when settings view becomes active
+  useEffect(() => {
+    if (currentView === "system-stats" && isAuthenticated && !isLoading && !loadingPreferences) {
+      loadUserSettings();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentView, isAuthenticated, isLoading]);
 
   // Set initial sidebar state based on screen size after mount
   useEffect(() => {
@@ -339,7 +357,7 @@ export default function DashboardPage() {
   };
 
   const handleOpenSettings = async () => {
-    handleViewChange("system-stats");
+    setSettingsOpen(true);
     // Load user preferences and info when opening settings
     await loadUserSettings();
   };
@@ -351,7 +369,30 @@ export default function DashboardPage() {
       
       // Fetch preferences
       const prefs = await getUserPreferences(token);
+      console.log("Loaded preferences in loadUserSettings:", JSON.stringify(prefs, null, 2));
       setUserPreferences(prefs);
+      
+      // Initialize editable state from preferences
+      const commPrefs = prefs.extra?.communication_preferences || {};
+      console.log("Communication preferences from loaded prefs:", commPrefs);
+      console.log("Category interests from loaded prefs:", prefs.extra?.category_interests);
+      console.log("Learning focus from loaded prefs:", prefs.extra?.learning_focus);
+      
+      setEditableAnomalyAlerts(commPrefs.anomaly_alerts ?? false);
+      setEditableWeeklyDigest(commPrefs.weekly_digest ?? false);
+      setEditableMonthlyReport(commPrefs.monthly_report ?? false);
+      setEditableReportScope(commPrefs.report_scope || "district");
+      setEditableCategories(prefs.extra?.category_interests || []);
+      setEditableLearningFocus(prefs.extra?.learning_focus || "");
+      
+      console.log("Initialized editable state:", {
+        anomalyAlerts: commPrefs.anomaly_alerts ?? false,
+        weeklyDigest: commPrefs.weekly_digest ?? false,
+        monthlyReport: commPrefs.monthly_report ?? false,
+        reportScope: commPrefs.report_scope || "district",
+        categories: prefs.extra?.category_interests || [],
+        learningFocus: prefs.extra?.learning_focus || "",
+      });
       
       // Fetch user email from permissions
       try {
@@ -375,6 +416,105 @@ export default function DashboardPage() {
       console.error("Error loading user settings:", error);
     } finally {
       setLoadingPreferences(false);
+    }
+  };
+
+  const handleSavePreferences = async () => {
+    try {
+      setSavingPreferences(true);
+      const token = await getAccessTokenSilently();
+      
+      // Get current preferences to preserve other data
+      // First, reload from server to ensure we have the latest state
+      const latestPrefs = await getUserPreferences(token);
+      const currentExtra = latestPrefs.extra || {};
+      
+      console.log("Current extra before update:", JSON.stringify(currentExtra, null, 2));
+      
+      // Build updated extra object, preserving ALL existing data
+      // The backend merges extra fields at the top level of preferences,
+      // so we need to include all existing extra fields plus our updates
+      const updatedExtra = {
+        ...currentExtra, // Preserve all existing extra fields (saved_cities, home_location, etc.)
+        communication_preferences: {
+          ...(currentExtra.communication_preferences || {}), // Preserve existing comm prefs
+          anomaly_alerts: editableAnomalyAlerts,
+          weekly_digest: editableWeeklyDigest,
+          monthly_report: editableMonthlyReport,
+          report_scope: editableMonthlyReport ? editableReportScope : null,
+        },
+        category_interests: editableCategories,
+        learning_focus: editableLearningFocus || null,
+      };
+      
+      console.log("Updated extra to send:", JSON.stringify(updatedExtra, null, 2));
+      
+      // Build update request with only the fields the API expects
+      const updateRequest: any = {
+        extra: updatedExtra,
+      };
+      
+      // Preserve has_completed_onboarding and theme if they exist
+      if (latestPrefs.has_completed_onboarding !== undefined) {
+        updateRequest.has_completed_onboarding = latestPrefs.has_completed_onboarding;
+      }
+      if (latestPrefs.theme !== undefined) {
+        updateRequest.theme = latestPrefs.theme;
+      }
+      
+      // Save preferences
+      console.log("Saving preferences with request:", JSON.stringify(updateRequest, null, 2));
+      const saved = await updateUserPreferences(updateRequest, token);
+      console.log("Saved preferences response:", JSON.stringify(saved, null, 2));
+      
+      // Reload preferences from server to ensure we have the latest data
+      const refreshed = await getUserPreferences(token);
+      console.log("Refreshed preferences:", JSON.stringify(refreshed, null, 2));
+      
+      // Update local state with refreshed preferences
+      setUserPreferences(refreshed);
+      
+      // Re-initialize editable state from refreshed preferences to ensure sync
+      const commPrefs = refreshed.extra?.communication_preferences || {};
+      console.log("Setting editable state from refreshed prefs:", {
+        commPrefs,
+        category_interests: refreshed.extra?.category_interests,
+        learning_focus: refreshed.extra?.learning_focus,
+      });
+      
+      setEditableAnomalyAlerts(commPrefs.anomaly_alerts ?? false);
+      setEditableWeeklyDigest(commPrefs.weekly_digest ?? false);
+      setEditableMonthlyReport(commPrefs.monthly_report ?? false);
+      setEditableReportScope(commPrefs.report_scope || "district");
+      setEditableCategories(refreshed.extra?.category_interests || []);
+      setEditableLearningFocus(refreshed.extra?.learning_focus || "");
+      
+      console.log("Editable state after save:", {
+        anomalyAlerts: commPrefs.anomaly_alerts ?? false,
+        weeklyDigest: commPrefs.weekly_digest ?? false,
+        monthlyReport: commPrefs.monthly_report ?? false,
+        reportScope: commPrefs.report_scope || "district",
+        categories: refreshed.extra?.category_interests || [],
+        learningFocus: refreshed.extra?.learning_focus || "",
+      });
+      
+      // Update home city if it exists
+      if (refreshed.extra?.home_location?.city_id) {
+        try {
+          const city = await getCity(refreshed.extra.home_location.city_id, token);
+          setHomeCity(city);
+        } catch (err) {
+          console.error("Error fetching home city after save:", err);
+        }
+      }
+      
+      // Show success message (you could add a toast notification here)
+      alert("Preferences saved successfully!");
+    } catch (error) {
+      console.error("Error saving preferences:", error);
+      alert("Failed to save preferences. Please try again.");
+    } finally {
+      setSavingPreferences(false);
     }
   };
 
@@ -518,359 +658,7 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {currentView === "system-stats" && (
-            <div id="system-stats-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
-              <div className={styles.adminContainer}>
-                <h2>Settings</h2>
-                {loadingPreferences ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "16px" }}>
-                    <Loader size="sm" color="dark" />
-                    <span style={{ color: "var(--text-secondary)" }}>Loading preferences...</span>
-                  </div>
-                ) : (
-                  <div style={{ marginTop: "16px" }}>
-                    {/* User Information Section */}
-                    <div style={{ marginBottom: "32px" }}>
-                      <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
-                        Account Information
-                      </h3>
-                      
-                      {userEmail && (
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "12px 0",
-                            borderBottom: "1px solid var(--border-primary)",
-                            gap: "16px",
-                          }}
-                        >
-                          <div>
-                            <div
-                              style={{
-                                fontWeight: 600,
-                                color: "var(--text-primary)",
-                                marginBottom: "4px",
-                              }}
-                            >
-                              Email
-                            </div>
-                            <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                              {userEmail}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {userPreferences?.extra?.home_location && (
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "12px 0",
-                            borderBottom: "1px solid var(--border-primary)",
-                            gap: "16px",
-                          }}
-                        >
-                          <div>
-                            <div
-                              style={{
-                                fontWeight: 600,
-                                color: "var(--text-primary)",
-                                marginBottom: "4px",
-                              }}
-                            >
-                              Home Location
-                            </div>
-                            <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                              {homeCity ? (
-                                <>
-                                  {homeCity.emoji && <span style={{ marginRight: "6px" }}>{homeCity.emoji}</span>}
-                                  {homeCity.display_name || homeCity.name}
-                                  {userPreferences.extra.home_location.district !== null && userPreferences.extra.home_location.district !== undefined && (
-                                    <span> • District {userPreferences.extra.home_location.district}</span>
-                                  )}
-                                </>
-                              ) : (
-                                `City ID: ${userPreferences.extra.home_location.city_id}${
-                                  userPreferences.extra.home_location.district !== null && userPreferences.extra.home_location.district !== undefined
-                                    ? ` • District ${userPreferences.extra.home_location.district}`
-                                    : ""
-                                }`
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Communication Preferences Section */}
-                    {userPreferences?.extra?.communication_preferences && (
-                      <div style={{ marginBottom: "32px" }}>
-                        <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
-                          Communication Preferences
-                        </h3>
-                        
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "12px 0",
-                            borderBottom: "1px solid var(--border-primary)",
-                            gap: "16px",
-                          }}
-                        >
-                          <div>
-                            <div
-                              style={{
-                                fontWeight: 600,
-                                color: "var(--text-primary)",
-                                marginBottom: "4px",
-                              }}
-                            >
-                              Anomaly Alerts
-                            </div>
-                            <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                              Get notified when significant changes are detected
-                            </div>
-                          </div>
-                          <span style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                            {userPreferences.extra.communication_preferences.anomaly_alerts ? "Enabled" : "Disabled"}
-                          </span>
-                        </div>
-
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "12px 0",
-                            borderBottom: "1px solid var(--border-primary)",
-                            gap: "16px",
-                          }}
-                        >
-                          <div>
-                            <div
-                              style={{
-                                fontWeight: 600,
-                                color: "var(--text-primary)",
-                                marginBottom: "4px",
-                              }}
-                            >
-                              Weekly Digest
-                            </div>
-                            <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                              Summary of key metrics and changes
-                            </div>
-                          </div>
-                          <span style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                            {userPreferences.extra.communication_preferences.weekly_digest ? "Enabled" : "Disabled"}
-                          </span>
-                        </div>
-
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "12px 0",
-                            borderBottom: "1px solid var(--border-primary)",
-                            gap: "16px",
-                          }}
-                        >
-                          <div>
-                            <div
-                              style={{
-                                fontWeight: 600,
-                                color: "var(--text-primary)",
-                                marginBottom: "4px",
-                              }}
-                            >
-                              Monthly Report
-                            </div>
-                            <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                              Comprehensive analysis of city performance
-                              {userPreferences.extra.communication_preferences.monthly_report && userPreferences.extra.communication_preferences.report_scope && (
-                                <span> • {userPreferences.extra.communication_preferences.report_scope === "district" ? "For my district" : "For the whole city"}</span>
-                              )}
-                            </div>
-                          </div>
-                          <span style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                            {userPreferences.extra.communication_preferences.monthly_report ? "Enabled" : "Disabled"}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Category Interests Section */}
-                    {userPreferences?.extra?.category_interests && userPreferences.extra.category_interests.length > 0 && (
-                      <div style={{ marginBottom: "32px" }}>
-                        <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
-                          Category Interests
-                        </h3>
-                        <div style={{ padding: "12px 0", borderBottom: "1px solid var(--border-primary)" }}>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                            {userPreferences.extra.category_interests.map((category: string, index: number) => (
-                              <span
-                                key={index}
-                                style={{
-                                  padding: "6px 12px",
-                                  fontSize: "13px",
-                                  background: "var(--bg-secondary)",
-                                  border: "1px solid var(--border-primary)",
-                                  borderRadius: "16px",
-                                  color: "var(--text-primary)",
-                                }}
-                              >
-                                {category}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Learning Focus Section */}
-                    {userPreferences?.extra?.learning_focus && (
-                      <div style={{ marginBottom: "32px" }}>
-                        <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
-                          Learning Focus
-                        </h3>
-                        <div style={{ padding: "12px 0", borderBottom: "1px solid var(--border-primary)" }}>
-                          <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.5" }}>
-                            {userPreferences.extra.learning_focus}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Display Preferences Section */}
-                    <div style={{ marginBottom: "32px" }}>
-                      <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
-                        Display Preferences
-                      </h3>
-                      
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "12px 0",
-                          borderBottom: "1px solid var(--border-primary)",
-                          gap: "16px",
-                        }}
-                      >
-                        <div>
-                          <div
-                            style={{
-                              fontWeight: 600,
-                              color: "var(--text-primary)",
-                              marginBottom: "4px",
-                            }}
-                          >
-                            Dark mode
-                          </div>
-                          <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                            Use a dark color theme across the UI.
-                          </div>
-                        </div>
-                        <label
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "10px",
-                            cursor: "pointer",
-                            userSelect: "none",
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={theme === "dark"}
-                            onChange={(e) => setTheme(e.target.checked ? "dark" : "light")}
-                            aria-label="Toggle dark mode"
-                          />
-                          <span style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                            {theme === "dark" ? "On" : "Off"}
-                          </span>
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Onboarding Section */}
-                    <div style={{ marginBottom: "32px" }}>
-                      <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
-                        Onboarding
-                      </h3>
-                      
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "12px 0",
-                          borderBottom: "1px solid var(--border-primary)",
-                          gap: "16px",
-                        }}
-                      >
-                        <div>
-                          <div
-                            style={{
-                              fontWeight: 600,
-                              color: "var(--text-primary)",
-                              marginBottom: "4px",
-                            }}
-                          >
-                            Reset onboarding
-                          </div>
-                          <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                            Show the welcome screen again on your next visit.
-                          </div>
-                        </div>
-                        <button
-                          onClick={handleResetOnboarding}
-                          style={{
-                            padding: "8px 16px",
-                            fontSize: "14px",
-                            fontWeight: 500,
-                            color: "var(--text-primary)",
-                            background: "var(--bg-secondary)",
-                            border: "1px solid var(--border-primary)",
-                            borderRadius: "6px",
-                            cursor: "pointer",
-                            transition: "all 0.15s ease",
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = "var(--bg-tertiary)";
-                            e.currentTarget.style.borderColor = "var(--border-secondary)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = "var(--bg-secondary)";
-                            e.currentTarget.style.borderColor = "var(--border-primary)";
-                          }}
-                        >
-                          Reset
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* System Statistics Section */}
-                    <div style={{ marginTop: "32px", paddingTop: "16px", borderTop: "1px solid var(--border-primary)" }}>
-                      <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
-                        System Statistics
-                      </h3>
-                      <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                        System statistics coming soon...
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
+          {/* Settings will be rendered as overlay below */}
           {currentView === "user-management" && (
             <div id="user-management-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
               <div className={styles.adminContainer}>
@@ -882,7 +670,7 @@ export default function DashboardPage() {
           {currentView === "metrics-admin" && (
             <div id="metrics-admin-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
               <div className={styles.adminContainer}>
-                <h2 style={{ margin: "0 0 24px 0", padding: 0, color: "var(--text-primary)", fontSize: "24px" }}>
+                <h2 style={{ margin: "0 0 8px 0", padding: 0, color: "var(--text-primary)", fontSize: "18px" }}>
                   Metrics Administration
                 </h2>
                 {isAdmin ? (
@@ -899,7 +687,7 @@ export default function DashboardPage() {
           {currentView === "datasets-admin" && (
             <div id="datasets-admin-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
               <div className={styles.adminContainer}>
-                <h2 style={{ margin: "0 0 24px 0", padding: 0, color: "var(--text-primary)", fontSize: "24px" }}>
+                <h2 style={{ margin: "0 0 8px 0", padding: 0, color: "var(--text-primary)", fontSize: "18px" }}>
                   Datasets Administration
                 </h2>
                 <DatasetsAdmin />
@@ -938,6 +726,597 @@ export default function DashboardPage() {
           )}
         </div>
       </main>
+
+      {/* Settings Overlay */}
+      {settingsOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            onClick={() => setSettingsOpen(false)}
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: "rgba(0, 0, 0, 0.5)",
+              zIndex: 1000,
+              cursor: "pointer",
+            }}
+          />
+          {/* Settings Panel */}
+          <div
+            style={{
+              position: "fixed",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: "90%",
+              maxWidth: "800px",
+              maxHeight: "90vh",
+              background: "var(--bg-primary)",
+              borderRadius: "12px",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+              zIndex: 1001,
+              overflow: "auto",
+              border: "1px solid var(--border-primary)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.adminContainer} style={{ padding: "24px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
+                <h2 style={{ margin: 0 }}>Settings</h2>
+                <button
+                  onClick={() => setSettingsOpen(false)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: "6px",
+                    color: "var(--text-secondary)",
+                    transition: "all 0.15s ease",
+                    fontSize: "20px",
+                    lineHeight: 1,
+                    width: "32px",
+                    height: "32px",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "var(--bg-secondary)";
+                    e.currentTarget.style.color = "var(--text-primary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "none";
+                    e.currentTarget.style.color = "var(--text-secondary)";
+                  }}
+                  aria-label="Close settings"
+                >
+                  ×
+                </button>
+              </div>
+              {loadingPreferences ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "16px" }}>
+                  <Loader size="sm" color="dark" />
+                  <span style={{ color: "var(--text-secondary)" }}>Loading preferences...</span>
+                </div>
+              ) : (
+                <div style={{ marginTop: "16px" }}>
+                  {/* User Information Section */}
+                  <div style={{ marginBottom: "32px" }}>
+                    <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
+                      Account Information
+                    </h3>
+                    
+                    {userEmail && (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "12px 0",
+                          borderBottom: "1px solid var(--border-primary)",
+                          gap: "16px",
+                        }}
+                      >
+                        <div>
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              color: "var(--text-primary)",
+                              marginBottom: "4px",
+                            }}
+                          >
+                            Email
+                          </div>
+                          <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
+                            {userEmail}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {userPreferences?.extra?.home_location && (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "12px 0",
+                          borderBottom: "1px solid var(--border-primary)",
+                          gap: "16px",
+                        }}
+                      >
+                        <div>
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              color: "var(--text-primary)",
+                              marginBottom: "4px",
+                            }}
+                          >
+                            Home Location
+                          </div>
+                          <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
+                            {homeCity ? (
+                              <>
+                                {homeCity.emoji && <span style={{ marginRight: "6px" }}>{homeCity.emoji}</span>}
+                                {homeCity.display_name || homeCity.name}
+                                {userPreferences.extra.home_location.district !== null && userPreferences.extra.home_location.district !== undefined && (
+                                  <span> • District {userPreferences.extra.home_location.district}</span>
+                                )}
+                              </>
+                            ) : (
+                              `City ID: ${userPreferences.extra.home_location.city_id}${
+                                userPreferences.extra.home_location.district !== null && userPreferences.extra.home_location.district !== undefined
+                                  ? ` • District ${userPreferences.extra.home_location.district}`
+                                  : ""
+                              }`
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Communication Preferences Section */}
+                  <div style={{ marginBottom: "32px" }}>
+                    <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
+                      Communication Preferences
+                    </h3>
+                    
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "12px 0",
+                        borderBottom: "1px solid var(--border-primary)",
+                        gap: "16px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            color: "var(--text-primary)",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          Anomaly Alerts
+                        </div>
+                        <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
+                          Get notified when significant changes are detected
+                        </div>
+                      </div>
+                      <label
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          cursor: "pointer",
+                          userSelect: "none",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={editableAnomalyAlerts}
+                          onChange={(e) => setEditableAnomalyAlerts(e.target.checked)}
+                          aria-label="Toggle anomaly alerts"
+                        />
+                        <span style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
+                          {editableAnomalyAlerts ? "On" : "Off"}
+                        </span>
+                      </label>
+                    </label>
+
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "12px 0",
+                        borderBottom: "1px solid var(--border-primary)",
+                        gap: "16px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            color: "var(--text-primary)",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          Weekly Digest
+                        </div>
+                        <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
+                          Summary of key metrics and changes
+                        </div>
+                      </div>
+                      <label
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          cursor: "pointer",
+                          userSelect: "none",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={editableWeeklyDigest}
+                          onChange={(e) => setEditableWeeklyDigest(e.target.checked)}
+                          aria-label="Toggle weekly digest"
+                        />
+                        <span style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
+                          {editableWeeklyDigest ? "On" : "Off"}
+                        </span>
+                      </label>
+                    </label>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "12px 0",
+                        borderBottom: "1px solid var(--border-primary)",
+                        gap: "16px",
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            color: "var(--text-primary)",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          Monthly Report
+                        </div>
+                        <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
+                          Comprehensive analysis of city performance
+                        </div>
+                        {editableMonthlyReport && (
+                          <div style={{ marginTop: "8px", display: "flex", gap: "16px" }}>
+                            <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px" }}>
+                              <input
+                                type="radio"
+                                name="reportScope"
+                                checked={editableReportScope === "district"}
+                                onChange={() => setEditableReportScope("district")}
+                              />
+                              <span>For my district</span>
+                            </label>
+                            <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px" }}>
+                              <input
+                                type="radio"
+                                name="reportScope"
+                                checked={editableReportScope === "city"}
+                                onChange={() => setEditableReportScope("city")}
+                              />
+                              <span>For the whole city</span>
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                      <label
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          cursor: "pointer",
+                          userSelect: "none",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={editableMonthlyReport}
+                          onChange={(e) => setEditableMonthlyReport(e.target.checked)}
+                          aria-label="Toggle monthly report"
+                        />
+                        <span style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
+                          {editableMonthlyReport ? "On" : "Off"}
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Category Interests Section */}
+                  <div style={{ marginBottom: "32px" }}>
+                    <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "8px" }}>
+                      Category Interests
+                    </h3>
+                    <p style={{ color: "var(--text-secondary)", fontSize: "13px", marginBottom: "12px" }}>
+                      Select categories you&apos;d like to track (optional)
+                    </p>
+                    <div style={{ padding: "12px 0", borderBottom: "1px solid var(--border-primary)" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px" }}>
+                        {[
+                          "Crime & Safety",
+                          "Traffic & Transportation",
+                          "Housing & Development",
+                          "Budget & Finance",
+                          "Environment & Sustainability",
+                          "Public Health",
+                          "Education",
+                          "Infrastructure",
+                        ].map((category) => (
+                          <label
+                            key={category}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              padding: "8px 12px",
+                              background: editableCategories.includes(category)
+                                ? "var(--brand-primary-light, rgba(173, 53, 250, 0.1))"
+                                : "var(--bg-secondary)",
+                              border: `1px solid ${
+                                editableCategories.includes(category)
+                                  ? "var(--brand-primary, #ad35fa)"
+                                  : "var(--border-primary)"
+                              }`,
+                              borderRadius: "8px",
+                              cursor: "pointer",
+                              fontSize: "13px",
+                              color: editableCategories.includes(category)
+                                ? "var(--brand-primary, #ad35fa)"
+                                : "var(--text-primary)",
+                              fontWeight: editableCategories.includes(category) ? 500 : 400,
+                              transition: "all 0.15s ease",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={editableCategories.includes(category)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setEditableCategories([...editableCategories, category]);
+                                } else {
+                                  setEditableCategories(editableCategories.filter((c) => c !== category));
+                                }
+                              }}
+                              style={{ accentColor: "var(--brand-primary, #ad35fa)" }}
+                            />
+                            <span>{category}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Learning Focus Section */}
+                  <div style={{ marginBottom: "32px" }}>
+                    <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "8px" }}>
+                      Learning Focus
+                    </h3>
+                    <p style={{ color: "var(--text-secondary)", fontSize: "13px", marginBottom: "12px" }}>
+                      Tell us what you&apos;d like to focus on (optional)
+                    </p>
+                    <div style={{ padding: "12px 0", borderBottom: "1px solid var(--border-primary)" }}>
+                      <textarea
+                        value={editableLearningFocus}
+                        onChange={(e) => setEditableLearningFocus(e.target.value)}
+                        placeholder="e.g., Understanding budget allocation, tracking crime trends, monitoring infrastructure projects..."
+                        rows={3}
+                        style={{
+                          width: "100%",
+                          padding: "12px 14px",
+                          fontSize: "14px",
+                          fontFamily: "inherit",
+                          border: "1px solid var(--border-primary)",
+                          borderRadius: "8px",
+                          background: "var(--bg-primary)",
+                          color: "var(--text-primary)",
+                          resize: "vertical",
+                          transition: "all 0.15s ease",
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.borderColor = "var(--brand-primary, #ad35fa)";
+                          e.target.style.boxShadow = "0 0 0 3px var(--brand-primary-light, rgba(173, 53, 250, 0.1))";
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.borderColor = "var(--border-primary)";
+                          e.target.style.boxShadow = "none";
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Display Preferences Section */}
+                  <div style={{ marginBottom: "32px" }}>
+                    <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
+                      Display Preferences
+                    </h3>
+                    
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "12px 0",
+                        borderBottom: "1px solid var(--border-primary)",
+                        gap: "16px",
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            color: "var(--text-primary)",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          Dark mode
+                        </div>
+                        <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
+                          Use a dark color theme across the UI.
+                        </div>
+                      </div>
+                      <label
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          cursor: "pointer",
+                          userSelect: "none",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={theme === "dark"}
+                          onChange={(e) => setTheme(e.target.checked ? "dark" : "light")}
+                          aria-label="Toggle dark mode"
+                        />
+                        <span style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
+                          {theme === "dark" ? "On" : "Off"}
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Save Preferences Button */}
+                  <div style={{ marginBottom: "32px", paddingTop: "16px", borderTop: "1px solid var(--border-primary)" }}>
+                    <button
+                      onClick={handleSavePreferences}
+                      disabled={savingPreferences}
+                      style={{
+                        padding: "12px 24px",
+                        fontSize: "15px",
+                        fontWeight: 600,
+                        color: "#ffffff",
+                        background: savingPreferences
+                          ? "var(--text-tertiary, #9ca3af)"
+                          : "var(--brand-primary, #ad35fa)",
+                        border: "none",
+                        borderRadius: "8px",
+                        cursor: savingPreferences ? "not-allowed" : "pointer",
+                        transition: "all 0.15s ease",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        justifyContent: "center",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!savingPreferences) {
+                          e.currentTarget.style.background = "var(--brand-primary-hover, #9333ea)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!savingPreferences) {
+                          e.currentTarget.style.background = "var(--brand-primary, #ad35fa)";
+                        }
+                      }}
+                    >
+                      {savingPreferences ? (
+                        <>
+                          <Loader size="sm" color="white" />
+                          <span>Saving...</span>
+                        </>
+                      ) : (
+                        "Save Preferences"
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Onboarding Section */}
+                  <div style={{ marginBottom: "32px" }}>
+                    <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
+                      Onboarding
+                    </h3>
+                    
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "12px 0",
+                        borderBottom: "1px solid var(--border-primary)",
+                        gap: "16px",
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            color: "var(--text-primary)",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          Reset onboarding
+                        </div>
+                        <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
+                          Show the welcome screen again on your next visit.
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleResetOnboarding}
+                        style={{
+                          padding: "8px 16px",
+                          fontSize: "14px",
+                          fontWeight: 500,
+                          color: "var(--text-primary)",
+                          background: "var(--bg-secondary)",
+                          border: "1px solid var(--border-primary)",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "var(--bg-tertiary)";
+                          e.currentTarget.style.borderColor = "var(--border-secondary)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "var(--bg-secondary)";
+                          e.currentTarget.style.borderColor = "var(--border-primary)";
+                        }}
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* System Statistics Section */}
+                  <div style={{ marginTop: "32px", paddingTop: "16px", borderTop: "1px solid var(--border-primary)" }}>
+                    <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
+                      System Statistics
+                    </h3>
+                    <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
+                      System statistics coming soon...
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Welcome Modal for first-time users */}
       <WelcomeModal

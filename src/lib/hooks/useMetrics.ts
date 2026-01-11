@@ -19,6 +19,9 @@ import {
   validateMetricFreshness,
   getMetricMapData,
   getCityMetricsForMap,
+  getMetricComparison,
+  getMetricComparisons,
+  getBatchComparisons,
   type AdminMetricListItem,
   type AdminMetricDetail,
   type AdminMetricSummary,
@@ -33,6 +36,8 @@ import {
   type ValidateFreshnessRequest,
   type GetMapDataRequest,
   type MapData,
+  type ComparisonType,
+  type BatchComparisonsRequest,
 } from "@/lib/apiClient";
 
 // Query keys factory for metrics
@@ -48,7 +53,13 @@ export const metricKeys = {
   cities: () => [...metricKeys.all, "cities"] as const,
   timeSeries: (id: number) => [...metricKeys.all, "time-series", id] as const,
   timeSeriesDetail: (metricId: number, chartId: number) =>
-    [...metricKeys.all, "time-series", metricId, chartId] as const,
+    [...metricKeys.all, "time-series-detail", metricId, chartId] as const,
+  comparisons: (id: number, district?: number | null) =>
+    [...metricKeys.all, "comparisons", id, district] as const,
+  comparison: (id: number, type: ComparisonType, district?: number | null) =>
+    [...metricKeys.all, "comparison", id, type, district] as const,
+  batchComparisons: (request: BatchComparisonsRequest) =>
+    [...metricKeys.all, "batch-comparisons", request] as const,
   cityStructure: (id: number) => [...metricKeys.all, "city-structure", id] as const,
   mapData: (metricId: number, startDate?: string | null, endDate?: string | null, districts?: number[] | null) =>
     [...metricKeys.all, "map-data", metricId, startDate, endDate, districts] as const,
@@ -385,6 +396,81 @@ export function useCityMetricsForMap(cityId: number | null) {
     enabled: !!cityId,
     staleTime: 2 * 60 * 1000, // 2 minutes
     gcTime: 5 * 60 * 1000, // 5 minutes - keep in cache for fast switching
+  });
+}
+
+/**
+ * Hook to get a single comparison for a metric.
+ */
+export function useMetricComparison(
+  metricId: number | null | undefined,
+  comparisonType: ComparisonType,
+  district?: number | null
+) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: metricKeys.comparison(metricId || 0, comparisonType, district),
+    queryFn: async () => {
+      if (!metricId) throw new Error("Metric ID is required");
+      const token = await getAccessTokenSilently();
+      return getMetricComparison(metricId, comparisonType, district, token);
+    },
+    enabled: !!metricId,
+    staleTime: 5 * 60 * 1000, // 5 minutes - comparisons update daily
+    gcTime: 30 * 60 * 1000, // 30 minutes
+  });
+}
+
+/**
+ * Hook to get all comparisons for a metric.
+ */
+export function useMetricComparisons(
+  metricId: number | null | undefined,
+  district?: number | null,
+  comparisonTypes?: ComparisonType[]
+) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: metricKeys.comparisons(metricId || 0, district),
+    queryFn: async () => {
+      if (!metricId) throw new Error("Metric ID is required");
+      const token = await getAccessTokenSilently();
+      return getMetricComparisons(metricId, district, comparisonTypes, token);
+    },
+    enabled: !!metricId,
+    staleTime: 5 * 60 * 1000, // 5 minutes - comparisons update daily
+    gcTime: 30 * 60 * 1000, // 30 minutes
+  });
+}
+
+/**
+ * Hook to get comparisons for multiple metrics in batch.
+ */
+export function useBatchComparisons(request: BatchComparisonsRequest | null) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: metricKeys.batchComparisons(request || { metric_ids: [] }),
+    queryFn: async () => {
+      if (!request || !request.metric_ids || request.metric_ids.length === 0) {
+        return {};
+      }
+      try {
+        const token = await getAccessTokenSilently();
+        return await getBatchComparisons(request, token);
+      } catch (error) {
+        console.error('Error fetching batch comparisons:', error);
+        // Return empty object on error so fallback can work
+        return {};
+      }
+    },
+    enabled: !!request && !!request.metric_ids && request.metric_ids.length > 0,
+    staleTime: 5 * 60 * 1000, // 5 minutes - comparisons update daily
+    gcTime: 30 * 60 * 1000, // 30 minutes
+    retry: 1, // Only retry once on failure
+    retryDelay: 1000, // Wait 1 second before retry
   });
 }
 

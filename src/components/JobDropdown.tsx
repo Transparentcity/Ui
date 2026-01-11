@@ -10,6 +10,7 @@ interface JobDropdownProps {
   isOpen: boolean;
   onClose: () => void;
   onCancelJob: (jobId: string) => Promise<void>;
+  onRefresh?: () => void;
 }
 
 function formatElapsedTime(startTime: string | null | undefined, endTime: string | null | undefined): string {
@@ -114,8 +115,21 @@ export default function JobDropdown({
   isOpen,
   onClose,
   onCancelJob,
+  onRefresh,
 }: JobDropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (onRefresh && !isRefreshing) {
+      setIsRefreshing(true);
+      try {
+        await onRefresh();
+      } finally {
+        setTimeout(() => setIsRefreshing(false), 500); // Min spinner time
+      }
+    }
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -161,9 +175,22 @@ export default function JobDropdown({
     <div className={styles.dropdown} ref={dropdownRef}>
       <div className={styles.header}>
         <h3>Background Jobs</h3>
-        <button className={styles.closeBtn} onClick={onClose} aria-label="Close">
-          ✕
-        </button>
+        <div className={styles.headerActions}>
+          {onRefresh && (
+            <button 
+              className={`${styles.refreshBtn} ${isRefreshing ? styles.refreshing : ''}`}
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              aria-label="Refresh jobs"
+              title="Refresh jobs list"
+            >
+              ↻
+            </button>
+          )}
+          <button className={styles.closeBtn} onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
       </div>
       <div className={styles.list}>
         {sortedJobs.length === 0 ? (

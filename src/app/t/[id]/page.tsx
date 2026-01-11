@@ -162,6 +162,27 @@ export default function TimeSeriesChartPage() {
     fetchTimeSeries();
   }, [chartId]);
 
+  // Update page title when time series data is loaded
+  useEffect(() => {
+    if (timeSeries?.metadata) {
+      const metricName =
+        timeSeries.metadata.object_name ||
+        timeSeries.metadata.field_name ||
+        "Time Series";
+      const cityName = timeSeries.metadata.city_name;
+      
+      let pageTitle = metricName;
+      if (cityName) {
+        pageTitle = `${metricName} | ${cityName}`;
+      }
+      pageTitle += " | TransparentCity";
+      
+      document.title = pageTitle;
+    } else {
+      document.title = "Time Series Chart | TransparentCity";
+    }
+  }, [timeSeries]);
+
   // Process chart data
   const processedData = timeSeries
     ? (() => {
@@ -368,13 +389,23 @@ export default function TimeSeriesChartPage() {
         const cityName = timeSeries.metadata.city_name;
         const groupField = timeSeries.metadata.group_field;
         const groupValue = timeSeries.data[0]?.group_value;
+        
+        // Check if there are multiple groups (multiple series)
+        const hasMultipleGroups = processedData?.hasGroups && 
+          processedData.groupedData && 
+          Object.keys(processedData.groupedData).length > 1;
 
         let title = metricName;
         if (cityName) {
           title += ` (${cityName})`;
         }
-        if (groupField && groupValue) {
+        // Only add specific group value if there's a single group, not multiple
+        if (groupField && groupValue && !hasMultipleGroups) {
           title += `<br>${groupField}: <b>${groupValue}</b>`;
+        }
+        // Add "by <group field>" subtitle when there are multiple groups
+        if (hasMultipleGroups && groupField) {
+          title += `<br><span style="font-size: 0.85em; font-weight: normal; color: #666;">by ${groupField}</span>`;
         }
 
         return title;
@@ -656,7 +687,6 @@ export default function TimeSeriesChartPage() {
                   },
                 },
                 margin: { t: 40, b: 25, l: 50, r: 45 },
-                height: 400,
                 autosize: true,
                 paper_bgcolor: "transparent",
                 plot_bgcolor: "transparent",
@@ -675,7 +705,7 @@ export default function TimeSeriesChartPage() {
                 responsive: true,
                 displayModeBar: false,
               }}
-              style={{ width: "100%", height: "100%", minHeight: "400px" }}
+              style={{ width: "100%", height: "100%" }}
               useResizeHandler={true}
             />
           )}
@@ -844,25 +874,47 @@ export default function TimeSeriesChartPage() {
                 timeSeries.metadata.field_name ||
                 "Time Series Chart"}
             </h1>
-            {timeSeries.metadata.city_name && (
+            {(timeSeries.metadata.city_name || 
+              (processedData?.hasGroups && 
+               processedData.groupedData && 
+               Object.keys(processedData.groupedData).length > 1 &&
+               timeSeries.metadata.group_field)) && (
               <div className="time-series-subtitle">
-                <span className="time-series-city">
-                  {timeSeries.metadata.city_name}
-                </span>
-                {timeSeries.metadata.district !== undefined &&
-                  timeSeries.metadata.district !== 0 && (
-                    <>
-                      <span className="time-series-separator">•</span>
-                      <span className="time-series-district">
-                        District {timeSeries.metadata.district}
-                      </span>
-                    </>
-                  )}
-                {timeSeries.metadata.period_type && (
+                {timeSeries.metadata.city_name && (
                   <>
-                    <span className="time-series-separator">•</span>
-                    <span className="time-series-period">
-                      {timeSeries.metadata.period_type} period
+                    <span className="time-series-city">
+                      {timeSeries.metadata.city_name}
+                    </span>
+                    {timeSeries.metadata.district !== undefined &&
+                      timeSeries.metadata.district !== 0 && (
+                        <>
+                          <span className="time-series-separator">•</span>
+                          <span className="time-series-district">
+                            District {timeSeries.metadata.district}
+                          </span>
+                        </>
+                      )}
+                    {timeSeries.metadata.period_type && (
+                      <>
+                        <span className="time-series-separator">•</span>
+                        <span className="time-series-period">
+                          {timeSeries.metadata.period_type} period
+                        </span>
+                      </>
+                    )}
+                  </>
+                )}
+                {/* Show "by group field" when there are multiple groups */}
+                {processedData?.hasGroups && 
+                 processedData.groupedData && 
+                 Object.keys(processedData.groupedData).length > 1 &&
+                 timeSeries.metadata.group_field && (
+                  <>
+                    {timeSeries.metadata.city_name && (
+                      <span className="time-series-separator">•</span>
+                    )}
+                    <span className="time-series-group-field">
+                      by {timeSeries.metadata.group_field}
                     </span>
                   </>
                 )}

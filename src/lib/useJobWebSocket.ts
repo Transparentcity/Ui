@@ -12,6 +12,8 @@ export interface Job {
   started_at?: string | null;
   completed_at?: string | null;
   error?: string;
+  result?: any;
+  job_metadata?: Record<string, any>;
 }
 
 interface JobUpdateMessage {
@@ -90,6 +92,8 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
           started_at: job.started_at ?? undefined,
           completed_at: job.completed_at ?? undefined,
           error: job.error || job.error_message || undefined,
+          result: job.result,
+          job_metadata: job.job_metadata,
         };
         jobsMap.set(job.job_id, jobData);
         console.log(`  - Job ${job.job_id}: ${job.status} - ${job.description}`);
@@ -155,6 +159,8 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
           started_at: apiJob.started_at ?? undefined,
           completed_at: apiJob.completed_at ?? undefined,
           error: apiJob.error || apiJob.error_message || undefined,
+          result: apiJob.result,
+          job_metadata: apiJob.job_metadata,
         };
         
         console.log(`✅ Job WebSocket: Fetched job ${jobId}:`, {
@@ -467,21 +473,19 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
         wsIsConnected,
       });
       
-      // If WebSocket is connected, DON'T fetch - just wait for WebSocket update
-      // The WebSocket will automatically send job updates, so no need to poll
-      if (wsIsConnected) {
-        console.log(`✅ WebSocket connected - NOT fetching job ${jobId}, waiting for WebSocket update`);
-        // Don't fetch - WebSocket will send the update automatically
-        return;
-      }
-      
-      // WebSocket not connected - fetch immediately and let polling handle updates
-      console.log(`🔄 WebSocket disconnected - fetching job ${jobId} (polling will handle updates)`);
+      // ALWAYS fetch the job immediately to ensure UI shows new job right away
+      // Even if WebSocket is connected, there may be a delay before the WS update arrives
+      // This guarantees the user sees their new job when they open the jobs dropdown
+      console.log(`🔄 Fetching job ${jobId} immediately to ensure UI is updated`);
       fetchJob(jobId);
-      // Also refresh all jobs after a short delay to ensure we catch it
-      setTimeout(() => {
-        loadJobs();
-      }, 500);
+      
+      // If WebSocket is not connected, also refresh all jobs after a short delay
+      if (!wsIsConnected) {
+        console.log(`📥 WebSocket disconnected - also refreshing all jobs`);
+        setTimeout(() => {
+          loadJobs();
+        }, 500);
+      }
     };
 
     window.addEventListener("jobCreated" as any, handleJobCreated);

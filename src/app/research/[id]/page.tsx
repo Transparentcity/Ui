@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useParams } from "next/navigation";
 import { getResearch, ResearchReport } from "@/lib/apiClient";
+import ReportContent from "@/components/ReportContent";
 import "../brand-styles.css";
 import "../styles.css";
 
@@ -125,9 +126,9 @@ export default function ResearchDetailPage() {
       {research.status === "completed" && research.final_report_html && (
         <div className="results-section">
           <h2>Research Report</h2>
-          <div
+          <ReportContent
+            content={research.final_report_html}
             className="report-html"
-            dangerouslySetInnerHTML={{ __html: research.final_report_html }}
           />
         </div>
       )}

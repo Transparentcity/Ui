@@ -1,7 +1,8 @@
 "use client";
 
-import React, { createContext, useContext, ReactNode } from "react";
+import React, { createContext, useContext, ReactNode, Suspense } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
+import { useSearchParams } from "next/navigation";
 import { useJobWebSocket, type Job } from "@/lib/useJobWebSocket";
 
 interface JobWebSocketContextValue {
@@ -15,12 +16,22 @@ interface JobWebSocketContextValue {
 
 const JobWebSocketContext = createContext<JobWebSocketContextValue | null>(null);
 
-export function JobWebSocketProvider({ children }: { children: ReactNode }) {
+function JobWebSocketProviderInner({ children }: { children: ReactNode }) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  const searchParams = useSearchParams();
   const [token, setToken] = React.useState<string | null>(null);
+  
+  // Check if we're in embedded mode - skip WebSocket in that case
+  const isEmbedded = searchParams?.get("embedded") === "true";
 
   // Get token for WebSocket connection
   React.useEffect(() => {
+    // Skip token fetch for embedded mode
+    if (isEmbedded) {
+      setToken(null);
+      return;
+    }
+    
     if (isAuthenticated) {
       getAccessTokenSilently()
         .then((t) => {
@@ -32,15 +43,24 @@ export function JobWebSocketProvider({ children }: { children: ReactNode }) {
     } else {
       setToken(null);
     }
-  }, [isAuthenticated, getAccessTokenSilently]);
+  }, [isAuthenticated, getAccessTokenSilently, isEmbedded]);
 
   // Single shared WebSocket connection for entire app
-  const jobWebSocket = useJobWebSocket(token, isAuthenticated);
+  // Pass isAuthenticated=false for embedded mode to skip connection
+  const jobWebSocket = useJobWebSocket(token, isAuthenticated && !isEmbedded);
 
   return (
     <JobWebSocketContext.Provider value={jobWebSocket}>
       {children}
     </JobWebSocketContext.Provider>
+  );
+}
+
+export function JobWebSocketProvider({ children }: { children: ReactNode }) {
+  return (
+    <Suspense fallback={<>{children}</>}>
+      <JobWebSocketProviderInner>{children}</JobWebSocketProviderInner>
+    </Suspense>
   );
 }
 

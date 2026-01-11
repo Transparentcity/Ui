@@ -35,7 +35,23 @@ export default function JobLogsViewer() {
   }, [isAuthenticated, getAccessTokenSilently]);
 
   // Use shared WebSocket context for real-time job updates (no polling needed)
-  const { jobs: webSocketJobs, isConnected } = useJobWebSocketContext();
+  const { jobs: webSocketJobs, isConnected, refreshJobs } = useJobWebSocketContext();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Helper function to calculate duration from started_at and completed_at
+  const calculateDuration = (started_at: string | null | undefined, completed_at: string | null | undefined): number | null => {
+    if (!started_at || !completed_at) return null;
+    try {
+      const startTime = new Date(started_at).getTime();
+      const endTime = new Date(completed_at).getTime();
+      if (!isNaN(startTime) && !isNaN(endTime) && endTime >= startTime) {
+        return (endTime - startTime) / 1000;
+      }
+    } catch (error) {
+      console.warn("Failed to calculate duration:", error);
+    }
+    return null;
+  };
 
   // Convert WebSocket jobs to API Job format and apply filters
   const jobs: Job[] = webSocketJobs
@@ -54,7 +70,7 @@ export default function JobLogsViewer() {
       started_at: wsJob.started_at || null,
       completed_at: wsJob.completed_at || null,
       error_message: wsJob.error || null,
-      duration_seconds: null,
+      duration_seconds: calculateDuration(wsJob.started_at, wsJob.completed_at),
       logs: [],
       result: null,
       job_metadata: {},
@@ -71,10 +87,25 @@ export default function JobLogsViewer() {
     }
   };
 
+  // Refresh all jobs
+  const handleRefreshJobs = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshJobs();
+      await loadStats();
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500); // Min visual feedback
+    }
+  };
+
   const loadJobDetails = async (jobId: string) => {
     try {
       const currentToken = token || (await getAccessTokenSilently());
       const job = await getJob(jobId, currentToken);
+      // Calculate duration if not provided by API
+      if (!job.duration_seconds && job.started_at && job.completed_at) {
+        job.duration_seconds = calculateDuration(job.started_at, job.completed_at);
+      }
       setSelectedJob(job);
       selectedJobRef.current = job;
     } catch (err) {
@@ -104,6 +135,7 @@ export default function JobLogsViewer() {
           // WebSocket connected: update state from WebSocket data, no API call needed
           setSelectedJob((prev) => {
             if (prev && prev.job_id === updatedJob.job_id) {
+              const calculatedDuration = calculateDuration(updatedJob.started_at, updatedJob.completed_at);
               return {
                 ...prev,
                 status: updatedJob.status,
@@ -112,6 +144,7 @@ export default function JobLogsViewer() {
                 started_at: updatedJob.started_at || null,
                 completed_at: updatedJob.completed_at || null,
                 error_message: updatedJob.error || null,
+                duration_seconds: calculatedDuration ?? prev.duration_seconds,
               };
             }
             return prev;
@@ -145,6 +178,7 @@ export default function JobLogsViewer() {
           // WebSocket connected: update state from WebSocket data, no API call needed
           setSelectedJob((prev) => {
             if (prev && prev.job_id === job_id) {
+              const calculatedDuration = calculateDuration(data.started_at, data.completed_at);
               return {
                 ...prev,
                 status: data.status,
@@ -153,6 +187,7 @@ export default function JobLogsViewer() {
                 started_at: data.started_at || null,
                 completed_at: data.completed_at || null,
                 error_message: data.error || null,
+                duration_seconds: calculatedDuration ?? prev.duration_seconds,
               };
             }
             return prev;
@@ -228,10 +263,34 @@ export default function JobLogsViewer() {
     }
   };
 
-  const filteredJobs = jobs.filter((job) => {
-    if (filterType && job.job_type !== filterType) return false;
-    return true;
-  });
+  const filteredJobs = jobs
+    .filter((job) => {
+      if (filterType && job.job_type !== filterType) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      // Priority: running > pending > completed/failed/cancelled
+      const statusPriority = (status: string) => {
+        switch (status) {
+          case 'running': return 0;
+          case 'pending': return 1;
+          default: return 2;
+        }
+      };
+      
+      const priorityA = statusPriority(a.status);
+      const priorityB = statusPriority(b.status);
+      
+      // First sort by status priority
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      
+      // Then by created_at descending (newest first)
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+      return dateB - dateA;
+    });
 
   const jobTypes = Array.from(new Set(jobs.map((j) => j.job_type))).sort();
 
@@ -256,8 +315,12 @@ export default function JobLogsViewer() {
               <span className={styles.disconnected}>🟡 Polling fallback</span>
             )}
           </div>
-          <button onClick={loadStats} className={styles.refreshButton}>
-            Refresh Stats
+          <button 
+            onClick={handleRefreshJobs} 
+            className={`${styles.refreshButton} ${isRefreshing ? styles.refreshing : ''}`}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? '↻ Refreshing...' : '↻ Refresh All'}
           </button>
         </div>
       </div>

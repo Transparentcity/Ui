@@ -424,7 +424,8 @@ export default function ResearchList({
               <div className={styles.menuItem} onClick={() => handleRename(report)}>
                 ✏️ Rename
               </div>
-              {(report.status === "completed" || report.status === "failed") && (
+              {/* Show regenerate/re-synthesize for all statuses except actively running ones */}
+              {(report.status !== "running" && report.status !== "synthesizing") && (
                 <>
                   <div 
                     className={styles.menuItem} 

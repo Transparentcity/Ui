@@ -217,6 +217,8 @@ function zoomToDistrictWithGPS(
   }
 }
 
+import type { AnomalyResult } from "@/lib/hooks/useAnomalies";
+
 interface CityMapViewProps {
   cityId: number;
   isAdmin?: boolean;
@@ -226,6 +228,7 @@ interface CityMapViewProps {
   selectedDistrict?: number | null; // Selected district number
   onDistrictChange?: (district: number | null) => void; // Callback when district changes
   onDataReady?: (data: { leaders: CityLeader[]; shapefiles: CityShapefile[] }) => void; // Callback when leaders and shapefiles are loaded
+  selectedAnomaly?: AnomalyResult | null; // Currently selected anomaly for anomaly mode
 }
 
 export default function CityMapView({
@@ -237,6 +240,7 @@ export default function CityMapView({
   selectedDistrict,
   onDistrictChange,
   onDataReady,
+  selectedAnomaly,
 }: CityMapViewProps) {
   const { getAccessTokenSilently } = useAuth0();
   const { theme } = useTheme();
@@ -1284,6 +1288,7 @@ export default function CityMapView({
           metricDateRange={metricDateRange}
           gpsLocation={gpsLocation}
           selectedDistrict={selectedDistrict}
+          selectedAnomaly={selectedAnomaly}
         />
       </div>
     </div>

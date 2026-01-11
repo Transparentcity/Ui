@@ -730,21 +730,17 @@ export default function MetricsAdmin() {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th className={styles.th}>ID</th>
                 <th className={styles.th}>Metric</th>
-                <th className={styles.th}>City</th>
-                <th className={styles.th}>Category</th>
-                <th className={styles.th}>Type</th>
-                <th className={styles.th}>Last Execution</th>
-                <th className={styles.th}>Freshness</th>
-                <th className={styles.th}>Status</th>
+                <th className={`${styles.th} ${styles.hideNarrow}`}>City</th>
+                <th className={`${styles.th} ${styles.hideNarrow}`}>Category</th>
+                <th className={styles.th}>Data Range</th>
                 <th className={styles.th}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
-                  <td className={styles.td} colSpan={9}>
+                  <td className={styles.td} colSpan={5}>
                     <span className={styles.muted}>Loading…</span>
                   </td>
                 </tr>
@@ -752,7 +748,7 @@ export default function MetricsAdmin() {
 
               {tableEmpty && (
                 <tr>
-                  <td className={styles.td} colSpan={9}>
+                  <td className={styles.td} colSpan={5}>
                     <span className={styles.muted}>No metrics found matching the current filters.</span>
                   </td>
                 </tr>
@@ -761,73 +757,37 @@ export default function MetricsAdmin() {
               {!loading &&
                 metrics.map((m) => (
                   <tr key={m.id} className={styles.rowHover}>
-                    <td className={styles.td}>{m.id}</td>
                     <td className={styles.td}>
-                      <div style={{ fontWeight: 600 }}>{m.metric_name}</div>
-                      <div className={styles.muted} style={{ fontSize: 12 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{m.metric_name}</div>
+                      <div className={styles.muted} style={{ fontSize: 11 }}>
                         {m.metric_key}
                       </div>
-                    </td>
-                    <td className={styles.td}>
-                      <span className={styles.muted}>{m.city_name || "—"}</span>
-                    </td>
-                    <td className={styles.td}>
-                      <span className={`${styles.badge} ${styles.badgePrimary}`}>{m.category}</span>
-                      {m.subcategory && (
-                        <div className={styles.muted} style={{ fontSize: 12, marginTop: 4 }}>
-                          {m.subcategory}
-                        </div>
+                      {!m.is_active && (
+                        <span className={`${styles.badge} ${styles.badgeRed}`} style={{ marginTop: 4, fontSize: 10 }}>Inactive</span>
                       )}
                     </td>
-                    <td className={styles.td}>
-                      <span className={styles.muted}>{m.metric_type || "—"}</span>
+                    <td className={`${styles.td} ${styles.hideNarrow}`}>
+                      <span className={styles.muted}>{m.city_name || "—"}</span>
+                    </td>
+                    <td className={`${styles.td} ${styles.hideNarrow}`}>
+                      <span className={`${styles.badge} ${styles.badgePrimary}`}>{m.category}</span>
                     </td>
                     <td className={styles.td}>
-                      <span className={styles.muted}>{formatDateTime(m.last_execution_at)}</span>
-                    </td>
-                    <td className={styles.td}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        <FreshnessBadge freshness={m.freshness} />
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         {(m.earliest_data_date || m.most_recent_data_date) && (
-                          <div style={{ fontSize: 11, color: "var(--text-secondary)", display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                            {m.earliest_data_date && (
-                              <span title="First date">
-                                <i className="fas fa-calendar-alt" style={{ fontSize: 9, marginRight: 2 }} />
-                                {formatDate(m.earliest_data_date)}
-                              </span>
-                            )}
-                            {m.earliest_data_date && m.most_recent_data_date && (
-                              <span style={{ color: "var(--text-tertiary)" }}>→</span>
-                            )}
-                            {m.most_recent_data_date && (
-                              <span title="Last date">
-                                {formatDate(m.most_recent_data_date)}
-                              </span>
-                            )}
+                          <div style={{ fontSize: 12, color: "var(--text-primary)", fontWeight: 500 }}>
+                            {m.earliest_data_date && new Date(m.earliest_data_date).getFullYear()}
+                            {m.earliest_data_date && m.most_recent_data_date && " → "}
+                            {m.most_recent_data_date && new Date(m.most_recent_data_date).getFullYear()}
                           </div>
                         )}
+                        <FreshnessBadge freshness={m.freshness} />
                         {m.execution_count !== null && m.execution_count !== undefined && (
-                          <div style={{ fontSize: 11, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                            <span>Count: {m.execution_count}</span>
-                            {m.most_recent_data_date && (
-                              <>
-                                <span style={{ color: "var(--text-tertiary)" }}>•</span>
-                                <span title="Most recent data date">
-                                  Latest: {formatDate(m.most_recent_data_date)}
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        )}
-                        {m.freshness?.update_frequency && m.freshness.lag_days !== undefined && m.freshness.lag_days !== null && m.freshness.lag_days > 0 && (
                           <div style={{ fontSize: 10, color: "var(--text-tertiary)" }}>
-                            {m.freshness.lag_days}d lag
+                            {m.execution_count.toLocaleString()} records
                           </div>
                         )}
                       </div>
-                    </td>
-                    <td className={styles.td}>
-                      <StatusBadge isActive={m.is_active} lastExecutionStatus={m.last_execution_status} />
                     </td>
                     <td className={styles.td}>
                       <MetricActions

@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   ModelGroupInfo,
@@ -24,6 +24,7 @@ import {
   useCreateCityLeader,
   useUpdateCityLeader,
   useDeleteCityLeader,
+  useCityMetricOrdering,
 } from "@/lib/hooks/useCityAdmin";
 import { pickDefaultModelKey } from "@/lib/modelDefaults";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
@@ -32,6 +33,8 @@ import Loader from "./Loader";
 import MetricActions from "./MetricActions";
 import MetricEditModal from "./MetricEditModal";
 import MetricChartsModal from "./MetricChartsModal";
+import MetricOrderEditor from "./MetricOrderEditor";
+import RunAllMetricsModal from "./RunAllMetricsModal";
 import AnomalySparkline from "./AnomalySparkline";
 import AnomalyChart from "./AnomalyChart";
 import {
@@ -133,6 +136,9 @@ export default function CityDataAdmin({
   const { data: structureData, isLoading: loadingStructure, refetch: refetchStructure } = useCityAdminStructure(cityId);
   const { data: availableModelsData } = useAvailableModels();
   
+  // Fetch metric ordering for this city (same as dashboard)
+  const { data: orderingData } = useCityMetricOrdering(cityId);
+  
   // React Query mutation hooks
   const updateCityMutation = useUpdateCity();
   const updateCityStructureMutation = useUpdateCityStructure();
@@ -192,6 +198,7 @@ export default function CityDataAdmin({
   const [executeStartDate, setExecuteStartDate] = useState<string>("");
   const [executeEndDate, setExecuteEndDate] = useState<string>("");
   const [anomaliesOpen, setAnomaliesOpen] = useState(false);
+  const [runAllMetricsOpen, setRunAllMetricsOpen] = useState(false);
   const [anomaliesMetricId, setAnomaliesMetricId] = useState<number | null>(null);
   const [anomalyPeriodFilter, setAnomalyPeriodFilter] = useState<string>("all");
   const [selectedAnomalyId, setSelectedAnomalyId] = useState<number | null>(null);
@@ -450,6 +457,23 @@ export default function CityDataAdmin({
   const structureDataTyped = structureData as CityStructure | null;
   const availableModels = availableModelsData || [];
   const errorMessage = error || (cityError as Error)?.message || null;
+
+  // Build ordering map from saved ordering data (same as dashboard)
+  const orderingMap = useMemo(() => {
+    const map = new Map<number, { categoryOrder: number; metricOrder: number; categoryName: string }>();
+    if (orderingData?.orderings) {
+      orderingData.orderings.forEach((o) => {
+        if (o.metric_id) {
+          map.set(o.metric_id, {
+            categoryOrder: o.category_order,
+            metricOrder: o.metric_order,
+            categoryName: o.category_name,
+          });
+        }
+      });
+    }
+    return map;
+  }, [orderingData]);
 
   const handleSaveCityData = async () => {
     try {
@@ -2952,47 +2976,98 @@ export default function CityDataAdmin({
       {/* Metrics Tab */}
       {activeTab === "metrics" && (
         <div>
-          <h3 style={{ marginBottom: "16px" }}>Metrics</h3>
-          {cityDataTyped.metrics && cityDataTyped.metrics.length > 0 ? (
-            <div
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+            <h3 style={{ margin: 0 }}>Metrics</h3>
+            <button
+              onClick={() => setRunAllMetricsOpen(true)}
               style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-                gap: "16px",
+                padding: "8px 16px",
+                background: "var(--brand-primary, #0066cc)",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                fontSize: "13px",
+                fontWeight: 500,
+                cursor: "pointer",
               }}
+              disabled={!cityDataTyped.metrics || cityDataTyped.metrics.length === 0}
             >
+              ▶ Run All Metrics
+            </button>
+          </div>
+          
+          {/* Metric Order Editor */}
+          {cityDataTyped.metrics && cityDataTyped.metrics.length > 0 && (
+            <MetricOrderEditor
+              cityId={cityId}
+              metrics={cityDataTyped.metrics}
+            />
+          )}
+          
+          {cityDataTyped.metrics && cityDataTyped.metrics.length > 0 ? (
+            <div>
               {(() => {
-                // Sort metrics by last successful run date (most recent first)
-                const sortedMetrics = [...cityDataTyped.metrics].sort((a, b) => {
-                  // Get last successful execution date (only if status is completed/success)
-                  const getLastSuccessDate = (m: Metric) => {
-                    if ((m.last_execution_status === "completed" || m.last_execution_status === "success") && m.last_execution_at) {
-                      return new Date(m.last_execution_at).getTime();
-                    }
-                    return 0;
-                  };
+                // Group and sort metrics by category using saved ordering (same as dashboard)
+                const grouped: Record<string, { metrics: Metric[]; categoryOrder: number }> = {};
+                
+                cityDataTyped.metrics.forEach((metric) => {
+                  const ordering = orderingMap.get(metric.id);
+                  const category = ordering?.categoryName || metric.category || "Uncategorized";
+                  const categoryOrder = ordering?.categoryOrder ?? 1000;
+                  const metricOrder = ordering?.metricOrder ?? 1000;
                   
-                  const aDate = getLastSuccessDate(a);
-                  const bDate = getLastSuccessDate(b);
-                  
-                  // Successful runs first, then by date (most recent first)
-                  if (aDate > 0 && bDate > 0) {
-                    return bDate - aDate;
+                  if (!grouped[category]) {
+                    grouped[category] = { metrics: [], categoryOrder };
                   }
-                  if (aDate > 0) return -1;
-                  if (bDate > 0) return 1;
+                  // Update category order to match any metric in it (they should all have the same)
+                  grouped[category].categoryOrder = Math.min(grouped[category].categoryOrder, categoryOrder);
                   
-                  // If neither has successful run, sort by last_execution_at if available
-                  if (a.last_execution_at && b.last_execution_at) {
-                    return new Date(b.last_execution_at).getTime() - new Date(a.last_execution_at).getTime();
-                  }
-                  if (a.last_execution_at) return -1;
-                  if (b.last_execution_at) return 1;
-                  
-                  return 0;
+                  grouped[category].metrics.push({
+                    ...metric,
+                    metricOrder, // Store for sorting
+                  } as Metric & { metricOrder: number });
                 });
 
-                return sortedMetrics.map((metric) => {
+                // Sort categories by their order, then alphabetically (same as dashboard)
+                const sortedCategories = Object.keys(grouped).sort((a, b) => {
+                  const orderA = grouped[a].categoryOrder;
+                  const orderB = grouped[b].categoryOrder;
+                  if (orderA !== orderB) return orderA - orderB;
+                  return a.localeCompare(b);
+                });
+                
+                // Sort metrics within each category by their metric order, then by name (same as dashboard)
+                sortedCategories.forEach((category) => {
+                  grouped[category].metrics.sort((a, b) => {
+                    const orderA = (a as any).metricOrder ?? 1000;
+                    const orderB = (b as any).metricOrder ?? 1000;
+                    if (orderA !== orderB) return orderA - orderB;
+                    return a.metric_name.localeCompare(b.metric_name);
+                  });
+                });
+
+                return sortedCategories.map((category) => (
+                  <div key={category} style={{ marginBottom: "24px" }}>
+                    <h4 style={{ 
+                      margin: "0 0 12px 0", 
+                      padding: "8px 0",
+                      borderBottom: "2px solid var(--brand-primary)",
+                      color: "var(--text-primary)",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.03em"
+                    }}>
+                      {category}
+                    </h4>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+                        gap: "16px",
+                      }}
+                    >
+                      {grouped[category].metrics.map((metric) => {
                   // Determine background color based on execution status
                   // Status values from backend: "completed", "failed", "error", or null
                   const isSuccess = metric.last_execution_status === "completed" || metric.last_execution_status === "success";
@@ -3019,27 +3094,6 @@ export default function CityDataAdmin({
 
                   // Access data - handle both typed and untyped (any) metric objects
                   const metricAny = metric as any;
-                  
-                  // Debug: Log first metric to see structure
-                  if (sortedMetrics.indexOf(metric) === 0) {
-                    console.log("First metric data:", {
-                      id: metricAny.id,
-                      item_noun: metricAny.item_noun,
-                      most_recent_period_total: metricAny.most_recent_period_total,
-                      freshness: metricAny.freshness,
-                      last_execution_status: metricAny.last_execution_status,
-                      rawMetric: metricAny
-                    });
-                  }
-                  
-                  const frequency = metricAny.freshness?.update_frequency || metric.freshness?.update_frequency;
-                  const period = metricAny.freshness?.date_grouping_level || metric.freshness?.date_grouping_level;
-                  const itemNoun = metricAny.item_noun || (metric as any).item_noun || "items";
-                  const mostRecentTotal = metricAny.most_recent_period_total ?? (metric as any).most_recent_period_total;
-                  const hasTotal = mostRecentTotal !== null && mostRecentTotal !== undefined && !isNaN(Number(mostRecentTotal)) && Number(mostRecentTotal) >= 0;
-                  const totalDisplay = hasTotal 
-                    ? `${Number(mostRecentTotal).toLocaleString()} ${itemNoun}`
-                    : null;
 
                   return (
                     <div
@@ -3057,16 +3111,12 @@ export default function CityDataAdmin({
                     >
                       <div style={{ flex: 1 }}>
                         <h4 style={{ margin: "0 0 4px 0", fontWeight: 500 }}>{metric.metric_name}</h4>
-                        <p style={{ fontSize: "12px", color: "var(--text-secondary)", margin: "4px 0" }}>
-                          {metric.metric_key}
-                        </p>
-                        <p style={{ fontSize: "14px", color: "var(--text-secondary)", margin: "4px 0" }}>
-                          {metric.category}
-                          {metric.subcategory ? ` / ${metric.subcategory}` : ""}
+                        <p style={{ fontSize: "11px", color: "var(--text-tertiary)", margin: "4px 0" }}>
+                          ({metric.id})
                         </p>
                         
-                        {/* Frequency, Period, and Total - only show if we have data */}
-                        {(frequency || period || totalDisplay) && (
+                        {/* Most Recent Data Date */}
+                        {(metricAny.most_recent_data_date || metric.most_recent_data_date) && (
                           <div style={{ 
                             marginTop: "12px", 
                             padding: "8px",
@@ -3074,24 +3124,12 @@ export default function CityDataAdmin({
                             borderRadius: "4px",
                             fontSize: "12px"
                           }}>
-                            {frequency && (
-                              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                                <span style={{ color: "var(--text-secondary)" }}>Frequency:</span>
-                                <span style={{ fontWeight: 500 }}>{frequency}</span>
-                              </div>
-                            )}
-                            {period && (
-                              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: period && totalDisplay ? "4px" : "0" }}>
-                                <span style={{ color: "var(--text-secondary)" }}>Period:</span>
-                                <span style={{ fontWeight: 500 }}>{period}</span>
-                              </div>
-                            )}
-                            {totalDisplay && (
-                              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                <span style={{ color: "var(--text-secondary)" }}>Most Recent:</span>
-                                <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{totalDisplay}</span>
-                              </div>
-                            )}
+                            <div style={{ display: "flex", justifyContent: "space-between" }}>
+                              <span style={{ color: "var(--text-secondary)" }}>Most Recent Data:</span>
+                              <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+                                {new Date(metricAny.most_recent_data_date || metric.most_recent_data_date).toLocaleDateString()}
+                              </span>
+                            </div>
                           </div>
                         )}
 
@@ -3140,7 +3178,10 @@ export default function CityDataAdmin({
                       </div>
                     </div>
                   );
-                });
+                })}
+                    </div>
+                  </div>
+                ));
               })()}
             </div>
           ) : (
@@ -3257,6 +3298,15 @@ export default function CityDataAdmin({
         metricId={chartsMetricId}
         isOpen={chartsOpen}
         onClose={closeCharts}
+      />
+
+      {/* Run All Metrics Modal */}
+      <RunAllMetricsModal
+        isOpen={runAllMetricsOpen}
+        onClose={() => setRunAllMetricsOpen(false)}
+        cityId={cityId}
+        cityName={cityDataTyped?.name || cityDataTyped?.city_name || `City ${cityId}`}
+        metrics={cityDataTyped?.metrics || []}
       />
 
       {/* Execute Metric Modal */}

@@ -991,7 +991,19 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 24px;
+  padding: 0 !important;
+}
+
+@media (min-width: 1024px) {
+  .admin-container {
+    padding: 12px !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .admin-container {
+    padding: 16px !important;
+  }
 }
 
 /* Remove padding when city view is in map mode */
@@ -1000,7 +1012,7 @@
   overflow: hidden;
 }
 
-/* On mobile, ensure full width with no padding */
+/* On mobile, ensure full width with no padding for map */
 @media (max-width: 768px) {
   .admin-container:has(.city-view.map-view-active) {
     padding: 0;
@@ -1658,17 +1670,43 @@
 
 /* ===== ADMIN CONTAINER ===== */
 .admin-container {
-  padding: var(--space-2xl);
-  max-width: 1200px;
-  margin: 0 auto;
+  padding: 0 !important;
+  max-width: 100%;
+  margin: 0;
   width: 100%;
 }
 
+@media (min-width: 1024px) {
+  .admin-container {
+    padding: 12px !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .admin-container {
+    padding: 16px !important;
+  }
+}
+
 .admin-container h2 {
-  margin: 0 0 var(--space-xl) 0;
+  margin: 0 0 12px 0;
   padding: 0;
   color: var(--text-primary);
-  font-size: 24px;
+  font-size: 18px;
+}
+
+@media (min-width: 768px) {
+  .admin-container h2 {
+    margin: 0 0 16px 0;
+    font-size: 20px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .admin-container h2 {
+    margin: 0 0 var(--space-xl) 0;
+    font-size: 24px;
+  }
 }
 
 /* ===== CITY SEARCH MODAL ===== */
@@ -1824,10 +1862,6 @@
     width: fit-content !important;
   }
 
-  .admin-container {
-    padding: var(--space-lg) !important;
-  }
-  
   /* Remove padding for map view on mobile */
   .admin-container:has(.city-view.map-view-active) {
     padding: 0 !important;

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { getResearchByHash, ResearchReport } from "@/lib/apiClient";
+import ReportContent from "@/components/ReportContent";
 import "../../research/brand-styles.css";
 import "./styles.css";
 
@@ -13,6 +14,7 @@ export default function PublicResearchPage() {
   const [research, setResearch] = useState<ResearchReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isInfoExpanded, setIsInfoExpanded] = useState(false);
   
   // Fetch research data (no auth required)
   useEffect(() => {
@@ -47,17 +49,180 @@ export default function PublicResearchPage() {
     return <div className="public-research-page">Research not found</div>;
   }
   
+  // Share functionality
+  const handleShare = async () => {
+    const url = window.location.href;
+    const title = research.title || "Research Report | TransparentCity";
+    const text = `Check out this research: ${research.title}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text, url });
+        return;
+      } catch (err) {
+        // User cancelled or error - fall through to fallback
+      }
+    }
+
+    // Fallback: copy to clipboard
+    try {
+      await navigator.clipboard.writeText(url);
+      alert("Link copied to clipboard!");
+    } catch (err) {
+      console.error("Failed to copy link:", err);
+    }
+  };
+
   return (
     <div className="public-research-page">
-      <div className="public-header">
-        <div className="brand">
-          <h1>TransparentCity Research</h1>
-          <p>AI-Powered Civic Data Analysis</p>
+      <header className="research-header">
+        <a href="/" className="brand">
+          <div className="logo-corners">
+            <svg
+              viewBox="0 0 100 100"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ overflow: "visible" }}
+            >
+              <defs>
+                <mask
+                  id="logo-mask-bl-research"
+                  x="-400"
+                  y="-400"
+                  width="1200"
+                  height="1200"
+                  maskUnits="userSpaceOnUse"
+                  maskContentUnits="userSpaceOnUse"
+                >
+                  <rect
+                    x="-400"
+                    y="-400"
+                    width="1200"
+                    height="1200"
+                    fill="white"
+                  />
+                  <rect
+                    x="8.333"
+                    y="8.333"
+                    width="83.333"
+                    height="83.333"
+                    rx="3"
+                    ry="3"
+                    fill="black"
+                  />
+                  <rect
+                    x="16.666"
+                    y="-33.333"
+                    width="66.666"
+                    height="166.666"
+                    fill="black"
+                    transform="rotate(-45 50 50)"
+                  />
+                  <rect
+                    x="50"
+                    y="-400"
+                    width="1200"
+                    height="1200"
+                    fill="black"
+                    transform="rotate(-45 50 50)"
+                  />
+                </mask>
+                <mask
+                  id="logo-mask-tr-research"
+                  x="-400"
+                  y="-400"
+                  width="1200"
+                  height="1200"
+                  maskUnits="userSpaceOnUse"
+                  maskContentUnits="userSpaceOnUse"
+                >
+                  <rect
+                    x="-400"
+                    y="-400"
+                    width="1200"
+                    height="1200"
+                    fill="white"
+                  />
+                  <rect
+                    x="8.333"
+                    y="8.333"
+                    width="83.333"
+                    height="83.333"
+                    rx="3"
+                    ry="3"
+                    fill="black"
+                  />
+                  <rect
+                    x="16.666"
+                    y="-33.333"
+                    width="66.666"
+                    height="166.666"
+                    fill="black"
+                    transform="rotate(-45 50 50)"
+                  />
+                  <rect
+                    x="-1150"
+                    y="-400"
+                    width="1200"
+                    height="1200"
+                    fill="black"
+                    transform="rotate(-45 50 50)"
+                  />
+                </mask>
+              </defs>
+              <rect
+                className="brace"
+                x="0"
+                y="0"
+                width="100"
+                height="100"
+                rx="3"
+                ry="3"
+                mask="url(#logo-mask-bl-research)"
+                fill="var(--text-primary)"
+                transform="translate(23.5%, -23.5%)"
+              />
+              <rect
+                className="brace"
+                x="0"
+                y="0"
+                width="100"
+                height="100"
+                rx="3"
+                ry="3"
+                mask="url(#logo-mask-tr-research)"
+                fill="var(--text-primary)"
+                transform="translate(-23.5%, 23.5%)"
+              />
+            </svg>
+          </div>
+          <span className="brand-text">
+            <span className="brand-transparent">transparent</span>
+            <span className="brand-city">.city</span>
+          </span>
+        </a>
+        <div className="header-right">
+          <button
+            onClick={handleShare}
+            className="share-button-header"
+            aria-label="Share this research"
+            title="Share this research"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+              <polyline points="16 6 12 2 8 6"></polyline>
+              <line x1="12" y1="2" x2="12" y2="15"></line>
+            </svg>
+            Share
+          </button>
         </div>
-        <div className="view-count">
-          Viewed {research.view_count} times
-        </div>
-      </div>
+      </header>
       
       <article className="research-article">
         <header className="article-header">
@@ -68,16 +233,11 @@ export default function PublicResearchPage() {
           </div>
         </header>
         
-        <section className="research-question-section">
-          <h2>Research Question</h2>
-          <p className="research-question">{research.original_prompt}</p>
-        </section>
-        
         {research.final_report_html && (
           <section className="research-content">
-            <div
+            <ReportContent
+              content={research.final_report_html}
               className="report-html"
-              dangerouslySetInnerHTML={{ __html: research.final_report_html }}
             />
           </section>
         )}
@@ -85,8 +245,7 @@ export default function PublicResearchPage() {
         <footer className="article-footer">
           <div className="research-info">
             <p>
-              This research was conducted using{" "}
-              <strong>{research.model_key || "AI analysis"}</strong> with{" "}
+              This research was generated by <strong>Seymour</strong>, an AI research assistant, with{" "}
               {research.max_iterations} iteration(s) and{" "}
               {research.max_subquestions} subquestion(s) per iteration.
             </p>
@@ -95,31 +254,42 @@ export default function PublicResearchPage() {
                 Total research items analyzed: {research.total_items}
               </p>
             )}
+            <p>
+              <a href="/methodology" className="methodology-link">
+                Learn more about our research methodology →
+              </a>
+            </p>
           </div>
-          
-          <div className="share-section">
-            <h3>Share This Research</h3>
-            <div className="share-buttons">
-              <button
-                onClick={() => {
-                  const text = encodeURIComponent(`Check out this research: ${research.title}`);
-                  const url = encodeURIComponent(window.location.href);
-                  window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
-                }}
-                className="share-button twitter"
+
+          <div className="research-details-collapsible">
+            <button
+              className="details-toggle"
+              onClick={() => setIsInfoExpanded(!isInfoExpanded)}
+              aria-expanded={isInfoExpanded}
+            >
+              <span className="toggle-text">
+                {isInfoExpanded ? "Hide" : "Show"} Research Details
+              </span>
+              <svg
+                className={`toggle-icon ${isInfoExpanded ? "expanded" : ""}`}
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
               >
-                Share on Twitter
-              </button>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(window.location.href);
-                  alert("Link copied to clipboard!");
-                }}
-                className="share-button copy"
-              >
-                Copy Link
-              </button>
-            </div>
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            {isInfoExpanded && (
+              <div className="details-content">
+                <div className="research-question-section">
+                  <h3>Research Question</h3>
+                  <p className="research-question">{research.original_prompt}</p>
+                </div>
+              </div>
+            )}
           </div>
           
           <div className="cta-section">

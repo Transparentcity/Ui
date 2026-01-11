@@ -897,6 +897,88 @@ export function getAdminMetricCityStructure(metricId: number, token: string): Pr
   return request<any>(`/api/admin/metrics/${metricId}/city-structure`, "GET", undefined, token);
 }
 
+// Comparison types and interfaces
+export type ComparisonType = "ytd" | "mtd" | "mtd_prior_year";
+
+export interface ComparisonResponse {
+  metric_id: number;
+  district: number | null;
+  comparison_type: ComparisonType;
+  current_period_value: number | null;
+  current_period_start: string;
+  current_period_end: string;
+  comparison_period_value: number | null;
+  comparison_period_start: string;
+  comparison_period_end: string;
+  period_type: string;
+  computed_at: string;
+  is_precomputed: boolean;
+}
+
+export interface ComparisonsResponse {
+  metric_id: number;
+  district: number | null;
+  comparisons: Record<ComparisonType, ComparisonResponse>;
+}
+
+export interface BatchComparisonsRequest {
+  metric_ids: number[];
+  district?: number | null;
+  comparison_types?: ComparisonType[];
+}
+
+export interface BatchComparisonsResponse {
+  [metricId: number]: Record<ComparisonType, ComparisonResponse>;
+}
+
+// Get single comparison for a metric
+export function getMetricComparison(
+  metricId: number,
+  comparisonType: ComparisonType,
+  district: number | null | undefined,
+  token: string
+): Promise<ComparisonResponse> {
+  const params = district !== undefined && district !== null ? `?district=${district}` : "";
+  return request<ComparisonResponse>(
+    `/api/admin/metrics/${metricId}/comparison/${comparisonType}${params}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+// Get all comparisons for a metric
+export function getMetricComparisons(
+  metricId: number,
+  district: number | null | undefined,
+  comparisonTypes: ComparisonType[] | undefined,
+  token: string
+): Promise<ComparisonsResponse> {
+  const params = new URLSearchParams();
+  if (district !== undefined && district !== null) {
+    params.append("district", district.toString());
+  }
+  if (comparisonTypes && comparisonTypes.length > 0) {
+    params.append("comparison_types", comparisonTypes.join(","));
+  }
+  const queryString = params.toString();
+  const url = `/api/admin/metrics/${metricId}/comparisons${queryString ? `?${queryString}` : ""}`;
+  return request<ComparisonsResponse>(url, "GET", undefined, token);
+}
+
+// Get comparisons for multiple metrics in batch
+export function getBatchComparisons(
+  batchRequest: BatchComparisonsRequest,
+  token: string
+): Promise<BatchComparisonsResponse> {
+  return request<BatchComparisonsResponse>(
+    "/api/admin/metrics/comparisons/batch",
+    "POST",
+    batchRequest,
+    token
+  );
+}
+
 export interface ValidateFreshnessRequest {
   days_to_analyze?: number;
   force_refresh?: boolean;
@@ -2205,7 +2287,44 @@ export function cancelResearch(
 }
 
 export function getResearchByHash(hash: string): Promise<ResearchReport> {
-  return request<ResearchReport>(`/api/research/by-hash/${hash}`, "GET", undefined);
+  // Use public endpoint - fetch directly without auth credentials
+  // Try public endpoint first, fallback to regular endpoint if needed
+  return fetch(`${API_BASE}/api/research/public/by-hash/${hash}`, {
+    method: "GET",
+    headers: {
+      "Accept": "application/json",
+    },
+    credentials: "omit", // Don't send cookies/auth for public endpoint
+  }).then(async (res) => {
+    // If public endpoint doesn't exist (404), try the regular endpoint
+    if (res.status === 404) {
+      return fetch(`${API_BASE}/api/research/by-hash/${hash}`, {
+        method: "GET",
+        headers: {
+          "Accept": "application/json",
+        },
+        credentials: "omit", // Don't send cookies/auth
+      }).then(async (res2) => {
+        if (!res2.ok) {
+          const text = await res2.text().catch(() => "");
+          const error = new Error(`Failed to fetch research: ${res2.status} ${text}`);
+          (error as any).status = res2.status;
+          (error as any).statusText = res2.statusText;
+          throw error;
+        }
+        return res2.json() as Promise<ResearchReport>;
+      });
+    }
+    
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      const error = new Error(`Failed to fetch research: ${res.status} ${text}`);
+      (error as any).status = res.status;
+      (error as any).statusText = res.statusText;
+      throw error;
+    }
+    return res.json() as Promise<ResearchReport>;
+  });
 }
 
 export function listResearch(
@@ -2592,6 +2711,122 @@ export function submitCityLeadInterest(
   token: string
 ): Promise<CityLeadInterestResponse> {
   return request<CityLeadInterestResponse>("/api/admin/cities/lead-interest", "POST", data, token);
+}
+
+// ============================================================================
+// METRIC ORDERING API
+// ============================================================================
+
+export interface MetricOrderingItem {
+  id?: number;
+  city_id?: number;
+  category_name: string;
+  category_order: number;
+  metric_id: number | null;
+  metric_order: number;
+  metric_name?: string;
+}
+
+export interface MetricOrderingResponse {
+  city_id: number;
+  orderings: MetricOrderingItem[];
+}
+
+export interface SaveMetricOrderingRequest {
+  orderings: MetricOrderingItem[];
+}
+
+// Get metric ordering for a city
+export function getCityMetricOrdering(
+  cityId: number,
+  token: string
+): Promise<MetricOrderingResponse> {
+  return request<MetricOrderingResponse>(
+    `/api/cities/${cityId}/metric-ordering`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+// Save metric ordering for a city
+export function saveCityMetricOrdering(
+  cityId: number,
+  orderings: MetricOrderingItem[],
+  token: string
+): Promise<{ success: boolean; message: string; count: number }> {
+  return request<{ success: boolean; message: string; count: number }>(
+    `/api/cities/${cityId}/metric-ordering`,
+    "PUT",
+    { orderings },
+    token
+  );
+}
+
+// Reset metric ordering for a city (removes all custom orderings)
+export function resetCityMetricOrdering(
+  cityId: number,
+  token: string
+): Promise<{ success: boolean; message: string; deleted_count: number }> {
+  return request<{ success: boolean; message: string; deleted_count: number }>(
+    `/api/cities/${cityId}/metric-ordering`,
+    "DELETE",
+    undefined,
+    token
+  );
+}
+
+// ============================================================================
+// BATCH METRIC EXECUTION API
+// ============================================================================
+
+export interface BatchExecuteMetricsRequest {
+  city_id: number;
+  metric_ids?: number[] | null;
+  period_type?: "day" | "month" | "year" | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  max_concurrent?: number;
+}
+
+export interface BatchExecuteMetricsResponse {
+  job_id: string | null;
+  message: string;
+  total_metrics: number;
+  city_id: number;
+  city_name?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+}
+
+// Execute multiple metrics for a city in batch
+export function batchExecuteMetrics(
+  options: BatchExecuteMetricsRequest,
+  token: string
+): Promise<BatchExecuteMetricsResponse> {
+  return request<BatchExecuteMetricsResponse>(
+    "/api/admin/metrics/batch-execute",
+    "POST",
+    options,
+    token
+  );
+}
+
+// ============================================================================
+// HELPER: Get default date range for batch execution
+// ============================================================================
+
+/**
+ * Get the default date range for batch metric execution.
+ * Default: January 1 of 2 years ago to today.
+ * Example: If today is Jan 9, 2026, returns { startDate: "2024-01-01", endDate: "2026-01-09" }
+ */
+export function getDefaultBatchDateRange(): { startDate: string; endDate: string } {
+  const today = new Date();
+  const startYear = today.getFullYear() - 2;
+  const startDate = `${startYear}-01-01`;
+  const endDate = today.toISOString().split("T")[0];
+  return { startDate, endDate };
 }
 
 // Force rebuild - all exports are defined above

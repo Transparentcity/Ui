@@ -31,6 +31,43 @@
   color: var(--text-primary);
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.refreshBtn {
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.3s ease;
+}
+
+.refreshBtn:hover:not(:disabled) {
+  background: rgba(173, 53, 250, 0.1);
+  color: var(--brand-primary, #ad35fa);
+}
+
+.refreshBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.refreshBtn.refreshing {
+  animation: spin 1s linear infinite;
+  color: var(--brand-primary, #ad35fa);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .closeBtn {
   background: transparent;
   border: none;

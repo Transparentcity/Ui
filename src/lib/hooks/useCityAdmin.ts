@@ -20,6 +20,10 @@ import {
   updateCityLeader,
   deleteCityLeader,
   getAvailableModels,
+  getCityMetricOrdering,
+  saveCityMetricOrdering,
+  resetCityMetricOrdering,
+  batchExecuteMetrics,
   type CityAdminData,
   type CityStatsResponse,
   type CityStructureData,
@@ -32,6 +36,10 @@ import {
   type CityLeader,
   type ModelGroupInfo,
   type RecreateStructureFromQueryConfigsResponse,
+  type MetricOrderingItem,
+  type MetricOrderingResponse,
+  type BatchExecuteMetricsRequest,
+  type BatchExecuteMetricsResponse,
 } from "@/lib/apiClient";
 
 // Query keys factory for city admin
@@ -42,6 +50,7 @@ export const cityAdminKeys = {
   stats: (id: number) => [...cityAdminKeys.all, "stats", id] as const,
   structure: (id: number) => [...cityAdminKeys.all, "structure", id] as const,
   models: () => [...cityAdminKeys.all, "models"] as const,
+  metricOrdering: (id: number) => [...cityAdminKeys.all, "metricOrdering", id] as const,
 };
 
 /**
@@ -420,6 +429,98 @@ export function useDeleteCityLeader() {
       queryClient.invalidateQueries({ queryKey: cityAdminKeys.structure(variables.cityId) });
       // Also invalidate regular city leaders if it exists
       queryClient.invalidateQueries({ queryKey: ["cities", "leaders", variables.cityId] });
+    },
+  });
+}
+
+// ============================================================================
+// METRIC ORDERING HOOKS
+// ============================================================================
+
+/**
+ * Hook to fetch metric ordering for a city.
+ * Cache time: 5 minutes (ordering changes infrequently)
+ */
+export function useCityMetricOrdering(cityId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: cityAdminKeys.metricOrdering(cityId!),
+    queryFn: async () => {
+      if (!cityId) throw new Error("City ID is required");
+      const token = await getAccessTokenSilently();
+      return getCityMetricOrdering(cityId, token);
+    },
+    enabled: !!cityId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+/**
+ * Hook to save metric ordering for a city.
+ * Invalidates metric ordering cache on success.
+ */
+export function useSaveCityMetricOrdering() {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      cityId,
+      orderings,
+    }: {
+      cityId: number;
+      orderings: MetricOrderingItem[];
+    }) => {
+      const token = await getAccessTokenSilently();
+      return saveCityMetricOrdering(cityId, orderings, token);
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate metric ordering cache
+      queryClient.invalidateQueries({ queryKey: cityAdminKeys.metricOrdering(variables.cityId) });
+      // Also invalidate city metrics queries to reflect new ordering
+      queryClient.invalidateQueries({ queryKey: ["cities", "metrics", variables.cityId] });
+    },
+  });
+}
+
+/**
+ * Hook to reset metric ordering for a city to default.
+ * Invalidates metric ordering cache on success.
+ */
+export function useResetCityMetricOrdering() {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (cityId: number) => {
+      const token = await getAccessTokenSilently();
+      return resetCityMetricOrdering(cityId, token);
+    },
+    onSuccess: (_, cityId) => {
+      // Invalidate metric ordering cache
+      queryClient.invalidateQueries({ queryKey: cityAdminKeys.metricOrdering(cityId) });
+      // Also invalidate city metrics queries
+      queryClient.invalidateQueries({ queryKey: ["cities", "metrics", cityId] });
+    },
+  });
+}
+
+// ============================================================================
+// BATCH METRIC EXECUTION HOOKS
+// ============================================================================
+
+/**
+ * Hook to execute multiple metrics in batch for a city.
+ * Returns a job response that can be monitored via useJobWebSocket.
+ */
+export function useBatchExecuteMetrics() {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useMutation({
+    mutationFn: async (options: BatchExecuteMetricsRequest) => {
+      const token = await getAccessTokenSilently();
+      return batchExecuteMetrics(options, token);
     },
   });
 }

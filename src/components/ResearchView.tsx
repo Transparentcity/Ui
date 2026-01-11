@@ -18,8 +18,7 @@ import {
 import { pickDefaultModelKey } from "@/lib/modelDefaults";
 import Loader from "./Loader";
 import ResearchProgressView from "./research/ResearchProgressView";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import ReportContent from "./ReportContent";
 import styles from "./ResearchView.module.css";
 
 type TabType = "report" | "agenda";
@@ -552,38 +551,10 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
             
             {activeTab === "report" && (
               <div className={styles.reportContent}>
-                {(() => {
-                  const content = research.final_report_html || "";
-                  if (!content) {
-                    return <p>No report content available.</p>;
-                  }
-                  
-                  // Detect if content is HTML - check for HTML tags
-                  // The synthesis prompt now always generates HTML, but we check to be safe
-                  const trimmedContent = content.trim();
-                  const clearlyHtml = /^<[a-z][a-z0-9]*\b/i.test(trimmedContent) || 
-                                     trimmedContent.includes('<h1>') || 
-                                     trimmedContent.includes('<h2>') ||
-                                     trimmedContent.includes('<p>') ||
-                                     trimmedContent.includes('<div>');
-                  
-                  if (clearlyHtml) {
-                    // Render HTML directly
-                    return (
-                      <div
-                        dangerouslySetInnerHTML={{ __html: content }}
-                        className={styles.reportHtml}
-                      />
-                    );
-                  } else {
-                    // Render markdown (fallback for legacy content)
-                    return (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {content}
-                      </ReactMarkdown>
-                    );
-                  }
-                })()}
+                <ReportContent
+                  content={research.final_report_html || ""}
+                  className={styles.reportHtml}
+                />
               </div>
             )}
             
@@ -745,57 +716,6 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
           </div>
         )}
 
-        {/* Regenerate/Re-synthesize options for completed or failed research */}
-        {(research.status === "completed" || research.status === "failed") && (
-          <div className={styles.section}>
-            <h2>Regenerate Options</h2>
-            <div className={styles.regenerateControls}>
-              <div className={styles.modelSelector}>
-                <label htmlFor="model-select" className={styles.modelLabel}>Model:</label>
-                <select
-                  id="model-select"
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  className={styles.modelSelect}
-                  disabled={isRegenerating || isResynthesizing}
-                >
-                  {availableModels.map((group) => (
-                    <optgroup key={group.label} label={`${group.emoji} ${group.label}`}>
-                      {group.models.filter((m) => m.is_available).map((model) => (
-                        <option key={model.key} value={model.key}>
-                          {model.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </div>
-              <div className={styles.regenerateActions}>
-                <button
-                  onClick={handleResynthesize}
-                  disabled={isRegenerating || isResynthesizing}
-                  className={styles.resynthesizeButton}
-                  title="Re-synthesize the final report from existing item results without re-running research"
-                >
-                  {isResynthesizing ? "Re-synthesizing..." : "Re-synthesize Report"}
-                </button>
-                <button
-                  onClick={handleRegenerate}
-                  disabled={isRegenerating || isResynthesizing}
-                  className={styles.regenerateButton}
-                  title="Re-run the entire research with the selected model"
-                >
-                  {isRegenerating ? "Regenerating..." : "Regenerate Research"}
-                </button>
-              </div>
-              <p className={styles.regenerateHint}>
-                <strong>Re-synthesize:</strong> Rebuilds only the final report from existing research.
-                <br />
-                <strong>Regenerate:</strong> Re-runs the entire research process from scratch.
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* Error display */}
         {research.status === "failed" && research.error_message && (

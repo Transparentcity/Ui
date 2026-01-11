@@ -727,7 +727,6 @@ export default function AnomalyChartPage() {
                   },
                 },
                 margin: { t: 40, b: 25, l: 50, r: 45 },
-                height: 400,
                 autosize: true,
                 paper_bgcolor: "transparent",
                 plot_bgcolor: "transparent",
@@ -746,7 +745,7 @@ export default function AnomalyChartPage() {
                 responsive: true,
                 displayModeBar: false,
               }}
-              style={{ width: "100%", height: "100%", minHeight: "400px" }}
+              style={{ width: "100%", height: "100%" }}
               useResizeHandler={true}
             />
           )}
