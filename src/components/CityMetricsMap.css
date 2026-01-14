@@ -21,7 +21,7 @@
   backdrop-filter: blur(10px);
   border-left: 1px solid var(--border-primary);
   box-shadow: none;
-  z-index: 1500 !important; /* Above tabs/header; below full-screen modals */
+  z-index: 12000 !important; /* Above date range modal (11000) and other overlays */
   transition: right 0.3s ease-out, width 0.3s ease-out;
   display: flex;
   flex-direction: column;
@@ -240,7 +240,7 @@
     /* TitleBar (var(--header-height)) + CityHeader+Tabs overlays (104px) */
     top: calc(var(--header-height) + 104px);
     width: 280px;
-    z-index: 1500 !important;
+    z-index: 12000 !important; /* Above date range modal (11000) and other overlays */
     isolation: isolate;
   }
 

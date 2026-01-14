@@ -18,6 +18,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { getMyPermissions, getSavedCities, getUserPreferences, updateUserPreferences, getCity } from "@/lib/apiClient";
 import Loader from "@/components/Loader";
 import WelcomeModal from "@/components/WelcomeModal";
+import RedisStatusIndicator from "@/components/RedisStatusIndicator";
 import styles from "./page.module.css";
 import dynamic from "next/dynamic";
 
@@ -544,7 +545,7 @@ export default function DashboardPage() {
       hasCheckedOnboarding.current = false;
       
       // Check if user has saved cities - if they do, still show the modal (for testing/reset purposes)
-      const savedCities = await getSavedCities(token);
+      await getSavedCities(token);
       
       // Show the modal immediately after reset
       setShowWelcomeModal(true);
@@ -572,6 +573,7 @@ export default function DashboardPage() {
       <TitleBar
         onMenuToggle={handleMenuToggle}
         isAdmin={isAdmin}
+        sidebarOpen={sidebarOpen}
       />
       
       <Sidebar
@@ -588,6 +590,7 @@ export default function DashboardPage() {
         isCurrentSessionJobSession={isCurrentSessionJobSession}
         onSessionDeleted={handleSessionDeleted}
         onClose={() => setSidebarOpen(false)}
+        onMenuToggle={handleMenuToggle}
         onCityClick={handleCityClick}
         activeCityId={activeCityId}
         onResearchClick={(reportId) => {
@@ -1243,6 +1246,42 @@ export default function DashboardPage() {
                         "Save Preferences"
                       )}
                     </button>
+                  </div>
+
+                  {/* System Status Section - Subtle indicator at bottom */}
+                  <div style={{ 
+                    marginTop: "32px", 
+                    paddingTop: "24px", 
+                    borderTop: "1px solid var(--border-primary)",
+                    opacity: 0.7
+                  }}>
+                    <div style={{ 
+                      display: "flex", 
+                      alignItems: "center", 
+                      justifyContent: "space-between",
+                      padding: "8px 0"
+                    }}>
+                      <div>
+                        <div style={{ 
+                          fontSize: "12px", 
+                          color: "var(--text-secondary)", 
+                          marginBottom: "4px",
+                          fontWeight: 500
+                        }}>
+                          Session Storage
+                        </div>
+                        <div style={{ 
+                          fontSize: "11px", 
+                          color: "var(--text-secondary)",
+                          opacity: 0.8
+                        }}>
+                          Connection status for chat sessions
+                        </div>
+                      </div>
+                      <div style={{ fontSize: "12px" }}>
+                        <RedisStatusIndicator subtle />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Onboarding Section */}

@@ -31,12 +31,24 @@
   flex-shrink: 0;
 }
 
+.modalTitleContainer {
+  flex: 1;
+  margin-right: 8px;
+}
+
 .modalTitle {
   font-size: 18px;
   font-weight: 700;
   color: var(--text-primary, #222);
   display: flex;
   align-items: center;
+}
+
+.modalSubtitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+  margin-top: 4px;
 }
 
 .closeBtn {
@@ -132,6 +144,20 @@
 
 .errorContainer {
   color: var(--error, #ef4444);
+}
+
+/* Period Title Header */
+.periodTitleHeader {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+}
+
+.periodTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #222);
+  margin: 0;
 }
 
 /* Anomalies List */

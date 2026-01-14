@@ -5,6 +5,15 @@
   flex-direction: column;
 }
 
+.sessionHeaderContainer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+}
+
 .chatContainer {
   display: flex;
   flex-direction: column;
@@ -177,61 +186,146 @@
 
 .chatInputArea {
   border-top: 1px solid var(--border-primary);
-  padding: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
   background: var(--bg-secondary);
   flex-shrink: 0;
+  width: 100%;
+  position: sticky;
+  bottom: 0;
 }
 
-.chatInputContainer {
+/* Input wrapper that looks like a single input box */
+.chatInputWrapper {
+  position: relative;
   display: flex;
-  gap: var(--space-md);
   align-items: flex-end;
-  overflow: visible;
-  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  transition: border-color 0.2s ease;
+  min-height: 44px;
+}
+
+.chatInputWrapper:focus-within {
+  border-color: var(--brand-primary);
+}
+
+/* Model icon wrapper inside on the left */
+.modelIconWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: var(--space-xs);
+  z-index: 1;
+}
+
+.modelIconButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+  font-family: inherit;
+}
+
+.modelIconButton:hover:not(:disabled) {
+  background: var(--bg-secondary);
+}
+
+.modelIconButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.modelIconEmoji {
+  font-size: 20px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .chatInput {
   flex: 1;
-  padding: var(--space-md);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-sm);
+  border: none;
+  border-radius: 0;
   resize: none;
   font-family: inherit;
   font-size: 14px;
-  max-height: 120px;
-  background: var(--bg-primary);
+  line-height: 1.5;
+  min-height: 44px;
+  max-height: 25vh;
+  background: transparent;
   color: var(--text-primary);
+  overflow-y: auto;
+  transition: none;
 }
 
 .chatInput:focus {
   outline: none;
-  border-color: var(--brand-primary);
 }
 
-.chatButton {
-  flex-shrink: 0;
-  min-width: fit-content;
-  white-space: nowrap;
-  padding: var(--space-sm) var(--space-md);
-  font-size: 14px;
-  height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-xs);
+.chatInput::placeholder {
+  color: var(--text-tertiary);
 }
 
-.stopButton {
-  flex-shrink: 0;
-  min-width: fit-content;
-  white-space: nowrap;
-  padding: var(--space-sm) var(--space-md);
-  font-size: 14px;
-  height: 36px;
-  display: inline-flex;
+/* Action icons inside on the right */
+.sendIconButton,
+.stopIconButton {
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-xs);
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+  font-family: inherit;
+  flex-shrink: 0;
+  margin: var(--space-xs);
+}
+
+.sendIconButton {
+  color: var(--brand-primary);
+}
+
+.sendIconButton:hover:not(:disabled) {
+  background: var(--brand-primary-light);
+}
+
+.sendIconButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.stopIconButton {
+  color: var(--error-color, #dc3545);
+}
+
+.stopIconButton:hover {
+  background: rgba(220, 53, 69, 0.1);
+}
+
+.sendIcon,
+.stopIcon {
+  font-size: 20px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .modelDropdownWrapper {
@@ -309,6 +403,41 @@
   flex-direction: column;
   gap: 2px;
   padding: 4px;
+}
+
+/* Backdrop for centered modal */
+.modelDropdownBackdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 999999;
+  cursor: pointer;
+}
+
+/* Centered modal for model selection */
+.modelDropdownMenuCentered {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+  min-width: 320px;
+  max-width: 500px;
+  max-height: 70vh;
+  overflow-y: auto;
+  z-index: 1000000;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
 }
 
 .modelDropdownMenuWelcome {
@@ -728,34 +857,42 @@
   }
 
   .chatInputArea {
-    padding: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
   }
 
-  .chatInputContainer {
-    gap: var(--space-sm);
-    flex-wrap: nowrap;
-    overflow: visible;
+  .chatInputWrapper {
+    min-height: 48px;
   }
 
   .chatInput {
     min-width: 0;
     flex: 1 1 auto;
+    font-size: 16px; /* Prevent zoom on iOS */
+    padding: var(--space-sm) var(--space-xs);
   }
 
-  .chatButton,
-  .stopButton {
-    flex-shrink: 0;
-    min-width: 60px;
-    padding: var(--space-sm) var(--space-sm);
-    font-size: 13px;
+  .modelIconButton,
+  .sendIconButton,
+  .stopIconButton {
+    width: 36px;
     height: 36px;
   }
 
-  .stopButton {
-    min-width: 70px;
+  .modelIconEmoji,
+  .sendIcon,
+  .stopIcon {
+    font-size: 22px;
   }
 
-  .modelDropdownWrapper {
-    flex-shrink: 0;
+  .modelDropdownMenuCentered {
+    min-width: calc(100vw - var(--space-lg) * 2);
+    max-width: calc(100vw - var(--space-lg) * 2);
+    max-height: 60vh;
+  }
+
+  .modelDropdownMenu {
+    min-width: 260px;
+    max-width: calc(100vw - var(--space-lg) * 2);
+    max-height: 300px;
   }
 }

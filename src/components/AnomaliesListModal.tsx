@@ -41,6 +41,129 @@ function groupAnomaliesByMetric(anomalies: AnomalyResult[]): AnomalyGroup[] {
   return Array.from(groupMap.values());
 }
 
+// Helper to format period date range title for anomaly lists
+function formatPeriodTitle(periodType: string, dateStr: string | null | undefined): string {
+  if (!dateStr) return "";
+  
+  try {
+    if (periodType === "month") {
+      // Handle month format: "2025-12" or "2025-12-01"
+      let year: string, month: string;
+      if (/^\d{4}-\d{2}$/.test(dateStr)) {
+        [year, month] = dateStr.split("-");
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        [year, month] = dateStr.split("-");
+      } else {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return "";
+        year = date.getFullYear().toString();
+        month = (date.getMonth() + 1).toString().padStart(2, "0");
+      }
+      const monthNames = ["January", "February", "March", "April", "May", "June", 
+                          "July", "August", "September", "October", "November", "December"];
+      const monthNum = parseInt(month);
+      if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) return "";
+      return `${monthNames[monthNum - 1]} ${year}`;
+    } else if (periodType === "week") {
+      // Handle ISO week format: "2025-W02" or date string
+      if (dateStr.includes("-W")) {
+        const [year, weekPart] = dateStr.split("-W");
+        const weekNum = parseInt(weekPart);
+        if (isNaN(weekNum)) return "";
+        
+        // Calculate week range (Monday to Sunday)
+        const jan4 = new Date(parseInt(year), 0, 4); // Jan 4 is always in week 1
+        const jan4Day = jan4.getDay() || 7; // Convert Sunday (0) to 7
+        const daysToMonday = (8 - jan4Day) % 7;
+        const week1Monday = new Date(parseInt(year), 0, 4 + daysToMonday);
+        const weekStart = new Date(week1Monday);
+        weekStart.setDate(weekStart.getDate() + (weekNum - 1) * 7);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        
+        const startMonth = weekStart.toLocaleDateString("en-US", { month: "short" });
+        const startDay = weekStart.getDate();
+        const endMonth = weekEnd.toLocaleDateString("en-US", { month: "short" });
+        const endDay = weekEnd.getDate();
+        const yearStr = weekStart.getFullYear();
+        
+        if (startMonth === endMonth) {
+          return `Week of ${startMonth} ${startDay}-${endDay}, ${yearStr}`;
+        } else {
+          return `Week of ${startMonth} ${startDay} - ${endMonth} ${endDay}, ${yearStr}`;
+        }
+      } else {
+        // Try to parse as date and calculate week
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return "";
+        
+        // Get Monday of the week
+        const day = date.getDay();
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+        const monday = new Date(date.setDate(diff));
+        const sunday = new Date(monday);
+        sunday.setDate(sunday.getDate() + 6);
+        
+        const startMonth = monday.toLocaleDateString("en-US", { month: "short" });
+        const startDay = monday.getDate();
+        const endMonth = sunday.toLocaleDateString("en-US", { month: "short" });
+        const endDay = sunday.getDate();
+        const yearStr = monday.getFullYear();
+        
+        if (startMonth === endMonth) {
+          return `Week of ${startMonth} ${startDay}-${endDay}, ${yearStr}`;
+        } else {
+          return `Week of ${startMonth} ${startDay} - ${endMonth} ${endDay}, ${yearStr}`;
+        }
+      }
+    } else if (periodType === "day") {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return "";
+      return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    } else if (periodType === "year") {
+      if (/^\d{4}$/.test(dateStr)) {
+        return dateStr;
+      }
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return "";
+      return date.getFullYear().toString();
+    }
+    return "";
+  } catch {
+    return "";
+  }
+}
+
+// Helper to get period date from anomaly (checks period_date first, then chart_payload)
+function getAnomalyPeriodDate(anomaly: AnomalyResult): string | null {
+  // First try period_date field
+  if ((anomaly as any).period_date) {
+    return (anomaly as any).period_date;
+  }
+  
+  // Then try chart_payload dates
+  if (anomaly.chart_payload?.dates && Array.isArray(anomaly.chart_payload.dates)) {
+    const dates = anomaly.chart_payload.dates;
+    const periods = anomaly.chart_payload.periods;
+    
+    // Find the most recent "recent" period date
+    if (Array.isArray(periods)) {
+      for (let i = dates.length - 1; i >= 0; i--) {
+        if (periods[i] === "recent" && dates[i]) {
+          return dates[i];
+        }
+      }
+    }
+    
+    // Fallback to last date
+    if (dates.length > 0) {
+      return dates[dates.length - 1];
+    }
+  }
+  
+  return null;
+}
+
 // Helper to format anomaly display info
 function getAnomalyDisplayInfo(anomaly: AnomalyResult, itemNoun: string) {
   const recentMean = anomaly.recent_mean ?? 0;
@@ -115,6 +238,15 @@ export default function AnomaliesListModal({
     [anomalies]
   );
 
+  // Get period title from first anomaly (all anomalies should have same period)
+  const periodTitle = useMemo(() => {
+    if (anomalies.length === 0) return null;
+    const firstAnomaly = anomalies[0];
+    const periodDate = getAnomalyPeriodDate(firstAnomaly);
+    const anomalyPeriodType = (firstAnomaly as any).period_type || "month";
+    return formatPeriodTitle(anomalyPeriodType, periodDate);
+  }, [anomalies]);
+
   const toggleMetricExpanded = (metricId: number) => {
     setExpandedMetricIds((prev) => {
       const next = new Set(prev);
@@ -139,9 +271,14 @@ export default function AnomaliesListModal({
     <div className={styles.modalOverlay} onMouseDown={onClose}>
       <div className={styles.modal} onMouseDown={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
-          <div className={styles.modalTitle}>
-            <i className="fas fa-bell" style={{ marginRight: "8px" }} />
-            Anomaly Alerts
+          <div className={styles.modalTitleContainer}>
+            <div className={styles.modalTitle}>
+              <i className="fas fa-bell" style={{ marginRight: "8px" }} />
+              Anomaly Alerts
+            </div>
+            {periodTitle && (
+              <div className={styles.modalSubtitle}>{periodTitle}</div>
+            )}
           </div>
           <button className={styles.closeBtn} onClick={onClose} title="Close">
             <i className="fas fa-times" />
@@ -195,7 +332,14 @@ export default function AnomaliesListModal({
 
           {/* Anomaly List */}
           {!isLoading && !error && anomalies.length > 0 && (
-            <div className={styles.anomaliesList}>
+            <>
+              {/* Period Title Header */}
+              {periodTitle && (
+                <div className={styles.periodTitleHeader}>
+                  <h3 className={styles.periodTitle}>{periodTitle}</h3>
+                </div>
+              )}
+              <div className={styles.anomaliesList}>
               {groupedAnomalies.map((group) => {
                 const topAnomaly = group.anomalies[0];
                 const remainingAnomalies = group.anomalies.slice(1);
@@ -311,7 +455,8 @@ export default function AnomaliesListModal({
                   </div>
                 );
               })}
-            </div>
+              </div>
+            </>
           )}
         </div>
 

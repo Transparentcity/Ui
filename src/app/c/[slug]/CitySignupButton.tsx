@@ -90,7 +90,7 @@ export default function CitySignupButton() {
               onClick={() => handleSignup("resident")}
               disabled={isLoading}
             >
-              <div className="nav-signup-item-title">I'm a resident</div>
+              <div className="nav-signup-item-title">I&apos;m a resident</div>
               <div className="nav-signup-item-desc">
                 Follow a city, read research, and get the map view.
               </div>
@@ -101,7 +101,7 @@ export default function CitySignupButton() {
               onClick={() => handleSignup("public-servant")}
               disabled={isLoading}
             >
-              <div className="nav-signup-item-title">I'm a public servant</div>
+              <div className="nav-signup-item-title">I&apos;m a public servant</div>
               <div className="nav-signup-item-desc">
                 Tools for staff: briefs, context, and operational clarity.
               </div>

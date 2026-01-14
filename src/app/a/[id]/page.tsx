@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { useTheme } from "@/contexts/ThemeContext";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import "./styles.css";
 
 // Dynamically import Plotly to avoid SSR issues
@@ -52,11 +52,6 @@ interface Anomaly {
   comparison_window?: { label?: string; size?: number };
 }
 
-interface AnomalyResponse {
-  status: string;
-  anomaly?: Anomaly;
-  message?: string;
-}
 
 /**
  * Parse date string to Date object, handling various formats.
@@ -128,7 +123,6 @@ export default function AnomalyChartPage() {
   const searchParams = useSearchParams();
   const anomalyId = params.id as string;
   const isEmbedded = searchParams.get("embedded") === "true";
-  const { theme } = useTheme();
 
   const [anomaly, setAnomaly] = useState<Anomaly | null>(null);
   const [loading, setLoading] = useState(true);
@@ -479,7 +473,7 @@ export default function AnomalyChartPage() {
       try {
         await navigator.share({ title, text, url });
         return;
-      } catch (err) {
+      } catch {
         // User cancelled or error - fall through to fallback
       }
     }
@@ -526,7 +520,7 @@ export default function AnomalyChartPage() {
     return (
       <div className="anomaly-page embedded">
         <div className="embedded-header">
-          <a href="/" className="embedded-brand">
+          <Link href="/" className="embedded-brand">
             <div className="logo-corners-small">
               <svg
                 viewBox="0 0 100 100"
@@ -649,7 +643,7 @@ export default function AnomalyChartPage() {
               <span className="brand-transparent">transparent</span>
               <span className="brand-city">.city</span>
             </span>
-          </a>
+          </Link>
           <a
             href={`/a/${anomalyId}`}
             target="_blank"
@@ -758,7 +752,7 @@ export default function AnomalyChartPage() {
   return (
     <div className="anomaly-page">
       <header className="anomaly-header">
-        <a href="/" className="brand">
+        <Link href="/" className="brand">
           <div className="logo-corners">
             <svg
               viewBox="0 0 100 100"
@@ -881,7 +875,7 @@ export default function AnomalyChartPage() {
             <span className="brand-transparent">transparent</span>
             <span className="brand-city">.city</span>
           </span>
-        </a>
+        </Link>
         <div className="header-right">
           <button
             onClick={handleShare}
@@ -1133,9 +1127,7 @@ export default function AnomalyChartPage() {
                   
                   // Add district filter if not citywide
                   if (anomaly.district !== undefined && anomaly.district !== 0) {
-                    // Try common district field names
-                    const districtFields = ['supervisor_district', 'district', 'supervisor_district_number', 'district_number'];
-                    // Use the first field that might exist (we can't know for sure without schema)
+                    // Use the most common district field name
                     queryParams.push(`supervisor_district=${anomaly.district}`);
                   }
                   
@@ -1149,9 +1141,6 @@ export default function AnomalyChartPage() {
                   // Add date range if we have recent_date
                   if (anomaly.recent_date) {
                     const recentDate = new Date(anomaly.recent_date);
-                    // Try common date field names
-                    const dateFields = ['date', 'incident_date', 'report_date', 'occurred_date', 'created_date'];
-                    // For now, use a date range around the recent date
                     // Format: YYYY-MM-DD
                     const dateStr = recentDate.toISOString().split('T')[0];
                     queryParams.push(`$where=date >= '${dateStr}'`);

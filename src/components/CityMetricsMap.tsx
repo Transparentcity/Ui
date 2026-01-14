@@ -22,7 +22,6 @@ import MediaGallery, { type MediaViewMode } from "@/components/MediaGallery";
 import { extractMediaFromPoint, extractMediaFromPoints, type MediaItem } from "@/lib/mediaUtils";
 import "./CityMetricsMap.css";
 import { getStableColorForKey, getStableColorIndexForKey, LAYER_COLOR_PALETTE } from "@/lib/layerColors";
-import type { AnomalyResult } from "@/lib/hooks/useAnomalies";
 import {
   sortAndGroupMetrics,
   getColorIndexForTemplate,
@@ -53,7 +52,6 @@ interface CityMetricsMapProps {
   setEnabledShapeLayerInstanceIds?: React.Dispatch<React.SetStateAction<Set<number>>>;
   gpsLocation?: { lat: number; lng: number } | null; // GPS coordinates - when set, prevents dynamic zooming
   selectedDistrict?: number | null; // Selected district number for filtering data
-  selectedAnomaly?: AnomalyResult | null; // Currently selected anomaly for anomaly mode
 }
 
 export default function CityMetricsMap({
@@ -67,7 +65,6 @@ export default function CityMetricsMap({
   setEnabledShapeLayerInstanceIds,
   gpsLocation,
   selectedDistrict,
-  selectedAnomaly,
 }: CityMetricsMapProps) {
   const { getAccessTokenSilently } = useAuth0();
   const { theme } = useTheme();
@@ -87,39 +84,6 @@ export default function CityMetricsMap({
   const currentAnimationDateRef = useRef<string | null>(null); // Track current date during animation
   const panelRef = useRef<HTMLDivElement | null>(null);
   const layerSelectorScrollRef = useRef<HTMLDivElement | null>(null);
-  
-  // Anomaly mode state
-  const isAnomalyMode = selectedAnomaly !== null && selectedAnomaly !== undefined;
-  
-  // Extract anomaly dates from chart_payload
-  const anomalyDates = useMemo(() => {
-    if (!selectedAnomaly?.chart_payload?.dates || !selectedAnomaly?.chart_payload?.periods) {
-      return null;
-    }
-    const dates = selectedAnomaly.chart_payload.dates as string[];
-    const periods = selectedAnomaly.chart_payload.periods as ("recent" | "comparison")[];
-    
-    return dates.map((date, idx) => ({
-      date,
-      period: periods[idx] || "comparison",
-    })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [selectedAnomaly]);
-  
-  // Create anomaly timeline features for MapTimeline
-  const anomalyTimelineFeatures = useMemo(() => {
-    if (!anomalyDates || anomalyDates.length === 0) return [];
-    
-    return anomalyDates.map(({ date, period }) => ({
-      properties: {
-        _featureDate: date,
-        _anomalyPeriod: period,
-      },
-      geometry: {
-        type: "Point" as const,
-        coordinates: [0, 0] as [number, number], // Dummy coordinates for timeline
-      },
-    }));
-  }, [anomalyDates]);
   
   // Media gallery state
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -232,29 +196,6 @@ export default function CityMetricsMap({
     previousCityIdRef.current = cityId;
   }, [cityId, mapInstanceRef, maps, selectedMetricIds, removeMetricLayerFromMap]);
 
-  // Auto-select anomaly's metric when anomaly is selected
-  useEffect(() => {
-    if (isAnomalyMode && selectedAnomaly?.metric_id) {
-      const metricIdStr = String(selectedAnomaly.metric_id);
-      setSelectedMetricIds((prev) => {
-        if (!prev.has(metricIdStr)) {
-          return new Set(prev).add(metricIdStr);
-        }
-        return prev;
-      });
-    }
-  }, [isAnomalyMode, selectedAnomaly?.metric_id]);
-  
-  // Reset timeline when anomaly changes
-  useEffect(() => {
-    if (isAnomalyMode) {
-      // Reset timeline when entering anomaly mode
-      setSelectedTimelineDate(null);
-      setIsTimelinePlaying(false);
-      currentAnimationDateRef.current = null;
-    }
-  }, [isAnomalyMode, selectedAnomaly?.id]);
-  
   // Auto-enable metrics with template_id 18 (Violent Crime) or 44 (Property Crime) by default
   useEffect(() => {
     // Only set defaults once when metrics are loaded and we haven't set them yet
@@ -348,71 +289,7 @@ export default function CityMetricsMap({
   }, []);
 
   // Calculate opacity and color based on selected date and 7-day fade tail
-  // In anomaly mode: purple for recent periods, grey for comparison periods
-  const calculateFeatureStyle = useCallback((feature: any, selectedDate: string | null, isPlaying: boolean): { opacity: number; useGrey: boolean; usePurple?: boolean } => {
-    // Anomaly mode: check if this feature's date matches an anomaly date
-    if (isAnomalyMode && anomalyDates) {
-      const featureDate = getDateFromFeature(feature);
-      if (!featureDate) {
-        return { opacity: 0.0, useGrey: false };
-      }
-      
-      const featureDateKey = featureDate.toISOString().split("T")[0];
-      
-      // Find matching anomaly date
-      const matchingAnomalyDate = anomalyDates.find(ad => {
-        const adKey = new Date(ad.date).toISOString().split("T")[0];
-        return adKey === featureDateKey;
-      });
-      
-      if (matchingAnomalyDate) {
-        // In anomaly mode, show all matching dates
-        // If a date is selected, only show dates up to that date
-        if (selectedDate) {
-          const selectedDateKey = new Date(selectedDate).toISOString().split("T")[0];
-          
-          // Check if this date matches the selected timeline date
-          if (featureDateKey === selectedDateKey) {
-            // Show this date - purple for recent, grey for comparison
-            return {
-              opacity: 1.0,
-              useGrey: matchingAnomalyDate.period === "comparison",
-              usePurple: matchingAnomalyDate.period === "recent",
-            };
-          }
-          
-          // If playing animation, show dates up to selected date
-          if (isPlaying) {
-            const featureTime = featureDate.getTime();
-            const selectedTime = new Date(selectedDate).getTime();
-            
-            // Show dates up to and including selected date
-            if (featureTime <= selectedTime) {
-              return {
-                opacity: 1.0,
-                useGrey: matchingAnomalyDate.period === "comparison",
-                usePurple: matchingAnomalyDate.period === "recent",
-              };
-            }
-          }
-          
-          // Hide dates after selected date during animation
-          return { opacity: 0.0, useGrey: false };
-        } else {
-          // No date selected - show all anomaly dates
-          return {
-            opacity: 1.0,
-            useGrey: matchingAnomalyDate.period === "comparison",
-            usePurple: matchingAnomalyDate.period === "recent",
-          };
-        }
-      }
-      
-      // Feature date doesn't match any anomaly date - hide it
-      return { opacity: 0.0, useGrey: false };
-    }
-    
-    // Normal mode (existing logic)
+  const calculateFeatureStyle = useCallback((feature: any, selectedDate: string | null, isPlaying: boolean): { opacity: number; useGrey: boolean } => {
     if (!selectedDate) {
       return { opacity: 0.8, useGrey: false }; // Default opacity when no date selected
     }
@@ -461,7 +338,7 @@ export default function CityMetricsMap({
     
     // Default: transparent
     return { opacity: 0.0, useGrey: false };
-  }, [getDateFromFeature, isAnomalyMode, anomalyDates]);
+  }, [getDateFromFeature]);
 
   // Keep a ref copy of loadingMaps to avoid stale-closure checks in callbacks
   useEffect(() => {
@@ -1029,13 +906,9 @@ export default function CityMetricsMap({
   }, []);
 
   // Collect all features for timeline (must be before any conditional returns)
-  // In anomaly mode, use anomaly timeline features instead
   const allFeatures = useMemo(() => {
-    if (isAnomalyMode && anomalyTimelineFeatures.length > 0) {
-      return anomalyTimelineFeatures;
-    }
     return mapFeatures.flatMap((featureData) => featureData.features || []);
-  }, [mapFeatures, isAnomalyMode, anomalyTimelineFeatures]);
+  }, [mapFeatures]);
 
   // Handle timeline date selection - update both state and ref (must be before conditional returns)
   const handleTimelineDateSelect = useCallback((date: string | null) => {
@@ -1074,24 +947,13 @@ export default function CityMetricsMap({
       const updatedFeatures = features.map((feature: any) => {
         const style = calculateFeatureStyle(feature, dateToUse, isTimelinePlaying);
         const originalColor = feature.properties.color || layerColor;
-        
-        // In anomaly mode, use purple for recent periods, otherwise use original color
-        let finalColor = originalColor;
-        if (style.usePurple) {
-          finalColor = "#ad35fa"; // Brand purple
-        } else if (style.useGrey) {
-          finalColor = "#808080"; // Grey
-        }
-        
         return {
           ...feature,
           properties: {
             ...feature.properties,
             _opacity: style.opacity,
             _useGrey: style.useGrey,
-            _usePurple: style.usePurple || false,
             _originalColor: originalColor,
-            _finalColor: finalColor,
           },
         };
       });
@@ -1133,7 +995,6 @@ export default function CityMetricsMap({
             duration: transitionDuration, // Match opacity transition
           });
           
-          // Use _finalColor if available (for anomaly mode), otherwise use existing logic
           map.setPaintProperty(layerId, "circle-color", [
             "case",
             // If opacity is 0, use original color (won't be visible anyway)
@@ -1144,22 +1005,16 @@ export default function CityMetricsMap({
               ["get", "_originalColor"],
               ["case", ["has", "color"], ["get", "color"], layerColor],
             ],
-            // If _finalColor is set (anomaly mode), use it
+            // Otherwise, use grey if _useGrey is true
             [
               "case",
-              ["has", "_finalColor"],
-              ["get", "_finalColor"],
-              // Otherwise, use grey if _useGrey is true
+              ["get", "_useGrey"],
+              "#808080", // Grey color for older dots
               [
                 "case",
-                ["get", "_useGrey"],
-                "#808080", // Grey color for older dots
-                [
-                  "case",
-                  ["has", "_originalColor"],
-                  ["get", "_originalColor"],
-                  ["case", ["has", "color"], ["get", "color"], layerColor],
-                ],
+                ["has", "_originalColor"],
+                ["get", "_originalColor"],
+                ["case", ["has", "color"], ["get", "color"], layerColor],
               ],
             ],
           ]);

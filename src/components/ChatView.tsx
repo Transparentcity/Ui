@@ -50,6 +50,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
   const [isTyping, setIsTyping] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [currentSessionId, setCurrentSessionIdInternal] = useState<string | null>(sessionId);
   
   // Wrap setCurrentSessionId to log all changes
@@ -86,6 +87,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
     return null;
   });
   const modelDropdownRef = useRef<HTMLDivElement>(null);
+  const modelIconWrapperRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasShownWelcome = useRef(false);
   const hasPendingSendRef = useRef(false);
@@ -153,12 +155,27 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
         return prevStats;
       });
     } else if (!sessionId && currentSessionId) {
-      // Reset when sessionId prop becomes null
-      console.log("📊 sessionId prop is null, clearing session and currentSessionId");
+      // Reset when sessionId prop becomes null (e.g., when clicking "New Chat")
+      // Only preserve state if we're in the middle of streaming to prevent data loss
+      if (isStreaming || hasPendingSendRef.current) {
+        console.log("⚠️ sessionId prop became null during stream - ignoring to prevent data loss");
+        return; // Don't clear during active operations
+      }
+      
+      // When explicitly starting a new chat (sessionId becomes null), clear everything
+      console.log("📊 sessionId prop is null, clearing session and resetting to new chat", {
+        currentSessionId,
+        isStreaming,
+        hasPendingSend: hasPendingSendRef.current,
+        messagesCount: messages.length,
+        stack: new Error().stack?.split('\n').slice(2, 6).join('\n')
+      });
       hasShownWelcome.current = false;
       setSessionStats(null);
       statsSetFromSessionLoadRef.current = null;
       setCurrentSessionId(null);
+      // Clear messages to show welcome view
+      setMessages([]);
     } else if (sessionId && sessionId === currentSessionId) {
       // Ensure stats exist even if they were cleared somehow
       // This is a safety net to prevent header from disappearing
@@ -204,6 +221,22 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Auto-resize textarea when message changes
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      const maxHeight = window.innerHeight * 0.25; // 25% of screen height
+      const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+      textarea.style.height = `${newHeight}px`;
+      if (textarea.scrollHeight > maxHeight) {
+        textarea.style.overflowY = 'auto';
+      } else {
+        textarea.style.overflowY = 'hidden';
+      }
+    }
+  }, [message]);
 
   // Fetch session stats when session changes, but NOT during streaming
   // This prevents the header from disappearing during message streaming
@@ -280,29 +313,54 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
     // This prevents a race where the session fetch returns before the first
     // message is persisted, wiping the optimistic user message.
     if (hasPendingSendRef.current || isStreaming) {
+      console.log("⏸️ Skipping handleMessagesLoaded - stream in progress");
       return;
     }
 
-    if (loadedMessages.length > 0) {
-      setMessages(loadedMessages);
-      hasShownWelcome.current = false; // Reset flag when messages are loaded
-    } else {
+    // If we already have messages in state, be careful about overwriting them
+    // Only update if the loaded messages are actually different/newer
+    setMessages((prevMessages) => {
+      // If we have no previous messages, use loaded messages
+      if (prevMessages.length === 0) {
+        if (loadedMessages.length > 0) {
+          console.log("📥 Loading messages from session:", loadedMessages.length);
+          hasShownWelcome.current = false;
+          return loadedMessages;
+        }
+      } else {
+        // We have existing messages - only update if loaded messages are significantly different
+        // (e.g., more messages or different content)
+        if (loadedMessages.length > prevMessages.length) {
+          console.log("📥 Updating messages - loaded has more:", loadedMessages.length, "vs", prevMessages.length);
+          hasShownWelcome.current = false;
+          return loadedMessages;
+        } else {
+          // Keep existing messages - they're likely more up-to-date from streaming
+          console.log("📥 Keeping existing messages - they're more recent");
+          return prevMessages;
+        }
+      }
+
       // If no messages and no session, show welcome
       if (!currentSessionId && !hasShownWelcome.current) {
-        setMessages([
+        return [
           {
             id: "welcome",
             role: "assistant",
             content:
               "Hello! I'm Seymour, your AI assistant for analyzing civic data. How can I help you today?",
           },
-        ]);
-        hasShownWelcome.current = true;
-      } else if (currentSessionId) {
-        // Session exists but no messages yet
-        setMessages([]);
+        ];
+      } else if (currentSessionId && loadedMessages.length === 0) {
+        // Session exists but no messages yet - keep existing messages if we have them
+        if (prevMessages.length > 0) {
+          return prevMessages;
+        }
+        return [];
       }
-    }
+      
+      return prevMessages;
+    });
   }, [currentSessionId, isStreaming]);
 
   const handleSessionLoaded = useCallback((session: any) => {
@@ -414,6 +472,11 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
 
     setMessages((prev) => [...prev, userMessage]);
     setMessage("");
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.overflowY = 'hidden';
+    }
     setIsTyping(true);
     setIsStreaming(true);
     hasPendingSendRef.current = true;
@@ -643,6 +706,10 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
               // Also trigger a refresh after a delay to ensure backend persistence
               window.dispatchEvent(new CustomEvent("chat:sessions:invalidate"));
             }
+          } else if (event.type === "heartbeat") {
+            // Heartbeat event - just keep connection alive, don't process
+            console.log("💓 Heartbeat received");
+            return;
           } else if (event.type === "end") {
             // Stream ended
             console.log("🏁 Stream ended, fetching updated stats for session:", sessionIdToUse);
@@ -691,12 +758,23 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
             }
           } else if (event.type === "error") {
             console.error("❌ Stream error event:", event);
-            throw new Error(event.content || "Stream error occurred");
+            // Handle error gracefully - don't throw, just log
+            // Errors might be sent but stream can continue, so we don't stop processing
+            // If it's a cancellation, log it but continue - the stream will end naturally
+            if (event.content?.includes("cancelled") || event.content?.includes("Stream cancelled")) {
+              console.log("⚠️ Stream cancellation detected, but continuing to process remaining data");
+              // Don't stop - let the stream continue to get any remaining data
+            } else {
+              // For other errors, log but continue - stream might still have data
+              console.warn("⚠️ Stream error (non-fatal, continuing):", event.content);
+            }
+            // Don't return or throw - continue processing stream events
           } else {
             // Log unhandled event types
             console.log("⚠️ Unhandled event type:", event.type, event);
           }
-        }
+        },
+        abortControllerRef.current?.signal // Pass abort signal to fetch
       );
       
       console.log("✅ Stream completed successfully");
@@ -750,17 +828,30 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
       console.error("❌ Chat error:", error);
       console.error("Error stack:", error.stack);
       
-      // Update assistant message with error
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === assistantMessageId
-            ? {
-                ...msg,
-                content: `Sorry, I encountered an error: ${error.message || "Unknown error"}. Please try again.`,
-              }
-            : msg
-        )
-      );
+      // Check if this is an abort/cancellation error (expected)
+      const isAbortError = 
+        error instanceof Error && 
+        (error.name === "AbortError" || 
+         error.message?.includes("aborted") || 
+         error.message?.includes("cancelled") ||
+         error.message?.includes("Stream cancelled"));
+      
+      if (isAbortError) {
+        console.log("⏹️ Stream was cancelled, this is expected");
+        // Don't show error message for cancellations - the partial response is fine
+      } else {
+        // Update assistant message with error for real errors
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageId
+              ? {
+                  ...msg,
+                  content: `${msg.content}\n\n⚠️ Error: ${error.message || "Unknown error"}. Please try again.`,
+                }
+              : msg
+          )
+        );
+      }
     } finally {
       console.log("🧹 Cleaning up stream state");
       hasPendingSendRef.current = false;
@@ -791,10 +882,12 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
   // Close model dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        modelDropdownRef.current &&
-        !modelDropdownRef.current.contains(event.target as Node)
-      ) {
+      const target = event.target as Node;
+      // Check if click is outside both the welcome view dropdown and the chat view icon wrapper
+      const isOutsideWelcome = !modelDropdownRef.current || !modelDropdownRef.current.contains(target);
+      const isOutsideChat = !modelIconWrapperRef.current || !modelIconWrapperRef.current.contains(target);
+      
+      if (isOutsideWelcome && isOutsideChat) {
         setIsModelDropdownOpen(false);
       }
     };
@@ -938,7 +1031,16 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
   };
 
   // Determine if we should show the welcome composer (new chat state)
-  const showWelcomeComposer = !currentSessionId && !isStreaming && messages.length <= 1;
+  // Only show welcome if we truly have no session AND no messages (or just welcome message)
+  // IMPORTANT: If we have messages with actual content (not just welcome), keep showing chat view
+  const hasRealMessages = messages.length > 0 && 
+    !(messages.length === 1 && messages[0]?.id === "welcome");
+  
+  const showWelcomeComposer = 
+    !currentSessionId && 
+    !isStreaming && 
+    !hasRealMessages &&
+    (messages.length === 0 || (messages.length === 1 && messages[0]?.id === "welcome"));
 
   // Quick prompts for the welcome view
   const quickPrompts = [
@@ -1052,7 +1154,8 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
   );
 
   // Welcome Composer View (New Chat State)
-  if (showWelcomeComposer) {
+  // Only show if we truly have no session AND no real messages
+  if (showWelcomeComposer && !hasRealMessages) {
     return (
       <div id="chat-view" className={styles.chatViewRoot}>
         <div className={styles.welcomeContainer}>
@@ -1118,11 +1221,13 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
         onSessionLoaded={handleSessionLoaded}
         onLoadingChange={setIsLoadingSession}
       />
-      <SessionHeader
-        sessionId={currentSessionId}
-        stats={sessionStats}
-        model={selectedModel || PREFERRED_DEFAULT_MODEL_KEY}
-      />
+      <div className={styles.sessionHeaderContainer}>
+        <SessionHeader
+          sessionId={currentSessionId}
+          stats={sessionStats}
+          model={selectedModel || PREFERRED_DEFAULT_MODEL_KEY}
+        />
+      </div>
       <div className={styles.chatContainer}>
         {/* Chat Messages Area */}
         <div id="chat-messages" className={styles.chatMessages}>
@@ -1168,49 +1273,141 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Typing Indicator */}
-        {isTyping && (
-          <div id="typing-indicator" className={styles.typingIndicator}>
-            <div className={styles.typingBubble}>
-              <div className={styles.typingDots}>
-                <div className={styles.typingDot}></div>
-                <div className={styles.typingDot}></div>
-                <div className={styles.typingDot}></div>
-              </div>
-              <span className={styles.textSecondary}>Seymour is thinking...</span>
-            </div>
-          </div>
-        )}
-
         {/* Chat Input Area */}
         <div className={styles.chatInputArea}>
-          <div className={styles.chatInputContainer}>
+          <div className={styles.chatInputWrapper}>
+            {/* Model selector icon inside on the left */}
+            <div ref={modelIconWrapperRef} className={styles.modelIconWrapper}>
+              {availableModels.length > 0 && selectedModelInfo ? (
+                <button
+                  className={styles.modelIconButton}
+                  onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+                  disabled={isStreaming}
+                  type="button"
+                  aria-label="Select model"
+                >
+                  <span className={styles.modelIconEmoji}>
+                    {selectedModelInfo.group.emoji}
+                  </span>
+                </button>
+              ) : (
+                <div className={styles.modelIconButton} aria-label="Loading models">
+                  <span className={styles.modelIconEmoji}>⏳</span>
+                </div>
+              )}
+              {isModelDropdownOpen && availableModels.length > 0 && (
+                <>
+                  <div 
+                    className={styles.modelDropdownBackdrop}
+                    onClick={() => setIsModelDropdownOpen(false)}
+                  />
+                  <div className={styles.modelDropdownMenuCentered}>
+                  {availableModels.flatMap((group) =>
+                    group.models.map((model) => {
+                      const isSelected = model.key === selectedModel;
+                      const inputPricePerM = model.input_price
+                        ? `$${Math.round(model.input_price)}`
+                        : "N/A";
+                      const outputPricePerM = model.output_price
+                        ? `$${Math.round(model.output_price)}`
+                        : "N/A";
+                      
+                      return (
+                        <button
+                          key={model.key}
+                          className={`${styles.modelDropdownOption} ${isSelected ? styles.modelDropdownOptionSelected : ""} ${!model.is_available ? styles.modelDropdownOptionDisabled : ""}`}
+                          onClick={() => {
+                            if (model.is_available) {
+                              setSelectedModel(model.key);
+                              setIsModelDropdownOpen(false);
+                            }
+                          }}
+                          disabled={!model.is_available || isStreaming}
+                          type="button"
+                        >
+                          <div className={styles.modelDropdownOptionHeader}>
+                            <span className={styles.modelDropdownOptionEmoji}>
+                              {group.emoji}
+                            </span>
+                            <span className={styles.modelDropdownOptionName}>
+                              {model.name}
+                            </span>
+                            {isSelected && (
+                              <span className={styles.modelDropdownOptionCheck}>
+                                ✓
+                              </span>
+                            )}
+                          </div>
+                          {model.is_available && (
+                            <div className={styles.modelDropdownOptionDetails}>
+                              <span className={styles.modelDropdownOptionCost}>
+                                Input: {inputPricePerM}/1M tokens
+                              </span>
+                              <span className={styles.modelDropdownOptionCost}>
+                                Output: {outputPricePerM}/1M tokens
+                              </span>
+                            </div>
+                          )}
+                          {!model.is_available && (
+                            <span className={styles.modelDropdownOptionUnavailable}>
+                              API key not configured
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
+                  </div>
+                </>
+              )}
+            </div>
+            
+            {/* Textarea that grows with content */}
             <textarea
+              ref={textareaRef}
               id="chat-input"
               className={styles.chatInput}
               placeholder="Ask me anything about civic data..."
               rows={1}
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              onChange={(e) => {
+                setMessage(e.target.value);
+                // Auto-resize textarea
+                const textarea = e.target;
+                textarea.style.height = 'auto';
+                const maxHeight = window.innerHeight * 0.25; // 25% of screen height
+                const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+                textarea.style.height = `${newHeight}px`;
+                if (textarea.scrollHeight > maxHeight) {
+                  textarea.style.overflowY = 'auto';
+                } else {
+                  textarea.style.overflowY = 'hidden';
+                }
+              }}
               onKeyPress={handleKeyPress}
             />
-            {renderModelDropdown(false)}
+            
+            {/* Action icons inside on the right */}
             {isStreaming ? (
               <button
                 id="stop-btn"
-                className={`btn btn-danger ${styles.stopButton}`}
+                className={styles.stopIconButton}
                 onClick={handleStop}
+                type="button"
+                aria-label="Stop generation"
               >
-                ⏹ Stop
+                <span className={styles.stopIcon}>⏹</span>
               </button>
             ) : (
               <button
                 id="send-btn"
-                className={`btn btn-primary ${styles.chatButton}`}
+                className={styles.sendIconButton}
                 onClick={handleSend}
                 disabled={!message.trim() || isTyping}
+                type="button"
+                aria-label="Send message"
               >
-                Send
+                <span className={styles.sendIcon}>→</span>
               </button>
             )}
           </div>

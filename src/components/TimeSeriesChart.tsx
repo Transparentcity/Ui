@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import { useTheme } from "@/contexts/ThemeContext";
 import styles from "./TimeSeriesChart.module.css";
 
 // Dynamically import Plotly to avoid SSR issues
@@ -379,6 +380,7 @@ export default function TimeSeriesChart({
   height = 400,
   defaultPeriod = "month",
 }: TimeSeriesChartProps) {
+  const { theme } = useTheme();
   const [periodType, setPeriodType] = useState<PeriodType>(defaultPeriod);
 
   // Aggregate data by group
@@ -667,6 +669,15 @@ export default function TimeSeriesChart({
     return max > 0 ? max * 1.1 : 10;
   }, [aggregatedByGroup]);
 
+  // Use lighter, more visible colors in dark mode
+  const textColor = theme === "dark" ? "#f1f5f9" : "#222222";
+  const axisLineColor = theme === "dark" ? "#475569" : "#e5e7eb";
+  const gridColor = theme === "dark" ? "rgba(203, 213, 225, 0.3)" : "rgba(232, 233, 235, 0.5)";
+  const gridColorLight = theme === "dark" ? "rgba(203, 213, 225, 0.2)" : "rgba(232, 233, 235, 0.3)";
+  const hoverBgColor = theme === "dark" ? "#1e293b" : "#FFFFFF";
+  const hoverTextColor = theme === "dark" ? "#f1f5f9" : "#222222";
+  const legendBgColor = theme === "dark" ? "rgba(30, 41, 59, 0.8)" : "rgba(246, 241, 234, 0.7)";
+
   const layout = useMemo(() => {
     // Special layout for YTD charts
     if (periodType === "ytd") {
@@ -690,7 +701,7 @@ export default function TimeSeriesChart({
           font: {
             family: "Inter, Arial, sans-serif",
             size: 14,
-            color: "var(--text-primary, #222222)",
+            color: textColor,
           },
           y: 0.98,
           x: 0.02,
@@ -703,26 +714,26 @@ export default function TimeSeriesChart({
             font: {
               family: "IBM Plex Sans, Arial, sans-serif",
               size: 10,
-              color: "var(--text-primary, #222222)",
+              color: textColor,
             },
             standoff: 30,
           },
           showgrid: true,
-          gridcolor: "rgba(232, 233, 235, 0.3)",
+          gridcolor: gridColorLight,
           tickfont: {
             family: "IBM Plex Sans, Arial, sans-serif",
             size: 9,
-            color: "var(--text-primary, #222222)",
+            color: textColor,
           },
           tickmode: "array" as const,
           tickvals: [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335], // Approximate start of each month
           ticktext: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
           range: [minDay, maxDay + 10], // Use actual data range with small padding
           showline: true,
-          linecolor: "#e5e7eb",
+          linecolor: axisLineColor,
           linewidth: 1,
           ticklen: 3,
-          tickcolor: "var(--text-primary, #222222)",
+          tickcolor: textColor,
           rangeslider: { visible: false },
         },
         yaxis: {
@@ -731,18 +742,18 @@ export default function TimeSeriesChart({
             font: {
               family: "IBM Plex Sans, Arial, sans-serif",
               size: 10,
-              color: "var(--text-primary, #222222)",
+              color: textColor,
             },
             standoff: 15,
           },
           showgrid: true,
-          gridcolor: "rgba(232, 233, 235, 0.5)",
+          gridcolor: gridColor,
           zeroline: false,
           range: [0, maxYValue],
           tickfont: {
             family: "IBM Plex Sans, Arial, sans-serif",
             size: 9,
-            color: "var(--text-primary, #222222)",
+            color: textColor,
           },
         },
         showlegend: true,
@@ -755,7 +766,7 @@ export default function TimeSeriesChart({
           font: {
             family: "IBM Plex Sans, Arial, sans-serif",
             size: 8,
-            color: "var(--text-primary, #222222)",
+            color: textColor,
           },
           bgcolor: "transparent",
           bordercolor: "transparent",
@@ -773,12 +784,12 @@ export default function TimeSeriesChart({
         plot_bgcolor: "transparent",
         hovermode: "closest" as const,
         hoverlabel: {
-          bgcolor: "#FFFFFF",
+          bgcolor: hoverBgColor,
           bordercolor: "var(--brand-primary, #ad35fa)",
           font: {
             family: "IBM Plex Sans, Arial, sans-serif",
             size: 9,
-            color: "#222222",
+            color: hoverTextColor,
           },
         },
         height,
@@ -792,7 +803,7 @@ export default function TimeSeriesChart({
         font: {
           family: "Inter, Arial, sans-serif",
           size: 14,
-          color: "var(--text-primary, #222222)",
+          color: textColor,
         },
         x: 0.5,
         xanchor: "center",
@@ -800,13 +811,17 @@ export default function TimeSeriesChart({
       xaxis: {
         title: "",
         showgrid: true,
-        gridcolor: "rgba(232, 233, 235, 0.5)",
+        gridcolor: gridColor,
         tickfont: {
           family: "IBM Plex Sans, Arial, sans-serif",
           size: 10,
-          color: "var(--text-primary, #222222)",
+          color: textColor,
         },
         tickformat: getTickFormat(periodType),
+        showline: true,
+        linecolor: axisLineColor,
+        linewidth: 1,
+        tickcolor: textColor,
       },
       yaxis: {
         title: {
@@ -814,17 +829,21 @@ export default function TimeSeriesChart({
           font: {
             family: "IBM Plex Sans, Arial, sans-serif",
             size: 10,
-            color: "var(--text-primary, #222222)",
+            color: textColor,
           },
         },
         showgrid: true,
-        gridcolor: "rgba(232, 233, 235, 0.5)",
+        gridcolor: gridColor,
         range: [0, maxYValue],
         tickfont: {
           family: "IBM Plex Sans, Arial, sans-serif",
           size: 10,
-          color: "var(--text-primary, #222222)",
+          color: textColor,
         },
+        showline: true,
+        linecolor: axisLineColor,
+        linewidth: 1,
+        tickcolor: textColor,
       },
       margin: { 
         t: 50, 
@@ -836,12 +855,12 @@ export default function TimeSeriesChart({
       plot_bgcolor: "transparent",
       hovermode: "closest" as const,
       hoverlabel: {
-        bgcolor: "#FFFFFF",
+        bgcolor: hoverBgColor,
         bordercolor: "var(--brand-primary, #ad35fa)",
         font: {
           family: "IBM Plex Sans, Arial, sans-serif",
           size: 10,
-          color: "#222222",
+          color: hoverTextColor,
         },
       },
       showlegend: hasGroups && traces.length > 1,
@@ -854,13 +873,13 @@ export default function TimeSeriesChart({
         font: {
           family: "IBM Plex Sans, Arial, sans-serif",
           size: 10,
-          color: "var(--text-primary, #222222)",
+          color: textColor,
         },
-        bgcolor: "var(--soft-sand, rgba(246, 241, 234, 0.7))",
+        bgcolor: legendBgColor,
       },
       height,
     };
-  }, [chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup]);
+  }, [chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, theme, textColor, axisLineColor, gridColor, hoverBgColor, hoverTextColor, legendBgColor]);
 
   const config = {
     responsive: true,

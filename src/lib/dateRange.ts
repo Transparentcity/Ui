@@ -63,13 +63,42 @@ export function normalizeMetricDateRange(range: MetricDateRange): MetricDateRang
   return { ...range, start_date: start, end_date: end };
 }
 
+/**
+ * Format a date string (YYYY-MM-DD) to "Jan 1" format
+ */
+function formatDateShort(dateStr: string): string {
+  const date = new Date(dateStr + "T00:00:00"); // Add time to avoid timezone issues
+  const month = date.toLocaleDateString("en-US", { month: "short" });
+  const day = date.getDate();
+  return `${month} ${day}`;
+}
+
 export function formatMetricDateRangeLabel(range: MetricDateRange): string {
   if (!range.start_date && !range.end_date) return "All time";
   if (range.preset === "last_week") return "Last week";
   if (range.preset === "last_month") return "Last month";
-  if (range.start_date && range.end_date) return `${range.start_date} → ${range.end_date}`;
-  if (range.start_date && !range.end_date) return `From ${range.start_date}`;
-  if (!range.start_date && range.end_date) return `Until ${range.end_date}`;
+  if (range.start_date && range.end_date) {
+    const startDate = new Date(range.start_date + "T00:00:00");
+    const endDate = new Date(range.end_date + "T00:00:00");
+    const startFormatted = formatDateShort(range.start_date);
+    const endFormatted = formatDateShort(range.end_date);
+    const year = endDate.getFullYear();
+    
+    // If same month and year, show: "Jan 1-5 2026"
+    if (startDate.getMonth() === endDate.getMonth() && startDate.getFullYear() === endDate.getFullYear()) {
+      return `${startFormatted.split(" ")[0]} ${startDate.getDate()}-${endDate.getDate()} ${year}`;
+    }
+    // Otherwise show: "Jan 1-Jan 5 2026"
+    return `${startFormatted}-${endFormatted} ${year}`;
+  }
+  if (range.start_date && !range.end_date) {
+    const date = new Date(range.start_date + "T00:00:00");
+    return `From ${formatDateShort(range.start_date)} ${date.getFullYear()}`;
+  }
+  if (!range.start_date && range.end_date) {
+    const date = new Date(range.end_date + "T00:00:00");
+    return `Until ${formatDateShort(range.end_date)} ${date.getFullYear()}`;
+  }
   return "All time";
 }
 

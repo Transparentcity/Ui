@@ -6,8 +6,8 @@
   flex-direction: column;
   position: fixed;
   left: 0;
-  top: var(--header-height);
-  height: calc(100vh - var(--header-height));
+  top: 0;
+  height: 100vh;
   z-index: 1000;
   transition: transform 0.3s ease, width 0.3s ease;
 }
@@ -21,15 +21,108 @@
   transform: translateX(0);
 }
 
+.sidebarHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border-primary);
+  flex-shrink: 0;
+  min-height: var(--header-height);
+  position: relative;
+  z-index: 1;
+}
+
+/* When collapsed, ensure header is still visible */
+.collapsed .sidebarHeader {
+  padding-right: var(--space-md);
+}
+
+.menuToggle {
+  background: none;
+  border: none;
+  padding: var(--space-sm);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.menuToggle:hover {
+  background: var(--bg-tertiary);
+}
+
+.menuToggle span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: var(--text-primary);
+  transition: 0.3s;
+}
+
+.sidebarLogo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+  flex: 1;
+  min-width: 0;
+}
+
+.logoCorners {
+  display: flex;
+  align-items: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.logoCorners svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.brace {
+  fill: var(--text-primary);
+  transition: fill 0.2s ease;
+}
+
+:global([data-theme="dark"]) .brace,
+:global(.dark) .brace {
+  fill: #ffffff;
+}
+
+.logoText {
+  font-weight: 700;
+  font-size: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logoTransparent {
+  color: var(--text-primary);
+}
+
+.logoCity {
+  color: var(--brand-primary);
+}
+
 .overlay {
   display: block;
   position: fixed;
-  top: var(--header-height);
+  top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   background: var(--bg-overlay);
-  z-index: 10000;
+  z-index: 999;
   transition: opacity 0.3s ease;
 }
 
@@ -47,6 +140,30 @@
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
+}
+
+/* Hide nav items when collapsed but keep header visible */
+.collapsed .navItems {
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.collapsed .sidebarFooter {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Ensure hamburger is always visible and clickable when collapsed */
+.collapsed .sidebarHeader {
+  width: 64px;
+  min-width: 64px;
+  padding: var(--space-md);
+  justify-content: center;
+}
+
+.collapsed .menuToggle {
+  margin: 0;
 }
 
 .navItem {
@@ -183,5 +300,27 @@
 @media (max-width: 768px) {
   .sidebar {
     z-index: 10001;
+  }
+  
+  .sidebarHeader {
+    padding: var(--space-sm) var(--space-md);
+    min-height: 56px;
+  }
+  
+  .logoText {
+    font-size: 16px;
+  }
+  
+  .logoCorners {
+    width: 20px;
+    height: 20px;
+  }
+  
+  /* On mobile, ensure collapsed state fully hides sidebar */
+  .collapsed .sidebarHeader {
+    width: auto;
+    min-width: auto;
+    padding: var(--space-sm) var(--space-md);
+    justify-content: flex-start;
   }
 }

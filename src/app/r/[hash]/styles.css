@@ -127,10 +127,11 @@
 .research-article {
   max-width: 900px;
   margin: 0 auto;
-  background: white;
+  background: var(--bg-primary);
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   padding: 3rem;
+  transition: background-color 0.3s ease;
 }
 
 .article-header {
@@ -221,10 +222,59 @@
   margin: 0.5rem 0;
 }
 
+/* Dark mode overrides for report content on public pages */
+[data-theme="dark"] .research-content .report-html,
+.dark .research-content .report-html {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .research-content .report-html *,
+.dark .research-content .report-html * {
+  color: inherit;
+}
+
+[data-theme="dark"] .research-content .report-html p,
+.dark .research-content .report-html p,
+[data-theme="dark"] .research-content .report-html div,
+.dark .research-content .report-html div,
+[data-theme="dark"] .research-content .report-html span,
+.dark .research-content .report-html span,
+[data-theme="dark"] .research-content .report-html li,
+.dark .research-content .report-html li {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .research-content .report-html h1,
+.dark .research-content .report-html h1,
+[data-theme="dark"] .research-content .report-html h2,
+.dark .research-content .report-html h2,
+[data-theme="dark"] .research-content .report-html h3,
+.dark .research-content .report-html h3,
+[data-theme="dark"] .research-content .report-html h4,
+.dark .research-content .report-html h4,
+[data-theme="dark"] .research-content .report-html h5,
+.dark .research-content .report-html h5,
+[data-theme="dark"] .research-content .report-html h6,
+.dark .research-content .report-html h6 {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .research-content .report-html [style*="color: white"],
+[data-theme="dark"] .research-content .report-html [style*="color:#fff"],
+[data-theme="dark"] .research-content .report-html [style*="color:#ffffff"],
+[data-theme="dark"] .research-content .report-html [style*="color:white"],
+.dark .research-content .report-html [style*="color: white"],
+.dark .research-content .report-html [style*="color:#fff"],
+.dark .research-content .report-html [style*="color:#ffffff"],
+.dark .research-content .report-html [style*="color:white"] {
+  color: var(--text-primary) !important;
+}
+
 .article-footer {
   margin-top: 3rem;
   padding-top: 2rem;
-  border-top: 2px solid #e9ecef;
+  border-top: 2px solid var(--border-primary);
+  transition: border-color 0.3s ease;
 }
 
 .research-info {

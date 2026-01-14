@@ -61,12 +61,27 @@
   border-bottom: 1px solid var(--border-secondary, #f0f0f0);
 }
 
+.headerTitleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
 .headerTitle {
   font-size: 15px;
   font-weight: 600;
   color: var(--text-primary, #222);
   display: flex;
   align-items: center;
+}
+
+.headerSubtitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+  line-height: 1.2;
 }
 
 .closeBtn {
@@ -87,6 +102,42 @@
 .closeBtn:hover {
   background: var(--bg-hover, rgba(0, 0, 0, 0.05));
   color: var(--text-primary, #222);
+}
+
+/* Filter Row */
+.filterRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-secondary, #f0f0f0);
+  background: var(--bg-secondary, #f9fafb);
+}
+
+.filterLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+  white-space: nowrap;
+}
+
+.filterSelect {
+  padding: 5px 10px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  font-size: 12px;
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #222);
+  cursor: pointer;
+  min-width: 0;
+  max-width: 140px;
+}
+
+.filterSelect:focus {
+  outline: none;
+  border-color: var(--brand-primary, #ad35fa);
+  box-shadow: 0 0 0 2px var(--brand-primary-light, rgba(173, 53, 250, 0.15));
 }
 
 /* Collapsed close button positioning */
@@ -337,6 +388,16 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--text-primary, #222);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collapsedPeriodTitle {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+  margin-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

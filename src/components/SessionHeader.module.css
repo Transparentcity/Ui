@@ -3,10 +3,9 @@
   align-items: center;
   gap: var(--space-md);
   padding: var(--space-sm) var(--space-md);
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-primary);
   font-size: 13px;
   flex-wrap: wrap;
+  flex: 1;
 }
 
 .statItem {

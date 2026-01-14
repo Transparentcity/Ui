@@ -78,22 +78,27 @@ export default function PublicMapPage() {
   
   // Load Mapbox script
   useEffect(() => {
-    if (typeof window !== "undefined" && !(window as any).mapboxgl) {
-      // Load Mapbox CSS
-      const cssLink = document.createElement("link");
-      cssLink.rel = "stylesheet";
-      cssLink.href = "https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.css";
-      document.head.appendChild(cssLink);
-      
-      // Load Mapbox JS
-      const script = document.createElement("script");
-      script.src = "https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.js";
-      script.async = true;
-      script.onload = () => setMapboxLoaded(true);
-      document.head.appendChild(script);
-    } else if ((window as any).mapboxgl) {
-      setMapboxLoaded(true);
+    if (typeof window === "undefined") return;
+    
+    // Check if Mapbox is already loaded
+    if ((window as any).mapboxgl) {
+      // Mapbox already loaded - schedule state update to avoid setState in effect
+      Promise.resolve().then(() => setMapboxLoaded(true));
+      return;
     }
+    
+    // Load Mapbox CSS
+    const cssLink = document.createElement("link");
+    cssLink.rel = "stylesheet";
+    cssLink.href = "https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.css";
+    document.head.appendChild(cssLink);
+    
+    // Load Mapbox JS
+    const script = document.createElement("script");
+    script.src = "https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.js";
+    script.async = true;
+    script.onload = () => setMapboxLoaded(true);
+    document.head.appendChild(script);
   }, []);
   
   // Helper function to load choropleth map with district shapes

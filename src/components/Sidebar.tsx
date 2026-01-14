@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
+import Link from "next/link";
 import UserProfile from "./UserProfile";
 import SessionList from "./SessionList";
 import JobSessionList from "./JobSessionList";
@@ -30,6 +31,7 @@ interface SidebarProps {
   onResearchDeleted?: (reportId: number) => void;
   onCitySelect?: (cityId: number) => void;
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void;
+  onMenuToggle?: () => void;
 }
 
 // Mobile breakpoint (matches CSS media query)
@@ -62,10 +64,16 @@ export default function Sidebar({
   onResearchDeleted,
   onCitySelect,
   onGPSLocation,
+  onMenuToggle,
 }: SidebarProps) {
   const [recentChatsExpanded, setRecentChatsExpanded] = useState(true);
   const [researchExpanded, setResearchExpanded] = useState(false);
   const [jobSessionsExpanded, setJobSessionsExpanded] = useState(false);
+  
+  // Generate unique IDs for logo masks
+  const baseId = useId();
+  const logoMaskIdBl = `${baseId}-logo-mask-bl`;
+  const logoMaskIdTr = `${baseId}-logo-mask-tr`;
 
   // Check if user can access research (admin or city lead)
   const canAccessResearch = isAdmin || cityLeadCityIds.length > 0;
@@ -82,6 +90,147 @@ export default function Sidebar({
   return (
     <>
       <aside className={`${styles.sidebar} ${isOpen ? styles.open : styles.collapsed}`} id="sidebar">
+        {/* Integrated Header with Logo and Hamburger */}
+        <div className={styles.sidebarHeader}>
+          <button 
+            className={styles.menuToggle} 
+            onClick={onMenuToggle || onClose}
+            aria-label="Toggle menu"
+          >
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+          {isOpen && (
+            <Link
+              href="/dashboard"
+              className={styles.sidebarLogo}
+              aria-label="Transparent.city home"
+            >
+              <div className={styles.logoCorners}>
+                <svg
+                  viewBox="0 0 100 100"
+                  xmlns="http://www.w3.org/2000/svg"
+                  style={{ overflow: "visible" }}
+                >
+                  <defs>
+                    <mask
+                      id={logoMaskIdBl}
+                      x="-400"
+                      y="-400"
+                      width="1200"
+                      height="1200"
+                      maskUnits="userSpaceOnUse"
+                      maskContentUnits="userSpaceOnUse"
+                    >
+                      <rect
+                        x="-400"
+                        y="-400"
+                        width="1200"
+                        height="1200"
+                        fill="white"
+                      />
+                      <rect
+                        x="8.333"
+                        y="8.333"
+                        width="83.333"
+                        height="83.333"
+                        rx="3"
+                        ry="3"
+                        fill="black"
+                      />
+                      <rect
+                        x="16.666"
+                        y="-33.333"
+                        width="66.666"
+                        height="166.666"
+                        fill="black"
+                        transform="rotate(-45 50 50)"
+                      />
+                      <rect
+                        x="50"
+                        y="-400"
+                        width="1200"
+                        height="1200"
+                        fill="black"
+                        transform="rotate(-45 50 50)"
+                      />
+                    </mask>
+                    <mask
+                      id={logoMaskIdTr}
+                      x="-400"
+                      y="-400"
+                      width="1200"
+                      height="1200"
+                      maskUnits="userSpaceOnUse"
+                      maskContentUnits="userSpaceOnUse"
+                    >
+                      <rect
+                        x="-400"
+                        y="-400"
+                        width="1200"
+                        height="1200"
+                        fill="white"
+                      />
+                      <rect
+                        x="8.333"
+                        y="8.333"
+                        width="83.333"
+                        height="83.333"
+                        rx="3"
+                        ry="3"
+                        fill="black"
+                      />
+                      <rect
+                        x="16.666"
+                        y="-33.333"
+                        width="66.666"
+                        height="166.666"
+                        fill="black"
+                        transform="rotate(-45 50 50)"
+                      />
+                      <rect
+                        x="-1150"
+                        y="-400"
+                        width="1200"
+                        height="1200"
+                        fill="black"
+                        transform="rotate(-45 50 50)"
+                      />
+                    </mask>
+                  </defs>
+                  <rect
+                    className={styles.brace}
+                    x="0"
+                    y="0"
+                    width="100"
+                    height="100"
+                    rx="3"
+                    ry="3"
+                    mask={`url(#${logoMaskIdBl})`}
+                    transform="translate(23.5%, -23.5%)"
+                  />
+                  <rect
+                    className={styles.brace}
+                    x="0"
+                    y="0"
+                    width="100"
+                    height="100"
+                    rx="3"
+                    ry="3"
+                    mask={`url(#${logoMaskIdTr})`}
+                    transform="translate(-23.5%, 23.5%)"
+                  />
+                </svg>
+              </div>
+              <span className={styles.logoText}>
+                <span className={styles.logoTransparent}>transparent</span>
+                <span className={styles.logoCity}>.city</span>
+              </span>
+            </Link>
+          )}
+        </div>
+        
         <div className={styles.navItems} id="nav-items">
           {/* Top Navigation Items */}
           <button 

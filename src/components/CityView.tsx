@@ -7,7 +7,8 @@ import CityHeader from "@/components/CityHeader";
 import MetricDateRangeSelector from "@/components/MetricDateRangeSelector";
 import DistrictNavigation from "@/components/DistrictNavigation";
 import AnomaliesTabPanel from "@/components/AnomaliesTabPanel";
-import { useCity, useSavedCities, useSaveCity, useUnsaveCity } from "@/lib/hooks/useCities";
+import { useCity, useSavedCities, useSaveCity, useUnsaveCity, useCityLeaders } from "@/lib/hooks/useCities";
+import type { CityLeader } from "@/lib/apiClient";
 import { useCityMetricOrdering } from "@/lib/hooks/useCityAdmin";
 import { emitSavedCitiesChanged, SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEvents";
 import { getPresetMetricDateRange, getDefaultDateRangeFromMetrics, type MetricDateRange } from "@/lib/dateRange";
@@ -39,11 +40,23 @@ interface MetricWithYTD {
   sparklineData?: SparklineDataPoint[];
   dateRangeStart?: Date;
   dateRangeEnd?: Date;
+  greendirection?: string; // "up" or "down" - determines if increase is good or bad
+  currentPeriodStart?: Date;
+  currentPeriodEnd?: Date;
+  comparisonPeriodStart?: Date;
+  comparisonPeriodEnd?: Date;
+  computedAt?: string; // When the comparison was last computed
+  maxDataDate?: string; // Most recent data point date
 }
 
 interface DashboardMetricsSectionProps {
   metrics: any[];
   cityId: number;
+  selectedDistrict?: number | null; // District to filter charts by (defaults to 0 for citywide)
+  leaders?: CityLeader[]; // City leaders for official selector
+  shapefiles?: any[]; // Shapefiles for GPS location detection
+  onDistrictChange?: (district: number | null) => void; // Callback when district is changed
+  onGPSLocation?: (location: { lat: number; lng: number } | null) => void; // Callback when GPS location is set
 }
 
 // Time series data point for sparkline
@@ -403,8 +416,9 @@ const YTDSparkline = React.memo(function YTDSparkline({
   );
 });
 
-function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionProps) {
+function DashboardMetricsSection({ metrics, cityId, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation }: DashboardMetricsSectionProps) {
   const { getAccessTokenSilently } = useAuth0();
+  const [selectedComparisonType, setSelectedComparisonType] = useState<ComparisonType>('ytd');
   const [ytdData, setYtdData] = useState<Record<number, { 
     lastYear: number | null; 
     thisYear: number | null; 
@@ -412,10 +426,34 @@ function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionPro
     dataYear?: number;  // The year of the most recent data
     priorYear?: number; // The comparison year
     sparklineData?: SparklineDataPoint[]; // Time series data for sparkline (both years)
-    dateRangeStart?: Date; // Start of comparison period
-    dateRangeEnd?: Date; // End of comparison period (most recent data date)
+    dateRangeStart?: Date; // Start of current period
+    dateRangeEnd?: Date; // End of current period (most recent data date)
+    comparisonPeriodStart?: Date; // Start of comparison period (last year)
+    comparisonPeriodEnd?: Date; // End of comparison period (last year)
+    computedAt?: string; // When the comparison was last computed
+    maxDataDate?: string; // Most recent data point date
   }>>({});
   const [loadingMetrics, setLoadingMetrics] = useState<Set<number>>(new Set());
+  
+  // Fetch leaders directly as backup if not passed via props
+  const { data: fetchedLeaders } = useCityLeaders(cityId);
+  
+  // Use prop leaders if available, otherwise fallback to fetched leaders
+  const leaders = propLeaders.length > 0 ? propLeaders : (fetchedLeaders || []);
+  
+  // Debug logging for leaders
+  useEffect(() => {
+    console.log('[Dashboard Debug] Leaders:', {
+      propLeaders,
+      fetchedLeaders,
+      leaders,
+      selectedDistrict,
+      district: selectedDistrict ?? 0
+    });
+  }, [propLeaders, fetchedLeaders, leaders, selectedDistrict]);
+  
+  // Use selectedDistrict, defaulting to 0 (citywide) if not provided
+  const district = selectedDistrict ?? 0;
   
   // Fetch metric ordering for this city
   const { data: orderingData } = useCityMetricOrdering(cityId);
@@ -465,6 +503,13 @@ function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionPro
         sparklineData: ytdData[metric.id]?.sparklineData ?? [],
         dateRangeStart: ytdData[metric.id]?.dateRangeStart,
         dateRangeEnd: ytdData[metric.id]?.dateRangeEnd,
+        greendirection: metric.greendirection || "down", // Default: lower is better (e.g., crime)
+        currentPeriodStart: ytdData[metric.id]?.dateRangeStart,
+        currentPeriodEnd: ytdData[metric.id]?.dateRangeEnd,
+        comparisonPeriodStart: ytdData[metric.id]?.comparisonPeriodStart,
+        comparisonPeriodEnd: ytdData[metric.id]?.comparisonPeriodEnd,
+        computedAt: ytdData[metric.id]?.computedAt,
+        maxDataDate: ytdData[metric.id]?.maxDataDate || metric.most_recent_data_date || undefined,
         metricOrder, // Store for sorting
       } as MetricWithYTD & { metricOrder: number });
     });
@@ -506,18 +551,53 @@ function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionPro
     metricIds.length > 0
       ? {
           metric_ids: metricIds,
-          district: 0, // Citywide
-          comparison_types: ['ytd'], // For now, just YTD
+          // Send null for citywide (district=0), backend stores citywide as district=NULL
+          district: district === 0 ? null : district,
+          comparison_types: [selectedComparisonType],
         }
       : null
   );
   
-  // Log errors for debugging
+  // Log for debugging
+  useEffect(() => {
+    console.log('[Dashboard Debug] Request params:', {
+      metric_ids: metricIds,
+      district: district === 0 ? null : district,
+      comparison_types: [selectedComparisonType],
+      districtRaw: district,
+    });
+  }, [metricIds, district, selectedComparisonType]);
+  
   useEffect(() => {
     if (comparisonsError) {
-      console.warn('Batch comparisons API error:', comparisonsErrorDetail);
+      console.warn('[Dashboard Debug] Batch comparisons API error:', comparisonsErrorDetail);
     }
-  }, [comparisonsError, comparisonsErrorDetail]);
+    if (batchComparisons) {
+      console.log('[Dashboard Debug] Batch comparisons received:', batchComparisons);
+      console.log('[Dashboard Debug] Batch comparisons keys:', Object.keys(batchComparisons));
+      
+      // Log table of all metric comparisons
+      const tableData = Object.entries(batchComparisons).map(([metricId, comps]) => {
+        const comparison = (comps as any)[selectedComparisonType];
+        return {
+          metric_id: metricId,
+          comparison_type: selectedComparisonType,
+          current_period_end: comparison?.current_period_end,
+          comparison_period_end: comparison?.comparison_period_end,
+          computed_at: comparison?.computed_at,
+          current_value: comparison?.current_period_value,
+          comparison_value: comparison?.comparison_period_value,
+        };
+      });
+      console.table(tableData);
+    }
+  }, [comparisonsError, comparisonsErrorDetail, batchComparisons]);
+  
+  // Log ytdData state
+  useEffect(() => {
+    console.log('[Dashboard Debug] ytdData state:', ytdData);
+    console.log('[Dashboard Debug] ytdData keys:', Object.keys(ytdData));
+  }, [ytdData]);
 
   // Load sparkline data for metrics (still need time series for sparklines)
   const loadSparklineData = useCallback(async (metricId: number) => {
@@ -527,22 +607,40 @@ function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionPro
     const priorYear = currentYear - 1;
     
     try {
-      const timeSeries = await getAdminMetricTimeSeries(metricId, token);
+      // Request only base charts (no group_field) for the selected district
+      // Backend will filter by district and exclude group_field charts
+      let timeSeries = await getAdminMetricTimeSeries(metricId, token, {
+        district: district,
+        exclude_group_fields: true  // Only get base charts, not group field charts
+      });
+      
+      // If no chart found for selected district, fallback to citywide
+      if (timeSeries.time_series.length === 0 && district !== 0) {
+        timeSeries = await getAdminMetricTimeSeries(metricId, token, {
+          district: 0,
+          exclude_group_fields: true
+        });
+      }
+      
+      // Sort by period_type preference (prefer day for YTD sparklines)
       const activeSeries = timeSeries.time_series
-        .filter((ts) => ts.is_active)
         .sort((a, b) => {
-          if (a.district === 0 && b.district !== 0) return -1;
-          if (b.district === 0 && a.district !== 0) return 1;
           const periodPriority: Record<string, number> = { day: 0, week: 1, month: 2, year: 3 };
           const aPriority = periodPriority[a.period_type] ?? 99;
           const bPriority = periodPriority[b.period_type] ?? 99;
           return aPriority - bPriority;
         })[0];
 
-      if (!activeSeries) return [];
+      if (!activeSeries) {
+        console.log(`No active series found for metric ${metricId}, district ${district}`);
+        return [];
+      }
 
       const detail = await getAdminMetricTimeSeriesDetail(metricId, activeSeries.chart_id, token);
-      if (!detail.data || detail.data.length === 0) return [];
+      if (!detail.data || detail.data.length === 0) {
+        console.log(`No data found for metric ${metricId}, chart ${activeSeries.chart_id}`);
+        return [];
+      }
 
       const sparklineData: SparklineDataPoint[] = [];
       detail.data.forEach((point) => {
@@ -559,7 +657,7 @@ function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionPro
       console.error(`Error loading sparkline data for metric ${metricId}:`, error);
       return [];
     }
-  }, [getAccessTokenSilently]);
+  }, [getAccessTokenSilently, district]);
 
   // Fallback: Calculate YTD on-demand if precomputed not available
   const calculateYTD = useCallback(async (metricId: number) => {
@@ -574,12 +672,24 @@ function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionPro
     }));
 
     try {
-      const timeSeries = await getAdminMetricTimeSeries(metricId, token);
+      // Request only base charts (no group_field) for the selected district
+      // Backend will filter by district and exclude group_field charts
+      let timeSeries = await getAdminMetricTimeSeries(metricId, token, {
+        district: district,
+        exclude_group_fields: true  // Only get base charts, not group field charts
+      });
+      
+      // If no chart found for selected district, fallback to citywide
+      if (timeSeries.time_series.length === 0 && district !== 0) {
+        timeSeries = await getAdminMetricTimeSeries(metricId, token, {
+          district: 0,
+          exclude_group_fields: true
+        });
+      }
+      
+      // Sort by period_type preference (prefer day for YTD sparklines)
       const activeSeries = timeSeries.time_series
-        .filter((ts) => ts.is_active)
         .sort((a, b) => {
-          if (a.district === 0 && b.district !== 0) return -1;
-          if (b.district === 0 && a.district !== 0) return 1;
           const periodPriority: Record<string, number> = { day: 0, week: 1, month: 2, year: 3 };
           const aPriority = periodPriority[a.period_type] ?? 99;
           const bPriority = periodPriority[b.period_type] ?? 99;
@@ -587,6 +697,7 @@ function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionPro
         })[0];
 
       if (!activeSeries) {
+        console.log(`No active series found for metric ${metricId}, district ${district}`);
         setYtdData((prev) => ({
           ...prev,
           [metricId]: { lastYear: null, thisYear: null, loading: false, dataYear: currentYear, priorYear },
@@ -596,6 +707,7 @@ function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionPro
 
       const detail = await getAdminMetricTimeSeriesDetail(metricId, activeSeries.chart_id, token);
       if (!detail.data || detail.data.length === 0) {
+        console.log(`No data found for metric ${metricId}, chart ${activeSeries.chart_id}`);
         setYtdData((prev) => ({
           ...prev,
           [metricId]: { lastYear: null, thisYear: null, loading: false, dataYear: currentYear, priorYear },
@@ -701,7 +813,7 @@ function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionPro
         [metricId]: { lastYear: null, thisYear: null, loading: false, dataYear: currentYear, priorYear, sparklineData: [] },
       }));
     }
-  }, [getAccessTokenSilently]);
+  }, [getAccessTokenSilently, district]);
 
   // Lazy load metrics - only load first 4 initially, then load more as needed
   const [visibleMetricIds, setVisibleMetricIds] = useState<Set<number>>(new Set());
@@ -757,9 +869,16 @@ function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionPro
     };
   }, [metricIds.join(',')]);
 
-  // Load YTD data only for visible metrics
+  // Load YTD data only for visible metrics (FALLBACK ONLY - batch comparisons are preferred)
+  // Only use this fallback if batch comparisons fail or are unavailable
   useEffect(() => {
     if (visibleMetricIds.size === 0) return;
+    
+    // Skip individual calculations if we have batch comparison data or it's loading
+    if (batchComparisons || comparisonsLoading) return;
+    
+    // Only calculate individually if batch comparisons failed
+    if (!comparisonsError) return;
 
     const metricsToCalculate = Array.from(visibleMetricIds).filter((id) => {
       const existing = ytdData[id];
@@ -767,6 +886,8 @@ function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionPro
     });
 
     if (metricsToCalculate.length === 0) return;
+
+    console.warn('[Dashboard] Falling back to individual metric calculations due to batch comparison error');
 
     // Batch load - limit concurrent requests
     const BATCH_SIZE = 4;
@@ -783,8 +904,13 @@ function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionPro
         });
       }, batchIndex * 100); // 100ms delay between batches
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleMetricIds]);
+  }, [visibleMetricIds, calculateYTD, batchComparisons, comparisonsLoading, comparisonsError]);
+
+  // Clear data when district or comparison type changes so we reload with the correct data
+  useEffect(() => {
+    setYtdData({});
+    setVisibleMetricIds(new Set());
+  }, [district, selectedComparisonType]);
 
   // If batch comparisons become available, use them to update the data
   useEffect(() => {
@@ -799,17 +925,21 @@ function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionPro
     Object.entries(batchComparisons).forEach(([metricIdStr, comparisons]) => {
       const metricId = parseInt(metricIdStr, 10);
       const comparisonsTyped = comparisons as Record<ComparisonType, ComparisonResponse>;
-      const ytd = comparisonsTyped.ytd;
+      const comparison = comparisonsTyped[selectedComparisonType];
       
-      if (ytd) {
+      if (comparison) {
         updates[metricId] = {
-          lastYear: ytd.comparison_period_value ?? null,
-          thisYear: ytd.current_period_value ?? null,
+          lastYear: comparison.comparison_period_value ?? null,
+          thisYear: comparison.current_period_value ?? null,
           loading: false,
           dataYear: currentYear,
           priorYear,
-          dateRangeStart: ytd.current_period_start ? new Date(ytd.current_period_start) : undefined,
-          dateRangeEnd: ytd.current_period_end ? new Date(ytd.current_period_end) : undefined,
+          dateRangeStart: comparison.current_period_start ? new Date(comparison.current_period_start) : undefined,
+          dateRangeEnd: comparison.current_period_end ? new Date(comparison.current_period_end) : undefined,
+          comparisonPeriodStart: comparison.comparison_period_start ? new Date(comparison.comparison_period_start) : undefined,
+          comparisonPeriodEnd: comparison.comparison_period_end ? new Date(comparison.comparison_period_end) : undefined,
+          computedAt: comparison.computed_at,
+          maxDataDate: comparison.current_period_end, // Use current period end as the max data date
           sparklineData: ytdData[metricId]?.sparklineData || [], // Preserve existing sparkline data
         };
       }
@@ -826,7 +956,125 @@ function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionPro
         return updated;
       });
     }
-  }, [batchComparisons]);
+  }, [batchComparisons, district, selectedComparisonType]);
+
+  // Determine the most common years from loaded data for column headers
+  // Always display current calendar year vs prior year
+  const displayYears = useMemo(() => {
+    const now = new Date();
+    return { dataYear: now.getFullYear(), priorYear: now.getFullYear() - 1 };
+  }, []);
+
+  // Helper to format date as "Jan 1 - Jan 12"
+  const formatPeriodDate = (start?: Date, end?: Date) => {
+    if (!start || !end) return null;
+    const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${startStr} - ${endStr}`;
+  };
+
+  // Find the currently selected leader based on district
+  const selectedLeader = useMemo(() => {
+    if (!leaders || leaders.length === 0) return null;
+    
+    // For citywide (district = 0 or null), find leader with no district (Mayor, etc.)
+    if (district === 0 || district === null) {
+      return leaders.find(l => l.district === null || l.district === undefined || l.district === 0) || null;
+    }
+    
+    // For specific district, find the matching leader
+    return leaders.find(l => l.district === district) || null;
+  }, [leaders, district]);
+
+  // Build the dashboard title based on selected leader
+  const dashboardTitle = useMemo(() => {
+    if (selectedLeader) {
+      const districtText = selectedLeader.district 
+        ? `District ${selectedLeader.district}` 
+        : "Citywide";
+      return `${selectedLeader.title}: ${selectedLeader.name} - ${districtText} Dashboard`;
+    }
+    if (district === 0 || district === null) {
+      return "Citywide Dashboard";
+    }
+    return `District ${district} Dashboard`;
+  }, [selectedLeader, district]);
+
+  // Get label for comparison type
+  const getComparisonTypeLabel = (type: ComparisonType): string => {
+    switch (type) {
+      case 'ytd':
+        return 'Year to Date';
+      case 'mtd':
+        return 'Month to Date';
+      case 'mtd_prior_year':
+        return 'MTD vs Prior Year';
+      default:
+        return type;
+    }
+  };
+
+  // Get column headers based on comparison type
+  const getColumnHeaders = useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const priorYear = currentYear - 1;
+    const currentMonth = now.toLocaleDateString('en-US', { month: 'short' });
+    
+    // Get prior month
+    const priorMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const priorMonth = priorMonthDate.toLocaleDateString('en-US', { month: 'short' });
+    const priorMonthYear = priorMonthDate.getFullYear();
+    
+    switch (selectedComparisonType) {
+      case 'ytd':
+        return {
+          current: `${currentYear} YTD`,
+          comparison: `${priorYear} YTD`,
+        };
+      case 'mtd':
+        return {
+          current: `${currentMonth} ${currentYear}`,
+          comparison: `${priorMonth} ${priorMonthYear}`,
+        };
+      case 'mtd_prior_year':
+        return {
+          current: `${currentMonth} ${currentYear}`,
+          comparison: `${currentMonth} ${priorYear}`,
+        };
+      default:
+        return {
+          current: `${currentYear}`,
+          comparison: `${priorYear}`,
+        };
+    }
+  }, [selectedComparisonType]);
+
+  // Get the most recent computed date from all metrics (from batch comparison API)
+  const lastComputedAt = useMemo(() => {
+    const computedTimes = Object.values(ytdData)
+      .map(d => d.computedAt)
+      .filter((t): t is string => !!t);
+    
+    if (computedTimes.length === 0) return null;
+    
+    // Get the most recent timestamp
+    const mostRecent = computedTimes.sort((a, b) => 
+      new Date(b).getTime() - new Date(a).getTime()
+    )[0];
+    
+    try {
+      const date = new Date(mostRecent);
+      // Format to user's local timezone - date only
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    } catch {
+      return null;
+    }
+  }, [ytdData]);
 
   if (!metrics || metrics.length === 0) {
     return (
@@ -839,42 +1087,168 @@ function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionPro
     );
   }
 
-  // Determine the most common years from loaded data for column headers
-  // Always display current calendar year vs prior year
-  const displayYears = useMemo(() => {
-    const now = new Date();
-    return { dataYear: now.getFullYear(), priorYear: now.getFullYear() - 1 };
-  }, []);
-
   return (
     <div className="dashboard-section">
-      <h2>Metrics Dashboard</h2>
-      <div className="metrics-cards-container">
-        {groupedMetrics.sortedCategories.map((category) => (
-          <div key={category} className="metrics-category-section">
-            <h3 className="metrics-category-title">{category}</h3>
-            <div className="metrics-cards-grid">
-              {groupedMetrics.grouped[category].map((metric) => {
-                const delta = metric.ytdThisYear !== null && metric.ytdLastYear !== null && 
-                  metric.ytdThisYear !== undefined && metric.ytdLastYear !== undefined && 
-                  metric.ytdLastYear !== 0
-                  ? ((metric.ytdThisYear - metric.ytdLastYear) / metric.ytdLastYear) * 100
-                  : null;
-                const isPositive = delta !== null && delta > 0;
-                const isNegative = delta !== null && delta < 0;
-                
-                // Format the date range
-                const dateRangeText = metric.dateRangeStart && metric.dateRangeEnd
-                  ? formatDateRange(metric.dateRangeStart, metric.dateRangeEnd)
-                  : null;
+      {/* Official Selector Header - Using DistrictNavigation Component */}
+      <div className="dashboard-header">
+        {leaders && leaders.length > 0 && onDistrictChange ? (
+          <div className="dashboard-district-navigation">
+            <DistrictNavigation
+              selectedDistrict={district}
+              leaders={leaders}
+              shapefiles={shapefiles}
+              onDistrictSelect={(newDistrict) => {
+                onDistrictChange(newDistrict);
+              }}
+              onGPSLocation={onGPSLocation}
+            />
+          </div>
+        ) : (
+          <h2 className="dashboard-title">{dashboardTitle}</h2>
+        )}
+      </div>
 
-                const isVisible = visibleMetricIds.has(metric.id);
-                const shouldLoad = isVisible; // Only load if visible
+      {/* Comparison Type Selector */}
+      <div className="dashboard-comparison-selector" style={{
+        padding: '16px 24px',
+        borderBottom: '1px solid var(--border-color, #e5e7eb)',
+        backgroundColor: 'var(--bg-secondary, #f9fafb)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '16px',
+        flexWrap: 'wrap',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <label style={{
+            fontSize: '14px',
+            fontWeight: 500,
+            color: 'var(--text-primary)',
+          }}>
+            Comparison Type:
+          </label>
+          <div style={{
+            display: 'flex',
+            gap: '8px',
+          }}>
+            {(['ytd', 'mtd', 'mtd_prior_year'] as ComparisonType[]).map((type) => (
+              <button
+                key={type}
+                onClick={() => setSelectedComparisonType(type)}
+                style={{
+                  padding: '6px 16px',
+                  borderRadius: '6px',
+                  border: selectedComparisonType === type 
+                    ? '2px solid var(--primary-color, #ad35fa)' 
+                    : '1px solid var(--border-color, #d1d5db)',
+                  backgroundColor: selectedComparisonType === type 
+                    ? 'var(--primary-color-light, #f3e8ff)' 
+                    : 'white',
+                  color: selectedComparisonType === type 
+                    ? 'var(--primary-color, #ad35fa)' 
+                    : 'var(--text-secondary)',
+                  fontWeight: selectedComparisonType === type ? 600 : 500,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedComparisonType !== type) {
+                    e.currentTarget.style.borderColor = 'var(--primary-color, #ad35fa)';
+                    e.currentTarget.style.backgroundColor = 'var(--bg-hover, #f3f4f6)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (selectedComparisonType !== type) {
+                    e.currentTarget.style.borderColor = 'var(--border-color, #d1d5db)';
+                    e.currentTarget.style.backgroundColor = 'white';
+                  }
+                }}
+              >
+                {getComparisonTypeLabel(type)}
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        {/* Last Computed Date */}
+        {lastComputedAt && (
+          <div style={{
+            fontSize: '11px',
+            color: 'var(--text-tertiary, #9ca3af)',
+            fontWeight: 400,
+            opacity: 0.7,
+          }}>
+            Computed: {lastComputedAt}
+          </div>
+        )}
+      </div>
+      
+      <div className="metrics-table-container">
+        {groupedMetrics.sortedCategories.map((category) => {
+          // Filter metrics with valid data
+          const metricsWithData = groupedMetrics.grouped[category].filter((metric) => {
+            return (metric.ytdThisYear !== null && metric.ytdThisYear !== undefined) ||
+                   (metric.ytdLastYear !== null && metric.ytdLastYear !== undefined);
+          });
+          
+          // Skip empty categories
+          if (metricsWithData.length === 0) return null;
+          
+          return (
+            <div key={category} className="metrics-category-section">
+              <h3 className="metrics-category-title">{category}</h3>
+              
+              {/* Table header row */}
+              <div className="metrics-table-header">
+                <div className="metric-col metric-col-name">Metric</div>
+                <div className="metric-col metric-col-value">{getColumnHeaders.comparison}</div>
+                <div className="metric-col metric-col-value">{getColumnHeaders.current}</div>
+                <div className="metric-col metric-col-change">Change</div>
+              </div>
+              
+              {/* Metric rows */}
+              <div className="metrics-table-body">
+                {metricsWithData.map((metric) => {
+                // Calculate delta and absolute difference
+                const hasValidData = metric.ytdThisYear !== null && metric.ytdLastYear !== null && 
+                  metric.ytdThisYear !== undefined && metric.ytdLastYear !== undefined;
+                
+                const absoluteDiff = hasValidData ? metric.ytdThisYear! - metric.ytdLastYear! : null;
+                const percentDelta = hasValidData && metric.ytdLastYear !== 0
+                  ? ((metric.ytdThisYear! - metric.ytdLastYear!) / metric.ytdLastYear!) * 100
+                  : null;
+                
+                // Determine if this is "good" or "bad" based on greendirection
+                // greendirection="up" means increase is good (green), decrease is bad (red)
+                // greendirection="down" means decrease is good (green), increase is bad (red)
+                const isIncrease = absoluteDiff !== null && absoluteDiff > 0;
+                const isDecrease = absoluteDiff !== null && absoluteDiff < 0;
+                const isGood = metric.greendirection === "up" ? isIncrease : isDecrease;
+                const isBad = metric.greendirection === "up" ? isDecrease : isIncrease;
+                const changeColorClass = isGood ? 'good' : isBad ? 'bad' : 'neutral';
+                
+                // Format date ranges for each period
+                const currentPeriodDates = formatPeriodDate(metric.currentPeriodStart, metric.currentPeriodEnd);
+                const comparisonPeriodDates = formatPeriodDate(metric.comparisonPeriodStart, metric.comparisonPeriodEnd);
+
+                // Format metadata dates (only max data date now, computed is at dashboard level)
+                const formatMetadataDate = (dateStr?: string) => {
+                  if (!dateStr) return null;
+                  try {
+                    const date = new Date(dateStr);
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                  } catch {
+                    return null;
+                  }
+                };
+
+                const maxDataDateFormatted = formatMetadataDate(metric.maxDataDate);
 
                 return (
                   <div 
                     key={metric.id} 
-                    className="metric-card-dashboard"
+                    className="metrics-table-row"
                     ref={(el) => {
                       if (el) {
                         metricRefs.current.set(metric.id, el);
@@ -884,85 +1258,84 @@ function DashboardMetricsSection({ metrics, cityId }: DashboardMetricsSectionPro
                       }
                     }}
                   >
-                    {/* Header: Metric name and delta badge */}
-                    <div className="metric-card-header">
-                      <h4 className="metric-card-title">{metric.metric_name}</h4>
-                      {!metric.ytdLoading && delta !== null && (
-                        <span className={`metric-delta-badge ${isPositive ? 'positive' : isNegative ? 'negative' : 'neutral'}`}>
-                          {isPositive ? "↑" : isNegative ? "↓" : ""}
-                          {Math.abs(delta).toFixed(0)}%
-                        </span>
+                    {/* Metric name column */}
+                    <div className="metric-col metric-col-name">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span className="metric-name">{metric.metric_name}</span>
+                        {maxDataDateFormatted && (
+                          <div className="metric-metadata" style={{
+                            fontSize: '11px',
+                            color: 'var(--text-tertiary, #9ca3af)',
+                          }}>
+                            <span title="Data through this date">
+                              Through: {maxDataDateFormatted}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Last year value column */}
+                    <div className="metric-col metric-col-value">
+                      {metric.ytdLoading ? (
+                        <Loader size="sm" color="dark" />
+                      ) : (
+                        <>
+                          <span className="metric-date-label">{comparisonPeriodDates || `Jan 1 - Jan ${displayYears.priorYear}`}</span>
+                          <span className="metric-value">
+                            {metric.ytdLastYear !== null && metric.ytdLastYear !== undefined 
+                              ? metric.ytdLastYear.toLocaleString() 
+                              : "—"}
+                          </span>
+                        </>
                       )}
                     </div>
                     
-                    {/* Date range label */}
-                    {dateRangeText && (
-                      <div className="metric-card-date-range">
-                        {dateRangeText}
-                      </div>
-                    )}
-                    
-                    {/* Single loading indicator for the entire metric */}
-                    {metric.ytdLoading ? (
-                      <div style={{ 
-                        display: "flex", 
-                        alignItems: "center", 
-                        justifyContent: "center", 
-                        height: "120px",
-                        width: "100%"
-                      }}>
+                    {/* This year value column */}
+                    <div className="metric-col metric-col-value">
+                      {metric.ytdLoading ? (
                         <Loader size="sm" color="dark" />
-                      </div>
-                    ) : (
-                      <>
-                        {/* YTD Sparkline chart - showing both years - only render if visible */}
-                        {shouldLoad && (
-                          <div className="metric-card-sparkline">
-                            {metric.sparklineData && metric.sparklineData.length > 1 ? (
-                              <YTDSparkline 
-                                data={metric.sparklineData} 
-                                currentYear={displayYears.dataYear}
-                                priorYear={displayYears.priorYear}
-                              />
-                            ) : (
-                              <div style={{ height: "100px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>No chart data</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        
-                        {/* YTD comparison values - last year on left, this year on right */}
-                        <div className="metric-card-values">
-                          <div className="metric-value-item">
-                            <span className="metric-value-label">{displayYears.priorYear} YTD</span>
-                            <span className="metric-value-number prior">
-                              {metric.ytdLastYear !== null && metric.ytdLastYear !== undefined ? (
-                                metric.ytdLastYear.toLocaleString()
-                              ) : (
-                                "—"
-                              )}
+                      ) : (
+                        <>
+                          <span className="metric-date-label">{currentPeriodDates || `Jan 1 - Jan ${displayYears.dataYear}`}</span>
+                          <span className="metric-value">
+                            {metric.ytdThisYear !== null && metric.ytdThisYear !== undefined 
+                              ? metric.ytdThisYear.toLocaleString() 
+                              : "—"}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    
+                    {/* Change column */}
+                    <div className="metric-col metric-col-change">
+                      {metric.ytdLoading ? (
+                        <Loader size="sm" color="dark" />
+                      ) : hasValidData ? (
+                        <div className={`change-indicator ${changeColorClass}`}>
+                          <span className="change-arrow">
+                            {isIncrease ? "↑" : isDecrease ? "↓" : "—"}
+                          </span>
+                          <div className="change-values">
+                            <span className="change-absolute">
+                              {absoluteDiff !== null ? (absoluteDiff > 0 ? "+" : "") + Math.round(absoluteDiff).toLocaleString() : "—"}
                             </span>
-                          </div>
-                          <div className="metric-value-item" style={{ textAlign: "right" }}>
-                            <span className="metric-value-label">{displayYears.dataYear} YTD</span>
-                            <span className="metric-value-number current">
-                              {metric.ytdThisYear !== null && metric.ytdThisYear !== undefined ? (
-                                metric.ytdThisYear.toLocaleString()
-                              ) : (
-                                "—"
-                              )}
+                            <span className="change-percent">
+                              {percentDelta !== null ? (percentDelta > 0 ? "+" : "") + percentDelta.toFixed(1) + "%" : "—"}
                             </span>
                           </div>
                         </div>
-                      </>
-                    )}
+                      ) : (
+                        <span className="change-na">—</span>
+                      )}
+                    </div>
                   </div>
                 );
-              })}
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1136,7 +1509,6 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
               setMapLeaders(data.leaders);
               setMapShapefiles(data.shapefiles);
             }}
-            selectedAnomaly={selectedAnomaly}
           />
           
           {/* Header Overlay */}
@@ -1270,6 +1642,11 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
               <DashboardMetricsSection 
                 metrics={cityData.metrics || []} 
                 cityId={cityId}
+                selectedDistrict={selectedDistrict}
+                leaders={mapLeaders}
+                shapefiles={mapShapefiles}
+                onDistrictChange={setSelectedDistrict}
+                onGPSLocation={setDistrictGPSLocation}
               />
             )}
 

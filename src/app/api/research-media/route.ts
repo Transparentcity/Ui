@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { API_BASE } from "@/lib/apiBase";
 
 export const revalidate = 300;
 

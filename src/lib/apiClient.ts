@@ -86,11 +86,18 @@ async function request<T>(
   return (await res.json()) as T;
 }
 
+export interface RedisStatus {
+  connected: boolean;
+  type: "redis" | "memory" | "unknown";
+  error?: string | null;
+}
+
 export interface HealthResponse {
   status: string;
   version?: string;
   mcp_tools?: number;
   tool_groups?: number;
+  redis?: RedisStatus;
   timestamp?: string;
 }
 
@@ -761,6 +768,7 @@ export interface AdminTimeSeriesSummary {
   data_point_count?: number | null;
   created_at: string;
   is_active: boolean;
+  group_field?: string | null;  // Add group_field to filter out multi-series charts
 }
 
 export interface AdminMetricTimeSeries {
@@ -876,8 +884,32 @@ export function deleteAdminMetric(metricId: number, token: string): Promise<Admi
   return request<AdminMetricWriteResponse>(`/api/admin/metrics/${metricId}`, "DELETE", undefined, token);
 }
 
-export function getAdminMetricTimeSeries(metricId: number, token: string): Promise<AdminMetricTimeSeries> {
-  return request<AdminMetricTimeSeries>(`/api/admin/metrics/${metricId}/time-series`, "GET", undefined, token);
+export function getAdminMetricTimeSeries(
+  metricId: number, 
+  token: string,
+  options?: {
+    district?: number | null;
+    period_type?: string;
+    exclude_group_fields?: boolean;
+  }
+): Promise<AdminMetricTimeSeries> {
+  const params = new URLSearchParams();
+  if (options?.district !== undefined && options?.district !== null) {
+    params.append("district", options.district.toString());
+  }
+  if (options?.period_type) {
+    params.append("period_type", options.period_type);
+  }
+  if (options?.exclude_group_fields !== undefined) {
+    params.append("exclude_group_fields", options.exclude_group_fields.toString());
+  }
+  const query = params.toString();
+  return request<AdminMetricTimeSeries>(
+    `/api/admin/metrics/${metricId}/time-series${query ? `?${query}` : ""}`, 
+    "GET", 
+    undefined, 
+    token
+  );
 }
 
 export function getAdminMetricTimeSeriesDetail(
@@ -1396,7 +1428,8 @@ export function getJobStats(token: string): Promise<{ status: string; stats: Job
 export async function sendChatMessageStream(
   request: ChatMessageRequest,
   token: string,
-  onEvent: (event: StreamEvent) => void
+  onEvent: (event: StreamEvent) => void,
+  abortSignal?: AbortSignal
 ): Promise<void> {
   const url = `${API_BASE}/api/chat/message/stream`;
 
@@ -1411,6 +1444,7 @@ export async function sendChatMessageStream(
       Accept: "text/event-stream",
     },
     body: JSON.stringify(request),
+    signal: abortSignal, // Use provided abort signal if available
   });
 
   console.log("📥 Response status:", response.status, response.statusText);
@@ -1430,43 +1464,100 @@ export async function sendChatMessageStream(
   const decoder = new TextDecoder();
   let buffer = "";
   let eventCount = 0;
+  let lastActivity = Date.now();
+  const MAX_IDLE_TIME = 120000; // 2 minutes
+  const HEARTBEAT_CHECK_INTERVAL = 30000; // Check every 30 seconds
+
+  // Set up heartbeat checker
+  const heartbeatChecker = setInterval(() => {
+    const now = Date.now();
+    if (now - lastActivity > MAX_IDLE_TIME) {
+      console.warn("⚠️ Stream idle timeout, closing connection");
+      clearInterval(heartbeatChecker);
+      reader.cancel();
+    }
+  }, HEARTBEAT_CHECK_INTERVAL);
 
   try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) {
         console.log(`✅ Stream completed. Processed ${eventCount} events.`);
+        clearInterval(heartbeatChecker);
         break;
       }
 
+      lastActivity = Date.now(); // Update activity timestamp
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
+      
+      // Handle multiple SSE events in buffer (split by double newline)
+      const events = buffer.split("\n\n");
+      buffer = events.pop() || ""; // Keep incomplete event in buffer
 
-      for (const line of lines) {
-        if (line.trim() === "") continue; // Skip empty lines
+      for (const eventBlock of events) {
+        if (eventBlock.trim() === "") continue;
         
-        if (line.startsWith("data: ")) {
-          try {
-            const jsonStr = line.slice(6);
-            const data = JSON.parse(jsonStr);
-            eventCount++;
-            console.log(`📨 Event ${eventCount}:`, data.type, data.content?.substring(0, 50) || "");
-            onEvent(data);
-          } catch (e) {
-            console.error("❌ Failed to parse SSE event:", e, "Line:", line);
+        // Parse SSE event (format: "data: {...}\n" or just "data: {...}")
+        const lines = eventBlock.split("\n");
+        for (const line of lines) {
+          if (line.trim() === "") continue;
+          
+          if (line.startsWith("data: ")) {
+            try {
+              const jsonStr = line.slice(6);
+              const data = JSON.parse(jsonStr);
+              
+              // Skip heartbeat events (they're just for keeping connection alive)
+              if (data.type === "heartbeat") {
+                continue;
+              }
+              
+              eventCount++;
+              console.log(`📨 Event ${eventCount}:`, data.type, data.content?.substring(0, 50) || "");
+              onEvent(data);
+            } catch (e) {
+              console.error("❌ Failed to parse SSE event:", e, "Line:", line);
+            }
+          } else if (line.trim() !== "") {
+            // Log non-data lines for debugging
+            console.log("📝 Non-data line:", line.substring(0, 100));
           }
-        } else if (line.trim() !== "") {
-          // Log non-data lines for debugging
-          console.log("📝 Non-data line:", line.substring(0, 100));
         }
       }
     }
   } catch (error) {
     console.error("❌ Stream error:", error);
+    
+    // Check if this is an abort error (expected when user cancels)
+    const isAbortError = 
+      error instanceof Error && 
+      (error.name === "AbortError" || error.message.includes("aborted") || error.message.includes("cancelled"));
+    
+    if (isAbortError) {
+      console.log("⏹️ Stream was aborted by user");
+      // Don't send error event for user-initiated cancellations
+      clearInterval(heartbeatChecker);
+      return; // Exit gracefully without throwing
+    }
+    
+    // For other errors, send error event to callback if possible
+    try {
+      onEvent({
+        type: "error",
+        content: error instanceof Error ? error.message : String(error),
+      });
+    } catch (callbackError) {
+      console.error("❌ Failed to send error event to callback:", callbackError);
+    }
+    clearInterval(heartbeatChecker);
     throw error;
   } finally {
-    reader.releaseLock();
+    clearInterval(heartbeatChecker);
+    try {
+      reader.releaseLock();
+    } catch (releaseError) {
+      console.warn("⚠️ Failed to release reader lock:", releaseError);
+    }
   }
 }
 

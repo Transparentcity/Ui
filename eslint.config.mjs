@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Ignore Node.js scripts (they use require() which is valid in Node.js)
+    "scripts/**",
+    "public/debug-auth.js",
   ]),
 ]);
 

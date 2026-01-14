@@ -396,6 +396,111 @@
   font-style: italic;
 }
 
+/* Dark mode overrides for report content - force text colors to use CSS variables */
+/* This overrides any hardcoded white colors in the HTML content */
+[data-theme="dark"] .reportHtml,
+.dark .reportHtml,
+[data-theme="dark"] .reportContent,
+.dark .reportContent {
+  color: var(--text-primary) !important;
+}
+
+/* Override hardcoded white text colors in dark mode */
+[data-theme="dark"] .reportHtml p,
+.dark .reportHtml p,
+[data-theme="dark"] .reportHtml div,
+.dark .reportHtml div,
+[data-theme="dark"] .reportHtml span,
+.dark .reportHtml span,
+[data-theme="dark"] .reportHtml li,
+.dark .reportHtml li,
+[data-theme="dark"] .reportContent p,
+.dark .reportContent p,
+[data-theme="dark"] .reportContent div,
+.dark .reportContent div,
+[data-theme="dark"] .reportContent span,
+.dark .reportContent span,
+[data-theme="dark"] .reportContent li,
+.dark .reportContent li {
+  color: var(--text-primary) !important;
+}
+
+/* Override hardcoded white text in headings */
+[data-theme="dark"] .reportHtml h1,
+.dark .reportHtml h1,
+[data-theme="dark"] .reportHtml h2,
+.dark .reportHtml h2,
+[data-theme="dark"] .reportHtml h3,
+.dark .reportHtml h3,
+[data-theme="dark"] .reportHtml h4,
+.dark .reportHtml h4,
+[data-theme="dark"] .reportHtml h5,
+.dark .reportHtml h5,
+[data-theme="dark"] .reportHtml h6,
+.dark .reportHtml h6,
+[data-theme="dark"] .reportContent h1,
+.dark .reportContent h1,
+[data-theme="dark"] .reportContent h2,
+.dark .reportContent h2,
+[data-theme="dark"] .reportContent h3,
+.dark .reportContent h3,
+[data-theme="dark"] .reportContent h4,
+.dark .reportContent h4,
+[data-theme="dark"] .reportContent h5,
+.dark .reportContent h5,
+[data-theme="dark"] .reportContent h6,
+.dark .reportContent h6 {
+  color: var(--text-primary) !important;
+}
+
+/* Override hardcoded white backgrounds in dark mode (if any) */
+[data-theme="dark"] .reportHtml,
+.dark .reportHtml,
+[data-theme="dark"] .reportContent,
+.dark .reportContent {
+  background: transparent !important;
+}
+
+/* Ensure table cells have proper colors */
+[data-theme="dark"] .reportHtml td,
+.dark .reportHtml td,
+[data-theme="dark"] .reportHtml th,
+.dark .reportHtml th,
+[data-theme="dark"] .reportContent td,
+.dark .reportContent td,
+[data-theme="dark"] .reportContent th,
+.dark .reportContent th {
+  color: var(--text-primary) !important;
+  background: transparent !important;
+}
+
+[data-theme="dark"] .reportHtml th,
+.dark .reportHtml th,
+[data-theme="dark"] .reportContent th,
+.dark .reportContent th {
+  background: var(--bg-secondary) !important;
+}
+
+/* Additional override for any elements with inline white color styles */
+[data-theme="dark"] .reportHtml [style*="color: white"],
+[data-theme="dark"] .reportHtml [style*="color:#fff"],
+[data-theme="dark"] .reportHtml [style*="color:#ffffff"],
+[data-theme="dark"] .reportHtml [style*="color:white"],
+.dark .reportHtml [style*="color: white"],
+.dark .reportHtml [style*="color:#fff"],
+.dark .reportHtml [style*="color:#ffffff"],
+.dark .reportHtml [style*="color:white"],
+[data-theme="dark"] .reportContent [style*="color: white"],
+[data-theme="dark"] .reportContent [style*="color:#fff"],
+[data-theme="dark"] .reportContent [style*="color:#ffffff"],
+[data-theme="dark"] .reportContent [style*="color:white"],
+.dark .reportContent [style*="color: white"],
+.dark .reportContent [style*="color:#fff"],
+.dark .reportContent [style*="color:#ffffff"],
+.dark .reportContent [style*="color:white"] {
+  color: var(--text-primary) !important;
+}
+
 /* Tabs */
 .tabs {
   display: flex;

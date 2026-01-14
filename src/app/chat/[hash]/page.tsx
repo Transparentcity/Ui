@@ -157,7 +157,7 @@ export default function PublicChatPage() {
           <div className="cta-section">
             <h3>Start Your Own Chat</h3>
             <p>
-              Ask questions about your city's data using AI-powered analysis
+              Ask questions about your city&apos;s data using AI-powered analysis
               of public datasets.
             </p>
             <Link href="/dashboard" className="cta-button">

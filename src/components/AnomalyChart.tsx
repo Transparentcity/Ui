@@ -2,6 +2,7 @@
 
 import React, { useMemo } from "react";
 import dynamic from "next/dynamic";
+import { useTheme } from "@/contexts/ThemeContext";
 import styles from "./AnomalyChart.module.css";
 
 // Dynamically import Plotly to avoid SSR issues
@@ -94,6 +95,8 @@ export default function AnomalyChart({
   metadata,
   height = 400,
 }: AnomalyChartProps) {
+  const { theme } = useTheme();
+  
   // Process chart data into recent and comparison periods
   const processedData = useMemo(() => {
     const recentDates: Date[] = [];
@@ -276,12 +279,14 @@ export default function AnomalyChart({
     
     // Second line: Group field and value if available (value is bolded)
     if (groupText) {
-      title += `<br><span style="font-size: 0.85em; color: #666;">${groupText}</span>`;
+      const groupColor = theme === "dark" ? "#cbd5e1" : "#666";
+      title += `<br><span style="font-size: 0.85em; color: ${groupColor};">${groupText}</span>`;
     }
     
     // Third line: Location (city and district)
     if (locationText) {
-      title += `<br><span style="font-size: 0.85em; color: #666;">${locationText}</span>`;
+      const locationColor = theme === "dark" ? "#cbd5e1" : "#666";
+      title += `<br><span style="font-size: 0.85em; color: ${locationColor};">${locationText}</span>`;
     }
     
     return title;
@@ -302,13 +307,19 @@ export default function AnomalyChart({
     return max > 0 ? max * 1.1 : 10;
   }, [processedData]);
 
+  // Use lighter, more visible colors in dark mode
+  const textColor = theme === "dark" ? "#f1f5f9" : "#222222";
+  const axisLineColor = theme === "dark" ? "#475569" : "#e5e7eb";
+  const gridColor = theme === "dark" ? "rgba(203, 213, 225, 0.3)" : "rgba(232, 233, 235, 0.5)";
+  const legendBgColor = theme === "dark" ? "rgba(30, 41, 59, 0.8)" : "rgba(246, 241, 234, 0.7)";
+
   const layout: Partial<import("plotly.js").Layout> = {
     title: {
       text: chartTitle,
       font: {
         family: "Inter, Arial, sans-serif",
         size: 14,
-        color: "var(--text-primary, #222222)",
+        color: textColor,
       },
       y: 0.95,
       x: 0.5,
@@ -322,13 +333,13 @@ export default function AnomalyChart({
       tickfont: {
         family: "IBM Plex Sans, Arial, sans-serif",
         size: 9,
-        color: "var(--text-primary, #222222)",
+        color: textColor,
       },
       tickmode: "auto" as const,
       ticklen: 3,
-      tickcolor: "var(--text-primary, #222222)",
+      tickcolor: textColor,
       showline: true,
-      linecolor: "#e5e7eb",
+      linecolor: axisLineColor,
       linewidth: 1,
     },
     yaxis: {
@@ -337,17 +348,17 @@ export default function AnomalyChart({
         font: {
           family: "IBM Plex Sans, Arial, sans-serif",
           size: 10,
-          color: "var(--text-primary, #222222)",
+          color: textColor,
         },
       },
       showgrid: true,
-      gridcolor: "rgba(232, 233, 235, 0.5)",
+      gridcolor: gridColor,
       zeroline: false,
       range: [0, maxYValue],
       tickfont: {
         family: "IBM Plex Sans, Arial, sans-serif",
         size: 9,
-        color: "var(--text-primary, #222222)",
+        color: textColor,
       },
     },
     showlegend: true,
@@ -360,9 +371,9 @@ export default function AnomalyChart({
       font: {
         family: "IBM Plex Sans, Arial, sans-serif",
         size: 9,
-        color: "var(--text-primary, #222222)",
+        color: textColor,
       },
-      bgcolor: "var(--soft-sand, rgba(246, 241, 234, 0.7))",
+      bgcolor: legendBgColor,
     },
     margin: { t: 50, b: 50, l: 60, r: 30 },
     height,
@@ -370,12 +381,12 @@ export default function AnomalyChart({
     plot_bgcolor: "transparent",
     hovermode: "closest" as const,
     hoverlabel: {
-      bgcolor: "#FFFFFF",
+      bgcolor: theme === "dark" ? "#1e293b" : "#FFFFFF",
       bordercolor: "var(--brand-primary, #ad35fa)",
       font: {
         family: "IBM Plex Sans, Arial, sans-serif",
         size: 9,
-        color: "#222222",
+        color: textColor,
       },
     },
   };

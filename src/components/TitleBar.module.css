@@ -1,151 +1,88 @@
 .titleBar {
   position: fixed;
   top: 0;
-  left: 0;
   right: 0;
+  left: var(--sidebar-width);
   height: var(--header-height);
-  background: var(--bg-primary);
-  border-bottom: 1px solid var(--border-primary);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 var(--space-lg);
+  background: transparent;
   z-index: 10000;
-}
-
-.titleBarLeft {
+  pointer-events: none;
+  transition: left 0.3s ease;
   display: flex;
   align-items: center;
-  gap: var(--space-lg);
+  padding: 0 var(--space-lg);
 }
 
-.titleBarRight {
+/* When sidebar is collapsed, TitleBar spans full width */
+.titleBar.sidebarCollapsed {
+  left: 0;
+}
+
+.hamburgerButton {
   display: flex;
-  align-items: center;
-  position: relative;
-  min-width: 0;
-  flex-shrink: 1;
-  overflow: visible;
-}
-
-.menuToggle {
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 40px;
+  height: 40px;
+  padding: var(--space-sm);
   background: none;
   border: none;
-  padding: var(--space-sm);
   cursor: pointer;
   border-radius: var(--radius-sm);
   transition: background 0.2s ease;
-  display: block;
+  pointer-events: auto;
+  flex-shrink: 0;
 }
 
-.menuToggle:hover {
+.hamburgerButton:hover {
   background: var(--bg-tertiary);
 }
 
-.menuToggle span {
+.hamburgerButton span {
   display: block;
   width: 20px;
   height: 2px;
   background: var(--text-primary);
-  margin: 4px 0;
   transition: 0.3s;
 }
 
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.logoCorners {
-  display: flex;
-  align-items: center;
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-}
-
-.logoCorners svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.brace {
-  fill: #1f2937;
-  animation: none !important;
-}
-
-:global([data-theme="dark"]) .brace,
-:global(.dark) .brace {
-  fill: #ffffff;
-}
-
-.logoText {
-  font-weight: 700;
-  font-size: 18px;
-}
-
-.logoTransparent {
-  color: var(--text-primary);
-}
-
-.logoCity {
-  color: var(--brand-primary);
-}
-
-.citySearchWrap {
-  margin-right: 10px;
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  flex-shrink: 1;
-  overflow: visible;
-}
-
-@media (max-width: 768px) {
-  .citySearchWrap {
-    margin-right: 6px;
-  }
-}
-
 .jobBadgeContainer {
-  position: relative;
-  z-index: 10001;
-  margin-right: 16px;
+  position: fixed;
+  top: var(--space-md);
+  right: var(--space-md);
+  z-index: 10002;
+  pointer-events: auto;
 }
 
 @media (max-width: 768px) {
   .titleBar {
-    padding: 0 var(--space-sm);
+    left: 0;
+    padding: 0 var(--space-md);
   }
   
-  .titleBarLeft {
-    gap: var(--space-sm);
-    min-width: 0;
-    flex-shrink: 0;
+  .titleBar.sidebarCollapsed {
+    left: 0;
   }
   
-  .menuToggle {
-    display: block;
+  .hamburgerButton {
+    width: 36px;
+    height: 36px;
     padding: var(--space-xs);
   }
   
-  .citySearchWrap {
-    margin-right: 4px;
+  .hamburgerButton span {
+    width: 18px;
   }
   
   .jobBadgeContainer {
-    margin-right: 8px;
+    top: var(--space-sm);
+    right: var(--space-sm);
   }
 }
 
 @media (max-width: 480px) {
   .titleBar {
     padding: 0 8px;
-  }
-  
-  .citySearchWrap {
-    margin-right: 2px;
   }
 }
