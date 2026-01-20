@@ -669,7 +669,7 @@
   position: fixed;
   inset: 0;
   background: var(--bg-overlay);
-  z-index: 100000;
+  z-index: 1000002;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -698,7 +698,7 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   position: relative;
-  z-index: 100001;
+  z-index: 1000003;
 }
 
 @media (min-width: 640px) {

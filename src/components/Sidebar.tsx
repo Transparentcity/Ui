@@ -75,8 +75,8 @@ export default function Sidebar({
   const logoMaskIdBl = `${baseId}-logo-mask-bl`;
   const logoMaskIdTr = `${baseId}-logo-mask-tr`;
 
-  // Check if user can access research (admin or city lead)
-  const canAccessResearch = isAdmin || cityLeadCityIds.length > 0;
+  // Research and New Research Report: admin only
+  const canAccessResearch = isAdmin;
 
   // Helper to close sidebar in narrow mode after action
   const handleActionWithClose = (action: () => void) => {
@@ -326,7 +326,7 @@ export default function Sidebar({
           {/* Spacing */}
           <div className={styles.navSectionSpacer}></div>
 
-          {/* Research Section - Only visible to admins or city leads */}
+          {/* Research Section - Admin only */}
           {canAccessResearch && (
             <>
               <div id="research-section">

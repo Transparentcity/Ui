@@ -1,19 +1,23 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { useAnomalyDetail } from "@/lib/hooks/useAnomalies";
 import AnomalyChart from "./AnomalyChart";
+import { MetricLink } from "./MetricLink";
 import styles from "./MetricsAdmin.module.css";
 
 interface AnomalyChartModalProps {
   anomalyId: number | null;
   isOpen: boolean;
   onClose: () => void;
+  citySlug?: string; // City slug for metric detail links
 }
 
 export default function AnomalyChartModal({
   anomalyId,
   isOpen,
   onClose,
+  citySlug,
 }: AnomalyChartModalProps) {
   const anomalyDetailQuery = useAnomalyDetail(anomalyId);
   const anomalyDetail = anomalyDetailQuery.data ?? null;
@@ -30,7 +34,7 @@ export default function AnomalyChartModal({
     window.open(fullViewUrl, "_blank", "noopener,noreferrer");
   };
 
-  return (
+  const content = (
     <div className={styles.modalOverlay} onMouseDown={onClose}>
       <div className={styles.modal} onMouseDown={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
@@ -95,13 +99,25 @@ export default function AnomalyChartModal({
                     </>
                   )}
                 </div>
-                <button
-                  className={styles.primaryBtn}
-                  onClick={handleFullView}
-                  style={{ display: "flex", alignItems: "center", gap: "4px" }}
-                >
-                  <i className="fas fa-external-link-alt" /> Full View
-                </button>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <button
+                    className={styles.primaryBtn}
+                    onClick={handleFullView}
+                    style={{ display: "flex", alignItems: "center", gap: "4px" }}
+                  >
+                    <i className="fas fa-external-link-alt" /> Full View
+                  </button>
+                  {citySlug && anomalyDetail.object_id && (
+                    <MetricLink
+                      metricId={parseInt(anomalyDetail.object_id, 10)}
+                      citySlug={citySlug}
+                      className={styles.secondaryBtn}
+                      style={{ display: "flex", alignItems: "center", gap: "4px" }}
+                    >
+                      <i className="fas fa-chart-line" /> View Metric Details
+                    </MetricLink>
+                  )}
+                </div>
               </div>
 
               <div style={{ marginTop: 14 }}>
@@ -209,5 +225,9 @@ export default function AnomalyChartModal({
       </div>
     </div>
   );
+  if (typeof document !== "undefined" && document.body) {
+    return createPortal(content, document.body);
+  }
+  return content;
 }
 

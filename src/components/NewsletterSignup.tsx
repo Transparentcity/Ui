@@ -4,9 +4,13 @@ import { useState } from "react";
 
 type NewsletterSignupProps = {
   cityName?: string;
+  /** City slug for district-level signup (e.g. "san-francisco"). Pass with district to open newsletter with ?city=slug&district=d */
+  citySlug?: string;
+  /** District number for district-level newsletter. Pass with citySlug to open newsletter with ?city=slug&district=d */
+  district?: number;
 };
 
-export default function NewsletterSignup({ cityName }: NewsletterSignupProps) {
+export default function NewsletterSignup({ cityName, citySlug, district }: NewsletterSignupProps) {
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
@@ -19,8 +23,13 @@ export default function NewsletterSignup({ cityName }: NewsletterSignupProps) {
     setStatus("idle");
 
     try {
-      // Open newsletter site in new tab for signup
-      const newsletterUrl = "https://www.transparentsf.com";
+      let newsletterUrl = "https://www.transparentsf.com";
+      if (citySlug && district != null) {
+        const params = new URLSearchParams({ city: citySlug, district: String(district) });
+        newsletterUrl = `https://www.transparentsf.com?${params.toString()}`;
+      } else if (citySlug) {
+        newsletterUrl = `https://www.transparentsf.com?city=${encodeURIComponent(citySlug)}`;
+      }
       window.open(newsletterUrl, "_blank");
       setStatus("success");
       setEmail("");

@@ -25,8 +25,18 @@ function extractCityName(address?: NominatimSearchResult["address"]): string | n
     address.village ||
     address.municipality ||
     address.hamlet ||
+    address.county ||
     null
   );
+}
+
+/** US zipcode: 5 digits, optionally with -4 extension. Format for Nominatim when bare. */
+function formatQueryForGeocoding(q: string): string {
+  const s = q.trim();
+  if (/^\d{5}(-\d{4})?$/.test(s)) {
+    return `${s}, USA`;
+  }
+  return s;
 }
 
 export async function GET(req: Request): Promise<Response> {
@@ -37,11 +47,13 @@ export async function GET(req: Request): Promise<Response> {
     return NextResponse.json({ error: "Missing q" }, { status: 400 });
   }
 
+  const geocodeQ = formatQueryForGeocoding(q);
+
   const upstreamUrl = new URL("https://nominatim.openstreetmap.org/search");
   upstreamUrl.searchParams.set("format", "jsonv2");
   upstreamUrl.searchParams.set("addressdetails", "1");
   upstreamUrl.searchParams.set("limit", "1");
-  upstreamUrl.searchParams.set("q", q);
+  upstreamUrl.searchParams.set("q", geocodeQ);
 
   const upstreamRes = await fetch(upstreamUrl.toString(), {
     method: "GET",

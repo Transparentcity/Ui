@@ -10,6 +10,7 @@ interface JobDropdownProps {
   isOpen: boolean;
   onClose: () => void;
   onCancelJob: (jobId: string) => Promise<void>;
+  onCancelAll?: () => Promise<void>;
   onRefresh?: () => void;
 }
 
@@ -44,6 +45,7 @@ function JobItem({ job, onCancel }: { job: Job; onCancel: (jobId: string) => Pro
     formatElapsedTime(job.started_at, job.completed_at)
   );
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const jobId = job.job_id?.trim();
 
   const isRunning = job.status === "running" || job.status === "pending";
 
@@ -65,9 +67,12 @@ function JobItem({ job, onCancel }: { job: Job; onCancel: (jobId: string) => Pro
   }, [isRunning, job.started_at, job.completed_at]);
 
   const handleCancel = async () => {
+    if (!jobId) {
+      return;
+    }
     setIsCancelling(true);
     try {
-      await onCancel(job.job_id);
+      await onCancel(jobId);
     } catch (error) {
       console.error("Failed to cancel job:", error);
     } finally {
@@ -75,7 +80,8 @@ function JobItem({ job, onCancel }: { job: Job; onCancel: (jobId: string) => Pro
     }
   };
 
-  const canCancel = job.status === "running" || job.status === "pending";
+  const canCancel =
+    !!jobId && (job.status === "running" || job.status === "pending");
 
   // Escape HTML in job description and status message
   const description = (job.description || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -84,7 +90,7 @@ function JobItem({ job, onCancel }: { job: Job; onCancel: (jobId: string) => Pro
     .replace(/>/g, "&gt;");
 
   return (
-    <div className={styles.item} data-job-id={job.job_id}>
+    <div className={styles.item} data-job-id={jobId ?? "unknown"}>
       <div className={styles.itemHeader}>
         <h4 className={styles.itemTitle} dangerouslySetInnerHTML={{ __html: description }} />
         <span className={`${styles.statusBadge} ${job.status === "running" ? styles.statusRunning : job.status === "completed" ? styles.statusCompleted : job.status === "failed" ? styles.statusFailed : job.status === "cancelled" ? styles.statusCancelled : styles.statusPending}`}>{job.status}</span>
@@ -115,10 +121,12 @@ export default function JobDropdown({
   isOpen,
   onClose,
   onCancelJob,
+  onCancelAll,
   onRefresh,
 }: JobDropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isCancellingAll, setIsCancellingAll] = useState(false);
 
   const handleRefresh = async () => {
     if (onRefresh && !isRefreshing) {
@@ -130,6 +138,22 @@ export default function JobDropdown({
       }
     }
   };
+
+  const handleCancelAll = async () => {
+    if (onCancelAll && !isCancellingAll) {
+      setIsCancellingAll(true);
+      try {
+        await onCancelAll();
+      } finally {
+        setIsCancellingAll(false);
+      }
+    }
+  };
+
+  // Count active jobs (running or pending)
+  const activeJobCount = jobs.filter(
+    (job) => job.status === "running" || job.status === "pending"
+  ).length;
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -171,11 +195,32 @@ export default function JobDropdown({
     return dateB - dateA;
   });
 
+  const getJobKey = (job: Job, index: number) => {
+    const jobId = job.job_id?.trim();
+    if (jobId) {
+      return jobId;
+    }
+    const createdAt = job.created_at || "unknown-created";
+    const description = job.description || "unknown-job";
+    return `fallback-${createdAt}-${description}-${index}`;
+  };
+
   return (
     <div className={styles.dropdown} ref={dropdownRef}>
       <div className={styles.header}>
         <h3>Background Jobs</h3>
         <div className={styles.headerActions}>
+          {onCancelAll && activeJobCount > 0 && (
+            <button
+              className={styles.cancelAllBtn}
+              onClick={handleCancelAll}
+              disabled={isCancellingAll}
+              aria-label="Cancel all jobs"
+              title="Cancel all running jobs"
+            >
+              {isCancellingAll ? "Cancelling..." : "Cancel All"}
+            </button>
+          )}
           {onRefresh && (
             <button 
               className={`${styles.refreshBtn} ${isRefreshing ? styles.refreshing : ''}`}
@@ -196,8 +241,8 @@ export default function JobDropdown({
         {sortedJobs.length === 0 ? (
           <div className={styles.emptyState}>No active jobs</div>
         ) : (
-          sortedJobs.map((job) => (
-            <JobItem key={job.job_id} job={job} onCancel={onCancelJob} />
+          sortedJobs.map((job, index) => (
+            <JobItem key={getJobKey(job, index)} job={job} onCancel={onCancelJob} />
           ))
         )}
       </div>

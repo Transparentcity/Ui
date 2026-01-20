@@ -4,7 +4,8 @@
   height: 100%;
   width: 100%;
   position: relative;
-  z-index: 1; /* Base layer for map */
+  /* Note: No z-index here to avoid creating a stacking context that traps the layer panel.
+     The layer panel uses position:fixed with high z-index to appear above all overlays. */
 }
 
 /* GPS Location Marker - Blue pulsing dot */

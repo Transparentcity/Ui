@@ -79,6 +79,7 @@ export function extractCityName(addr?: GeocodeAddress): string | null {
     addr.village ||
     addr.municipality ||
     addr.hamlet ||
+    addr.county ||
     null
   );
 }

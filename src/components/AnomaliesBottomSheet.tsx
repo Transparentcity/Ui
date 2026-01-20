@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useCityAnomalies, type AnomalyResult } from "@/lib/hooks/useAnomalies";
 import { useCityLeaders } from "@/lib/hooks/useCities";
+import { useCityMetricsForMap } from "@/lib/hooks/useMetrics";
 import AnomalySparkline from "./AnomalySparkline";
 import styles from "./AnomaliesBottomSheet.module.css";
 
@@ -14,6 +15,7 @@ interface AnomaliesBottomSheetProps {
   district?: number | null; // Synced with map's selected district
   selectedAnomaly?: AnomalyResult | null;
   onAnomalySelect?: (anomaly: AnomalyResult | null) => void;
+  mapOnly?: boolean; // When true, only show anomalies for metrics with map_query enabled
 }
 
 // Helper to group anomalies by metric
@@ -245,6 +247,11 @@ function getAnomalyDisplayInfo(anomaly: AnomalyResult, itemNoun?: string) {
   const absDiff = Math.abs(diff);
   const isUp = diff > 0;
   const moreOrFewer = isUp ? "more" : "fewer";
+  
+  // Calculate percent difference
+  const pctDiff = comparisonMean !== 0 
+    ? Math.round((diff / comparisonMean) * 100) 
+    : 0;
 
   const noun = itemNoun || anomaly.item_noun || "items";
   const displayNoun =
@@ -273,6 +280,7 @@ function getAnomalyDisplayInfo(anomaly: AnomalyResult, itemNoun?: string) {
     absDiff,
     isUp,
     moreOrFewer,
+    pctDiff,
     displayNoun,
     locationDisplay,
     metricName,
@@ -288,6 +296,7 @@ export default function AnomaliesBottomSheet({
   district,
   selectedAnomaly,
   onAnomalySelect,
+  mapOnly = false,
 }: AnomaliesBottomSheetProps) {
   const [expandedMetricIds, setExpandedMetricIds] = useState<Set<number>>(
     new Set()
@@ -301,6 +310,16 @@ export default function AnomaliesBottomSheet({
 
   // Fetch city leaders to get district options
   const { data: leaders = [] } = useCityLeaders(cityId);
+
+  // Fetch metrics with map_query enabled (only when mapOnly is true)
+  const { data: mapMetrics = [], isLoading: isLoadingMapMetrics } = useCityMetricsForMap(
+    mapOnly && isOpen ? cityId : null
+  );
+
+  // Create a set of metric IDs that have map_query enabled for fast lookup
+  const mapMetricIds = useMemo(() => {
+    return new Set(mapMetrics.map((m) => m.id));
+  }, [mapMetrics]);
 
   // Extract unique districts from leaders (excluding null/undefined/0)
   const districtOptions = useMemo(() => {
@@ -331,7 +350,20 @@ export default function AnomaliesBottomSheet({
     }
   );
 
-  const anomalies = anomaliesData?.results ?? [];
+  const rawAnomalies = anomaliesData?.results ?? [];
+
+  // Filter anomalies to only show those with map_query enabled when mapOnly is true
+  const anomalies = useMemo(() => {
+    if (!mapOnly) {
+      return rawAnomalies;
+    }
+    // When mapOnly is true, only show anomalies for metrics with map_query
+    // If metrics are still loading or there are no map metrics, show empty list
+    if (isLoadingMapMetrics) {
+      return [];
+    }
+    return rawAnomalies.filter((anomaly) => mapMetricIds.has(anomaly.metric_id));
+  }, [rawAnomalies, mapOnly, mapMetricIds, isLoadingMapMetrics]);
 
   // Group anomalies by metric
   const groupedAnomalies = useMemo(
@@ -536,7 +568,7 @@ export default function AnomaliesBottomSheet({
       {/* Content */}
       <div className={styles.content}>
         {/* Loading State */}
-        {isLoading && (
+        {(isLoading || (mapOnly && isLoadingMapMetrics)) && (
           <div className={styles.stateContainer}>
             <i className="fas fa-spinner fa-spin" />
             <span>Loading anomalies...</span>
@@ -544,7 +576,7 @@ export default function AnomaliesBottomSheet({
         )}
 
         {/* Error State */}
-        {error && !isLoading && (
+        {error && !isLoading && !isLoadingMapMetrics && (
           <div className={styles.stateContainer} data-error="true">
             <i className="fas fa-exclamation-triangle" />
             <span>
@@ -555,15 +587,19 @@ export default function AnomaliesBottomSheet({
         )}
 
         {/* Empty State */}
-        {!isLoading && !error && anomalies.length === 0 && (
+        {!isLoading && !(mapOnly && isLoadingMapMetrics) && !error && anomalies.length === 0 && (
           <div className={styles.stateContainer}>
             <i className="fas fa-check-circle" />
-            <span>No anomalies detected for {districtLabel}</span>
+            <span>
+              {mapOnly 
+                ? "No map-enabled anomalies detected for " + districtLabel
+                : "No anomalies detected for " + districtLabel}
+            </span>
           </div>
         )}
 
         {/* Anomaly List */}
-        {!isLoading && !error && anomalies.length > 0 && (
+        {!isLoading && !(mapOnly && isLoadingMapMetrics) && !error && anomalies.length > 0 && (
           <div className={styles.anomaliesList}>
             {groupedAnomalies.map((group) => {
               const topAnomaly = group.anomalies[0];
@@ -654,20 +690,25 @@ export default function AnomaliesBottomSheet({
                             onClick={() => handleAnomalyClick(anomaly)}
                             data-is-positive={info.isUp}
                           >
-                            <i
-                              className={`fas fa-arrow-${info.isUp ? "up" : "down"}`}
-                              style={{ marginRight: "6px" }}
-                            />
-                            <span>
-                              <strong>
-                                {Math.round(info.absDiff).toLocaleString()}
-                              </strong>{" "}
-                              {info.moreOrFewer} for{" "}
-                              <strong>{info.locationDisplay}</strong>
-                              {info.recentDate && (
-                                <span className={styles.subAnomalyDate}> ({info.recentDate})</span>
-                              )}
-                            </span>
+                            <div className={styles.subAnomalyContent}>
+                              <div className={styles.subAnomalyMain}>
+                                <i
+                                  className={`fas fa-arrow-${info.isUp ? "up" : "down"}`}
+                                  style={{ marginRight: "6px" }}
+                                />
+                                <span>
+                                  <strong>{info.locationDisplay}</strong>
+                                  {info.recentDate && (
+                                    <span className={styles.subAnomalyDate}> ({info.recentDate})</span>
+                                  )}
+                                </span>
+                              </div>
+                              <div className={styles.subAnomalyStats}>
+                                Avg: {Math.round(info.comparisonMean).toLocaleString()} | 
+                                Recent: {Math.round(info.recentMean).toLocaleString()} | 
+                                {info.isUp ? "+" : ""}{Math.round(info.diff).toLocaleString()} ({info.isUp ? "+" : ""}{info.pctDiff}%)
+                              </div>
+                            </div>
                           </button>
                         );
                       })}

@@ -17,10 +17,8 @@
   margin: 4rem auto;
   padding: 2rem;
   background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  border-radius: 8px;
   text-align: center;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
+  transition: background-color 0.3s ease;
 }
 
 .error-container h1 {
@@ -45,8 +43,7 @@
   flex-wrap: wrap;
   gap: 1rem;
   background: var(--bg-primary);
-  border-bottom: 1px solid var(--border-primary);
-  transition: background-color 0.3s ease, border-color 0.3s ease;
+  transition: background-color 0.3s ease;
 }
 
 .header-right {
@@ -129,16 +126,14 @@
   margin: 0 auto;
   background: var(--bg-primary);
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   padding: 3rem;
   transition: background-color 0.3s ease;
 }
 
 .article-header {
   margin-bottom: 2rem;
-  padding-bottom: 2rem;
-  border-bottom: 2px solid var(--border-primary);
-  transition: border-color 0.3s ease;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .article-header h1 {
@@ -157,10 +152,9 @@
 .research-question-section {
   margin-bottom: 2rem;
   padding: 1.5rem;
-  background: var(--bg-primary);
-  border-left: 4px solid var(--brand-primary);
-  border-radius: 4px;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
+  background: var(--bg-secondary);
+  border-left: 3px solid var(--brand-primary);
+  transition: background-color 0.3s ease;
 }
 
 .research-question-section h2 {
@@ -271,10 +265,9 @@
 }
 
 .article-footer {
-  margin-top: 3rem;
-  padding-top: 2rem;
-  border-top: 2px solid var(--border-primary);
-  transition: border-color 0.3s ease;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-primary);
 }
 
 .research-info {
@@ -306,18 +299,16 @@
 /* Collapsible Research Details */
 .research-details-collapsible {
   margin-bottom: 2rem;
-  border: 1px solid var(--border-primary);
-  border-radius: 8px;
+  background: var(--bg-secondary);
   overflow: hidden;
-  transition: border-color 0.3s ease;
+  transition: background-color 0.3s ease;
 }
 
 .details-toggle {
   width: 100%;
   padding: 1rem 1.5rem;
-  background: var(--bg-primary);
+  background: transparent;
   border: none;
-  border-bottom: 1px solid var(--border-primary);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -398,8 +389,6 @@
   margin-top: var(--space-8);
   padding: var(--space-8);
   background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
   text-align: center;
   color: var(--text-primary);
 }
@@ -436,27 +425,165 @@
 }
 
 @media (max-width: 768px) {
-  .research-article {
-    padding: 2rem 1.5rem;
+  /* Minimal page padding */
+  .public-research-page {
+    padding: 0;
   }
-  
-  .article-header h1 {
-    font-size: 1.8rem;
-  }
-  
+
+  /* Clean header - no bottom border, tight padding */
   .research-header {
-    flex-direction: column;
-    text-align: center;
-    padding: 1rem;
+    flex-direction: row;
+    justify-content: space-between;
+    text-align: left;
+    padding: var(--space-3, 12px) var(--space-4, 16px);
+    border-bottom: none;
+    gap: var(--space-2, 8px);
   }
   
   .brand-text {
-    font-size: 18px;
+    font-size: 16px;
   }
   
   .logo-corners {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
+  }
+
+  .share-button-header {
+    padding: var(--space-2, 8px) var(--space-3, 12px);
+    font-size: 13px;
+    border-radius: 6px;
+  }
+
+  .share-button-header svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Article - no shadow, tight padding */
+  .research-article {
+    padding: var(--space-4, 16px);
+    border-radius: 0;
+    --mobile-bleed: var(--space-4, 16px);
+  }
+  
+  /* Clean header styling */
+  .article-header {
+    margin-bottom: var(--space-4, 16px);
+    padding-bottom: var(--space-3, 12px);
+    border-bottom: 1px solid var(--border-primary);
+  }
+  
+  .article-header h1 {
+    font-size: 1.5rem;
+    line-height: 1.25;
+    margin-bottom: var(--space-2, 8px);
+  }
+
+  .article-meta {
+    font-size: 0.85rem;
+  }
+  
+  /* Research content - tighter spacing */
+  .research-content {
+    margin-bottom: var(--space-6, 24px);
+  }
+
+  .research-content .report-html {
+    line-height: 1.7;
+    font-size: 15px;
+  }
+
+  .research-content .report-html h1 {
+    font-size: 1.5rem;
+    margin: var(--space-4, 16px) 0 var(--space-3, 12px) 0;
+  }
+
+  .research-content .report-html h2 {
+    font-size: 1.25rem;
+    margin: var(--space-4, 16px) 0 var(--space-2, 8px) 0;
+  }
+
+  .research-content .report-html h3 {
+    font-size: 1.1rem;
+    margin: var(--space-3, 12px) 0 var(--space-2, 8px) 0;
+  }
+
+  .research-content .report-html p {
+    margin: var(--space-2, 8px) 0;
+  }
+
+  .research-content .report-html ul,
+  .research-content .report-html ol {
+    margin: var(--space-2, 8px) 0;
+    padding-left: var(--space-5, 20px);
+  }
+
+  .research-content .report-html li {
+    margin: var(--space-1, 4px) 0;
+  }
+
+  /* Footer - clean and tight */
+  .article-footer {
+    margin-top: var(--space-4, 16px);
+    padding-top: var(--space-4, 16px);
+  }
+
+  .research-info {
+    margin-bottom: var(--space-4, 16px);
+    padding: var(--space-3, 12px);
+    border-radius: 0;
+  }
+
+  .research-info p {
+    font-size: 0.85rem;
+    margin: var(--space-1, 4px) 0;
+  }
+
+  /* Collapsible details - clean */
+  .research-details-collapsible {
+    margin-bottom: var(--space-4, 16px);
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  .details-toggle {
+    padding: var(--space-3, 12px) var(--space-4, 16px);
+    font-size: 0.9rem;
+  }
+
+  .details-content {
+    padding: var(--space-3, 12px);
+  }
+
+  .research-details-collapsible .research-question {
+    font-size: 0.9rem;
+  }
+
+  /* CTA section - clean */
+  .cta-section {
+    margin-top: var(--space-4, 16px);
+    padding: var(--space-4, 16px);
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  .cta-section h3 {
+    font-size: 1.25rem;
+    margin-bottom: var(--space-2, 8px);
+  }
+
+  .cta-section p {
+    font-size: 0.9rem;
+    margin-bottom: var(--space-4, 16px);
+  }
+
+  .cta-button {
+    padding: var(--space-3, 12px) var(--space-6, 24px);
+    font-size: 1rem;
+    border-radius: 6px;
   }
 }
 

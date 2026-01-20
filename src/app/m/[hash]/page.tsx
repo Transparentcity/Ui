@@ -35,16 +35,22 @@ interface SavedMap {
   created_at: string;
 }
 
-// Fetch public map data (no auth required)
+// Fetch public map data (no auth required).
+// Use /api so Next.js rewrites to the backend in both dev and prod (avoids CORS,
+// consistent behavior on direct load and in-app nav). Backend: GET /api/maps/public/:hash.
+function getPublicMapUrl(hash: string): string {
+  return `/api/maps/public/${hash}`;
+}
+
 async function getPublicMap(hash: string): Promise<SavedMap> {
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
-  const response = await fetch(`${apiBase}/api/maps/public/${hash}`);
-  
+  const url = getPublicMapUrl(hash);
+  const response = await fetch(url);
+
   if (!response.ok) {
     const text = await response.text();
     throw new Error(text || `Map not found: ${response.status}`);
   }
-  
+
   return response.json();
 }
 
@@ -60,8 +66,24 @@ export default function PublicMapPage() {
   const [error, setError] = useState<string | null>(null);
   const [mapboxLoaded, setMapboxLoaded] = useState(false);
   const [showShareSheet, setShowShareSheet] = useState(false);
+  const [dotsDistrictId, setDotsDistrictId] = useState<string | null>(null);
+  const [legend, setLegend] = useState<{
+    title: string;
+    items: Array<{ label: string; color: string }>;
+  } | null>(null);
+  const [districtPanel, setDistrictPanel] = useState<{
+    districtId: string;
+    districtName?: string | null;
+    count: number | null;
+    canHideDots: boolean;
+  } | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
+  const dotsDistrictIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    dotsDistrictIdRef.current = dotsDistrictId;
+  }, [dotsDistrictId]);
   
   // Fetch map data
   useEffect(() => {
@@ -100,14 +122,152 @@ export default function PublicMapPage() {
     script.onload = () => setMapboxLoaded(true);
     document.head.appendChild(script);
   }, []);
+
+  const clearLegend = () => setLegend(null);
+
+  const setLegendFromSeries = (
+    seriesField: string,
+    seriesValues: any,
+    seriesColors: any
+  ) => {
+    if (!seriesField || !seriesColors) return;
+    const values: string[] = Array.isArray(seriesValues)
+      ? seriesValues.map(String)
+      : Object.keys(seriesColors).map(String);
+    const items = values
+      .filter((v) => !!seriesColors[v])
+      .map((v) => ({ label: v, color: String(seriesColors[v]) }));
+    if (items.length === 0) return;
+    setLegend({ title: seriesField, items });
+  };
+
+  const removeDotsLayer = (mapInstance: any) => {
+    if (mapInstance.getLayer("district-dots")) {
+      mapInstance.removeLayer("district-dots");
+    }
+    if (mapInstance.getSource("district-dots")) {
+      mapInstance.removeSource("district-dots");
+    }
+    // Restore choropleth styling (if present)
+    if (mapInstance.getLayer("choropleth-fill")) {
+      mapInstance.setPaintProperty("choropleth-fill", "fill-opacity", 0.7);
+    }
+    if (mapInstance.getLayer("choropleth-outline")) {
+      mapInstance.setPaintProperty("choropleth-outline", "line-width", 1);
+    }
+  };
+
+  const closeDistrictPanel = () => setDistrictPanel(null);
+
+  const addDotsForDistrict = (mapInstance: any, mapData: SavedMap, districtId: string) => {
+    const dotPoints = mapData.map_config?.dot_location_data;
+    const districtField =
+      mapData.map_config?.dot_district_field ||
+      mapData.map_config?.district_field ||
+      "district";
+
+    if (!Array.isArray(dotPoints) || dotPoints.length === 0) return;
+
+    const filtered = dotPoints.filter((p: any) => {
+      const v = p?.[districtField] ?? p?.district ?? p?.district_id;
+      return String(v) === String(districtId);
+    });
+
+    removeDotsLayer(mapInstance);
+
+    const geojsonData = {
+      type: "FeatureCollection" as const,
+      features: filtered
+        .filter((point: any) => point.lat && point.lon)
+        .map((point: any, index: number) => ({
+          type: "Feature" as const,
+          geometry: {
+            type: "Point" as const,
+            coordinates: [point.lon, point.lat],
+          },
+          properties: {
+            id: index,
+            ...point,
+          },
+        })),
+    };
+
+    mapInstance.addSource("district-dots", {
+      type: "geojson",
+      data: geojsonData,
+    });
+
+    const seriesField = mapData.map_config?.dot_series_field;
+    const seriesColors = mapData.map_config?.dot_series_colors;
+    const seriesValues = mapData.map_config?.dot_series_values;
+
+    // Build Mapbox 'match' expression for categorical coloring
+    const colorExpr: any[] = ["case", ["==", 1, 1], "#ad35fa"];
+    if (seriesField && seriesColors) {
+      const matchExpr: any[] = ["match", ["to-string", ["get", seriesField]]];
+      for (const [label, color] of Object.entries(seriesColors)) {
+        matchExpr.push(String(label), String(color));
+      }
+      matchExpr.push("#ad35fa");
+      colorExpr.splice(0, colorExpr.length, ...matchExpr);
+      setLegendFromSeries(seriesField, seriesValues, seriesColors);
+    } else {
+      clearLegend();
+    }
+
+    mapInstance.addLayer({
+      id: "district-dots",
+      type: "circle",
+      source: "district-dots",
+      paint: {
+        "circle-radius": 5,
+        "circle-color": colorExpr,
+        "circle-stroke-color": "#fff",
+        "circle-stroke-width": 1,
+        "circle-opacity": 0.85,
+      },
+    });
+
+    // Dim selected district fill (if present) so dots stand out
+    if (mapInstance.getLayer("choropleth-fill")) {
+      mapInstance.setPaintProperty("choropleth-fill", "fill-opacity", [
+        "case",
+        ["==", ["get", "district_id"], String(districtId)],
+        0.05,
+        0.7,
+      ]);
+    }
+    if (mapInstance.getLayer("choropleth-outline")) {
+      mapInstance.setPaintProperty("choropleth-outline", "line-width", [
+        "case",
+        ["==", ["get", "district_id"], String(districtId)],
+        3,
+        1,
+      ]);
+    }
+
+    // Point popup
+    mapInstance.on("click", "district-dots", (e: any) => {
+      if (!e.features || e.features.length === 0) return;
+      const feature = e.features[0];
+      const props = feature.properties;
+      let content = "<div class='map-popup'>";
+      for (const [key, value] of Object.entries(props)) {
+        if (key !== "id" && key !== "lat" && key !== "lon" && value) {
+          content += `<p><strong>${key}:</strong> ${value}</p>`;
+        }
+      }
+      content += "</div>";
+      new (window as any).mapboxgl.Popup().setLngLat(e.lngLat).setHTML(content).addTo(mapInstance);
+    });
+  };
   
   // Helper function to load choropleth map with district shapes
   const loadChoroplethMap = async (mapInstance: any, mapData: SavedMap) => {
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
       const shapeLayerId = mapData.map_config?.shape_layer_instance_id;
       const districtField = mapData.map_config?.district_field || "supervisor_district";
-      
+
       console.log("Loading choropleth map:", {
         shapeLayerId,
         districtField,
@@ -115,21 +275,22 @@ export default function PublicMapPage() {
         mapType: mapData.map_type,
         mapConfig: mapData.map_config
       });
-      
+
       if (!shapeLayerId) {
         console.error("No shape_layer_instance_id in map_config. Map config:", mapData.map_config);
         return;
       }
-      
+
       if (!mapData.city_id) {
         console.error("No city_id in map data");
         return;
       }
-      
-      // Fetch shape layer instance directly using public endpoint
-      const response = await fetch(
-        `${apiBase}/api/shape-layers/public/instances/${shapeLayerId}?include_geometry=true`
-      );
+
+      const isDev = process.env.NODE_ENV === "development";
+      const shapeUrl = isDev
+        ? `/api/shape-layers/public/instances/${shapeLayerId}?include_geometry=true`
+        : `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001"}/api/shape-layers/public/instances/${shapeLayerId}?include_geometry=true`;
+      const response = await fetch(shapeUrl);
       
       if (!response.ok) {
         console.error("Failed to fetch shape layer instance:", response.statusText);
@@ -154,29 +315,43 @@ export default function PublicMapPage() {
       
       const geometryData = shapeLayerData.instance.geometry_data;
       const identifierField = shapeLayerData.instance.identifier_field || districtField;
-      
+
       console.log("Geometry data loaded:", {
         type: geometryData?.type,
         featureCount: geometryData?.features?.length,
         identifierField
       });
-      
-      // Create lookup map from location_data
-      const districtDataMap = new Map();
-      mapData.location_data.forEach((item: any) => {
-        const districtId = String(item[districtField] || item.district || item[identifierField] || "");
-        if (districtId) {
-          districtDataMap.set(districtId, item);
-        }
-      });
-      
-      // Find the value field (series_field or first numeric field)
-      const valueField = mapData.map_config.series_field || 
+
+      // Value field: from map_config or first numeric field on a row, or "count"
+      const valueField =
+        mapData.map_config.value_field ||
         Object.keys(mapData.location_data[0] || {}).find(
-          (key) => key !== districtField && key !== "district" && 
-          typeof mapData.location_data[0]?.[key] === "number"
-        ) || "value";
-      
+          (key) =>
+            key !== districtField &&
+            key !== "district" &&
+            typeof mapData.location_data[0]?.[key] === "number"
+        ) ||
+        "value";
+
+      // Build district -> value map. When value_field is "count", aggregate by counting
+      // incidents per district (raw point data). Otherwise sum the numeric value_field per district.
+      const districtDataMap = new Map<string, Record<string, number>>();
+      const isCountAgg = valueField === "count";
+
+      mapData.location_data.forEach((item: any) => {
+        const districtId = String(
+          item[districtField] || item.district || item[identifierField] || ""
+        );
+        if (!districtId) return;
+        const prev = districtDataMap.get(districtId) || { [valueField]: 0 };
+        if (isCountAgg) {
+          prev[valueField] = (prev[valueField] || 0) + 1;
+        } else {
+          prev[valueField] = (prev[valueField] || 0) + (Number(item[valueField]) || 0);
+        }
+        districtDataMap.set(districtId, prev);
+      });
+
       // Calculate min/max for color scaling
       const values = Array.from(districtDataMap.values())
         .map((item: any) => Number(item[valueField]))
@@ -184,6 +359,21 @@ export default function PublicMapPage() {
       const minValue = values.length > 0 ? Math.min(...values) : 0;
       const maxValue = values.length > 0 ? Math.max(...values) : 1;
       
+      const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+      const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
+      const blendRgb = (from: [number, number, number], to: [number, number, number], t: number) => {
+        const tt = clamp01(t);
+        return [
+          Math.round(lerp(from[0], to[0], tt)),
+          Math.round(lerp(from[1], to[1], tt)),
+          Math.round(lerp(from[2], to[2], tt)),
+        ] as [number, number, number];
+      };
+
+      // White -> brand purple gradient
+      const CHORO_LOW: [number, number, number] = [255, 255, 255];
+      const CHORO_HIGH: [number, number, number] = [173, 53, 250]; // #ad35fa
+
       // Merge district data with shape features
       const features = geometryData.features.map((feature: any) => {
         const districtId = String(
@@ -196,14 +386,11 @@ export default function PublicMapPage() {
         const districtData = districtDataMap.get(districtId);
         const value = districtData ? Number(districtData[valueField]) : null;
         
-        // Calculate color (sequential palette)
-        let color = "#cccccc"; // Default gray for no data
+        // Calculate color (white -> brand purple)
+        let color = "#e5e7eb"; // light gray for "no data"
         if (value !== null && !isNaN(value)) {
-          const normalized = (value - minValue) / (maxValue - minValue || 1);
-          // Use brand purple sequential palette
-          const r = Math.floor(102 + normalized * 153); // 102-255
-          const g = Math.floor(126 - normalized * 126); // 126-0
-          const b = Math.floor(230 - normalized * 30);  // 230-200
+          const normalized = clamp01((value - minValue) / (maxValue - minValue || 1));
+          const [r, g, b] = blendRgb(CHORO_LOW, CHORO_HIGH, normalized);
           color = `rgb(${r}, ${g}, ${b})`;
         }
         
@@ -277,23 +464,36 @@ export default function PublicMapPage() {
           
           const feature = e.features[0];
           const props = feature.properties;
-          
-          let content = "<div class='map-popup'>";
-          content += `<h3>${props.district_id || "District"}</h3>`;
-          if (props.value !== null && props.value !== undefined) {
-            content += `<p><strong>${valueField}:</strong> ${props.value.toLocaleString()}</p>`;
+
+          const districtId = String(props.district_id || "");
+
+          const canToggleDots = !!(mapData.map_config?.dot_location_data && districtId);
+
+          setDistrictPanel({
+            districtId: districtId || "District",
+            districtName: String(
+              props.name ||
+                props.district_name ||
+                props.label ||
+                props.neighborhood ||
+                props.area_name ||
+                ""
+            ) || null,
+            count:
+              props.count !== undefined
+                ? Number(props.count)
+                : props.value !== undefined
+                  ? Number(props.value)
+                  : null,
+            canHideDots: canToggleDots,
+          });
+
+          // If dot mode is available, reveal dots for this district by default
+          // and (by definition) hide dots everywhere else.
+          if (canToggleDots) {
+            addDotsForDistrict(mapInstance, mapData, districtId);
+            setDotsDistrictId(districtId);
           }
-          for (const [key, value] of Object.entries(props)) {
-            if (!["id", "color", "district_id"].includes(key) && value !== null && value !== undefined) {
-              content += `<p><strong>${key}:</strong> ${value}</p>`;
-            }
-          }
-          content += "</div>";
-          
-          new (window as any).mapboxgl.Popup()
-            .setLngLat(e.lngLat)
-            .setHTML(content)
-            .addTo(mapInstance);
         });
         
         // Change cursor on hover
@@ -431,7 +631,22 @@ export default function PublicMapPage() {
           source: "map-points",
           paint: {
             "circle-radius": 6,
-            "circle-color": "#ad35fa",
+            "circle-color": (() => {
+              const seriesField = map.map_config?.series_field;
+              const seriesColors = map.map_config?.series_colors;
+              if (seriesField && seriesColors) {
+                const matchExpr: any[] = ["match", ["to-string", ["get", seriesField]]];
+                for (const [label, color] of Object.entries(seriesColors)) {
+                  matchExpr.push(String(label), String(color));
+                }
+                matchExpr.push("#ad35fa");
+                // Update legend (best-effort)
+                setLegendFromSeries(seriesField, map.map_config?.series_values, seriesColors);
+                return matchExpr;
+              }
+              clearLegend();
+              return "#ad35fa";
+            })(),
             "circle-stroke-color": "#fff",
             "circle-stroke-width": 1,
             "circle-opacity": 0.8,
@@ -674,7 +889,47 @@ export default function PublicMapPage() {
             </a>
           </div>
         </div>
-        <div className="map-container embedded-map" ref={mapContainerRef} />
+        <div className="map-container-wrapper embedded-map-wrapper">
+          <div className="map-container embedded-map" ref={mapContainerRef} />
+          {districtPanel && (
+            <div className="map-bottom-panel" role="region" aria-label="District details">
+              <div className="map-bottom-panel-header">
+                <div className="map-bottom-panel-title">
+                  District {districtPanel.districtId}
+                  {districtPanel.districtName ? ` — ${districtPanel.districtName}` : ""}
+                </div>
+                <div className="map-bottom-panel-actions">
+                  {districtPanel.canHideDots && dotsDistrictId && (
+                    <button
+                      type="button"
+                      className="map-bottom-panel-action"
+                      onClick={() => {
+                        if (mapInstanceRef.current) removeDotsLayer(mapInstanceRef.current);
+                        setDotsDistrictId(null);
+                        clearLegend();
+                      }}
+                    >
+                      Hide dots
+                    </button>
+                  )}
+                  <button type="button" className="map-bottom-panel-close" onClick={closeDistrictPanel}>
+                    ✕
+                  </button>
+                </div>
+              </div>
+              <div className="map-bottom-panel-body">
+                <div className="map-bottom-panel-count">
+                  <div className="label">Count</div>
+                  <div className="value">
+                    {districtPanel.count !== null && !Number.isNaN(districtPanel.count)
+                      ? districtPanel.count.toLocaleString()
+                      : "—"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -865,8 +1120,64 @@ export default function PublicMapPage() {
             <span>Created {new Date(map.created_at).toLocaleDateString()}</span>
           </div>
         </div>
-        
-        <div className="map-container" ref={mapContainerRef} />
+
+        <div className="map-container-wrapper">
+          <div className="map-container" ref={mapContainerRef} />
+          {legend && legend.items.length > 0 && (
+            <div className="map-legend" aria-label="Map legend">
+              <div className="map-legend-title">{legend.title}</div>
+              <div className="map-legend-items">
+                {legend.items.map((item) => (
+                  <div key={item.label} className="map-legend-item">
+                    <span
+                      className="map-legend-swatch"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className="map-legend-label">{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {districtPanel && (
+            <div className="map-bottom-panel" role="region" aria-label="District details">
+              <div className="map-bottom-panel-header">
+                <div className="map-bottom-panel-title">
+                  District {districtPanel.districtId}
+                  {districtPanel.districtName ? ` — ${districtPanel.districtName}` : ""}
+                </div>
+                <div className="map-bottom-panel-actions">
+                  {districtPanel.canHideDots && dotsDistrictId && (
+                    <button
+                      type="button"
+                      className="map-bottom-panel-action"
+                      onClick={() => {
+                        if (mapInstanceRef.current) removeDotsLayer(mapInstanceRef.current);
+                        setDotsDistrictId(null);
+                        clearLegend();
+                      }}
+                    >
+                      Hide dots
+                    </button>
+                  )}
+                  <button type="button" className="map-bottom-panel-close" onClick={closeDistrictPanel}>
+                    ✕
+                  </button>
+                </div>
+              </div>
+              <div className="map-bottom-panel-body">
+                <div className="map-bottom-panel-count">
+                  <div className="label">Count</div>
+                  <div className="value">
+                    {districtPanel.count !== null && !Number.isNaN(districtPanel.count)
+                      ? districtPanel.count.toLocaleString()
+                      : "—"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
         
         <footer className="map-footer">
           {showShareSheet && (

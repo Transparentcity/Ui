@@ -313,12 +313,6 @@ export function getCityStructure(cityId: number, token: string): Promise<CityStr
       token
     );
   }).then((data: CityStructureData) => {
-    // Log the raw API response for debugging
-    console.log("getCityStructure - Raw API response:", data);
-    console.log("getCityStructure - district_field:", data.district_field);
-    console.log("getCityStructure - district_fields:", data.district_fields);
-    console.log("getCityStructure - typeof district_fields:", typeof data.district_fields);
-    
     // Cache the result
     if (cityStructureCache[cacheKey]?.promise === promise) {
       cityStructureCache[cacheKey] = {
@@ -635,6 +629,18 @@ export interface DataFreshnessMetadata {
   };
 }
 
+export interface MetricRecordCounts {
+  active_charts: number;
+  inactive_charts: number;
+  active_data_points: number;
+  inactive_data_points: number;
+  anomaly_runs: number;
+  anomaly_results: number;
+  saved_maps: number;
+  total_active: number;
+  total_inactive: number;
+}
+
 export interface AdminMetricListItem {
   id: number;
   metric_name: string;
@@ -644,7 +650,7 @@ export interface AdminMetricListItem {
   is_active: boolean;
   last_execution_at?: string | null;
   last_execution_status?: string | null;
-  execution_count?: number | null;
+  record_counts?: MetricRecordCounts | null;
   metric_type?: string | null;
   data_source_type?: string | null;
   city_id?: number | null;
@@ -695,6 +701,13 @@ export interface AdminMetricDetail {
   data_freshness_metadata?: DataFreshnessMetadata | null;
   most_recent_data_date?: string | null;
   earliest_data_date?: string | null;
+}
+
+export interface MapCacheInvalidateResponse {
+  metric_id: number;
+  deleted_count: number;
+  period_type?: string | null;
+  district?: number | null;
 }
 
 export interface ExecuteAdminMetricRequest {
@@ -882,6 +895,23 @@ export function updateAdminMetric(
 
 export function deleteAdminMetric(metricId: number, token: string): Promise<AdminMetricWriteResponse> {
   return request<AdminMetricWriteResponse>(`/api/admin/metrics/${metricId}`, "DELETE", undefined, token);
+}
+
+export function invalidateAdminMetricMapCache(
+  metricId: number,
+  options: { period_type?: string; district?: number | null } | undefined,
+  token: string
+): Promise<MapCacheInvalidateResponse> {
+  const params = new URLSearchParams();
+  if (options?.period_type) {
+    params.append("period_type", options.period_type);
+  }
+  if (options?.district !== undefined && options?.district !== null) {
+    params.append("district", String(options.district));
+  }
+  const query = params.toString();
+  const path = `/api/admin/metrics/${metricId}/maps/cache${query ? `?${query}` : ""}`;
+  return request<MapCacheInvalidateResponse>(path, "DELETE", undefined, token);
 }
 
 export function getAdminMetricTimeSeries(
@@ -1129,13 +1159,16 @@ export function getMetricMapData(
   if (payload.districts && payload.districts.length > 0) {
     body.districts = payload.districts;
   }
-  
+
   return request<GetMapDataResponse>(
     `/api/admin/metrics/${payload.metric_id}/map-data`,
     "POST",
     body,
     token
-  );
+  ).catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    return { status: "error", error: message };
+  });
 }
 
 // Get all metrics for a city (for map view)
@@ -1150,6 +1183,37 @@ export function getCityMetricsForMap(
     undefined,
     token
   );
+}
+
+// Get city metrics for dashboard (simpler format, faster query)
+// Maps the response to match CityDetail.metrics format
+// Note: The endpoint already filters by show_on_dash = TRUE internally
+export function getCityMetrics(
+  cityId: number,
+  token: string
+): Promise<CityDetail['metrics']> {
+  return request<any[]>(
+    `/api/cities/${cityId}/metrics?is_active=true&limit=500`,
+    "GET",
+    undefined,
+    token
+  )
+    .then((metrics) => {
+      // Map CityMetricListItem to CityDetail.metrics format
+      return (metrics || []).map((m) => ({
+        id: m.id,
+        metric_name: m.metric_name,
+        metric_key: m.metric_key,
+        category: m.category,
+        subcategory: m.subcategory,
+        last_execution_status: m.last_execution_status,
+        last_execution_at: m.last_execution_at,
+        most_recent_data_date: m.most_recent_data_date,
+        greendirection: m.greendirection, // "up" or "down" - determines if increase is good or bad
+        display_unit: m.display_unit, // "percentage", "currency", etc. - for formatting values
+      }));
+    })
+    .catch(() => []); // Return empty array on error
 }
 
 // Chat API
@@ -1202,6 +1266,7 @@ export interface SessionStats {
   model_key: string;
   last_message_at: string | null;
   created_at: string;
+  estimated_cost_usd?: number;  // Real-time cost estimate from streaming
 }
 
 export interface ModelInfo {
@@ -1220,6 +1285,17 @@ export interface ModelGroupInfo {
   models: ModelInfo[];
 }
 
+export interface TokenUsageData {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  session_total_tokens: number;
+  session_prompt_tokens: number;
+  session_completion_tokens: number;
+  llm_call_count: number;
+  estimated_cost_usd: number;
+}
+
 export interface StreamEvent {
   type: string;
   content?: string;
@@ -1229,6 +1305,16 @@ export interface StreamEvent {
   response?: any;
   success?: boolean;
   title?: string;
+  // Token usage fields (present when type === "token_usage")
+  token_usage?: TokenUsageData;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  session_total_tokens?: number;
+  session_prompt_tokens?: number;
+  session_completion_tokens?: number;
+  llm_call_count?: number;
+  estimated_cost_usd?: number;
 }
 
 export function sendChatMessage(
@@ -1244,7 +1330,7 @@ export function sendChatMessage(
 }
 
 export function createNewSession(
-  model_key: string = "claude-sonnet-4",
+  model_key: string = "claude-sonnet-4.5",
   tool_groups?: string[],
   token?: string
 ): Promise<SessionSummary> {
@@ -1425,6 +1511,81 @@ export function getJobStats(token: string): Promise<{ status: string; stats: Job
   return request<{ status: string; stats: JobStats }>("/api/jobs/stats", "GET", undefined, token);
 }
 
+export interface ScheduledJobRunSummary {
+  job_id: string;
+  status: "pending" | "running" | "completed" | "failed" | "cancelled";
+  created_at?: string | null;
+  completed_at?: string | null;
+  city_id?: number | null;
+  city_name?: string | null;
+  metrics_total?: number | null;
+  metrics_completed?: number | null;
+  metrics_failed?: number | null;
+  period_type?: string | null;
+  city_count?: number | null;
+  cities_succeeded?: number | null;
+  cities_failed?: number | null;
+  datasets_found?: number | null;
+  datasets_indexed?: number | null;
+  // Database cleanup fields
+  time_series_deleted?: number | null;
+  anomalies_deleted?: number | null;
+  retention_days?: number | null;
+  remove_all_inactive?: boolean | null;
+}
+
+export interface ScheduledJobSummary {
+  key: string;
+  label: string;
+  cadence: string;
+  description: string;
+  last_run?: ScheduledJobRunSummary | null;
+  recent_runs: ScheduledJobRunSummary[];
+}
+
+export function getScheduledJobSummary(token: string): Promise<ScheduledJobSummary[]> {
+  return request<{ status: string; schedules: ScheduledJobSummary[] }>(
+    "/api/jobs/schedules/summary",
+    "GET",
+    undefined,
+    token
+  ).then((res) => res.schedules);
+}
+
+export interface RunScheduleRequest {
+  schedule_key: string;
+  max_concurrent_cities?: number;
+  per_city_concurrency?: number;
+  /** For database_cleanup only: removes ALL inactive records regardless of age */
+  remove_all_inactive?: boolean;
+}
+
+export interface RunScheduleResponse {
+  status: string;
+  result: {
+    schedule_key: string;
+    cities: number;
+    results: Array<{
+      job_id?: string;
+      city_id: number;
+      city_name: string;
+      status: string;
+    }>;
+  };
+}
+
+export function runSchedule(
+  scheduleRequest: RunScheduleRequest,
+  token: string
+): Promise<RunScheduleResponse> {
+  return request<RunScheduleResponse>(
+    "/api/jobs/schedules/run",
+    "POST",
+    scheduleRequest,
+    token
+  );
+}
+
 export async function sendChatMessageStream(
   request: ChatMessageRequest,
   token: string,
@@ -1432,9 +1593,6 @@ export async function sendChatMessageStream(
   abortSignal?: AbortSignal
 ): Promise<void> {
   const url = `${API_BASE}/api/chat/message/stream`;
-
-  console.log("🔄 Starting stream request to:", url);
-  console.log("📤 Request payload:", request);
 
   const response = await fetch(url, {
     method: "POST",
@@ -1446,8 +1604,6 @@ export async function sendChatMessageStream(
     body: JSON.stringify(request),
     signal: abortSignal, // Use provided abort signal if available
   });
-
-  console.log("📥 Response status:", response.status, response.statusText);
 
   if (!response.ok) {
     const text = await response.text().catch(() => "");
@@ -1482,7 +1638,6 @@ export async function sendChatMessageStream(
     while (true) {
       const { done, value } = await reader.read();
       if (done) {
-        console.log(`✅ Stream completed. Processed ${eventCount} events.`);
         clearInterval(heartbeatChecker);
         break;
       }
@@ -1513,14 +1668,10 @@ export async function sendChatMessageStream(
               }
               
               eventCount++;
-              console.log(`📨 Event ${eventCount}:`, data.type, data.content?.substring(0, 50) || "");
               onEvent(data);
             } catch (e) {
               console.error("❌ Failed to parse SSE event:", e, "Line:", line);
             }
-          } else if (line.trim() !== "") {
-            // Log non-data lines for debugging
-            console.log("📝 Non-data line:", line.substring(0, 100));
           }
         }
       }
@@ -1534,7 +1685,6 @@ export async function sendChatMessageStream(
       (error.name === "AbortError" || error.message.includes("aborted") || error.message.includes("cancelled"));
     
     if (isAbortError) {
-      console.log("⏹️ Stream was aborted by user");
       // Don't send error event for user-initiated cancellations
       clearInterval(heartbeatChecker);
       return; // Exit gracefully without throwing
@@ -1594,6 +1744,7 @@ export interface CityDetail {
     last_execution_status?: string;
     last_execution_at?: string | null;
     most_recent_data_date?: string | null;
+    greendirection?: string; // "up" or "down" - determines if increase is good or bad
   }>;
 }
 
@@ -1621,7 +1772,8 @@ export function getCity(cityId: number, token: string): Promise<CityDetail> {
   }
 
   // Create new request and cache it
-  const promise = request<CityDetail>(`/api/cities/${cityId}`, "GET", undefined, token)
+  // Load without metrics initially for faster response - metrics can be loaded separately
+  const promise = request<CityDetail>(`/api/cities/${cityId}?include_metrics=false`, "GET", undefined, token)
     .then((data: CityDetail) => {
       // Cache the result
       if (cityDataCache[cacheKey]?.promise === promise) {
@@ -1851,21 +2003,10 @@ export function getCityShapeLayers(
 
 
 export function getCityShapefiles(cityId: number, token: string): Promise<CityShapefile[]> {
-  console.log("getCityShapefiles called for cityId:", cityId);
   return request<any>(`/api/cities/${cityId}/structure`, "GET", undefined, token)
     .then((data: any) => {
-      console.log("getCityShapefiles response:", data);
-      console.log("Response keys:", data ? Object.keys(data) : "null/undefined");
-      // Handle nested structure response
-      if (data && data.shapefiles && Array.isArray(data.shapefiles)) {
-        console.log("Found shapefiles in response:", data.shapefiles.length);
-        return data.shapefiles;
-      }
-      if (Array.isArray(data)) {
-        console.log("Response is array:", data.length);
-        return data;
-      }
-      console.warn("No shapefiles found in response structure. Full response:", JSON.stringify(data, null, 2));
+      if (data && data.shapefiles && Array.isArray(data.shapefiles)) return data.shapefiles;
+      if (Array.isArray(data)) return data;
       return [];
     })
     .catch((err) => {
@@ -2211,6 +2352,7 @@ export function listAnomalies(
     limit?: number;
     city_id?: number;
     district?: number | null;
+    period_date?: string | null;
   }
 ): Promise<ListAnomaliesResponse> {
   const params = new URLSearchParams();
@@ -2221,20 +2363,52 @@ export function listAnomalies(
   if (options?.is_anomaly === true || options?.is_anomaly === false) {
     params.append("is_anomaly", options.is_anomaly.toString());
   }
-  if (options?.period_type) {
-    params.append("period_type", options.period_type);
-    console.log(`[API] listAnomalies called with period_type: ${options.period_type}`);
-  }
+  if (options?.period_type) params.append("period_type", options.period_type);
   if (options?.limit) params.append("limit", options.limit.toString());
-  // district can be 0 (citywide) so check for not undefined/null
   if (options?.district !== undefined && options?.district !== null) {
     params.append("district", options.district.toString());
   }
-  
+  if (options?.period_date) params.append("period_date", options.period_date);
+
   const query = params.toString();
   const path = `/api/anomalies${query ? `?${query}` : ""}`;
-  console.log(`[API] Fetching anomalies from: ${path}`);
   return request<ListAnomaliesResponse>(path, "GET", undefined, token);
+}
+
+// Available periods for anomaly filtering
+export interface AvailablePeriod {
+  period_date: string;
+  period_label: string;
+  run_count: number;
+  result_count: number;
+  anomaly_count: number;
+}
+
+export interface AvailablePeriodsResponse {
+  periods: AvailablePeriod[];
+  count: number;
+}
+
+export function getAvailablePeriods(
+  token: string,
+  options: {
+    period_type: string;
+    city_id?: number;
+    district?: number | null;
+    limit?: number;
+  }
+): Promise<AvailablePeriodsResponse> {
+  const params = new URLSearchParams();
+  params.append("period_type", options.period_type);
+  if (options.city_id) params.append("city_id", options.city_id.toString());
+  if (options.district !== undefined && options.district !== null) {
+    params.append("district", options.district.toString());
+  }
+  if (options.limit) params.append("limit", options.limit.toString());
+  
+  const query = params.toString();
+  const path = `/api/anomalies/periods?${query}`;
+  return request<AvailablePeriodsResponse>(path, "GET", undefined, token);
 }
 
 export function getAnomalyRun(runId: number, token: string): Promise<Record<string, any>> {

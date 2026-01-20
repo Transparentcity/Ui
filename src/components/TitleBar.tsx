@@ -22,10 +22,14 @@ export default function TitleBar({
   const [isJobDropdownOpen, setIsJobDropdownOpen] = useState(false);
 
   // Use shared job WebSocket context (single connection for entire app)
-  const { jobs, activeJobs, cancelJob, refreshJobs } = useJobWebSocketContext();
+  const { jobs, activeJobs, cancelJob, cancelAllJobs, refreshJobs } = useJobWebSocketContext();
 
   const handleCancelJob = async (jobId: string) => {
     await cancelJob(jobId);
+  };
+
+  const handleCancelAllJobs = async () => {
+    await cancelAllJobs();
   };
 
   // Refresh jobs when dropdown is opened to ensure data is fresh
@@ -67,6 +71,7 @@ export default function TitleBar({
             isOpen={isJobDropdownOpen}
             onClose={() => setIsJobDropdownOpen(false)}
             onCancelJob={handleCancelJob}
+            onCancelAll={handleCancelAllJobs}
             onRefresh={refreshJobs}
           />
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   type UpdateAdminMetricRequest,
 } from "@/lib/apiClient";
@@ -277,7 +278,7 @@ export default function MetricEditModal({
 
   if (!isOpen || !metric) return null;
 
-  return (
+  const content = (
     <div className={styles.modalOverlay} onMouseDown={onClose}>
       <div className={styles.modal} onMouseDown={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
@@ -760,6 +761,10 @@ export default function MetricEditModal({
       </div>
     </div>
   );
+  if (typeof document !== "undefined" && document.body) {
+    return createPortal(content, document.body);
+  }
+  return content;
 }
 
 

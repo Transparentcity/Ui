@@ -33,7 +33,6 @@
 
 .header {
   padding: var(--space-lg);
-  border-bottom: 1px solid var(--border-primary);
   background: var(--bg-primary);
   flex-shrink: 0;
 }
@@ -285,8 +284,6 @@
   font-weight: 700;
   margin: var(--space-xl) 0 var(--space-lg) 0;
   color: var(--text-primary);
-  border-bottom: 2px solid var(--border-primary);
-  padding-bottom: var(--space-md);
 }
 
 .reportHtml h2 {
@@ -830,12 +827,14 @@
 }
 
 @media (max-width: 768px) {
+  /* Minimal padding for mobile */
   .header {
-    padding: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    border-bottom: none;
   }
 
   .content {
-    padding: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
   }
 
   .title {
@@ -847,13 +846,84 @@
     gap: var(--space-xs);
   }
 
+  /* Reduce section spacing */
+  .section {
+    margin-bottom: var(--space-md);
+  }
+
+  .section h2 {
+    margin-bottom: var(--space-sm);
+    font-size: 16px;
+  }
+
+  .prompt {
+    padding: var(--space-sm);
+    border-radius: 0;
+    font-size: 14px;
+  }
+
+  /* Report content - tighter on mobile */
+  .reportContent,
+  .reportHtml {
+    padding: var(--space-sm) 0;
+    max-width: 100%;
+    --mobile-bleed: var(--space-md);
+  }
+
+  .reportContent p,
+  .reportHtml p {
+    margin: var(--space-xs) 0;
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  .reportContent h1,
+  .reportHtml h1 {
+    font-size: 24px;
+    margin: var(--space-md) 0 var(--space-sm) 0;
+    padding-bottom: var(--space-xs);
+    border-bottom: none;
+  }
+
+  .reportContent h2,
+  .reportHtml h2 {
+    font-size: 20px;
+    margin: var(--space-md) 0 var(--space-sm) 0;
+  }
+
+  .reportContent h3,
+  .reportHtml h3 {
+    font-size: 17px;
+    margin: var(--space-sm) 0 var(--space-xs) 0;
+  }
+
+  .reportContent ul,
+  .reportContent ol,
+  .reportHtml ul,
+  .reportHtml ol {
+    padding-left: var(--space-lg);
+  }
+
+  /* Tabs - clean flat style */
+  .tabs {
+    border-bottom: 1px solid var(--border-primary);
+    gap: 0;
+  }
+
+  .tab {
+    padding: var(--space-sm) var(--space-md);
+    font-size: 13px;
+  }
+
   .publicLink {
     flex-direction: column;
     align-items: flex-start;
+    padding: var(--space-sm);
   }
 
   .publicLink code {
     width: 100%;
+    font-size: 12px;
   }
 
   .modelSelector {
@@ -874,6 +944,27 @@
   .regenerateButton {
     width: 100%;
     text-align: center;
+  }
+
+  /* Clean agenda items - remove shadows and extra styling */
+  .agendaListItem {
+    padding: var(--space-sm);
+    background: var(--bg-secondary);
+    border-left: 2px solid #ad35fa;
+    border-radius: 0;
+  }
+
+  .agendaItemResult {
+    padding: var(--space-sm);
+    margin-top: var(--space-sm);
+    border-radius: 0;
+  }
+
+  /* Clean error box */
+  .errorBox {
+    padding: var(--space-sm);
+    border-radius: 0;
+    font-size: 13px;
   }
 }
 

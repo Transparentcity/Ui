@@ -25,19 +25,15 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
-    // Optional: Proxy API requests in development to avoid CORS issues
-    if (process.env.NODE_ENV === "development") {
-      // In development, use env var or default to localhost
-      const apiBase =
-        process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
-      return [
-        {
-          source: "/api/:path*",
-          destination: `${apiBase}/api/:path*`,
-        },
-      ];
-    }
-    return [];
+    // Proxy specific API paths to the backend in both dev and production.
+    // Keeps /api/geocode, /api/research, /api/research-media, /api/reverse-geocode
+    // as Next.js Route Handlers; only /api/maps and /api/public go to the backend.
+    const apiBase =
+      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+    return [
+      { source: "/api/maps/:path*", destination: `${apiBase}/api/maps/:path*` },
+      { source: "/api/public/:path*", destination: `${apiBase}/api/public/:path*` },
+    ];
   },
 };
 

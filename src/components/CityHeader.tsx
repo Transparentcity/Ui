@@ -20,6 +20,7 @@ interface CityHeaderProps {
   selectedDistrict?: number | null; // District filter for anomalies (synced with map)
   selectedAnomaly?: AnomalyResult | null; // Currently selected anomaly
   onAnomalySelect?: (anomaly: AnomalyResult | null) => void; // Callback when anomaly is selected/cleared
+  mapOnly?: boolean; // When true, only show anomalies for metrics with map_query enabled
 }
 
 export default function CityHeader({
@@ -37,6 +38,7 @@ export default function CityHeader({
   selectedDistrict,
   selectedAnomaly,
   onAnomalySelect,
+  mapOnly = false,
 }: CityHeaderProps) {
   const className = variant === "overlay" 
     ? `city-header-overlay ${visible ? "visible" : "hidden"}`
@@ -62,6 +64,7 @@ export default function CityHeader({
             district={selectedDistrict}
             selectedAnomaly={selectedAnomaly}
             onAnomalySelect={onAnomalySelect}
+            mapOnly={mapOnly}
           />
         )}
         <button

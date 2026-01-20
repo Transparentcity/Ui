@@ -17,6 +17,9 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { getAdminMetricTimeSeries, getAdminMetricTimeSeriesDetail, type BatchComparisonsResponse, type ComparisonType, type ComparisonResponse } from "@/lib/apiClient";
 import { useMetricComparisons, useBatchComparisons } from "@/lib/hooks/useMetrics";
 import Loader from "@/components/Loader";
+import { MetricLink } from "@/components/MetricLink";
+import MetricDetailModal from "@/components/MetricDetailModal";
+import { slugify } from "@/lib/utils";
 import "./CityView.css";
 
 interface CityViewProps {
@@ -31,7 +34,9 @@ type TabType = "map" | "dashboard" | "anomalies" | "admin";
 interface MetricWithYTD {
   id: number;
   metric_name: string;
+  metric_key?: string;
   category?: string | null;
+  subcategory?: string | null; // Subcategory within the main category
   most_recent_data_date?: string | null;
   freshness?: any;
   ytdLastYear?: number | null;
@@ -47,16 +52,59 @@ interface MetricWithYTD {
   comparisonPeriodEnd?: Date;
   computedAt?: string; // When the comparison was last computed
   maxDataDate?: string; // Most recent data point date
+  display_unit?: string | null; // "percentage", "currency", "count", etc.
+}
+
+/**
+ * Format a metric value based on its display unit.
+ * - percentage: Show as "48.7%" with 1 decimal
+ * - currency: Show with $ prefix
+ * - default: Show as locale string (e.g., "1,234")
+ */
+function formatMetricValue(
+  value: number | null | undefined,
+  displayUnit?: string | null
+): string {
+  if (value === null || value === undefined) {
+    return "No data";
+  }
+
+  if (displayUnit === "percentage") {
+    // For percentages, show with 1 decimal and % symbol
+    return `${value.toFixed(1)}%`;
+  }
+
+  const absValue = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  const formatWithSuffix = (scaled: number, suffix: string) =>
+    `${scaled.toFixed(1).replace(/\.0$/, "")}${suffix}`;
+
+  const compact =
+    absValue >= 1e9
+      ? formatWithSuffix(absValue / 1e9, "B")
+      : absValue >= 1e6
+        ? formatWithSuffix(absValue / 1e6, "M")
+        : absValue >= 1e3
+          ? formatWithSuffix(absValue / 1e3, "k")
+          : `${Math.round(absValue * 10) / 10}`;
+
+  if (displayUnit === "currency") {
+    return `${sign}$${compact}`;
+  }
+
+  return `${sign}${compact}`;
 }
 
 interface DashboardMetricsSectionProps {
   metrics: any[];
   cityId: number;
+  cityName?: string; // City name for generating slug
   selectedDistrict?: number | null; // District to filter charts by (defaults to 0 for citywide)
   leaders?: CityLeader[]; // City leaders for official selector
   shapefiles?: any[]; // Shapefiles for GPS location detection
   onDistrictChange?: (district: number | null) => void; // Callback when district is changed
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void; // Callback when GPS location is set
+  onMetricClick?: (metricId: number, district?: number | null) => void; // Callback when metric is clicked (for modal)
 }
 
 // Time series data point for sparkline
@@ -416,7 +464,7 @@ const YTDSparkline = React.memo(function YTDSparkline({
   );
 });
 
-function DashboardMetricsSection({ metrics, cityId, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation }: DashboardMetricsSectionProps) {
+function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick }: DashboardMetricsSectionProps) {
   const { getAccessTokenSilently } = useAuth0();
   const [selectedComparisonType, setSelectedComparisonType] = useState<ComparisonType>('ytd');
   const [ytdData, setYtdData] = useState<Record<number, { 
@@ -440,17 +488,6 @@ function DashboardMetricsSection({ metrics, cityId, selectedDistrict = 0, leader
   
   // Use prop leaders if available, otherwise fallback to fetched leaders
   const leaders = propLeaders.length > 0 ? propLeaders : (fetchedLeaders || []);
-  
-  // Debug logging for leaders
-  useEffect(() => {
-    console.log('[Dashboard Debug] Leaders:', {
-      propLeaders,
-      fetchedLeaders,
-      leaders,
-      selectedDistrict,
-      district: selectedDistrict ?? 0
-    });
-  }, [propLeaders, fetchedLeaders, leaders, selectedDistrict]);
   
   // Use selectedDistrict, defaulting to 0 (citywide) if not provided
   const district = selectedDistrict ?? 0;
@@ -495,6 +532,7 @@ function DashboardMetricsSection({ metrics, cityId, selectedDistrict = 0, leader
         id: metric.id,
         metric_name: metric.metric_name,
         category: metric.category,
+        subcategory: metric.subcategory || null,
         most_recent_data_date: metric.most_recent_data_date,
         freshness: (metric as any).freshness,
         ytdLastYear: ytdData[metric.id]?.lastYear ?? null,
@@ -510,6 +548,7 @@ function DashboardMetricsSection({ metrics, cityId, selectedDistrict = 0, leader
         comparisonPeriodEnd: ytdData[metric.id]?.comparisonPeriodEnd,
         computedAt: ytdData[metric.id]?.computedAt,
         maxDataDate: ytdData[metric.id]?.maxDataDate || metric.most_recent_data_date || undefined,
+        display_unit: (metric as any).display_unit || null, // "percentage", "currency", etc.
         metricOrder, // Store for sorting
       } as MetricWithYTD & { metricOrder: number });
     });
@@ -557,47 +596,6 @@ function DashboardMetricsSection({ metrics, cityId, selectedDistrict = 0, leader
         }
       : null
   );
-  
-  // Log for debugging
-  useEffect(() => {
-    console.log('[Dashboard Debug] Request params:', {
-      metric_ids: metricIds,
-      district: district === 0 ? null : district,
-      comparison_types: [selectedComparisonType],
-      districtRaw: district,
-    });
-  }, [metricIds, district, selectedComparisonType]);
-  
-  useEffect(() => {
-    if (comparisonsError) {
-      console.warn('[Dashboard Debug] Batch comparisons API error:', comparisonsErrorDetail);
-    }
-    if (batchComparisons) {
-      console.log('[Dashboard Debug] Batch comparisons received:', batchComparisons);
-      console.log('[Dashboard Debug] Batch comparisons keys:', Object.keys(batchComparisons));
-      
-      // Log table of all metric comparisons
-      const tableData = Object.entries(batchComparisons).map(([metricId, comps]) => {
-        const comparison = (comps as any)[selectedComparisonType];
-        return {
-          metric_id: metricId,
-          comparison_type: selectedComparisonType,
-          current_period_end: comparison?.current_period_end,
-          comparison_period_end: comparison?.comparison_period_end,
-          computed_at: comparison?.computed_at,
-          current_value: comparison?.current_period_value,
-          comparison_value: comparison?.comparison_period_value,
-        };
-      });
-      console.table(tableData);
-    }
-  }, [comparisonsError, comparisonsErrorDetail, batchComparisons]);
-  
-  // Log ytdData state
-  useEffect(() => {
-    console.log('[Dashboard Debug] ytdData state:', ytdData);
-    console.log('[Dashboard Debug] ytdData keys:', Object.keys(ytdData));
-  }, [ytdData]);
 
   // Load sparkline data for metrics (still need time series for sparklines)
   const loadSparklineData = useCallback(async (metricId: number) => {
@@ -631,16 +629,10 @@ function DashboardMetricsSection({ metrics, cityId, selectedDistrict = 0, leader
           return aPriority - bPriority;
         })[0];
 
-      if (!activeSeries) {
-        console.log(`No active series found for metric ${metricId}, district ${district}`);
-        return [];
-      }
+      if (!activeSeries) return [];
 
       const detail = await getAdminMetricTimeSeriesDetail(metricId, activeSeries.chart_id, token);
-      if (!detail.data || detail.data.length === 0) {
-        console.log(`No data found for metric ${metricId}, chart ${activeSeries.chart_id}`);
-        return [];
-      }
+      if (!detail.data || detail.data.length === 0) return [];
 
       const sparklineData: SparklineDataPoint[] = [];
       detail.data.forEach((point) => {
@@ -697,7 +689,6 @@ function DashboardMetricsSection({ metrics, cityId, selectedDistrict = 0, leader
         })[0];
 
       if (!activeSeries) {
-        console.log(`No active series found for metric ${metricId}, district ${district}`);
         setYtdData((prev) => ({
           ...prev,
           [metricId]: { lastYear: null, thisYear: null, loading: false, dataYear: currentYear, priorYear },
@@ -707,7 +698,6 @@ function DashboardMetricsSection({ metrics, cityId, selectedDistrict = 0, leader
 
       const detail = await getAdminMetricTimeSeriesDetail(metricId, activeSeries.chart_id, token);
       if (!detail.data || detail.data.length === 0) {
-        console.log(`No data found for metric ${metricId}, chart ${activeSeries.chart_id}`);
         setYtdData((prev) => ({
           ...prev,
           [metricId]: { lastYear: null, thisYear: null, loading: false, dataYear: currentYear, priorYear },
@@ -817,7 +807,19 @@ function DashboardMetricsSection({ metrics, cityId, selectedDistrict = 0, leader
 
   // Lazy load metrics - only load first 4 initially, then load more as needed
   const [visibleMetricIds, setVisibleMetricIds] = useState<Set<number>>(new Set());
-  const metricRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const metricRefs = useRef<Map<number, HTMLElement>>(new Map());
+  
+  // Update metric refs from data attributes (since MetricLink renders as <a> which doesn't support ref)
+  useEffect(() => {
+    const metricElements = document.querySelectorAll('[data-metric-id]');
+    metricRefs.current.clear();
+    metricElements.forEach((el) => {
+      const metricId = parseInt(el.getAttribute('data-metric-id') || '0', 10);
+      if (metricId > 0) {
+        metricRefs.current.set(metricId, el as HTMLElement);
+      }
+    });
+  }, [metrics.map(m => m.id).join(',')]);
 
   // Intersection Observer for lazy loading
   useEffect(() => {
@@ -855,9 +857,10 @@ function DashboardMetricsSection({ metrics, cityId, selectedDistrict = 0, leader
         }
       );
 
-      // Observe all metric cards
-      metricRefs.current.forEach((ref) => {
-        if (ref) observer!.observe(ref);
+      // Observe all metric cards - query by data attribute since refs are set via useEffect
+      const metricElements = document.querySelectorAll('[data-metric-id]');
+      metricElements.forEach((el) => {
+        observer!.observe(el);
       });
     }, 100);
 
@@ -887,8 +890,6 @@ function DashboardMetricsSection({ metrics, cityId, selectedDistrict = 0, leader
 
     if (metricsToCalculate.length === 0) return;
 
-    console.warn('[Dashboard] Falling back to individual metric calculations due to batch comparison error');
-
     // Batch load - limit concurrent requests
     const BATCH_SIZE = 4;
     const batches: number[][] = [];
@@ -913,9 +914,11 @@ function DashboardMetricsSection({ metrics, cityId, selectedDistrict = 0, leader
   }, [district, selectedComparisonType]);
 
   // If batch comparisons become available, use them to update the data
+  // Note: Only depend on batchComparisons and selectedComparisonType
+  // district is not needed because batchComparisons is already filtered for the current district
   useEffect(() => {
     if (!batchComparisons || Object.keys(batchComparisons).length === 0) return;
-    
+
     const now = new Date();
     const currentYear = now.getFullYear();
     const priorYear = currentYear - 1;
@@ -945,7 +948,6 @@ function DashboardMetricsSection({ metrics, cityId, selectedDistrict = 0, leader
       }
     });
     
-    // Only update if we have new data
     if (Object.keys(updates).length > 0) {
       setYtdData((prev) => {
         const updated = { ...prev };
@@ -956,7 +958,7 @@ function DashboardMetricsSection({ metrics, cityId, selectedDistrict = 0, leader
         return updated;
       });
     }
-  }, [batchComparisons, district, selectedComparisonType]);
+  }, [batchComparisons, selectedComparisonType]);
 
   // Determine the most common years from loaded data for column headers
   // Always display current calendar year vs prior year
@@ -1195,143 +1197,188 @@ function DashboardMetricsSection({ metrics, cityId, selectedDistrict = 0, leader
           // Skip empty categories
           if (metricsWithData.length === 0) return null;
           
+          // Group metrics by subcategory within this category
+          const subcategoryGroups: { subcategory: string | null; metrics: typeof metricsWithData }[] = [];
+          const subcategoryMap = new Map<string | null, typeof metricsWithData>();
+          
+          metricsWithData.forEach((metric) => {
+            const subcat = metric.subcategory || null;
+            if (!subcategoryMap.has(subcat)) {
+              subcategoryMap.set(subcat, []);
+            }
+            subcategoryMap.get(subcat)!.push(metric);
+          });
+          
+          // Convert to array and sort (null subcategory first, then alphabetically)
+          subcategoryMap.forEach((metrics, subcategory) => {
+            subcategoryGroups.push({ subcategory, metrics });
+          });
+          subcategoryGroups.sort((a, b) => {
+            if (a.subcategory === null && b.subcategory === null) return 0;
+            if (a.subcategory === null) return -1;
+            if (b.subcategory === null) return 1;
+            return a.subcategory.localeCompare(b.subcategory);
+          });
+          
+          // Determine if we should show subcategory headers
+          // Show if there's more than one subcategory OR if there's exactly one non-null subcategory
+          const hasMultipleSubcategories = subcategoryGroups.length > 1;
+          const hasSingleNamedSubcategory = subcategoryGroups.length === 1 && subcategoryGroups[0].subcategory !== null;
+          const showSubcategoryHeaders = hasMultipleSubcategories || hasSingleNamedSubcategory;
+          
           return (
             <div key={category} className="metrics-category-section">
-              <h3 className="metrics-category-title">{category}</h3>
-              
               {/* Table header row */}
               <div className="metrics-table-header">
-                <div className="metric-col metric-col-name">Metric</div>
+                <div className="metric-col metric-col-name">{category}</div>
                 <div className="metric-col metric-col-value">{getColumnHeaders.comparison}</div>
                 <div className="metric-col metric-col-value">{getColumnHeaders.current}</div>
                 <div className="metric-col metric-col-change">Change</div>
               </div>
               
-              {/* Metric rows */}
+              {/* Metric rows grouped by subcategory */}
               <div className="metrics-table-body">
-                {metricsWithData.map((metric) => {
-                // Calculate delta and absolute difference
-                const hasValidData = metric.ytdThisYear !== null && metric.ytdLastYear !== null && 
-                  metric.ytdThisYear !== undefined && metric.ytdLastYear !== undefined;
-                
-                const absoluteDiff = hasValidData ? metric.ytdThisYear! - metric.ytdLastYear! : null;
-                const percentDelta = hasValidData && metric.ytdLastYear !== 0
-                  ? ((metric.ytdThisYear! - metric.ytdLastYear!) / metric.ytdLastYear!) * 100
-                  : null;
-                
-                // Determine if this is "good" or "bad" based on greendirection
-                // greendirection="up" means increase is good (green), decrease is bad (red)
-                // greendirection="down" means decrease is good (green), increase is bad (red)
-                const isIncrease = absoluteDiff !== null && absoluteDiff > 0;
-                const isDecrease = absoluteDiff !== null && absoluteDiff < 0;
-                const isGood = metric.greendirection === "up" ? isIncrease : isDecrease;
-                const isBad = metric.greendirection === "up" ? isDecrease : isIncrease;
-                const changeColorClass = isGood ? 'good' : isBad ? 'bad' : 'neutral';
-                
-                // Format date ranges for each period
-                const currentPeriodDates = formatPeriodDate(metric.currentPeriodStart, metric.currentPeriodEnd);
-                const comparisonPeriodDates = formatPeriodDate(metric.comparisonPeriodStart, metric.comparisonPeriodEnd);
-
-                // Format metadata dates (only max data date now, computed is at dashboard level)
-                const formatMetadataDate = (dateStr?: string) => {
-                  if (!dateStr) return null;
-                  try {
-                    const date = new Date(dateStr);
-                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                  } catch {
-                    return null;
-                  }
-                };
-
-                const maxDataDateFormatted = formatMetadataDate(metric.maxDataDate);
-
-                return (
-                  <div 
-                    key={metric.id} 
-                    className="metrics-table-row"
-                    ref={(el) => {
-                      if (el) {
-                        metricRefs.current.set(metric.id, el);
-                        el.setAttribute('data-metric-id', metric.id.toString());
-                      } else {
-                        metricRefs.current.delete(metric.id);
-                      }
-                    }}
-                  >
-                    {/* Metric name column */}
-                    <div className="metric-col metric-col-name">
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <span className="metric-name">{metric.metric_name}</span>
-                        {maxDataDateFormatted && (
-                          <div className="metric-metadata" style={{
-                            fontSize: '11px',
-                            color: 'var(--text-tertiary, #9ca3af)',
-                          }}>
-                            <span title="Data through this date">
-                              Through: {maxDataDateFormatted}
-                            </span>
-                          </div>
-                        )}
+                {subcategoryGroups.map((group) => (
+                  <React.Fragment key={group.subcategory || 'uncategorized'}>
+                    {/* Subcategory header - only show if we have subcategories to display */}
+                    {showSubcategoryHeaders && group.subcategory && (
+                      <div className="metrics-subcategory-header">
+                        <span className="metrics-subcategory-title">{group.subcategory}</span>
                       </div>
-                    </div>
+                    )}
                     
-                    {/* Last year value column */}
-                    <div className="metric-col metric-col-value">
-                      {metric.ytdLoading ? (
-                        <Loader size="sm" color="dark" />
-                      ) : (
-                        <>
-                          <span className="metric-date-label">{comparisonPeriodDates || `Jan 1 - Jan ${displayYears.priorYear}`}</span>
-                          <span className="metric-value">
-                            {metric.ytdLastYear !== null && metric.ytdLastYear !== undefined 
-                              ? metric.ytdLastYear.toLocaleString() 
-                              : "—"}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                    
-                    {/* This year value column */}
-                    <div className="metric-col metric-col-value">
-                      {metric.ytdLoading ? (
-                        <Loader size="sm" color="dark" />
-                      ) : (
-                        <>
-                          <span className="metric-date-label">{currentPeriodDates || `Jan 1 - Jan ${displayYears.dataYear}`}</span>
-                          <span className="metric-value">
-                            {metric.ytdThisYear !== null && metric.ytdThisYear !== undefined 
-                              ? metric.ytdThisYear.toLocaleString() 
-                              : "—"}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                    
-                    {/* Change column */}
-                    <div className="metric-col metric-col-change">
-                      {metric.ytdLoading ? (
-                        <Loader size="sm" color="dark" />
-                      ) : hasValidData ? (
-                        <div className={`change-indicator ${changeColorClass}`}>
-                          <span className="change-arrow">
-                            {isIncrease ? "↑" : isDecrease ? "↓" : "—"}
-                          </span>
-                          <div className="change-values">
-                            <span className="change-absolute">
-                              {absoluteDiff !== null ? (absoluteDiff > 0 ? "+" : "") + Math.round(absoluteDiff).toLocaleString() : "—"}
-                            </span>
-                            <span className="change-percent">
-                              {percentDelta !== null ? (percentDelta > 0 ? "+" : "") + percentDelta.toFixed(1) + "%" : "—"}
-                            </span>
+                    {group.metrics.map((metric) => {
+                      // Calculate delta and absolute difference
+                      const hasValidData = metric.ytdThisYear !== null && metric.ytdLastYear !== null && 
+                        metric.ytdThisYear !== undefined && metric.ytdLastYear !== undefined;
+                      
+                      const absoluteDiff = hasValidData ? metric.ytdThisYear! - metric.ytdLastYear! : null;
+                      const percentDelta = hasValidData && metric.ytdLastYear !== 0
+                        ? ((metric.ytdThisYear! - metric.ytdLastYear!) / metric.ytdLastYear!) * 100
+                        : null;
+                      
+                      // Determine if this is "good" or "bad" based on greendirection
+                      // greendirection="up" means increase is good (green), decrease is bad (red)
+                      // greendirection="down" means decrease is good (green), increase is bad (red)
+                      const isIncrease = absoluteDiff !== null && absoluteDiff > 0;
+                      const isDecrease = absoluteDiff !== null && absoluteDiff < 0;
+                      const isGood = metric.greendirection === "up" ? isIncrease : isDecrease;
+                      const isBad = metric.greendirection === "up" ? isDecrease : isIncrease;
+                      
+                      // Don't color the change if percent change is between -5% and 5%
+                      const isSmallChange = percentDelta !== null && Math.abs(percentDelta) <= 5;
+                      const changeColorClass = isSmallChange ? 'neutral' : (isGood ? 'good' : isBad ? 'bad' : 'neutral');
+                      
+                      // Format date ranges for each period
+                      const currentPeriodDates = formatPeriodDate(metric.currentPeriodStart, metric.currentPeriodEnd);
+                      const comparisonPeriodDates = formatPeriodDate(metric.comparisonPeriodStart, metric.comparisonPeriodEnd);
+
+                      // Format metadata dates (only max data date now, computed is at dashboard level)
+                      const formatMetadataDate = (dateStr?: string) => {
+                        if (!dateStr) return null;
+                        try {
+                          const date = new Date(dateStr);
+                          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        } catch {
+                          return null;
+                        }
+                      };
+
+                      const maxDataDateFormatted = formatMetadataDate(metric.maxDataDate);
+                      const citySlug = cityName ? slugify(cityName) : `city-${cityId}`;
+
+                      return (
+                        <MetricLink
+                          key={metric.id}
+                          metricId={metric.id}
+                          metricKey={metric.metric_key}
+                          citySlug={citySlug}
+                          className="metrics-table-row metrics-table-row-clickable"
+                          prefetch={false}
+                          mode="modal"
+                          district={district}
+                          onModalOpen={onMetricClick}
+                          {...{ "data-metric-id": metric.id.toString() }}
+                        >
+                          {/* Metric name column */}
+                          <div className="metric-col metric-col-name">
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span className="metric-name">{metric.metric_name}</span>
+                              {maxDataDateFormatted && (
+                                <div className="metric-metadata">
+                                  <span title="Data through this date">
+                                    Through: {maxDataDateFormatted}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <span className="change-na">—</span>
-                      )}
-                    </div>
-                  </div>
-                );
-                })}
+                          
+                          {/* Last year value column */}
+                          <div className="metric-col metric-col-value">
+                            {metric.ytdLoading ? (
+                              <Loader size="sm" color="dark" />
+                            ) : (
+                              <>
+                                <span className="metric-date-label">{comparisonPeriodDates || `Jan 1 - Jan ${displayYears.priorYear}`}</span>
+                                <span className="metric-value">
+                                  {formatMetricValue(metric.ytdLastYear, metric.display_unit)}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                          
+                          {/* This year value column */}
+                          <div className="metric-col metric-col-value">
+                            {metric.ytdLoading ? (
+                              <Loader size="sm" color="dark" />
+                            ) : (
+                              <>
+                                <span className="metric-date-label">{currentPeriodDates || `Jan 1 - Jan ${displayYears.dataYear}`}</span>
+                                <span className="metric-value">
+                                  {formatMetricValue(metric.ytdThisYear, metric.display_unit)}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                          
+                          {/* Change column */}
+                          <div className="metric-col metric-col-change">
+                            {metric.ytdLoading ? (
+                              <Loader size="sm" color="dark" />
+                            ) : hasValidData ? (
+                              <div className={`change-indicator ${changeColorClass}`}>
+                                <span className="change-arrow">
+                                  {isIncrease ? "↑" : isDecrease ? "↓" : "—"}
+                                </span>
+                                <div className="change-values">
+                                  {metric.display_unit === "percentage" ? (
+                                    // For percentage metrics, show percentage point change only
+                                    <span className="change-absolute">
+                                      {absoluteDiff !== null ? (absoluteDiff > 0 ? "+" : "") + absoluteDiff.toFixed(1) + " pts" : "—"}
+                                    </span>
+                                  ) : (
+                                    // For count/other metrics, show absolute and percent change
+                                    <>
+                                      <span className="change-absolute">
+                                        {absoluteDiff !== null ? (absoluteDiff > 0 ? "+" : "") + Math.round(absoluteDiff).toLocaleString() : "—"}
+                                      </span>
+                                      <span className="change-percent">
+                                        {percentDelta !== null ? (percentDelta > 0 ? "+" : "") + percentDelta.toFixed(1) + "%" : "—"}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="change-na">—</span>
+                            )}
+                          </div>
+                        </MetricLink>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
               </div>
             </div>
           );
@@ -1342,7 +1389,7 @@ function DashboardMetricsSection({ metrics, cityId, selectedDistrict = 0, leader
 }
 
 export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict }: CityViewProps) {
-  const [activeTab, setActiveTab] = useState<TabType>("map"); // Default to map tab
+  const [activeTab, setActiveTab] = useState<TabType>("dashboard"); // Default to dashboard tab
   const [saving, setSaving] = useState(false);
   const [headerVisible, setHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -1355,7 +1402,11 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
   const [mapLeaders, setMapLeaders] = useState<any[]>([]);
   const [mapShapefiles, setMapShapefiles] = useState<any[]>([]);
   const [selectedAnomaly, setSelectedAnomaly] = useState<AnomalyResult | null>(null);
+  const [selectedMetricId, setSelectedMetricId] = useState<number | null>(null);
+  const [selectedMetricDistrict, setSelectedMetricDistrict] = useState<number | null>(null);
   const mapTabRef = useRef<HTMLDivElement | null>(null);
+  const [isCityDataReady, setIsCityDataReady] = useState(false);
+  const previousCityIdRef = useRef<number | null>(null);
 
   // Anomaly selection handler - accepts null to clear selection
   const handleAnomalySelect = useCallback((anomaly: AnomalyResult | null) => {
@@ -1389,6 +1440,19 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
       setMetricDateRange(getPresetMetricDateRange("all"));
     }
   }, [cityData?.metrics, cityId]);
+
+  // Clear old city data immediately when cityId changes
+  useEffect(() => {
+    if (previousCityIdRef.current !== null && previousCityIdRef.current !== cityId) {
+      // City is switching - clear old data immediately
+      setMapLeaders([]);
+      setMapShapefiles([]);
+      setIsCityDataReady(false);
+      setSelectedDistrict(initialDistrict ?? 0);
+      setDistrictGPSLocation(null);
+    }
+    previousCityIdRef.current = cityId;
+  }, [cityId, initialDistrict]);
 
   // Update selected district when cityId or initialDistrict changes
   useEffect(() => {
@@ -1508,7 +1572,10 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             onDataReady={(data) => {
               setMapLeaders(data.leaders);
               setMapShapefiles(data.shapefiles);
+              setIsCityDataReady(true);
             }}
+            selectedAnomaly={selectedAnomaly}
+            onAnomalyClear={() => setSelectedAnomaly(null)}
           />
           
           {/* Header Overlay */}
@@ -1527,6 +1594,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             selectedDistrict={selectedDistrict}
             selectedAnomaly={selectedAnomaly}
             onAnomalySelect={handleAnomalySelect}
+            mapOnly={true}
           />
 
           {/* Tabs Overlay */}
@@ -1559,21 +1627,23 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             )}
           </div>
 
-          {/* District Navigation - Above Date Range */}
-          <div className={`map-district-navigation-overlay ${headerVisible ? "visible" : "hidden"}`}>
-            <DistrictNavigation
-              selectedDistrict={selectedDistrict}
-              leaders={mapLeaders.length > 0 ? mapLeaders : []}
-              shapefiles={mapShapefiles}
-              onDistrictSelect={(district) => {
-                setSelectedDistrict(district);
-                setDistrictGPSLocation(null); // Clear GPS when manually selecting district
-              }}
-              onGPSLocation={(location) => {
-                setDistrictGPSLocation(location);
-              }}
-            />
-          </div>
+          {/* District Navigation - Above Date Range - Only show when data is ready */}
+          {isCityDataReady && mapLeaders.length > 0 && (
+            <div className={`map-district-navigation-overlay ${headerVisible ? "visible" : "hidden"}`}>
+              <DistrictNavigation
+                selectedDistrict={selectedDistrict}
+                leaders={mapLeaders}
+                shapefiles={mapShapefiles}
+                onDistrictSelect={(district) => {
+                  setSelectedDistrict(district);
+                  setDistrictGPSLocation(null); // Clear GPS when manually selecting district
+                }}
+                onGPSLocation={(location) => {
+                  setDistrictGPSLocation(location);
+                }}
+              />
+            </div>
+          )}
 
           {/* Date Range Selector - Top Left, below district navigation */}
           <div className={`map-date-range-overlay ${headerVisible ? "visible" : "hidden"}`}>
@@ -1642,11 +1712,16 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
               <DashboardMetricsSection 
                 metrics={cityData.metrics || []} 
                 cityId={cityId}
+                cityName={cityData.name}
                 selectedDistrict={selectedDistrict}
-                leaders={mapLeaders}
-                shapefiles={mapShapefiles}
+                leaders={isCityDataReady ? mapLeaders : []}
+                shapefiles={isCityDataReady ? mapShapefiles : []}
                 onDistrictChange={setSelectedDistrict}
                 onGPSLocation={setDistrictGPSLocation}
+                onMetricClick={(metricId: number, district?: number | null) => {
+                  setSelectedMetricId(metricId);
+                  setSelectedMetricDistrict(district ?? selectedDistrict);
+                }}
               />
             )}
 
@@ -1654,7 +1729,12 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
               <div className="anomalies-section">
                 <AnomaliesTabPanel
                   cityId={cityId}
+                  cityName={cityData.name}
                   initialDistrict={selectedDistrict}
+                  onMetricClick={(metricId, district) => {
+                  setSelectedMetricId(metricId);
+                  setSelectedMetricDistrict(district ?? selectedDistrict);
+                }}
                 />
               </div>
             )}
@@ -1666,6 +1746,20 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             )}
           </div>
         </div>
+      )}
+
+      {/* Metric Detail Modal */}
+      {cityData && (
+        <MetricDetailModal
+          metricId={selectedMetricId}
+          cityName={cityData.name}
+          isOpen={selectedMetricId !== null}
+          onClose={() => {
+            setSelectedMetricId(null);
+            setSelectedMetricDistrict(null);
+          }}
+          district={selectedMetricDistrict}
+        />
       )}
     </div>
   );

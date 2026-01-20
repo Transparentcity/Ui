@@ -89,6 +89,14 @@ interface Metric {
   };
   most_recent_period_total?: number | null;
   item_noun?: string;
+  /** Active/inactive row counts (charts, data points, etc.) – same as MetricsAdmin */
+  record_counts?: {
+    total_active?: number;
+    total_inactive?: number;
+    active_data_points?: number;
+    inactive_data_points?: number;
+    [key: string]: unknown;
+  } | null;
 }
 
 interface GeographicStructure {
@@ -229,23 +237,11 @@ export default function CityDataAdmin({
   // React Query should auto-refetch when query key changes, but we'll manually trigger to ensure it works
   useEffect(() => {
     if (anomaliesMetricId && anomaliesOpen) {
-      console.log(`[Anomalies] Refetching for period_type: ${anomalyPeriodFilter}`);
       anomaliesQuery.refetch();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anomalyPeriodFilter]);
-  
-  // Debug: Log query data when it changes
-  useEffect(() => {
-    if (anomaliesData) {
-      console.log(`[Anomalies] Data loaded:`, {
-        count: anomaliesData.count,
-        resultsCount: anomaliesData.results?.length || 0,
-        periodTypes: anomaliesData.results?.map((r: any) => r.period_type) || [],
-        filter: anomalyPeriodFilter
-      });
-    }
-  }, [anomaliesData, anomalyPeriodFilter]);
+
   const metricData = metricQuery.data ?? null;
   const anomalyDetail = anomalyDetailQuery.data ?? null;
 
@@ -417,28 +413,15 @@ export default function CityDataAdmin({
   // Initialize structure form data when structure data loads
   useEffect(() => {
     if (structureData) {
-      // Log the full structure data for debugging
-      console.log("CityDataAdmin - Full structureData from API:", structureData);
-      console.log("CityDataAdmin - structureData.district_field:", structureData.district_field);
-      console.log("CityDataAdmin - structureData.district_fields:", structureData.district_fields);
-      console.log("CityDataAdmin - typeof district_fields:", typeof structureData.district_fields);
-      console.log("CityDataAdmin - Array.isArray(district_fields):", Array.isArray(structureData.district_fields));
-      
-      // Ensure district_fields is always an array, even if empty or undefined
-      const districtFields = Array.isArray(structureData.district_fields) 
-        ? structureData.district_fields 
+      const districtFields = Array.isArray(structureData.district_fields)
+        ? structureData.district_fields
         : (structureData.district_field ? [structureData.district_field] : []);
-      
-      console.log("CityDataAdmin - Processed districtFields:", districtFields);
-      
+
       setStructureFormData({
         leaders: JSON.stringify(structureData.leaders || [], null, 2),
         query_configs: JSON.stringify(structureData.query_configs || [], null, 2),
         district_fields: districtFields,
       });
-      
-      // Log for debugging
-      console.log("CityDataAdmin - Final district_fields in form:", districtFields);
     }
   }, [structureData]);
 
@@ -1693,15 +1676,7 @@ export default function CityDataAdmin({
             const leadersConfigs = structureData?.query_configs?.filter(
               (qc: any) => qc.structure_type === "leaders"
             ) || [];
-            
-            // Debug: Log all leaders configs to see what we have
-            console.log("CityDataAdmin - All leaders configs:", leadersConfigs.map((c: any) => ({
-              structure_name: c.structure_name,
-              has_query_output: !!c.query_output,
-              query_output_length: c.query_output?.length || 0,
-              query_output_type: Array.isArray(c.query_output) ? 'array' : typeof c.query_output
-            })));
-            
+
             // Get stored leaders early so we can use them when building officialsData
             const storedLeaders = structureData?.leaders || [];
             
@@ -1712,7 +1687,6 @@ export default function CityDataAdmin({
             leadersConfigs.forEach((config: any) => {
               // Add query_output entries (regular dataset entries)
               if (config.query_output && Array.isArray(config.query_output)) {
-                console.log(`CityDataAdmin - Adding ${config.query_output.length} officials from ${config.structure_name} (query_output)`);
                 config.query_output.forEach((official: any) => {
                   const key = `${(official.name || "").toLowerCase()}_${official.district || "null"}`;
                   if (!officialsDataMap.has(key)) {
@@ -1726,7 +1700,6 @@ export default function CityDataAdmin({
               const manualData = config.metadata?.manual_data || config.manual_data;
               if (manualData) {
                 const dataArray = Array.isArray(manualData) ? manualData : [manualData];
-                console.log(`CityDataAdmin - Adding ${dataArray.length} officials from ${config.structure_name} (manual_data)`);
                 dataArray.forEach((official: any) => {
                   const key = `${(official.name || "").toLowerCase()}_${official.district || "null"}`;
                   if (!officialsDataMap.has(key)) {
@@ -1735,14 +1708,9 @@ export default function CityDataAdmin({
                   }
                 });
               }
-              
-              // Log if config has neither query_output nor manual_data
-              if (!config.query_output && !manualData) {
-                console.log(`CityDataAdmin - Skipping ${config.structure_name}: no query_output or manual_data`);
-              }
             });
-            
-            // IMPORTANT: Also add stored leaders that aren't in query_output/manual_data
+
+            // Also add stored leaders that aren't in query_output/manual_data
             // This ensures we can always edit stored leaders even if they're not in the current query output
             // We'll mark these with a special flag so they're always recognized as stored
             storedLeaders.forEach((leader: any) => {
@@ -1760,10 +1728,9 @@ export default function CityDataAdmin({
                 };
                 officialsDataMap.set(key, officialEntry);
                 officialsData.push(officialEntry);
-                console.log(`CityDataAdmin - Adding stored leader not in query output: ${leader.name} (${leader.title}, ID: ${leader.id})`);
               }
             });
-            
+
             // Sort officials: Mayor/district 0 first, then by district number, then by name
             officialsData.sort((a: any, b: any) => {
               const aDistrict = a.district !== undefined && a.district !== null ? Number(a.district) : null;
@@ -1784,9 +1751,7 @@ export default function CityDataAdmin({
               const bName = (b.name || b.alderman || b.supervisor || "").toLowerCase();
               return aName.localeCompare(bName);
             });
-            
-            console.log(`CityDataAdmin - Total officials data: ${officialsData.length} (including manual_data)`);
-            
+
             // Use the first leaders config for metadata (identifier_field, etc.)
             // This is typically the council members config, but we'll use it for field names
             const leadersConfig = leadersConfigs[0];
@@ -1842,12 +1807,7 @@ export default function CityDataAdmin({
             };
             
             const districtField = findDistrictField(leadersConfig, officialsData);
-            
-            // Debug: Log stored leaders and officials data for troubleshooting
-            console.log("CityDataAdmin - Stored leaders:", storedLeaders.length, storedLeaders.slice(0, 3));
-            console.log("CityDataAdmin - Officials data:", officialsData.length, officialsData.slice(0, 3));
-            console.log("CityDataAdmin - District field:", districtField);
-            
+
             // Create a map of stored leaders by name+title+district for quick lookup
             // Use normalized keys to handle variations in spacing, case, etc.
             const storedLeadersMap = new Map<string, any>();
@@ -2373,23 +2333,7 @@ export default function CityDataAdmin({
                                 }
                               });
                             }
-                            
-                            // Debug logging for Mayor (district 0) if not found
-                            if (!storedLeader && officialDistrict === 0) {
-                              console.log("CityDataAdmin - Mayor not matched:", {
-                                officialName,
-                                normalizedName,
-                                districtValue,
-                                keyNoTitle,
-                                availableKeys: Array.from(storedLeadersMap.keys()).filter(k => k.includes(normalizedName) || k.includes("mayor") || k.includes("london") || k.includes("breed")).slice(0, 10),
-                                storedLeadersWithDistrict0: storedLeaders.filter((l: any) => l.district === 0 || l.district === null).map((l: any) => ({
-                                  name: l.name,
-                                  title: l.title,
-                                  district: l.district
-                                }))
-                              });
-                            }
-                            
+
                             // Extract title: use stored leader's title (from database) or explicit title field from query output
                             // NO INFERENCE - just use what's available or show N/A
                             let officialTitle = storedLeader?.title || official.title || official.position || null;
@@ -3047,7 +2991,7 @@ export default function CityDataAdmin({
                 });
 
                 return sortedCategories.map((category) => (
-                  <div key={category} style={{ marginBottom: "24px" }}>
+                  <div key={category} style={{ marginBottom: "32px" }}>
                     <h4 style={{ 
                       margin: "0 0 12px 0", 
                       padding: "8px 0",
@@ -3060,125 +3004,104 @@ export default function CityDataAdmin({
                     }}>
                       {category}
                     </h4>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-                        gap: "16px",
-                      }}
-                    >
-                      {grouped[category].metrics.map((metric) => {
-                  // Determine background color based on execution status
-                  // Status values from backend: "completed", "failed", "error", or null
-                  const isSuccess = metric.last_execution_status === "completed" || metric.last_execution_status === "success";
-                  const isFailure = metric.last_execution_status === "failed" || 
-                                   metric.last_execution_status === "failure" || 
-                                   metric.last_execution_status === "error";
-                  const hasNoStatus = !metric.last_execution_status;
-                  
-                  // Subtle background colors
-                  const backgroundColor = isSuccess
-                    ? "rgba(76, 175, 80, 0.05)" // Subtle green
-                    : isFailure
-                    ? "rgba(244, 67, 54, 0.05)" // Subtle red
-                    : hasNoStatus
-                    ? "rgba(158, 158, 158, 0.05)" // Subtle gray for no status
-                    : "transparent";
-                  
-                  // Border color to match
-                  const borderColor = isSuccess
-                    ? "rgba(76, 175, 80, 0.2)"
-                    : isFailure
-                    ? "rgba(244, 67, 54, 0.2)"
-                    : "var(--border-primary)";
+                    <div className={styles.metricsTableContainer}>
+                      <table className={styles.metricsTable}>
+                        <thead>
+                          <tr>
+                            <th>Metric</th>
+                            <th>Most Recent Data</th>
+                            <th>Active</th>
+                            <th>Inactive</th>
+                            <th>Last Execution</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {grouped[category].metrics.map((metric) => {
+                            // Determine background color based on execution status
+                            // Status values from backend: "completed", "failed", "error", or null
+                            const isSuccess = metric.last_execution_status === "completed" || metric.last_execution_status === "success";
+                            const isFailure = metric.last_execution_status === "failed" || 
+                                             metric.last_execution_status === "failure" || 
+                                             metric.last_execution_status === "error";
+                            const hasNoStatus = !metric.last_execution_status;
+                            
+                            // Access data - handle both typed and untyped (any) metric objects
+                            const metricAny = metric as any;
 
-                  // Access data - handle both typed and untyped (any) metric objects
-                  const metricAny = metric as any;
-
-                  return (
-                    <div
-                      key={metric.id}
-                      className={styles.metricCard}
-                      style={{
-                        padding: "16px",
-                        border: `1px solid ${borderColor}`,
-                        borderRadius: "8px",
-                        transition: "all 0.2s",
-                        display: "flex",
-                        flexDirection: "column",
-                        backgroundColor,
-                      }}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <h4 style={{ margin: "0 0 4px 0", fontWeight: 500 }}>{metric.metric_name}</h4>
-                        <p style={{ fontSize: "11px", color: "var(--text-tertiary)", margin: "4px 0" }}>
-                          ({metric.id})
-                        </p>
-                        
-                        {/* Most Recent Data Date */}
-                        {(metricAny.most_recent_data_date || metric.most_recent_data_date) && (
-                          <div style={{ 
-                            marginTop: "12px", 
-                            padding: "8px",
-                            backgroundColor: "var(--bg-secondary, rgba(0, 0, 0, 0.02))",
-                            borderRadius: "4px",
-                            fontSize: "12px"
-                          }}>
-                            <div style={{ display: "flex", justifyContent: "space-between" }}>
-                              <span style={{ color: "var(--text-secondary)" }}>Most Recent Data:</span>
-                              <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
-                                {new Date(metricAny.most_recent_data_date || metric.most_recent_data_date).toLocaleDateString()}
-                              </span>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Execution Status */}
-                        {(metricAny.last_execution_at || metric.last_execution_at) && (
-                          <div style={{ 
-                            fontSize: "11px", 
-                            marginTop: "8px", 
-                            color: "var(--text-secondary)",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "6px"
-                          }}>
-                            <span style={{
-                              width: "8px",
-                              height: "8px",
-                              borderRadius: "50%",
-                              backgroundColor: isSuccess 
-                                ? "rgba(76, 175, 80, 0.8)"
-                                : isFailure
-                                ? "rgba(244, 67, 54, 0.8)"
-                                : "rgba(158, 158, 158, 0.8)",
-                              display: "inline-block"
-                            }} />
-                            <span>
-                              {isSuccess ? "Last run:" : "Last attempt:"} {new Date(metricAny.last_execution_at || metric.last_execution_at).toLocaleDateString()}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ 
-                        marginTop: "12px", 
-                        paddingTop: "12px", 
-                        borderTop: "1px solid var(--border-primary)",
-                        width: "100%"
-                      }}>
-                        <MetricActions
-                          metricId={metric.id}
-                          onEdit={() => openEditModal(metric.id)}
-                          onViewCharts={() => openCharts(metric.id)}
-                          onExecute={() => openExecuteModal(metric.id)}
-                          onDelete={() => deleteMetric(metric.id)}
-                          onViewAnomalies={() => openViewAnomalies(metric.id)}
-                          compact={true}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
+                            return (
+                              <tr
+                                key={metric.id}
+                                className={styles.metricTableRow}
+                                style={{
+                                  backgroundColor: isSuccess
+                                    ? "rgba(76, 175, 80, 0.03)"
+                                    : isFailure
+                                    ? "rgba(244, 67, 54, 0.03)"
+                                    : hasNoStatus
+                                    ? "rgba(158, 158, 158, 0.03)"
+                                    : "transparent",
+                                }}
+                              >
+                                <td className={styles.metricNameCell}>
+                                  <div className={styles.metricNameContent}>
+                                    <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>
+                                      {metric.metric_name}
+                                      <span className={styles.metricIdInline}>({metric.id})</span>
+                                    </div>
+                                    <div className={styles.metricActionsWrapper}>
+                                      <MetricActions
+                                        metricId={metric.id}
+                                        onEdit={() => openEditModal(metric.id)}
+                                        onViewCharts={() => openCharts(metric.id)}
+                                        onExecute={() => openExecuteModal(metric.id)}
+                                        onDelete={() => deleteMetric(metric.id)}
+                                        onViewAnomalies={() => openViewAnomalies(metric.id)}
+                                        compact={true}
+                                      />
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className={styles.metricDateCell}>
+                                  {(metricAny.most_recent_data_date || metric.most_recent_data_date) ? (
+                                    <span style={{ fontSize: "12px", color: "var(--text-primary)" }}>
+                                      {new Date(metricAny.most_recent_data_date || metric.most_recent_data_date).toLocaleDateString()}
+                                    </span>
+                                  ) : (
+                                    <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
+                                  )}
+                                </td>
+                                <td className={styles.metricDateCell}>
+                                  {(metricAny.record_counts?.total_active ?? metric.record_counts?.total_active) != null ? (
+                                    <span style={{ fontSize: "12px", color: "var(--color-success, #22c55e)", fontWeight: 500 }}>
+                                      {(metricAny.record_counts?.total_active ?? metric.record_counts?.total_active).toLocaleString()}
+                                    </span>
+                                  ) : (
+                                    <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
+                                  )}
+                                </td>
+                                <td className={styles.metricDateCell}>
+                                  {(metricAny.record_counts?.total_inactive ?? metric.record_counts?.total_inactive) != null ? (
+                                    <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>
+                                      {(metricAny.record_counts?.total_inactive ?? metric.record_counts?.total_inactive).toLocaleString()}
+                                    </span>
+                                  ) : (
+                                    <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
+                                  )}
+                                </td>
+                                <td className={styles.metricExecutionCell}>
+                                  {(metricAny.last_execution_at || metric.last_execution_at) ? (
+                                    <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                                      {new Date(metricAny.last_execution_at || metric.last_execution_at).toLocaleDateString()}
+                                    </span>
+                                  ) : (
+                                    <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 ));

@@ -1319,3 +1319,71 @@
   }
 }
 
+/* ============================================================================
+   Methodology page (logged-out city view)
+   ============================================================================ */
+
+.methodology-main {
+  padding: 120px 0 80px;
+  min-height: 60vh;
+}
+
+.methodology-header {
+  margin-bottom: 48px;
+}
+
+.methodology-header .badge {
+  display: inline-block;
+  margin-bottom: 12px;
+}
+
+.methodology-header .hero-title {
+  margin-bottom: 16px;
+}
+
+.methodology-header .hero-description {
+  max-width: 640px;
+  font-size: 1.125rem;
+  color: var(--text-secondary);
+}
+
+.methodology-section {
+  margin-bottom: 40px;
+  max-width: 720px;
+}
+
+.methodology-section h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.methodology-section p {
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.methodology-section p:last-child {
+  margin-bottom: 0;
+}
+
+.methodology-link {
+  color: var(--brand-primary, #ad35fa);
+  text-decoration: underline;
+  text-decoration-color: rgba(173, 53, 250, 0.35);
+}
+
+.methodology-link:hover {
+  color: var(--brand-primary-hover, #8b2cc7);
+  text-decoration-color: var(--brand-primary-hover);
+}
+
+.methodology-cta {
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+

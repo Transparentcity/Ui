@@ -1,15 +1,20 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useCityAnomalies, type AnomalyResult } from "@/lib/hooks/useAnomalies";
+import { useState, useMemo, useEffect } from "react";
+import { useCityAnomalies, useAvailablePeriods, type AnomalyResult, type AvailablePeriod } from "@/lib/hooks/useAnomalies";
 import { useCityLeaders } from "@/lib/hooks/useCities";
 import AnomalySparkline from "./AnomalySparkline";
 import AnomalyChartModal from "./AnomalyChartModal";
+import Loader from "./Loader";
+import { MetricLink } from "./MetricLink";
+import { slugify } from "@/lib/utils";
 import styles from "./AnomaliesTabPanel.module.css";
 
 interface AnomaliesTabPanelProps {
   cityId: number;
+  cityName?: string;
   initialDistrict?: number | null;
+  onMetricClick?: (metricId: number, district?: number | null) => void; // Callback when metric is clicked (for modal)
 }
 
 // Period type options
@@ -194,6 +199,17 @@ function getAnomalyPeriodDate(anomaly: AnomalyResult): string | null {
   return null;
 }
 
+// Helper to format period option label for dropdown
+function formatPeriodOptionLabel(period: AvailablePeriod, periodType: string): string {
+  const dateLabel = formatPeriodTitle(periodType, period.period_date);
+  const anomalyCount = period.anomaly_count || 0;
+  
+  if (anomalyCount > 0) {
+    return `${dateLabel} (${anomalyCount} alert${anomalyCount !== 1 ? 's' : ''})`;
+  }
+  return `${dateLabel} (no alerts)`;
+}
+
 // Helper to extract date ranges from chart_payload
 function getDateRangeInfo(chartPayload: Record<string, any> | null | undefined) {
   if (!chartPayload?.dates || !chartPayload?.periods) {
@@ -288,13 +304,16 @@ function getAnomalyDisplayInfo(anomaly: AnomalyResult, itemNoun: string) {
 
 export default function AnomaliesTabPanel({
   cityId,
+  cityName,
   initialDistrict,
+  onMetricClick,
 }: AnomaliesTabPanelProps) {
   // -1 = all districts, 0 = citywide only, >0 = specific district
   const [districtFilter, setDistrictFilter] = useState<number | null>(
     initialDistrict ?? 0
   );
   const [periodType, setPeriodType] = useState<string>("week");
+  const [selectedPeriodDate, setSelectedPeriodDate] = useState<string | null>(null);
   const [expandedMetricIds, setExpandedMetricIds] = useState<Set<number>>(
     new Set()
   );
@@ -314,30 +333,61 @@ export default function AnomaliesTabPanel({
     return Array.from(districts).sort((a, b) => a - b);
   }, [leaders]);
 
-  // Fetch anomalies
+  // Fetch available periods for the dropdown
+  const { data: periodsData, isLoading: isLoadingPeriods } = useAvailablePeriods(
+    periodType,
+    cityId,
+    districtFilter === -1 ? undefined : districtFilter
+  );
+
+  const availablePeriods = periodsData?.periods ?? [];
+
+  // Auto-select most recent period when periods load or change
+  useEffect(() => {
+    if (availablePeriods.length > 0 && !selectedPeriodDate) {
+      // Default to most recent period (first in the list, sorted by date DESC)
+      setSelectedPeriodDate(availablePeriods[0].period_date);
+    }
+  }, [availablePeriods, selectedPeriodDate]);
+
+  // Reset selected period when period type changes
+  useEffect(() => {
+    setSelectedPeriodDate(null);
+  }, [periodType]);
+
+  // Fetch anomalies - now with period_date filter
   const { data: anomaliesData, isLoading, error } = useCityAnomalies(cityId, {
     district: districtFilter === -1 ? undefined : districtFilter ?? undefined,
     period_type: periodType,
-    is_anomaly: true,
+    is_anomaly: null, // Show all results for the selected period (anomalies and non-anomalies)
     limit: 100,
+    period_date: selectedPeriodDate,
   });
 
   const anomalies = anomaliesData?.results ?? [];
 
-  // Group anomalies by metric
+  // Filter to only show actual anomalies (is_anomaly=true)
+  const actualAnomalies = useMemo(() => {
+    return anomalies.filter((a) => a.is_anomaly === true);
+  }, [anomalies]);
+
+  // Group actual anomalies by metric (only those with is_anomaly=true)
   const groupedAnomalies = useMemo(
-    () => groupAnomaliesByMetric(anomalies),
-    [anomalies]
+    () => groupAnomaliesByMetric(actualAnomalies),
+    [actualAnomalies]
   );
 
-  // Get period title from first anomaly (all anomalies should have same period)
+  // Get period title from selected period
   const periodTitle = useMemo(() => {
+    if (selectedPeriodDate) {
+      return formatPeriodTitle(periodType, selectedPeriodDate);
+    }
+    // Fallback to inferring from first anomaly
     if (anomalies.length === 0) return null;
     const firstAnomaly = anomalies[0];
     const periodDate = getAnomalyPeriodDate(firstAnomaly);
-    const anomalyPeriodType = (firstAnomaly as any).period_type || periodType;
-    return formatPeriodTitle(anomalyPeriodType, periodDate);
-  }, [anomalies, periodType]);
+    return formatPeriodTitle(periodType, periodDate);
+  }, [selectedPeriodDate, periodType, anomalies]);
 
   const toggleMetricExpanded = (metricId: number) => {
     setExpandedMetricIds((prev) => {
@@ -385,6 +435,27 @@ export default function AnomaliesTabPanel({
             ))}
           </select>
 
+          {/* Specific Period Selector */}
+          {availablePeriods.length > 0 && (
+            <>
+              <label className={styles.filterLabel}>
+                {periodType === "week" ? "Week:" : periodType === "month" ? "Month:" : "Date:"}
+              </label>
+              <select
+                className={styles.filterSelect}
+                value={selectedPeriodDate || ""}
+                onChange={(e) => setSelectedPeriodDate(e.target.value || null)}
+                disabled={isLoadingPeriods}
+              >
+                {availablePeriods.map((period) => (
+                  <option key={period.period_date} value={period.period_date}>
+                    {formatPeriodOptionLabel(period, periodType)}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+
           {/* District Filter */}
           <label className={styles.filterLabel}>Area:</label>
           <select
@@ -415,7 +486,7 @@ export default function AnomaliesTabPanel({
         {/* Loading State */}
         {isLoading && (
           <div className={styles.loadingContainer}>
-            <i className="fas fa-spinner fa-spin" />
+            <Loader size="md" color="purple" />
             <span>Loading anomalies...</span>
           </div>
         )}
@@ -432,18 +503,24 @@ export default function AnomaliesTabPanel({
         )}
 
         {/* Empty State */}
-        {!isLoading && !error && anomalies.length === 0 && (
+        {!isLoading && !error && actualAnomalies.length === 0 && (
           <div className={styles.emptyContainer}>
             <i className="fas fa-check-circle" />
-            <span>No significant anomalies detected</span>
+            <span>
+              {selectedPeriodDate 
+                ? `No significant anomalies for ${periodTitle || "this period"}`
+                : "No significant anomalies detected"}
+            </span>
             <p className={styles.emptySubtext}>
-              Anomalies are detected when data significantly deviates from historical patterns.
+              {anomalies.length > 0 
+                ? `${anomalies.length} metric${anomalies.length !== 1 ? 's' : ''} analyzed for this period - all within normal range.`
+                : "Anomalies are detected when data significantly deviates from historical patterns."}
             </p>
           </div>
         )}
 
         {/* Anomaly List */}
-        {!isLoading && !error && anomalies.length > 0 && (
+        {!isLoading && !error && actualAnomalies.length > 0 && (
           <>
             {/* Period Title Header */}
             {periodTitle && (
@@ -462,7 +539,20 @@ export default function AnomaliesTabPanel({
                 <div key={group.metricId} className={styles.metricGroup}>
                   {/* Metric Header */}
                   <div className={styles.metricHeader}>
-                    <span className={styles.metricName}>{group.metricName}</span>
+                    {cityName ? (
+                      <MetricLink
+                        metricId={group.metricId}
+                        citySlug={slugify(cityName)}
+                        mode="modal"
+                        district={districtFilter}
+                        onModalOpen={onMetricClick}
+                        className="metric-link-inline"
+                      >
+                        {group.metricName} <span className="link-indicator">→</span>
+                      </MetricLink>
+                    ) : (
+                      <span className={styles.metricName}>{group.metricName}</span>
+                    )}
                     {remainingAnomalies.length > 0 && (
                       <button
                         className={styles.expandBtn}
@@ -597,6 +687,7 @@ export default function AnomaliesTabPanel({
         anomalyId={selectedAnomalyId}
         isOpen={selectedAnomalyId !== null}
         onClose={() => setSelectedAnomalyId(null)}
+        citySlug={cityName ? slugify(cityName) : undefined}
       />
     </div>
   );

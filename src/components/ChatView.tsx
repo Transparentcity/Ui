@@ -43,6 +43,41 @@ interface ChatViewProps {
   currentSession?: any; // Store session data for intermediate_steps
 }
 
+type ProviderKey = "anthropic" | "openai" | "google" | "grok" | "xai" | "unknown";
+
+function normalizeProviderKey(value: string | undefined | null): ProviderKey {
+  const v = (value || "").toLowerCase().trim();
+  if (v.includes("anthropic") || v.includes("claude")) return "anthropic";
+  if (v.includes("openai") || v.includes("gpt")) return "openai";
+  if (v.includes("google") || v.includes("gemini")) return "google";
+  if (v.includes("grok")) return "grok";
+  if (v.includes("xai") || v.includes("x.ai")) return "xai";
+  return "unknown";
+}
+
+function getGroupProviderKey(group: ModelGroupInfo): ProviderKey {
+  // Prefer explicit model provider if present; fall back to label heuristics.
+  const fromModels = group.models?.[0]?.provider;
+  const fromLabel = group.label;
+  return normalizeProviderKey(fromModels || fromLabel);
+}
+
+function getProviderBadgeLetter(provider: ProviderKey): string {
+  switch (provider) {
+    case "anthropic":
+      return "A";
+    case "openai":
+      return "O";
+    case "google":
+      return "G";
+    case "grok":
+    case "xai":
+      return "X";
+    default:
+      return "?";
+  }
+}
+
 export default function ChatView({ sessionId = null, onSessionChange }: ChatViewProps) {
   const { getAccessTokenSilently } = useAuth0();
   const [message, setMessage] = useState("");
@@ -706,6 +741,44 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
               // Also trigger a refresh after a delay to ensure backend persistence
               window.dispatchEvent(new CustomEvent("chat:sessions:invalidate"));
             }
+          } else if (event.type === "token_usage") {
+            // Real-time token usage update from streaming
+            // Handle both nested token_usage object and flat fields
+            const tokenData = event.token_usage || event;
+            const sessionTokens = tokenData.session_total_tokens ?? 0;
+            const callCount = tokenData.llm_call_count ?? 0;
+            const costUsd = tokenData.estimated_cost_usd ?? 0;
+            
+            console.log("💰 Token usage update:", {
+              session_total_tokens: sessionTokens,
+              llm_call_count: callCount,
+              estimated_cost_usd: costUsd,
+            });
+            
+            // Update session stats in real-time
+            setSessionStats((prevStats) => {
+              if (!prevStats) {
+                // Create new stats object if none exists
+                return {
+                  session_id: sessionIdToUse || "",
+                  total_tokens_used: sessionTokens,
+                  llm_call_count: callCount,
+                  total_execution_time_ms: 0,
+                  model_key: selectedModel || PREFERRED_DEFAULT_MODEL_KEY,
+                  last_message_at: new Date().toISOString(),
+                  created_at: new Date().toISOString(),
+                  estimated_cost_usd: costUsd,
+                };
+              }
+              // Update existing stats with streaming values
+              return {
+                ...prevStats,
+                total_tokens_used: sessionTokens,
+                llm_call_count: callCount,
+                last_message_at: new Date().toISOString(),
+                estimated_cost_usd: costUsd,
+              };
+            });
           } else if (event.type === "heartbeat") {
             // Heartbeat event - just keep connection alive, don't process
             console.log("💓 Heartbeat received");
@@ -1075,8 +1148,13 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
           <span className={isWelcome ? styles.welcomeModelName : styles.modelSelectLoading}>Loading...</span>
         ) : selectedModelInfo ? (
           <>
-            <span className={isWelcome ? styles.welcomeModelEmoji : styles.modelSelectEmoji}>
-              {selectedModelInfo.group.emoji}
+            <span
+              className={`${isWelcome ? styles.welcomeModelEmoji : styles.modelSelectEmoji} ${styles.providerBadge}`}
+              data-provider={getGroupProviderKey(selectedModelInfo.group)}
+              title={selectedModelInfo.group.label}
+              aria-hidden="true"
+            >
+              {getProviderBadgeLetter(getGroupProviderKey(selectedModelInfo.group))}
             </span>
             <span className={isWelcome ? styles.welcomeModelName : styles.modelSelectText}>
               {selectedModelInfo.model.name}
@@ -1117,9 +1195,14 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
                   type="button"
                 >
                   <div className={styles.modelDropdownOptionHeader}>
-                    <span className={styles.modelDropdownOptionEmoji}>
-                      {group.emoji}
-                    </span>
+                        <span
+                          className={`${styles.modelDropdownOptionEmoji} ${styles.providerBadge}`}
+                          data-provider={getGroupProviderKey(group)}
+                          title={group.label}
+                          aria-hidden="true"
+                        >
+                          {getProviderBadgeLetter(getGroupProviderKey(group))}
+                        </span>
                     <span className={styles.modelDropdownOptionName}>
                       {model.name}
                     </span>
@@ -1286,8 +1369,13 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
                   type="button"
                   aria-label="Select model"
                 >
-                  <span className={styles.modelIconEmoji}>
-                    {selectedModelInfo.group.emoji}
+                  <span
+                    className={`${styles.modelIconEmoji} ${styles.providerBadge}`}
+                    data-provider={getGroupProviderKey(selectedModelInfo.group)}
+                    title={selectedModelInfo.group.label}
+                    aria-hidden="true"
+                  >
+                    {getProviderBadgeLetter(getGroupProviderKey(selectedModelInfo.group))}
                   </span>
                 </button>
               ) : (
@@ -1326,8 +1414,13 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
                           type="button"
                         >
                           <div className={styles.modelDropdownOptionHeader}>
-                            <span className={styles.modelDropdownOptionEmoji}>
-                              {group.emoji}
+                            <span
+                              className={`${styles.modelDropdownOptionEmoji} ${styles.providerBadge}`}
+                              data-provider={getGroupProviderKey(group)}
+                              title={group.label}
+                              aria-hidden="true"
+                            >
+                              {getProviderBadgeLetter(getGroupProviderKey(group))}
                             </span>
                             <span className={styles.modelDropdownOptionName}>
                               {model.name}

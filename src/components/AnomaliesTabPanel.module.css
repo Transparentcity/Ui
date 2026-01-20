@@ -10,13 +10,12 @@
   overflow: hidden;
 }
 
-/* Header */
+/* Header: title row, then a single row for Period / Week / Area selectors */
 .header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: nowrap;
-  gap: 12px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
   padding: 16px 20px;
   background: var(--bg-secondary, #f9fafb);
   border-bottom: 1px solid var(--border-primary, #e5e7eb);
@@ -49,12 +48,15 @@
   min-height: 16px;
 }
 
+/* Period, Week, Area selectors – always a single row; scroll horizontally on narrow screens */
 .filterRow {
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
   gap: 8px 12px;
   flex-shrink: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .filterLabel {
@@ -62,6 +64,7 @@
   font-weight: 500;
   color: var(--text-secondary, #666);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .filterSelect {
@@ -74,6 +77,7 @@
   cursor: pointer;
   min-width: 0;
   max-width: 140px;
+  flex-shrink: 0;
 }
 
 .filterSelect:focus {
@@ -98,13 +102,12 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 16px;
   padding: 40px 20px;
   text-align: center;
   color: var(--text-secondary, #666);
 }
 
-.loadingContainer i,
 .emptyContainer i {
   font-size: 40px;
   color: var(--text-tertiary, #999);
@@ -338,18 +341,15 @@
 @media (max-width: 640px) {
   .header {
     padding: 12px 16px;
-    flex-wrap: wrap;
   }
 
   .title {
     font-size: 16px;
-    flex-basis: 100%;
-    margin-bottom: 8px;
   }
 
   .filterRow {
-    flex-wrap: wrap;
-    width: 100%;
+    /* Keep Period, Week, Area on one row; overflow-x in base keeps them scrollable */
+    padding-bottom: 2px; /* hint for scrollbar when present */
   }
 
   .filterSelect {

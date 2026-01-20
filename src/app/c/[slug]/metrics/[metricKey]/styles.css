@@ -1,0 +1,185 @@
+.metric-detail-page {
+  min-height: 100vh;
+  background: var(--bg-primary);
+}
+
+.metric-detail-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.metric-detail-nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.metric-detail-nav-logo {
+  font-size: 1.125rem;
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--text-primary);
+}
+
+.metric-detail-nav-logo .logo-transparent {
+  color: var(--text-primary);
+}
+
+.metric-detail-nav-logo .logo-city {
+  color: var(--brand-primary, #8b5cf6);
+}
+
+.metric-detail-nav-logo:hover {
+  text-decoration: none;
+  color: var(--text-primary);
+}
+
+.metric-detail-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.metric-detail-nav-back,
+.metric-detail-nav-link {
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.metric-detail-nav-back:hover,
+.metric-detail-nav-link:hover {
+  color: var(--brand-primary);
+  text-decoration: underline;
+}
+
+.metric-detail-content-wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.metric-load-error {
+  text-align: center;
+  padding: 3rem 1.5rem;
+}
+
+.metric-load-error-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.75rem;
+}
+
+.metric-load-error-message {
+  font-size: 1.125rem;
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+  max-width: 32ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.metric-load-error-link {
+  display: inline-block;
+  font-size: 1rem;
+  color: var(--brand-primary, #8b5cf6);
+  text-decoration: underline;
+}
+
+.metric-load-error-link:hover {
+  color: var(--brand-primary-hover, #7c3aed);
+}
+
+.metric-section {
+  margin-top: 3rem;
+}
+
+.metric-section-title {
+  font-family: "Inter", sans-serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 1.5rem;
+}
+
+.metric-chart-container {
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 1.5rem;
+  min-height: 400px;
+}
+
+.metric-placeholder {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 2rem;
+}
+
+.metric-provenance {
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.provenance-item {
+  margin-bottom: 1.5rem;
+}
+
+.provenance-item:last-child {
+  margin-bottom: 0;
+}
+
+.provenance-label {
+  font-family: "Inter", sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.provenance-value {
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 1rem;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.provenance-link {
+  display: inline-block;
+  margin-top: 0.5rem;
+  color: var(--brand-primary);
+  text-decoration: underline;
+  text-decoration-color: var(--brand-primary-light);
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+.provenance-link:hover {
+  color: var(--brand-primary-hover);
+  text-decoration-color: var(--brand-primary-hover);
+}
+
+@media (max-width: 768px) {
+  .metric-detail-content-wrapper {
+    padding: 1rem;
+  }
+
+  .metric-section {
+    margin-top: 2rem;
+  }
+
+  .metric-section-title {
+    font-size: 1.25rem;
+  }
+}

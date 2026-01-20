@@ -300,7 +300,8 @@
   bottom: 0;
   width: 100%;
   height: 100%;
-  z-index: 1;
+  /* Note: No z-index here to avoid creating a stacking context that traps the layer panel.
+     The layer panel uses position:fixed with high z-index to appear above all overlays. */
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -321,7 +322,8 @@
   width: 100%;
   height: 100%;
   position: relative;
-  z-index: 1; /* Map layer - below overlays */
+  /* Note: No z-index here to avoid creating a stacking context that traps the layer panel.
+     The layer panel uses position:fixed with high z-index to appear above all overlays. */
 }
 
 /* Header overlay for map view - positioned on top of map */
@@ -383,7 +385,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding-left: 16px;
+  padding-left: 32px; /* Wide: beside hamburger (overlay 24px + 32px clears 16+40) */
 }
 
 .city-header-overlay .city-header-hamburger {
@@ -586,46 +588,24 @@
   color: var(--text-primary);
 }
 
-/* Dashboard Header with Official Selector */
+/* Dashboard Header with Official Selector - matches map view look */
 .dashboard-header {
   margin-bottom: 24px;
+  padding: 24px 0 0 0; /* Padding for Official Selector, same feel as map overlay */
 }
 
-/* District Navigation in Dashboard View */
+/* District Navigation in Dashboard View - same styling as map (no overrides on header) */
 .dashboard-district-navigation {
   display: inline-block;
   width: auto;
-}
-
-.dashboard-district-navigation .district-navigation-header {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-primary);
-  backdrop-filter: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  width: auto;
-  min-width: 280px;
+  min-width: 300px;
   max-width: 400px;
-}
-
-.dashboard-district-navigation .district-navigation-header:hover {
-  background: var(--bg-primary);
-  border-color: var(--brand-primary);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
-}
-
-[data-theme="dark"] .dashboard-district-navigation .district-navigation-header,
-.dark .dashboard-district-navigation .district-navigation-header {
-  background: var(--bg-primary);
-  border-color: var(--border-primary);
 }
 
 @media (max-width: 640px) {
   .dashboard-district-navigation {
     width: 100%;
-  }
-  
-  .dashboard-district-navigation .district-navigation-header {
-    width: 100%;
+    min-width: 100%;
     max-width: 100%;
   }
 }
@@ -636,13 +616,13 @@
 
 /* Comparison Type Selector */
 .dashboard-comparison-selector {
-  padding: 16px 24px;
+  padding: 8px 24px;
   border-bottom: 1px solid var(--border-primary, #e5e7eb);
   background-color: var(--bg-secondary, #f9fafb);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
@@ -663,14 +643,14 @@
 
 @media (max-width: 640px) {
   .dashboard-comparison-selector {
-    padding: 12px 16px;
+    padding: 8px 16px;
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    gap: 8px;
   }
   
   .dashboard-comparison-selector button {
-    padding: 6px 12px;
+    padding: 5px 12px;
     font-size: 12px;
   }
 }
@@ -1282,7 +1262,7 @@
   gap: 16px;
   padding: 10px 16px;
   background: var(--bg-secondary);
-  border-radius: 8px 8px 0 0;
+  border-radius: 0;
   border: 1px solid var(--border-primary);
   border-left: none;
   border-right: none;
@@ -1293,6 +1273,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0; /* Allow text truncation if needed for mobile */
 }
 
 .metrics-table-header .metric-col {
@@ -1324,7 +1305,7 @@
   border: 1px solid var(--border-primary);
   border-left: none;
   border-right: none;
-  border-radius: 0 0 8px 8px;
+  border-radius: 0;
   overflow: hidden;
 }
 
@@ -1338,6 +1319,22 @@
   border-bottom: 1px solid var(--border-primary);
   transition: background 0.15s ease;
   min-height: 56px; /* Ensure consistent height with metadata */
+  text-decoration: none; /* Remove link underline */
+  color: inherit; /* Inherit text color */
+}
+
+/* Ensure link elements maintain grid layout */
+a.metrics-table-row {
+  display: grid;
+}
+
+/* Ensure button elements (modal mode) maintain grid layout */
+button.metrics-table-row {
+  display: grid;
+  text-align: left;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
 }
 
 .metrics-table-row:last-child {
@@ -1348,9 +1345,22 @@
   background: var(--bg-secondary);
 }
 
-/* Metric Name */
+/* Metric Name - indent from left margin */
 .metrics-table-row .metric-col-name {
-  justify-content: center;
+  justify-content: flex-start;
+  padding-left: 8px; /* Indent metric name/emoji from left edge */
+  padding-top: 4px; /* Space above content */
+}
+
+/* Value columns - space above date labels */
+.metrics-table-row .metric-col-value {
+  padding-top: 4px;
+}
+
+/* Change column - space above + indent from right */
+.metrics-table-row .metric-col-change {
+  padding-top: 4px;
+  padding-right: 8px;
 }
 
 .metric-name {
@@ -1361,10 +1371,11 @@
 }
 
 .metric-metadata {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-tertiary, #9ca3af);
   line-height: 1.2;
-  opacity: 0.8;
+  margin-top: 1px; /* Tight spacing - closer to metric name above */
+  margin-bottom: 6px; /* Space below to set off from next row */
 }
 
 /* Metric Value Columns */
@@ -1372,8 +1383,9 @@
   font-size: 10px;
   font-weight: 400;
   color: var(--text-tertiary);
-  line-height: 1.2;
+  line-height: 1.4; /* Improved line height for clarity */
   opacity: 0.8;
+  margin-bottom: 1px; /* Tight spacing with value below */
 }
 
 .metric-value {
@@ -1483,50 +1495,211 @@
   .metrics-table-container {
     width: 100%;
     max-width: 100%;
-    overflow-x: visible; /* Remove horizontal scroll, use 100% width */
+    overflow-x: visible;
+    margin: 0;
+    padding: 0;
   }
   
-  .metrics-table-header,
-  .metrics-table-row {
-    grid-template-columns: 1.3fr 0.8fr 0.8fr 0.9fr;
-    gap: 6px;
-    padding: 10px 12px;
+  /* Header: 100% width, optimized column ratios for mobile */
+  .metrics-table-header {
+    grid-template-columns: 2fr 1fr 1fr 1fr; /* Better space distribution */
+    gap: 8px; /* Slightly more breathing room */
+    padding: 12px 10px; /* Vertical padding for clarity */
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
   }
   
+  /* Rows: Optimized for mobile readability - visible row container */
+  .metrics-table-row {
+    grid-template-columns: 2fr 1fr 1fr 1fr; /* Match header, better proportions */
+    gap: 8px;
+    padding: 20px 10px 18px 10px; /* More vertical padding between rows */
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    min-height: auto; /* Let content determine height */
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-primary);
+    align-items: start; /* Align all columns to top so row padding creates space above */
+  }
+  
   .metrics-table-body {
     width: 100%;
     max-width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--border-primary);
+    border-left: none;
+    border-right: none;
+    background: var(--bg-primary);
   }
   
+  /* Ensure table container uses full width */
+  .metrics-table {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    border-radius: 0; /* Remove border radius on mobile for full width */
+  }
+  
+  /* Typography: Optimized for mobile readability */
   .metric-date-label {
     font-size: 9px;
+    line-height: 1.4; /* Better line spacing */
+    margin-bottom: 2px; /* Tight spacing with value */
+  }
+  
+  /* Add top padding to value columns so date labels have space above */
+  .metrics-table-row .metric-col-value {
+    padding-top: 4px;
   }
   
   .metric-name {
-    font-size: 12px;
+    font-size: 13px; /* Slightly larger for readability */
+    font-weight: 500;
+    line-height: 1.4; /* Improved line height for clarity */
+    margin-top: 4px; /* Spacing above metric name */
+    margin-bottom: 0;
   }
   
+  /* Align metric name column to top, not centered */
+  .metrics-table-row .metric-col-name {
+    justify-content: flex-start;
+    padding-left: 8px;
+    padding-top: 2px; /* Small top padding for visual spacing */
+  }
+  
+  /* Metadata: Compact but readable - same spacing as desktop */
   .metric-metadata {
-    font-size: 9px;
+    font-size: 9px; /* Slightly larger for legibility */
+    line-height: 1.2;
+    margin-top: 1px; /* Tight spacing - closer to metric name above (same as desktop) */
+    margin-bottom: 6px; /* Space below to set off from next row (same as desktop) */
+    color: var(--text-tertiary, #9ca3af);
+    letter-spacing: 0.01em; /* Slight letter spacing for clarity */
+  }
+  
+  
+  /* Change column: top padding for spacing + right indent */
+  .metrics-table-row .metric-col-change {
+    padding-top: 4px;
+    padding-right: 8px;
   }
   
   .metric-value {
-    font-size: 13px;
+    font-size: 14px; /* Larger for better readability */
+    font-weight: 600; /* Slightly bolder for emphasis */
+    line-height: 1.3;
   }
   
+  /* Change indicators: Clear and readable */
   .change-arrow {
-    font-size: 14px;
+    font-size: 16px; /* Larger for visibility */
+    line-height: 1;
   }
   
   .change-absolute {
-    font-size: 11px;
+    font-size: 12px; /* Larger for readability */
+    line-height: 1.3;
+    font-weight: 600;
   }
   
   .change-percent {
-    font-size: 9px;
+    font-size: 10px; /* Slightly larger */
+    line-height: 1.3;
+  }
+  
+  /* Column alignment adjustments for mobile */
+  .metric-col {
+    gap: 1px; /* Tighter gap between label and value */
+  }
+  
+  .metric-col-value,
+  .metric-col-change {
+    align-items: flex-end;
+    text-align: right;
+  }
+  
+  /* Optimize change indicator spacing for mobile */
+  .change-indicator {
+    gap: 4px; /* Tighter gap on mobile */
+  }
+  
+  .change-values {
+    gap: 0px; /* No gap between absolute and percent on mobile */
+  }
+}
+
+/* Subcategory Headers - Minimal, subtle grouping within categories */
+.metrics-subcategory-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: var(--bg-secondary, #f9fafb);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.metrics-subcategory-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary, #6b7280);
+  text-transform: capitalize;
+  letter-spacing: 0.3px;
+  position: relative;
+  padding-left: 10px;
+}
+
+/* Subtle left accent bar */
+.metrics-subcategory-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 12px;
+  background: var(--brand-primary, #ad35fa);
+  border-radius: 2px;
+  opacity: 0.6;
+}
+
+/* Dark mode support */
+[data-theme="dark"] .metrics-subcategory-header,
+.dark .metrics-subcategory-header {
+  background: var(--bg-tertiary, #1f2937);
+}
+
+[data-theme="dark"] .metrics-subcategory-title,
+.dark .metrics-subcategory-title {
+  color: var(--text-secondary, #9ca3af);
+}
+
+[data-theme="dark"] .metrics-subcategory-title::before,
+.dark .metrics-subcategory-title::before {
+  opacity: 0.7;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 640px) {
+  /* Subcategory headers: 100% width, optimized spacing */
+  .metrics-subcategory-header {
+    padding: 10px 0; /* More vertical padding for clarity and separation */
+    width: 100%;
+    margin: 0;
+  }
+  
+  .metrics-subcategory-title {
+    font-size: 10px;
+    font-weight: 500;
+    padding-left: 10px; /* Match row padding for alignment with purple tick */
+    line-height: 1.4; /* Better line height for readability */
+  }
+  
+  .metrics-subcategory-title::before {
+    width: 2px;
+    height: 12px; /* Slightly taller for better visibility */
+    left: 0; /* Align tick with row content start */
   }
 }
 
@@ -2011,9 +2184,9 @@
     padding-bottom: 12px;
   }
 
-  /* Push city icon to far left and save icon to far right on mobile */
+  /* Position city icon beside hamburger on narrow: 12px TitleBar + 36px hamburger + 4px gap */
   .city-header-overlay .city-header-left {
-    padding-left: 16px; /* Space for hamburger button when visible */
+    padding-left: 52px;
     padding-right: 0;
   }
   
@@ -2072,4 +2245,10 @@
   }
 }
 
+@media (max-width: 480px) {
+  /* Very narrow: 8px TitleBar + 36px hamburger + 4px gap — a little left so beside, not overlapping */
+  .city-header-overlay .city-header-left {
+    padding-left: 48px;
+  }
+}
 

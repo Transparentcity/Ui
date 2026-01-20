@@ -344,6 +344,25 @@
   font-weight: normal;
 }
 
+.subAnomalyContent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.subAnomalyMain {
+  display: flex;
+  align-items: center;
+}
+
+.subAnomalyStats {
+  font-size: 10px;
+  color: var(--text-secondary, #666);
+  margin-left: 18px;
+}
+
 /* Collapsed Card */
 .collapsedCard {
   display: flex;

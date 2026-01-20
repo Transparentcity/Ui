@@ -1,11 +1,13 @@
 import { Metadata } from "next";
 
+export const dynamic = "force-dynamic";
+
 type Props = {
   params: Promise<{ hash: string }>;
   children: React.ReactNode;
 };
 
-// Fetch map data server-side for metadata
+// Fetch map data server-side for metadata (no auth required)
 async function getMapMetadata(hash: string): Promise<{
   title: string;
   description: string;

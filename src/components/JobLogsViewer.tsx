@@ -2,9 +2,19 @@
 
 import { useAuth0 } from "@auth0/auth0-react";
 import { useEffect, useState, useRef } from "react";
-import { Job, getJob, getJobStats, JobStats } from "@/lib/apiClient";
+import {
+  Job,
+  getJob,
+  getJobStats,
+  JobStats,
+  getScheduledJobSummary,
+  ScheduledJobSummary,
+  ScheduledJobRunSummary,
+  runSchedule,
+} from "@/lib/apiClient";
 import { useJobWebSocketContext } from "@/contexts/JobWebSocketContext";
 import type { Job as WebSocketJob } from "@/lib/useJobWebSocket";
+import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import Loader from "./Loader";
 import styles from "./JobLogsViewer.module.css";
 
@@ -12,9 +22,16 @@ export default function JobLogsViewer() {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   const [token, setToken] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false); // Loading state for extra details (logs/result)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<JobStats | null>(null);
+  const [scheduleSummaries, setScheduleSummaries] = useState<ScheduledJobSummary[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [runningSchedule, setRunningSchedule] = useState<string | null>(null); // Track which schedule is being run
+  const [removeAllInactive, setRemoveAllInactive] = useState(false); // For database cleanup space recovery mode
+  const [scheduleCollapsed, setScheduleCollapsed] = useState(false); // Collapse/expand schedule section
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterType, setFilterType] = useState<string>("");
   const selectedJobRef = useRef<Job | null>(null);
@@ -87,12 +104,70 @@ export default function JobLogsViewer() {
     }
   };
 
+  const loadScheduleSummary = async () => {
+    try {
+      setScheduleLoading(true);
+      setScheduleError(null);
+      const currentToken = token || (await getAccessTokenSilently());
+      const schedules = await getScheduledJobSummary(currentToken);
+      setScheduleSummaries(schedules);
+    } catch (err) {
+      console.error("Error loading schedule summary:", err);
+      setScheduleError("Failed to load scheduled jobs.");
+    } finally {
+      setScheduleLoading(false);
+    }
+  };
+
+  // Handle manual schedule run
+  const handleRunSchedule = async (scheduleKey: string, scheduleLabel: string) => {
+    if (runningSchedule) return; // Prevent multiple simultaneous runs
+    
+    try {
+      setRunningSchedule(scheduleKey);
+      setScheduleError(null);
+      const currentToken = token || (await getAccessTokenSilently());
+      
+      // Build request with optional remove_all_inactive for database cleanup
+      const request: { schedule_key: string; remove_all_inactive?: boolean } = { 
+        schedule_key: scheduleKey 
+      };
+      if (scheduleKey === "database_cleanup" && removeAllInactive) {
+        request.remove_all_inactive = true;
+      }
+      
+      const response = await runSchedule(request, currentToken);
+      
+      // Notify job system about all created jobs so they appear immediately
+      if (response?.result?.results) {
+        for (const result of response.result.results) {
+          if (result.job_id) {
+            notifyJobCreated(result.job_id);
+          }
+        }
+      }
+      
+      // Refresh schedule summary after a short delay to show the new job
+      setTimeout(() => {
+        loadScheduleSummary();
+        loadStats();
+      }, 1000);
+      
+    } catch (err) {
+      console.error(`Error running schedule ${scheduleKey}:`, err);
+      setScheduleError(`Failed to run ${scheduleLabel}. Please try again.`);
+    } finally {
+      setRunningSchedule(null);
+    }
+  };
+
   // Refresh all jobs
   const handleRefreshJobs = async () => {
     setIsRefreshing(true);
     try {
       await refreshJobs();
       await loadStats();
+      await loadScheduleSummary();
     } finally {
       setTimeout(() => setIsRefreshing(false), 500); // Min visual feedback
     }
@@ -111,6 +186,37 @@ export default function JobLogsViewer() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load job details");
       console.error("Error loading job details:", err);
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
+  // Optimistic job selection - show cached data immediately, then fetch full details
+  const handleJobClick = (jobId: string) => {
+    // Find the job in our cached WebSocket data
+    const cachedJob = jobs.find((j) => j.job_id === jobId);
+    
+    if (cachedJob) {
+      // Immediately show the cached data (optimistic update)
+      setSelectedJob(cachedJob);
+      selectedJobRef.current = cachedJob;
+      
+      // Only fetch full details if we need logs/result (for completed/failed jobs)
+      // or if the job might have additional data
+      const needsFullDetails = 
+        cachedJob.status === "completed" || 
+        cachedJob.status === "failed" || 
+        cachedJob.status === "cancelled" ||
+        !cachedJob.logs || cachedJob.logs.length === 0;
+      
+      if (needsFullDetails) {
+        setDetailsLoading(true);
+        loadJobDetails(jobId);
+      }
+    } else {
+      // No cached data, fetch from API
+      setDetailsLoading(true);
+      loadJobDetails(jobId);
     }
   };
 
@@ -118,6 +224,7 @@ export default function JobLogsViewer() {
   useEffect(() => {
     if (token) {
       loadStats();
+      loadScheduleSummary();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterStatus, token]);
@@ -263,6 +370,36 @@ export default function JobLogsViewer() {
     }
   };
 
+  const formatScheduleCounts = (run: ScheduledJobRunSummary | null | undefined) => {
+    if (!run) return "No runs yet";
+    if (run.metrics_total !== undefined && run.metrics_total !== null) {
+      const completed = run.metrics_completed ?? 0;
+      const failed = run.metrics_failed ?? 0;
+      return `${completed} succeeded, ${failed} failed (${run.metrics_total} total)`;
+    }
+    if (run.city_count !== undefined && run.city_count !== null) {
+      if (run.cities_succeeded !== null && run.cities_succeeded !== undefined) {
+        return `${run.cities_succeeded} succeeded, ${run.cities_failed ?? 0} failed (${run.city_count} cities)`;
+      }
+      return `${run.city_count} cities`;
+    }
+    if (run.datasets_indexed !== undefined && run.datasets_indexed !== null) {
+      return `${run.datasets_indexed} datasets indexed`;
+    }
+    // Database cleanup results
+    if (run.time_series_deleted !== undefined || run.anomalies_deleted !== undefined) {
+      const tsDeleted = run.time_series_deleted ?? 0;
+      const anomaliesDeleted = run.anomalies_deleted ?? 0;
+      const total = tsDeleted + anomaliesDeleted;
+      const modeLabel = run.remove_all_inactive ? " (all inactive)" : "";
+      if (total === 0) {
+        return `No inactive records to remove${modeLabel}`;
+      }
+      return `${tsDeleted} time series, ${anomaliesDeleted} anomalies removed${modeLabel}`;
+    }
+    return "Run completed";
+  };
+
   const filteredJobs = jobs
     .filter((job) => {
       if (filterType && job.job_type !== filterType) return false;
@@ -323,6 +460,126 @@ export default function JobLogsViewer() {
             {isRefreshing ? '↻ Refreshing...' : '↻ Refresh All'}
           </button>
         </div>
+      </div>
+
+      <div className={`${styles.scheduleSection} ${scheduleCollapsed ? styles.collapsed : ''}`}>
+        <div 
+          className={styles.scheduleHeader}
+          onClick={() => setScheduleCollapsed(!scheduleCollapsed)}
+          style={{ cursor: 'pointer' }}
+        >
+          <div className={styles.scheduleHeaderLeft}>
+            <span className={styles.collapseIcon}>{scheduleCollapsed ? '▶' : '▼'}</span>
+            <div>
+              <h3>Scheduled Jobs</h3>
+              {!scheduleCollapsed && (
+                <p className={styles.scheduleSubheading}>
+                  Latest scheduled runs and outcomes.
+                </p>
+              )}
+            </div>
+          </div>
+          <div className={styles.scheduleHeaderMeta}>
+            {scheduleLoading ? (
+              <Loader size="sm" color="purple" />
+            ) : (
+              <span className={styles.scheduleUpdated}>
+                {scheduleSummaries.length > 0 
+                  ? (scheduleCollapsed ? `${scheduleSummaries.length} schedules` : "Updated")
+                  : "No data yet"}
+              </span>
+            )}
+          </div>
+        </div>
+        {!scheduleCollapsed && (
+          <>
+            {scheduleError && (
+              <div className={styles.scheduleError}>{scheduleError}</div>
+            )}
+            <div className={styles.scheduleGrid}>
+          {scheduleSummaries.map((schedule) => {
+            const lastRun = schedule.last_run;
+            const statusColor = lastRun?.status
+              ? getStatusColor(lastRun.status)
+              : "var(--text-secondary, #6b7280)";
+            return (
+              <div key={schedule.key} className={styles.scheduleCard}>
+                <div className={styles.scheduleCardHeader}>
+                  <div>
+                    <div className={styles.scheduleLabel}>{schedule.label}</div>
+                    <div className={styles.scheduleCadence}>{schedule.cadence}</div>
+                  </div>
+                  <span
+                    className={styles.scheduleStatus}
+                    style={{ color: statusColor }}
+                  >
+                    {lastRun?.status || "not run"}
+                  </span>
+                </div>
+                <div className={styles.scheduleDescription}>
+                  {schedule.description}
+                </div>
+                {schedule.key === "database_cleanup" && (
+                  <label className={styles.cleanupOption}>
+                    <input
+                      type="checkbox"
+                      checked={removeAllInactive}
+                      onChange={(e) => setRemoveAllInactive(e.target.checked)}
+                      disabled={runningSchedule !== null}
+                    />
+                    <span>Remove all inactive (space recovery)</span>
+                  </label>
+                )}
+                <div className={styles.scheduleCounts}>
+                  {formatScheduleCounts(lastRun)}
+                </div>
+                {lastRun?.created_at && (
+                  <div className={styles.scheduleMeta}>
+                    Last run: {formatDate(lastRun.created_at)}
+                  </div>
+                )}
+                {schedule.recent_runs?.length > 0 && (
+                  <div className={styles.scheduleRuns}>
+                    {schedule.recent_runs.map((run) => (
+                      <div key={run.job_id} className={styles.scheduleRunRow}>
+                        <span className={styles.scheduleRunCity}>
+                          {run.city_name || "All cities"}
+                        </span>
+                        <span className={styles.scheduleRunCounts}>
+                          {formatScheduleCounts(run)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  className={styles.runNowButton}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRunSchedule(schedule.key, schedule.label);
+                  }}
+                  disabled={runningSchedule !== null}
+                  title={`Run ${schedule.label} now`}
+                >
+                  {runningSchedule === schedule.key ? (
+                    <Loader size="sm" color="purple" />
+                  ) : (
+                    "▶"
+                  )}
+                </button>
+              </div>
+            );
+          })}
+            </div>
+            {!scheduleLoading &&
+              scheduleSummaries.length === 0 &&
+              !scheduleError && (
+                <div className={styles.scheduleEmpty}>
+                  No scheduled runs yet.
+                </div>
+              )}
+          </>
+        )}
       </div>
 
       {stats && (
@@ -398,7 +655,7 @@ export default function JobLogsViewer() {
                   className={`${styles.jobItem} ${
                     selectedJob?.job_id === job.job_id ? styles.jobItemSelected : ""
                   }`}
-                  onClick={() => loadJobDetails(job.job_id)}
+                  onClick={() => handleJobClick(job.job_id)}
                 >
                   <div className={styles.jobItemHeader}>
                     <div className={styles.jobItemTitle}>
@@ -510,7 +767,7 @@ export default function JobLogsViewer() {
                   </div>
                 )}
 
-                {selectedJob.logs && selectedJob.logs.length > 0 && (
+                {selectedJob.logs && selectedJob.logs.length > 0 ? (
                   <div className={styles.detailSection}>
                     <h4>Event Log ({selectedJob.logs.length} entries)</h4>
                     <div className={styles.logsContainer}>
@@ -527,16 +784,32 @@ export default function JobLogsViewer() {
                       })}
                     </div>
                   </div>
-                )}
+                ) : detailsLoading ? (
+                  <div className={styles.detailSection}>
+                    <h4>Event Log</h4>
+                    <div className={styles.logsContainer} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "12px" }}>
+                      <Loader size="sm" color="dark" />
+                      <span style={{ color: "var(--text-secondary, #6b7280)" }}>Loading logs...</span>
+                    </div>
+                  </div>
+                ) : null}
 
-                {selectedJob.result && (
+                {selectedJob.result ? (
                   <div className={styles.detailSection}>
                     <h4>Result</h4>
                     <pre className={styles.result}>
                       {JSON.stringify(selectedJob.result, null, 2)}
                     </pre>
                   </div>
-                )}
+                ) : detailsLoading && (selectedJob.status === "completed" || selectedJob.status === "failed") ? (
+                  <div className={styles.detailSection}>
+                    <h4>Result</h4>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "12px" }}>
+                      <Loader size="sm" color="dark" />
+                      <span style={{ color: "var(--text-secondary, #6b7280)" }}>Loading result...</span>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </>
           ) : (

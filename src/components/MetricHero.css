@@ -1,0 +1,167 @@
+.metric-hero {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.metric-hero-header {
+  margin-bottom: 1.5rem;
+}
+
+.metric-hero-title-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.metric-trend-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.metric-trend-badge.trend-good {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+}
+
+.metric-trend-badge.trend-bad {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--error);
+}
+
+.metric-trend-badge.trend-neutral {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.trend-arrow {
+  font-size: 1rem;
+}
+
+.trend-percent {
+  font-size: 0.875rem;
+}
+
+.metric-hero-title {
+  font-family: "Inter", sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  flex: 1;
+}
+
+.metric-hero-subtitle {
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.metric-hero-values {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+  padding: 1.5rem;
+  background: var(--bg-primary);
+  border-radius: 8px;
+}
+
+.metric-value-group {
+  flex: 1;
+  text-align: center;
+}
+
+.metric-value-label {
+  font-family: "Inter", sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.metric-value-number {
+  font-family: "Inter", sans-serif;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.metric-value-unit {
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+.metric-value-separator {
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 1rem;
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.metric-hero-period-selector {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.period-button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: "Inter", sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.period-button:hover {
+  border-color: var(--brand-primary);
+  background: var(--bg-secondary);
+}
+
+.period-button.active {
+  background: var(--brand-primary);
+  color: var(--text-inverse);
+  border-color: var(--brand-primary);
+}
+
+@media (max-width: 768px) {
+  .metric-hero {
+    padding: 1.5rem;
+  }
+
+  .metric-hero-title {
+    font-size: 1.5rem;
+  }
+
+  .metric-hero-values {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .metric-value-separator {
+    transform: rotate(90deg);
+  }
+
+  .metric-value-number {
+    font-size: 2rem;
+  }
+}

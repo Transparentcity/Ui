@@ -22,6 +22,18 @@ function formatTime(ms: number): string {
   }
 }
 
+function formatCost(costUsd: number): string {
+  if (costUsd === 0) {
+    return "$0.00";
+  } else if (costUsd < 0.01) {
+    return `$${costUsd.toFixed(4)}`;
+  } else if (costUsd < 1) {
+    return `$${costUsd.toFixed(3)}`;
+  } else {
+    return `$${costUsd.toFixed(2)}`;
+  }
+}
+
 function formatTokens(tokens: number): string {
   if (tokens < 1000) {
     return tokens.toString();
@@ -34,10 +46,24 @@ function formatTokens(tokens: number): string {
 
 function getModelDisplayName(modelKey: string): string {
   const modelMap: Record<string, string> = {
-    "claude-3-5-sonnet": "Claude 3.5 Sonnet",
-    "claude-3-opus": "Claude 3 Opus",
-    "claude-3-sonnet": "Claude 3 Sonnet",
-    "claude-3-haiku": "Claude 3 Haiku",
+    // Claude (latest + one older)
+    "claude-haiku-4.5": "Claude Haiku 4.5",
+    "claude-sonnet-4.5": "Claude Sonnet 4.5",
+    "claude-opus-4.5": "Claude Opus 4.5",
+    "claude-haiku-4": "Claude Haiku 4",
+    "claude-sonnet-4": "Claude Sonnet 4",
+    "claude-opus-4.1": "Claude Opus 4.1",
+
+    // Gemini (latest + one older)
+    "gemini-3-pro": "Gemini 3 Pro",
+    "gemini-3-flash": "Gemini 3 Flash",
+    "gemini-2.5-pro": "Gemini 2.5 Pro",
+    "gemini-2.5-flash": "Gemini 2.5 Flash",
+
+    // Grok (latest + one older)
+    "grok-4": "Grok 4",
+    "grok-3": "Grok 3",
+
     "gpt-4o": "GPT-4o",
     "gpt-4-turbo": "GPT-4 Turbo",
     "gpt-4": "GPT-4",
@@ -64,6 +90,7 @@ export default function SessionHeader({
   const tokens = stats?.total_tokens_used ?? 0;
   const calls = stats?.llm_call_count ?? 0;
   const time = stats?.total_execution_time_ms ?? 0;
+  const cost = stats?.estimated_cost_usd ?? 0;
 
   // Log stats for debugging
   if (stats && (stats.total_tokens_used > 0 || stats.llm_call_count > 0)) {
@@ -71,6 +98,7 @@ export default function SessionHeader({
       tokens: stats.total_tokens_used,
       calls: stats.llm_call_count,
       time: stats.total_execution_time_ms,
+      cost: stats.estimated_cost_usd,
     });
   }
 
@@ -92,8 +120,8 @@ export default function SessionHeader({
         <span className={styles.statValue}>{calls}</span>
       </div>
       <div className={styles.statItem}>
-        <span className={styles.statLabel}>Time:</span>
-        <span className={styles.statValue}>{formatTime(time)}</span>
+        <span className={styles.statLabel}>Cost:</span>
+        <span className={styles.statValue}>{formatCost(cost)}</span>
       </div>
     </div>
   );

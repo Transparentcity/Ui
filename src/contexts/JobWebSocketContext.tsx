@@ -10,6 +10,7 @@ interface JobWebSocketContextValue {
   activeJobs: Job[];
   isConnected: boolean;
   cancelJob: (jobId: string) => Promise<void>;
+  cancelAllJobs: () => Promise<void>;
   refreshJobs: () => Promise<void>;
   fetchJob: (jobId: string) => Promise<void>;
 }

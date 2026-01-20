@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { listJobs, getJob, cancelJob as cancelJobAPI, type Job as APIJob } from "./apiClient";
 
 export interface Job {
@@ -31,13 +31,17 @@ import { API_BASE } from "./apiBase";
  * @param jobId - The job ID that was just created
  */
 export function notifyJobCreated(jobId: string) {
-  console.log(`📢 Notifying job creation: ${jobId}`);
   window.dispatchEvent(
     new CustomEvent("jobCreated", {
       detail: jobId,
     })
   );
 }
+
+// Max retries before giving up on WebSocket and using polling only
+const MAX_WS_RETRIES = 2;
+// WebSocket connection timeout (fail fast)
+const WS_CONNECT_TIMEOUT_MS = 2000;
 
 export function useJobWebSocket(token: string | null, enabled: boolean = true) {
   const [jobs, setJobs] = useState<Map<string, Job>>(new Map());
@@ -50,6 +54,8 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingRef = useRef<boolean>(false);
   const pollingDelayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const wsRetryCountRef = useRef<number>(0);
+  const wsGaveUpRef = useRef<boolean>(false);
 
   // Keep token ref in sync
   useEffect(() => {
@@ -60,25 +66,21 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
   const loadJobs = useCallback(async () => {
     // Prevent duplicate simultaneous requests
     if (isLoadingJobsRef.current) {
-      console.log("⏸️ Job WebSocket: Job load already in progress, skipping");
       return;
     }
 
     const currentToken = tokenRef.current;
     if (!currentToken) {
-      console.log("⏸️ Job WebSocket: No token available, skipping job load");
       return;
     }
 
     isLoadingJobsRef.current = true;
     try {
-      console.log("📥 Job WebSocket: Loading initial jobs from", `${API_BASE}/api/jobs?limit=20`);
-      
       // Use the apiClient function for consistency and better error handling
       const data = await listJobs(currentToken, 20);
       
-      console.log("✅ Job WebSocket: Loaded", data.jobs?.length || 0, "jobs");
       const jobsMap = new Map<string, Job>();
+      let activeCount = 0;
       data.jobs?.forEach((job: APIJob) => {
         // Convert APIJob to Job format
         const jobData: Job = {
@@ -96,27 +98,14 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
           job_metadata: job.job_metadata,
         };
         jobsMap.set(job.job_id, jobData);
-        console.log(`  - Job ${job.job_id}: ${job.status} - ${job.description}`);
+        if (job.status === "running" || job.status === "pending") {
+          activeCount++;
+        }
       });
+      console.log(`📥 Jobs loaded: ${jobsMap.size} total, ${activeCount} active`);
       setJobs(jobsMap);
     } catch (error) {
-      // Enhanced error logging
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorDetails = {
-        message: errorMessage,
-        apiBase: API_BASE,
-        endpoint: `${API_BASE}/api/jobs?limit=20`,
-        hasToken: !!currentToken,
-        tokenLength: currentToken?.length || 0,
-      };
-      console.error("❌ Job WebSocket: Error loading jobs:", error);
-      console.error("❌ Error details:", errorDetails);
-      
-      // Log network-specific errors
-      if (errorMessage.includes("Failed to fetch") || errorMessage.includes("NetworkError")) {
-        console.error("❌ Network error - Check if API is accessible:", API_BASE);
-        console.error("❌ Possible causes: CORS issue, API not running, or incorrect API_BASE_URL");
-      }
+      console.error("❌ Error loading jobs:", error instanceof Error ? error.message : error);
     } finally {
       isLoadingJobsRef.current = false;
     }
@@ -129,21 +118,17 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
   const fetchJob = useCallback(
     async (jobId: string) => {
       if (!token) {
-        console.log("⏸️ Job WebSocket: No token available, skipping job fetch");
         return;
       }
 
       // Prevent duplicate simultaneous fetches of the same job
       if (fetchingJobsRef.current.has(jobId)) {
-        console.log(`⏸️ Job WebSocket: Already fetching job ${jobId}, skipping duplicate request`);
         return;
       }
 
       fetchingJobsRef.current.add(jobId);
       
       try {
-        console.log(`🔍 Job WebSocket: Fetching job ${jobId} immediately`);
-        
         // Use the apiClient function for consistency
         const apiJob = await getJob(jobId, token);
         
@@ -163,18 +148,14 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
           job_metadata: apiJob.job_metadata,
         };
         
-        console.log(`✅ Job WebSocket: Fetched job ${jobId}:`, {
-          status: job.status,
-          description: job.description?.substring(0, 50),
-        });
-
         setJobs((prevJobs) => {
           const newJobs = new Map(prevJobs);
+          const prevJob = newJobs.get(job.job_id);
+          // Only log if status changed
+          if (!prevJob || prevJob.status !== job.status) {
+            console.log(`📊 Job ${jobId}: ${prevJob?.status || 'new'} → ${job.status}`);
+          }
           newJobs.set(job.job_id, job);
-          const activeCount = Array.from(newJobs.values()).filter(
-            (j) => j.status === "running" || j.status === "pending"
-          ).length;
-          console.log(`📊 Job WebSocket: Added job ${jobId}, Active: ${activeCount}`);
           return newJobs;
         });
 
@@ -188,11 +169,17 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(`❌ Job WebSocket: Error fetching job ${jobId}:`, error);
-        console.error(`❌ Error details:`, {
-          message: errorMessage,
-          endpoint: `${API_BASE}/api/jobs/${jobId}`,
-        });
+        
+        // If job returns 404, remove it from local state to stop polling it
+        if (errorMessage.includes('404') || errorMessage.includes('not found') || errorMessage.includes('Not found')) {
+          setJobs((prevJobs) => {
+            const newJobs = new Map(prevJobs);
+            newJobs.delete(jobId);
+            return newJobs;
+          });
+        } else {
+          console.error(`❌ Error fetching job ${jobId}:`, errorMessage);
+        }
       } finally {
         // Remove from in-flight set
         fetchingJobsRef.current.delete(jobId);
@@ -203,12 +190,25 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
 
   // Connect WebSocket
   const connect = useCallback(() => {
+    // Don't connect if we've already given up
+    if (wsGaveUpRef.current) {
+      return;
+    }
+    
     if (!token || !enabled || wsRef.current?.readyState === WebSocket.OPEN) {
       return;
     }
 
+    // Check retry count
+    if (wsRetryCountRef.current >= MAX_WS_RETRIES) {
+      if (!wsGaveUpRef.current) {
+        wsGaveUpRef.current = true;
+        console.log("🔌 WebSocket: Max retries reached, using polling only");
+      }
+      return;
+    }
+
     // Determine WebSocket URL
-    // Use API_BASE if it's a full URL, otherwise use window.location
     let wsUrl: string;
     if (API_BASE.startsWith("http://") || API_BASE.startsWith("https://")) {
       const url = new URL(API_BASE);
@@ -219,34 +219,25 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
       wsUrl = `${protocol}//${window.location.host}/api/jobs/ws`;
     }
 
-    console.log("🔌 Connecting to job WebSocket:", wsUrl);
-    console.log("🔌 Current polling state:", {
-      isPolling: isPollingRef.current,
-      hasInterval: !!pollIntervalRef.current,
-      isConnected,
-    });
+    // Only log on first attempt
+    if (wsRetryCountRef.current === 0) {
+      console.log("🔌 Connecting to job WebSocket:", wsUrl);
+    }
 
     try {
       const ws = new WebSocket(wsUrl);
-      
-      // Set connecting state immediately to prevent polling from starting
-      // Note: We can't set isConnected=true yet, but we check readyState in polling
 
-      // Add a timeout to detect if connection never establishes
+      // Fast timeout - fail quickly so we can fall back to polling
       const connectionTimeout = setTimeout(() => {
         if (ws.readyState !== WebSocket.OPEN && ws.readyState !== WebSocket.CLOSING && ws.readyState !== WebSocket.CLOSED) {
-          console.error("⏱️ WebSocket connection timeout - connection never established after 5 seconds", {
-            readyState: ws.readyState,
-            url: wsUrl,
-            willUsePolling: true,
-          });
           ws.close(); // Force close to trigger onclose handler
         }
-      }, 5000); // 5 second timeout
+      }, WS_CONNECT_TIMEOUT_MS);
       
       ws.onopen = () => {
         clearTimeout(connectionTimeout);
-        console.log("✅ Job WebSocket connected - stopping all polling");
+        wsRetryCountRef.current = 0; // Reset retry count on successful connection
+        console.log("✅ Job WebSocket connected");
         setIsConnected(true);
         // Clear any pending reconnection
         if (reconnectTimeoutRef.current) {
@@ -255,13 +246,11 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
         }
         // Clear delayed polling timeout if it exists
         if (pollingDelayTimeoutRef.current) {
-          console.log("🛑 Cancelling delayed polling start - WebSocket connected");
           clearTimeout(pollingDelayTimeoutRef.current);
           pollingDelayTimeoutRef.current = null;
         }
         // Force stop polling immediately when WebSocket connects
         if (pollIntervalRef.current) {
-          console.log("🛑 Force stopping polling interval on WebSocket connect");
           clearInterval(pollIntervalRef.current);
           pollIntervalRef.current = null;
           isPollingRef.current = false;
@@ -274,11 +263,6 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
 
           if (message.type === "job_update") {
             const jobUpdate = message as JobUpdateMessage;
-            console.log(`📨 Job WebSocket: Received update for job ${jobUpdate.job_id}:`, {
-              status: jobUpdate.data.status,
-              progress: jobUpdate.data.progress,
-              description: jobUpdate.data.description?.substring(0, 50),
-            });
 
             if (typeof window !== "undefined") {
               window.dispatchEvent(
@@ -290,11 +274,12 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
             
             setJobs((prevJobs) => {
               const newJobs = new Map(prevJobs);
+              const prevJob = newJobs.get(jobUpdate.job_id);
+              // Only log status changes
+              if (!prevJob || prevJob.status !== jobUpdate.data.status) {
+                console.log(`📊 Job ${jobUpdate.job_id}: ${prevJob?.status || 'new'} → ${jobUpdate.data.status}`);
+              }
               newJobs.set(jobUpdate.job_id, jobUpdate.data);
-              const activeCount = Array.from(newJobs.values()).filter(
-                (job) => job.status === "running" || job.status === "pending"
-              ).length;
-              console.log(`📊 Job WebSocket: Total jobs: ${newJobs.size}, Active: ${activeCount}`);
               return newJobs;
             });
 
@@ -307,91 +292,43 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
                 setJobs((prevJobs) => {
                   const newJobs = new Map(prevJobs);
                   newJobs.delete(jobUpdate.job_id);
-                  console.log(`🗑️ Job WebSocket: Auto-removed completed job ${jobUpdate.job_id}`);
                   return newJobs;
                 });
               }, 5000);
             }
           } else if (message.type === "ping") {
-            // Server sent ping, respond with pong to keep connection alive
-            console.debug("💓 Job WebSocket: Received ping, sending pong");
             ws.send(JSON.stringify({ type: "pong" }));
-          } else if (message.type === "pong") {
-            // Server acknowledged our ping (if we ever send one)
-            console.debug("💓 Job WebSocket: Received pong");
-          } else {
-            console.log("📨 Job WebSocket: Received unknown message type:", message.type);
           }
         } catch (error) {
-          console.error("❌ Job WebSocket: Error parsing message:", error, "Raw data:", event.data);
+          console.error("❌ Job WebSocket: Error parsing message:", error);
         }
       };
 
       ws.onclose = (event) => {
         clearTimeout(connectionTimeout);
-        // Log all close events to help debug
-        console.warn("❌ Job WebSocket disconnected", {
-          code: event.code,
-          reason: event.reason || "No reason provided",
-          wasClean: event.wasClean,
-          codeMeaning: event.code === 1000 ? "Normal closure" :
-                       event.code === 1001 ? "Going away" :
-                       event.code === 1006 ? "Abnormal closure (connection failed)" :
-                       event.code === 1002 ? "Protocol error" :
-                       event.code === 1003 ? "Unsupported data" :
-                       event.code === 1005 ? "No status code" :
-                       event.code === 1007 ? "Invalid data" :
-                       event.code === 1008 ? "Policy violation" :
-                       event.code === 1009 ? "Message too big" :
-                       event.code === 1010 ? "Extension error" :
-                       event.code === 1011 ? "Internal error" :
-                       event.code === 1012 ? "Service restart" :
-                       event.code === 1013 ? "Try again later" :
-                       event.code === 1014 ? "Bad gateway" :
-                       event.code === 1015 ? "TLS handshake failed" :
-                       `Unknown code ${event.code}`,
-          willRetry: shouldReconnectRef.current && enabled,
-          url: wsUrl,
-        });
         setIsConnected(false);
+        wsRetryCountRef.current++;
 
-        // Reconnect with exponential backoff, but faster for the first few retries
-        // First retry: 1s, then 2s, then 5s, then 5s thereafter
-        if (shouldReconnectRef.current && enabled) {
-          const retryDelay = reconnectTimeoutRef.current ? 5000 : 1000;
+        // Only retry if we haven't exceeded max retries
+        if (shouldReconnectRef.current && enabled && wsRetryCountRef.current < MAX_WS_RETRIES) {
+          const retryDelay = 1000 * wsRetryCountRef.current; // Increasing backoff
           reconnectTimeoutRef.current = setTimeout(() => {
-            console.log("🔄 Reconnecting job WebSocket...");
             connect();
           }, retryDelay);
+        } else if (wsRetryCountRef.current >= MAX_WS_RETRIES && !wsGaveUpRef.current) {
+          wsGaveUpRef.current = true;
+          console.log("🔌 WebSocket unavailable - using polling for job updates");
         }
       };
 
-      ws.onerror = (event) => {
-        // WebSocket error events don't provide detailed error info
-        // Check the readyState to see if connection failed
-        const state = ws.readyState;
-        console.error("❌ Job WebSocket connection error:", {
-          readyState: state,
-          readyStateText:
-            state === WebSocket.CONNECTING
-              ? "CONNECTING"
-              : state === WebSocket.OPEN
-              ? "OPEN"
-              : state === WebSocket.CLOSING
-              ? "CLOSING"
-              : "CLOSED",
-          url: wsUrl,
-          error: event,
-          willUsePolling: true,
-          timestamp: new Date().toISOString(),
-        });
+      ws.onerror = () => {
+        // WebSocket error - will trigger onclose which handles retry logic
         setIsConnected(false);
-        // Don't stop polling here - let the polling effect handle it based on isConnected
       };
 
       wsRef.current = ws;
     } catch (error) {
-      console.error("Failed to create WebSocket:", error);
+      wsRetryCountRef.current++;
       setIsConnected(false);
     }
   }, [token, enabled]);
@@ -417,24 +354,18 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
 
       try {
         // Use the apiClient function for consistency
-        const data = await cancelJobAPI(jobId, token);
-        console.log(`Job ${jobId} cancelled successfully:`, data);
-        // The WebSocket will update the job status
+        await cancelJobAPI(jobId, token);
+        console.log(`Job ${jobId} cancelled`);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         const statusCode = (error as any)?.status;
         
-        // Handle graceful errors - if job is already cancelled/completed (400) or not found (404),
-        // that's effectively the desired state, so we don't need to throw
+        // Handle graceful errors - if job is already cancelled/completed (400) or not found (404)
         if (statusCode === 400 || statusCode === 404) {
-          // Job is already in desired state (cancelled/completed) or doesn't exist
-          console.log(`Job ${jobId} is already cancelled/completed or not found (status ${statusCode}) - treating as success`);
-          // Update local state to reflect that job is no longer cancellable
           setJobs((prevJobs) => {
             const newJobs = new Map(prevJobs);
             const existingJob = newJobs.get(jobId);
             if (existingJob && (existingJob.status === "running" || existingJob.status === "pending")) {
-              // Mark as cancelled if it was running/pending
               newJobs.set(jobId, {
                 ...existingJob,
                 status: "cancelled" as const,
@@ -442,21 +373,34 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
             }
             return newJobs;
           });
-          return; // Don't throw - this is a successful outcome
+          return;
         }
         
-        // For other errors (403, 500, etc.), log and rethrow
-        console.error(`Error cancelling job ${jobId}:`, error);
-        console.error(`Error details:`, {
-          message: errorMessage,
-          statusCode,
-          endpoint: `${API_BASE}/api/jobs/${jobId}/cancel`,
-        });
+        console.error(`Error cancelling job ${jobId}:`, errorMessage);
         throw error;
       }
     },
     [token]
   );
+
+  // Cancel all running/pending jobs
+  const cancelAllJobs = useCallback(async () => {
+    if (!token) return;
+
+    const activeJobsList = Array.from(jobs.values()).filter(
+      (job) => job.status === "running" || job.status === "pending"
+    );
+
+    if (activeJobsList.length === 0) return;
+
+    console.log(`Cancelling ${activeJobsList.length} active jobs...`);
+    await Promise.allSettled(
+      activeJobsList.map((job) => cancelJob(job.job_id))
+    );
+    // Refresh from server so cancelled status is reflected; backend fix prevents
+    // cancelled jobs from being resurrected to pending/running by late start_job.
+    loadJobs();
+  }, [token, jobs, cancelJob, loadJobs]);
 
   // Listen for job creation events from other components
   useEffect(() => {
@@ -466,22 +410,11 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
       const wsIsOpen = currentWsState === WebSocket.OPEN;
       const wsIsConnected = isConnected || wsIsOpen;
       
-      console.log(`🎯 Job WebSocket: Received job creation event for ${jobId}`, {
-        isConnected,
-        wsState: currentWsState,
-        wsIsOpen,
-        wsIsConnected,
-      });
-      
-      // ALWAYS fetch the job immediately to ensure UI shows new job right away
-      // Even if WebSocket is connected, there may be a delay before the WS update arrives
-      // This guarantees the user sees their new job when they open the jobs dropdown
-      console.log(`🔄 Fetching job ${jobId} immediately to ensure UI is updated`);
+      // Fetch the job immediately to ensure UI shows new job right away
       fetchJob(jobId);
       
       // If WebSocket is not connected, also refresh all jobs after a short delay
       if (!wsIsConnected) {
-        console.log(`📥 WebSocket disconnected - also refreshing all jobs`);
         setTimeout(() => {
           loadJobs();
         }, 500);
@@ -494,12 +427,22 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
     };
   }, [fetchJob, loadJobs, isConnected]);
 
-  // Initialize on mount
+  // Initialize on mount - load jobs first (fast), then try WebSocket in background
   useEffect(() => {
     if (enabled && token) {
+      // Load jobs immediately via REST API (fast, reliable)
       loadJobs();
-      connect();
-      // Removed duplicate delayed poll - WebSocket will handle updates
+      
+      // Try WebSocket connection after a short delay so it doesn't block initial load
+      // If WebSocket fails, polling fallback will kick in automatically
+      const wsConnectDelay = setTimeout(() => {
+        connect();
+      }, 500);
+      
+      return () => {
+        clearTimeout(wsConnectDelay);
+        disconnect();
+      };
     }
 
     return () => {
@@ -507,13 +450,18 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
     };
   }, [enabled, token, loadJobs, connect, disconnect]);
 
-  // Get active jobs (running or pending)
-  const activeJobs = Array.from(jobs.values()).filter(
-    (job) => job.status === "running" || job.status === "pending"
-  );
+  // Get active jobs (running or pending) - memoize to prevent unnecessary re-renders
+  const activeJobs = useMemo(() => {
+    return Array.from(jobs.values()).filter(
+      (job) => job.status === "running" || job.status === "pending"
+    );
+  }, [jobs]);
   
   // Track active job IDs for stable dependency in polling effect
-  const activeJobIds = activeJobs.map(j => j.job_id).sort().join(',');
+  // Using useMemo ensures this string only changes when actual job IDs change
+  const activeJobIds = useMemo(() => {
+    return activeJobs.map(j => j.job_id).sort().join(',');
+  }, [activeJobs]);
 
   // Polling fallback for when WebSocket is disconnected
   // Only poll when WebSocket is NOT connected - when connected, rely on WebSocket updates
@@ -524,36 +472,14 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
     const wsState = wsRef.current?.readyState;
     const isWsOpen = wsState === WebSocket.OPEN;
     const isWsConnecting = wsState === WebSocket.CONNECTING;
-    const wsStateText = wsState === undefined ? "NO_WEBSOCKET" : 
-                       wsState === WebSocket.CONNECTING ? "CONNECTING" :
-                       wsState === WebSocket.OPEN ? "OPEN" :
-                       wsState === WebSocket.CLOSING ? "CLOSING" : "CLOSED";
     
-    console.log("🔍 Polling effect check:", {
-      isConnected,
-      wsState,
-      wsStateText,
-      isWsOpen,
-      isWsConnecting,
-      activeJobIds,
-      hasToken: !!token,
-      isPolling: isPollingRef.current,
-      hasInterval: !!pollIntervalRef.current,
-    });
-    
-    // ALWAYS clear polling if WebSocket is connected or connecting - we don't need polling when WebSocket works
+    // ALWAYS clear polling if WebSocket is connected or connecting
     if (isConnected || isWsOpen) {
-      // Clear delayed polling timeout
       if (pollingDelayTimeoutRef.current) {
         clearTimeout(pollingDelayTimeoutRef.current);
         pollingDelayTimeoutRef.current = null;
       }
       if (pollIntervalRef.current) {
-        console.log("✅ WebSocket connected - stopping polling fallback immediately", {
-          isConnected,
-          wsState,
-          wsStateText,
-        });
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
         isPollingRef.current = false;
@@ -561,10 +487,8 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
       return;
     }
     
-    // Don't start polling if WebSocket is in the process of connecting
+    // Don't start polling if WebSocket is connecting
     if (isWsConnecting) {
-      console.log("⏳ WebSocket connecting - waiting before starting polling fallback");
-      // Don't clear the delayed timeout - let it check again after 2s
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
@@ -576,7 +500,6 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
     // Only poll when WebSocket is disconnected AND there are active jobs
     if (!activeJobIds || !token) {
       if (pollIntervalRef.current) {
-        console.log("🛑 No active jobs or token - stopping polling");
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
         isPollingRef.current = false;
@@ -586,7 +509,6 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
     
     // Don't start polling if already polling
     if (isPollingRef.current) {
-      console.log("⏸️ Already polling - skipping");
       return;
     }
     
@@ -601,11 +523,6 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
       const isWsConnecting = currentWsState === WebSocket.CONNECTING;
       
       if (isConnected || isWsOpen || isWsConnecting) {
-        console.log("✅ WebSocket connected/connecting during poll - stopping polling immediately", {
-          isConnected,
-          wsState: currentWsState,
-          wsStateText: currentWsState === WebSocket.OPEN ? "OPEN" : currentWsState === WebSocket.CONNECTING ? "CONNECTING" : currentWsState === WebSocket.CLOSING ? "CLOSING" : "CLOSED"
-        });
         if (pollIntervalRef.current) {
           clearInterval(pollIntervalRef.current);
           pollIntervalRef.current = null;
@@ -624,17 +541,11 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
       // Note: currentWsState, isWsOpen, and isWsConnecting are already checked above
       // No need to check again here - the early return above handles it
       
-      // Only log periodically to avoid console spam
-      if (now % 10000 < 3000) {
-        console.log(`🔄 Job polling fallback: Checking ${jobIdList.length} active jobs (WebSocket disconnected)`);
-      }
-      
       // Fetch each active job individually to get latest status
       for (const jobId of jobIdList) {
-        // Check again before each fetch (double-check)
+        // Check again before each fetch
         const checkWsState = wsRef.current?.readyState;
         if (isConnected || checkWsState === WebSocket.OPEN || checkWsState === WebSocket.CONNECTING) {
-          console.log("✅ WebSocket connected/connecting during job fetch - stopping polling");
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current);
             pollIntervalRef.current = null;
@@ -645,8 +556,8 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
         
         try {
           await fetchJob(jobId);
-        } catch (error) {
-          console.debug(`Poll: Failed to fetch job ${jobId}:`, error);
+        } catch {
+          // Silently ignore fetch errors during polling
         }
       }
     };
@@ -660,33 +571,17 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
       pollingDelayTimeoutRef.current = null;
     }
     
-    // Wait a bit before starting polling to give WebSocket a chance to connect
-    // This prevents race conditions where polling starts before WebSocket connection attempt
+    // Wait for WebSocket to either connect or give up before starting polling
+    // WebSocket has 2s timeout + 500ms initial delay, so wait ~3s total
     pollingDelayTimeoutRef.current = setTimeout(() => {
-      // IMPORTANT: Check current state (not captured state) - use refs to get latest values
-      // The isConnected state might have changed during the delay
       const currentWsState = wsRef.current?.readyState;
-      const currentIsConnected = isConnected; // This is from closure, but we'll check wsState too
+      const currentIsConnected = isConnected;
       const currentIsOpen = currentWsState === WebSocket.OPEN;
       const currentIsConnecting = currentWsState === WebSocket.CONNECTING;
       
-      console.log("⏰ Delayed polling check after 2s:", {
-        isConnected: currentIsConnected,
-        currentWsState,
-        currentIsOpen,
-        currentIsConnecting,
-        wsStateText: currentWsState === WebSocket.OPEN ? "OPEN" : 
-                     currentWsState === WebSocket.CONNECTING ? "CONNECTING" :
-                     currentWsState === WebSocket.CLOSING ? "CLOSING" :
-                     currentWsState === WebSocket.CLOSED ? "CLOSED" : "NO_WEBSOCKET",
-        hasActiveInterval: !!pollIntervalRef.current,
-      });
-      
-      // CRITICAL: Don't start polling if WebSocket is connected or connecting
+      // Don't start polling if WebSocket is connected or connecting
       if (currentIsConnected || currentIsOpen || currentIsConnecting) {
-        console.log("✅ WebSocket connected/connecting while waiting to start polling - cancelling polling start");
         isPollingRef.current = false;
-        // Make sure polling is stopped
         if (pollIntervalRef.current) {
           clearInterval(pollIntervalRef.current);
           pollIntervalRef.current = null;
@@ -694,36 +589,17 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
         return;
       }
       
-      // Only start polling if WebSocket is definitely closed/failed AND we're not already polling
-      if ((currentWsState === WebSocket.CLOSED || currentWsState === undefined) && !pollIntervalRef.current) {
-        console.warn("⚠️ STARTING POLLING FALLBACK (WebSocket failed to connect or closed)", {
-          activeJobs: jobIdList.length,
-          jobIds: jobIdList,
-          isConnected: currentIsConnected,
-          wsState: currentWsState,
-          wsStateText: currentWsState === WebSocket.CLOSED ? "CLOSED" : "NO_WEBSOCKET",
-          reason: "WebSocket connection failed or closed after 2s wait",
-        });
-        
+      // Only start polling if WebSocket gave up or is closed
+      if ((wsGaveUpRef.current || currentWsState === WebSocket.CLOSED || currentWsState === undefined) && !pollIntervalRef.current) {
         // Initial poll
         pollActiveJobs();
         
-        // Set up interval - poll every 3 seconds when WebSocket is disconnected
-        pollIntervalRef.current = setInterval(pollActiveJobs, 3000);
+        // Poll every 5 seconds when WebSocket is unavailable
+        pollIntervalRef.current = setInterval(pollActiveJobs, 5000);
       } else {
-        if (pollIntervalRef.current) {
-          console.log("⏸️ Polling already active, not starting duplicate");
-        } else {
-          console.log("⏸️ WebSocket in unexpected state, not starting polling:", {
-            wsState: currentWsState,
-            wsStateText: currentWsState === WebSocket.OPEN ? "OPEN" : 
-                         currentWsState === WebSocket.CONNECTING ? "CONNECTING" :
-                         currentWsState === WebSocket.CLOSING ? "CLOSING" : "UNKNOWN",
-          });
-        }
         isPollingRef.current = false;
       }
-    }, 2000); // Wait 2 seconds before starting polling
+    }, 3000); // Wait for WebSocket connection attempt to complete
     
     return () => {
       if (pollingDelayTimeoutRef.current) {
@@ -736,37 +612,14 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
         isPollingRef.current = false;
       }
     };
-    
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-        isPollingRef.current = false;
-      }
-    };
   }, [activeJobIds, token, isConnected, fetchJob]);
-
-  // Debug logging for active jobs
-  useEffect(() => {
-    if (jobs.size > 0 || activeJobs.length > 0) {
-      console.log("📊 Job WebSocket: Job state update", {
-        totalJobs: jobs.size,
-        activeJobs: activeJobs.length,
-        activeJobIds: activeJobs.map((j) => j.job_id),
-        allJobStatuses: Array.from(jobs.values()).map((j) => ({
-          id: j.job_id,
-          status: j.status,
-          description: j.description?.substring(0, 30),
-        })),
-      });
-    }
-  }, [jobs, activeJobs]);
 
   return {
     jobs: Array.from(jobs.values()),
     activeJobs,
     isConnected,
     cancelJob,
+    cancelAllJobs,
     refreshJobs: loadJobs,
     fetchJob, // Expose fetchJob so components can immediately fetch a job when created
   };

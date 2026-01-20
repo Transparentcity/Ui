@@ -22,6 +22,13 @@ export interface TimeSeriesDataPoint {
 // Extended type for internal processing with parsed dates
 type TimeSeriesDataPointWithDate = TimeSeriesDataPoint & { date: Date };
 
+// Info about excluded partial periods
+export interface PartialPeriodInfo {
+  excludedStart?: string;
+  excludedEnd?: string;
+  periodType: PeriodType;
+}
+
 export interface TimeSeriesChartProps {
   data: TimeSeriesDataPoint[];
   metadata?: {
@@ -30,9 +37,15 @@ export interface TimeSeriesChartProps {
     y_axis_label?: string;
     object_name?: string;
     field_name?: string;
+    period_type?: string; // Source data period type (day, week, month, year)
+    district?: number | null; // District number (0 = citywide)
   };
   height?: number;
   defaultPeriod?: PeriodType;
+  fullBleed?: boolean; // If true, removes border/padding for edge-to-edge display
+  hidePeriodSelector?: boolean; // If true, hides the period selector
+  showExternalTitle?: boolean; // If true, shows title above chart instead of inside
+  onPeriodChange?: (period: PeriodType) => void; // Callback when period selector changes
 }
 
 /**
@@ -73,6 +86,142 @@ function getISOYearAndWeek(date: Date): { isoYear: number; isoWeek: number } {
 function getDayOfYear(date: Date): number {
   const startOfYear = new Date(date.getFullYear(), 0, 1);
   return Math.floor((date.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+}
+
+/**
+ * Get the number of days in a month.
+ */
+function getDaysInMonth(year: number, month: number): number {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+/**
+ * Identifies and filters out partial periods from the start and end of aggregated data.
+ * Returns the filtered data and info about what was excluded.
+ */
+function filterPartialPeriods(
+  aggregatedByGroup: Map<string, TimeSeriesDataPoint[]>,
+  periodType: PeriodType,
+  originalData: TimeSeriesDataPoint[]
+): { filtered: Map<string, TimeSeriesDataPoint[]>; partialInfo: PartialPeriodInfo | null } {
+  // Day and YTD don't need partial filtering
+  if (periodType === "day" || periodType === "ytd") {
+    return { filtered: aggregatedByGroup, partialInfo: null };
+  }
+
+  // Parse original data to get the actual date range
+  const dates = originalData
+    .map((p) => {
+      const date = new Date(p.time_period);
+      return isNaN(date.getTime()) ? null : date;
+    })
+    .filter((d): d is Date => d !== null)
+    .sort((a, b) => a.getTime() - b.getTime());
+
+  if (dates.length === 0) {
+    return { filtered: aggregatedByGroup, partialInfo: null };
+  }
+
+  const firstDate = dates[0];
+  const lastDate = dates[dates.length - 1];
+
+  let excludedStart: string | undefined;
+  let excludedEnd: string | undefined;
+  let startPeriodToExclude: string | undefined;
+  let endPeriodToExclude: string | undefined;
+
+  if (periodType === "week") {
+    // Check if first week is partial (doesn't start on Monday)
+    const firstDayOfWeek = firstDate.getDay();
+    const isFirstWeekPartial = firstDayOfWeek !== 1; // 1 = Monday
+    
+    // Check if last week is partial (doesn't end on Sunday)
+    const lastDayOfWeek = lastDate.getDay();
+    const isLastWeekPartial = lastDayOfWeek !== 0; // 0 = Sunday
+
+    if (isFirstWeekPartial) {
+      const { isoYear, isoWeek } = getISOYearAndWeek(firstDate);
+      startPeriodToExclude = `${isoYear}-W${isoWeek.toString().padStart(2, "0")}`;
+      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      excludedStart = `Partial week starting ${dayNames[firstDayOfWeek]} ${firstDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+    }
+
+    if (isLastWeekPartial) {
+      const { isoYear, isoWeek } = getISOYearAndWeek(lastDate);
+      endPeriodToExclude = `${isoYear}-W${isoWeek.toString().padStart(2, "0")}`;
+      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      excludedEnd = `Partial week ending ${dayNames[lastDayOfWeek]} ${lastDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+    }
+  } else if (periodType === "month") {
+    // Check if first month is partial (doesn't start on day 1)
+    const isFirstMonthPartial = firstDate.getDate() !== 1;
+    
+    // Check if last month is partial (doesn't end on last day of month)
+    const lastDayOfMonth = getDaysInMonth(lastDate.getFullYear(), lastDate.getMonth());
+    const isLastMonthPartial = lastDate.getDate() !== lastDayOfMonth;
+
+    if (isFirstMonthPartial) {
+      const year = firstDate.getFullYear();
+      const month = firstDate.getMonth() + 1;
+      startPeriodToExclude = `${year}-${month.toString().padStart(2, "0")}`;
+      excludedStart = `Partial ${firstDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })} (starts day ${firstDate.getDate()})`;
+    }
+
+    if (isLastMonthPartial) {
+      const year = lastDate.getFullYear();
+      const month = lastDate.getMonth() + 1;
+      endPeriodToExclude = `${year}-${month.toString().padStart(2, "0")}`;
+      excludedEnd = `Partial ${lastDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })} (ends day ${lastDate.getDate()})`;
+    }
+  } else if (periodType === "year") {
+    // Check if first year is partial (doesn't start on Jan 1)
+    const isFirstYearPartial = firstDate.getMonth() !== 0 || firstDate.getDate() !== 1;
+    
+    // Check if last year is partial (doesn't end on Dec 31)
+    const isLastYearPartial = lastDate.getMonth() !== 11 || lastDate.getDate() !== 31;
+
+    if (isFirstYearPartial) {
+      startPeriodToExclude = firstDate.getFullYear().toString();
+      excludedStart = `Partial ${firstDate.getFullYear()} (starts ${firstDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })})`;
+    }
+
+    if (isLastYearPartial) {
+      endPeriodToExclude = lastDate.getFullYear().toString();
+      excludedEnd = `Partial ${lastDate.getFullYear()} (ends ${lastDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })})`;
+    }
+  }
+
+  // If nothing to exclude, return original
+  if (!startPeriodToExclude && !endPeriodToExclude) {
+    return { filtered: aggregatedByGroup, partialInfo: null };
+  }
+
+  // Filter out partial periods from all groups
+  const filtered = new Map<string, TimeSeriesDataPoint[]>();
+
+  for (const [groupValue, points] of aggregatedByGroup.entries()) {
+    const filteredPoints = points.filter((point) => {
+      if (startPeriodToExclude && point.time_period === startPeriodToExclude) {
+        return false;
+      }
+      if (endPeriodToExclude && point.time_period === endPeriodToExclude) {
+        return false;
+      }
+      return true;
+    });
+
+    if (filteredPoints.length > 0) {
+      filtered.set(groupValue, filteredPoints);
+    }
+  }
+
+  const partialInfo: PartialPeriodInfo = {
+    excludedStart,
+    excludedEnd,
+    periodType,
+  };
+
+  return { filtered, partialInfo };
 }
 
 /**
@@ -379,13 +528,32 @@ export default function TimeSeriesChart({
   metadata,
   height = 400,
   defaultPeriod = "month",
+  fullBleed = false,
+  hidePeriodSelector = false,
+  showExternalTitle = false,
+  onPeriodChange,
 }: TimeSeriesChartProps) {
   const { theme } = useTheme();
-  const [periodType, setPeriodType] = useState<PeriodType>(defaultPeriod);
+  
+  // Use explicitly passed defaultPeriod first (e.g., "ytd" from modal)
+  // Only fall back to metadata.period_type if no explicit default was provided
+  const effectiveDefaultPeriod = defaultPeriod !== "month" 
+    ? defaultPeriod  // Explicit override (not the default value)
+    : (metadata?.period_type?.toLowerCase() as PeriodType) || defaultPeriod;
+  const [periodType, setPeriodType] = useState<PeriodType>(effectiveDefaultPeriod);
+  const [showPartialInfo, setShowPartialInfo] = useState(false);
 
-  // Aggregate data by group
-  const aggregatedByGroup = useMemo(() => {
-    return aggregateDataByGroup(data, periodType);
+  const handlePeriodChange = (newPeriod: PeriodType) => {
+    setPeriodType(newPeriod);
+    onPeriodChange?.(newPeriod);
+    setShowPartialInfo(false); // Reset disclosure when period changes
+  };
+
+  // Aggregate data by group and filter out partial periods
+  const { aggregatedByGroup, partialPeriodInfo } = useMemo(() => {
+    const rawAggregated = aggregateDataByGroup(data, periodType);
+    const { filtered, partialInfo } = filterPartialPeriods(rawAggregated, periodType, data);
+    return { aggregatedByGroup: filtered, partialPeriodInfo: partialInfo };
   }, [data, periodType]);
 
   // Check if we have group values
@@ -433,8 +601,12 @@ export default function TimeSeriesChart({
           
           // Sort years descending
           const sortedYears = Array.from(yearGroups.keys()).sort((a, b) => parseInt(b) - parseInt(a));
+          const limitedYears = sortedYears.filter((yearStr) => {
+            const year = parseInt(yearStr);
+            return year === currentYear || year === currentYear - 1;
+          });
           
-          for (const yearStr of sortedYears) {
+          for (const yearStr of limitedYears) {
             const points = yearGroups.get(yearStr)!;
             if (points.length === 0) continue;
             
@@ -453,8 +625,8 @@ export default function TimeSeriesChart({
                 type: "scatter",
                 mode: "lines+markers",
                 name: `${originalGroup} ${yearStr}`,
-                line: { color: groupColor, width: 3 },
-                marker: { color: groupColor, size: 6 },
+                line: { color: groupColor, width: 2 },
+                marker: { color: groupColor, size: 5 },
                 showlegend: true,
                 hovertemplate: `${originalGroup} ${yearStr}<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
                 customdata: x.map((dayOfYear) => {
@@ -478,8 +650,8 @@ export default function TimeSeriesChart({
                 type: "scatter",
                 mode: "lines",
                 name: `${originalGroup} ${yearStr}`,
-                line: { color: groupColor, width: 1 },
-                opacity: 0.25,
+                line: { color: groupColor, width: 0.75 },
+                opacity: 0.2,
                 showlegend: false,
                 hoverinfo: "skip",
               });
@@ -491,7 +663,7 @@ export default function TimeSeriesChart({
                 type: "scatter",
                 mode: "lines",
                 name: `${originalGroup} ${yearStr} 7-Day Avg`,
-                line: { color: groupColor, width: 3 },
+                line: { color: groupColor, width: 2 },
                 showlegend: true,
                 hovertemplate: `${originalGroup} ${yearStr} 7-Day Avg<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
                 customdata: x.map((dayOfYear) => {
@@ -510,7 +682,12 @@ export default function TimeSeriesChart({
           return yearB - yearA;
         });
 
-        groupValues.forEach((yearStr) => {
+        const limitedYears = groupValues.filter((yearStr) => {
+          const year = parseInt(yearStr) || 0;
+          return year === currentYear || year === currentYear - 1;
+        });
+
+        limitedYears.forEach((yearStr) => {
           const points = aggregatedByGroup.get(yearStr)!;
           if (points.length === 0) return;
 
@@ -533,8 +710,8 @@ export default function TimeSeriesChart({
               type: "scatter",
               mode: "lines+markers",
               name: yearStr,
-              line: { color: lineColor, width: 3 },
-              marker: { color: lineColor, size: 6 },
+              line: { color: lineColor, width: 2 },
+              marker: { color: lineColor, size: 5 },
               showlegend: true,
               hovertemplate: `${yearStr}<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
               customdata: x.map((dayOfYear) => {
@@ -558,8 +735,8 @@ export default function TimeSeriesChart({
               type: "scatter",
               mode: "lines",
               name: yearStr,
-              line: { color: lineColor, width: 1 },
-              opacity: 0.25,
+              line: { color: lineColor, width: 0.75 },
+              opacity: 0.2,
               showlegend: false,
               hoverinfo: "skip",
             });
@@ -571,7 +748,7 @@ export default function TimeSeriesChart({
               type: "scatter",
               mode: "lines",
               name: `${yearStr} 7-Day Avg`,
-              line: { color: lineColor, width: 3 },
+              line: { color: lineColor, width: 2 },
               showlegend: true,
               hovertemplate: `${yearStr} 7-Day Avg<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
               customdata: x.map((dayOfYear) => {
@@ -647,13 +824,32 @@ export default function TimeSeriesChart({
     return traces;
   }, [aggregatedByGroup, periodType, hasGroups, metadata]);
 
-  const chartTitle =
+  const chartTitleText =
     metadata?.chart_title ||
     metadata?.object_name ||
     metadata?.field_name ||
     "Time Series";
+  
+  // Hide internal title when showing external title
+  const chartTitle = showExternalTitle ? "" : chartTitleText;
 
   const yAxisLabel = metadata?.y_axis_label || metadata?.field_name || "Value";
+  
+  // Get period type label for external title
+  const periodTypeLabel = {
+    day: "Daily",
+    week: "Weekly", 
+    month: "Monthly",
+    year: "Annual",
+    ytd: "Year-to-Date"
+  }[periodType] || periodType;
+  
+  // Get district label for external title
+  const districtLabel = metadata?.district === 0 || metadata?.district === null 
+    ? "Citywide" 
+    : metadata?.district 
+      ? `District ${metadata.district}` 
+      : null;
 
   // Calculate maximum Y value from all data points for Y-axis range
   const maxYValue = useMemo(() => {
@@ -760,23 +956,23 @@ export default function TimeSeriesChart({
         legend: {
           orientation: "h" as const,
           x: 0.5,
-          y: -0.02,
+          y: -0.18,
           xanchor: "center" as const,
           yanchor: "top" as const,
           font: {
             family: "IBM Plex Sans, Arial, sans-serif",
-            size: 8,
+            size: 10,
             color: textColor,
           },
           bgcolor: "transparent",
           bordercolor: "transparent",
           borderwidth: 0,
           itemsizing: "constant" as const,
-          itemwidth: 20,
+          itemwidth: 30,
         },
         margin: {
           t: 55,
-          b: 80,
+          b: 95,
           l: 50,
           r: 45,
         },
@@ -892,20 +1088,22 @@ export default function TimeSeriesChart({
     
     return (
       <div className={styles.container}>
-        <div className={styles.periodSelector}>
-          <label>Period:</label>
-          <select
-            value={periodType}
-            onChange={(e) => setPeriodType(e.target.value as PeriodType)}
-            className={styles.select}
-          >
-            <option value="day">Day</option>
-            <option value="week">Week</option>
-            <option value="month">Month</option>
-            <option value="year">Year</option>
-            <option value="ytd">Year-to-Date</option>
-          </select>
-        </div>
+        {!hidePeriodSelector && (
+          <div className={styles.periodSelector}>
+            <label>Period:</label>
+            <select
+              value={periodType}
+              onChange={(e) => handlePeriodChange(e.target.value as PeriodType)}
+              className={styles.select}
+            >
+              <option value="day">Day</option>
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+              <option value="year">Year</option>
+              <option value="ytd">Year-to-Date</option>
+            </select>
+          </div>
+        )}
         <div className={styles.emptyState}>
           {hasAnyData 
             ? `No data available for ${periodType === "ytd" ? "the current year (YTD)" : `the selected period (${periodType})`}. Try selecting a different period.`
@@ -917,24 +1115,36 @@ export default function TimeSeriesChart({
 
   return (
     <div className={styles.container}>
-      <div className={styles.periodSelector}>
-        <label>Period:</label>
-        <select
-          value={periodType}
-          onChange={(e) => setPeriodType(e.target.value as PeriodType)}
-          className={styles.select}
-        >
-          <option value="day">Day</option>
-          <option value="week">Week</option>
-          <option value="month">Month</option>
-          <option value="year">Year</option>
-          <option value="ytd">Year-to-Date</option>
-        </select>
-      </div>
+      {showExternalTitle && (
+        <div className={styles.externalTitle}>
+          <div className={styles.externalTitleMain}>{chartTitleText}</div>
+          <div className={styles.externalTitleSub}>
+            {districtLabel && <span>{districtLabel}</span>}
+            {districtLabel && <span className={styles.titleSeparator}>•</span>}
+            <span>{periodTypeLabel}</span>
+          </div>
+        </div>
+      )}
+      {!hidePeriodSelector && (
+        <div className={styles.periodSelector}>
+          <label>Period:</label>
+          <select
+            value={periodType}
+            onChange={(e) => handlePeriodChange(e.target.value as PeriodType)}
+            className={styles.select}
+          >
+            <option value="day">Day</option>
+            <option value="week">Week</option>
+            <option value="month">Month</option>
+            <option value="year">Year</option>
+            <option value="ytd">Year-to-Date</option>
+          </select>
+        </div>
+      )}
       {metadata?.caption && (
         <div className={styles.caption}>{metadata.caption}</div>
       )}
-      <div className={styles.chartWrapper}>
+      <div className={fullBleed ? styles.chartWrapperFullBleed : styles.chartWrapper}>
         <Plot
           data={traces}
           layout={layout}
@@ -942,6 +1152,35 @@ export default function TimeSeriesChart({
           style={{ width: "100%", height: `${height}px` }}
         />
       </div>
+      {partialPeriodInfo && (partialPeriodInfo.excludedStart || partialPeriodInfo.excludedEnd) && (
+        <div className={styles.partialPeriodNotice}>
+          <button
+            className={styles.partialPeriodToggle}
+            onClick={() => setShowPartialInfo(!showPartialInfo)}
+            aria-expanded={showPartialInfo}
+          >
+            <span className={styles.partialPeriodIcon}>ⓘ</span>
+            <span className={styles.partialPeriodLabel}>Partial periods excluded</span>
+            <span className={`${styles.partialPeriodChevron} ${showPartialInfo ? styles.expanded : ''}`}>›</span>
+          </button>
+          {showPartialInfo && (
+            <div className={styles.partialPeriodDetails}>
+              {partialPeriodInfo.excludedStart && (
+                <div className={styles.partialPeriodItem}>
+                  <span className={styles.partialPeriodBullet}>•</span>
+                  {partialPeriodInfo.excludedStart}
+                </div>
+              )}
+              {partialPeriodInfo.excludedEnd && (
+                <div className={styles.partialPeriodItem}>
+                  <span className={styles.partialPeriodBullet}>•</span>
+                  {partialPeriodInfo.excludedEnd}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

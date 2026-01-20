@@ -3,10 +3,17 @@ import Link from "next/link";
 
 import "../../landing.css";
 
-import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
+import {
+  listPublicCitiesForSitemap,
+  getPublicCityDetail,
+  getPublicMetricComparisons,
+  getPublicMetricDistrictComparisons,
+  listPublicMapsForCity,
+} from "@/lib/publicApiClient";
 import FollowCityButton from "./FollowCityButton";
 import NewsletterSignup from "@/components/NewsletterSignup";
 import CitySignupButton from "./CitySignupButton";
+import CityDashboardSection from "./CityDashboardSection";
 
 export const revalidate = 3600;
 
@@ -119,6 +126,41 @@ Thanks!`;
     cityLeadSubject
   )}&body=${encodeURIComponent(cityLeadBody)}`;
 
+  // Fetch mayor-level dashboard data, district list, and recent maps for CityDashboardSection
+  let cityDetail: Awaited<ReturnType<typeof getPublicCityDetail>> | null = null;
+  const comparisonsMap: Record<number, Awaited<ReturnType<typeof getPublicMetricComparisons>>> = {};
+  let districts: number[] = [];
+  let maps: Awaited<ReturnType<typeof listPublicMapsForCity>> = [];
+  if (city?.id) {
+    try {
+      cityDetail = await getPublicCityDetail(city.id);
+      const metrics = cityDetail?.metrics ?? [];
+      if (metrics.length > 0) {
+        const first6 = metrics.slice(0, 6);
+        const comps = await Promise.all(
+          first6.map((m) =>
+            getPublicMetricComparisons(m.id, 0, "ytd").catch(() => null)
+          )
+        );
+        first6.forEach((m, i) => {
+          if (comps[i]) comparisonsMap[m.id] = comps[i];
+        });
+        const dc = await getPublicMetricDistrictComparisons(
+          metrics[0].id,
+          "ytd"
+        ).catch(() => null);
+        if (dc?.districts)
+          districts = dc.districts
+            .map((d) => d.district)
+            .filter((n) => n > 0)
+            .sort((a, b) => a - b);
+      }
+      maps = await listPublicMapsForCity(city.id).catch(() => []);
+    } catch {
+      // leave defaults
+    }
+  }
+
   return (
     <>
       <nav className="navbar">
@@ -131,6 +173,9 @@ Thanks!`;
               </span>
             </Link>
             <div className="nav-links">
+              <Link href={`/c/${slug}/methodology`} className="nav-link">
+                Methodology
+              </Link>
               <a
                 href="https://www.transparentsf.com"
                 target="_blank"
@@ -212,43 +257,14 @@ Thanks!`;
         </div>
       </section>
 
-      <section className="features">
-        <div className="container">
-          <div className="section-header">
-            <span className="section-badge">What’s here</span>
-            <h2 className="section-title">Public data, made legible</h2>
-            <p className="section-description">
-              A public city index page: datasets and civic context in one place,
-              with a clear path to follow this city and get updates.
-            </p>
-          </div>
-
-          <div className="features-grid">
-            <div className="feature-card">
-              <div className="feature-icon">📚</div>
-              <h3 className="feature-title">Datasets</h3>
-              <p className="feature-description">
-                Browse the datasets we’ve indexed for this city.
-              </p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">📈</div>
-              <h3 className="feature-title">Metrics</h3>
-              <p className="feature-description">
-                Track time series and meaningful changes by topic.
-              </p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">🗺️</div>
-              <h3 className="feature-title">Maps</h3>
-              <p className="feature-description">
-                See where things are happening, by district and neighborhood.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
+      <CityDashboardSection
+        cityDisplayName={cityDisplayName}
+        slug={slug}
+        metrics={cityDetail?.metrics ?? []}
+        comparisonsMap={comparisonsMap}
+        districts={districts}
+        maps={maps}
+      />
 
       <footer className="footer">
         <div className="container">
@@ -268,6 +284,9 @@ Thanks!`;
             </div>
             <div className="footer-column">
               <h4 className="footer-title">Resources</h4>
+              <Link href={`/c/${slug}/methodology`} className="footer-link">
+                Methodology
+              </Link>
               <Link href="/sitemap" className="footer-link">
                 Site Map
               </Link>

@@ -2,39 +2,36 @@
  * Shared, fixed layer color palette for both Metrics and Shapes.
  *
  * Goals:
- * - Brand purple (#ad35fa) is first, then coral (#FF6B5A), then variations in those hue families.
- * - Each template_id gets a unique, distinct color.
+ * - Maximally distinct colors for each position in the list.
+ * - Brand purple (#ad35fa) is first, coal (#374151) is second.
+ * - Colors spread across the color wheel for maximum visual distinction.
  * - Deterministic assignment: a layer keeps the same color across toggles/sessions.
  * - Same palette used everywhere (icons, sliders, map layers).
  */
 export const LAYER_COLOR_PALETTE = [
-  // Purple family (brand primary)
-  "#ad35fa", // TransparentCity purple (primary) - Template ID 1
-  "#8B5CF6", // Secondary purple - Template ID 2
-  "#9625e0", // Darker purple - Template ID 3
-  "#c44dff", // Bright purple - Template ID 4
-  "#a78bfa", // Light purple - Template ID 5
-  "#7c3aed", // Deep purple - Template ID 6
-  "#9333ea", // Rich purple - Template ID 7
-  "#d8b4fe", // Pale purple - Template ID 8
-  
-  // Coral family (brand secondary)
-  "#FF6B5A", // Coral (primary) - Template ID 9
-  "#FF8A7A", // Light coral - Template ID 10
-  "#E85A4A", // Dark coral - Template ID 11
-  "#FF9D8E", // Soft coral - Template ID 12
-  "#FF7A6B", // Bright coral - Template ID 13
-  "#D94A3A", // Deep coral - Template ID 14
-  "#FFB3A8", // Pale coral - Template ID 15
-  "#C73A2A", // Rich coral - Template ID 16
-  
-  // Additional distinct colors for more templates
-  "#4ECDC4", // Turquoise - Template ID 17
-  "#FFE66D", // Yellow - Template ID 18
-  "#95E1D3", // Mint - Template ID 19
-  "#F38181", // Pink - Template ID 20
-  "#AA96DA", // Lavender - Template ID 21
-  "#FCBAD3", // Light pink - Template ID 22
+  // Maximally distinct colors - spread across the color wheel
+  "#ad35fa", // 1. TransparentCity brand purple (primary)
+  "#FF6B5A", // 2. Coral red
+  "#10B981", // 3. Emerald green
+  "#3B82F6", // 4. Blue
+  "#F59E0B", // 5. Amber/Orange
+  "#06B6D4", // 6. Cyan/Teal
+  "#EC4899", // 7. Pink
+  "#374151", // 8. Coal (brand secondary - dark gray)
+  "#84CC16", // 9. Lime green
+  "#8B5CF6", // 10. Violet
+  "#EF4444", // 11. Red
+  "#14B8A6", // 12. Teal
+  "#F97316", // 13. Orange
+  "#6366F1", // 14. Indigo
+  "#22C55E", // 15. Green
+  "#A855F7", // 16. Purple
+  "#0EA5E9", // 17. Sky blue
+  "#E11D48", // 18. Rose
+  "#FBBF24", // 19. Yellow
+  "#7C3AED", // 20. Deep purple
+  "#2DD4BF", // 21. Turquoise
+  "#F472B6", // 22. Light pink
 ] as const;
 
 export type LayerColor = typeof LAYER_COLOR_PALETTE[number];

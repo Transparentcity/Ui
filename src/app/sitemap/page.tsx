@@ -4,6 +4,7 @@ import Link from "next/link";
 import "../landing.css";
 import styles from "./sitemap.module.css";
 
+import SitemapHeader from "@/components/SitemapHeader";
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
 import { API_BASE } from "@/lib/apiBase";
 
@@ -115,30 +116,7 @@ export default async function SiteMapPage() {
 
   return (
     <>
-      <nav className="navbar">
-        <div className="container">
-          <div className="nav-content">
-            <Link href="/" className="logo" style={{ textDecoration: "none" }}>
-              <span className="logo-text">
-                <span className="logo-transparent">transparent</span>
-                <span className="logo-city">.city</span>
-              </span>
-            </Link>
-
-            <div className="nav-links">
-              <Link href="/" className="nav-link">
-                Home
-              </Link>
-              <Link href="/landing" className="nav-link">
-                Product page
-              </Link>
-              <Link href="/sitemap" className="nav-link">
-                Site map
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <SitemapHeader />
 
       <section className={styles.sitemapSection}>
         <div className="container">

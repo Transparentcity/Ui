@@ -9,7 +9,8 @@
   border-top-left-radius: 16px;
   border-top-right-radius: 16px;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
-  z-index: 2000;
+  /* Above right-side map layer panel (15000) so gallery is always on top when viewing media */
+  z-index: 16000;
   display: flex;
   flex-direction: column;
   overflow: hidden;

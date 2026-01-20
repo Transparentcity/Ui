@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type CreateAdminMetricRequest,
   type UpdateAdminMetricRequest,
+  invalidateAdminMetricMapCache,
 } from "@/lib/apiClient";
 import {
   useMetrics,
@@ -248,6 +249,7 @@ export default function MetricsAdmin() {
     category_fields: any[] | null;
   } | null>(null);
   const [showMapFields, setShowMapFields] = useState(false);
+  const [mapCacheInvalidating, setMapCacheInvalidating] = useState(false);
   const [showAllGaps, setShowAllGaps] = useState(false);
 
   // Debounce refs
@@ -501,6 +503,28 @@ export default function MetricsAdmin() {
           },
         }
       );
+    }
+  };
+
+  const handleInvalidateMapCache = async () => {
+    if (!editMetricId) return;
+    const confirmed = window.confirm(
+      "Invalidate cached maps for this metric? This will force map regeneration on next request."
+    );
+    if (!confirmed) return;
+
+    try {
+      setMapCacheInvalidating(true);
+      const token = await getAccessTokenSilently();
+      const result = await invalidateAdminMetricMapCache(editMetricId, undefined, token);
+      alert(
+        `Invalidated ${result.deleted_count} cached map(s) for metric ${editMetricId}.`
+      );
+    } catch (err) {
+      console.error("Error invalidating map cache:", err);
+      alert(err instanceof Error ? err.message : "Failed to invalidate map cache");
+    } finally {
+      setMapCacheInvalidating(false);
     }
   };
 
@@ -782,9 +806,21 @@ export default function MetricsAdmin() {
                           </div>
                         )}
                         <FreshnessBadge freshness={m.freshness} />
-                        {m.execution_count !== null && m.execution_count !== undefined && (
-                          <div style={{ fontSize: 10, color: "var(--text-tertiary)" }}>
-                            {m.execution_count.toLocaleString()} records
+                        {m.record_counts && (m.record_counts.total_active > 0 || m.record_counts.total_inactive > 0) && (
+                          <div 
+                            style={{ fontSize: 10, cursor: "help", display: "flex", gap: 6 }}
+                            title={`Active:\n  Charts: ${m.record_counts.active_charts}\n  Data points: ${m.record_counts.active_data_points.toLocaleString()}\n  Anomaly runs: ${m.record_counts.anomaly_runs}\n  Anomaly results: ${m.record_counts.anomaly_results}\n  Maps: ${m.record_counts.saved_maps}\n\nInactive:\n  Charts: ${m.record_counts.inactive_charts}\n  Data points: ${m.record_counts.inactive_data_points.toLocaleString()}`}
+                          >
+                            {m.record_counts.total_active > 0 && (
+                              <span style={{ color: "var(--color-success, #22c55e)" }}>
+                                {m.record_counts.total_active.toLocaleString()} active
+                              </span>
+                            )}
+                            {m.record_counts.total_inactive > 0 && (
+                              <span style={{ color: "var(--text-tertiary)" }}>
+                                {m.record_counts.total_inactive.toLocaleString()} inactive
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1072,15 +1108,26 @@ export default function MetricsAdmin() {
                   <div style={{ gridColumn: "1 / -1", marginTop: 16 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                       <div className={styles.fieldLabel}>Map Configuration</div>
-                      <button
-                        type="button"
-                        className={styles.secondaryBtn}
-                        onClick={() => setShowMapFields(!showMapFields)}
-                        style={{ padding: "4px 12px", fontSize: 12 }}
-                      >
-                        <i className={`fas fa-${showMapFields ? "chevron-up" : "chevron-down"}`} />{" "}
-                        {showMapFields ? "Hide" : "Show"}
-                      </button>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          type="button"
+                          className={styles.secondaryBtn}
+                          onClick={handleInvalidateMapCache}
+                          disabled={mapCacheInvalidating}
+                          style={{ padding: "4px 12px", fontSize: 12 }}
+                        >
+                          {mapCacheInvalidating ? "Invalidating..." : "Invalidate Map Cache"}
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.secondaryBtn}
+                          onClick={() => setShowMapFields(!showMapFields)}
+                          style={{ padding: "4px 12px", fontSize: 12 }}
+                        >
+                          <i className={`fas fa-${showMapFields ? "chevron-up" : "chevron-down"}`} />{" "}
+                          {showMapFields ? "Hide" : "Show"}
+                        </button>
+                      </div>
                     </div>
                     {showMapFields && (
                       <div style={{ marginTop: 8 }}>

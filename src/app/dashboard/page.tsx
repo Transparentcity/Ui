@@ -207,6 +207,14 @@ export default function DashboardPage() {
     };
   }, []);
 
+  // Redirect non-admins away from research and research-new views
+  useEffect(() => {
+    if (!isCheckingAdmin && !isAdmin && (currentView === "research" || currentView === "research-new")) {
+      setCurrentView("chat");
+      setCurrentResearchId(null);
+    }
+  }, [isCheckingAdmin, isAdmin, currentView]);
+
   // Allow other views (e.g., Research) to open a Job Session for review.
   useEffect(() => {
     const handler = (e: Event) => {
@@ -634,13 +642,13 @@ export default function DashboardPage() {
             </div>
           )}
 
-                  {currentView === "research" && currentResearchId && (
+                  {currentView === "research" && currentResearchId && isAdmin && (
             <div className={`${styles.contentView} ${styles.contentViewActive}`}>
                       <ResearchView reportId={currentResearchId} isAdmin={isAdmin} />
             </div>
           )}
 
-          {currentView === "research-new" && (
+          {currentView === "research-new" && isAdmin && (
             <div className={`${styles.contentView} ${styles.contentViewActive}`}>
               <NewResearchPage />
             </div>

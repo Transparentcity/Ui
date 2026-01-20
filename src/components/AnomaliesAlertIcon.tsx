@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useCityAnomalies, type AnomalyResult } from "@/lib/hooks/useAnomalies";
+import { useCityMetricsForMap } from "@/lib/hooks/useMetrics";
 import AnomaliesBottomSheet from "./AnomaliesBottomSheet";
 import styles from "./AnomaliesAlertIcon.module.css";
 
@@ -10,6 +11,7 @@ interface AnomaliesAlertIconProps {
   district?: number | null;
   onAnomalySelect?: (anomaly: AnomalyResult | null) => void;
   selectedAnomaly?: AnomalyResult | null;
+  mapOnly?: boolean; // When true, only show anomalies for metrics with map_query enabled
 }
 
 export default function AnomaliesAlertIcon({
@@ -17,6 +19,7 @@ export default function AnomaliesAlertIcon({
   district,
   onAnomalySelect,
   selectedAnomaly,
+  mapOnly = false,
 }: AnomaliesAlertIconProps) {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
 
@@ -28,7 +31,21 @@ export default function AnomaliesAlertIcon({
     limit: 100,
   });
 
-  const anomalyCount = anomaliesData?.count ?? 0;
+  // Fetch metrics with map_query enabled (only when mapOnly is true)
+  const { data: mapMetrics = [] } = useCityMetricsForMap(mapOnly ? cityId : null);
+
+  // Create a set of metric IDs that have map_query enabled for fast lookup
+  const mapMetricIds = useMemo(() => {
+    return new Set(mapMetrics.map((m) => m.id));
+  }, [mapMetrics]);
+
+  // Calculate anomaly count - filter if mapOnly is true
+  const anomalyCount = useMemo(() => {
+    if (!anomaliesData?.results) return 0;
+    if (!mapOnly) return anomaliesData.count ?? 0;
+    // Filter anomalies to only count those with map_query enabled metrics
+    return anomaliesData.results.filter((a) => mapMetricIds.has(a.metric_id)).length;
+  }, [anomaliesData, mapOnly, mapMetricIds]);
 
   const handleBellClick = () => {
     setIsSheetOpen(true);
@@ -82,6 +99,7 @@ export default function AnomaliesAlertIcon({
         district={district}
         selectedAnomaly={selectedAnomaly}
         onAnomalySelect={handleAnomalySelect}
+        mapOnly={mapOnly}
       />
     </>
   );

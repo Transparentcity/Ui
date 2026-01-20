@@ -18,6 +18,7 @@ import CityMetricsMap from "./CityMetricsMap";
 import "./CityMapView.css";
 import { LAYER_COLOR_PALETTE, type LayerColor } from "@/lib/layerColors";
 import type { MetricDateRange } from "@/lib/dateRange";
+import type { AnomalyResult } from "@/lib/hooks/useAnomalies";
 
 // Helper function to check if a point is inside a polygon (ray casting algorithm)
 function pointInPolygon(point: [number, number], polygon: [number, number][]): boolean {
@@ -226,6 +227,8 @@ interface CityMapViewProps {
   selectedDistrict?: number | null; // Selected district number
   onDistrictChange?: (district: number | null) => void; // Callback when district changes
   onDataReady?: (data: { leaders: CityLeader[]; shapefiles: CityShapefile[] }) => void; // Callback when leaders and shapefiles are loaded
+  selectedAnomaly?: AnomalyResult | null; // Currently selected anomaly for anomaly mode
+  onAnomalyClear?: () => void; // Callback to clear anomaly selection
 }
 
 export default function CityMapView({
@@ -237,6 +240,8 @@ export default function CityMapView({
   selectedDistrict,
   onDistrictChange,
   onDataReady,
+  selectedAnomaly,
+  onAnomalyClear,
 }: CityMapViewProps) {
   const { getAccessTokenSilently } = useAuth0();
   const { theme } = useTheme();
@@ -244,7 +249,7 @@ export default function CityMapView({
   const mapInstanceRef = useRef<any>(null);
   const mapCityIdRef = useRef<number | null>(null);
   const loadingRef = useRef<{ cityId: number | null; inProgress: boolean }>({ cityId: null, inProgress: false });
-  const [loading, setLoading] = useState(!propCityData); // Don't show loading if cityData is provided
+  const [loading, setLoading] = useState(true); // Always show loading initially to hide old map
   const [error, setError] = useState<string | null>(null);
   const [cityData, setCityData] = useState<CityDetail | null>(propCityData || null);
   const [cityStructure, setCityStructure] = useState<CityStructureData | null>(null);
@@ -299,16 +304,18 @@ export default function CityMapView({
       loadingRef.current = { cityId, inProgress: false };
       // Reset structure data ready state when city changes
       setStructureDataReady(false);
+      // Clear map center so we don't use old city's center
+      setMapCenter(null);
+      // Show loading immediately when city changes to hide old map
+      setLoading(true);
     }
     
     loadingRef.current.inProgress = true;
 
     const loadData = async () => {
       try {
-        // Only show loading if we don't have cityData yet
-        if (!propCityData && !cityData) {
-          setLoading(true);
-        }
+        // Always show loading when starting to load (hides old map)
+        setLoading(true);
         setError(null);
         const token = await getAccessTokenSilently();
 
@@ -329,6 +336,9 @@ export default function CityMapView({
         // Set city data immediately so UI can render
         setCityData(city);
 
+        // Don't set default center yet - wait for shapefiles to calculate proper center
+        // This ensures the map is centered on the actual city, not the middle of the country
+
         // Load structure data in background (heavy operation)
         // For non-admin users, we still need elected officials for map labels/popups
         let structureData = null;
@@ -347,6 +357,10 @@ export default function CityMapView({
         const leadersData = structureData?.leaders || [];
         let layersData: CityShapeLayerListItem[] = [];
         try {
+          // Always load geometry - we need it to calculate map center
+          // Even if we don't need it for display (choropleth), we need it for proper map centering
+          // The performance impact is acceptable since we need accurate city centering
+          console.log(`Loading shape layers for city ${cityId} with geometry (needed for map centering)`);
           layersData = await getCityShapeLayers(cityId, token, true);
         } catch (err) {
           console.error("Failed to load city shape layers:", err);
@@ -472,17 +486,28 @@ export default function CityMapView({
           });
         }
         
+        // Update map center/zoom with calculated values from shapefiles
         if (calculatedCenter) {
           setMapCenter(calculatedCenter);
           setMapZoom(calculatedZoom);
+          // Update existing map if it's already initialized
+          if (mapInstanceRef.current && mapInstanceRef.current.loaded()) {
+            mapInstanceRef.current.flyTo({
+              center: calculatedCenter,
+              zoom: calculatedZoom,
+              duration: 1000,
+            });
+          }
         } else {
-          // No shapefiles available - use a reasonable default center
-          // This fallback should rarely be needed since we use all shapefiles to center
-          const defaultCenter: [number, number] = city?.country === "United States" || !city?.country
-            ? [-98.5795, 39.8283] // Center of US
-            : [-98.5795, 39.8283]; // Generic default (could be improved with city coordinates)
-          setMapCenter(defaultCenter);
-          setMapZoom(10); // Reasonable default zoom
+          // If we couldn't calculate center from shapefiles, use a fallback
+          // Try to use city structure data if available, otherwise use a reasonable default
+          // For now, we'll use a default but this should be rare if shapefiles are loaded
+          console.warn(`Could not calculate center from shapefiles for city ${cityId}, using fallback`);
+          const fallbackCenter: [number, number] = city?.country === "United States" || !city?.country
+            ? [-98.5795, 39.8283] // Center of US (fallback)
+            : [-98.5795, 39.8283]; // Generic default (fallback)
+          setMapCenter(fallbackCenter);
+          setMapZoom(10);
         }
         
         // Mark structure data as ready - this allows map to initialize
@@ -1201,14 +1226,7 @@ export default function CityMapView({
       }))
     : [];
 
-  if (loading) {
-    return (
-      <div className="city-map-view-loading" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", padding: "40px" }}>
-        <Loader size="sm" color="dark" />
-        <span>Loading map...</span>
-      </div>
-    );
-  }
+  // Don't return early - show loading overlay instead to hide old map
 
   if (error) {
     return (
@@ -1269,11 +1287,45 @@ export default function CityMapView({
   return (
     <div className="city-map-view">
       {/* Map container - full screen */}
-      <div className="city-map-container">
-        <div ref={mapContainerRef} className="map-container" />
+      <div className="city-map-container" style={{ position: "relative", width: "100%", height: "100%" }}>
+        {/* Loading overlay - covers map while loading to hide old city */}
+        {loading && (
+          <div 
+            className="city-map-view-loading-overlay" 
+            style={{ 
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "center", 
+              gap: "12px", 
+              backgroundColor: "var(--bg-primary, #ffffff)",
+              zIndex: 1000,
+            }}
+          >
+            <Loader size="sm" color="dark" />
+            <span>Loading map...</span>
+          </div>
+        )}
         
-        {/* City Metrics Map Component */}
-        <CityMetricsMap
+        {/* Map container - hidden behind loading overlay when loading */}
+        <div 
+          ref={mapContainerRef} 
+          className="map-container" 
+          style={{ 
+            width: "100%", 
+            height: "100%",
+            opacity: loading ? 0 : 1,
+            transition: "opacity 0.3s ease-in-out"
+          }} 
+        />
+        
+        {/* City Metrics Map Component - only render when not loading */}
+        {!loading && (
+          <CityMetricsMap
           cityId={cityId}
           isActive={!loading && structureDataReady}
           mapInstanceRef={mapInstanceRef}
@@ -1284,7 +1336,10 @@ export default function CityMapView({
           metricDateRange={metricDateRange}
           gpsLocation={gpsLocation}
           selectedDistrict={selectedDistrict}
-        />
+          selectedAnomaly={selectedAnomaly}
+          onAnomalyClear={onAnomalyClear}
+          />
+        )}
       </div>
     </div>
   );

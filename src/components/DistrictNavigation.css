@@ -37,6 +37,7 @@
   color: var(--text-primary, #000);
   flex: 1;
   font-size: 0.875rem; /* Match reduced header font size */
+  font-weight: 700; /* Bold name for "Title: Name" display */
 }
 
 /* Modal Styles */

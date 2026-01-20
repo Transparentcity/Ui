@@ -1,0 +1,101 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { getPublicMetricByKey } from "@/lib/publicApiClient";
+import MetricDetailClient from "./MetricDetailClient";
+import MetricLoadErrorClient from "./MetricLoadErrorClient";
+
+type PageProps = {
+  params: Promise<{ slug: string; metricKey: string }>;
+  searchParams: Promise<{ district?: string }>;
+};
+
+export const revalidate = 3600; // Revalidate every hour
+
+export async function generateMetadata({
+  params,
+  searchParams,
+}: PageProps): Promise<Metadata> {
+  const { slug, metricKey } = await params;
+  const { district } = await searchParams;
+  const districtNum = district ? parseInt(district, 10) : null;
+  const locationLabel = districtNum && districtNum > 0 ? `District ${districtNum}` : "Citywide";
+
+  try {
+    const metric = await getPublicMetricByKey(metricKey);
+    const cityName = slug
+      .split("-")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+
+    const description =
+      metric.summary ||
+      metric.definition?.slice(0, 160) ||
+      `View detailed data and trends for ${metric.metric_name} in ${cityName} - ${locationLabel}`;
+
+    return {
+      title: `${metric.metric_name} | ${locationLabel} | ${cityName} | Transparent City`,
+      description,
+      openGraph: {
+        title: `${metric.metric_name} - ${locationLabel}`,
+        description,
+        type: "website",
+        // TODO: Add OG image generation endpoint
+        // images: [{ url: `/api/og/metric/${metric.metric_key}` }],
+      },
+    };
+  } catch {
+    return {
+      title: "Metric Not Found | Transparent City",
+    };
+  }
+}
+
+function isApi404(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    typeof (err as Error & { status?: number }).status === "number" &&
+    (err as Error & { status?: number }).status === 404
+  );
+}
+
+function loadErrorMessage(err: unknown): string {
+  if (err instanceof Error) {
+    if (err.message.includes("Failed to connect to API") || err.message.includes("fetch")) {
+      return "We couldn’t reach the data service. Check that the API is running, then try again.";
+    }
+    if (err.message.includes("404")) {
+      return "This metric wasn’t found.";
+    }
+  }
+  return "We couldn’t load this metric. Please try again later.";
+}
+
+export default async function MetricDetailPage({ params, searchParams }: PageProps) {
+  const { slug, metricKey } = await params;
+  const { district } = await searchParams;
+  const districtNum = district ? parseInt(district, 10) : null;
+
+  let metric;
+  try {
+    metric = await getPublicMetricByKey(metricKey);
+  } catch (error) {
+    console.error("Failed to load metric:", error);
+    if (isApi404(error)) {
+      notFound();
+    }
+    const baseMsg = loadErrorMessage(error);
+    const devExtra =
+      process.env.NODE_ENV === "development" && error instanceof Error
+        ? ` [${error.message}]`
+        : "";
+    return (
+      <MetricLoadErrorClient
+        citySlug={slug}
+        message={baseMsg + devExtra}
+      />
+    );
+  }
+
+  return <MetricDetailClient metric={metric} citySlug={slug} district={districtNum} />;
+}

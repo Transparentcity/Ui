@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
   getCity,
+  getCityMetrics,
   getSavedCities,
   listCities,
   getCityStructure,
@@ -38,6 +39,7 @@ export const cityKeys = {
 
 /**
  * Hook to fetch a single city by ID.
+ * Loads city data without metrics first (faster), then loads metrics separately in parallel.
  * Cache time: 5 minutes (city data changes infrequently)
  */
 export function useCity(cityId: number | null) {
@@ -48,7 +50,21 @@ export function useCity(cityId: number | null) {
     queryFn: async () => {
       if (!cityId) throw new Error("City ID is required");
       const token = await getAccessTokenSilently();
-      return getCity(cityId, token);
+      
+      // Load city data without metrics first (faster)
+      const cityPromise = getCity(cityId, token);
+      
+      // Load metrics in parallel (separate, optimized query)
+      const metricsPromise = getCityMetrics(cityId, token);
+      
+      // Wait for both to complete and merge
+      const [cityData, metrics] = await Promise.all([cityPromise, metricsPromise]);
+      
+      // Merge metrics into city data
+      return {
+        ...cityData,
+        metrics: metrics || [],
+      } as CityDetail;
     },
     enabled: !!cityId,
     staleTime: 5 * 60 * 1000, // 5 minutes

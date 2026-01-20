@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTheme } from "@/contexts/ThemeContext";
 import type { CityLeader, CityShapefile } from "@/lib/apiClient";
+import { formatZipcodeForGeocoding } from "@/lib/locationSearchUtils";
 import "./DistrictNavigation.css";
 
 type GeocodeAddress = {
@@ -315,7 +316,8 @@ export default function DistrictNavigation({
     setError(null);
     
     try {
-      const res = await fetch(`/api/geocode?q=${encodeURIComponent(s)}`, {
+      const q = formatZipcodeForGeocoding(s);
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, {
         method: "GET",
         headers: { Accept: "application/json" },
       });

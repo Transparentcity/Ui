@@ -7,14 +7,17 @@ import {
   listAnomalies,
   getAnomalyRun,
   getAnomalyResult,
+  getAvailablePeriods,
   type RunAnomalyRequest,
   type RunAnomalyResponse,
   type ListAnomaliesResponse,
   type AnomalyResult,
+  type AvailablePeriod,
+  type AvailablePeriodsResponse,
 } from "@/lib/apiClient";
 
-// Re-export AnomalyResult type for consumers
-export type { AnomalyResult };
+// Re-export types for consumers
+export type { AnomalyResult, AvailablePeriod };
 
 // Query keys factory for anomalies
 export const anomalyKeys = {
@@ -23,6 +26,8 @@ export const anomalyKeys = {
   list: (filters?: Record<string, any>) => [...anomalyKeys.lists(), filters] as const,
   city: (cityId: number | null, filters?: Record<string, any>) => 
     [...anomalyKeys.all, "city", cityId, filters] as const,
+  periods: (periodType: string, cityId?: number | null, district?: number | null) =>
+    [...anomalyKeys.all, "periods", periodType, cityId, district] as const,
   runs: () => [...anomalyKeys.all, "run"] as const,
   run: (runId: number) => [...anomalyKeys.runs(), runId] as const,
   details: () => [...anomalyKeys.all, "detail"] as const,
@@ -129,6 +134,7 @@ export function useAnomalyDetail(resultId: number | null) {
  *   - period_type: Filter by period type (day, week, month, year)
  *   - is_anomaly: Filter by flagged anomalies (true) or all (null)
  *   - limit: Maximum number of results to return
+ *   - period_date: Filter by specific period date (e.g., "2025-01-13")
  */
 export function useCityAnomalies(
   cityId: number | null,
@@ -137,6 +143,7 @@ export function useCityAnomalies(
     period_type?: string;
     is_anomaly?: boolean | null;
     limit?: number;
+    period_date?: string | null;
   }
 ) {
   const { getAccessTokenSilently } = useAuth0();
@@ -152,10 +159,46 @@ export function useCityAnomalies(
         period_type: options?.period_type,
         is_anomaly: options?.is_anomaly ?? true,
         limit: options?.limit ?? 100,
+        period_date: options?.period_date ?? undefined,
       });
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
     enabled: !!cityId,
+  });
+}
+
+/**
+ * Hook to get available periods (weeks/months/etc) that have active anomaly runs.
+ * Useful for populating a period selector dropdown.
+ * Cache time: 5 minutes
+ * 
+ * @param periodType - Period type to query (day, week, month, year)
+ * @param cityId - City ID to filter by
+ * @param district - Optional district filter (null = all, 0 = citywide)
+ * @param limit - Maximum number of periods to return (default 20)
+ */
+export function useAvailablePeriods(
+  periodType: string,
+  cityId: number | null,
+  district?: number | null,
+  limit?: number
+) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: anomalyKeys.periods(periodType, cityId, district),
+    queryFn: async () => {
+      if (!cityId) throw new Error("City ID is required");
+      const token = await getAccessTokenSilently();
+      return getAvailablePeriods(token, {
+        period_type: periodType,
+        city_id: cityId,
+        district: district ?? undefined,
+        limit: limit ?? 20,
+      });
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled: !!cityId && !!periodType,
   });
 }
 

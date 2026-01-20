@@ -13,23 +13,25 @@ import {
   getCityStructure,
   type CityStructureData,
 } from "@/lib/apiClient";
-import { useCityMetricsForMap, metricKeys } from "@/lib/hooks/useMetrics";
-import { useCityAdminStructure } from "@/lib/hooks/useCityAdmin";
+import { useCityMetricsForMap } from "@/lib/hooks/useMetrics";
+import { useCityAdminStructure, useCityMetricOrdering } from "@/lib/hooks/useCityAdmin";
+import { useMapLayersData } from "@/lib/hooks/useMapLayers";
 import type { MetricDateRange } from "@/lib/dateRange";
 import Loader from "@/components/Loader";
 import MapTimeline from "@/components/MapTimeline";
 import MediaGallery, { type MediaViewMode } from "@/components/MediaGallery";
 import { extractMediaFromPoint, extractMediaFromPoints, type MediaItem } from "@/lib/mediaUtils";
 import "./CityMetricsMap.css";
-import { getStableColorForKey, getStableColorIndexForKey, LAYER_COLOR_PALETTE } from "@/lib/layerColors";
+import { getStableColorForKey, LAYER_COLOR_PALETTE } from "@/lib/layerColors";
 import {
-  sortAndGroupMetrics,
-  getColorIndexForTemplate,
-  getColorForTemplate,
   getOrderForTemplate,
   getCategoryDisplayName,
   type GroupedMetric,
 } from "@/lib/metricTemplateConfig";
+import type { AnomalyResult } from "@/lib/hooks/useAnomalies";
+
+// Brand purple color for anomaly mode
+const ANOMALY_MODE_COLOR = "#AD35FA";
 
 interface CityMetricsMapProps {
   cityId: number;
@@ -52,6 +54,8 @@ interface CityMetricsMapProps {
   setEnabledShapeLayerInstanceIds?: React.Dispatch<React.SetStateAction<Set<number>>>;
   gpsLocation?: { lat: number; lng: number } | null; // GPS coordinates - when set, prevents dynamic zooming
   selectedDistrict?: number | null; // Selected district number for filtering data
+  selectedAnomaly?: AnomalyResult | null; // Currently selected anomaly for anomaly mode
+  onAnomalyClear?: () => void; // Callback to clear anomaly selection
 }
 
 export default function CityMetricsMap({
@@ -65,6 +69,8 @@ export default function CityMetricsMap({
   setEnabledShapeLayerInstanceIds,
   gpsLocation,
   selectedDistrict,
+  selectedAnomaly,
+  onAnomalyClear,
 }: CityMetricsMapProps) {
   const { getAccessTokenSilently } = useAuth0();
   const { theme } = useTheme();
@@ -90,6 +96,17 @@ export default function CityMetricsMap({
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [mediaViewMode, setMediaViewMode] = useState<MediaViewMode>("split");
   const [showMediaGallery, setShowMediaGallery] = useState(false);
+  
+  // Dock-style label state for hover/touch
+  const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
+  const [hoveredItemLabel, setHoveredItemLabel] = useState<string>("");
+  const [hoveredItemRect, setHoveredItemRect] = useState<DOMRect | null>(null);
+  const dockLabelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Anomaly mode state
+  const [anomalyModeMap, setAnomalyModeMap] = useState<MapData | null>(null);
+  const [anomalyModeLoading, setAnomalyModeLoading] = useState(false);
+  const isAnomalyMode = selectedAnomaly !== null && selectedAnomaly !== undefined;
 
   // Track if we've set default metrics to avoid re-enabling them
   const defaultMetricsSetRef = useRef(false);
@@ -100,6 +117,91 @@ export default function CityMetricsMap({
   
   // Load city structure for district information
   const structureQuery = useCityAdminStructure(cityId && isActive ? cityId : null);
+  
+  // Load metric ordering to match dashboard order
+  const { data: orderingData } = useCityMetricOrdering(cityId && isActive ? cityId : null);
+  
+  // Convert selected metric IDs to numbers for the hook
+  const selectedMetricIdsArray = useMemo(() => {
+    return Array.from(selectedMetricIds)
+      .map((id) => parseInt(id, 10))
+      .filter((id) => !isNaN(id));
+  }, [selectedMetricIds]);
+  
+  // Get districts array for React Query hook
+  const districtsForQuery = useMemo((): number[] | null => {
+    if (selectedDistrict === null || selectedDistrict === undefined || selectedDistrict === 0) {
+      return null;
+    }
+    return [selectedDistrict];
+  }, [selectedDistrict]);
+  
+  // Use React Query hook to load map data with caching
+  // This hook caches data for 15 minutes and keeps it in memory for 30 minutes
+  // When layers are toggled off and back on, cached data is used instead of re-fetching
+  const mapLayersQuery = useMapLayersData(
+    selectedMetricIdsArray,
+    {
+      startDate: metricDateRange?.start_date ?? null,
+      endDate: metricDateRange?.end_date ?? null,
+      districts: districtsForQuery,
+    },
+    isActive && !isAnomalyMode // Don't fetch when in anomaly mode
+  );
+  
+  // Sync React Query data to local maps state for backwards compatibility with existing rendering code
+  useEffect(() => {
+    if (!mapLayersQuery.mapDataByMetricId) return;
+    
+    const newMaps: MapData[] = [];
+    Object.entries(mapLayersQuery.mapDataByMetricId).forEach(([metricIdStr, mapData]) => {
+      if (mapData) {
+        newMaps.push(mapData);
+      }
+    });
+    
+    // Only update if data has actually changed to prevent unnecessary re-renders
+    setMaps((prevMaps) => {
+      const prevIds = new Set(prevMaps.map((m) => String(m.metric_id)));
+      const newIds = new Set(newMaps.map((m) => String(m.metric_id)));
+      
+      // Check if the sets are the same
+      if (prevIds.size === newIds.size && [...prevIds].every((id) => newIds.has(id))) {
+        // Check if any data has changed
+        let hasChanged = false;
+        for (const newMap of newMaps) {
+          const prevMap = prevMaps.find((m) => String(m.metric_id) === String(newMap.metric_id));
+          if (!prevMap || JSON.stringify(prevMap.location_data) !== JSON.stringify(newMap.location_data)) {
+            hasChanged = true;
+            break;
+          }
+        }
+        if (!hasChanged) return prevMaps;
+      }
+      
+      return newMaps;
+    });
+  }, [mapLayersQuery.mapDataByMetricId]);
+  
+  // Update loading maps state from React Query (convert number to string)
+  // Only update if the actual content has changed to prevent unnecessary re-renders
+  useEffect(() => {
+    setLoadingMaps((prevLoadingMaps) => {
+      // Convert query's loading IDs to strings
+      const newLoadingIds = Array.from(mapLayersQuery.loadingMetricIds).map(String).sort();
+      const prevLoadingIds = Array.from(prevLoadingMaps).sort();
+      
+      // Only create new Set if content has actually changed
+      if (
+        newLoadingIds.length === prevLoadingIds.length &&
+        newLoadingIds.every((id, i) => id === prevLoadingIds[i])
+      ) {
+        return prevLoadingMaps; // Return same reference to prevent re-render
+      }
+      
+      return new Set(newLoadingIds);
+    });
+  }, [mapLayersQuery.loadingMetricIds]);
   
   useEffect(() => {
     if (metricsQuery.data) {
@@ -145,9 +247,6 @@ export default function CityMetricsMap({
   // Reset map layers and state when city changes
   useEffect(() => {
     if (previousCityIdRef.current !== null && previousCityIdRef.current !== cityId) {
-      // City has changed - reset everything
-      console.log(`[CityMetricsMap] City changed from ${previousCityIdRef.current} to ${cityId}, resetting map layers`);
-      
       // Store current state before clearing
       const currentMaps = maps;
       const currentSelectedIds = selectedMetricIds;
@@ -161,8 +260,6 @@ export default function CityMetricsMap({
       // Clear loading states
       setLoadingMaps(new Set());
       loadingMapsRef.current.clear();
-      attemptedLoadsRef.current.clear();
-      loadedMetricsRef.current.clear();
       
       // Clear visible/hidden layers
       setVisibleLayers(new Set());
@@ -218,27 +315,84 @@ export default function CityMetricsMap({
         return updated;
       });
       defaultMetricsSetRef.current = true;
-      console.log(
-        `Auto-enabled ${metricsToEnable.length} default crime metrics (templates 18 and/or 44):`,
-        metricsToEnable.map((m) => ({ id: m.id, name: m.metric_name, template_id: m.template_id }))
-      );
     }
   }, [availableMetrics]);
 
-  // Get color index for a metric based on metric_id (each metric gets unique color)
-  // This ensures that even metrics sharing the same template_id get different colors
-  // Can accept either a metric object or a metric ID string
-  const getColorIndexForMetric = useCallback((metricOrId: AdminMetricListItem | string): number => {
-    // Always use metric_id for color assignment to ensure unique colors per metric
-    const metricId = typeof metricOrId === "string" ? metricOrId : String(metricOrId.id);
-    return getStableColorIndexForKey(`metric:${metricId}`);
-  }, []);
+  // Compute sorted metrics and position-based color mapping
+  // This ensures each metric gets a unique, stable color based on its position in the list
+  // Colors remain the same whether the metric is toggled on or off
+  const metricColorMapping = useMemo(() => {
+    // Build ordering map from dashboard ordering data (same logic as panel building)
+    const orderingMap = new Map<number, { categoryOrder: number; metricOrder: number; categoryName: string }>();
+    if (orderingData?.orderings) {
+      orderingData.orderings.forEach((o) => {
+        if (o.metric_id) {
+          orderingMap.set(o.metric_id, {
+            categoryOrder: o.category_order,
+            metricOrder: o.metric_order,
+            categoryName: o.category_name,
+          });
+        }
+      });
+    }
 
-  // Track which metrics we've attempted to load to prevent infinite loops
-  // Key format: "metricId:district" (e.g., "123:5" for metric 123, district 5, or "123:null" for no district)
-  const attemptedLoadsRef = useRef<Set<string>>(new Set());
-  // Track which metrics have successfully loaded map data (keyed by metricId:district)
-  const loadedMetricsRef = useRef<Set<string>>(new Set());
+    // Filter to only active metrics (same as panel)
+    const filteredMetrics = availableMetrics.filter((metric) => metric.is_active);
+
+    // Sort metrics using dashboard ordering, then fall back to template order
+    const sortedMetrics = [...filteredMetrics].sort((a, b) => {
+      const orderA = orderingMap.get(a.id);
+      const orderB = orderingMap.get(b.id);
+
+      // If both have dashboard ordering, use that
+      if (orderA && orderB) {
+        if (orderA.categoryOrder !== orderB.categoryOrder) {
+          return orderA.categoryOrder - orderB.categoryOrder;
+        }
+        return orderA.metricOrder - orderB.metricOrder;
+      }
+
+      // If only one has ordering, prioritize the one with ordering
+      if (orderA) return -1;
+      if (orderB) return 1;
+
+      // Fall back to template order for metrics without dashboard ordering
+      const templateOrderA = getOrderForTemplate(a.template_id);
+      const templateOrderB = getOrderForTemplate(b.template_id);
+      if (templateOrderA !== templateOrderB) {
+        return templateOrderA - templateOrderB;
+      }
+
+      // Final fallback: alphabetical by name
+      return (a.metric_name || "").localeCompare(b.metric_name || "");
+    });
+
+    // Create position-based color mapping: metric ID -> position index
+    const positionMap = new Map<string, number>();
+    sortedMetrics.forEach((metric, index) => {
+      positionMap.set(String(metric.id), index % LAYER_COLOR_PALETTE.length);
+    });
+
+    return { positionMap, orderingMap, sortedMetrics };
+  }, [availableMetrics, orderingData]);
+
+  // Get color index for a metric based on its position in the sorted list
+  // This ensures each metric gets a unique color that remains stable
+  // whether the metric is toggled on or off
+  const getColorIndexForMetric = useCallback((metricOrId: AdminMetricListItem | string): number => {
+    const metricId = typeof metricOrId === "string" ? metricOrId : String(metricOrId.id);
+    // Use position-based color if available, otherwise fall back to modulo of ID
+    const positionColor = metricColorMapping.positionMap.get(metricId);
+    if (positionColor !== undefined) {
+      return positionColor;
+    }
+    // Fallback for metrics not in the sorted list (shouldn't happen normally)
+    return parseInt(metricId, 10) % LAYER_COLOR_PALETTE.length;
+  }, [metricColorMapping.positionMap]);
+
+  // Note: React Query now handles tracking loaded/attempted metrics via its cache
+  // The useMapLayersData hook provides automatic caching with 15-minute staleTime
+  // and 30-minute gcTime, so toggling layers on/off uses cached data
 
   // Helper to extract date from feature properties
   const getDateFromFeature = useCallback((feature: any): Date | null => {
@@ -347,12 +501,8 @@ export default function CityMetricsMap({
 
   const dateKey = `${metricDateRange?.start_date || ""}|${metricDateRange?.end_date || ""}`;
 
-  // When date range changes, clear caches and remove existing metric layers so data reloads.
+  // When date range changes, remove existing metric layers from map (React Query will handle refetching)
   useEffect(() => {
-    attemptedLoadsRef.current.clear();
-    loadedMetricsRef.current.clear();
-    setLoadingMaps(new Set());
-
     if (mapInstanceRef.current) {
       const map = mapInstanceRef.current;
       const idsToRemove = new Set<string>();
@@ -360,181 +510,407 @@ export default function CityMetricsMap({
       maps.forEach((m) => idsToRemove.add(String(m.metric_id)));
       idsToRemove.forEach((id) => removeMetricLayerFromMap(map, id));
     }
-
-    setMaps([]);
+    // React Query's cache key includes date range, so it will automatically fetch new data
+    // when the date range changes (cache miss for new date range)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateKey]);
 
   const queryClient = useQueryClient();
 
-  // Load map data for a metric (using React Query cache for fast switching)
-  const loadMapData = useCallback(async (metricId: number) => {
-    const metricIdStr = String(metricId);
-    
-    // Create a unique key that includes both metric ID and district
-    // This ensures we reload data when district changes, even for the same metric
-    const districtKey = selectedDistrict !== null && selectedDistrict !== 0 
-      ? String(selectedDistrict) 
-      : "null";
-    const loadKey = `${metricIdStr}:${districtKey}`;
-    
-    // Prevent duplicate loads
-    if (loadingMapsRef.current.has(metricIdStr) || attemptedLoadsRef.current.has(loadKey)) {
-      return;
-    }
-
-    // Check if we already have map data for this metric+district combination
-    if (loadedMetricsRef.current.has(loadKey)) {
-      return;
-    }
-
-    // Check React Query cache first
-    const districts: number[] | null = (selectedDistrict !== null && selectedDistrict !== 0 && typeof selectedDistrict === 'number')
-      ? [selectedDistrict]
-      : null;
-    const cacheKey = metricKeys.mapData(
-      metricId,
-      metricDateRange?.start_date ?? null,
-      metricDateRange?.end_date ?? null,
-      districts
-    );
-    const cachedData = queryClient.getQueryData<MapData>(cacheKey);
-    
-    if (cachedData) {
-      // Use cached data immediately
-      loadedMetricsRef.current.add(loadKey);
-      setMaps((prev) => {
-        const filtered = prev.filter((m) => String(m.metric_id) !== metricIdStr);
-        return [...filtered, cachedData];
-      });
-      return;
-    }
-
-    // Mark as attempted and loading
-    attemptedLoadsRef.current.add(loadKey);
-    setLoadingMaps((prev) => new Set(prev).add(metricIdStr));
-
-    try {
-      const token = await getAccessTokenSilently();
-      // Build request payload - always include districts if we have a valid district number
-      const requestPayload: any = {
-        metric_id: metricId,
-        start_date: metricDateRange?.start_date ?? null,
-        end_date: metricDateRange?.end_date ?? null,
-      };
-      
-      // Add districts parameter to WHERE clause if we have a valid district number (not null, not 0)
-      // District 0 is citywide, so we don't filter by district in that case
-      if (selectedDistrict !== null && selectedDistrict !== 0) {
-        requestPayload.districts = [selectedDistrict];
-      }
-      
-      const request: GetMapDataRequest = requestPayload;
-      const response = await getMetricMapData(request, token);
-
-      if (response.status === "success" && response.map_data) {
-        // Cache the data in React Query for fast switching
-        queryClient.setQueryData(cacheKey, response.map_data);
-        
-        loadedMetricsRef.current.add(loadKey);
-        setMaps((prev) => {
-          const filtered = prev.filter((m) => String(m.metric_id) !== metricIdStr);
-          return [...filtered, response.map_data!];
-        });
-      } else if (response.status === "error") {
-        // If metric doesn't have map_query, don't retry
-        console.log(`Metric ${metricId} does not have map_query configured:`, response.error);
-        // Keep it in attemptedLoadsRef so we don't retry
-      }
-    } catch (err: any) {
-      console.error(`Error loading map data for metric ${metricId}:`, err);
-      // On error, remove from attempted loads so we can retry later if needed
-      attemptedLoadsRef.current.delete(loadKey);
-    } finally {
-      setLoadingMaps((prev) => {
-        const updated = new Set(prev);
-        updated.delete(metricIdStr);
-        return updated;
-      });
-    }
-  }, [getAccessTokenSilently, metricDateRange?.start_date, metricDateRange?.end_date, selectedDistrict, queryClient]);
-
-  // Load map data when metrics are selected
+  // When district changes, remove metric layers from map (React Query handles data by cache key)
   useEffect(() => {
-    if (!isActive || !mapInstanceRef.current) return;
-
+    if (!mapInstanceRef.current) return;
+    
+    // Remove layers - React Query will provide new data automatically via cache key change
     selectedMetricIds.forEach((metricIdStr) => {
-      const metricId = parseInt(metricIdStr, 10);
-      if (!isNaN(metricId)) {
-        // Create load key that includes district to check if this specific metric+district combo is loaded
-        const districtKey = selectedDistrict !== null && selectedDistrict !== 0 
-          ? String(selectedDistrict) 
-          : "null";
-        const loadKey = `${metricIdStr}:${districtKey}`;
-        
-        // Check if we already have map data for this metric+district combination
-        const hasMapData = loadedMetricsRef.current.has(loadKey);
-        const isAlreadyLoading = loadingMaps.has(metricIdStr);
-        const hasAttempted = attemptedLoadsRef.current.has(loadKey);
-        
-        if (!hasMapData && !isAlreadyLoading && !hasAttempted) {
-          loadMapData(metricId);
+      removeMetricLayerFromMap(mapInstanceRef.current, metricIdStr);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDistrict]);
+
+  // Helper to convert ISO week format (2025-W02) to start/end dates
+  const parseISOWeekToDateRange = useCallback((isoWeek: string): { start: Date; end: Date } | null => {
+    const match = isoWeek.match(/^(\d{4})-W(\d{2})$/);
+    if (!match) return null;
+    
+    const year = parseInt(match[1], 10);
+    const weekNum = parseInt(match[2], 10);
+    
+    // Calculate the Monday of the given ISO week
+    // Jan 4 is always in week 1
+    const jan4 = new Date(year, 0, 4);
+    const jan4Day = jan4.getDay() || 7; // Convert Sunday (0) to 7
+    const week1Monday = new Date(year, 0, 4 - jan4Day + 1);
+    
+    const weekStart = new Date(week1Monday);
+    weekStart.setDate(weekStart.getDate() + (weekNum - 1) * 7);
+    
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    
+    return { start: weekStart, end: weekEnd };
+  }, []);
+
+  // Helper to expand a date string to a range based on period type
+  const expandDateToRange = useCallback((dateStr: string, periodType: string): { start: Date; end: Date } | null => {
+    // Check for ISO week format first
+    if (dateStr.includes("-W")) {
+      return parseISOWeekToDateRange(dateStr);
+    }
+    
+    // Parse as regular date
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return null;
+    
+    if (periodType === "week") {
+      // Expand to full week (Monday to Sunday)
+      const day = date.getDay();
+      const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+      const monday = new Date(date);
+      monday.setDate(diff);
+      const sunday = new Date(monday);
+      sunday.setDate(sunday.getDate() + 6);
+      return { start: monday, end: sunday };
+    } else if (periodType === "month") {
+      // Expand to full month
+      const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+      const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+      return { start: monthStart, end: monthEnd };
+    } else {
+      // Day or unknown - use the date as-is
+      return { start: date, end: date };
+    }
+  }, [parseISOWeekToDateRange]);
+
+  // Anomaly mode: Load map data for the anomaly's metric filtered to the recent period
+  useEffect(() => {
+    if (!selectedAnomaly || !isActive) {
+      // Clear anomaly mode data when exiting anomaly mode
+      setAnomalyModeMap(null);
+      return;
+    }
+
+    // Extract the recent period date range from the anomaly's chart_payload
+    const chartPayload = selectedAnomaly.chart_payload;
+    if (!chartPayload || !chartPayload.dates || !chartPayload.periods) {
+      setAnomalyModeMap(null);
+      return;
+    }
+
+    const dates = chartPayload.dates as string[];
+    const periods = chartPayload.periods as string[];
+    const periodType = selectedAnomaly.period_type || "week";
+
+    // Collect all "recent" period dates and expand them based on period type
+    let minDate: Date | null = null;
+    let maxDate: Date | null = null;
+    
+    dates.forEach((dateStr, idx) => {
+      if (periods[idx] === "recent") {
+        const range = expandDateToRange(dateStr, periodType);
+        if (range) {
+          if (!minDate || range.start < minDate) {
+            minDate = range.start;
+          }
+          if (!maxDate || range.end > maxDate) {
+            maxDate = range.end;
+          }
         }
       }
     });
-  }, [selectedMetricIds, selectedDistrict, isActive, mapInstanceRef, loadMapData, loadingMaps]);
 
-  // Reload map data when district changes (to apply district filter)
-  useEffect(() => {
-    if (!isActive || !mapInstanceRef.current) return;
+    if (!minDate || !maxDate) {
+      setAnomalyModeMap(null);
+      return;
+    }
+
+    const finalMinDate: Date = minDate;
+    const finalMaxDate: Date = maxDate;
+
+    // Format dates for API (YYYY-MM-DD)
+    const formatDateForAPI = (d: Date): string => {
+      return d.toISOString().split('T')[0];
+    };
     
-    // When district changes, clear all loaded metrics for this district combination and reload them
-    // This ensures we get fresh data filtered by the new district
-    selectedMetricIds.forEach((metricIdStr) => {
-      const metricId = parseInt(metricIdStr, 10);
-      if (!isNaN(metricId)) {
-        // Clear all load keys for this metric (for any district)
-        // We need to clear all because the district key format changed
-        const keysToDelete: string[] = [];
-        loadedMetricsRef.current.forEach((key) => {
-          if (key.startsWith(`${metricIdStr}:`)) {
-            keysToDelete.push(key);
-          }
-        });
-        keysToDelete.forEach((key) => loadedMetricsRef.current.delete(key));
-        
-        attemptedLoadsRef.current.forEach((key) => {
-          if (key.startsWith(`${metricIdStr}:`)) {
-            attemptedLoadsRef.current.delete(key);
-          }
-        });
-        
-        // Remove from maps state so it will be reloaded
-        setMaps((prev) => prev.filter((m) => String(m.metric_id) !== metricIdStr));
-        
-        // Remove metric layer from map
-        if (mapInstanceRef.current) {
-          removeMetricLayerFromMap(mapInstanceRef.current, metricIdStr);
-        }
-        
-        // Trigger reload with new district filter
-        loadMapData(metricId);
-      }
-    });
-  }, [selectedDistrict, isActive, mapInstanceRef, loadMapData, selectedMetricIds, removeMetricLayerFromMap]);
+    const startDate = formatDateForAPI(finalMinDate);
+    const endDate = formatDateForAPI(finalMaxDate);
 
-  // Reset attempted loads when selectedMetricIds changes (user selects different metrics)
-  useEffect(() => {
-    // Clear attempted loads and loaded metrics for metrics that are no longer selected
-    // Note: load keys are now in format "metricId:district", so we need to check the prefix
-    attemptedLoadsRef.current.forEach((loadKey) => {
-      const metricIdStr = loadKey.split(':')[0];
-      if (!selectedMetricIds.has(metricIdStr)) {
-        attemptedLoadsRef.current.delete(loadKey);
-        loadedMetricsRef.current.delete(loadKey);
+    const loadAnomalyMapData = async () => {
+      setAnomalyModeLoading(true);
+      try {
+        const token = await getAccessTokenSilently();
+        
+        // Build request payload with the recent period date range
+        const requestPayload: GetMapDataRequest = {
+          metric_id: selectedAnomaly.metric_id,
+          start_date: startDate,
+          end_date: endDate,
+        };
+        
+        // Add district filter if the anomaly has a specific district (not citywide)
+        if (selectedAnomaly.district !== null && selectedAnomaly.district !== 0) {
+          requestPayload.districts = [selectedAnomaly.district];
+        }
+
+        const response = await getMetricMapData(requestPayload, token);
+
+        if (response.status === "success" && response.map_data) {
+          // Parse location_data if it's a string
+          let locationData = response.map_data.location_data;
+          if (typeof locationData === "string") {
+            try {
+              locationData = JSON.parse(locationData);
+            } catch {
+              // ignore parse errors, use as-is
+            }
+          }
+
+          // Filter points by group_field/group_value if the anomaly has grouping
+          // This is critical - anomalies might be for specific categories (e.g., "Violent Crimes")
+          // but the API returns all points for the metric
+          const groupField = selectedAnomaly.group_field;
+          const groupValue = selectedAnomaly.group_value;
+          
+          if (groupField && groupValue && Array.isArray(locationData)) {
+            locationData = locationData.filter((point: MapDataPoint) => {
+              const pointValue = point[groupField];
+              // Support both exact match and case-insensitive match
+              if (pointValue === groupValue) return true;
+              if (typeof pointValue === "string" && typeof groupValue === "string") {
+                return pointValue.toLowerCase() === groupValue.toLowerCase();
+              }
+              return false;
+            });
+          }
+
+          // Create a modified map_data with the filtered location_data
+          const filteredMapData = {
+            ...response.map_data,
+            location_data: locationData,
+          };
+          
+          setAnomalyModeMap(filteredMapData);
+        } else {
+          setAnomalyModeMap(null);
+        }
+      } catch (err: any) {
+        console.error("[Anomaly Mode] Error loading map data:", err);
+        setAnomalyModeMap(null);
+      } finally {
+        setAnomalyModeLoading(false);
       }
-    });
-  }, [selectedMetricIds]);
+    };
+
+    loadAnomalyMapData();
+  }, [selectedAnomaly, isActive, getAccessTokenSilently, expandDateToRange]);
+
+  // Anomaly mode: Hide regular layers and show anomaly layer when in anomaly mode
+  useEffect(() => {
+    if (!mapInstanceRef.current || !isActive) return;
+    
+    const map = mapInstanceRef.current;
+    const isLoaded = map.isStyleLoaded && map.isStyleLoaded();
+    if (!isLoaded) return;
+
+    if (isAnomalyMode) {
+      // Hide all regular metric layers
+      maps.forEach((mapData) => {
+        const layerId = `metric-layer-${mapData.metric_id}`;
+        const strokeLayerId = `${layerId}-stroke`;
+        
+        if (map.getLayer(layerId)) {
+          map.setLayoutProperty(layerId, "visibility", "none");
+        }
+        if (map.getLayer(strokeLayerId)) {
+          map.setLayoutProperty(strokeLayerId, "visibility", "none");
+        }
+      });
+
+      // Add/update anomaly mode layer
+      if (anomalyModeMap) {
+        const anomalyLayerId = "anomaly-mode-layer";
+        const anomalySourceId = "anomaly-mode-source";
+
+        // Parse location data
+        let locationData: MapDataPoint[] = [];
+        if (typeof anomalyModeMap.location_data === "string") {
+          try {
+            locationData = JSON.parse(anomalyModeMap.location_data);
+          } catch {
+            // ignore parse errors
+          }
+        } else if (Array.isArray(anomalyModeMap.location_data)) {
+          locationData = anomalyModeMap.location_data;
+        }
+
+        // Convert to GeoJSON features
+        const features: any[] = [];
+        let minLng = 180, maxLng = -180, minLat = 90, maxLat = -90;
+        let hasValidBounds = false;
+
+        locationData.forEach((item: any) => {
+          let coordinates: [number, number] | null = null;
+          
+          if (item.lon !== undefined && item.lat !== undefined) {
+            const lon = typeof item.lon === "number" ? item.lon : parseFloat(String(item.lon));
+            const lat = typeof item.lat === "number" ? item.lat : parseFloat(String(item.lat));
+            if (!isNaN(lat) && !isNaN(lon) && isFinite(lat) && isFinite(lon)) {
+              coordinates = [lon, lat];
+            }
+          } else if (item.location?.coordinates) {
+            const coords = item.location.coordinates;
+            if (Array.isArray(coords) && coords.length >= 2) {
+              const lon = typeof coords[0] === "number" ? coords[0] : parseFloat(String(coords[0]));
+              const lat = typeof coords[1] === "number" ? coords[1] : parseFloat(String(coords[1]));
+              if (!isNaN(lat) && !isNaN(lon) && isFinite(lat) && isFinite(lon)) {
+                coordinates = [lon, lat];
+              }
+            }
+          } else if (item.coordinates && Array.isArray(item.coordinates)) {
+            const coords = item.coordinates;
+            if (coords.length >= 2) {
+              const lon = typeof coords[0] === "number" ? coords[0] : parseFloat(String(coords[0]));
+              const lat = typeof coords[1] === "number" ? coords[1] : parseFloat(String(coords[1]));
+              if (!isNaN(lat) && !isNaN(lon) && isFinite(lat) && isFinite(lon)) {
+                coordinates = [lon, lat];
+              }
+            }
+          }
+
+          if (coordinates) {
+            // Update bounds
+            if (coordinates[0] < minLng) minLng = coordinates[0];
+            if (coordinates[0] > maxLng) maxLng = coordinates[0];
+            if (coordinates[1] < minLat) minLat = coordinates[1];
+            if (coordinates[1] > maxLat) maxLat = coordinates[1];
+            hasValidBounds = true;
+
+            features.push({
+              type: "Feature",
+              properties: {
+                ...item,
+                color: ANOMALY_MODE_COLOR,
+              },
+              geometry: { type: "Point", coordinates },
+            });
+          }
+        });
+
+        // Remove existing anomaly layer/source if they exist
+        if (map.getLayer(anomalyLayerId)) {
+          map.removeLayer(anomalyLayerId);
+        }
+        if (map.getSource(anomalySourceId)) {
+          map.removeSource(anomalySourceId);
+        }
+
+        // Add source and layer
+        map.addSource(anomalySourceId, {
+          type: "geojson",
+          data: {
+            type: "FeatureCollection",
+            features,
+          },
+        });
+
+        map.addLayer({
+          id: anomalyLayerId,
+          type: "circle",
+          source: anomalySourceId,
+          paint: {
+            "circle-radius": 5,
+            "circle-color": ANOMALY_MODE_COLOR,
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-width": 1.5,
+            "circle-opacity": 0.9,
+          },
+        });
+
+        // Fit map to anomaly data bounds
+        if (hasValidBounds && (window as any).mapboxgl) {
+          try {
+            const bounds = new (window as any).mapboxgl.LngLatBounds();
+            bounds.extend([minLng, minLat]);
+            bounds.extend([maxLng, maxLat]);
+            map.fitBounds(bounds, {
+              padding: 50,
+              maxZoom: 15,
+              duration: 500,
+            });
+          } catch {
+            // ignore bounds fitting errors
+          }
+        }
+
+        // Add click handler for anomaly points
+        map.on("click", anomalyLayerId, (e: any) => {
+          const clickedFeatures = map.queryRenderedFeatures(e.point, {
+            layers: [anomalyLayerId],
+          });
+          if (clickedFeatures.length > 0) {
+            const props = clickedFeatures[0].properties || {};
+            
+            // Build popup HTML
+            let popupHTML = `<div><strong>Anomaly Data Point</strong>`;
+            
+            // Show key properties
+            const excludedFields = new Set(['color', 'lon', 'lat', 'coordinates', 'location']);
+            const entries = Object.entries(props)
+              .filter(([key]) => !excludedFields.has(key) && !key.startsWith('_'))
+              .slice(0, 8); // Limit to 8 fields
+            
+            entries.forEach(([key, value]) => {
+              if (value !== null && value !== undefined && value !== '') {
+                const displayKey = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
+                popupHTML += `<br/><strong>${displayKey}:</strong> ${value}`;
+              }
+            });
+            
+            popupHTML += `</div>`;
+            
+            new (window as any).mapboxgl.Popup()
+              .setLngLat(e.lngLat)
+              .setHTML(popupHTML)
+              .addTo(map);
+          }
+        });
+
+        map.on("mouseenter", anomalyLayerId, () => {
+          map.getCanvas().style.cursor = "pointer";
+        });
+        map.on("mouseleave", anomalyLayerId, () => {
+          map.getCanvas().style.cursor = "";
+        });
+      }
+    } else {
+      // Exiting anomaly mode - remove anomaly layer and restore regular layers
+      const anomalyLayerId = "anomaly-mode-layer";
+      const anomalySourceId = "anomaly-mode-source";
+      
+      if (map.getLayer(anomalyLayerId)) {
+        map.removeLayer(anomalyLayerId);
+      }
+      if (map.getSource(anomalySourceId)) {
+        map.removeSource(anomalySourceId);
+      }
+
+      // Restore visibility of regular metric layers
+      maps.forEach((mapData) => {
+        const uniqueId = String(mapData.metric_id);
+        const layerId = `metric-layer-${uniqueId}`;
+        const strokeLayerId = `${layerId}-stroke`;
+        const isSelected = selectedMetricIds.has(uniqueId);
+        const shouldBeVisible = isSelected && !hiddenLayers.has(uniqueId);
+        
+        if (map.getLayer(layerId)) {
+          map.setLayoutProperty(layerId, "visibility", shouldBeVisible ? "visible" : "none");
+        }
+        if (map.getLayer(strokeLayerId)) {
+          map.setLayoutProperty(strokeLayerId, "visibility", shouldBeVisible ? "visible" : "none");
+        }
+      });
+    }
+  }, [isAnomalyMode, anomalyModeMap, maps, selectedMetricIds, hiddenLayers, isActive, mapInstanceRef]);
 
   // Process map features from location data
   const mapFeatures = useMemo(() => {
@@ -549,8 +925,7 @@ export default function CityMetricsMap({
           try {
             const parsed = JSON.parse(mapData.location_data);
             locationData = Array.isArray(parsed) ? parsed : [];
-          } catch (e) {
-            console.warn(`Failed to parse location data for map ${mapData.id}:`, e);
+          } catch {
             return null;
           }
         } else if (Array.isArray(mapData.location_data)) {
@@ -1018,9 +1393,8 @@ export default function CityMetricsMap({
               ],
             ],
           ]);
-        } catch (err) {
-          // Silently skip if layer type check fails or layer doesn't support these properties
-          console.warn(`Skipping opacity update for layer ${layerId}:`, err);
+        } catch {
+          // skip if layer type check fails or layer doesn't support these properties
         }
       }
     });
@@ -1061,29 +1435,8 @@ export default function CityMetricsMap({
       // Handle choropleth mode for >1000 points
       if (useChoropleth && locationData) {
         const districtInfo = findDistrictField(structureQuery.data);
-        
-        // Debug logging to understand why choropleth might not render
-        if (!structureQuery.data) {
-          console.warn('Choropleth: No city structure data available');
-        } else if (!districtInfo) {
-          console.warn('Choropleth: findDistrictField returned null. Structure data:', {
-            hasGeographicStructures: !!structureQuery.data?.geographic_structures?.length,
-            hasShapefiles: !!structureQuery.data?.shapefiles?.length,
-            hasQueryConfigs: !!structureQuery.data?.query_configs?.length,
-            districtFields: structureQuery.data?.district_fields,
-          });
-        } else if (!districtInfo.shapefile) {
-          console.warn('Choropleth: District info found but no shapefile. districtInfo:', districtInfo);
-        }
-        
+
         if (districtInfo && districtInfo.shapefile) {
-          // Debug: Log available fields from first point
-          if (locationData.length > 0) {
-            console.log('Choropleth: First point fields:', Object.keys(locationData[0]));
-            console.log('Choropleth: Looking for district field:', districtInfo.field);
-            console.log('Choropleth: First point district value:', locationData[0][districtInfo.field]);
-          }
-          
           // Try to find district field - check city's district_fields list first, then common patterns
           // Extended list to handle various city naming conventions
           const possibleDistrictFields = [
@@ -1127,17 +1480,11 @@ export default function CityMetricsMap({
           for (const fieldName of possibleDistrictFields) {
             if (locationData.length > 0 && locationData[0][fieldName] !== undefined && locationData[0][fieldName] !== null) {
               actualDistrictField = fieldName;
-              console.log('Choropleth: Found district field:', fieldName);
               break;
             }
           }
-          
-          if (!actualDistrictField) {
-            console.warn('Choropleth: No district field found in location data. Available fields:', 
-              locationData.length > 0 ? Object.keys(locationData[0]) : []);
-            // Fall back to requesting district-aggregated data from API
-            return; // Skip choropleth rendering for now
-          }
+
+          if (!actualDistrictField) return;
           
           // Process choropleth data
           const districtCounts = new Map<string, number>();
@@ -1161,22 +1508,9 @@ export default function CityMetricsMap({
               }
             }
           });
-          
-            console.log('Choropleth: District counts:', Array.from(districtCounts.entries()).slice(0, 10));
-            console.log('Choropleth: Total districts with data:', districtCounts.size);
 
-          // Get shapefile geometry
           let geometryData = districtInfo.shapefile.geometry_data;
-          
-          // Check if geometry_data exists
-          if (!geometryData) {
-            console.warn('Choropleth: Shapefile has no geometry_data. Shapefile:', {
-              id: districtInfo.shapefile.id,
-              shapefile_name: districtInfo.shapefile.shapefile_name,
-              structure_type: districtInfo.shapefile.structure_type,
-            });
-            return; // Skip choropleth rendering
-          }
+          if (!geometryData) return;
           
           if (typeof geometryData === 'string') {
             try {
@@ -1239,38 +1573,17 @@ export default function CityMetricsMap({
               for (const fieldName of possibleIdFields) {
                 if (geometryData.features[0].properties[fieldName] !== undefined) {
                   actualIdField = fieldName;
-                  console.log('Choropleth: Found ID field in shapefile:', fieldName);
                   break;
                 }
               }
             }
-            
-            if (!actualIdField) {
-              console.warn('Choropleth: No ID field found in shapefile. Available properties:', 
-                geometryData.features.length > 0 ? Object.keys(geometryData.features[0].properties) : []);
-              return; // Skip choropleth rendering
-            }
-            
-            // Calculate min/max for color scaling
+
+            if (!actualIdField) return;
+
             const counts = Array.from(districtCounts.values());
             const minValue = counts.length > 0 ? Math.min(...counts) : 0;
             const maxValue = counts.length > 0 ? Math.max(...counts) : 0;
-            
-            console.log('Choropleth: Value range:', { minValue, maxValue, totalFeatures: geometryData.features.length });
-            
-            // Count how many features will have data (now that actualIdField is determined)
-            let featuresWithData = 0;
-            geometryData.features.forEach((feature: any) => {
-              const districtId = feature.properties[actualIdField!];
-              const normalizedDistrictId = districtId !== null && districtId !== undefined 
-                ? String(Number(districtId))
-                : null;
-              if (normalizedDistrictId && districtCounts.has(normalizedDistrictId)) {
-                featuresWithData++;
-              }
-            });
-            console.log('Choropleth: Features with matching data:', featuresWithData, 'out of', geometryData.features.length);
-            
+
             // Helper function to convert hex to RGB
             const hexToRgb = (hex: string): [number, number, number] => {
               const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -1863,52 +2176,121 @@ export default function CityMetricsMap({
       const updated = new Set(prev);
       if (updated.has(metricId)) {
         updated.delete(metricId);
-        // Remove map data for this metric
-        setMaps((prevMaps) => prevMaps.filter((m) => String(m.metric_id) !== metricId));
-        
-        // Clear all load keys for this metric (for all districts)
-        const keysToDelete: string[] = [];
-        loadedMetricsRef.current.forEach((key) => {
-          if (key.startsWith(`${metricId}:`)) {
-            keysToDelete.push(key);
-          }
-        });
-        keysToDelete.forEach((key) => {
-          loadedMetricsRef.current.delete(key);
-          attemptedLoadsRef.current.delete(key);
-        });
-        
+        // Remove map layer from the map (data stays in React Query cache for fast re-enable)
         if (mapInstanceRef.current) {
           removeMetricLayerFromMap(mapInstanceRef.current, metricId);
         }
+        // Note: We don't clear the maps state here because React Query keeps the data cached
+        // When the metric is toggled back on, the cached data will be used immediately
       } else {
         updated.add(metricId);
+        // React Query hook will automatically provide cached data or fetch if needed
       }
       return updated;
     });
   };
 
+  // Dock-style label handlers for hover/touch reveal
+  const showDockLabel = useCallback((itemId: string, label: string, element: HTMLElement) => {
+    // Clear any existing timeout
+    if (dockLabelTimeoutRef.current) {
+      clearTimeout(dockLabelTimeoutRef.current);
+      dockLabelTimeoutRef.current = null;
+    }
+    
+    const rect = element.getBoundingClientRect();
+    setHoveredItemId(itemId);
+    setHoveredItemLabel(label);
+    setHoveredItemRect(rect);
+  }, []);
+
+  const hideDockLabel = useCallback(() => {
+    // Add a small delay to prevent flickering when moving between items
+    dockLabelTimeoutRef.current = setTimeout(() => {
+      setHoveredItemId(null);
+      setHoveredItemLabel("");
+      setHoveredItemRect(null);
+    }, 100);
+  }, []);
+
+  // Handle touch move for sliding reveal effect
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+    
+    // Find element under touch point
+    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (!element) {
+      hideDockLabel();
+      return;
+    }
+    
+    // Check if it's a dock item (has data-dock-id and data-dock-label attributes)
+    const dockItem = element.closest('[data-dock-id]') as HTMLElement | null;
+    if (dockItem) {
+      const itemId = dockItem.getAttribute('data-dock-id');
+      const itemLabel = dockItem.getAttribute('data-dock-label');
+      if (itemId && itemLabel) {
+        showDockLabel(itemId, itemLabel, dockItem);
+      }
+    } else {
+      hideDockLabel();
+    }
+  }, [showDockLabel, hideDockLabel]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (dockLabelTimeoutRef.current) {
+        clearTimeout(dockLabelTimeoutRef.current);
+      }
+    };
+  }, []);
+
   if (!isActive) return null;
 
-  // Filter and sort metrics by template order
-  const filteredMetrics = availableMetrics.filter((metric) => {
-    // Only show active metrics
-    return metric.is_active;
-  });
+  // Use pre-computed sorted metrics and ordering map from metricColorMapping
+  // This ensures consistent position-based colors whether metrics are on or off
+  const { sortedMetrics, orderingMap } = metricColorMapping;
 
-  // Group metrics by category for display with headers
-  const groupedMetrics = sortAndGroupMetrics(
-    filteredMetrics.map((m) => ({
-      id: m.id,
-      metric_name: m.metric_name || "",
-      template_id: m.template_id,
-      category: m.category || "other",
-      subcategory: m.subcategory || null,
-    }))
-  );
+  // Group sorted metrics by category for display with headers
+  // Uses position-based color indices for unique, stable colors per metric
+  const groupedMetrics: GroupedMetric[] = [];
+  const categoryGroups = new Map<string, GroupedMetric>();
+  
+  for (let i = 0; i < sortedMetrics.length; i++) {
+    const metric = sortedMetrics[i];
+    const ordering = orderingMap.get(metric.id);
+    const category = ordering?.categoryName || metric.category || "other";
+    
+    if (!categoryGroups.has(category)) {
+      const group: GroupedMetric = {
+        category,
+        categoryDisplayName: getCategoryDisplayName(category),
+        metrics: [],
+      };
+      categoryGroups.set(category, group);
+      groupedMetrics.push(group);
+    }
+    
+    const group = categoryGroups.get(category)!;
+    // Use position-based color index for unique colors per position
+    const colorIndex = i % LAYER_COLOR_PALETTE.length;
+    
+    group.metrics.push({
+      id: metric.id,
+      metric_name: metric.metric_name || "",
+      template_id: metric.template_id,
+      category,
+      subcategory: metric.subcategory || undefined,
+      order: ordering?.metricOrder ?? getOrderForTemplate(metric.template_id),
+      colorIndex,
+      color: LAYER_COLOR_PALETTE[colorIndex],
+    });
+  }
 
   // Only show panel if there are any metric layers or shape layers to display
-  const hasMetricLayers = filteredMetrics.length > 0;
+  const hasMetricLayers = sortedMetrics.length > 0;
   // Flatten grouped metrics for emoji view (maintains order)
   const flatMetricsForEmoji = groupedMetrics.flatMap((group) => group.metrics);
   const hasShapeLayers = shapeLayers.length > 0;
@@ -1916,14 +2298,105 @@ export default function CityMetricsMap({
 
   return (
     <div className="city-metrics-map">
-      {/* Timeline Component */}
-      <MapTimeline
-        features={allFeatures}
-        onDateSelect={handleTimelineDateSelect}
-        onAnimationStateChange={handleAnimationStateChange}
-      />
+      {/* Timeline Component - hidden in anomaly mode */}
+      {!isAnomalyMode && (
+        <MapTimeline
+          features={allFeatures}
+          onDateSelect={handleTimelineDateSelect}
+          onAnimationStateChange={handleAnimationStateChange}
+        />
+      )}
       
-      {/* Map Layers Panel - Right side */}
+      {/* Anomaly Mode Loading Indicator */}
+      {isAnomalyMode && anomalyModeLoading && (
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 1001,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "12px",
+          }}
+        >
+          <Loader size="lg" color="purple" />
+          <span
+            style={{
+              color: "white",
+              fontSize: "0.85rem",
+              background: "rgba(0, 0, 0, 0.6)",
+              padding: "6px 12px",
+              borderRadius: "12px",
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            Loading anomaly data...
+          </span>
+        </div>
+      )}
+      
+      {/* Anomaly Mode Indicator - subtle pill at bottom center */}
+      {isAnomalyMode && (
+        <div
+          className="anomaly-mode-indicator"
+          style={{
+            position: "absolute",
+            bottom: "24px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 1000,
+            background: "rgba(0, 0, 0, 0.7)",
+            backdropFilter: "blur(8px)",
+            color: "white",
+            padding: "8px 16px",
+            borderRadius: "20px",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            boxShadow: "0 2px 12px rgba(0,0,0,0.3)",
+            fontSize: "0.8rem",
+          }}
+        >
+          {/* Purple dot indicator */}
+          <div
+            style={{
+              width: "8px",
+              height: "8px",
+              borderRadius: "50%",
+              background: ANOMALY_MODE_COLOR,
+              flexShrink: 0,
+            }}
+          />
+          <span style={{ opacity: 0.9 }}>
+            {anomalyModeLoading ? "Loading..." : (
+              selectedAnomaly?.metric_name || selectedAnomaly?.object_name || `Metric ${selectedAnomaly?.metric_id}`
+            )}
+          </span>
+          <button
+            onClick={() => onAnomalyClear?.()}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "rgba(255,255,255,0.7)",
+              cursor: "pointer",
+              fontSize: "1rem",
+              padding: "0 2px",
+              lineHeight: 1,
+              display: "flex",
+              alignItems: "center",
+            }}
+            title="Exit Anomaly Mode"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      
+      {/* Map Layers Panel - Right side - hidden in anomaly mode */}
+      {!isAnomalyMode && (
       <div
         ref={panelRef}
         className={`city-metrics-map-panel ${isPanelOpen ? "open" : "closed"}`}
@@ -1972,6 +2445,9 @@ export default function CityMetricsMap({
               overflowX: "hidden",
               minHeight: 0,
             }}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={hideDockLabel}
+            onTouchCancel={hideDockLabel}
           >
             {flatMetricsForEmoji.map((metric) => {
               const metricId = String(metric.id);
@@ -1994,8 +2470,11 @@ export default function CityMetricsMap({
               return (
                 <button
                   key={`emoji-${metric.id}`}
+                  data-dock-id={`metric-${metricId}`}
+                  data-dock-label={metric.metric_name || "Metric"}
                   onClick={(e) => {
                     e.stopPropagation();
+                    hideDockLabel();
                     if (isVisible) {
                       // If visible, deselect the metric (remove from selectedMetricIds)
                       handleMetricToggle(metricId);
@@ -2019,7 +2498,7 @@ export default function CityMetricsMap({
                     justifyContent: "center",
                     padding: 0,
                     position: "relative",
-                    transition: "all 0.2s ease",
+                    transition: "all 0.2s ease, transform 0.15s ease",
                     opacity: isVisible ? 1 : 0.3,
                     flexShrink: 0,
                     color: isVisible ? "#fff" : (theme === "dark" ? "rgba(255, 255, 255, 0.6)" : "rgba(0, 0, 0, 0.6)"),
@@ -2027,17 +2506,23 @@ export default function CityMetricsMap({
                     fontWeight: "normal",
                     fontFamily: "Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif",
                     lineHeight: 1,
+                    transform: hoveredItemId === `metric-${metricId}` ? "scale(1.2)" : "scale(1)",
                   }}
                   title={metric.metric_name || "Metric"}
                   onMouseEnter={(e) => {
+                    showDockLabel(`metric-${metricId}`, metric.metric_name || "Metric", e.currentTarget);
                     if (!isVisible) {
                       e.currentTarget.style.opacity = "0.8";
                     }
                   }}
                   onMouseLeave={(e) => {
+                    hideDockLabel();
                     if (!isVisible) {
                       e.currentTarget.style.opacity = "0.5";
                     }
+                  }}
+                  onTouchStart={(e) => {
+                    showDockLabel(`metric-${metricId}`, metric.metric_name || "Metric", e.currentTarget);
                   }}
                 >
                   {isLoading ? (
@@ -2069,8 +2554,11 @@ export default function CityMetricsMap({
               return (
                 <button
                   key={`shape-emoji-${layer.instance_id}`}
+                  data-dock-id={`shape-${layer.instance_id}`}
+                  data-dock-label={layer.label}
                   onClick={(e) => {
                     e.stopPropagation();
+                    hideDockLabel();
                     if (!setEnabledShapeLayerInstanceIds) return;
                     setEnabledShapeLayerInstanceIds((prev) => {
                       const next = new Set(prev);
@@ -2096,7 +2584,7 @@ export default function CityMetricsMap({
                     alignItems: "center",
                     justifyContent: "center",
                     padding: 0,
-                    transition: "all 0.2s ease",
+                    transition: "all 0.2s ease, transform 0.15s ease",
                     opacity: isVisible ? 1 : 0.3,
                     flexShrink: 0,
                     color: isVisible
@@ -2108,8 +2596,16 @@ export default function CityMetricsMap({
                     fontFamily:
                       "Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif",
                     lineHeight: 1,
+                    transform: hoveredItemId === `shape-${layer.instance_id}` ? "scale(1.2)" : "scale(1)",
                   }}
                   title={layer.label}
+                  onMouseEnter={(e) => {
+                    showDockLabel(`shape-${layer.instance_id}`, layer.label, e.currentTarget);
+                  }}
+                  onMouseLeave={hideDockLabel}
+                  onTouchStart={(e) => {
+                    showDockLabel(`shape-${layer.instance_id}`, layer.label, e.currentTarget);
+                  }}
                 >
                   {emojiIcon}
                 </button>
@@ -2271,6 +2767,7 @@ export default function CityMetricsMap({
           </div>
         )}
       </div>
+      )}
       
       {/* Media Gallery */}
       {showMediaGallery && mediaItems.length > 0 && (
@@ -2297,6 +2794,41 @@ export default function CityMetricsMap({
             }
           }}
         />
+      )}
+      
+      {/* Dock-style floating label - appears on hover/touch */}
+      {hoveredItemId && hoveredItemRect && (
+        <div
+          className="city-metrics-map-dock-label"
+          style={{
+            position: "fixed",
+            // Position to the left of the hovered item
+            right: `calc(100vw - ${hoveredItemRect.left}px + 12px)`,
+            top: `${hoveredItemRect.top + hoveredItemRect.height / 2}px`,
+            transform: "translateY(-50%)",
+            background: theme === "dark" 
+              ? "rgba(30, 30, 30, 0.95)" 
+              : "rgba(255, 255, 255, 0.95)",
+            backdropFilter: "blur(10px)",
+            padding: "8px 14px",
+            borderRadius: "8px",
+            boxShadow: theme === "dark"
+              ? "0 4px 20px rgba(0, 0, 0, 0.5)"
+              : "0 4px 20px rgba(0, 0, 0, 0.15)",
+            color: "var(--text-primary)",
+            fontSize: "0.85rem",
+            fontWeight: 500,
+            whiteSpace: "nowrap",
+            zIndex: 16000,
+            pointerEvents: "none",
+            animation: "dockLabelFadeIn 0.15s ease-out",
+            maxWidth: "250px",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {hoveredItemLabel}
+        </div>
       )}
     </div>
   );

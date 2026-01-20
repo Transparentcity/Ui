@@ -24,7 +24,9 @@ async function requestPublic<T>(path: string): Promise<T> {
           errorMessage = `${errorMessage} - ${text.substring(0, 200)}`;
         }
       }
-      throw new Error(errorMessage);
+      const err = new Error(errorMessage) as Error & { status?: number };
+      err.status = res.status;
+      throw err;
     }
 
     return (await res.json()) as T;
@@ -57,6 +59,44 @@ export type PublicCitySitemapItem = {
 
 export function listPublicCitiesForSitemap(): Promise<PublicCitySitemapItem[]> {
   return requestPublic<PublicCitySitemapItem[]>("/api/public/cities/sitemap");
+}
+
+// Public city detail with metrics (for logged-out city page dashboard)
+export type PublicCityMetricItem = {
+  id: number;
+  metric_name: string;
+  metric_key: string;
+  category: string;
+  subcategory?: string | null;
+};
+
+export type PublicCityDetail = {
+  id: number;
+  name: string;
+  state?: string | null;
+  country?: string | null;
+  emoji?: string | null;
+  metrics: PublicCityMetricItem[];
+};
+
+export function getPublicCityDetail(cityId: number): Promise<PublicCityDetail> {
+  return requestPublic<PublicCityDetail>(
+    `/api/public/cities/${cityId}?include_metrics=true`
+  );
+}
+
+// Public maps for a city (filtered by city_id)
+export type PublicMapListItem = {
+  id: number;
+  short_hash: string;
+  title: string;
+  city_name?: string | null;
+};
+
+export function listPublicMapsForCity(cityId: number): Promise<PublicMapListItem[]> {
+  return requestPublic<{ maps: PublicMapListItem[] }>(
+    `/api/maps/public?city_id=${cityId}&limit=20`
+  ).then((r) => r.maps || []);
 }
 
 export type PublicCitySearchResult = {
@@ -114,4 +154,189 @@ export function listPublicMapsForSitemap(): Promise<PublicMapSitemapItem[]> {
   );
 }
 
+// Public metric endpoints
+export type PublicMetricDetail = {
+  id: number;
+  metric_name: string;
+  metric_key: string;
+  category: string;
+  subcategory: string | null;
+  endpoint: string | null;
+  summary: string | null;
+  definition: string | null;
+  data_sf_url: string | null;
+  dataset_title: string | null;
+  dataset_category: string | null;
+  show_on_dash: boolean;
+  item_noun: string;
+  greendirection: string;
+  is_active: boolean;
+  metric_type: string | null;
+  data_source_type: string | null;
+  source_url: string | null;
+  template_id: number | null;
+  metric_prompt: string | null;
+  structuring_notes: Record<string, any> | null;
+  metadata: Record<string, any> | null;
+  location_fields: Array<Record<string, any>> | null;
+  category_fields: Array<Record<string, any>> | null;
+  map_query: string | null;
+  map_filters: Record<string, any> | null;
+  map_config: Record<string, any> | null;
+  last_execution_at: string | null;
+  last_execution_status: string | null;
+  last_execution_error: string | null;
+  last_execution_job_id: string | null;
+  execution_count: number | null;
+  created_at: string | null;
+  updated_at: string | null;
+  data_freshness_metadata: Record<string, any> | null;
+  most_recent_data_date: string | null;
+  earliest_data_date: string | null;
+  city_name?: string | null;
+};
+
+export type PublicMetricComparison = {
+  metric_id: number;
+  district: number | null;
+  comparison_type: string;
+  current_period_value: number | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  comparison_period_value: number | null;
+  comparison_period_start: string | null;
+  comparison_period_end: string | null;
+  period_type: string;
+  computed_at: string | null;
+  is_precomputed: boolean;
+};
+
+export type PublicMetricComparisons = {
+  metric_id: number;
+  district: number | null;
+  comparisons: Record<string, PublicMetricComparison>;
+};
+
+export type PublicTimeSeriesSummaryItem = {
+  chart_id: number;
+  chart_title: string | null;
+  period_type: string | null;
+  district: number | null;
+  data_point_count: number | null;
+  created_at: string | null;
+  group_field?: string | null;
+};
+
+export type PublicTimeSeriesSummary = {
+  metric_id: number;
+  metric_name: string;
+  count: number;
+  time_series: PublicTimeSeriesSummaryItem[];
+};
+
+export function getPublicMetric(metricId: number): Promise<PublicMetricDetail> {
+  return requestPublic<PublicMetricDetail>(`/api/public/metrics/${metricId}`);
+}
+
+export function getPublicMetricByKey(metricKey: string): Promise<PublicMetricDetail> {
+  return requestPublic<PublicMetricDetail>(`/api/public/metrics/key/${metricKey}`);
+}
+
+export function getPublicMetricComparisons(
+  metricId: number,
+  district?: number | null,
+  comparisonTypes?: string
+): Promise<PublicMetricComparisons> {
+  const params = new URLSearchParams();
+  // For citywide, pass district=0 explicitly (backend treats 0 and null as citywide)
+  // For specific districts, pass the district number
+  if (district !== undefined && district !== null && district > 0) {
+    params.set("district", String(district));
+  } else {
+    // Explicitly pass district=0 for citywide to ensure backend matches correctly
+    params.set("district", "0");
+  }
+  if (comparisonTypes) {
+    params.set("comparison_types", comparisonTypes);
+  }
+  const query = params.toString();
+  return requestPublic<PublicMetricComparisons>(
+    `/api/public/metrics/${metricId}/comparisons?${query}`
+  );
+}
+
+export function getPublicMetricTimeSeriesSummary(
+  metricId: number
+): Promise<PublicTimeSeriesSummary> {
+  return requestPublic<PublicTimeSeriesSummary>(
+    `/api/public/metrics/${metricId}/time-series/summary`
+  );
+}
+
+// District comparisons for choropleth map
+export type PublicDistrictComparison = {
+  district: number;
+  current_value: number | null;
+  comparison_value: number | null;
+  change_percent: number | null;
+  change_absolute: number | null;
+};
+
+export type PublicDistrictComparisonsResponse = {
+  metric_id: number;
+  metric_name: string;
+  comparison_type: string;
+  districts: PublicDistrictComparison[];
+  min_value: number | null;
+  max_value: number | null;
+};
+
+export function getPublicMetricDistrictComparisons(
+  metricId: number,
+  comparisonType: string = "ytd"
+): Promise<PublicDistrictComparisonsResponse> {
+  return requestPublic<PublicDistrictComparisonsResponse>(
+    `/api/public/metrics/${metricId}/district-comparisons?comparison_type=${comparisonType}`
+  );
+}
+
+// Shapefile geometry for choropleth map
+export type PublicShapefileResponse = {
+  city_id: number;
+  structure_type: string;
+  feature_count: number;
+  geometry: GeoJSON.FeatureCollection;
+};
+
+export function getPublicMetricShapefile(
+  metricId: number
+): Promise<PublicShapefileResponse> {
+  return requestPublic<PublicShapefileResponse>(
+    `/api/public/metrics/${metricId}/shapefile`
+  );
+}
+
+// Map data for metric detail page
+export type PublicMapResponse = {
+  map_hash: string;
+  map_url: string;
+  map_type: string;
+  location_data_count: number;
+  period_type: string;
+};
+
+export function getPublicMetricMap(
+  metricId: number,
+  periodType: string = "ytd",
+  district?: number | null
+): Promise<PublicMapResponse> {
+  const params = new URLSearchParams();
+  params.set("period_type", periodType);
+  if (district !== undefined && district !== null && district > 0) {
+    params.set("district", String(district));
+  }
+  return requestPublic<PublicMapResponse>(
+    `/api/public/metrics/${metricId}/map?${params.toString()}`
+  );
+}
 
