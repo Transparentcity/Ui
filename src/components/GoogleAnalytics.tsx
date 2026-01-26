@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { initializeAnalytics, trackPageView, trackFirstVisit } from "@/lib/analytics";
 
 /**
- * Google Analytics component that initializes GA and tracks page views
- * Should be included in the root layout
+ * Inner component that uses useSearchParams (requires Suspense boundary)
  */
-export default function GoogleAnalytics() {
+function GoogleAnalyticsInner() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -40,4 +39,17 @@ export default function GoogleAnalytics() {
   }, [pathname, searchParams]);
 
   return null;
+}
+
+/**
+ * Google Analytics component that initializes GA and tracks page views
+ * Should be included in the root layout
+ * Wrapped in Suspense to support static generation (required for useSearchParams)
+ */
+export default function GoogleAnalytics() {
+  return (
+    <Suspense fallback={null}>
+      <GoogleAnalyticsInner />
+    </Suspense>
+  );
 }
