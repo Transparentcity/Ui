@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getPublicMetricByKey } from "@/lib/publicApiClient";
+import {
+  getPublicMetricByKey,
+  listPublicCitiesForSitemap,
+} from "@/lib/publicApiClient";
 import MetricDetailClient from "./MetricDetailClient";
 import MetricLoadErrorClient from "./MetricLoadErrorClient";
 
@@ -11,6 +14,13 @@ type PageProps = {
 
 export const revalidate = 3600; // Revalidate every hour
 
+function titleCaseSlug(s: string): string {
+  return s
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 export async function generateMetadata({
   params,
   searchParams,
@@ -18,14 +28,28 @@ export async function generateMetadata({
   const { slug, metricKey } = await params;
   const { district } = await searchParams;
   const districtNum = district ? parseInt(district, 10) : null;
-  const locationLabel = districtNum && districtNum > 0 ? `District ${districtNum}` : "Citywide";
+  const locationLabel =
+    districtNum && districtNum > 0 ? `District ${districtNum}` : "Citywide";
 
   try {
     const metric = await getPublicMetricByKey(metricKey);
-    const cityName = slug
-      .split("-")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
+    let cityName: string = metric.city_name ?? titleCaseSlug(slug);
+    try {
+      const cities = await listPublicCitiesForSitemap();
+      const match = cities.find((c) => c.slug === slug);
+      if (match) {
+        cityName =
+          match.state && match.country && match.country !== "United States"
+            ? `${match.name}, ${match.state}, ${match.country}`
+            : match.state
+              ? `${match.name}, ${match.state}`
+              : match.country && match.country !== "United States"
+                ? `${match.name}, ${match.country}`
+                : match.name;
+      }
+    } catch {
+      // keep cityName from metric.city_name or titleCaseSlug(slug)
+    }
 
     const description =
       metric.summary ||
@@ -33,7 +57,7 @@ export async function generateMetadata({
       `View detailed data and trends for ${metric.metric_name} in ${cityName} - ${locationLabel}`;
 
     return {
-      title: `${metric.metric_name} | ${locationLabel} | ${cityName} | Transparent City`,
+      title: `${metric.metric_name} | ${locationLabel} | ${cityName}`,
       description,
       openGraph: {
         title: `${metric.metric_name} - ${locationLabel}`,
@@ -44,9 +68,7 @@ export async function generateMetadata({
       },
     };
   } catch {
-    return {
-      title: "Metric Not Found | Transparent City",
-    };
+    return { title: "Metric Not Found" };
   }
 }
 

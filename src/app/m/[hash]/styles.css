@@ -145,6 +145,14 @@
   margin-bottom: 1.5rem;
 }
 
+.map-city-name {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--brand-primary);
+  font-family: var(--font-heading, "Inter", sans-serif);
+}
+
 .map-title {
   margin: 0 0 0.5rem 0;
   font-size: 2rem;
@@ -172,7 +180,7 @@
 
 /* Map Container */
 .map-container-wrapper {
-  position: relative;
+  position: relative; /* Required for absolute positioning of child elements */
 }
 
 .embedded-map-wrapper {

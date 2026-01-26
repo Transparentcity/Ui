@@ -34,6 +34,7 @@ export default function ResearchList({
 }: ResearchListProps) {
   const { isAuthenticated, getAccessTokenSilently } = useAuth0();
   const [research, setResearch] = useState<ResearchReport[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
@@ -48,6 +49,7 @@ export default function ResearchList({
       const token = await getAccessTokenSilently();
       const data = await listResearch(token, { limit: 20 });
       setResearch(data.reports);
+      setCurrentUserId(data.current_user_id || null);
     } catch (error) {
       console.error("Failed to load research:", error);
     } finally {
@@ -387,10 +389,14 @@ export default function ResearchList({
   return (
     <>
       <div className={styles.list} ref={rootRef}>
-        {research.map((report) => (
+        {research.map((report) => {
+          // For admins, identify research that belongs to other users
+          const isOtherUserResearch = isAdmin && currentUserId && report.user_id && report.user_id !== currentUserId;
+          
+          return (
           <div
             key={report.id}
-            className={`${styles.item} ${currentResearchId === report.id ? styles.itemActive : ""}`}
+            className={`${styles.item} ${currentResearchId === report.id ? styles.itemActive : ""} ${isOtherUserResearch ? styles.itemOtherUser : ""}`}
             onClick={() => onResearchClick(report.id)}
           >
             <div className={styles.content}>
@@ -451,7 +457,8 @@ export default function ResearchList({
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
       {renamingReport && (
         <RenameDialog

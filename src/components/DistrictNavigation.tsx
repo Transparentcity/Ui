@@ -1,47 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTheme } from "@/contexts/ThemeContext";
 import type { CityLeader, CityShapefile } from "@/lib/apiClient";
-import { formatZipcodeForGeocoding } from "@/lib/locationSearchUtils";
+import {
+  isLikelyZipcode,
+  isLikelyAddress,
+  geocodeQuery,
+  type GeocodeResult,
+} from "@/lib/locationSearchUtils";
+import {
+  useRepresentativeFollows,
+  useFollowRepresentative,
+  useUnfollowRepresentative,
+} from "@/lib/hooks/useCities";
 import "./DistrictNavigation.css";
-
-type GeocodeAddress = {
-  city?: string;
-  town?: string;
-  village?: string;
-  hamlet?: string;
-  municipality?: string;
-  county?: string;
-  state?: string;
-  country?: string;
-  postcode?: string;
-};
-
-type GeocodeResult = {
-  lat: string;
-  lon: string;
-  display_name?: string;
-  address?: GeocodeAddress;
-  cityName?: string | null;
-  stateName?: string | null;
-  countryName?: string | null;
-};
-
-function isLikelyZipcode(q: string): boolean {
-  const s = q.trim();
-  return /^\d{5}(-\d{4})?$/.test(s);
-}
-
-function isLikelyAddress(q: string): boolean {
-  const s = q.trim();
-  if (s.length < 4) return false;
-  const hasDigits = /\d/.test(s);
-  const hasLetters = /[a-zA-Z]/.test(s);
-  if (!hasDigits || !hasLetters) return false;
-  return s.includes(" ") || s.includes(",");
-}
 
 function isLikelyDistrictNumber(q: string): boolean {
   const s = q.trim();
@@ -55,6 +29,12 @@ interface DistrictNavigationProps {
   shapefiles: CityShapefile[];
   onDistrictSelect: (district: number | null) => void;
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void;
+  /** Follower/subscriber counts per district; key = district as string ("0"=mayor, "1"-"11"=districts). */
+  leaderFollowerCounts?: Record<string, number>;
+  /** City ID for Follow button and follow API. If omitted, Follow is hidden. */
+  cityId?: number | null;
+  /** Public page path (e.g. `/c/san-francisco`) for the Share button. If omitted, Share is hidden. */
+  publicPagePath?: string | null;
 }
 
 // Helper function to check if a point is inside a polygon
@@ -166,7 +146,17 @@ export default function DistrictNavigation({
   shapefiles,
   onDistrictSelect,
   onGPSLocation,
+  leaderFollowerCounts,
+  cityId,
+  publicPagePath,
 }: DistrictNavigationProps) {
+  const district = selectedDistrict ?? 0;
+  const districtStr = String(district);
+  const { data: followedDistricts = {} } = useRepresentativeFollows(cityId ?? null);
+  const followMutation = useFollowRepresentative(cityId ?? null);
+  const unfollowMutation = useUnfollowRepresentative(cityId ?? null);
+  const isFollowed = !!(followedDistricts[districtStr]);
+  const followPending = followMutation.isPending || unfollowMutation.isPending;
   const { theme } = useTheme();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -174,8 +164,10 @@ export default function DistrictNavigation({
   const [geoLoading, setGeoLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const shareFeedbackRef = useRef<number | null>(null);
   const searchTimeoutRef = useRef<number | null>(null);
   const geoLoadingTimeoutRef = useRef<number | null>(null);
 
@@ -275,8 +267,47 @@ export default function DistrictNavigation({
     return () => {
       if (searchTimeoutRef.current) window.clearTimeout(searchTimeoutRef.current);
       if (geoLoadingTimeoutRef.current) window.clearTimeout(geoLoadingTimeoutRef.current);
+      if (shareFeedbackRef.current) window.clearTimeout(shareFeedbackRef.current);
     };
   }, []);
+
+  const handleShare = (e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (!publicPagePath || typeof window === "undefined") return;
+    const url = window.location.origin + publicPagePath;
+    const title = "View on Transparent.city";
+    if (navigator.share) {
+      navigator
+        .share({ url, title })
+        .then(() => {
+          setShareFeedback("Shared");
+          if (shareFeedbackRef.current) window.clearTimeout(shareFeedbackRef.current);
+          shareFeedbackRef.current = window.setTimeout(() => {
+            setShareFeedback(null);
+            shareFeedbackRef.current = null;
+          }, 1500);
+        })
+        .catch(() => {
+          copyAndFeedback(url);
+        });
+    } else {
+      copyAndFeedback(url);
+    }
+  };
+
+  function copyAndFeedback(url: string) {
+    navigator.clipboard.writeText(url).then(
+      () => {
+        setShareFeedback("Link copied!");
+        if (shareFeedbackRef.current) window.clearTimeout(shareFeedbackRef.current);
+        shareFeedbackRef.current = window.setTimeout(() => {
+          setShareFeedback(null);
+          shareFeedbackRef.current = null;
+        }, 1500);
+      },
+      () => { setShareFeedback(""); }
+    );
+  }
 
   // Close on escape key
   useEffect(() => {
@@ -316,18 +347,8 @@ export default function DistrictNavigation({
     setError(null);
     
     try {
-      const q = formatZipcodeForGeocoding(s);
-      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-      });
-      
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || `Geocoding failed (${res.status})`);
-      }
-      
-      const geo = (await res.json()) as GeocodeResult;
+      // Use the shared geocodeQuery utility which handles zipcode formatting internally
+      const geo = await geocodeQuery(s);
       const lat = parseFloat(geo.lat);
       const lng = parseFloat(geo.lon);
       
@@ -521,7 +542,55 @@ export default function DistrictNavigation({
         aria-label="Select district"
       >
         <span className="district-navigation-label">{labelText}</span>
-        <span className="district-navigation-name">{displayName}</span>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+          <span className="district-navigation-name">{displayName}</span>
+          {leaderFollowerCounts != null && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span className="district-navigation-subscribers">
+                {(leaderFollowerCounts[String(selectedDistrict ?? 0)] ?? 0)} followers
+              </span>
+              {cityId != null && (
+                <button
+                  type="button"
+                  className={`district-navigation-subscribe ${isFollowed ? "following" : ""}`}
+                  onClick={(e: MouseEvent<HTMLButtonElement>) => {
+                    e.stopPropagation();
+                    if (followPending) return;
+                    if (isFollowed) {
+                      unfollowMutation.mutate(districtStr);
+                    } else {
+                      followMutation.mutate(districtStr);
+                    }
+                  }}
+                  disabled={followPending}
+                  aria-label={isFollowed ? `Unfollow ${district === 0 ? "citywide" : `District ${district}`}` : `Follow ${district === 0 ? "citywide" : `District ${district}`}`}
+                >
+                  {followPending ? "…" : isFollowed ? "Following" : "Follow"}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+        {publicPagePath != null && (
+          <button
+            type="button"
+            className="district-navigation-share"
+            onClick={handleShare}
+            aria-label="Share public page"
+          >
+            {shareFeedback ? shareFeedback : (
+              <>
+                <span style={{ marginRight: 4 }}>Share</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                </svg>
+              </>
+            )}
+          </button>
+        )}
+        </div>
         <svg
           width="16"
           height="16"
@@ -628,6 +697,11 @@ export default function DistrictNavigation({
                         <div className="district-navigation-result-district">
                           {option.district === 0 ? "Mayor (Citywide)" : `District ${option.district}`}
                         </div>
+                        {leaderFollowerCounts != null && (
+                            <div className="district-navigation-result-subscribers">
+                              {(leaderFollowerCounts[String(option.district)] ?? 0)} followers
+                            </div>
+                          )}
                       </button>
                     ))}
                   </div>
@@ -656,6 +730,11 @@ export default function DistrictNavigation({
                           <div className="district-navigation-result-district">
                             {option.district === 0 ? "Mayor (Citywide)" : `District ${option.district}`}
                           </div>
+                          {leaderFollowerCounts != null && (
+                              <div className="district-navigation-result-subscribers">
+                                {(leaderFollowerCounts[String(option.district)] ?? 0)} followers
+                              </div>
+                            )}
                         </button>
                       );
                     })}

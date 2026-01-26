@@ -14,18 +14,27 @@ import DatasetsAdmin from "@/components/DatasetsAdmin";
 import MetricsAdmin from "@/components/MetricsAdmin";
 import UserManagement from "@/components/UserManagement";
 import JobLogsViewer from "@/components/JobLogsViewer";
+import FeedView from "@/components/FeedView";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getMyPermissions, getSavedCities, getUserPreferences, updateUserPreferences, getCity } from "@/lib/apiClient";
 import Loader from "@/components/Loader";
 import WelcomeModal from "@/components/WelcomeModal";
 import RedisStatusIndicator from "@/components/RedisStatusIndicator";
+import {
+  trackSignupComplete,
+  trackLogin,
+  trackOnboardingComplete,
+  trackDashboardView,
+  trackUserActivation,
+  trackCitySaved,
+} from "@/lib/analytics";
 import styles from "./page.module.css";
 import dynamic from "next/dynamic";
 
 // Dynamically import NewResearchPage to avoid SSR issues
 const NewResearchPage = dynamic(() => import("../research/new/page"), { ssr: false });
 
-type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "metrics-admin" | "datasets-admin" | "city" | "metric" | "job-logs" | "research" | "research-new";
+type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "metrics-admin" | "datasets-admin" | "city" | "metric" | "job-logs" | "research" | "research-new" | "feed";
 
 // Mobile breakpoint (matches CSS media query)
 const MOBILE_BREAKPOINT = 768;
@@ -78,6 +87,35 @@ export default function DashboardPage() {
       router.push("/");
     }
   }, [isLoading, isAuthenticated, router]);
+
+  // Track dashboard view when authenticated
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      trackDashboardView();
+    }
+  }, [isAuthenticated, isLoading]);
+
+  // Track signup completion and login
+  useEffect(() => {
+    if (!isAuthenticated || isLoading || !user) return;
+
+    // Check if this is a signup completion (from URL params)
+    const urlParams = new URLSearchParams(window.location.search);
+    const signupIntent = urlParams.get("signup") as "resident" | "public-servant" | null;
+    
+    if (signupIntent) {
+      // User just completed signup
+      trackSignupComplete(signupIntent, user.sub);
+      trackUserActivation("signup_complete");
+      
+      // Clean up URL
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, "", newUrl);
+    } else {
+      // Regular login
+      trackLogin(user.sub);
+    }
+  }, [isAuthenticated, isLoading, user]);
 
   // Reload preferences when settings view becomes active
   useEffect(() => {
@@ -538,6 +576,11 @@ export default function DashboardPage() {
 
   const handleWelcomeComplete = () => {
     setShowWelcomeModal(false);
+    // Track onboarding completion
+    if (user?.sub) {
+      trackOnboardingComplete(user.sub);
+      trackUserActivation("onboarding_complete");
+    }
   };
 
   const handleResetOnboarding = async () => {
@@ -733,6 +776,12 @@ export default function DashboardPage() {
               <div className={styles.adminContainer}>
                 <JobLogsViewer />
               </div>
+            </div>
+          )}
+
+          {currentView === "feed" && (
+            <div id="feed-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
+              <FeedView cityId={activeCityId} district={initialDistrict} />
             </div>
           )}
         </div>

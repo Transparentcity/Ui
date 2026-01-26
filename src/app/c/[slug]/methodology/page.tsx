@@ -21,15 +21,19 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     const match = cities.find((c) => c.slug === slug);
     if (match) {
       cityName =
-        [match.name, match.state, match.country]
-          .filter(Boolean)
-          .join(", ") || match.name;
+        match.state && match.country && match.country !== "United States"
+          ? `${match.name}, ${match.state}, ${match.country}`
+          : match.state
+            ? `${match.name}, ${match.state}`
+            : match.country && match.country !== "United States"
+              ? `${match.name}, ${match.country}`
+              : match.name;
     }
   } catch {
     // fallback to slug
   }
   return {
-    title: `Methodology | ${cityName} – Transparent.city`,
+    title: `Methodology | ${cityName}`,
     description: `How Transparent.city uses ${cityName}'s public data: sources, independence, and our mission to center local discussion on data.`,
   };
 }

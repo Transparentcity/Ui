@@ -9,6 +9,10 @@ import {
   listCities,
   getCityStructure,
   getCityLeaders,
+  getRepresentativeFollowerCounts,
+  getMyRepresentativeFollows,
+  followRepresentative,
+  unfollowRepresentative,
   getCityShapefiles,
   getCityShapeLayers,
   saveCity,
@@ -32,6 +36,10 @@ export const cityKeys = {
   saved: () => [...cityKeys.all, "saved"] as const,
   structure: (id: number) => [...cityKeys.all, "structure", id] as const,
   leaders: (id: number) => [...cityKeys.all, "leaders", id] as const,
+  representativeFollowerCounts: (id: number) =>
+    [...cityKeys.all, "representativeFollowerCounts", id] as const,
+  representativeFollows: (id: number) =>
+    [...cityKeys.all, "representativeFollows", id] as const,
   shapefiles: (id: number) => [...cityKeys.all, "shapefiles", id] as const,
   shapeLayers: (id: number, includeGeometry?: boolean) =>
     [...cityKeys.all, "shapeLayers", id, includeGeometry] as const,
@@ -148,6 +156,146 @@ export function useCityLeaders(cityId: number | null) {
 }
 
 /**
+ * Hook to fetch representative follower counts per district for a city.
+ * Returns Record<string, number> keyed by district ("0"=mayor, "1"-"11"=districts).
+ * On error or 404, data is {}. Cache time: 5 minutes.
+ */
+export function useRepresentativeFollowerCounts(cityId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: cityKeys.representativeFollowerCounts(cityId!),
+    queryFn: async (): Promise<Record<string, number>> => {
+      if (!cityId) return {};
+      const token = await getAccessTokenSilently();
+      const list = await getRepresentativeFollowerCounts(cityId, token);
+      const map: Record<string, number> = {};
+      for (const r of list) {
+        map[r.district || "0"] = r.follower_count;
+      }
+      return map;
+    },
+    enabled: !!cityId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+/**
+ * Hook to fetch which districts the current user follows for a city.
+ * Returns Record<string, true> for followed districts. Cache: 2 minutes.
+ */
+export function useRepresentativeFollows(cityId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: cityKeys.representativeFollows(cityId!),
+    queryFn: async (): Promise<Record<string, boolean>> => {
+      if (!cityId) return {};
+      const token = await getAccessTokenSilently();
+      const list = await getMyRepresentativeFollows(cityId, token);
+      const map: Record<string, boolean> = {};
+      for (const d of list) {
+        map[String(d || "0")] = true;
+      }
+      return map;
+    },
+    enabled: !!cityId,
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+/**
+ * Hook to follow a city+district. Optimistically +1 count; invalidates my-follows on success.
+ * We do NOT invalidate representativeFollowerCounts on success so the optimistic +1 is not
+ * overwritten by a refetch that can return 0 (e.g. if migration 037 is not yet applied or
+ * backend has not yet reflected the new follow). The count will correct on next natural refetch.
+ */
+export function useFollowRepresentative(cityId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (district: string) => {
+      if (!cityId) throw new Error("City ID required");
+      const token = await getAccessTokenSilently();
+      return followRepresentative(cityId, district, token);
+    },
+    onMutate: async (district) => {
+      if (!cityId) return;
+      await queryClient.cancelQueries({ queryKey: cityKeys.representativeFollowerCounts(cityId) });
+      const prev = queryClient.getQueryData<Record<string, number>>(
+        cityKeys.representativeFollowerCounts(cityId)
+      );
+      const d = String(district || "0");
+      queryClient.setQueryData<Record<string, number>>(
+        cityKeys.representativeFollowerCounts(cityId),
+        (old) => ({ ...old, [d]: (old?.[d] ?? 0) + 1 })
+      );
+      return { prev };
+    },
+    onSuccess: (_data, _district) => {
+      if (!cityId) return;
+      queryClient.invalidateQueries({ queryKey: cityKeys.representativeFollows(cityId) });
+    },
+    onError: (_err, _district, ctx) => {
+      if (cityId && ctx?.prev != null) {
+        queryClient.setQueryData(
+          cityKeys.representativeFollowerCounts(cityId),
+          ctx.prev
+        );
+      }
+    },
+  });
+}
+
+/**
+ * Hook to unfollow a city+district. Optimistically -1 count; invalidates my-follows on success.
+ * We do NOT invalidate representativeFollowerCounts on success so the optimistic -1 is not
+ * overwritten by a refetch; the count will correct on next natural refetch.
+ */
+export function useUnfollowRepresentative(cityId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (district: string) => {
+      if (!cityId) throw new Error("City ID required");
+      const token = await getAccessTokenSilently();
+      return unfollowRepresentative(cityId, district, token);
+    },
+    onMutate: async (district) => {
+      if (!cityId) return;
+      await queryClient.cancelQueries({ queryKey: cityKeys.representativeFollowerCounts(cityId) });
+      const prev = queryClient.getQueryData<Record<string, number>>(
+        cityKeys.representativeFollowerCounts(cityId)
+      );
+      const d = String(district || "0");
+      queryClient.setQueryData<Record<string, number>>(
+        cityKeys.representativeFollowerCounts(cityId),
+        (old) => {
+          const v = (old?.[d] ?? 0) - 1;
+          const next = { ...old, [d]: Math.max(0, v) };
+          return next;
+        }
+      );
+      return { prev };
+    },
+    onSuccess: (_data, _district) => {
+      if (!cityId) return;
+      queryClient.invalidateQueries({ queryKey: cityKeys.representativeFollows(cityId) });
+    },
+    onError: (_err, _district, ctx) => {
+      if (cityId && ctx?.prev != null) {
+        queryClient.setQueryData(
+          cityKeys.representativeFollowerCounts(cityId),
+          ctx.prev
+        );
+      }
+    },
+  });
+}
+
+/**
  * Hook to fetch city shapefiles.
  * Cache time: 10 minutes (shapefiles change rarely)
  */
@@ -198,9 +346,21 @@ export function useSaveCity() {
       const token = await getAccessTokenSilently();
       return saveCity(cityId, token);
     },
-    onSuccess: () => {
+    onSuccess: async (data, cityId) => {
       // Invalidate saved cities cache so it refetches
       queryClient.invalidateQueries({ queryKey: cityKeys.saved() });
+      
+      // Track city saved event
+      try {
+        const { trackCitySaved } = await import("@/lib/analytics");
+        // Get city name from cache if available
+        const savedCities = queryClient.getQueryData<SavedCity[]>(cityKeys.saved());
+        const city = savedCities?.find((c) => c.id === cityId);
+        trackCitySaved(cityId, city?.display_name || city?.city_name || "Unknown");
+      } catch (e) {
+        // Analytics tracking failure shouldn't break the app
+        console.error("Failed to track city saved event:", e);
+      }
     },
   });
 }

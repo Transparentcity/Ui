@@ -103,7 +103,7 @@ export default function MetricHero({
                 {trendInfo.isIncrease ? "↑" : "↓"}
               </span>
               <span className="trend-percent">
-                {Math.abs(trendInfo.percentChange).toFixed(1)}%
+                {Math.round(Math.abs(trendInfo.percentChange))}%
               </span>
             </div>
           )}

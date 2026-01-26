@@ -3,56 +3,11 @@
   width: 100%;
 }
 
-.progressive-map-view .shape-layer-selector {
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.progressive-map-view .shape-layer-selector label {
-  font-weight: 500;
-  font-size: 14px;
-}
-
-.progressive-map-view .shape-layer-selector select {
-  padding: 6px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 14px;
-  background: white;
-  cursor: pointer;
-}
-
-.progressive-map-view .points-controls {
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.progressive-map-view .points-controls button {
-  padding: 6px 12px;
-  background: #ad35fa;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.progressive-map-view .points-controls button:hover {
-  background: #8b2cc7;
-}
-
-.progressive-map-view .points-controls .selected-district {
-  font-size: 14px;
-  color: #6b7280;
-}
-
-.progressive-map-view {
+.progressive-map-view .map-container-wrapper {
   position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 8px;
 }
 
 .progressive-map-view .points-loading {

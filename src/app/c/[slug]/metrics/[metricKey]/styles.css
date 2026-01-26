@@ -23,6 +23,9 @@
 }
 
 .metric-detail-nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   font-size: 1.125rem;
   font-weight: 700;
   text-decoration: none;

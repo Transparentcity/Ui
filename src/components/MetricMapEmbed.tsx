@@ -168,7 +168,7 @@ export default function MetricMapEmbed({
     return (
       <div className="metric-map-embed" style={{ height }}>
         <div className="map-loading">
-          <Loader size="md" color="purple" />
+          <Loader size="md" color="dark" />
           <span>Loading map...</span>
         </div>
       </div>
@@ -220,7 +220,7 @@ export default function MetricMapEmbed({
           <div className="map-container" style={{ height }} />
           {loading && (
             <div className="map-loading">
-              <Loader size="md" color="purple" />
+              <Loader size="md" color="dark" />
               <span>Loading map...</span>
             </div>
           )}

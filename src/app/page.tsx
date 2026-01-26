@@ -13,6 +13,11 @@ import {
 } from "@/lib/publicApiClient";
 import Loader from "@/components/Loader";
 import Header from "@/components/Header";
+import {
+  trackSignupStart,
+  trackSignupClick,
+  trackSearchReferrer,
+} from "@/lib/analytics";
 
 import "./landing.css";
 
@@ -54,9 +59,20 @@ export default function Home() {
   const normalizedCityQuery = useMemo(() => cityQuery.trim(), [cityQuery]);
 
   const handleSignup = async (intent: "resident" | "public-servant") => {
+    if (isAuthenticated) {
+      router.push("/dashboard");
+      return;
+    }
+    
+    // Track signup start
+    trackSignupStart(intent);
+    
     if (typeof window !== "undefined") {
       window.localStorage.setItem("transparentcity.signup_intent", intent);
     }
+
+    // Track signup click
+    trackSignupClick(intent);
 
     await loginWithRedirect({
       authorizationParams: {
@@ -162,6 +178,13 @@ export default function Home() {
     router.push(`/c/${slug}`);
   };
 
+  // Redirect authenticated users directly to dashboard
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.replace("/dashboard");
+    }
+  }, [isAuthenticated, isLoading, router]);
+
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) {
@@ -220,6 +243,15 @@ export default function Home() {
     };
   }, []);
 
+  // Track search referrer on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const query = urlParams.get("q") || urlParams.get("query");
+    if (query) {
+      trackSearchReferrer(query);
+    }
+  }, []);
+
 
   const handleCityQueryChange = (query: string) => {
     setCityQuery(query);
@@ -267,6 +299,16 @@ export default function Home() {
       setSelectedIndex(-1);
     }
   };
+
+  // Show loader while checking auth status or redirecting authenticated users
+  if (isLoading) {
+    return <Loader />;
+  }
+
+  // If authenticated, show loader briefly while redirect happens
+  if (isAuthenticated) {
+    return <Loader />;
+  }
 
   return (
     <div className={styles.page}>
@@ -534,6 +576,9 @@ export default function Home() {
               </div>
               <div className={styles.finePrint}>
                 Facts for residents. Evidence for elected officials. Accountability for everyone.
+                <br />
+                <br />
+                Independent &amp; nonpartisan. All data is sourced from official city open data portals with documented queries and direct links.
               </div>
             </div>
             <div>

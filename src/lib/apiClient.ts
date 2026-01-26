@@ -342,6 +342,44 @@ export function getCityStructure(cityId: number, token: string): Promise<CityStr
   return promise;
 }
 
+export interface StructureCityMetricsRequest {
+  skip_portal_discovery?: boolean;
+  skip_dataset_fetching?: boolean;
+  skip_structuring?: boolean;
+  skip_metric_instantiation?: boolean;
+}
+
+export interface StructureCityMetricsResult {
+  success: boolean;
+  phases_completed: string[];
+  datasets_discovered: number;
+  datasets_fetched: number;
+  templates_total: number;
+  templates_instantiated: number;
+  templates_failed: number;
+  errors: string[];
+  token_usage: Record<string, number>;
+  estimated_cost_usd: number;
+}
+
+export function structureCityMetrics(
+  cityId: number,
+  params: StructureCityMetricsRequest,
+  token: string
+): Promise<StructureCityMetricsResult> {
+  return request<StructureCityMetricsResult>(
+    `/api/admin/cities/${cityId}/structure-metrics`,
+    "POST",
+    {
+      skip_portal_discovery: params.skip_portal_discovery ?? false,
+      skip_dataset_fetching: params.skip_dataset_fetching ?? false,
+      skip_structuring: params.skip_structuring ?? false,
+      skip_metric_instantiation: params.skip_metric_instantiation ?? false,
+    },
+    token
+  );
+}
+
 export function updateCityStructure(
   cityId: number,
   data: UpdateCityStructureRequest,
@@ -674,6 +712,7 @@ export interface AdminMetricDetail {
   data_sf_url?: string | null;
   dataset_title?: string | null;
   dataset_category?: string | null;
+  dataset_name?: string | null;  // Friendly name from datasets table
   show_on_dash: boolean;
   item_noun?: string;
   greendirection?: string;
@@ -1895,6 +1934,53 @@ export function getCityLeaders(cityId: number, token: string): Promise<CityLeade
     .catch(() => []); // Return empty array if endpoint fails
 }
 
+export type RepresentativeFollowerCountItem = { district: string; follower_count: number };
+
+export function getRepresentativeFollowerCounts(
+  cityId: number,
+  token: string
+): Promise<RepresentativeFollowerCountItem[]> {
+  return request<RepresentativeFollowerCountItem[]>(
+    `/api/newsletter/representative-follower-counts?city_id=${cityId}`,
+    "GET",
+    undefined,
+    token
+  ).catch(() => []); // Return [] if endpoint fails or table does not exist
+}
+
+export function getMyRepresentativeFollows(
+  cityId: number,
+  token: string
+): Promise<string[]> {
+  return request<string[]>(
+    `/api/newsletter/my-follows?city_id=${cityId}`,
+    "GET",
+    undefined,
+    token
+  ).catch(() => []);
+}
+
+export function followRepresentative(
+  cityId: number,
+  district: string,
+  token: string
+): Promise<{ followed: boolean; city_id: number; district: string }> {
+  return request(`/api/newsletter/follow`, "POST", { city_id: cityId, district }, token);
+}
+
+export function unfollowRepresentative(
+  cityId: number,
+  district: string,
+  token: string
+): Promise<{ followed: boolean; city_id: number; district: string }> {
+  return request(
+    `/api/newsletter/follow?city_id=${cityId}&district=${encodeURIComponent(district)}`,
+    "DELETE",
+    undefined,
+    token
+  );
+}
+
 export function createCityLeader(
   cityId: number,
   leader: CityLeader,
@@ -2322,6 +2408,7 @@ export interface AnomalyResult {
   chart_payload?: Record<string, any> | null;
   item_noun?: string | null;
   city_name?: string | null;
+  greendirection?: string | null;  // "up" or "down" - determines if increase is good or bad
   created_at?: string | null;
 }
 
@@ -2423,6 +2510,212 @@ export function getAnomalyResult(resultId: number, token?: string): Promise<Anom
   return request<AnomalyResult>(path, "GET", undefined, token);
 }
 
+// ============================================================================
+// FEED STORIES API
+// ============================================================================
+
+export interface FeedStory {
+  id: number;
+  story_type: string;
+  city_id: number;
+  district: number;
+  research_report_id: number;
+  newsletter_frequency?: string | null;
+  newsletter_period_start?: string | null;
+  headline: string;
+  description: string;
+  summary?: string | null;
+  primary_visualization?: Record<string, any> | null;
+  visualization_type?: string | null;
+  visualization_ref_id?: number | null;
+  detail_url: string;
+  related_urls?: Array<Record<string, any>>;
+  view_count: number;
+  click_count: number;
+  share_count: number;
+  priority_score: number;
+  is_featured: boolean;
+  status: string;
+  story_date: string;
+  published_at?: string | null;
+  metadata?: Record<string, any>;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface FeedStoriesResponse {
+  stories: FeedStory[];
+  count: number;
+}
+
+export interface FeedStoryResponse {
+  story: FeedStory;
+}
+
+export interface EngagementRequest {
+  action: "view" | "click" | "share";
+}
+
+export interface EngagementResponse {
+  success: boolean;
+  message: string;
+}
+
+export function listFeedStories(
+  token: string,
+  options?: {
+    city_id?: number;
+    district?: number | null;
+    newsletter_frequency?: string | null;
+    research_report_id?: number;
+    limit?: number;
+    order_by?: string;
+  }
+): Promise<FeedStoriesResponse> {
+  const params = new URLSearchParams();
+  if (options?.city_id) params.append("city_id", options.city_id.toString());
+  if (options?.district !== undefined && options?.district !== null) {
+    params.append("district", options.district.toString());
+  }
+  if (options?.newsletter_frequency) {
+    params.append("newsletter_frequency", options.newsletter_frequency);
+  }
+  if (options?.research_report_id) {
+    params.append("research_report_id", options.research_report_id.toString());
+  }
+  if (options?.limit) params.append("limit", options.limit.toString());
+  if (options?.order_by) params.append("order_by", options.order_by);
+
+  const query = params.toString();
+  const path = `/api/feed${query ? `?${query}` : ""}`;
+  return request<FeedStoriesResponse>(path, "GET", undefined, token);
+}
+
+export function getFeedStory(storyId: number, token: string): Promise<FeedStoryResponse> {
+  return request<FeedStoryResponse>(`/api/feed/story/${storyId}`, "GET", undefined, token);
+}
+
+export function trackFeedEngagement(
+  storyId: number,
+  action: "view" | "click" | "share",
+  token: string
+): Promise<EngagementResponse> {
+  return request<EngagementResponse>(
+    `/api/feed/story/${storyId}/engage`,
+    "POST",
+    { action },
+    token
+  );
+}
+
+// Public feed endpoints (no auth required)
+export function listPublicFeedStories(
+  options?: {
+    city_id?: number;
+    district?: number | null;
+    newsletter_frequency?: string | null;
+    limit?: number;
+    order_by?: string;
+  }
+): Promise<FeedStoriesResponse> {
+  const params = new URLSearchParams();
+  if (options?.city_id) params.append("city_id", options.city_id.toString());
+  if (options?.district !== undefined && options?.district !== null) {
+    params.append("district", options.district.toString());
+  }
+  if (options?.newsletter_frequency) {
+    params.append("newsletter_frequency", options.newsletter_frequency);
+  }
+  if (options?.limit) params.append("limit", options.limit.toString());
+  if (options?.order_by) params.append("order_by", options.order_by);
+
+  const query = params.toString();
+  const path = `/api/feed/public${query ? `?${query}` : ""}`;
+  return request<FeedStoriesResponse>(path, "GET", undefined);
+}
+
+export function getPublicFeedStory(storyId: number): Promise<FeedStoryResponse> {
+  return request<FeedStoryResponse>(`/api/feed/public/story/${storyId}`, "GET", undefined);
+}
+
+export interface GenerateFeedStoriesRequest {
+  city_id?: number;
+  district?: number;
+  newsletter_frequency?: string;
+  story_count?: number;
+}
+
+export interface GenerateFeedStoriesResponse {
+  success: boolean;
+  message: string;
+  report_id: number;
+  stories_created: number;
+  story_ids: number[];
+  city_id: number;
+  district: number;
+  frequency: string;
+}
+
+export function generateFeedStoriesFromResearch(
+  reportId: number,
+  options: GenerateFeedStoriesRequest,
+  token: string
+): Promise<GenerateFeedStoriesResponse> {
+  const params = new URLSearchParams();
+  if (options.city_id) params.append("city_id", options.city_id.toString());
+  if (options.district !== undefined) params.append("district", options.district.toString());
+  if (options.newsletter_frequency) params.append("newsletter_frequency", options.newsletter_frequency);
+  if (options.story_count) params.append("story_count", options.story_count.toString());
+  
+  const query = params.toString();
+  const path = `/api/feed/generate-from-research/${reportId}${query ? `?${query}` : ""}`;
+  return request<GenerateFeedStoriesResponse>(path, "POST", undefined, token);
+}
+
+// ============================================================================
+// NEWSLETTER REPORTS API
+// ============================================================================
+
+export interface NewsletterReport {
+  id: number;
+  short_hash: string;
+  title: string;
+  city_id: number | null;
+  district: string | null;
+  frequency: string | null;
+  newsletter_period_start: string | null;
+  final_report_html: string | null;
+  social_summary: string | null;
+  created_at: string | null;
+  public_url: string;
+}
+
+export function listNewsletterReports(
+  cityId: number,
+  options?: {
+    district?: number | null;
+    frequency?: string | null;
+    limit?: number;
+  },
+  token?: string
+): Promise<NewsletterReport[]> {
+  const params = new URLSearchParams();
+  params.append("city_id", cityId.toString());
+  if (options?.district !== undefined && options?.district !== null) {
+    params.append("district", options.district.toString());
+  }
+  if (options?.frequency) {
+    params.append("frequency", options.frequency);
+  }
+  if (options?.limit) {
+    params.append("limit", options.limit.toString());
+  }
+  
+  const query = params.toString();
+  const path = `/api/newsletter/reports${query ? `?${query}` : ""}`;
+  return request<NewsletterReport[]>(path, "GET", undefined, token);
+}
+
 // Research API
 export interface ResearchReport {
   id: number;
@@ -2447,6 +2740,7 @@ export interface ResearchReport {
   progress_percent: number;
   is_public: boolean;
   view_count: number;
+  user_id?: string | null;
   error_message?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -2502,6 +2796,7 @@ export interface ResearchListResponse {
   total: number;
   limit: number;
   offset: number;
+  current_user_id?: string | null;
 }
 
 export function createResearch(

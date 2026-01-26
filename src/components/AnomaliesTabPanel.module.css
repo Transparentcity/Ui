@@ -214,7 +214,8 @@
   background: var(--bg-hover, rgba(0, 0, 0, 0.02));
 }
 
-.anomalyCard[data-is-positive="false"] {
+/* When the change is good (not bad), use green border */
+.anomalyCard[data-is-bad="false"] {
   border-left-color: var(--success, #10b981);
 }
 
@@ -245,7 +246,7 @@
   color: var(--error, #ef4444);
 }
 
-.anomalyCard[data-is-positive="false"] .anomalyText i {
+.anomalyCard[data-is-bad="false"] .anomalyText i {
   color: var(--success, #10b981);
 }
 
@@ -304,7 +305,8 @@
   background: var(--bg-hover, rgba(0, 0, 0, 0.04));
 }
 
-.subAnomalyCard[data-is-positive="false"] {
+/* When the change is good (not bad), use green border */
+.subAnomalyCard[data-is-bad="false"] {
   border-left-color: var(--success, #10b981);
 }
 
@@ -312,7 +314,7 @@
   color: var(--error, #ef4444);
 }
 
-.subAnomalyCard[data-is-positive="false"] i {
+.subAnomalyCard[data-is-bad="false"] i {
   color: var(--success, #10b981);
 }
 

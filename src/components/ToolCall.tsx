@@ -181,7 +181,7 @@ function EmbeddedAnomalyCard({ data }: { data: any }) {
               <span style={{ 
                 color: pctChange > 0 ? "var(--error-text, #ef4444)" : "var(--success-text, #10b981)" 
               }}>
-                {pctChange > 0 ? "+" : ""}{pctChange.toFixed(1)}%
+                {pctChange > 0 ? "+" : ""}{Math.round(pctChange)}%
               </span>
             </>
           )}

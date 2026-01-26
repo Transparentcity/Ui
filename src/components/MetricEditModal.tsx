@@ -11,6 +11,7 @@ import {
   useUpdateMetric,
   useValidateMetricFreshness,
 } from "@/lib/hooks/useMetrics";
+import { getPublicMetricCompleteness, type MetricCompletenessResponse } from "@/lib/publicApiClient";
 import styles from "./MetricsAdmin.module.css";
 
 interface MetricEditModalProps {
@@ -144,6 +145,27 @@ export default function MetricEditModal({
   const [fieldsSaving, setFieldsSaving] = useState(false);
 
   const [showAllGaps, setShowAllGaps] = useState(false);
+  
+  // Completeness data state
+  const [completenessData, setCompletenessData] = useState<MetricCompletenessResponse | null>(null);
+  const [completenessLoading, setCompletenessLoading] = useState(false);
+  const [showCompletenessDetails, setShowCompletenessDetails] = useState(false);
+
+  // Fetch completeness data when metric loads
+  useEffect(() => {
+    if (metric?.id) {
+      setCompletenessLoading(true);
+      getPublicMetricCompleteness(metric.id)
+        .then(setCompletenessData)
+        .catch((err) => {
+          console.warn("Failed to load completeness data:", err);
+          setCompletenessData(null);
+        })
+        .finally(() => setCompletenessLoading(false));
+    } else {
+      setCompletenessData(null);
+    }
+  }, [metric?.id]);
 
   // Update form when metric data loads
   useEffect(() => {
@@ -633,10 +655,24 @@ export default function MetricEditModal({
           </div>
 
           {/* Data Freshness (Read-only) */}
-          {metric.data_freshness_metadata && (
-            <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid var(--border-primary)" }}>
-              <div className={styles.fieldLabel}>Data Freshness</div>
+          <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid var(--border-primary)" }}>
+            <div className={styles.fieldLabel}>Data Freshness</div>
+            {metric.data_freshness_metadata ? (
               <div className={styles.fieldValue}>
+                {metric.endpoint && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>
+                      Dataset
+                    </div>
+                    <div style={{ fontSize: 13 }}>
+                      {metric.dataset_name ? (
+                        <span>{metric.dataset_name} <span style={{ color: "var(--text-secondary)" }}>({metric.endpoint})</span></span>
+                      ) : (
+                        <span>{metric.endpoint}</span>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div className={styles.grid2}>
                   <div>
                     <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>
@@ -681,7 +717,7 @@ export default function MetricEditModal({
                     </div>
                   </div>
                 </div>
-                <div style={{ marginTop: 12 }}>
+                <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button
                     className={styles.secondaryBtn}
                     onClick={() => {
@@ -703,10 +739,314 @@ export default function MetricEditModal({
                   >
                     <i className="fas fa-sync-alt" /> Validate Freshness
                   </button>
+                  {completenessData && completenessData.has_data && (
+                    <button
+                      className={styles.secondaryBtn}
+                      onClick={() => setShowCompletenessDetails(!showCompletenessDetails)}
+                    >
+                      <i className={`fas fa-${showCompletenessDetails ? "chevron-up" : "chevron-down"}`} />{" "}
+                      {showCompletenessDetails ? "Hide" : "Show"} Completeness Details
+                    </button>
+                  )}
                 </div>
               </div>
-            </div>
-          )}
+            ) : (
+              <div className={styles.fieldValue}>
+                <div style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 12 }}>
+                  No freshness metadata available. Run "Validate Freshness" to analyze data freshness.
+                </div>
+                {completenessData && completenessData.has_data && (
+                  <button
+                    className={styles.secondaryBtn}
+                    onClick={() => setShowCompletenessDetails(!showCompletenessDetails)}
+                  >
+                    <i className={`fas fa-${showCompletenessDetails ? "chevron-up" : "chevron-down"}`} />{" "}
+                    {showCompletenessDetails ? "Hide" : "Show"} Completeness Details
+                  </button>
+                )}
+              </div>
+            )}
+            
+            {/* Period Completeness Details - Show outside freshness metadata section too */}
+            {showCompletenessDetails && completenessData && completenessData.has_data && (
+              <div style={{ 
+                    marginTop: 16, 
+                    padding: 16, 
+                    backgroundColor: "var(--bg-secondary, #f5f5f5)",
+                    borderRadius: 4,
+                    border: "1px solid var(--border-primary)"
+                  }}>
+                    <div style={{ marginBottom: 12 }}>
+                      <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+                        Period Completeness & Stability
+                      </h4>
+                      <p style={{ margin: 0, fontSize: 12, color: "var(--text-secondary)" }}>
+                        This metric's data may build up over time as reports are filed. 
+                        We track when periods stabilize to avoid false alerts from incomplete data.
+                      </p>
+                    </div>
+                    
+                    {completenessLoading ? (
+                      <div style={{ padding: 12, textAlign: "center", color: "var(--text-secondary)" }}>
+                        Loading completeness data...
+                      </div>
+                    ) : completenessData.period_types.length === 0 ? (
+                      <div style={{ padding: 12, textAlign: "center", color: "var(--text-secondary)" }}>
+                        No completeness data available yet. This will populate as time series data is stored.
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                        {completenessData.period_types.map((periodInfo) => (
+                          <div 
+                            key={periodInfo.period_type}
+                            style={{
+                              padding: 12,
+                              backgroundColor: "var(--bg-primary, #fff)",
+                              borderRadius: 4,
+                              border: "1px solid var(--border-secondary, #e0e0e0)"
+                            }}
+                          >
+                            <div style={{ 
+                              display: "flex", 
+                              justifyContent: "space-between", 
+                              alignItems: "center",
+                              marginBottom: 8
+                            }}>
+                              <strong style={{ textTransform: "capitalize", fontSize: 13 }}>
+                                {periodInfo.period_type} Periods
+                              </strong>
+                              {periodInfo.is_stable && (
+                                <span className={`${styles.badge} ${styles.badgeSuccess}`} style={{ fontSize: 11 }}>
+                                  Stable
+                                </span>
+                              )}
+                              {!periodInfo.is_stable && periodInfo.avg_days_to_stabilize && (
+                                <span className={`${styles.badge} ${styles.badgeWarning}`} style={{ fontSize: 11 }}>
+                                  Learning
+                                </span>
+                              )}
+                            </div>
+                            
+                            {/* Progress tracking for periods without patterns */}
+                            {!periodInfo.is_stable && (
+                              <>
+                                {(periodInfo.stable_periods_count !== null && periodInfo.stable_periods_count !== undefined) || 
+                                 (periodInfo.total_periods_tracked !== null && periodInfo.total_periods_tracked !== undefined) ? (
+                                  <>
+                                    {/* Progress bar */}
+                                    {periodInfo.stable_periods_count !== null && periodInfo.stable_periods_count !== undefined && (
+                                      <div style={{ marginBottom: 12 }}>
+                                        <div style={{ 
+                                          display: "flex", 
+                                          justifyContent: "space-between", 
+                                          alignItems: "center",
+                                          marginBottom: 4,
+                                          fontSize: 12
+                                        }}>
+                                          <span style={{ color: "var(--text-secondary)" }}>
+                                            Stable Periods Progress
+                                          </span>
+                                          <span style={{ fontWeight: 600, fontSize: 13 }}>
+                                            {periodInfo.stable_periods_count} / {periodInfo.min_stable_periods_required || 5} required
+                                          </span>
+                                        </div>
+                                        <div style={{
+                                          width: "100%",
+                                          height: 8,
+                                          backgroundColor: "var(--bg-tertiary, #e0e0e0)",
+                                          borderRadius: 4,
+                                          overflow: "hidden"
+                                        }}>
+                                          <div style={{
+                                            width: `${Math.min(100, ((periodInfo.stable_periods_count / (periodInfo.min_stable_periods_required || 5)) * 100))}%`,
+                                            height: "100%",
+                                            backgroundColor: periodInfo.stable_periods_count >= (periodInfo.min_stable_periods_required || 5) 
+                                              ? "var(--success-color, #28a745)" 
+                                              : "var(--warning-color, #ffc107)",
+                                            transition: "width 0.3s ease"
+                                          }} />
+                                        </div>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Counts breakdown */}
+                                    <div style={{ 
+                                      display: "grid", 
+                                      gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", 
+                                      gap: 12,
+                                      fontSize: 12,
+                                      marginBottom: 12
+                                    }}>
+                                      {periodInfo.total_periods_tracked !== null && periodInfo.total_periods_tracked !== undefined && (
+                                        <div>
+                                          <div style={{ color: "var(--text-secondary)", marginBottom: 2 }}>
+                                            Total Tracked
+                                          </div>
+                                          <div style={{ fontWeight: 600 }}>
+                                            {periodInfo.total_periods_tracked} periods
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      {periodInfo.stable_periods_count !== null && periodInfo.stable_periods_count !== undefined && (
+                                        <div>
+                                          <div style={{ color: "var(--text-secondary)", marginBottom: 2 }}>
+                                            Stable
+                                          </div>
+                                          <div style={{ fontWeight: 600, color: "var(--success-color, #28a745)" }}>
+                                            {periodInfo.stable_periods_count}
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      {periodInfo.unstable_periods_count !== null && periodInfo.unstable_periods_count !== undefined && (
+                                        <div>
+                                          <div style={{ color: "var(--text-secondary)", marginBottom: 2 }}>
+                                            Still Building
+                                          </div>
+                                          <div style={{ fontWeight: 600, color: "var(--warning-color, #ffc107)" }}>
+                                            {periodInfo.unstable_periods_count}
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      {periodInfo.periods_needed_for_pattern !== null && periodInfo.periods_needed_for_pattern !== undefined && periodInfo.periods_needed_for_pattern > 0 && (
+                                        <div>
+                                          <div style={{ color: "var(--text-secondary)", marginBottom: 2 }}>
+                                            Still Needed
+                                          </div>
+                                          <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+                                            {periodInfo.periods_needed_for_pattern} more
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      {periodInfo.avg_days_to_stabilize !== null && periodInfo.avg_days_to_stabilize !== undefined && (
+                                        <div>
+                                          <div style={{ color: "var(--text-secondary)", marginBottom: 2 }}>
+                                            Avg Days to Stabilize
+                                          </div>
+                                          <div style={{ fontWeight: 600 }}>
+                                            {Math.round(periodInfo.avg_days_to_stabilize)} days
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                    
+                                    {/* Status message with estimated time */}
+                                    <div style={{ 
+                                      marginTop: 8, 
+                                      padding: 8, 
+                                      backgroundColor: "var(--bg-tertiary, #fafafa)",
+                                      borderRadius: 3,
+                                      fontSize: 11,
+                                      color: "var(--text-secondary)"
+                                    }}>
+                                      <i className="fas fa-info-circle" style={{ marginRight: 4 }} />
+                                      {periodInfo.periods_needed_for_pattern !== null && periodInfo.periods_needed_for_pattern !== undefined && periodInfo.periods_needed_for_pattern > 0 ? (
+                                        <>
+                                          Need {periodInfo.periods_needed_for_pattern} more stable {periodInfo.periods_needed_for_pattern === 1 ? "period" : "periods"} to establish patterns.
+                                          {periodInfo.avg_days_to_stabilize !== null && periodInfo.avg_days_to_stabilize !== undefined && (
+                                            <> Pattern typically available after ~{Math.round(periodInfo.avg_days_to_stabilize)} days.</>
+                                          )}
+                                        </>
+                                      ) : periodInfo.total_periods_tracked !== null && periodInfo.total_periods_tracked !== undefined && periodInfo.total_periods_tracked === 0 ? (
+                                        <>No periods tracked yet. This will populate as time series data is stored.</>
+                                      ) : (
+                                        <>Stability patterns are still being learned. Need more historical data.</>
+                                      )}
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div style={{ 
+                                    marginTop: 8, 
+                                    padding: 8, 
+                                    backgroundColor: "var(--bg-tertiary, #fafafa)",
+                                    borderRadius: 3,
+                                    fontSize: 11,
+                                    color: "var(--text-secondary)"
+                                  }}>
+                                    <i className="fas fa-info-circle" style={{ marginRight: 4 }} />
+                                    Stability patterns are still being learned. Need more historical data.
+                                  </div>
+                                )}
+                              </>
+                            )}
+                            
+                            {/* Pattern stats for stable periods */}
+                            {periodInfo.is_stable && (
+                              <div style={{ 
+                                display: "grid", 
+                                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", 
+                                gap: 12,
+                                fontSize: 12
+                              }}>
+                                {periodInfo.sample_size !== null && periodInfo.sample_size !== undefined && (
+                                  <div>
+                                    <div style={{ color: "var(--text-secondary)", marginBottom: 2 }}>
+                                      Based on
+                                    </div>
+                                    <div style={{ fontWeight: 600 }}>
+                                      {periodInfo.sample_size} stable periods
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {periodInfo.avg_days_to_stabilize !== null && periodInfo.avg_days_to_stabilize !== undefined && (
+                                  <div>
+                                    <div style={{ color: "var(--text-secondary)", marginBottom: 2 }}>
+                                      Avg Days to Stabilize
+                                    </div>
+                                    <div style={{ fontWeight: 600 }}>
+                                      {Math.round(periodInfo.avg_days_to_stabilize)} days
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {periodInfo.completeness_pct !== null && periodInfo.completeness_pct !== undefined && (
+                                  <div>
+                                    <div style={{ color: "var(--text-secondary)", marginBottom: 2 }}>
+                                      Completeness
+                                    </div>
+                                    <div style={{ fontWeight: 600 }}>
+                                      {Math.round(periodInfo.completeness_pct)}%
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {periodInfo.days_to_stabilize !== null && periodInfo.days_to_stabilize !== undefined && (
+                                  <div>
+                                    <div style={{ color: "var(--text-secondary)", marginBottom: 2 }}>
+                                      Typical Stabilization
+                                    </div>
+                                    <div style={{ fontWeight: 600 }}>
+                                      {periodInfo.days_to_stabilize} days
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        
+                        {completenessData.period_types.every(p => !p.avg_days_to_stabilize && !p.is_stable) && (
+                          <div style={{ 
+                            padding: 12, 
+                            backgroundColor: "var(--bg-tertiary, #fafafa)",
+                            borderRadius: 4,
+                            fontSize: 12,
+                            color: "var(--text-secondary)",
+                            textAlign: "center"
+                          }}>
+                            <i className="fas fa-info-circle" style={{ marginRight: 4 }} />
+                            Completeness tracking is active. Patterns will appear as more periods stabilize.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+            )}
+          </div>
 
           {/* City Structure (Read-only) */}
           {cityStructure?.city_id && (

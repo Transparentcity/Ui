@@ -107,7 +107,7 @@ function formatValue(value: number | null | undefined): string {
 function formatPercent(value: number | null | undefined): string {
   if (value === null || value === undefined || isNaN(value)) return "-";
   const sign = value > 0 ? "+" : "";
-  return `${sign}${value.toFixed(2)}%`;
+  return `${sign}${Math.round(value)}%`;
 }
 
 /**
@@ -1207,10 +1207,10 @@ export default function AnomalyChartPage() {
               let mainSentence = "";
               if (groupField && groupValue) {
                 // Grouped: "For {Metric Name} in {Group Field}: {Group Value}, in {Location}..."
-                mainSentence = `For ${metricName} in ${groupField}: <strong>${groupValue}</strong>, in ${locationText}, ${periodName} (${recentDateDisplay || periodName}), there were ${recentValue} ${itemNoun}, which is ${pctChange.toFixed(1)}% ${changeDirection} the historical average of ${comparisonValue} ${itemNoun}.`;
+                mainSentence = `For ${metricName} in ${groupField}: <strong>${groupValue}</strong>, in ${locationText}, ${periodName} (${recentDateDisplay || periodName}), there were ${recentValue} ${itemNoun}, which is ${Math.round(pctChange)}% ${changeDirection} the historical average of ${comparisonValue} ${itemNoun}.`;
               } else {
                 // Citywide: "For {Metric Name} in {Location}..."
-                mainSentence = `For ${metricName} in ${locationText}, ${periodName} (${recentDateDisplay || periodName}), there were ${recentValue} ${itemNoun}, which is ${pctChange.toFixed(1)}% ${changeDirection} the historical average of ${comparisonValue} ${itemNoun}.`;
+                mainSentence = `For ${metricName} in ${locationText}, ${periodName} (${recentDateDisplay || periodName}), there were ${recentValue} ${itemNoun}, which is ${Math.round(pctChange)}% ${changeDirection} the historical average of ${comparisonValue} ${itemNoun}.`;
               }
               
               captionParts.push(mainSentence);

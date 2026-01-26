@@ -3,6 +3,7 @@
 import { useAuth0 } from "@auth0/auth0-react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
+import { trackSignupStart, trackSignupClick, trackLogin } from "@/lib/analytics";
 
 export default function CitySignupButton() {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
@@ -28,9 +29,15 @@ export default function CitySignupButton() {
   }, [signupMenuOpen]);
 
   const handleSignup = async (intent: "resident" | "public-servant") => {
+    // Track signup start
+    trackSignupStart(intent);
+    
     if (typeof window !== "undefined") {
       window.localStorage.setItem("transparentcity.signup_intent", intent);
     }
+
+    // Track signup click
+    trackSignupClick(intent);
 
     await loginWithRedirect({
       authorizationParams: {
@@ -42,6 +49,9 @@ export default function CitySignupButton() {
   };
 
   const handleLogin = async () => {
+    // Track login attempt
+    trackLogin();
+
     await loginWithRedirect({
       authorizationParams: {
         screen_hint: "login",

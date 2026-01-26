@@ -7,7 +7,8 @@ import CityHeader from "@/components/CityHeader";
 import MetricDateRangeSelector from "@/components/MetricDateRangeSelector";
 import DistrictNavigation from "@/components/DistrictNavigation";
 import AnomaliesTabPanel from "@/components/AnomaliesTabPanel";
-import { useCity, useSavedCities, useSaveCity, useUnsaveCity, useCityLeaders } from "@/lib/hooks/useCities";
+import NewslettersTabPanel from "@/components/NewslettersTabPanel";
+import { useCity, useSavedCities, useSaveCity, useUnsaveCity, useCityLeaders, useRepresentativeFollowerCounts } from "@/lib/hooks/useCities";
 import type { CityLeader } from "@/lib/apiClient";
 import { useCityMetricOrdering } from "@/lib/hooks/useCityAdmin";
 import { emitSavedCitiesChanged, SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEvents";
@@ -29,7 +30,7 @@ interface CityViewProps {
   initialDistrict?: number | null; // Initial district to select when loading
 }
 
-type TabType = "map" | "dashboard" | "anomalies" | "admin";
+type TabType = "map" | "dashboard" | "anomalies" | "newsletters" | "admin";
 
 interface MetricWithYTD {
   id: number;
@@ -57,7 +58,7 @@ interface MetricWithYTD {
 
 /**
  * Format a metric value based on its display unit.
- * - percentage: Show as "48.7%" with 1 decimal
+ * - percentage: Show as "49%" (rounded to nearest percent)
  * - currency: Show with $ prefix
  * - default: Show as locale string (e.g., "1,234")
  */
@@ -70,8 +71,8 @@ function formatMetricValue(
   }
 
   if (displayUnit === "percentage") {
-    // For percentages, show with 1 decimal and % symbol
-    return `${value.toFixed(1)}%`;
+    // For percentages, round to nearest percent
+    return `${Math.round(value)}%`;
   }
 
   const absValue = Math.abs(value);
@@ -105,6 +106,7 @@ interface DashboardMetricsSectionProps {
   onDistrictChange?: (district: number | null) => void; // Callback when district is changed
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void; // Callback when GPS location is set
   onMetricClick?: (metricId: number, district?: number | null) => void; // Callback when metric is clicked (for modal)
+  leaderFollowerCounts?: Record<string, number>; // Follower counts per district ("0"=mayor) for Official Selector
 }
 
 // Time series data point for sparkline
@@ -464,9 +466,30 @@ const YTDSparkline = React.memo(function YTDSparkline({
   );
 });
 
-function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick }: DashboardMetricsSectionProps) {
+function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts }: DashboardMetricsSectionProps) {
   const { getAccessTokenSilently } = useAuth0();
-  const [selectedComparisonType, setSelectedComparisonType] = useState<ComparisonType>('ytd');
+  
+  // New state for explicit period selection
+  type CurrentPeriodType = 'this_year' | 'this_month';
+  type ComparisonPeriodType = 'last_year' | 'last_month';
+  
+  const [currentPeriodType, setCurrentPeriodType] = useState<CurrentPeriodType>('this_year');
+  const [comparisonPeriodType, setComparisonPeriodType] = useState<ComparisonPeriodType>('last_year');
+  
+  // Derive ComparisonType from the two selections
+  const selectedComparisonType = useMemo<ComparisonType>(() => {
+    if (currentPeriodType === 'this_year' && comparisonPeriodType === 'last_year') {
+      return 'ytd';
+    } else if (currentPeriodType === 'this_month' && comparisonPeriodType === 'last_month') {
+      return 'mtd';
+    } else if (currentPeriodType === 'this_month' && comparisonPeriodType === 'last_year') {
+      return 'mtd_prior_year';
+    } else {
+      // Fallback: this_year + last_month doesn't make sense, default to ytd
+      // This shouldn't happen with proper validation, but handle gracefully
+      return 'ytd';
+    }
+  }, [currentPeriodType, comparisonPeriodType]);
   const [ytdData, setYtdData] = useState<Record<number, { 
     lastYear: number | null; 
     thisYear: number | null; 
@@ -547,7 +570,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
         comparisonPeriodStart: ytdData[metric.id]?.comparisonPeriodStart,
         comparisonPeriodEnd: ytdData[metric.id]?.comparisonPeriodEnd,
         computedAt: ytdData[metric.id]?.computedAt,
-        maxDataDate: ytdData[metric.id]?.maxDataDate || metric.most_recent_data_date || undefined,
+        maxDataDate: metric.most_recent_data_date || ytdData[metric.id]?.maxDataDate || undefined,
         display_unit: (metric as any).display_unit || null, // "percentage", "currency", etc.
         metricOrder, // Store for sorting
       } as MetricWithYTD & { metricOrder: number });
@@ -794,6 +817,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
           sparklineData,
           dateRangeStart,
           dateRangeEnd,
+          maxDataDate: dateRangeEnd.toISOString().split("T")[0],
         },
       }));
     } catch (error) {
@@ -1006,11 +1030,11 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
   const getComparisonTypeLabel = (type: ComparisonType): string => {
     switch (type) {
       case 'ytd':
-        return 'Year to Date';
+        return 'YTD';
       case 'mtd':
-        return 'Month to Date';
+        return 'MTD';
       case 'mtd_prior_year':
-        return 'MTD vs Prior Year';
+        return 'MTD vs Prior';
       default:
         return type;
     }
@@ -1078,6 +1102,29 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     }
   }, [ytdData]);
 
+  // Get labels for dropdown options with dates
+  const currentPeriodOptions = useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.toLocaleDateString('en-US', { month: 'short' });
+    return [
+      { value: 'this_year' as CurrentPeriodType, label: `this year (${currentYear})` },
+      { value: 'this_month' as CurrentPeriodType, label: `this month (${currentMonth} ${currentYear})` },
+    ];
+  }, []);
+
+  const comparisonPeriodOptions = useMemo(() => {
+    const now = new Date();
+    const lastYear = now.getFullYear() - 1;
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonth = lastMonthDate.toLocaleDateString('en-US', { month: 'short' });
+    const lastMonthYear = lastMonthDate.getFullYear();
+    return [
+      { value: 'last_year' as ComparisonPeriodType, label: `last year (${lastYear})` },
+      { value: 'last_month' as ComparisonPeriodType, label: `last month (${lastMonth} ${lastMonthYear})` },
+    ];
+  }, []);
+
   if (!metrics || metrics.length === 0) {
     return (
       <div className="dashboard-section">
@@ -1103,6 +1150,9 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                 onDistrictChange(newDistrict);
               }}
               onGPSLocation={onGPSLocation}
+              leaderFollowerCounts={leaderFollowerCounts}
+              cityId={cityId}
+              publicPagePath={cityName ? `/c/${slugify(cityName)}` : undefined}
             />
           </div>
         ) : (
@@ -1111,79 +1161,51 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
       </div>
 
       {/* Comparison Type Selector */}
-      <div className="dashboard-comparison-selector" style={{
-        padding: '16px 24px',
-        borderBottom: '1px solid var(--border-color, #e5e7eb)',
-        backgroundColor: 'var(--bg-secondary, #f9fafb)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '16px',
-        flexWrap: 'wrap',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <label style={{
-            fontSize: '14px',
-            fontWeight: 500,
-            color: 'var(--text-primary)',
-          }}>
-            Comparison Type:
-          </label>
-          <div style={{
-            display: 'flex',
-            gap: '8px',
-          }}>
-            {(['ytd', 'mtd', 'mtd_prior_year'] as ComparisonType[]).map((type) => (
-              <button
-                key={type}
-                onClick={() => setSelectedComparisonType(type)}
-                style={{
-                  padding: '6px 16px',
-                  borderRadius: '6px',
-                  border: selectedComparisonType === type 
-                    ? '2px solid var(--primary-color, #ad35fa)' 
-                    : '1px solid var(--border-color, #d1d5db)',
-                  backgroundColor: selectedComparisonType === type 
-                    ? 'var(--primary-color-light, #f3e8ff)' 
-                    : 'white',
-                  color: selectedComparisonType === type 
-                    ? 'var(--primary-color, #ad35fa)' 
-                    : 'var(--text-secondary)',
-                  fontWeight: selectedComparisonType === type ? 600 : 500,
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-                onMouseEnter={(e) => {
-                  if (selectedComparisonType !== type) {
-                    e.currentTarget.style.borderColor = 'var(--primary-color, #ad35fa)';
-                    e.currentTarget.style.backgroundColor = 'var(--bg-hover, #f3f4f6)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (selectedComparisonType !== type) {
-                    e.currentTarget.style.borderColor = 'var(--border-color, #d1d5db)';
-                    e.currentTarget.style.backgroundColor = 'white';
-                  }
-                }}
-              >
-                {getComparisonTypeLabel(type)}
-              </button>
+      <div className="dashboard-comparison-selector">
+        <div className="comparison-selector-content">
+          <span className="comparison-selector-label">Comparing data so far</span>
+          <select
+            className="comparison-selector-dropdown"
+            value={currentPeriodType}
+            onChange={(e) => {
+              const newCurrent = e.target.value as CurrentPeriodType;
+              setCurrentPeriodType(newCurrent);
+              // Auto-adjust comparison period if needed to maintain valid combination
+              // this_year can only compare with last_year
+              if (newCurrent === 'this_year' && comparisonPeriodType === 'last_month') {
+                setComparisonPeriodType('last_year');
+              }
+            }}
+            aria-label="Select current period"
+          >
+            {currentPeriodOptions.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
             ))}
-          </div>
+          </select>
+          <span className="comparison-selector-label">with</span>
+          <select
+            className="comparison-selector-dropdown"
+            value={comparisonPeriodType}
+            onChange={(e) => {
+              const newComparison = e.target.value as ComparisonPeriodType;
+              setComparisonPeriodType(newComparison);
+              // Auto-adjust current period if needed to maintain valid combination
+              // last_month can only compare with this_month
+              if (currentPeriodType === 'this_year' && newComparison === 'last_month') {
+                setCurrentPeriodType('this_month');
+              }
+            }}
+            aria-label="Select comparison period"
+          >
+            {comparisonPeriodOptions.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
-        
-        {/* Last Computed Date */}
-        {lastComputedAt && (
-          <div style={{
-            fontSize: '11px',
-            color: 'var(--text-tertiary, #9ca3af)',
-            fontWeight: 400,
-            opacity: 0.7,
-          }}>
-            Computed: {lastComputedAt}
-          </div>
-        )}
       </div>
       
       <div className="metrics-table-container">
@@ -1364,7 +1386,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                                         {absoluteDiff !== null ? (absoluteDiff > 0 ? "+" : "") + Math.round(absoluteDiff).toLocaleString() : "—"}
                                       </span>
                                       <span className="change-percent">
-                                        {percentDelta !== null ? (percentDelta > 0 ? "+" : "") + percentDelta.toFixed(1) + "%" : "—"}
+                                        {percentDelta !== null ? (percentDelta > 0 ? "+" : "") + Math.round(percentDelta) + "%" : "—"}
                                       </span>
                                     </>
                                   )}
@@ -1394,7 +1416,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
   const [headerVisible, setHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const [metricDateRange, setMetricDateRange] = useState<MetricDateRange>(
-    getPresetMetricDateRange("all")
+    getPresetMetricDateRange("last_week")
   );
   // Use initialDistrict if provided, otherwise default to 0 (mayor/citywide)
   const [selectedDistrict, setSelectedDistrict] = useState<number | null>(initialDistrict ?? 0);
@@ -1420,6 +1442,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
   // Use React Query hooks for data fetching - these handle caching automatically
   const { data: cityData, isLoading: loadingCity, error: cityError } = useCity(cityId);
   const { data: savedCities = [], isLoading: loadingSaved } = useSavedCities();
+  const { data: leaderFollowerCounts } = useRepresentativeFollowerCounts(cityId);
   
   // Mutations for save/unsave
   const saveCityMutation = useSaveCity();
@@ -1431,13 +1454,14 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
   }, [savedCities, cityId]);
 
   // Set default date range when city data loads
+  // Default to "last week" for Map Panel instead of calculating from metrics
   useEffect(() => {
     if (cityData?.metrics && cityData.metrics.length > 0) {
-      const defaultDateRange = getDefaultDateRangeFromMetrics(cityData.metrics);
-      setMetricDateRange(defaultDateRange);
+      // Use "last week" preset instead of calculating custom date range
+      setMetricDateRange(getPresetMetricDateRange("last_week"));
     } else {
-      // Reset to "all" when switching cities or if no metrics
-      setMetricDateRange(getPresetMetricDateRange("all"));
+      // Reset to "last week" when switching cities or if no metrics
+      setMetricDateRange(getPresetMetricDateRange("last_week"));
     }
   }, [cityData?.metrics, cityId]);
 
@@ -1641,6 +1665,9 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
                 onGPSLocation={(location) => {
                   setDistrictGPSLocation(location);
                 }}
+                leaderFollowerCounts={leaderFollowerCounts}
+                cityId={cityId}
+                publicPagePath={cityData?.name ? `/c/${slugify(cityData.name)}` : undefined}
               />
             </div>
           )}
@@ -1657,7 +1684,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
 
       {/* Non-Map Tabs - Full Width Layout with Attached Header */}
       {activeTab !== "map" && (
-        <div className={`tab-content-wrapper ${activeTab === "dashboard" ? "dashboard-tab" : activeTab === "anomalies" ? "anomalies-tab" : "admin-tab"}`}>
+        <div className={`tab-content-wrapper ${activeTab === "dashboard" ? "dashboard-tab" : activeTab === "anomalies" ? "anomalies-tab" : activeTab === "newsletters" ? "newsletters-tab" : "admin-tab"}`}>
           {/* Header - Attached to top */}
           <CityHeader
             emoji={cityData.emoji || undefined}
@@ -1696,6 +1723,12 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             >
               Alerts
             </button>
+            <button
+              className={`tab-btn ${activeTab === "newsletters" ? "active" : ""}`}
+              onClick={() => setActiveTab("newsletters")}
+            >
+              Newsletters
+            </button>
             {isAdmin && (
               <button
                 className={`tab-btn ${activeTab === "admin" ? "active" : ""}`}
@@ -1722,6 +1755,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
                   setSelectedMetricId(metricId);
                   setSelectedMetricDistrict(district ?? selectedDistrict);
                 }}
+                leaderFollowerCounts={leaderFollowerCounts}
               />
             )}
 
@@ -1735,6 +1769,16 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
                   setSelectedMetricId(metricId);
                   setSelectedMetricDistrict(district ?? selectedDistrict);
                 }}
+                />
+              </div>
+            )}
+
+            {activeTab === "newsletters" && (
+              <div className="newsletters-section">
+                <NewslettersTabPanel
+                  cityId={cityId}
+                  cityName={cityData.name}
+                  initialDistrict={selectedDistrict}
                 />
               </div>
             )}

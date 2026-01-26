@@ -567,7 +567,7 @@
 
 @media (max-width: 640px) {
   .dashboard-section {
-    padding: 0;
+    padding: 0 14px;
     width: 100%;
     max-width: 100%;
   }
@@ -594,20 +594,10 @@
   padding: 24px 0 0 0; /* Padding for Official Selector, same feel as map overlay */
 }
 
-/* District Navigation in Dashboard View - same styling as map (no overrides on header) */
+/* District Navigation in Dashboard View - full width Official Selector */
 .dashboard-district-navigation {
-  display: inline-block;
-  width: auto;
-  min-width: 300px;
-  max-width: 400px;
-}
-
-@media (max-width: 640px) {
-  .dashboard-district-navigation {
-    width: 100%;
-    min-width: 100%;
-    max-width: 100%;
-  }
+  width: 100%;
+  max-width: 100%;
 }
 
 .dashboard-header-selector {
@@ -616,42 +606,88 @@
 
 /* Comparison Type Selector */
 .dashboard-comparison-selector {
-  padding: 8px 24px;
+  padding: 10px 20px;
   border-bottom: 1px solid var(--border-primary, #e5e7eb);
   background-color: var(--bg-secondary, #f9fafb);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-.dashboard-comparison-selector label {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary);
+.comparison-selector-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
 }
 
-.dashboard-comparison-selector button {
-  padding: 6px 16px;
-  border-radius: 6px;
+.comparison-selector-label {
   font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  font-weight: 500;
+  color: var(--text-primary, #111827);
   white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.comparison-selector-dropdown {
+  padding: 5px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #111827);
+  background-color: white;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 110px;
+  max-width: 140px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  background-size: 10px;
+  padding-right: 28px;
+  flex-shrink: 0;
+}
+
+.comparison-selector-dropdown:hover {
+  border-color: var(--primary-color, #ad35fa);
+  background-color: var(--bg-hover, #f9fafb);
+}
+
+.comparison-selector-dropdown:focus {
+  outline: none;
+  border-color: var(--primary-color, #ad35fa);
+  box-shadow: 0 0 0 3px rgba(173, 53, 250, 0.1);
 }
 
 @media (max-width: 640px) {
   .dashboard-comparison-selector {
-    padding: 8px 16px;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+    padding: 8px 12px;
+    gap: 4px;
   }
   
-  .dashboard-comparison-selector button {
-    padding: 5px 12px;
+  .comparison-selector-content {
+    gap: 4px;
+  }
+  
+  .comparison-selector-label {
     font-size: 12px;
+  }
+  
+  .comparison-selector-dropdown {
+    padding: 4px 8px;
+    font-size: 12px;
+    min-width: 90px;
+    max-width: 120px;
+    padding-right: 24px;
+    background-position: right 5px center;
+    background-size: 9px;
   }
 }
 
@@ -861,7 +897,7 @@
   }
   
   .dashboard-section {
-    padding: 0;
+    padding: 0 14px;
     width: 100%;
     max-width: 100%;
     margin: 0;
@@ -1357,9 +1393,10 @@ button.metrics-table-row {
   padding-top: 4px;
 }
 
-/* Change column - space above + indent from right */
+/* Change column - same top spacing as YTD value columns (date-label height + row padding)
+   so the change value aligns with the numeric values in the YTD columns. */
 .metrics-table-row .metric-col-change {
-  padding-top: 4px;
+  padding-top: 19px; /* ~4px row padding + ~15px (one line of .metric-date-label) */
   padding-right: 8px;
 }
 
@@ -1581,9 +1618,9 @@ button.metrics-table-row {
   }
   
   
-  /* Change column: top padding for spacing + right indent */
+  /* Change column: same as desktop - align with YTD values (date-label equivalent space) */
   .metrics-table-row .metric-col-change {
-    padding-top: 4px;
+    padding-top: 19px;
     padding-right: 8px;
   }
   
@@ -1631,75 +1668,48 @@ button.metrics-table-row {
   }
 }
 
-/* Subcategory Headers - Minimal, subtle grouping within categories */
+/* Subcategory Headers - Dimmed so main category headers stand out */
 .metrics-subcategory-header {
   display: flex;
   align-items: center;
-  padding: 8px 16px;
-  background: var(--bg-secondary, #f9fafb);
+  padding: 6px 16px;
+  background: var(--bg-primary);
   border-bottom: 1px solid var(--border-primary);
 }
 
 .metrics-subcategory-title {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-secondary, #6b7280);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-tertiary, #9ca3af);
   text-transform: capitalize;
-  letter-spacing: 0.3px;
-  position: relative;
-  padding-left: 10px;
-}
-
-/* Subtle left accent bar */
-.metrics-subcategory-title::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 12px;
-  background: var(--brand-primary, #ad35fa);
-  border-radius: 2px;
-  opacity: 0.6;
+  letter-spacing: 0.2px;
+  padding-left: 0;
 }
 
 /* Dark mode support */
 [data-theme="dark"] .metrics-subcategory-header,
 .dark .metrics-subcategory-header {
-  background: var(--bg-tertiary, #1f2937);
+  background: var(--bg-primary);
 }
 
 [data-theme="dark"] .metrics-subcategory-title,
 .dark .metrics-subcategory-title {
-  color: var(--text-secondary, #9ca3af);
-}
-
-[data-theme="dark"] .metrics-subcategory-title::before,
-.dark .metrics-subcategory-title::before {
-  opacity: 0.7;
+  color: var(--text-tertiary, #6b7280);
 }
 
 /* Mobile responsiveness */
 @media (max-width: 640px) {
-  /* Subcategory headers: 100% width, optimized spacing */
   .metrics-subcategory-header {
-    padding: 10px 0; /* More vertical padding for clarity and separation */
+    padding: 8px 12px;
     width: 100%;
     margin: 0;
   }
-  
+
   .metrics-subcategory-title {
     font-size: 10px;
-    font-weight: 500;
-    padding-left: 10px; /* Match row padding for alignment with purple tick */
-    line-height: 1.4; /* Better line height for readability */
-  }
-  
-  .metrics-subcategory-title::before {
-    width: 2px;
-    height: 12px; /* Slightly taller for better visibility */
-    left: 0; /* Align tick with row content start */
+    font-weight: 400;
+    padding-left: 0;
+    line-height: 1.4;
   }
 }
 

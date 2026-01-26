@@ -2,6 +2,7 @@
 
 import { useAuth0 } from "@auth0/auth0-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import styles from "./Header.module.css";
 
@@ -45,10 +46,15 @@ export default function Header({
   onCityDropdownClose,
 }: HeaderProps) {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
+  const router = useRouter();
   const [signupMenuOpen, setSignupMenuOpen] = useState(false);
   const cityPickerRef = useRef<HTMLDivElement | null>(null);
 
   const handleLogin = async () => {
+    if (isAuthenticated) {
+      router.push("/dashboard");
+      return;
+    }
     await loginWithRedirect({
       authorizationParams: {
         screen_hint: "login",
@@ -56,6 +62,14 @@ export default function Header({
       },
       appState: { returnTo: "/dashboard" },
     });
+  };
+
+  const handleGoToDashboard = () => {
+    if (isAuthenticated) {
+      router.push("/dashboard");
+      return;
+    }
+    setSignupMenuOpen((v) => !v);
   };
 
   const handleSignup = async (intent: "resident" | "public-servant") => {
@@ -404,9 +418,9 @@ export default function Header({
             <div className={styles.menuWrap}>
               <button
                 className={`${styles.button} ${styles.buttonPrimary}`}
-                onClick={() => setSignupMenuOpen((v) => !v)}
+                onClick={handleGoToDashboard}
                 disabled={isLoading}
-                aria-haspopup="menu"
+                aria-haspopup={!isAuthenticated ? "menu" : undefined}
                 aria-expanded={signupMenuOpen}
               >
                 {isAuthenticated ? "Go to dashboard" : "Sign up"}

@@ -25,6 +25,20 @@
   border-left-color: var(--brand-primary);
 }
 
+.itemOtherUser {
+  opacity: 0.75;
+  background: var(--bg-secondary, #f5f5f5);
+}
+
+.itemOtherUser:hover {
+  background: var(--bg-tertiary);
+  opacity: 0.85;
+}
+
+.itemOtherUser .title {
+  color: var(--text-secondary, #666666);
+}
+
 .content {
   flex: 1;
   min-width: 0;
@@ -62,10 +76,12 @@
   position: relative;
   z-index: 10;
   flex-shrink: 0;
+  pointer-events: none;
 }
 
 .item:hover .menuBtn {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .menuBtn:hover {

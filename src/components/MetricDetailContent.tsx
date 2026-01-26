@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { usePublicMetricComparisons, usePublicMetricTimeSeriesSummary } from "@/lib/hooks/usePublicMetric";
 import type { PublicMetricDetail } from "@/lib/publicApiClient";
+import { getPublicMetricCompleteness, type MetricCompletenessResponse } from "@/lib/publicApiClient";
 import MetricMapEmbed from "./MetricMapEmbed";
 import CategoryBreakdown from "./CategoryBreakdown";
 import { slugify } from "@/lib/utils";
@@ -132,6 +133,17 @@ export default function MetricDetailContent({
     selectedPeriod
   );
   const timeSeriesQuery = usePublicMetricTimeSeriesSummary(metric.id);
+  
+  // Fetch completeness information
+  const [completenessData, setCompletenessData] = useState<MetricCompletenessResponse | null>(null);
+  useEffect(() => {
+    getPublicMetricCompleteness(metric.id)
+      .then(setCompletenessData)
+      .catch((err) => {
+        console.warn("Failed to load completeness data:", err);
+        setCompletenessData(null);
+      });
+  }, [metric.id]);
 
   const comparison = comparisonsQuery.data?.comparisons[selectedPeriod];
 
@@ -303,7 +315,7 @@ export default function MetricDetailContent({
                     : "trend-bad"
               }
             >
-              {trend.isIncrease ? "up" : "down"} {Math.abs(trend.percent).toFixed(1)}%
+              {trend.isIncrease ? "up" : "down"} {Math.round(Math.abs(trend.percent))}%
             </span>{" "}
             {periodDescriptions[selectedPeriod]}.
           </div>
@@ -359,106 +371,6 @@ export default function MetricDetailContent({
         </section>
       )}
 
-      {/* Definition */}
-      {metric.definition && (
-        <section className="metric-section metric-definition">
-          <h2 className="metric-section-title">How are these calculated?</h2>
-          <p className="metric-source-intro">
-            This data comes from {cityName}'s own{" "}
-            {(() => {
-              const portal = getDataPortalForCity(citySlug, cityName);
-              return portal ? (
-                <a
-                  href={portal.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="provenance-link-inline"
-                >
-                  {portal.name}
-                </a>
-              ) : (
-                "official open data portal"
-              );
-            })()}
-            . Learn more about{" "}
-            <a href="/mission" className="provenance-link-inline">
-              Transparent City's mission
-            </a>{" "}
-            and{" "}
-            <a href={`/c/${citySlug}/methodology`} className="provenance-link-inline">
-              our methodology
-            </a>
-            .
-          </p>
-          <p className={`metric-definition-text ${definitionExpanded ? "expanded" : "clamped"}`}>
-            {metric.definition}
-          </p>
-          <button
-            className="metric-more-btn"
-            onClick={() => setDefinitionExpanded((prev) => !prev)}
-          >
-            {definitionExpanded ? "Show less" : "Show more"}
-          </button>
-          {definitionExpanded && (
-            <div className="metric-definition-extra">
-              {(metric.source_url || metric.data_sf_url) && (
-                <div className="provenance-item">
-                  <h3 className="provenance-label">Where does this data come from?</h3>
-                  <p className="provenance-value">
-                    {metric.dataset_title && (
-                      <>
-                        {metric.dataset_title}
-                        {metric.dataset_category && ` (${metric.dataset_category})`}
-                      </>
-                    )}
-                    {metric.source_url && (
-                      <a
-                        href={metric.source_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="provenance-link"
-                      >
-                        View original dataset →
-                      </a>
-                    )}
-                    {metric.data_sf_url && !metric.source_url && (
-                      <a
-                        href={metric.data_sf_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="provenance-link"
-                      >
-                        View on DataSF →
-                      </a>
-                    )}
-                  </p>
-                </div>
-              )}
-              {metric.most_recent_data_date && (
-                <div className="provenance-item">
-                  <h3 className="provenance-label">How recent is this data?</h3>
-                  <p className="provenance-value">
-                    Data through {new Date(metric.most_recent_data_date).toLocaleDateString()}
-                  </p>
-                </div>
-              )}
-              {(metric.earliest_data_date || metric.most_recent_data_date) && (
-                <div className="provenance-item">
-                  <h3 className="provenance-label">How far back does this go?</h3>
-                  <p className="provenance-value">
-                    {metric.earliest_data_date &&
-                      new Date(metric.earliest_data_date).toLocaleDateString()}
-                    {metric.earliest_data_date && metric.most_recent_data_date && " – "}
-                    {metric.most_recent_data_date &&
-                      new Date(metric.most_recent_data_date).toLocaleDateString()}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-      )}
-
       {/* Category Breakdown */}
       {metric.category_fields && metric.category_fields.length > 0 && (
         <section className="metric-section">
@@ -466,6 +378,173 @@ export default function MetricDetailContent({
           <CategoryBreakdown metricId={metric.id} categoryFields={metric.category_fields} />
         </section>
       )}
+
+      {/* About This Data */}
+      <section className="metric-section metric-definition">
+        <h2 className="metric-section-title">About this data</h2>
+        
+        {/* Data source summary - always visible */}
+        <div className="data-source-summary">
+          {(() => {
+            const portal = getDataPortalForCity(citySlug, cityName);
+            const datasetUrl = metric.source_url || metric.data_sf_url;
+            
+            return (
+              <div className="provenance-item">
+                <h3 className="provenance-label">Source</h3>
+                <p className="provenance-value">
+                          This data comes from{" "}
+                          {datasetUrl ? (
+                            <a
+                              href={datasetUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="provenance-link-inline"
+                            >
+                              {metric.dataset_name || metric.dataset_title || metric.metric_name}
+                            </a>
+                          ) : (
+                            <strong>{metric.dataset_name || metric.dataset_title || metric.metric_name}</strong>
+                          )}
+                          , a public dataset maintained by {cityName} on{" "}
+                  {portal ? (
+                    <a
+                      href={portal.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="provenance-link-inline"
+                    >
+                      {portal.name}
+                    </a>
+                  ) : (
+                    "the city's open data portal"
+                  )}
+                  .
+                </p>
+              </div>
+            );
+          })()}
+
+          {/* Date range and freshness - compact format */}
+          {(metric.earliest_data_date || metric.most_recent_data_date) && (
+            <div className="provenance-item">
+              <h3 className="provenance-label">Coverage</h3>
+              <p className="provenance-value">
+                {metric.earliest_data_date && metric.most_recent_data_date ? (
+                  <>
+                    {new Date(metric.earliest_data_date).toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric"
+                    })}
+                    {" to "}
+                    {new Date(metric.most_recent_data_date).toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric"
+                    })}
+                    {metric.last_execution_at && (
+                      <span style={{ color: "var(--text-secondary)", marginLeft: "0.5rem" }}>
+                        · Last checked {new Date(metric.last_execution_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric"
+                        })}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {metric.most_recent_data_date && (
+                      <>
+                        Most recent: {new Date(metric.most_recent_data_date).toLocaleDateString("en-US", {
+                          month: "long",
+                          day: "numeric",
+                          year: "numeric"
+                        })}
+                      </>
+                    )}
+                  </>
+                )}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Expand for technical details */}
+        <button
+          className="metric-more-btn"
+          onClick={() => setDefinitionExpanded((prev) => !prev)}
+          style={{ marginTop: "1rem" }}
+        >
+          {definitionExpanded ? "Hide details" : "How we calculate this"}
+        </button>
+
+        {/* Expanded technical details */}
+        {definitionExpanded && (
+          <div className="metric-definition-extra" style={{ marginTop: "1rem" }}>
+            {/* Calculation method - moved to top of expanded section */}
+            {metric.definition && (
+              <div className="provenance-item">
+                <h3 className="provenance-label">Calculation</h3>
+                <p className="provenance-value">
+                  {metric.definition}
+                </p>
+              </div>
+            )}
+
+            {/* Data reliability note */}
+            {completenessData && completenessData.has_data && completenessData.period_types.length > 0 && (
+              <div className="provenance-item">
+                <h3 className="provenance-label">Data reliability</h3>
+                <div className="provenance-value">
+                  <p style={{ marginBottom: "0.75rem", color: "var(--text-secondary)" }}>
+                    Recent data may be incomplete as reports are filed and finalized. We monitor reporting patterns to account for this when detecting trends or anomalies.
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    {completenessData.period_types.map((periodInfo) => (
+                      <div key={periodInfo.period_type} style={{ 
+                        padding: "0.625rem 0.75rem", 
+                        backgroundColor: "var(--bg-secondary, #f5f5f5)",
+                        borderRadius: "4px",
+                        fontSize: "0.875rem",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        gap: "0.5rem"
+                      }}>
+                        <span style={{ textTransform: "capitalize", fontWeight: 500 }}>
+                          {periodInfo.period_type}
+                        </span>
+                        <span style={{ color: "var(--text-secondary)", fontSize: "0.8125rem" }}>
+                          {periodInfo.is_stable ? (
+                            <>
+                              {periodInfo.avg_days_to_stabilize ? (
+                                <>Stabilizes in ~{Math.round(periodInfo.avg_days_to_stabilize)} days</>
+                              ) : (
+                                <>Stable</>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              {periodInfo.stable_periods_count !== null && periodInfo.stable_periods_count !== undefined ? (
+                                <>Learning patterns ({periodInfo.stable_periods_count}/{periodInfo.min_stable_periods_required || 5} stable periods)</>
+                              ) : (
+                                <>Collecting data</>
+                              )}
+                            </>
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

@@ -30,7 +30,7 @@ function pctChange(current: number | null, prior: number | null): string | null 
   if (current == null || prior == null || prior === 0) return null;
   const pct = ((current - prior) / prior) * 100;
   const sign = pct >= 0 ? "+" : "";
-  return `${sign}${pct.toFixed(1)}%`;
+  return `${sign}${Math.round(pct)}%`;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -55,7 +55,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // use slug
   }
   return {
-    title: `District ${d} – ${cityName} – Transparent.city`,
+    title: `District ${d} – ${cityName}`,
     description: `District ${d} dashboard and newsletter for ${cityName}. Metrics, charts, and monthly updates.`,
   };
 }

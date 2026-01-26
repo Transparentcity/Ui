@@ -801,7 +801,6 @@ export default function WelcomeModal({
       </div>
       
       <p className={styles.disclaimer}>
-        Independent &amp; nonpartisan. All data is sourced from official city open data portals with documented queries and direct links.{" "}
         <a href="/methodology" className={styles.disclaimerLink}>
           Data &amp; Methodology FAQ
         </a>

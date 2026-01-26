@@ -489,23 +489,14 @@ function formatDateLabel(dateStr: string, periodType: PeriodType): string {
       // ISO week format: YYYY-WXX
       return dateStr;
     } else if (periodType === "month" && dateStr.match(/^\d{4}-\d{2}$/)) {
-      // YYYY-MM format
+      // YYYY-MM format - show full date with day (1st of month)
       const [year, month] = dateStr.split("-");
-      const monthNames = [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec",
-      ];
-      return `${monthNames[parseInt(month) - 1]} ${year}`;
+      const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
     } else if (periodType === "year") {
       return dateStr;
     } else {
@@ -797,7 +788,7 @@ export default function TimeSeriesChart({
 
         // Build hover template with group value included
         const hoverPrefix = hasGroups && groupValue ? `${groupValue}<br>` : "";
-        const dateFormat = periodType === "month" ? "%b %Y" 
+        const dateFormat = periodType === "month" ? "%b %d, %Y" 
           : periodType === "year" ? "%Y" 
           : periodType === "week" ? "Week of %b %d, %Y"
           : "%b %d, %Y";
@@ -992,7 +983,15 @@ export default function TimeSeriesChart({
       };
     }
     
+    // Calculate total data points across all groups for tick interval decision
+    let totalDataPoints = 0;
+    for (const points of aggregatedByGroup.values()) {
+      totalDataPoints = Math.max(totalDataPoints, points.length);
+    }
+    
     // Regular layout for other period types
+    const tickInterval = getTickInterval(periodType, totalDataPoints);
+    
     return {
       title: {
         text: chartTitle,
@@ -1014,6 +1013,7 @@ export default function TimeSeriesChart({
           color: textColor,
         },
         tickformat: getTickFormat(periodType),
+        ...(tickInterval && { dtick: tickInterval }),
         showline: true,
         linecolor: axisLineColor,
         linewidth: 1,
@@ -1217,11 +1217,38 @@ function getTickFormat(periodType: PeriodType): string {
     case "week":
       return "%b %d, %Y";
     case "month":
-      return "%b %Y";
+      return "%b %d, %Y";
     case "year":
       return "%Y";
     default:
       return "%b %d, %Y";
+  }
+}
+
+/**
+ * Get tick interval (dtick) for x-axis based on period type and data range.
+ * Returns appropriate dtick value for Plotly's date axis.
+ */
+function getTickInterval(periodType: PeriodType, dataPointCount: number): string | number | undefined {
+  switch (periodType) {
+    case "day":
+      // For daily data, show ticks every 7 days if many points, otherwise every day
+      if (dataPointCount > 60) return "M1"; // Monthly ticks for long ranges
+      if (dataPointCount > 14) return 7 * 24 * 60 * 60 * 1000; // Weekly (in ms)
+      return 24 * 60 * 60 * 1000; // Daily (in ms)
+    case "week":
+      // For weekly data, show ticks every 4 weeks if many points
+      if (dataPointCount > 26) return "M1"; // Monthly ticks
+      return 4 * 7 * 24 * 60 * 60 * 1000; // Every 4 weeks (in ms)
+    case "month":
+      // For monthly data, show every month or every 3 months for long ranges
+      if (dataPointCount > 24) return "M3"; // Quarterly
+      return "M1"; // Monthly
+    case "year":
+      // For yearly data, show every year
+      return "M12"; // Yearly
+    default:
+      return undefined;
   }
 }
 

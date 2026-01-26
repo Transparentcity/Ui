@@ -77,6 +77,8 @@ export type PublicCityDetail = {
   country?: string | null;
   emoji?: string | null;
   metrics: PublicCityMetricItem[];
+  mayor?: { name: string } | null;
+  mayor_subscriber_count?: number;
 };
 
 export function getPublicCityDetail(cityId: number): Promise<PublicCityDetail> {
@@ -109,22 +111,37 @@ export type PublicCitySearchResult = {
 };
 
 function isUnitedStates(value: string | null | undefined): boolean {
-  const v = (value || "").trim().toLowerCase();
+  if (!value) return false;
+  const v = value.trim().toLowerCase();
+  // Handle various US country name formats
   return (
     v === "united states" ||
     v === "united states of america" ||
     v === "us" ||
-    v === "usa"
+    v === "usa" ||
+    v === "u.s." ||
+    v === "u.s.a." ||
+    v === "united states of america (usa)" ||
+    v.startsWith("united states")
   );
 }
 
-function sortUsCitiesFirst<T extends { country?: string | null }>(items: T[]): T[] {
-  // Keep backend relevance ordering within each bucket; only bucket by country.
+function sortUsCitiesFirst<T extends { country?: string | null; display_name?: string; name?: string }>(items: T[]): T[] {
+  // Sort US cities first, then all other cities
+  // Within each group, sort alphabetically by city name
   return [...items].sort((a, b) => {
     const aUs = isUnitedStates(a.country);
     const bUs = isUnitedStates(b.country);
-    if (aUs === bUs) return 0;
-    return aUs ? -1 : 1;
+    
+    // If one is US and the other isn't, US comes first
+    if (aUs !== bUs) {
+      return aUs ? -1 : 1;
+    }
+    
+    // Within the same group (both US or both not US), sort alphabetically by city name
+    const aName = (a.display_name || a.name || "").toLowerCase();
+    const bName = (b.display_name || b.name || "").toLowerCase();
+    return aName.localeCompare(bName);
   });
 }
 
@@ -167,6 +184,7 @@ export type PublicMetricDetail = {
   data_sf_url: string | null;
   dataset_title: string | null;
   dataset_category: string | null;
+  dataset_name: string | null;  // Friendly name from datasets table
   show_on_dash: boolean;
   item_noun: string;
   greendirection: string;
@@ -270,6 +288,35 @@ export function getPublicMetricTimeSeriesSummary(
 ): Promise<PublicTimeSeriesSummary> {
   return requestPublic<PublicTimeSeriesSummary>(
     `/api/public/metrics/${metricId}/time-series/summary`
+  );
+}
+
+// Period completeness information
+export type PeriodCompletenessInfo = {
+  period_type: string;
+  is_stable: boolean;
+  completeness_pct?: number | null;
+  days_to_stabilize?: number | null;
+  sample_size?: number | null;
+  avg_days_to_stabilize?: number | null;
+  total_periods_tracked?: number | null;
+  stable_periods_count?: number | null;
+  unstable_periods_count?: number | null;
+  periods_needed_for_pattern?: number | null;
+  min_stable_periods_required?: number;
+};
+
+export type MetricCompletenessResponse = {
+  metric_id: number;
+  period_types: PeriodCompletenessInfo[];
+  has_data: boolean;
+};
+
+export function getPublicMetricCompleteness(
+  metricId: number
+): Promise<MetricCompletenessResponse> {
+  return requestPublic<MetricCompletenessResponse>(
+    `/api/time-series/public/metric/${metricId}/completeness`
   );
 }
 

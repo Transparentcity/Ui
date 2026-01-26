@@ -24,6 +24,7 @@ import {
   saveCityMetricOrdering,
   resetCityMetricOrdering,
   batchExecuteMetrics,
+  structureCityMetrics,
   type CityAdminData,
   type CityStatsResponse,
   type CityStructureData,
@@ -40,6 +41,8 @@ import {
   type MetricOrderingResponse,
   type BatchExecuteMetricsRequest,
   type BatchExecuteMetricsResponse,
+  type StructureCityMetricsRequest,
+  type StructureCityMetricsResult,
 } from "@/lib/apiClient";
 
 // Query keys factory for city admin
@@ -270,6 +273,46 @@ export function useRestructureCity() {
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: cityAdminKeys.structure(variables.cityId) });
         queryClient.invalidateQueries({ queryKey: cityAdminKeys.detail(variables.cityId) });
+      }, 2000);
+    },
+  });
+}
+
+/**
+ * Hook to structure city metrics using Seymour AI.
+ * Orchestrates portal discovery, dataset fetching, city structuring, and template instantiation.
+ * Invalidates city admin data and metrics on success.
+ */
+export function useStructureCityMetrics() {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      cityId: number;
+      skipPortalDiscovery?: boolean;
+      skipDatasetFetching?: boolean;
+      skipStructuring?: boolean;
+      skipMetricInstantiation?: boolean;
+    }) => {
+      const token = await getAccessTokenSilently();
+      return structureCityMetrics(
+        params.cityId,
+        {
+          skip_portal_discovery: params.skipPortalDiscovery ?? false,
+          skip_dataset_fetching: params.skipDatasetFetching ?? false,
+          skip_structuring: params.skipStructuring ?? false,
+          skip_metric_instantiation: params.skipMetricInstantiation ?? false,
+        },
+        token
+      );
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate city admin data, structure, and metrics after completion
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: cityAdminKeys.detail(variables.cityId) });
+        queryClient.invalidateQueries({ queryKey: cityAdminKeys.structure(variables.cityId) });
+        queryClient.invalidateQueries({ queryKey: ["cities", "metrics", variables.cityId] });
       }, 2000);
     },
   });

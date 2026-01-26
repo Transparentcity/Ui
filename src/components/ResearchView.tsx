@@ -14,6 +14,8 @@ import {
   resynthesizeResearch,
   getAvailableModels,
   ModelGroupInfo,
+  generateFeedStoriesFromResearch,
+  listFeedStories,
 } from "@/lib/apiClient";
 import { pickDefaultModelKey } from "@/lib/modelDefaults";
 import Loader from "./Loader";
@@ -43,6 +45,11 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isResynthesizing, setIsResynthesizing] = useState(false);
+  
+  // Feed stories state
+  const [feedStoriesCount, setFeedStoriesCount] = useState<number | null>(null);
+  const [isCheckingFeedStories, setIsCheckingFeedStories] = useState(false);
+  const [isGeneratingFeedStories, setIsGeneratingFeedStories] = useState(false);
 
   const loadAll = useCallback(async (skipLoadingState = false) => {
     try {
@@ -89,6 +96,33 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
       }
     })();
   }, [getAccessTokenSilently, research?.model_key]);
+
+  // Check for existing feed stories when research is completed
+  useEffect(() => {
+    const checkFeedStories = async () => {
+      if (!research || research.status !== "completed") {
+        setFeedStoriesCount(null);
+        return;
+      }
+      
+      setIsCheckingFeedStories(true);
+      try {
+        const token = await getAccessTokenSilently();
+        const response = await listFeedStories(token, {
+          research_report_id: reportId,
+          limit: 100,
+        });
+        setFeedStoriesCount(response.count);
+      } catch (err) {
+        console.error("Failed to check feed stories:", err);
+        setFeedStoriesCount(null);
+      } finally {
+        setIsCheckingFeedStories(false);
+      }
+    };
+    
+    void checkFeedStories();
+  }, [research, reportId, getAccessTokenSilently]);
 
   // Poll for updates when research is in draft state (waiting for agenda)
   // Once agenda is ready or research is running, WebSocket handles updates
@@ -344,6 +378,46 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
           detail: { session_id: sessionId },
         })
       );
+    }
+  };
+
+  const handleGenerateFeedStories = async () => {
+    if (!research) return;
+    
+    setIsGeneratingFeedStories(true);
+    try {
+      const token = await getAccessTokenSilently();
+      
+      // Extract city_id and district from research report
+      const cityId = research.city_id;
+      const district = research.district ? parseInt(research.district) : 0;
+      const frequency = (research as any).metadata?.frequency || "weekly";
+      
+      if (!cityId) {
+        alert("Cannot generate feed stories: Research report missing city_id. Please provide city_id manually.");
+        return;
+      }
+      
+      const response = await generateFeedStoriesFromResearch(
+        reportId,
+        {
+          city_id: cityId,
+          district: district,
+          newsletter_frequency: frequency,
+          story_count: 3,
+        },
+        token
+      );
+      
+      // Update feed stories count
+      setFeedStoriesCount(response.stories_created);
+      
+      alert(`Successfully generated ${response.stories_created} feed stories!`);
+    } catch (err: any) {
+      console.error("Failed to generate feed stories:", err);
+      alert(err.message || "Failed to generate feed stories");
+    } finally {
+      setIsGeneratingFeedStories(false);
     }
   };
 
@@ -716,6 +790,63 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
           </div>
         )}
 
+
+        {/* Feed Stories section for completed research */}
+        {research.status === "completed" && (
+          <div className={styles.section}>
+            <h2>Feed Stories</h2>
+            <div className={styles.shareControls}>
+              {isCheckingFeedStories ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Loader size="sm" color="dark" />
+                  <span>Checking for existing feed stories...</span>
+                </div>
+              ) : feedStoriesCount !== null && feedStoriesCount > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div style={{ color: "var(--text-secondary)", fontSize: "14px" }}>
+                    ✓ {feedStoriesCount} feed {feedStoriesCount === 1 ? "story" : "stories"} already generated
+                  </div>
+                  <button
+                    onClick={handleGenerateFeedStories}
+                    disabled={isGeneratingFeedStories}
+                    className={styles.publishButton}
+                    style={{ alignSelf: "flex-start" }}
+                  >
+                    {isGeneratingFeedStories ? (
+                      <>
+                        <Loader size="sm" color="white" />
+                        <span style={{ marginLeft: "8px" }}>Generating...</span>
+                      </>
+                    ) : (
+                      "Generate More Feed Stories"
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div style={{ color: "var(--text-secondary)", fontSize: "14px" }}>
+                    No feed stories generated yet. Generate stories to add this research to the feed.
+                  </div>
+                  <button
+                    onClick={handleGenerateFeedStories}
+                    disabled={isGeneratingFeedStories}
+                    className={styles.publishButton}
+                    style={{ alignSelf: "flex-start" }}
+                  >
+                    {isGeneratingFeedStories ? (
+                      <>
+                        <Loader size="sm" color="white" />
+                        <span style={{ marginLeft: "8px" }}>Generating...</span>
+                      </>
+                    ) : (
+                      "Generate Feed Stories"
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Error display */}
         {research.status === "failed" && research.error_message && (

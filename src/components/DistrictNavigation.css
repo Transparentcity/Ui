@@ -40,6 +40,90 @@
   font-weight: 700; /* Bold name for "Title: Name" display */
 }
 
+.district-navigation-subscribers {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #666);
+  font-weight: 500;
+}
+
+.district-navigation-subscribe {
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--brand-primary, #ad35fa);
+  background: transparent;
+  border: 1px solid var(--brand-primary, #ad35fa);
+  border-radius: 6px;
+  text-decoration: none;
+  white-space: nowrap;
+  margin: 0 4px 0 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.district-navigation-subscribe:hover {
+  background: var(--brand-primary, #ad35fa);
+  color: white;
+}
+
+.district-navigation-subscribe.following {
+  background: var(--brand-primary, #ad35fa);
+  color: white;
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+.district-navigation-subscribe.following:hover {
+  background: var(--brand-primary-hover, #9333ea);
+  color: white;
+}
+
+.district-navigation-subscribe:disabled {
+  opacity: 0.8;
+  cursor: not-allowed;
+}
+
+.district-navigation-share {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+  background: transparent;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  gap: 4px;
+}
+
+.district-navigation-share:hover {
+  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary, #ad35fa);
+  background: rgba(173, 53, 250, 0.06);
+}
+
+.district-navigation-share svg {
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .district-navigation-subscribe,
+.dark .district-navigation-subscribe {
+  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+[data-theme="dark"] .district-navigation-subscribe:hover,
+.dark .district-navigation-subscribe:hover {
+  background: var(--brand-primary, #ad35fa);
+  color: white;
+}
+
 /* Modal Styles */
 .district-navigation-modal-backdrop {
   position: fixed;
@@ -241,6 +325,12 @@
 .district-navigation-result-district {
   font-size: 0.9rem;
   color: var(--text-secondary, #666);
+}
+
+.district-navigation-result-subscribers {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #666);
+  margin-top: 2px;
 }
 
 /* Dark theme support */

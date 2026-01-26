@@ -10,10 +10,10 @@ import {
   getPublicMetricDistrictComparisons,
   listPublicMapsForCity,
 } from "@/lib/publicApiClient";
-import FollowCityButton from "./FollowCityButton";
 import NewsletterSignup from "@/components/NewsletterSignup";
 import CitySignupButton from "./CitySignupButton";
 import CityDashboardSection from "./CityDashboardSection";
+import CityViewTracker from "./CityViewTracker";
 
 export const revalidate = 3600;
 
@@ -66,7 +66,7 @@ export async function generateMetadata({
       : `${display} on Transparent.city. Browse public datasets and source-linked civic context.`;
 
   return {
-    title: `${display} – Transparent.city`,
+    title: display,
     description,
     alternates: {
       canonical:
@@ -111,21 +111,6 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
   }
 
   const cityDisplayName = city?.display ?? slug;
-  const cityLeadSubject = `City lead — ${cityDisplayName}`;
-  const cityLeadBody = `Hi Transparent.city team,
-
-I’m interested in becoming a city lead for ${cityDisplayName}.
-
-Name:
-Role/affiliation:
-City:
-What I want to help with:
-
-Thanks!`;
-  const cityLeadMailtoHref = `mailto:hello@transparentcity.com?subject=${encodeURIComponent(
-    cityLeadSubject
-  )}&body=${encodeURIComponent(cityLeadBody)}`;
-
   // Fetch mayor-level dashboard data, district list, and recent maps for CityDashboardSection
   let cityDetail: Awaited<ReturnType<typeof getPublicCityDetail>> | null = null;
   const comparisonsMap: Record<number, Awaited<ReturnType<typeof getPublicMetricComparisons>>> = {};
@@ -136,13 +121,13 @@ Thanks!`;
       cityDetail = await getPublicCityDetail(city.id);
       const metrics = cityDetail?.metrics ?? [];
       if (metrics.length > 0) {
-        const first6 = metrics.slice(0, 6);
+        const toFetch = metrics.slice(0, 25);
         const comps = await Promise.all(
-          first6.map((m) =>
+          toFetch.map((m) =>
             getPublicMetricComparisons(m.id, 0, "ytd").catch(() => null)
           )
         );
-        first6.forEach((m, i) => {
+        toFetch.forEach((m, i) => {
           if (comps[i]) comparisonsMap[m.id] = comps[i];
         });
         const dc = await getPublicMetricDistrictComparisons(
@@ -163,6 +148,7 @@ Thanks!`;
 
   return (
     <>
+      <CityViewTracker citySlug={slug} cityId={city?.id} />
       <nav className="navbar">
         <div className="container">
           <div className="nav-content">
@@ -209,43 +195,27 @@ Thanks!`;
                   ? `Browse ${city.datasets_count} public datasets and source-linked civic context.`
                   : "Browse public datasets and source-linked civic context."}
               </p>
+
+              {/* Mayor and subscriber count - prominent in hero */}
+              {(cityDetail?.mayor || cityDetail?.mayor_subscriber_count != null) && (
+                <div className="hero-mayor-subscribers">
+                  {cityDetail?.mayor && (
+                    <span className="hero-mayor-name">Mayor {cityDetail.mayor.name}</span>
+                  )}
+                  {cityDetail?.mayor && cityDetail?.mayor_subscriber_count != null && (
+                    <span className="hero-mayor-sep"> · </span>
+                  )}
+                  {cityDetail?.mayor_subscriber_count != null && (
+                    <span className="hero-subscriber-count">
+                      {cityDetail.mayor_subscriber_count} followers
+                    </span>
+                  )}
+                </div>
+              )}
               
               {/* Newsletter Signup - Above the fold */}
               <div className="hero-newsletter">
                 <NewsletterSignup cityName={city?.display ?? slug} />
-              </div>
-
-              <div className="hero-cta" style={{ gap: 12, flexWrap: "wrap" }}>
-                <FollowCityButton
-                  className="btn btn-primary btn-large"
-                  cityId={city?.id ?? null}
-                  citySlug={slug}
-                  cityDisplayName={city?.display ?? slug}
-                />
-                <Link className="btn btn-outline btn-large" href="/sitemap">
-                  Browse all cities
-                </Link>
-              </div>
-
-              {/* City Lead CTA - Above the fold */}
-              <div className="hero-city-lead">
-                <h2 className="city-lead-title">
-                  Become a city lead for {cityDisplayName}
-                </h2>
-                <p className="city-lead-description">
-                  Help us launch better dashboards, briefs, and accountability tools
-                  for your city. City leads help validate sources, prioritize what
-                  matters locally, and connect us to the public context behind the
-                  numbers.
-                </p>
-                <div className="city-lead-buttons" style={{ gap: 12, flexWrap: "wrap" }}>
-                  <a className="btn btn-primary btn-large" href={cityLeadMailtoHref}>
-                    Become a city lead
-                  </a>
-                  <Link className="btn btn-outline btn-large" href="/pro">
-                    City staff? Get Pro tools
-                  </Link>
-                </div>
               </div>
             </div>
           </div>

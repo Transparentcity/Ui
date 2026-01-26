@@ -1,0 +1,281 @@
+/* Map Layer Panel - Right side panel matching CityMetricsMap style */
+.map-layer-panel {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  bottom: auto;
+  width: 280px;
+  max-width: 85vw;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(10px);
+  border-left: 1px solid var(--border-primary, rgba(0, 0, 0, 0.1));
+  border-top: 1px solid var(--border-primary, rgba(0, 0, 0, 0.1));
+  border-right: 1px solid var(--border-primary, rgba(0, 0, 0, 0.1));
+  border-bottom: 1px solid var(--border-primary, rgba(0, 0, 0, 0.1));
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  transition: width 0.3s ease-out;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  pointer-events: auto;
+  max-height: calc(100vh - 24px);
+}
+
+[data-theme="dark"] .map-layer-panel,
+.dark .map-layer-panel {
+  background: rgba(30, 30, 30, 0.5);
+  border-color: var(--border-primary, rgba(255, 255, 255, 0.1));
+}
+
+.map-layer-panel.closed {
+  width: 50px;
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .map-layer-panel.closed,
+.dark .map-layer-panel.closed {
+  background: rgba(30, 30, 30, 0.35);
+}
+
+.map-layer-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-primary, rgba(0, 0, 0, 0.1));
+  flex-shrink: 0;
+  min-height: 36px;
+  background: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  user-select: none;
+}
+
+[data-theme="dark"] .map-layer-panel-header,
+.dark .map-layer-panel-header {
+  background: rgba(30, 30, 30, 0.6);
+}
+
+.map-layer-panel-toggle {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-primary, #1f2937);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  padding: 0;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.map-layer-panel-toggle:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .map-layer-panel-toggle:hover,
+.dark .map-layer-panel-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.map-layer-panel-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary, #1f2937);
+  flex: 1;
+  margin-left: 8px;
+}
+
+.map-layer-panel-close {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary, #1f2937);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  padding: 0;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+  margin-left: -8px;
+  flex-shrink: 0;
+}
+
+.map-layer-panel-close:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .map-layer-panel-close:hover,
+.dark .map-layer-panel-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Icon-only view when closed */
+.map-layer-panel-icons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  gap: 8px;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+.map-layer-icon-button {
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.2s ease, transform 0.15s ease;
+  opacity: 0.7;
+  flex-shrink: 0;
+  color: var(--text-primary, #1f2937);
+  font-size: 1.2rem;
+  line-height: 1;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+}
+
+.map-layer-icon-button:hover {
+  opacity: 1;
+  transform: scale(1.1);
+  border-color: rgba(0, 0, 0, 0.3);
+}
+
+.map-layer-icon-button.selected {
+  background: #ad35fa;
+  border-color: #ad35fa;
+  color: white;
+  opacity: 1;
+  box-shadow: 0 2px 8px rgba(173, 53, 250, 0.4);
+}
+
+.map-layer-icon-button.selected:hover {
+  background: #9d25ea;
+  border-color: #9d25ea;
+}
+
+[data-theme="dark"] .map-layer-icon-button,
+.dark .map-layer-icon-button {
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="dark"] .map-layer-icon-button:hover,
+.dark .map-layer-icon-button:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+[data-theme="dark"] .map-layer-icon-button.selected,
+.dark .map-layer-icon-button.selected {
+  background: #ad35fa;
+  border-color: #ad35fa;
+  color: white;
+}
+
+/* Full list view when open */
+.map-layer-panel-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.map-layer-section {
+  margin-bottom: 16px;
+}
+
+.map-layer-section:last-child {
+  margin-bottom: 0;
+}
+
+.map-layer-section-title {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  margin-bottom: 8px;
+  font-weight: 600;
+  text-transform: capitalize;
+  color: var(--text-primary, #1f2937);
+}
+
+.map-layer-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  text-align: left;
+  color: var(--text-primary, #1f2937);
+  font-size: 0.9rem;
+}
+
+.map-layer-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .map-layer-item:hover,
+.dark .map-layer-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.map-layer-item.selected {
+  background: rgba(173, 53, 250, 0.1);
+  font-weight: 500;
+}
+
+.map-layer-icon {
+  font-size: 1.2rem;
+  line-height: 1;
+  flex-shrink: 0;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+}
+
+.map-layer-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-layer-check {
+  margin-left: auto;
+  color: #ad35fa;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .map-layer-panel {
+    width: 240px;
+    max-width: 90vw;
+  }
+
+  .map-layer-panel.closed {
+    width: 44px;
+  }
+}

@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+    NEXT_PUBLIC_GA_MEASUREMENT_ID: process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID,
   },
   images: {
     remotePatterns: [
@@ -27,12 +28,13 @@ const nextConfig: NextConfig = {
   async rewrites() {
     // Proxy specific API paths to the backend in both dev and production.
     // Keeps /api/geocode, /api/research, /api/research-media, /api/reverse-geocode
-    // as Next.js Route Handlers; only /api/maps and /api/public go to the backend.
+    // as Next.js Route Handlers; only /api/maps, /api/public, and /api/shape-layers go to the backend.
     const apiBase =
       process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
     return [
       { source: "/api/maps/:path*", destination: `${apiBase}/api/maps/:path*` },
       { source: "/api/public/:path*", destination: `${apiBase}/api/public/:path*` },
+      { source: "/api/shape-layers/:path*", destination: `${apiBase}/api/shape-layers/:path*` },
     ];
   },
 };

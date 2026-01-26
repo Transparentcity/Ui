@@ -25,6 +25,7 @@ import {
   useUpdateCityLeader,
   useDeleteCityLeader,
   useCityMetricOrdering,
+  useStructureCityMetrics,
 } from "@/lib/hooks/useCityAdmin";
 import { pickDefaultModelKey } from "@/lib/modelDefaults";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
@@ -161,6 +162,7 @@ export default function CityDataAdmin({
   const createCityLeaderMutation = useCreateCityLeader();
   const updateCityLeaderMutation = useUpdateCityLeader();
   const deleteCityLeaderMutation = useDeleteCityLeader();
+  const structureCityMetricsMutation = useStructureCityMetrics();
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -210,6 +212,8 @@ export default function CityDataAdmin({
   const [anomaliesMetricId, setAnomaliesMetricId] = useState<number | null>(null);
   const [anomalyPeriodFilter, setAnomalyPeriodFilter] = useState<string>("all");
   const [selectedAnomalyId, setSelectedAnomalyId] = useState<number | null>(null);
+  /** Sort metrics by last execution: null = default (saved order + name), "desc" = newest first, "asc" = oldest first */
+  const [metricSortByLastExecution, setMetricSortByLastExecution] = useState<"asc" | "desc" | null>(null);
 
   // Metric queries - fetch all results (both anomalies and non-anomalies)
   // Pass period_type to API for server-side filtering (more efficient than client-side)
@@ -575,6 +579,44 @@ export default function CityDataAdmin({
       setTimeout(() => refetchCity(), 2000);
     } catch (err: any) {
       alert("Failed to reload datasets and metadata: " + err.message);
+    }
+  };
+
+  const handleStructureMetrics = async () => {
+    if (
+      !confirm(
+        "Instantiate template metrics for this city?\n\n" +
+        "This will create city-specific metrics from all available template metrics " +
+        "(approximately 7 templates). This may take a few minutes and use AI tokens.\n\n" +
+        "Continue?"
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const result = await structureCityMetricsMutation.mutateAsync({
+        cityId,
+      });
+      
+      // Show results
+      const message = [
+        `Template metric instantiation ${result.success ? "completed" : "finished with errors"}!`,
+        ``,
+        `Templates found: ${result.templates_total}`,
+        `Successfully instantiated: ${result.templates_instantiated}`,
+        result.templates_failed > 0 ? `Failed: ${result.templates_failed}` : "",
+        result.errors.length > 0 ? `\nErrors: ${result.errors.join("; ")}` : "",
+      ].filter(Boolean).join("\n");
+      
+      alert(message);
+      
+      // Refresh city data after a delay
+      setTimeout(() => {
+        refetchCity();
+      }, 2000);
+    } catch (err: any) {
+      alert("Failed to instantiate template metrics: " + err.message);
     }
   };
 
@@ -2920,24 +2962,67 @@ export default function CityDataAdmin({
       {/* Metrics Tab */}
       {activeTab === "metrics" && (
         <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-            <h3 style={{ margin: 0 }}>Metrics</h3>
-            <button
-              onClick={() => setRunAllMetricsOpen(true)}
-              style={{
-                padding: "8px 16px",
-                background: "var(--brand-primary, #0066cc)",
-                color: "white",
-                border: "none",
-                borderRadius: "6px",
-                fontSize: "13px",
-                fontWeight: 500,
-                cursor: "pointer",
-              }}
-              disabled={!cityDataTyped.metrics || cityDataTyped.metrics.length === 0}
-            >
-              ▶ Run All Metrics
-            </button>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+              <h3 style={{ margin: 0 }}>Metrics</h3>
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "var(--text-secondary)" }}>
+                Sort by last execution:
+                <select
+                  value={metricSortByLastExecution ?? ""}
+                  onChange={(e) => setMetricSortByLastExecution((e.target.value === "asc" || e.target.value === "desc") ? e.target.value : null)}
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: "13px",
+                    border: "1px solid var(--border-primary)",
+                    borderRadius: "4px",
+                    background: "var(--bg-primary)",
+                    color: "var(--text-primary)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <option value="">Default</option>
+                  <option value="desc">Newest first</option>
+                  <option value="asc">Oldest first</option>
+                </select>
+              </label>
+            </div>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <button
+                onClick={handleStructureMetrics}
+                disabled={structureCityMetricsMutation.isPending}
+                style={{
+                  padding: "8px 16px",
+                  background: structureCityMetricsMutation.isPending
+                    ? "var(--text-secondary, #666)"
+                    : "var(--brand-secondary, #00a86b)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  cursor: structureCityMetricsMutation.isPending ? "wait" : "pointer",
+                  opacity: structureCityMetricsMutation.isPending ? 0.7 : 1,
+                }}
+              >
+                {structureCityMetricsMutation.isPending ? "⏳ Instantiating..." : "🔧 Instantiate Template Metrics"}
+              </button>
+              <button
+                onClick={() => setRunAllMetricsOpen(true)}
+                style={{
+                  padding: "8px 16px",
+                  background: "var(--brand-primary, #0066cc)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+                disabled={!cityDataTyped.metrics || cityDataTyped.metrics.length === 0}
+              >
+                ▶ Run All Metrics
+              </button>
+            </div>
           </div>
           
           {/* Metric Order Editor */}
@@ -2980,9 +3065,19 @@ export default function CityDataAdmin({
                   return a.localeCompare(b);
                 });
                 
-                // Sort metrics within each category by their metric order, then by name (same as dashboard)
+                // Sort metrics within each category: by last execution (if selected) or by metric order then name (same as dashboard)
                 sortedCategories.forEach((category) => {
                   grouped[category].metrics.sort((a, b) => {
+                    if (metricSortByLastExecution === "desc") {
+                      const tA = a.last_execution_at ? new Date(a.last_execution_at).getTime() : 0;
+                      const tB = b.last_execution_at ? new Date(b.last_execution_at).getTime() : 0;
+                      return tB - tA; // newest first; nulls (0) last
+                    }
+                    if (metricSortByLastExecution === "asc") {
+                      const tA = a.last_execution_at ? new Date(a.last_execution_at).getTime() : 0;
+                      const tB = b.last_execution_at ? new Date(b.last_execution_at).getTime() : 0;
+                      return tA - tB; // oldest first; nulls (0) first
+                    }
                     const orderA = (a as any).metricOrder ?? 1000;
                     const orderB = (b as any).metricOrder ?? 1000;
                     if (orderA !== orderB) return orderA - orderB;
@@ -3861,7 +3956,7 @@ export default function CityDataAdmin({
                           
                           {/* Percent Change */}
                           <td className={metricStyles.anomalyTd} style={{ color: changeColor, fontWeight: 600 }}>
-                            {pctChange > 0 ? "+" : ""}{pctChange.toFixed(1)}%
+                            {pctChange > 0 ? "+" : ""}{Math.round(pctChange)}%
                           </td>
                           
                           {/* Sigma */}

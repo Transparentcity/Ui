@@ -3,7 +3,43 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useTheme } from "@/contexts/ThemeContext";
+import { getPublicCityDetail } from "@/lib/publicApiClient";
+// Icon mapping for different shape layer types
+const getLayerIcon = (layerKey?: string, category?: string, displayName?: string): string => {
+  const key = (layerKey || "").toLowerCase();
+  const cat = (category || "").toLowerCase();
+  const name = (displayName || "").toLowerCase();
+
+  // District/ward icons
+  if (key.includes("district") || key.includes("ward") || name.includes("district") || name.includes("ward")) {
+    return "🗺️"; // Map icon for districts/wards
+  }
+  
+  // Neighborhood icons
+  if (key.includes("neighborhood") || name.includes("neighborhood")) {
+    return "🏘️"; // Houses icon for neighborhoods
+  }
+  
+  // Police district icons
+  if (key.includes("police") || name.includes("police")) {
+    return "🚔"; // Police car icon
+  }
+  
+  // Census tract
+  if (key.includes("census") || name.includes("census")) {
+    return "📊"; // Chart icon
+  }
+  
+  // Zip code
+  if (key.includes("zip") || name.includes("zip")) {
+    return "📮"; // Mailbox icon
+  }
+  
+  // Default icon
+  return "📍"; // Location pin
+};
 import "./styles.css";
+import MapLayerPanel from "@/components/MapLayerPanel";
 
 // Types for the map data
 interface MapCenter {
@@ -29,6 +65,7 @@ interface SavedMap {
   bounds: [[number, number], [number, number]] | null;
   center: MapCenter | null;
   city_id: number | null;
+  city_name?: string | null;
   metric_id: number | null;
   is_public: boolean;
   view_count: number;
@@ -77,6 +114,9 @@ export default function PublicMapPage() {
     count: number | null;
     canHideDots: boolean;
   } | null>(null);
+  const [resolvedCityName, setResolvedCityName] = useState<string | null>(null);
+  const [selectedShapeLayer, setSelectedShapeLayer] = useState<string | null>(null);
+  const [showPoints, setShowPoints] = useState(false);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const dotsDistrictIdRef = useRef<string | null>(null);
@@ -97,6 +137,21 @@ export default function PublicMapPage() {
         .finally(() => setLoading(false));
     }
   }, [hash]);
+
+  // Resolve city name when map has city_id but API did not return city_name
+  useEffect(() => {
+    if (!map?.city_id) {
+      setResolvedCityName(null);
+      return;
+    }
+    if (map.city_name) {
+      setResolvedCityName(map.city_name);
+      return;
+    }
+    getPublicCityDetail(map.city_id)
+      .then((c) => setResolvedCityName(c.name))
+      .catch(() => setResolvedCityName(null));
+  }, [map?.city_id, map?.city_name]);
   
   // Load Mapbox script
   useEffect(() => {
@@ -175,21 +230,32 @@ export default function PublicMapPage() {
 
     removeDotsLayer(mapInstance);
 
+    // Filter for valid coordinates (handle both lat/lon and latitude/longitude)
+    const validFilteredPoints = filtered.filter((point: any) => {
+      const lat = point.lat ?? point.latitude;
+      const lon = point.lon ?? point.longitude;
+      return lat != null && lon != null && 
+             !isNaN(Number(lat)) && !isNaN(Number(lon)) &&
+             isFinite(Number(lat)) && isFinite(Number(lon));
+    }).map((point: any) => ({
+      ...point,
+      lat: point.lat ?? point.latitude,
+      lon: point.lon ?? point.longitude,
+    }));
+    
     const geojsonData = {
       type: "FeatureCollection" as const,
-      features: filtered
-        .filter((point: any) => point.lat && point.lon)
-        .map((point: any, index: number) => ({
-          type: "Feature" as const,
-          geometry: {
-            type: "Point" as const,
-            coordinates: [point.lon, point.lat],
-          },
-          properties: {
-            id: index,
-            ...point,
-          },
-        })),
+      features: validFilteredPoints.map((point: any, index: number) => ({
+        type: "Feature" as const,
+        geometry: {
+          type: "Point" as const,
+          coordinates: [point.lon, point.lat],
+        },
+        properties: {
+          id: index,
+          ...point,
+        },
+      })),
     };
 
     mapInstance.addSource("district-dots", {
@@ -262,34 +328,323 @@ export default function PublicMapPage() {
     });
   };
   
-  // Helper function to load choropleth map with district shapes
-  const loadChoroplethMap = async (mapInstance: any, mapData: SavedMap) => {
-    try {
-      const shapeLayerId = mapData.map_config?.shape_layer_instance_id;
-      const districtField = mapData.map_config?.district_field || "supervisor_district";
-
-      console.log("Loading choropleth map:", {
-        shapeLayerId,
-        districtField,
-        cityId: mapData.city_id,
-        mapType: mapData.map_type,
-        mapConfig: mapData.map_config
+  // Get available shape layers from map config
+  const [availableShapeLayers, setAvailableShapeLayers] = useState<any[]>(map?.map_config?.available_shape_layers || []);
+  const aggregations = map?.map_config?.aggregations || {};
+  
+  // Discover shape layers that match fields in location_data
+  useEffect(() => {
+    if (!map || !map.city_id || !map.location_data || map.location_data.length === 0) {
+      return;
+    }
+    
+    // Get all unique field names from location_data
+    const locationDataFields = new Set<string>();
+    map.location_data.forEach((point: any) => {
+      Object.keys(point).forEach(key => {
+        if (key !== 'lat' && key !== 'lon' && key !== 'latitude' && key !== 'longitude') {
+          locationDataFields.add(key);
+        }
       });
+    });
+    
+    console.log(`[PublicMapPage] Location data fields:`, Array.from(locationDataFields));
+    
+    // If we already have shape layers from map_config, use those
+    if (map.map_config?.available_shape_layers && map.map_config.available_shape_layers.length > 0) {
+      console.log(`[PublicMapPage] Using shape layers from map_config`);
+      setAvailableShapeLayers(map.map_config.available_shape_layers);
+      return;
+    }
+    
+    // Otherwise, fetch shape layers for the city and match them to location_data fields
+    const discoverMatchingShapeLayers = async () => {
+      try {
+        // Common district field names that might be used in shape layers or location_data
+        const commonDistrictFieldNames = ['supervisor_district', 'district', 'ward', 'sup_dist_num', 'district_id', 'council_district', 'nhood', 'neighborhood'];
+        
+        // First, fetch city structure to get district fields mapping
+        console.log(`[PublicMapPage] Fetching city structure for city ${map.city_id}`);
+        let districtFields: string[] = [];
+        try {
+          const cityStructureResponse = await fetch(`/api/cities/${map.city_id}/structure`);
+          if (cityStructureResponse.ok) {
+            const cityStructure = await cityStructureResponse.json();
+            console.log(`[PublicMapPage] City structure response:`, cityStructure);
+            // Try different possible locations for district_fields
+            districtFields = cityStructure.district_fields || 
+                            cityStructure.districtFields ||
+                            (cityStructure.location_fields?.filter((f: any) => 
+                              typeof f === 'string' ? f.includes('district') || f.includes('ward') : 
+                              (f.fieldName?.includes('district') || f.fieldName?.includes('ward') || f.name?.includes('district') || f.name?.includes('ward'))
+                            ).map((f: any) => typeof f === 'string' ? f : (f.fieldName || f.name))) ||
+                            [];
+            console.log(`[PublicMapPage] City structure district_fields:`, districtFields);
+          } else {
+            const errorText = await cityStructureResponse.text();
+            console.warn(`[PublicMapPage] Failed to fetch city structure: ${cityStructureResponse.status}`, errorText);
+          }
+        } catch (err) {
+          console.warn(`[PublicMapPage] Failed to fetch city structure:`, err);
+        }
+        
+        // Fallback: if district_fields is empty, check location_data for common district field names
+        // Also include common aliases that might be used in shape layers
+        if (districtFields.length === 0) {
+          const foundDistrictFields = commonDistrictFieldNames.filter(field => 
+            map.location_data.some((point: any) => 
+              point[field] !== undefined && 
+              point[field] !== null &&
+              point[field] !== ""
+            )
+          );
+          if (foundDistrictFields.length > 0) {
+            console.log(`[PublicMapPage] Using fallback district fields from location_data:`, foundDistrictFields);
+            districtFields = foundDistrictFields;
+          }
+        }
+        
+        // Also check if any shape layer identifier_fields are district-related, even if not in location_data
+        // This helps match shape layers that use different field names (e.g., sup_dist_num vs supervisor_district)
+        const hasAnyDistrictFieldInData = commonDistrictFieldNames.some(field =>
+          map.location_data.some((point: any) => 
+            point[field] !== undefined && 
+            point[field] !== null &&
+            point[field] !== ""
+          )
+        );
+        
+        console.log(`[PublicMapPage] Fetching shape layers for city ${map.city_id}`);
+        const cityLayersResponse = await fetch(`/api/shape-layers/cities/${map.city_id}`);
+        
+        if (!cityLayersResponse.ok) {
+          const errorText = await cityLayersResponse.text();
+          console.warn(`[PublicMapPage] Failed to fetch city shape layers: ${cityLayersResponse.status}`, errorText);
+          return;
+        }
+        
+        const cityLayersData = await cityLayersResponse.json();
+        console.log(`[PublicMapPage] City shape layers API response:`, cityLayersData);
+        
+        const layers = Array.isArray(cityLayersData) ? cityLayersData : (cityLayersData.layers || cityLayersData.shape_layers || cityLayersData.data || []);
+        
+        console.log(`[PublicMapPage] Found ${layers.length} shape layers for city`, layers);
+        
+        // Get all unique field names from location_data
+        const locationDataFields = new Set<string>();
+        map.location_data.forEach((point: any) => {
+          Object.keys(point).forEach(key => {
+            if (key !== 'lat' && key !== 'lon' && key !== 'latitude' && key !== 'longitude') {
+              locationDataFields.add(key);
+            }
+          });
+        });
+        console.log(`[PublicMapPage] Location data fields:`, Array.from(locationDataFields));
+        
+        // For each shape layer, check if we can get its identifier_field
+        // and see if it matches any field in location_data OR any district field from city structure
+        const matchingLayers: any[] = [];
+        
+        for (const layer of layers) {
+          try {
+            // Handle API response structure: {template: {...}, instance: {...}} or {template: {...}, instance: null}
+            const instance = layer.instance || layer;
+            const template = layer.template || {};
+            
+            // Get instance ID from various possible locations
+            const instanceId = instance?.id || 
+                              instance?.shape_layer_instance_id || 
+                              layer.shape_layer_instance_id || 
+                              layer.id || 
+                              layer.instance_id;
+            
+            if (!instanceId) {
+              console.log(`[PublicMapPage] Skipping layer without ID:`, layer);
+              continue;
+            }
+            
+            // Get identifier_field from instance or template
+            const identifierField = instance?.identifier_field || 
+                                   template?.default_identifier_field ||
+                                   layer.identifier_field ||
+                                   layer.default_identifier_field;
+            
+            if (!identifierField) {
+              console.log(`[PublicMapPage] No identifier_field found for instance ${instanceId}`);
+              continue;
+            }
+            
+            console.log(`[PublicMapPage] Checking shape layer instance ${instanceId} with identifier_field "${identifierField}"`);
+            
+            // Check if identifier_field matches:
+            // 1. Direct match in location_data fields
+            // 2. Match in city structure district_fields (meaning it's a related district field)
+            // 3. identifier_field is a known district-related field name AND location_data has any district field
+            const hasDirectMatch = locationDataFields.has(identifierField);
+            const isDistrictField = districtFields.includes(identifierField);
+            const hasRelatedDistrictField = districtFields.some(df => locationDataFields.has(df));
+            const isKnownDistrictFieldName = commonDistrictFieldNames.includes(identifierField);
+            
+            console.log(`[PublicMapPage] Match check for "${identifierField}":`, {
+              hasDirectMatch,
+              isDistrictField,
+              hasRelatedDistrictField,
+              isKnownDistrictFieldName,
+              hasAnyDistrictFieldInData,
+              districtFields,
+              locationDataFields: Array.from(locationDataFields)
+            });
+            
+            // Match if:
+            // - Direct field match in location_data, OR
+            // - identifier_field is in district_fields AND location_data has any district field, OR
+            // - identifier_field is a known district field name AND location_data has any district field
+            const matches = hasDirectMatch || 
+                           (isDistrictField && hasRelatedDistrictField) ||
+                           (isKnownDistrictFieldName && hasAnyDistrictFieldInData);
+            
+            if (matches) {
+              // Find the actual field name in location_data to use for aggregation
+              // Prefer direct match, otherwise use the first district field found in location_data
+              const fieldToUse = hasDirectMatch 
+                ? identifierField 
+                : districtFields.find(df => locationDataFields.has(df)) || identifierField;
+              
+              console.log(`[PublicMapPage] ✅ Found matching shape layer: ${instanceId} (identifier_field: ${identifierField}, using field: ${fieldToUse})`);
+              matchingLayers.push({
+                shape_layer_instance_id: instanceId,
+                identifier_field: fieldToUse, // Use the field that exists in location_data
+                display_name: template?.default_display_name || 
+                             instance?.structure_type ||
+                             layer.display_name || 
+                             'Shape Layer',
+                layer_key: template?.layer_key || layer.layer_key,
+                category: template?.category || layer.category,
+              });
+            } else {
+              console.log(`[PublicMapPage] ❌ No match for field "${identifierField}"`);
+            }
+          } catch (err) {
+            console.error(`[PublicMapPage] Error checking shape layer:`, err, layer);
+          }
+        }
+        
+        if (matchingLayers.length > 0) {
+          console.log(`[PublicMapPage] Found ${matchingLayers.length} matching shape layers`);
+          setAvailableShapeLayers(matchingLayers);
+          
+          // Auto-select first matching layer if none selected
+          if (!selectedShapeLayer) {
+            setSelectedShapeLayer(String(matchingLayers[0].shape_layer_instance_id));
+          }
+        } else {
+          console.log(`[PublicMapPage] No matching shape layers found`);
+        }
+      } catch (err) {
+        console.error(`[PublicMapPage] Error discovering shape layers:`, err);
+      }
+    };
+    
+    discoverMatchingShapeLayers();
+  }, [map, selectedShapeLayer]);
+  
+  console.log(`[PublicMapPage] Map config:`, {
+    mapType: map?.map_type,
+    hasAggregations: Object.keys(aggregations).length > 0,
+    aggregationKeys: Object.keys(aggregations),
+    availableShapeLayersCount: availableShapeLayers.length,
+    availableShapeLayers: availableShapeLayers,
+    shapeLayerInstanceId: map?.map_config?.shape_layer_instance_id
+  });
 
-      if (!shapeLayerId) {
-        console.error("No shape_layer_instance_id in map_config. Map config:", mapData.map_config);
+  // Helper function to compute aggregations from points for a shape layer
+  const computeAggregationForShapeLayer = (
+    points: MapDataPoint[],
+    identifierField: string
+  ): Map<string, Record<string, number>> => {
+    const aggregationMap = new Map<string, Record<string, number>>();
+    
+    points.forEach((point: any) => {
+      const id = String(point[identifierField] || point.district || point.supervisor_district || "");
+      if (id && id !== "null" && id !== "undefined") {
+        const prev = aggregationMap.get(id) || { count: 0 };
+        prev.count = (prev.count || 0) + 1;
+        aggregationMap.set(id, prev);
+      }
+    });
+    
+    return aggregationMap;
+  };
+
+  // Helper function to load choropleth map with district shapes
+  const loadChoroplethMap = async (mapInstance: any, mapData: SavedMap, shapeLayerId?: string | null) => {
+    try {
+      // Validate mapInstance
+      if (!mapInstance || typeof mapInstance.getLayer !== 'function') {
+        console.error("[PublicMapPage] Invalid mapInstance provided to loadChoroplethMap");
         return;
       }
+      
+      // Use provided shapeLayerId or fall back to first available shape layer
+      let targetShapeLayerId = shapeLayerId || mapData.map_config?.shape_layer_instance_id;
+      
+      // If still no shape layer ID, use first available discovered layer
+      if (!targetShapeLayerId && availableShapeLayers.length > 0) {
+        targetShapeLayerId = availableShapeLayers[0].shape_layer_instance_id;
+        console.log(`[PublicMapPage] Using first available discovered shape layer: ${targetShapeLayerId}`);
+      }
+      
+      if (!targetShapeLayerId) {
+        console.error("[PublicMapPage] No shape_layer_instance_id available");
+        return;
+      }
+      
+      console.log(`[PublicMapPage] loadChoroplethMap called with shapeLayerId: ${targetShapeLayerId}`);
+      
+      // Find the shape layer from discovered layers
+      let shapeLayer = availableShapeLayers.find(
+        (sl: any) => String(sl.shape_layer_instance_id) === String(targetShapeLayerId)
+      );
+      
+      // If not found in discovered layers, try to get info from the API
+      if (!shapeLayer) {
+        console.log(`[PublicMapPage] Shape layer ${targetShapeLayerId} not in discovered layers, fetching from API`);
+        try {
+          const response = await fetch(`/api/shape-layers/public/instances/${targetShapeLayerId}?include_geometry=false`);
+          if (response.ok) {
+            const data = await response.json();
+            shapeLayer = {
+              shape_layer_instance_id: data.instance.id,
+              identifier_field: data.instance.identifier_field || data.template?.default_identifier_field,
+              display_name: data.template?.default_display_name || data.instance.structure_type || 'Shape Layer',
+              layer_key: data.template?.layer_key,
+              category: data.template?.category,
+            };
+            console.log(`[PublicMapPage] Fetched shape layer from API:`, shapeLayer);
+          }
+        } catch (err) {
+          console.error(`[PublicMapPage] Failed to fetch shape layer from API:`, err);
+        }
+      }
+      
+      if (!shapeLayer) {
+        console.error(`[PublicMapPage] Shape layer ${targetShapeLayerId} not found`);
+        return;
+      }
+      
+      const identifierField = shapeLayer.identifier_field || mapData.map_config?.district_field || "supervisor_district";
+      const districtField = identifierField; // Use identifierField for consistency
+      
+      console.log(`[PublicMapPage] Using identifierField: ${identifierField} for shape layer ${targetShapeLayerId}`);
 
       if (!mapData.city_id) {
-        console.error("No city_id in map data");
+        console.error("[PublicMapPage] No city_id in map data");
         return;
       }
 
-      const isDev = process.env.NODE_ENV === "development";
-      const shapeUrl = isDev
-        ? `/api/shape-layers/public/instances/${shapeLayerId}?include_geometry=true`
-        : `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001"}/api/shape-layers/public/instances/${shapeLayerId}?include_geometry=true`;
+      // Use Next.js rewrite path (works in both dev and prod via next.config.ts)
+      // Backend: GET /api/shape-layers/public/instances/:instance_id
+      const shapeUrl = `/api/shape-layers/public/instances/${targetShapeLayerId}?include_geometry=true`;
       const response = await fetch(shapeUrl);
       
       if (!response.ok) {
@@ -314,7 +669,8 @@ export default function PublicMapPage() {
       }
       
       const geometryData = shapeLayerData.instance.geometry_data;
-      const identifierField = shapeLayerData.instance.identifier_field || districtField;
+      // Use the identifierField from the shape layer we found
+      // The API response also has identifier_field which we can use as fallback
 
       console.log("Geometry data loaded:", {
         type: geometryData?.type,
@@ -322,42 +678,89 @@ export default function PublicMapPage() {
         identifierField
       });
 
-      // Value field: from map_config or first numeric field on a row, or "count"
-      const valueField =
-        mapData.map_config.value_field ||
-        Object.keys(mapData.location_data[0] || {}).find(
-          (key) =>
-            key !== districtField &&
-            key !== "district" &&
-            typeof mapData.location_data[0]?.[key] === "number"
-        ) ||
-        "value";
-
-      // Build district -> value map. When value_field is "count", aggregate by counting
-      // incidents per district (raw point data). Otherwise sum the numeric value_field per district.
+      // Check if we have pre-computed aggregations for this shape layer
+      const aggregationKey = String(targetShapeLayerId);
+      let aggregation = aggregations[aggregationKey] || aggregations[Number(targetShapeLayerId)];
+      
+      console.log(`[PublicMapPage] Looking for aggregation with key: ${aggregationKey}`);
+      console.log(`[PublicMapPage] Found aggregation:`, aggregation ? `Yes (${aggregation.rows?.length || 0} rows)` : 'No');
+      
+      // Build district -> value map
       const districtDataMap = new Map<string, Record<string, number>>();
-      const isCountAgg = valueField === "count";
+      
+      if (aggregation && aggregation.rows) {
+        // Use pre-computed aggregation
+        console.log(`[PublicMapPage] Using pre-computed aggregation with ${aggregation.rows.length} rows`);
+        console.log(`[PublicMapPage] Sample aggregation row:`, aggregation.rows[0]);
+        console.log(`[PublicMapPage] Aggregation identifier_field:`, aggregation.identifier_field);
+        aggregation.rows.forEach((row: any) => {
+          // Try multiple ways to get district ID from aggregation row
+          const districtId = String(
+            row[identifierField] || 
+            row[aggregation.identifier_field] ||
+            row.district || 
+            row.supervisor_district ||
+            ""
+          ).trim();
+          if (districtId && districtId !== "null" && districtId !== "undefined") {
+            const normalizedId = String(Math.floor(Number(districtId))) || districtId;
+            districtDataMap.set(normalizedId, {
+              count: row.count || row.value || 0,
+              value: row.value || row.count || 0,
+            });
+            // Also store with number key as string
+            const districtIdNum = Number(normalizedId);
+            if (!isNaN(districtIdNum)) {
+              districtDataMap.set(String(districtIdNum), {
+                count: row.count || row.value || 0,
+                value: row.value || row.count || 0,
+              });
+            }
+          }
+        });
+      } else {
+        // Compute aggregation from location_data
+        console.log(`[PublicMapPage] Computing aggregation from ${mapData.location_data.length} location_data items`);
+        const valueField = mapData.map_config.value_field || "count";
+        const isCountAgg = valueField === "count";
 
-      mapData.location_data.forEach((item: any) => {
-        const districtId = String(
-          item[districtField] || item.district || item[identifierField] || ""
-        );
-        if (!districtId) return;
-        const prev = districtDataMap.get(districtId) || { [valueField]: 0 };
-        if (isCountAgg) {
-          prev[valueField] = (prev[valueField] || 0) + 1;
-        } else {
-          prev[valueField] = (prev[valueField] || 0) + (Number(item[valueField]) || 0);
-        }
-        districtDataMap.set(districtId, prev);
-      });
+        mapData.location_data.forEach((item: any) => {
+          // Use the identifierField from the selected shape layer
+          const districtId = String(
+            item[identifierField] || item[districtField] || item.district || ""
+          ).trim();
+          if (!districtId || districtId === "null" || districtId === "undefined") return;
+          
+          const normalizedId = String(Math.floor(Number(districtId))) || districtId;
+          const prev = districtDataMap.get(normalizedId) || { count: 0, value: 0 };
+          if (isCountAgg) {
+            prev.count = (prev.count || 0) + 1;
+            prev.value = prev.count;
+          } else {
+            prev.value = (prev.value || 0) + (Number(item[valueField]) || 0);
+            prev.count = prev.value;
+          }
+          districtDataMap.set(normalizedId, prev);
+          
+          // Also store with number key as string
+          const districtIdNum = Number(normalizedId);
+          if (!isNaN(districtIdNum)) {
+            districtDataMap.set(String(districtIdNum), prev);
+          }
+        });
+      }
+      
+      console.log(`[PublicMapPage] districtDataMap has ${districtDataMap.size} entries`);
+      console.log(`[PublicMapPage] Sample keys:`, Array.from(districtDataMap.keys()).slice(0, 5));
 
       // Calculate min/max for color scaling
       const values = Array.from(districtDataMap.values())
-        .map((item: any) => Number(item[valueField]))
+        .map((item: any) => Number(item.value || item.count || 0))
         .filter((v: number) => !isNaN(v) && isFinite(v));
       const minValue = values.length > 0 ? Math.min(...values) : 0;
       const maxValue = values.length > 0 ? Math.max(...values) : 1;
+      
+      console.log(`[PublicMapPage] Value range: ${minValue} to ${maxValue} (${values.length} districts with data)`);
       
       const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
       const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
@@ -374,17 +777,48 @@ export default function PublicMapPage() {
       const CHORO_LOW: [number, number, number] = [255, 255, 255];
       const CHORO_HIGH: [number, number, number] = [173, 53, 250]; // #ad35fa
 
+      console.log(`[PublicMapPage] Processing ${geometryData.features.length} shape features`);
+      console.log(`[PublicMapPage] Sample feature properties:`, geometryData.features[0]?.properties);
+      
       // Merge district data with shape features
       const features = geometryData.features.map((feature: any) => {
-        const districtId = String(
-          feature.properties[identifierField] || 
-          feature.properties[districtField] ||
-          feature.properties.district ||
-          ""
-        );
+        const props = feature.properties || {};
+        // Try multiple field names to find the identifier
+        // Prefer the identifierField from our shape layer config, then API response, then common alternatives
+        const apiIdentifierField = shapeLayerData.instance.identifier_field;
+        const districtIdRaw = 
+          props[identifierField] || 
+          (apiIdentifierField && props[apiIdentifierField]) ||
+          props[districtField] ||
+          props.district ||
+          props.district_id ||
+          props.supervisor_district ||
+          props.name ||
+          props.label ||
+          "";
         
-        const districtData = districtDataMap.get(districtId);
-        const value = districtData ? Number(districtData[valueField]) : null;
+        // Normalize district ID
+        let districtId = String(districtIdRaw).trim();
+        const districtIdNum = Number(districtId);
+        if (!isNaN(districtIdNum) && isFinite(districtIdNum)) {
+          districtId = String(Math.floor(districtIdNum));
+        }
+        
+        // Try multiple lookup strategies
+        let districtData = districtDataMap.get(districtId);
+        if (!districtData && districtIdRaw) {
+          districtData = districtDataMap.get(String(districtIdRaw).trim());
+        }
+        if (!districtData && !isNaN(districtIdNum) && isFinite(districtIdNum)) {
+          districtData = districtDataMap.get(String(districtIdNum)) || districtDataMap.get(String(Math.floor(districtIdNum)));
+        }
+        
+        const value = districtData ? Number(districtData.value || districtData.count || 0) : null;
+        
+        if (!districtData && districtId) {
+          console.log(`[PublicMapPage] No data found for districtId: "${districtId}" (raw: "${districtIdRaw}")`);
+          console.log(`[PublicMapPage] Available keys:`, Array.from(districtDataMap.keys()).slice(0, 10));
+        }
         
         // Calculate color (white -> brand purple)
         let color = "#e5e7eb"; // light gray for "no data"
@@ -409,14 +843,19 @@ export default function PublicMapPage() {
       console.log("Adding choropleth layers with", features.length, "features");
       
       // Remove existing layers if they exist
-      if (mapInstance.getLayer("choropleth-fill")) {
-        mapInstance.removeLayer("choropleth-fill");
-      }
-      if (mapInstance.getLayer("choropleth-outline")) {
-        mapInstance.removeLayer("choropleth-outline");
-      }
-      if (mapInstance.getSource("choropleth-shapes")) {
-        mapInstance.removeSource("choropleth-shapes");
+      try {
+        if (mapInstance.getLayer && mapInstance.getLayer("choropleth-fill")) {
+          mapInstance.removeLayer("choropleth-fill");
+        }
+        if (mapInstance.getLayer && mapInstance.getLayer("choropleth-outline")) {
+          mapInstance.removeLayer("choropleth-outline");
+        }
+        if (mapInstance.getSource && mapInstance.getSource("choropleth-shapes")) {
+          mapInstance.removeSource("choropleth-shapes");
+        }
+      } catch (err) {
+        console.warn("[PublicMapPage] Error removing existing choropleth layers:", err);
+        // Continue anyway - layers might not exist yet
       }
       
       // Add choropleth source and layer
@@ -553,36 +992,119 @@ export default function PublicMapPage() {
         return;
       }
       
+      const locationDataCount = map.location_data?.length || 0;
+      const hasAggregations = !!(map.map_config?.aggregations && Object.keys(map.map_config.aggregations).length > 0);
+      const hasAvailableShapeLayers = !!(map.map_config?.available_shape_layers && map.map_config.available_shape_layers.length > 0);
+      
+      // For point maps, we can still render choropleth if we have:
+      // 1. City ID (to fetch shape layers)
+      // 2. Location data with geographic identifiers (supervisor_district, etc.)
+      // 3. At least some data points
+      const hasGeographicIdentifiers = !!(map.location_data?.some((point: any) => 
+        point.supervisor_district !== undefined || 
+        point.supervisor_district !== null ||
+        point.district !== undefined ||
+        point.district !== null ||
+        point.district_id !== undefined ||
+        point.district_id !== null
+      ));
+      
+      // Use choropleth if:
+      // 1. Map type is choropleth OR we have aggregations OR discovered shape layers OR (point map with geographic identifiers)
+      // 2. We have discovered shape layers or aggregations or can discover them
+      // 3. We have city_id
+      // 4. We have enough data points (or aggregations exist)
+      const hasDiscoveredShapeLayers = availableShapeLayers.length > 0;
+      const hasShapeLayerInConfig = !!map.map_config?.shape_layer_instance_id;
+      const canDiscoverShapeLayers = map.city_id && hasGeographicIdentifiers;
+      
+      // Determine if we should use choropleth - be more conservative to avoid race conditions
+      // If we have aggregations or shape layer config, definitely use choropleth
+      // If we can discover shape layers (city_id + geographic identifiers), only use choropleth if already discovered
+      const definitelyUseChoropleth = map.map_type === "choropleth" || hasAggregations || hasDiscoveredShapeLayers || hasShapeLayerInConfig;
+      const mightUseChoropleth = canDiscoverShapeLayers && map.map_type === "point" && hasGeographicIdentifiers;
+      // Only use choropleth if we definitely should, OR if we might and shape layers are already discovered
+      const shouldUseChoropleth = definitelyUseChoropleth || (mightUseChoropleth && hasDiscoveredShapeLayers && map.city_id && (locationDataCount >= 100 || hasAggregations));
+      
       console.log("Map loaded, checking map type:", {
         mapType: map.map_type,
+        locationDataCount,
+        shouldUseChoropleth,
+        hasAggregations,
+        hasAvailableShapeLayers,
+        hasGeographicIdentifiers,
+        hasDiscoveredShapeLayers,
+        hasShapeLayerInConfig,
+        canDiscoverShapeLayers,
+        aggregationKeys: hasAggregations ? Object.keys(map.map_config!.aggregations) : [],
+        availableShapeLayersCount: hasAvailableShapeLayers ? map.map_config!.available_shape_layers.length : 0,
         hasShapeLayerId: !!map.map_config?.shape_layer_instance_id,
         shapeLayerId: map.map_config?.shape_layer_instance_id,
         hasCityId: !!map.city_id,
         cityId: map.city_id,
-        mapConfig: map.map_config
+        mapConfig: map.map_config,
+        sampleLocationData: map.location_data?.[0]
       });
       
       // Handle choropleth maps with district shapes
-      if (map.map_type === "choropleth" && map.map_config?.shape_layer_instance_id && map.city_id) {
-        console.log("Loading choropleth map with shapes");
-        await loadChoroplethMap(mapInstance, map);
+      // Only render if we have discovered shape layers or aggregations
+      // Wait a bit for shape layers to be discovered if they're being fetched
+      if (shouldUseChoropleth) {
+        // Ensure points are hidden when choropleth is selected
+        if (showPoints) {
+          setShowPoints(false);
+        }
+        
+        // Auto-select first shape layer if available and none selected
+        let shapeLayerToUse = selectedShapeLayer;
+        if (!shapeLayerToUse && availableShapeLayers.length > 0) {
+          shapeLayerToUse = String(availableShapeLayers[0].shape_layer_instance_id);
+          setSelectedShapeLayer(shapeLayerToUse);
+        } else if (!shapeLayerToUse && map.map_config?.shape_layer_instance_id) {
+          shapeLayerToUse = String(map.map_config.shape_layer_instance_id);
+          setSelectedShapeLayer(shapeLayerToUse);
+        }
+        
+        if (availableShapeLayers.length > 0 || hasAggregations || shapeLayerToUse) {
+          console.log("[PublicMapPage] Loading choropleth map with shapes", { shapeLayerToUse, availableShapeLayersCount: availableShapeLayers.length });
+          if (mapInstance && typeof mapInstance.getLayer === 'function') {
+            await loadChoroplethMap(mapInstance, map, shapeLayerToUse || null);
+          } else {
+            console.warn("[PublicMapPage] Map instance not ready, skipping choropleth load");
+          }
+        } else if (mightUseChoropleth && !hasDiscoveredShapeLayers) {
+          console.log("[PublicMapPage] Waiting for shape layers to be discovered...");
+          // Shape layers are being discovered asynchronously, they'll trigger a re-render
+          // For now, show points as fallback until shape layers are discovered
+          // The shape layer discovery effect will switch to choropleth when ready
+        }
       } else if (map.map_type === "heatmap") {
-        // Heatmap layer
+        // Heatmap layer - filter for valid coordinates
+        const validPoints = map.location_data.filter((point: any) => {
+          const lat = point.lat ?? point.latitude;
+          const lon = point.lon ?? point.longitude;
+          return lat != null && lon != null && 
+                 !isNaN(Number(lat)) && !isNaN(Number(lon)) &&
+                 isFinite(Number(lat)) && isFinite(Number(lon));
+        }).map((point: any) => ({
+          ...point,
+          lat: point.lat ?? point.latitude,
+          lon: point.lon ?? point.longitude,
+        }));
+        
         const geojsonData = {
           type: "FeatureCollection" as const,
-          features: map.location_data
-            .filter((point: any) => point.lat && point.lon)
-            .map((point: any, index: number) => ({
-              type: "Feature" as const,
-              geometry: {
-                type: "Point" as const,
-                coordinates: [point.lon, point.lat],
-              },
-              properties: {
-                id: index,
-                ...point,
-              },
-            })),
+          features: validPoints.map((point: any, index: number) => ({
+            type: "Feature" as const,
+            geometry: {
+              type: "Point" as const,
+              coordinates: [point.lon, point.lat],
+            },
+            properties: {
+              id: index,
+              ...point,
+            },
+          })),
         };
         
         mapInstance.addSource("map-points", {
@@ -598,26 +1120,90 @@ export default function PublicMapPage() {
             "heatmap-weight": 1,
             "heatmap-intensity": 1,
             "heatmap-radius": 15,
-            "heatmap-opacity": 0.8,
+            "heatmap-opacity": (showPoints && !selectedShapeLayer) ? 0.8 : 0,
           },
         });
+        
+        // For heatmap maps, only auto-show if NOT using choropleth and NOT waiting for shape layers
+        const shouldAutoShowHeatmap = (isEmbedded || showPoints) && !selectedShapeLayer && !shouldUseChoropleth && !mightUseChoropleth;
+        if (shouldAutoShowHeatmap) {
+          setShowPoints(true);
+        }
+        
+        // Set initial visibility based on showPoints and selectedShapeLayer
+        if (mapInstance.getLayer("map-heatmap")) {
+          if (shouldAutoShowHeatmap) {
+            mapInstance.setLayoutProperty("map-heatmap", "visibility", "visible");
+            mapInstance.setPaintProperty("map-heatmap", "heatmap-opacity", 0.8);
+          } else {
+            mapInstance.setLayoutProperty("map-heatmap", "visibility", "none");
+            mapInstance.setPaintProperty("map-heatmap", "heatmap-opacity", 0);
+          }
+        }
       } else {
-        // Point layer
+        // Point layer - filter for valid coordinates (handle both lat/lon and latitude/longitude)
+        const validPoints = map.location_data.filter((point: any) => {
+          const lat = point.lat ?? point.latitude;
+          const lon = point.lon ?? point.longitude;
+          return lat != null && lon != null && 
+                 !isNaN(Number(lat)) && !isNaN(Number(lon)) &&
+                 isFinite(Number(lat)) && isFinite(Number(lon));
+        }).map((point: any) => ({
+          ...point,
+          lat: point.lat ?? point.latitude,
+          lon: point.lon ?? point.longitude,
+        }));
+        console.log("Rendering point layer:", {
+          totalLocationData: map.location_data?.length || 0,
+          validPointsCount: validPoints.length,
+          points: validPoints.map((p: any) => ({ lat: p.lat, lon: p.lon })),
+          invalidPoints: map.location_data.length - validPoints.length
+        });
+        
+        // Group points by exact location to detect overlaps
+        const locationMap = new Map<string, number[]>();
+        validPoints.forEach((point: any, index: number) => {
+          const key = `${point.lat},${point.lon}`;
+          if (!locationMap.has(key)) {
+            locationMap.set(key, []);
+          }
+          locationMap.get(key)!.push(index);
+        });
+        
+        // Add small random offset for overlapping points (so they're all visible)
         const geojsonData = {
           type: "FeatureCollection" as const,
-          features: map.location_data
-            .filter((point: any) => point.lat && point.lon)
-            .map((point: any, index: number) => ({
+          features: validPoints.map((point: any, index: number) => {
+            const key = `${point.lat},${point.lon}`;
+            const indicesAtLocation = locationMap.get(key) || [];
+            const positionInGroup = indicesAtLocation.indexOf(index);
+            const totalAtLocation = indicesAtLocation.length;
+            
+            // Add small random offset if multiple points at same location
+            // Offset is deterministic based on index to avoid jitter on re-render
+            let latOffset = 0;
+            let lonOffset = 0;
+            if (totalAtLocation > 1) {
+              // Spread points in a small circle around the original location
+              const angle = (positionInGroup / totalAtLocation) * Math.PI * 2;
+              const radius = 0.0001; // ~11 meters
+              latOffset = Math.cos(angle) * radius;
+              lonOffset = Math.sin(angle) * radius;
+            }
+            
+            return {
               type: "Feature" as const,
               geometry: {
                 type: "Point" as const,
-                coordinates: [point.lon, point.lat],
+                coordinates: [point.lon + lonOffset, point.lat + latOffset],
               },
               properties: {
                 id: index,
                 ...point,
+                _overlap_count: totalAtLocation, // Track how many points overlap
               },
-            })),
+            };
+          }),
         };
         
         mapInstance.addSource("map-points", {
@@ -649,9 +1235,28 @@ export default function PublicMapPage() {
             })(),
             "circle-stroke-color": "#fff",
             "circle-stroke-width": 1,
-            "circle-opacity": 0.8,
+            "circle-opacity": (showPoints && !selectedShapeLayer) ? 0.8 : 0,
           },
         });
+        
+        // Set initial visibility based on showPoints and selectedShapeLayer
+        // For point maps, only auto-show points if NOT using choropleth and NOT waiting for shape layers
+        // Don't auto-show if we're waiting for shape layers to be discovered (mightUseChoropleth)
+        const shouldAutoShowPoints = (isEmbedded || showPoints) && !selectedShapeLayer && !shouldUseChoropleth && !mightUseChoropleth;
+        if (shouldAutoShowPoints) {
+          setShowPoints(true);
+        }
+        
+        // Set initial visibility
+        if (mapInstance.getLayer("map-points")) {
+          if (shouldAutoShowPoints) {
+            mapInstance.setLayoutProperty("map-points", "visibility", "visible");
+            mapInstance.setPaintProperty("map-points", "circle-opacity", 0.8);
+          } else {
+            mapInstance.setLayoutProperty("map-points", "visibility", "none");
+            mapInstance.setPaintProperty("map-points", "circle-opacity", 0);
+          }
+        }
         
         // Add popup on click
         mapInstance.on("click", "map-points", (e: any) => {
@@ -699,7 +1304,75 @@ export default function PublicMapPage() {
         mapInstanceRef.current = null;
       }
     };
-  }, [map, mapboxLoaded, theme]);
+  }, [map, mapboxLoaded, theme, selectedShapeLayer, isEmbedded]);
+  
+  // Trigger choropleth rendering when shape layers are discovered
+  useEffect(() => {
+    if (!map || !mapInstanceRef.current || !mapboxLoaded) return;
+    
+    // Auto-select first shape layer if available and none selected
+    let shapeLayerToUse = selectedShapeLayer;
+    if (!shapeLayerToUse && availableShapeLayers.length > 0) {
+      shapeLayerToUse = String(availableShapeLayers[0].shape_layer_instance_id);
+      setSelectedShapeLayer(shapeLayerToUse);
+    } else if (!shapeLayerToUse && map.map_config?.shape_layer_instance_id) {
+      shapeLayerToUse = String(map.map_config.shape_layer_instance_id);
+      setSelectedShapeLayer(shapeLayerToUse);
+    }
+    
+    if (availableShapeLayers.length === 0 && !shapeLayerToUse) {
+      // No shape layers available - check if we should show points instead
+      const hasAggregations = !!(map.map_config?.aggregations && Object.keys(map.map_config.aggregations).length > 0);
+      const definitelyUseChoropleth = map.map_type === "choropleth" || hasAggregations;
+      
+      // Only auto-show points if NOT using choropleth and we're in embedded mode or explicitly enabled
+      // Don't show points if we're still waiting for shape layer discovery
+      if (!definitelyUseChoropleth && map.map_type === "point" && map.location_data && map.location_data.length > 0) {
+        const validPoints = map.location_data.filter((point: any) => {
+          const lat = point.lat ?? point.latitude;
+          const lon = point.lon ?? point.longitude;
+          return lat != null && lon != null;
+        });
+        if (validPoints.length > 0 && (isEmbedded || showPoints) && !selectedShapeLayer) {
+          setShowPoints(true);
+        }
+      }
+      return;
+    }
+    
+    if (!shapeLayerToUse) return;
+    
+    // Check if choropleth layers already exist
+    if (mapInstanceRef.current.getLayer("choropleth-fill")) {
+      return; // Already rendered
+    }
+    
+    // Check if we should render choropleth
+    const locationDataCount = map.location_data?.length || 0;
+    const hasAggregations = !!(map.map_config?.aggregations && Object.keys(map.map_config.aggregations).length > 0);
+    const hasGeographicIdentifiers = !!(map.location_data?.some((point: any) => 
+      point.supervisor_district !== undefined || 
+      point.supervisor_district !== null ||
+      point.district !== undefined ||
+      point.district !== null ||
+      point.district_id !== undefined ||
+      point.district_id !== null
+    ));
+    
+    const shouldUseChoropleth = 
+      (map.map_type === "choropleth" || hasAggregations || (map.map_type === "point" && hasGeographicIdentifiers)) && 
+      map.city_id &&
+      (locationDataCount >= 100 || hasAggregations);
+    
+    if (shouldUseChoropleth && mapInstanceRef.current) {
+      console.log("[PublicMapPage] Shape layers discovered, loading choropleth", { shapeLayerToUse });
+      // Ensure points are hidden when choropleth is loaded
+      if (showPoints) {
+        setShowPoints(false);
+      }
+      loadChoroplethMap(mapInstanceRef.current, map, shapeLayerToUse);
+    }
+  }, [availableShapeLayers, selectedShapeLayer, map, mapboxLoaded, isEmbedded, showPoints]);
   
   // Update map style when theme changes
   useEffect(() => {
@@ -711,10 +1384,19 @@ export default function PublicMapPage() {
       
       // Reload choropleth layers after style loads
       mapInstanceRef.current.once("style.load", async () => {
-        if (map.map_type === "choropleth" && map.map_config?.shape_layer_instance_id && map.city_id) {
+        const locationDataCount = map.location_data?.length || 0;
+        const hasAggregations = map.map_config?.aggregations && Object.keys(map.map_config.aggregations).length > 0;
+        const hasAvailableShapeLayers = map.map_config?.available_shape_layers && map.map_config.available_shape_layers.length > 0;
+        const shouldUseChoropleth = 
+          (map.map_type === "choropleth" || hasAggregations || hasAvailableShapeLayers) && 
+          (map.map_config?.shape_layer_instance_id || hasAvailableShapeLayers) && 
+          map.city_id &&
+          (locationDataCount >= 1000 || hasAggregations);
+        
+        if (shouldUseChoropleth && mapInstanceRef.current) {
           console.log("Reloading choropleth layers after style change");
-          await loadChoroplethMap(mapInstanceRef.current, map);
-        } else if (mapInstanceRef.current.getLayer("choropleth-outline")) {
+          await loadChoroplethMap(mapInstanceRef.current, map, selectedShapeLayer);
+        } else if (mapInstanceRef.current && mapInstanceRef.current.getLayer && mapInstanceRef.current.getLayer("choropleth-outline")) {
           // Just update outline color if layers already exist
           const outlineColor = theme === "dark" ? "#ffffff" : "#000000";
           mapInstanceRef.current.setPaintProperty("choropleth-outline", "line-color", outlineColor);
@@ -722,7 +1404,42 @@ export default function PublicMapPage() {
         }
       });
     }
-  }, [theme, mapboxLoaded, map]);
+  }, [theme, mapboxLoaded, map, selectedShapeLayer]);
+  
+  // Toggle points visibility - mutually exclusive with shape layers
+  useEffect(() => {
+    if (!mapInstanceRef.current || !mapboxLoaded) return;
+    
+    const mapInstance = mapInstanceRef.current;
+    
+    // If a shape layer is selected, hide points
+    if (selectedShapeLayer && showPoints) {
+      setShowPoints(false);
+      return;
+    }
+    
+    // Toggle map-points layer
+    if (mapInstance.getLayer("map-points")) {
+      if (showPoints && !selectedShapeLayer) {
+        mapInstance.setLayoutProperty("map-points", "visibility", "visible");
+        mapInstance.setPaintProperty("map-points", "circle-opacity", 0.8);
+      } else {
+        mapInstance.setLayoutProperty("map-points", "visibility", "none");
+        mapInstance.setPaintProperty("map-points", "circle-opacity", 0);
+      }
+    }
+    
+    // Toggle map-heatmap layer
+    if (mapInstance.getLayer("map-heatmap")) {
+      if (showPoints && !selectedShapeLayer) {
+        mapInstance.setLayoutProperty("map-heatmap", "visibility", "visible");
+        mapInstance.setPaintProperty("map-heatmap", "heatmap-opacity", 0.8);
+      } else {
+        mapInstance.setLayoutProperty("map-heatmap", "visibility", "none");
+        mapInstance.setPaintProperty("map-heatmap", "heatmap-opacity", 0);
+      }
+    }
+  }, [showPoints, selectedShapeLayer, mapboxLoaded]);
   
   if (loading) {
     return (
@@ -890,6 +1607,37 @@ export default function PublicMapPage() {
           </div>
         </div>
         <div className="map-container-wrapper embedded-map-wrapper">
+          <MapLayerPanel
+            availableShapeLayers={availableShapeLayers.length > 0 ? availableShapeLayers : 
+              (map?.map_config?.shape_layer_instance_id ? [{
+                shape_layer_instance_id: map.map_config.shape_layer_instance_id,
+                identifier_field: map.map_config.district_field || "supervisor_district",
+                display_name: "Districts",
+                layer_key: "supervisor_districts",
+                category: "government",
+              }] : [])
+            }
+            selectedShapeLayer={selectedShapeLayer}
+            onShapeLayerSelect={(shapeLayerId) => {
+              setSelectedShapeLayer(shapeLayerId);
+              // Hide points when selecting a shape layer
+              if (showPoints) {
+                setShowPoints(false);
+              }
+              if (mapInstanceRef.current && map) {
+                loadChoroplethMap(mapInstanceRef.current, map, shapeLayerId);
+              }
+            }}
+            showDots={showPoints && !selectedShapeLayer}
+            onToggleDots={() => {
+              // Clear shape layer selection when showing points
+              if (!showPoints && selectedShapeLayer) {
+                setSelectedShapeLayer(null);
+              }
+              setShowPoints(!showPoints);
+            }}
+            canShowDots={!!(map.location_data && map.location_data.length > 0)}
+          />
           <div className="map-container embedded-map" ref={mapContainerRef} />
           {districtPanel && (
             <div className="map-bottom-panel" role="region" aria-label="District details">
@@ -1110,6 +1858,9 @@ export default function PublicMapPage() {
       
       <article className="map-article">
         <div className="map-info">
+          {(map.city_name || resolvedCityName) && (
+            <p className="map-city-name">{map.city_name || resolvedCityName}</p>
+          )}
           <h1 className="map-title">{map.title}</h1>
           {map.description && (
             <p className="map-description">{map.description}</p>
@@ -1122,6 +1873,37 @@ export default function PublicMapPage() {
         </div>
 
         <div className="map-container-wrapper">
+          <MapLayerPanel
+            availableShapeLayers={availableShapeLayers.length > 0 ? availableShapeLayers : 
+              (map?.map_config?.shape_layer_instance_id ? [{
+                shape_layer_instance_id: map.map_config.shape_layer_instance_id,
+                identifier_field: map.map_config.district_field || "supervisor_district",
+                display_name: "Districts",
+                layer_key: "supervisor_districts",
+                category: "government",
+              }] : [])
+            }
+            selectedShapeLayer={selectedShapeLayer}
+            onShapeLayerSelect={(shapeLayerId) => {
+              setSelectedShapeLayer(shapeLayerId);
+              // Hide points when selecting a shape layer
+              if (showPoints) {
+                setShowPoints(false);
+              }
+              if (mapInstanceRef.current && map) {
+                loadChoroplethMap(mapInstanceRef.current, map, shapeLayerId);
+              }
+            }}
+            showDots={showPoints && !selectedShapeLayer}
+            onToggleDots={() => {
+              // Clear shape layer selection when showing points
+              if (!showPoints && selectedShapeLayer) {
+                setSelectedShapeLayer(null);
+              }
+              setShowPoints(!showPoints);
+            }}
+            canShowDots={!!(map.location_data && map.location_data.length > 0)}
+          />
           <div className="map-container" ref={mapContainerRef} />
           {legend && legend.items.length > 0 && (
             <div className="map-legend" aria-label="Map legend">
@@ -1242,12 +2024,12 @@ export default function PublicMapPage() {
             )}
           
           <div className="cta-section">
-            <h3>Explore More Civic Data</h3>
+            <h3>Sign up now</h3>
             <p>
-              Create interactive maps and analyze public data for any city.
+              Get updates, maps, and content about your city and neighborhood.
             </p>
             <a href="/" className="cta-button">
-              Visit TransparentCity
+              Sign up
             </a>
           </div>
         </footer>

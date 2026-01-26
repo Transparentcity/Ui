@@ -185,6 +185,23 @@
   margin-bottom: 24px;
 }
 
+.hero-mayor-subscribers {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary, #1f2937);
+  margin-bottom: 20px;
+}
+
+.hero-mayor-sep {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.hero-subscriber-count {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
 .hero-visual {
   position: relative;
   z-index: 10;

@@ -266,6 +266,13 @@ function getAnomalyDisplayInfo(anomaly: AnomalyResult, itemNoun: string) {
   const isUp = diff > 0;
   const moreOrFewer = isUp ? "more" : "fewer";
 
+  // Determine if the change is "bad" based on greendirection
+  // greendirection="up" means increase is good (green), decrease is bad (red)
+  // greendirection="down" means decrease is good (green), increase is bad (red)
+  // Default to "down" (lower is better) if not specified - common for crime, incidents, etc.
+  const greendirection = anomaly.greendirection || "down";
+  const isBad = greendirection === "up" ? !isUp : isUp;
+
   const displayNoun =
     Math.round(absDiff) === 1
       ? itemNoun
@@ -293,6 +300,7 @@ function getAnomalyDisplayInfo(anomaly: AnomalyResult, itemNoun: string) {
     diff,
     absDiff,
     isUp,
+    isBad,  // true = red (bad change), false = green (good change)
     moreOrFewer,
     displayNoun,
     locationDisplay,
@@ -575,7 +583,7 @@ export default function AnomaliesTabPanel({
                   <button
                     className={styles.anomalyCard}
                     onClick={() => handleAnomalyClick(topAnomaly)}
-                    data-is-positive={topInfo.isUp}
+                    data-is-bad={topInfo.isBad}
                   >
                     {/* Sparkline Chart */}
                     {topAnomaly.chart_payload && (
@@ -642,7 +650,7 @@ export default function AnomaliesTabPanel({
                             key={anomaly.id ?? idx}
                             className={styles.subAnomalyCard}
                             onClick={() => handleAnomalyClick(anomaly)}
-                            data-is-positive={info.isUp}
+                            data-is-bad={info.isBad}
                           >
                             <div className={styles.subAnomalyMain}>
                               <i
