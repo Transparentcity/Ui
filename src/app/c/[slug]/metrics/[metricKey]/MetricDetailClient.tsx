@@ -101,11 +101,45 @@ export default function MetricDetailClient({
       <div className="metric-detail-content-wrapper">
         <MetricDetailContent
           metric={metric}
-          citySlug={citySlug}
           cityName={cityName}
           district={district}
         />
       </div>
+
+      <footer className="footer">
+        <div className="container">
+          <div className="footer-content">
+            <div className="footer-column">
+              <div className="logo">
+                <span className="logo-text">
+                  <span className="logo-transparent">transparent</span>
+                  <span className="logo-city">.city</span>
+                </span>
+              </div>
+              <p className="footer-description">
+                Maps, metrics, and research built from public city data—so
+                residents and elected officials can share the same picture of what's
+                happening.
+              </p>
+            </div>
+            <div className="footer-column">
+              <h4 className="footer-title">Resources</h4>
+              <Link href={`/c/${citySlug}/methodology`} className="footer-link">
+                Methodology
+              </Link>
+              <Link href="/sitemap" className="footer-link">
+                Site Map
+              </Link>
+            </div>
+          </div>
+          <div className="footer-bottom">
+            <p>
+              &copy; 2025 Transparent.city. The difference between knowing and
+              guessing is agency.
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

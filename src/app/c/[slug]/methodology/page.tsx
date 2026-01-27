@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
   return {
     title: `Methodology | ${cityName}`,
-    description: `How Transparent.city uses ${cityName}'s public data: sources, independence, and our mission to center local discussion on data.`,
+    description: `How Transparent.city uses ${cityName}'s public data: sources, independence, and our mission to center local discussion on shared facts.`,
   };
 }
 
@@ -84,7 +84,7 @@ export default async function MethodologyPage({ params }: PageProps) {
                 ← {cityDisplay}
               </Link>
               <a
-                href="https://www.transparentsf.com"
+                href="https://www.transparent.city"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="nav-link"
@@ -110,19 +110,20 @@ export default async function MethodologyPage({ params }: PageProps) {
             <h1 className="hero-title">How we use {cityDisplay}’s data</h1>
             <p className="hero-description">
               Data sources, independence, and our mission to center the local
-              discussion on data.
+              discussion on shared facts.
             </p>
           </header>
 
           <section className="methodology-section">
             <h2>Our mission</h2>
             <p>
-              Transparent.city exists to center the local discussion on data. We
-              turn official public data into clear, source-linked insights so
-              residents, advocates, and elected officials can share the same
-              picture of what’s changing—and focus on fixing what isn’t. We aim
-              to make it easier to give credit when things improve and to push
-              for change when they don’t, without spin or guesswork.
+              Transparent.city uses AI and public data to make each city’s civic
+              landscape legible, understandable, and actionable. We turn official
+              records into clear, source-linked insights so residents, advocates,
+              and local leaders can share the same picture of what’s changing—and
+              focus on fixing what isn’t. Our mission is to shift local discourse
+              from anecdote to evidence so communities can make smarter, more
+              accountable decisions.
             </p>
           </section>
 

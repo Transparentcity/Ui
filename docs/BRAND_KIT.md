@@ -4,13 +4,27 @@ This is the **frontend-facing brand reference** for `transparent.city`.
 Use this together with the shared backend style guide when designing
 new React/Next.js pages in `transparentcity-ui`.
 
+Brand Essence:
+transparent.city uses AI and public data to make San Francisco's civic
+landscape legible, understandable, and actionable for everyday residents.
+We're focused on helping people make sense of what's happening in their city
+beneath the surface of headlines, spin, and political narratives by
+delivering clear, consistent insights grounded in real data.
+
+Mission:
+We transform raw public data into actionable insights that reveal how San
+Francisco is really working — helping citizens cut through stakeholder spin,
+advocate for effective solutions, and hold leaders accountable to measurable
+outcomes. Our goal is to shift civic discourse from anecdote to evidence,
+enabling a more responsive and informed city.
+
 ---
 
 ## 1. Canonical Brand Sources
 
 - **Primary Visual Design System** (tokens, components, maps, charts)  
   Source file (backend repo):  
-  `transparentSF/ai/static/data/Style Guide`
+  `transparent.city/ai/static/data/Style Guide`
 
 - **Platform Brand Kit** (logo, favicon, loader)  
   Source file (platform repo):  
@@ -19,7 +33,7 @@ new React/Next.js pages in `transparentcity-ui`.
 When in doubt, match:
 
 1. The explicit rules in those two documents, then  
-2. Existing production UI in TransparentCity/TransparentSF.
+2. Existing production UI in transparent.city.
 
 ---
 

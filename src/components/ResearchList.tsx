@@ -396,7 +396,7 @@ export default function ResearchList({
           return (
           <div
             key={report.id}
-            className={`${styles.item} ${currentResearchId === report.id ? styles.itemActive : ""} ${isOtherUserResearch ? styles.itemOtherUser : ""}`}
+            className={`${styles.item} ${currentResearchId === report.id ? styles.itemActive : ""} ${isOtherUserResearch ? styles.itemOtherUser : ""} ${openMenuId === report.id ? styles.itemMenuOpen : ""}`}
             onClick={() => onResearchClick(report.id)}
           >
             <div className={styles.content}>

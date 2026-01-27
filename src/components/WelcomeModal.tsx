@@ -195,12 +195,16 @@ export default function WelcomeModal({
   const [homeCoordinates, setHomeCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   
   // Preferences state
+  const [personalizedEmail, setPersonalizedEmail] = useState(true);
   const [anomalyAlerts, setAnomalyAlerts] = useState(true);
   const [weeklyDigest, setWeeklyDigest] = useState(false);
-  const [monthlyReport, setMonthlyReport] = useState(false);
+  const [monthlyReport, setMonthlyReport] = useState(true);
   const [reportScope, setReportScope] = useState<"district" | "city">("district");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [learningFocus, setLearningFocus] = useState("");
+  const [newsletterDescription, setNewsletterDescription] = useState("");
+  const [newsletterFrequency, setNewsletterFrequency] = useState<"weekly" | "monthly">("weekly");
+  const [showMoreInterests, setShowMoreInterests] = useState(false);
   
   // City search state
   const [citySearchResults, setCitySearchResults] = useState<PublicCitySearchResult[]>([]);
@@ -220,12 +224,16 @@ export default function WelcomeModal({
       setTrackBoth(true);
       setHomeCoordinates(null);
       // Reset preferences
+      setPersonalizedEmail(true);
       setAnomalyAlerts(true);
       setWeeklyDigest(false);
-      setMonthlyReport(false);
+      setMonthlyReport(true);
       setReportScope("district");
       setSelectedCategories([]);
       setLearningFocus("");
+      setNewsletterDescription("");
+      setNewsletterFrequency("weekly");
+      setShowMoreInterests(false);
     }
   }, [isOpen]);
 
@@ -800,11 +808,6 @@ export default function WelcomeModal({
         </button>
       </div>
       
-      <p className={styles.disclaimer}>
-        <a href="/methodology" className={styles.disclaimerLink}>
-          Data &amp; Methodology FAQ
-        </a>
-      </p>
     </div>
   );
 
@@ -916,10 +919,13 @@ export default function WelcomeModal({
         has_completed_onboarding: true,
         extra: {
           communication_preferences: {
+            personalized_email: personalizedEmail,
             anomaly_alerts: anomalyAlerts,
             weekly_digest: weeklyDigest,
             monthly_report: monthlyReport,
             report_scope: monthlyReport ? reportScope : null,
+            newsletter_description: newsletterDescription || null,
+            newsletter_frequency: personalizedEmail ? newsletterFrequency : null,
           },
           category_interests: selectedCategories,
           learning_focus: learningFocus || null,
@@ -1000,24 +1006,60 @@ export default function WelcomeModal({
           <label className={styles.preferenceOption}>
             <input
               type="checkbox"
+              checked={personalizedEmail}
+              onChange={(e) => setPersonalizedEmail(e.target.checked)}
+            />
+            <span className={styles.preferenceOptionText}>
+              <strong>Personalized email</strong>
+              <span>Custom newsletter tailored to your interests</span>
+            </span>
+          </label>
+
+          {personalizedEmail && (
+            <div className={styles.newsletterCustomization}>
+              <label className={styles.textInputLabel}>
+                Describe your ideal personalized newsletter
+              </label>
+              <textarea
+                className={styles.newsletterDescriptionInput}
+                placeholder="Create a weekly newsletter report for [City] ([District]). Focus on recent changes and trends in key metrics (crime, housing, permits, 311 calls, budget), notable anomalies or significant shifts, comparative analysis (this period vs. previous period, this district vs. city-wide), and actionable insights for residents. The report should be accessible to general public, data-driven with specific numbers and percentages, highlight both positive and concerning trends, and include visualizations where helpful."
+                value={newsletterDescription}
+                onChange={(e) => setNewsletterDescription(e.target.value)}
+                rows={4}
+              />
+              <div className={styles.frequencySelector}>
+                <label className={styles.frequencyLabel}>Frequency:</label>
+                <label className={styles.frequencyOption}>
+                  <input
+                    type="radio"
+                    name="newsletterFrequency"
+                    checked={newsletterFrequency === "weekly"}
+                    onChange={() => setNewsletterFrequency("weekly")}
+                  />
+                  <span>Weekly</span>
+                </label>
+                <label className={styles.frequencyOption}>
+                  <input
+                    type="radio"
+                    name="newsletterFrequency"
+                    checked={newsletterFrequency === "monthly"}
+                    onChange={() => setNewsletterFrequency("monthly")}
+                  />
+                  <span>Monthly</span>
+                </label>
+              </div>
+            </div>
+          )}
+
+          <label className={styles.preferenceOption}>
+            <input
+              type="checkbox"
               checked={anomalyAlerts}
               onChange={(e) => setAnomalyAlerts(e.target.checked)}
             />
             <span className={styles.preferenceOptionText}>
               <strong>Anomaly alerts</strong>
               <span>Get notified when significant changes are detected</span>
-            </span>
-          </label>
-
-          <label className={styles.preferenceOption}>
-            <input
-              type="checkbox"
-              checked={weeklyDigest}
-              onChange={(e) => setWeeklyDigest(e.target.checked)}
-            />
-            <span className={styles.preferenceOptionText}>
-              <strong>Weekly digest</strong>
-              <span>Summary of key metrics and changes</span>
             </span>
           </label>
 
@@ -1032,65 +1074,46 @@ export default function WelcomeModal({
               <span>Comprehensive analysis of city performance</span>
             </span>
           </label>
-
-          {monthlyReport && (
-            <div className={styles.reportScopeOptions}>
-              <label className={styles.reportScopeOption}>
-                <input
-                  type="radio"
-                  name="reportScope"
-                  checked={reportScope === "district"}
-                  onChange={() => setReportScope("district")}
-                />
-                <span>For my district</span>
-              </label>
-              <label className={styles.reportScopeOption}>
-                <input
-                  type="radio"
-                  name="reportScope"
-                  checked={reportScope === "city"}
-                  onChange={() => setReportScope("city")}
-                />
-                <span>For the whole city</span>
-              </label>
-            </div>
-          )}
         </div>
 
-        {/* Category Interests */}
-        <div className={styles.preferencesSection}>
-          <h3 className={styles.sectionTitle}>What interests you?</h3>
-          <p className={styles.sectionDescription}>
-            Select categories you&apos;d like to track (optional)
-          </p>
-          <div className={styles.categoryGrid}>
-            {commonCategories.map((category) => (
-              <label key={category} className={styles.categoryChip}>
-                <input
-                  type="checkbox"
-                  checked={selectedCategories.includes(category)}
-                  onChange={() => toggleCategory(category)}
-                />
-                <span>{category}</span>
-              </label>
-            ))}
+        {/* Category Interests - Optional second page */}
+        {!showMoreInterests && (
+          <div className={styles.preferencesSection}>
+            <button
+              className={styles.showMoreButton}
+              onClick={() => setShowMoreInterests(true)}
+            >
+              Customize interests (optional)
+            </button>
           </div>
-        </div>
+        )}
 
-        {/* Learning Focus */}
-        <div className={styles.preferencesSection}>
-          <h3 className={styles.sectionTitle}>What would you like to learn?</h3>
-          <p className={styles.sectionDescription}>
-            Tell us what you&apos;d like to focus on (optional)
-          </p>
-          <textarea
-            className={styles.learningFocusInput}
-            placeholder="e.g., Understanding budget allocation, tracking crime trends, monitoring infrastructure projects..."
-            value={learningFocus}
-            onChange={(e) => setLearningFocus(e.target.value)}
-            rows={3}
-          />
-        </div>
+        {showMoreInterests && (
+          <div className={styles.preferencesSection}>
+            <h3 className={styles.sectionTitle}>What interests you?</h3>
+            <p className={styles.sectionDescription}>
+              Select categories you&apos;d like to track (optional)
+            </p>
+            <div className={styles.categoryGrid}>
+              {commonCategories.map((category) => (
+                <label key={category} className={styles.categoryChip}>
+                  <input
+                    type="checkbox"
+                    checked={selectedCategories.includes(category)}
+                    onChange={() => toggleCategory(category)}
+                  />
+                  <span>{category}</span>
+                </label>
+              ))}
+            </div>
+            <button
+              className={styles.hideMoreButton}
+              onClick={() => setShowMoreInterests(false)}
+            >
+              Hide
+            </button>
+          </div>
+        )}
 
         {error && <div className={styles.error}>{error}</div>}
 
@@ -1139,6 +1162,15 @@ export default function WelcomeModal({
         </p>
 
         <div className={styles.allSetSummary}>
+          {personalizedEmail && (
+            <div className={styles.summaryItem}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+              <span>Personalized {newsletterFrequency} email enabled</span>
+            </div>
+          )}
           {anomalyAlerts && (
             <div className={styles.summaryItem}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1148,22 +1180,13 @@ export default function WelcomeModal({
               <span>Anomaly alerts enabled</span>
             </div>
           )}
-          {weeklyDigest && (
-            <div className={styles.summaryItem}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-              <span>Weekly digest enabled</span>
-            </div>
-          )}
           {monthlyReport && (
             <div className={styles.summaryItem}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                 <polyline points="22 4 12 14.01 9 11.01" />
               </svg>
-              <span>Monthly {reportScope} report enabled</span>
+              <span>Monthly report enabled</span>
             </div>
           )}
         </div>

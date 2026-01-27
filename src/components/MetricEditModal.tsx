@@ -11,7 +11,8 @@ import {
   useUpdateMetric,
   useValidateMetricFreshness,
 } from "@/lib/hooks/useMetrics";
-import { getPublicMetricCompleteness, type MetricCompletenessResponse } from "@/lib/publicApiClient";
+import { getPublicMetricCompleteness, getPublicMetricCompletenessStats, getPublicMetricCompletenessDaily, type MetricCompletenessResponse, type CompletenessStatisticsResponse, type DailyCompletenessResponse } from "@/lib/publicApiClient";
+import CompletenessSparkline from "./CompletenessSparkline";
 import styles from "./MetricsAdmin.module.css";
 
 interface MetricEditModalProps {
@@ -26,7 +27,8 @@ function formatDateTime(value?: string | null): string {
   if (!value) return "Never";
   const dt = new Date(value);
   if (Number.isNaN(dt.getTime())) return value;
-  return dt.toLocaleString();
+  // Use UTC timezone to avoid off-by-one date issues with server timestamps
+  return dt.toLocaleString("en-US", { timeZone: "UTC" });
 }
 
 function formatDate(value?: string | null): string {
@@ -148,6 +150,8 @@ export default function MetricEditModal({
   
   // Completeness data state
   const [completenessData, setCompletenessData] = useState<MetricCompletenessResponse | null>(null);
+  const [completenessStats, setCompletenessStats] = useState<CompletenessStatisticsResponse | null>(null);
+  const [completenessDaily, setCompletenessDaily] = useState<DailyCompletenessResponse | null>(null);
   const [completenessLoading, setCompletenessLoading] = useState(false);
   const [showCompletenessDetails, setShowCompletenessDetails] = useState(false);
 
@@ -155,15 +159,27 @@ export default function MetricEditModal({
   useEffect(() => {
     if (metric?.id) {
       setCompletenessLoading(true);
-      getPublicMetricCompleteness(metric.id)
-        .then(setCompletenessData)
+      Promise.all([
+        getPublicMetricCompleteness(metric.id),
+        getPublicMetricCompletenessStats(metric.id).catch(() => null),
+        getPublicMetricCompletenessDaily(metric.id, "day", 90).catch(() => null)
+      ])
+        .then(([completeness, stats, daily]) => {
+          setCompletenessData(completeness);
+          setCompletenessStats(stats);
+          setCompletenessDaily(daily);
+        })
         .catch((err) => {
           console.warn("Failed to load completeness data:", err);
           setCompletenessData(null);
+          setCompletenessStats(null);
+          setCompletenessDaily(null);
         })
         .finally(() => setCompletenessLoading(false));
     } else {
       setCompletenessData(null);
+      setCompletenessStats(null);
+      setCompletenessDaily(null);
     }
   }, [metric?.id]);
 
@@ -765,6 +781,163 @@ export default function MetricEditModal({
                   </button>
                 )}
               </div>
+            )}
+            
+            {/* Completeness Statistics - Always show if available */}
+            {completenessStats && completenessStats.total_checks > 0 && (
+              <div style={{ 
+                    marginTop: 16, 
+                    padding: 16, 
+                    backgroundColor: "var(--bg-secondary, #f5f5f5)",
+                    borderRadius: 4,
+                    border: "1px solid var(--border-primary)"
+                  }}>
+                    <div style={{ marginBottom: 12 }}>
+                      <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+                        📊 Completeness Statistics
+                      </h4>
+                    </div>
+                    
+                    <div style={{ 
+                      display: "grid", 
+                      gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", 
+                      gap: 12,
+                      marginBottom: 12
+                    }}>
+                      <div style={{ padding: 8, backgroundColor: "var(--bg-primary, #fff)", borderRadius: 4 }}>
+                        <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>
+                          Total Checks
+                        </div>
+                        <div style={{ fontSize: 18, fontWeight: 600 }}>
+                          {completenessStats.total_checks.toLocaleString()}
+                        </div>
+                      </div>
+                      
+                      <div style={{ padding: 8, backgroundColor: "var(--bg-primary, #fff)", borderRadius: 4 }}>
+                        <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>
+                          Total Changes
+                        </div>
+                        <div style={{ fontSize: 18, fontWeight: 600, color: completenessStats.total_changes > 0 ? "var(--color-warning, #f59e0b)" : "var(--text-primary)" }}>
+                          {completenessStats.total_changes.toLocaleString()}
+                        </div>
+                        {completenessStats.recent_changes > 0 && (
+                          <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 2 }}>
+                            {completenessStats.recent_changes} this week
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div style={{ padding: 8, backgroundColor: "var(--bg-primary, #fff)", borderRadius: 4 }}>
+                        <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>
+                          Stable Periods
+                        </div>
+                        <div style={{ fontSize: 18, fontWeight: 600, color: "var(--color-success, #10b981)" }}>
+                          {completenessStats.stable_periods_count.toLocaleString()}
+                        </div>
+                        {completenessStats.avg_stable_days && (
+                          <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 2 }}>
+                            Avg {completenessStats.avg_stable_days.toFixed(1)} days
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div style={{ padding: 8, backgroundColor: "var(--bg-primary, #fff)", borderRadius: 4 }}>
+                        <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>
+                          Unstable Periods
+                        </div>
+                        <div style={{ fontSize: 18, fontWeight: 600, color: "var(--color-warning, #f59e0b)" }}>
+                          {completenessStats.unstable_periods_count.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Daily Completeness Sparkline */}
+                    {completenessDaily && completenessDaily.data.length > 0 && (
+                      <div style={{ 
+                        marginTop: 12, 
+                        padding: 12, 
+                        backgroundColor: "var(--bg-primary, #fff)", 
+                        borderRadius: 4,
+                        border: "1px solid var(--border-secondary, #e0e0e0)"
+                      }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
+                          Daily Completeness Trend (Last 90 Days)
+                        </div>
+                        <div style={{ marginTop: 8, marginBottom: 8, paddingTop: 8, width: "100%", overflowX: "auto" }}>
+                          <CompletenessSparkline 
+                            data={completenessDaily.data} 
+                            width={600} 
+                            height={60}
+                          />
+                        </div>
+                        <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 8 }}>
+                          <i className="fas fa-info-circle" style={{ marginRight: 4 }} />
+                          Green = No growth, Split bars = Current (blue) vs First Seen (orange) - shows data growth over time
+                        </div>
+                      </div>
+                    )}
+                    
+                    {completenessStats.max_change_magnitude_pct && (
+                      <div style={{ 
+                        marginTop: 12, 
+                        padding: 12, 
+                        backgroundColor: "var(--bg-primary, #fff)", 
+                        borderRadius: 4,
+                        border: "1px solid var(--border-secondary, #e0e0e0)"
+                      }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
+                          Change Magnitude
+                        </div>
+                        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                          {completenessStats.max_change_magnitude_pct && (
+                            <div>
+                              <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>Max Change</div>
+                              <div style={{ fontSize: 14, fontWeight: 600 }}>
+                                {completenessStats.max_change_magnitude_pct.toFixed(1)}%
+                              </div>
+                            </div>
+                          )}
+                          {completenessStats.avg_change_magnitude_pct && (
+                            <div>
+                              <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>Avg Change</div>
+                              <div style={{ fontSize: 14, fontWeight: 600 }}>
+                                {completenessStats.avg_change_magnitude_pct.toFixed(1)}%
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div style={{ 
+                      marginTop: 12, 
+                      padding: 8, 
+                      fontSize: 11, 
+                      color: "var(--text-secondary)",
+                      display: "flex",
+                      gap: 16,
+                      flexWrap: "wrap"
+                    }}>
+                      {completenessStats.periods_checked_today > 0 && (
+                        <span>
+                          <i className="fas fa-check-circle" style={{ color: "var(--color-success, #10b981)", marginRight: 4 }} />
+                          {completenessStats.periods_checked_today.toLocaleString()} checked today
+                        </span>
+                      )}
+                      {completenessStats.periods_checked_this_week > 0 && (
+                        <span>
+                          <i className="fas fa-calendar-week" style={{ marginRight: 4 }} />
+                          {completenessStats.periods_checked_this_week.toLocaleString()} checked this week
+                        </span>
+                      )}
+                      {completenessStats.last_check_date && (
+                        <span>
+                          <i className="fas fa-clock" style={{ marginRight: 4 }} />
+                          Last check: {new Date(completenessStats.last_check_date).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
             )}
             
             {/* Period Completeness Details - Show outside freshness metadata section too */}

@@ -38,7 +38,7 @@ export default function ProgressiveMapView({
   const [points, setPoints] = useState<Array<{ lat: number; lon: number; [key: string]: any }> | null>(null);
   const [loadingPoints, setLoadingPoints] = useState(false);
   const [selectedDistrictId, setSelectedDistrictId] = useState<string | null>(null);
-  const [showPoints, setShowPoints] = useState(false);
+  const [showPoints, setShowPoints] = useState(true);
   const [mapboxLoaded, setMapboxLoaded] = useState(false);
   const [availableShapeLayers, setAvailableShapeLayers] = useState<ShapeLayer[]>([]);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -256,10 +256,6 @@ export default function ProgressiveMapView({
           setAvailableShapeLayers(matchingLayers);
           shapeLayersDiscoveredRef.current = true;
           
-          // Auto-select first matching layer if none selected
-          if (!selectedShapeLayer && matchingLayers.length > 0) {
-            setSelectedShapeLayer(String(matchingLayers[0].shape_layer_instance_id));
-          }
         } else {
           console.log(`[ProgressiveMapView] No matching shape layers found`);
           shapeLayersDiscoveredRef.current = true; // Mark as discovered even if no matches
@@ -285,19 +281,6 @@ export default function ProgressiveMapView({
   // Determine if we have aggregations (choropleth) or just points
   const hasAggregations = Object.keys(aggregations).length > 0;
   const isPointMap = mapData.map_type === "point" && !hasAggregations;
-
-  // Initialize selected shape layer to first available
-  useEffect(() => {
-    if (hasAggregations && availableShapeLayers.length > 0 && !selectedShapeLayer) {
-      // Prefer the shape layer that has aggregations, otherwise use first available
-      const layerWithAggregation = availableShapeLayers.find(
-        (sl) => aggregations[String(sl.shape_layer_instance_id)] || aggregations[sl.shape_layer_instance_id]
-      );
-      const layerToSelect = layerWithAggregation || availableShapeLayers[0];
-      console.log(`[ProgressiveMapView] Initializing selected shape layer to: ${layerToSelect.shape_layer_instance_id} (${layerToSelect.display_name})`);
-      setSelectedShapeLayer(String(layerToSelect.shape_layer_instance_id));
-    }
-  }, [hasAggregations, availableShapeLayers, selectedShapeLayer, aggregations]);
 
   // Automatically load points from location_data for point maps
   useEffect(() => {

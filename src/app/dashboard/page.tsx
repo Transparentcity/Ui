@@ -567,7 +567,8 @@ export default function DashboardPage() {
 
   const handleWelcomeCitySelected = (cityId: number, district?: number | null) => {
     setActiveCityId(cityId);
-    setInitialDistrict(district ?? null);
+    // If district is provided, set it; otherwise keep null (will default to citywide/0 in CityView)
+    setInitialDistrict(district !== undefined && district !== null ? district : null);
     setCurrentView("city");
     setCurrentSessionId(null);
     setCurrentResearchId(null);

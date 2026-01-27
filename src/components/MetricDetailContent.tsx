@@ -3,15 +3,20 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { usePublicMetricComparisons, usePublicMetricTimeSeriesSummary } from "@/lib/hooks/usePublicMetric";
 import type { PublicMetricDetail } from "@/lib/publicApiClient";
-import { getPublicMetricCompleteness, type MetricCompletenessResponse } from "@/lib/publicApiClient";
+import {
+  getPublicCityDetail,
+  getPublicMetricCompletenessDaily,
+  getPublicMetricCompletenessStats,
+  type CompletenessStatisticsResponse,
+  type DailyCompletenessResponse,
+  type PublicCityDetail,
+} from "@/lib/publicApiClient";
 import MetricMapEmbed from "./MetricMapEmbed";
 import CategoryBreakdown from "./CategoryBreakdown";
-import { slugify } from "@/lib/utils";
-import { getDataPortalForCity } from "@/lib/dataPortals";
 import { API_BASE } from "@/lib/apiBase";
 import TimeSeriesChart from "./TimeSeriesChart";
 import Loader from "./Loader";
-import type { PublicTimeSeriesSummaryItem } from "@/lib/publicApiClient";
+import CompletenessSparkline from "./CompletenessSparkline";
 
 interface PublicTimeSeriesPoint {
   time_period: string;
@@ -112,14 +117,12 @@ function PublicTimeSeriesChart({
 
 interface MetricDetailContentProps {
   metric: PublicMetricDetail;
-  citySlug: string;
   cityName: string;
   district?: number | null;
 }
 
 export default function MetricDetailContent({
   metric,
-  citySlug,
   cityName,
   district,
 }: MetricDetailContentProps) {
@@ -135,15 +138,50 @@ export default function MetricDetailContent({
   const timeSeriesQuery = usePublicMetricTimeSeriesSummary(metric.id);
   
   // Fetch completeness information
-  const [completenessData, setCompletenessData] = useState<MetricCompletenessResponse | null>(null);
+  const [completenessDaily, setCompletenessDaily] = useState<DailyCompletenessResponse | null>(null);
+  const [completenessLoading, setCompletenessLoading] = useState(false);
+  const [completenessStats, setCompletenessStats] = useState<CompletenessStatisticsResponse | null>(null);
+  const [cityDetail, setCityDetail] = useState<PublicCityDetail | null>(null);
   useEffect(() => {
-    getPublicMetricCompleteness(metric.id)
-      .then(setCompletenessData)
-      .catch((err) => {
-        console.warn("Failed to load completeness data:", err);
-        setCompletenessData(null);
-      });
+    setCompletenessDaily(null);
+    setCompletenessStats(null);
+    setCompletenessLoading(false);
   }, [metric.id]);
+  useEffect(() => {
+    if (!definitionExpanded || completenessDaily) return;
+    setCompletenessLoading(true);
+    getPublicMetricCompletenessDaily(metric.id, "day", 90)
+      .then(setCompletenessDaily)
+      .catch((err) => {
+        console.warn("Failed to load completeness daily data:", err);
+        setCompletenessDaily(null);
+      })
+      .finally(() => setCompletenessLoading(false));
+  }, [metric.id, definitionExpanded, completenessDaily]);
+  useEffect(() => {
+    if (!definitionExpanded || completenessStats) return;
+    getPublicMetricCompletenessStats(metric.id)
+      .then(setCompletenessStats)
+      .catch((err) => {
+        console.warn("Failed to load completeness stats:", err);
+        setCompletenessStats(null);
+      });
+  }, [metric.id, definitionExpanded, completenessStats]);
+  useEffect(() => {
+    if (!metric.city_id) return;
+    let mounted = true;
+    getPublicCityDetail(metric.city_id)
+      .then((detail) => {
+        if (mounted) setCityDetail(detail);
+      })
+      .catch((err) => {
+        console.warn("Failed to load city detail:", err);
+        if (mounted) setCityDetail(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [metric.city_id]);
 
   const comparison = comparisonsQuery.data?.comparisons[selectedPeriod];
 
@@ -222,9 +260,10 @@ export default function MetricDetailContent({
     return "bad";
   }, [trend, metric?.greendirection]);
 
+  const resolvedCityName = cityDetail?.name || cityName;
   const locationLabel = selectedDistrict !== null && selectedDistrict > 0
     ? `District ${selectedDistrict}`
-    : cityName;
+    : resolvedCityName;
 
   const preferredChartId = useMemo(() => {
     const series = timeSeriesQuery.data?.time_series || [];
@@ -263,7 +302,8 @@ export default function MetricDetailContent({
           Last updated on {new Date(metric.last_execution_at).toLocaleDateString("en-US", {
             month: "long",
             day: "numeric",
-            year: "numeric"
+            year: "numeric",
+            timeZone: "UTC"
           })}
         </div>
       )}
@@ -335,7 +375,7 @@ export default function MetricDetailContent({
       {/* District Comparison - only show for citywide view */}
       {(selectedDistrict === null || selectedDistrict === 0) ? (
         <section className="metric-section">
-          <h2 className="metric-section-title">Where are {metric.metric_name.toLowerCase()} highest in {cityName}?</h2>
+          <h2 className="metric-section-title">Where are {metric.metric_name.toLowerCase()} highest in {resolvedCityName}?</h2>
           <MetricMapEmbed
             metricId={metric.id}
             selectedPeriod={selectedPeriod}
@@ -386,35 +426,54 @@ export default function MetricDetailContent({
         {/* Data source summary - always visible */}
         <div className="data-source-summary">
           {(() => {
-            const portal = getDataPortalForCity(citySlug, cityName);
+            const portalUrl = cityDetail?.main_portal_url || null;
+            const portalDomain = cityDetail?.main_domain || null;
+            const datasetName = metric.dataset_name || metric.dataset_title || metric.metric_name;
             const datasetUrl = metric.source_url || metric.data_sf_url;
+            const endpointUrl = datasetUrl || (portalUrl && metric.endpoint ? `${portalUrl.replace(/\/$/, "")}/resource/${metric.endpoint}` : null);
+            const portalName = (() => {
+              if (portalDomain) return portalDomain;
+              if (portalUrl) {
+                try {
+                  return new URL(portalUrl).hostname.replace(/^www\./, "");
+                } catch {
+                  return portalUrl;
+                }
+              }
+              return null;
+            })();
             
             return (
               <div className="provenance-item">
                 <h3 className="provenance-label">Source</h3>
+                {metric.definition && (
+                  <p className="provenance-value">
+                    {metric.definition}
+                  </p>
+                )}
                 <p className="provenance-value">
-                          This data comes from{" "}
-                          {datasetUrl ? (
-                            <a
-                              href={datasetUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="provenance-link-inline"
-                            >
-                              {metric.dataset_name || metric.dataset_title || metric.metric_name}
-                            </a>
-                          ) : (
-                            <strong>{metric.dataset_name || metric.dataset_title || metric.metric_name}</strong>
-                          )}
-                          , a public dataset maintained by {cityName} on{" "}
-                  {portal ? (
+                  This data comes from{" "}
+                  {endpointUrl ? (
                     <a
-                      href={portal.url}
+                      href={endpointUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="provenance-link-inline"
                     >
-                      {portal.name}
+                      {datasetName}
+                    </a>
+                  ) : (
+                    <strong>{datasetName}</strong>
+                  )}
+                  , a public dataset maintained by {resolvedCityName} on{" "}
+                  {portalUrl ? (
+                    <a
+                      href={portalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="provenance-link-inline"
+                    >
+                      {portalName || "the city's open data portal"}
                     </a>
                   ) : (
                     "the city's open data portal"
@@ -424,51 +483,6 @@ export default function MetricDetailContent({
               </div>
             );
           })()}
-
-          {/* Date range and freshness - compact format */}
-          {(metric.earliest_data_date || metric.most_recent_data_date) && (
-            <div className="provenance-item">
-              <h3 className="provenance-label">Coverage</h3>
-              <p className="provenance-value">
-                {metric.earliest_data_date && metric.most_recent_data_date ? (
-                  <>
-                    {new Date(metric.earliest_data_date).toLocaleDateString("en-US", {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric"
-                    })}
-                    {" to "}
-                    {new Date(metric.most_recent_data_date).toLocaleDateString("en-US", {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric"
-                    })}
-                    {metric.last_execution_at && (
-                      <span style={{ color: "var(--text-secondary)", marginLeft: "0.5rem" }}>
-                        · Last checked {new Date(metric.last_execution_at).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric"
-                        })}
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    {metric.most_recent_data_date && (
-                      <>
-                        Most recent: {new Date(metric.most_recent_data_date).toLocaleDateString("en-US", {
-                          month: "long",
-                          day: "numeric",
-                          year: "numeric"
-                        })}
-                      </>
-                    )}
-                  </>
-                )}
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Expand for technical details */}
@@ -477,71 +491,80 @@ export default function MetricDetailContent({
           onClick={() => setDefinitionExpanded((prev) => !prev)}
           style={{ marginTop: "1rem" }}
         >
-          {definitionExpanded ? "Hide details" : "How we calculate this"}
+          {definitionExpanded ? "Hide info" : "More info"}
         </button>
 
         {/* Expanded technical details */}
         {definitionExpanded && (
           <div className="metric-definition-extra" style={{ marginTop: "1rem" }}>
-            {/* Calculation method - moved to top of expanded section */}
-            {metric.definition && (
+            {(metric.earliest_data_date || metric.most_recent_data_date) && (
               <div className="provenance-item">
-                <h3 className="provenance-label">Calculation</h3>
+                <h3 className="provenance-label">Coverage</h3>
                 <p className="provenance-value">
-                  {metric.definition}
+                  {metric.earliest_data_date && metric.most_recent_data_date ? (
+                    <>
+                      From{" "}
+                      {new Date(metric.earliest_data_date).toLocaleDateString("en-US", {
+                        month: "long",
+                        day: "numeric",
+                        year: "numeric"
+                      })}
+                      {" to "}
+                      {new Date(metric.most_recent_data_date).toLocaleDateString("en-US", {
+                        month: "long",
+                        day: "numeric",
+                        year: "numeric"
+                      })}
+                    </>
+                  ) : (
+                    <>
+                      {metric.most_recent_data_date && (
+                        <>
+                          Most recent: {new Date(metric.most_recent_data_date).toLocaleDateString("en-US", {
+                            month: "long",
+                            day: "numeric",
+                            year: "numeric"
+                          })}
+                        </>
+                      )}
+                    </>
+                  )}
+                  {(metric.last_execution_at || completenessStats?.total_runs !== undefined) && (
+                    <>
+                      <br />
+                      <span style={{ color: "var(--text-secondary)" }}>
+                        {metric.last_execution_at
+                          ? `Last checked ${new Date(metric.last_execution_at).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                              timeZone: "UTC"
+                            })}`
+                          : "Last checked date unavailable"}
+                        {completenessStats?.total_runs !== undefined
+                          ? ` · ${completenessStats.total_runs.toLocaleString()} runs`
+                          : ""}
+                      </span>
+                    </>
+                  )}
                 </p>
               </div>
             )}
-
-            {/* Data reliability note */}
-            {completenessData && completenessData.has_data && completenessData.period_types.length > 0 && (
+            {completenessLoading ? (
               <div className="provenance-item">
-                <h3 className="provenance-label">Data reliability</h3>
-                <div className="provenance-value">
-                  <p style={{ marginBottom: "0.75rem", color: "var(--text-secondary)" }}>
-                    Recent data may be incomplete as reports are filed and finalized. We monitor reporting patterns to account for this when detecting trends or anomalies.
-                  </p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                    {completenessData.period_types.map((periodInfo) => (
-                      <div key={periodInfo.period_type} style={{ 
-                        padding: "0.625rem 0.75rem", 
-                        backgroundColor: "var(--bg-secondary, #f5f5f5)",
-                        borderRadius: "4px",
-                        fontSize: "0.875rem",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                        gap: "0.5rem"
-                      }}>
-                        <span style={{ textTransform: "capitalize", fontWeight: 500 }}>
-                          {periodInfo.period_type}
-                        </span>
-                        <span style={{ color: "var(--text-secondary)", fontSize: "0.8125rem" }}>
-                          {periodInfo.is_stable ? (
-                            <>
-                              {periodInfo.avg_days_to_stabilize ? (
-                                <>Stabilizes in ~{Math.round(periodInfo.avg_days_to_stabilize)} days</>
-                              ) : (
-                                <>Stable</>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              {periodInfo.stable_periods_count !== null && periodInfo.stable_periods_count !== undefined ? (
-                                <>Learning patterns ({periodInfo.stable_periods_count}/{periodInfo.min_stable_periods_required || 5} stable periods)</>
-                              ) : (
-                                <>Collecting data</>
-                              )}
-                            </>
-                          )}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                <h3 className="provenance-label">Reporting completeness</h3>
+                <div className="provenance-value" style={{ display: "flex", justifyContent: "center", padding: "0.75rem 0" }}>
+                  <Loader size="sm" color="dark" />
                 </div>
               </div>
-            )}
+            ) : completenessDaily?.data?.length ? (
+              <div className="provenance-item">
+                <h3 className="provenance-label">Reporting completeness</h3>
+                <div className="provenance-value" style={{ display: "flex", justifyContent: "center" }}>
+                  <CompletenessSparkline data={completenessDaily.data} height={60} fullWidth />
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
       </section>

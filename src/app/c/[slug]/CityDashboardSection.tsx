@@ -57,13 +57,16 @@ function formatPeriodDate(start?: string | null, end?: string | null): string | 
   try {
     const startDate = new Date(start);
     const endDate = new Date(end);
+    // Use UTC timezone to avoid off-by-one date issues with server dates
     const startStr = startDate.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
+      timeZone: "UTC",
     });
     const endStr = endDate.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
+      timeZone: "UTC",
     });
     return `${startStr} - ${endStr}`;
   } catch {
@@ -75,10 +78,12 @@ function formatMetadataDate(dateStr?: string | null): string | null {
   if (!dateStr) return null;
   try {
     const date = new Date(dateStr);
+    // Use UTC timezone to avoid off-by-one date issues with server dates
     return date.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
+      timeZone: "UTC",
     });
   } catch {
     return null;
@@ -135,10 +140,12 @@ export default function CityDashboardSection({
     if (c?.computed_at) {
       try {
         const d = new Date(c.computed_at);
+        // Use UTC timezone to avoid off-by-one date issues with server timestamps
         lastComputedAt = d.toLocaleDateString("en-US", {
           month: "short",
           day: "numeric",
           year: "numeric",
+          timeZone: "UTC",
         });
         break;
       } catch {

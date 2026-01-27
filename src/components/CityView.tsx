@@ -131,11 +131,12 @@ function parseLocalDate(dateStr: string): { year: number; month: number; day: nu
 
 // Format date range in human-readable format (e.g., "Jan 1 - Jan 9 2026")
 function formatDateRange(startDate: Date, endDate: Date): string {
-  const startMonth = startDate.toLocaleDateString("en-US", { month: "short" });
-  const endMonth = endDate.toLocaleDateString("en-US", { month: "short" });
-  const startDay = startDate.getDate();
-  const endDay = endDate.getDate();
-  const year = endDate.getFullYear();
+  // Use UTC timezone to avoid off-by-one date issues with server dates
+  const startMonth = startDate.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+  const endMonth = endDate.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+  const startDay = startDate.getUTCDate();
+  const endDay = endDate.getUTCDate();
+  const year = endDate.getUTCFullYear();
   
   if (startMonth === endMonth) {
     return `${startMonth} ${startDay} - ${endDay}, ${year}`;
@@ -994,8 +995,9 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
   // Helper to format date as "Jan 1 - Jan 12"
   const formatPeriodDate = (start?: Date, end?: Date) => {
     if (!start || !end) return null;
-    const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    // Use UTC timezone to avoid off-by-one date issues with server dates
+    const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
     return `${startStr} - ${endStr}`;
   };
 
@@ -1163,7 +1165,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
       {/* Comparison Type Selector */}
       <div className="dashboard-comparison-selector">
         <div className="comparison-selector-content">
-          <span className="comparison-selector-label">Comparing data so far</span>
+          <span className="comparison-selector-label">Comparing:</span>
           <select
             className="comparison-selector-dropdown"
             value={currentPeriodType}
@@ -1300,7 +1302,8 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                         if (!dateStr) return null;
                         try {
                           const date = new Date(dateStr);
-                          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                          // Use UTC timezone to avoid off-by-one date issues with server dates
+                          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
                         } catch {
                           return null;
                         }
@@ -1419,7 +1422,10 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
     getPresetMetricDateRange("last_week")
   );
   // Use initialDistrict if provided, otherwise default to 0 (mayor/citywide)
-  const [selectedDistrict, setSelectedDistrict] = useState<number | null>(initialDistrict ?? 0);
+  // If initialDistrict is explicitly null, use 0 (citywide); if undefined, also use 0
+  const [selectedDistrict, setSelectedDistrict] = useState<number | null>(
+    initialDistrict !== undefined && initialDistrict !== null ? initialDistrict : 0
+  );
   const [districtGPSLocation, setDistrictGPSLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [mapLeaders, setMapLeaders] = useState<any[]>([]);
   const [mapShapefiles, setMapShapefiles] = useState<any[]>([]);
@@ -1481,7 +1487,8 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
   // Update selected district when cityId or initialDistrict changes
   useEffect(() => {
     if (initialDistrict !== undefined) {
-      setSelectedDistrict(initialDistrict ?? 0);
+      // If initialDistrict is explicitly null, use 0 (citywide); otherwise use the provided value
+      setSelectedDistrict(initialDistrict !== null ? initialDistrict : 0);
     }
   }, [cityId, initialDistrict]);
 
@@ -1641,6 +1648,12 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             >
               Alerts
             </button>
+            <button
+              className="tab-btn"
+              onClick={() => setActiveTab("newsletters")}
+            >
+              Newsletters
+            </button>
             {isAdmin && (
               <button
                 className="tab-btn"
@@ -1779,6 +1792,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
                   cityId={cityId}
                   cityName={cityData.name}
                   initialDistrict={selectedDistrict}
+                  isAdmin={isAdmin}
                 />
               </div>
             )}

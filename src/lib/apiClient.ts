@@ -2779,6 +2779,7 @@ export interface CreateResearchRequest {
   max_subquestions?: number;
   model_key?: string;
   require_agenda_approval?: boolean;
+  enable_web_search?: boolean;
 }
 
 export interface CreateResearchResponse {

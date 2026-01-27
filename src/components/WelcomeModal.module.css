@@ -768,6 +768,102 @@
   box-shadow: 0 0 0 3px var(--brand-primary-light, rgba(173, 53, 250, 0.1));
 }
 
+/* Newsletter Customization */
+.newsletterCustomization {
+  margin-top: 12px;
+  margin-left: 32px;
+  padding: 12px;
+  background: var(--bg-tertiary, #f3f4f6);
+  border-radius: var(--radius-md, 8px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.textInputLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #111827);
+  margin-bottom: 4px;
+}
+
+.newsletterDescriptionInput {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #111827);
+  resize: vertical;
+  transition: all 0.15s ease;
+  line-height: 1.5;
+}
+
+.newsletterDescriptionInput::placeholder {
+  color: var(--text-tertiary, #9ca3af);
+}
+
+.newsletterDescriptionInput:focus {
+  outline: none;
+  border-color: var(--brand-primary, #ad35fa);
+  box-shadow: 0 0 0 3px var(--brand-primary-light, rgba(173, 53, 250, 0.1));
+}
+
+.frequencySelector {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.frequencyLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #111827);
+}
+
+.frequencyOption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+}
+
+.frequencyOption input[type="radio"] {
+  accent-color: var(--brand-primary, #ad35fa);
+  cursor: pointer;
+}
+
+/* Show More / Hide More Buttons */
+.showMoreButton,
+.hideMoreButton {
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--brand-primary, #ad35fa);
+  background: none;
+  border: 1px solid var(--brand-primary, #ad35fa);
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.showMoreButton:hover,
+.hideMoreButton:hover {
+  background: var(--brand-primary-light, rgba(173, 53, 250, 0.1));
+}
+
+.hideMoreButton {
+  margin-top: 12px;
+  width: auto;
+  align-self: flex-start;
+}
+
 /* All Set Summary */
 .allSetSummary {
   width: 100%;
@@ -838,4 +934,13 @@
 
 [data-theme="dark"] .reportScopeOptions {
   background: var(--bg-tertiary);
+}
+
+[data-theme="dark"] .newsletterCustomization {
+  background: var(--bg-tertiary);
+}
+
+[data-theme="dark"] .newsletterDescriptionInput {
+  background: var(--bg-secondary);
+  border-color: var(--border-primary);
 }

@@ -76,6 +76,9 @@ export type PublicCityDetail = {
   state?: string | null;
   country?: string | null;
   emoji?: string | null;
+  main_domain?: string | null;
+  main_portal_url?: string | null;
+  all_portal_urls?: string[] | null;
   metrics: PublicCityMetricItem[];
   mayor?: { name: string } | null;
   mayor_subscriber_count?: number;
@@ -178,6 +181,7 @@ export type PublicMetricDetail = {
   metric_key: string;
   category: string;
   subcategory: string | null;
+  city_id?: number | null;
   endpoint: string | null;
   summary: string | null;
   definition: string | null;
@@ -317,6 +321,57 @@ export function getPublicMetricCompleteness(
 ): Promise<MetricCompletenessResponse> {
   return requestPublic<MetricCompletenessResponse>(
     `/api/time-series/public/metric/${metricId}/completeness`
+  );
+}
+
+// Completeness statistics
+export type CompletenessStatisticsResponse = {
+  metric_id: number;
+  total_checks: number;
+  total_runs: number;
+  total_changes: number;
+  recent_changes: number;
+  max_change_magnitude_pct?: number | null;
+  avg_change_magnitude_pct?: number | null;
+  stable_periods_count: number;
+  unstable_periods_count: number;
+  avg_stable_days?: number | null;
+  last_check_date?: string | null;
+  periods_checked_today: number;
+  periods_checked_this_week: number;
+};
+
+export function getPublicMetricCompletenessStats(
+  metricId: number
+): Promise<CompletenessStatisticsResponse> {
+  return requestPublic<CompletenessStatisticsResponse>(
+    `/api/time-series/public/metric/${metricId}/completeness/stats`
+  );
+}
+
+// Daily completeness data
+export type DailyCompletenessDataPoint = {
+  date: string;
+  is_stable: boolean;
+  count_changed: boolean;
+  count_at_last_check?: number | null;
+  count_at_first_seen?: number | null;
+  count_current?: number | null;
+};
+
+export type DailyCompletenessResponse = {
+  metric_id: number;
+  period_type: string;
+  data: DailyCompletenessDataPoint[];
+};
+
+export function getPublicMetricCompletenessDaily(
+  metricId: number,
+  periodType: string = "day",
+  days: number = 90
+): Promise<DailyCompletenessResponse> {
+  return requestPublic<DailyCompletenessResponse>(
+    `/api/time-series/public/metric/${metricId}/completeness/daily?period_type=${periodType}&days=${days}`
   );
 }
 

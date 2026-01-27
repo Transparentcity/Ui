@@ -541,11 +541,13 @@ export default function DistrictNavigation({
         }}
         aria-label="Select district"
       >
-        <span className="district-navigation-label">{labelText}</span>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-          <span className="district-navigation-name">{displayName}</span>
+        <div className="district-navigation-content">
+          <div className="district-navigation-title-row">
+            <span className="district-navigation-label">{labelText}</span>
+            <span className="district-navigation-name">{displayName}</span>
+          </div>
           {leaderFollowerCounts != null && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div className="district-navigation-follow-row">
               <span className="district-navigation-subscribers">
                 {(leaderFollowerCounts[String(selectedDistrict ?? 0)] ?? 0)} followers
               </span>

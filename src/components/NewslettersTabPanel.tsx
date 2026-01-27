@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useRouter } from "next/navigation";
-import { listNewsletterReports, type NewsletterReport } from "@/lib/apiClient";
+import { listNewsletterReports, createResearch, type NewsletterReport, type CreateResearchResponse, type CreateResearchRequest } from "@/lib/apiClient";
 import Loader from "./Loader";
 import "./NewslettersTabPanel.css";
 
@@ -11,12 +11,14 @@ interface NewslettersTabPanelProps {
   cityId: number;
   cityName: string;
   initialDistrict?: number | null;
+  isAdmin?: boolean;
 }
 
 export default function NewslettersTabPanel({
   cityId,
   cityName,
   initialDistrict,
+  isAdmin = false,
 }: NewslettersTabPanelProps) {
   const router = useRouter();
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
@@ -25,6 +27,7 @@ export default function NewslettersTabPanel({
   const [newsletters, setNewsletters] = useState<NewsletterReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     const loadNewsletters = async () => {
@@ -53,6 +56,11 @@ export default function NewslettersTabPanel({
     loadNewsletters();
   }, [cityId, selectedDistrict, selectedFrequency, isAuthenticated, getAccessTokenSilently]);
 
+  // Clear error when filters change
+  useEffect(() => {
+    setError(null);
+  }, [selectedDistrict, selectedFrequency]);
+
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return "";
     try {
@@ -76,6 +84,91 @@ export default function NewslettersTabPanel({
     router.push(newsletter.public_url);
   };
 
+  const handleGenerateNewsletter = async () => {
+    if (!selectedDistrict && selectedDistrict !== 0) {
+      setError("Please select a district");
+      return;
+    }
+    if (!selectedFrequency) {
+      setError("Please select a frequency");
+      return;
+    }
+
+    setGenerating(true);
+    setError(null);
+    try {
+      const token = await getAccessTokenSilently();
+      
+      // Generate newsletter prompt
+      const districtLabel = selectedDistrict === 0 ? "city-wide" : `District ${selectedDistrict}`;
+      const prompt = `Create a ${selectedFrequency} newsletter report for ${cityName} (${districtLabel}).
+
+Focus on:
+- Recent changes and trends in key metrics (crime, housing, permits, 311 calls, budget)
+- Notable anomalies or significant shifts
+- Comparative analysis (this period vs. previous period, this district vs. city-wide)
+- Actionable insights for residents and officials
+
+The report should be:
+- Accessible to general public (avoid jargon)
+- Data-driven with specific numbers and percentages
+- Highlight both positive and concerning trends
+- Include visualizations (charts, maps) where helpful
+- Suggest what these trends might mean for residents
+
+Format as a newsletter-style summary that could be emailed to subscribers interested in ${districtLabel} news.`;
+
+      // Create research report with newsletter metadata
+      const payload: CreateResearchRequest = {
+        prompt,
+        city_id: cityId,
+        district: selectedDistrict === 0 ? null : selectedDistrict.toString(),
+        max_iterations: 1,
+        max_subquestions: 1,
+        model_key: "gpt-5.1",
+        enable_web_search: true,
+      };
+      
+      const response: CreateResearchResponse = await createResearch(payload, token);
+
+      // Reload newsletters after a short delay to see the new one
+      setTimeout(() => {
+        const loadNewsletters = async () => {
+          try {
+            const reports = await listNewsletterReports(
+              cityId,
+              {
+                district: selectedDistrict,
+                frequency: selectedFrequency ?? undefined,
+                limit: 50,
+              },
+              token
+            );
+            setNewsletters(reports);
+          } catch (err: any) {
+            console.error("Failed to reload newsletters:", err);
+          }
+        };
+        loadNewsletters();
+      }, 2000);
+
+      // Navigate to the new research report
+      router.push(response.public_url);
+    } catch (err: any) {
+      console.error("Failed to generate newsletter:", err);
+      setError(err.message || "Failed to generate newsletter");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // Check if we should show the generate button
+  const shouldShowGenerateButton = 
+    isAdmin && 
+    newsletters.length === 0 && 
+    (selectedDistrict !== null || selectedDistrict === 0) && 
+    selectedFrequency !== null;
+
   if (loading) {
     return (
       <div className="newsletters-tab-panel">
@@ -87,11 +180,11 @@ export default function NewslettersTabPanel({
     );
   }
 
-  if (error) {
+  if (error && !newsletters.length && loading === false) {
     return (
       <div className="newsletters-tab-panel">
         <div className="newsletters-error">
-          <p>Error loading newsletters: {error}</p>
+          <p>Error: {error}</p>
         </div>
       </div>
     );
@@ -141,10 +234,26 @@ export default function NewslettersTabPanel({
         </div>
       </div>
 
+      {/* Error message (if any) */}
+      {error && newsletters.length > 0 && (
+        <div className="newsletters-error" style={{ marginBottom: "16px", padding: "12px", borderRadius: "8px", background: "var(--bg-secondary)" }}>
+          <p style={{ margin: 0 }}>Error: {error}</p>
+        </div>
+      )}
+
       {/* Newsletters List */}
       {newsletters.length === 0 ? (
         <div className="newsletters-empty">
           <p>No newsletters found for this city and district.</p>
+          {shouldShowGenerateButton && (
+            <button
+              className="newsletter-generate-btn"
+              onClick={handleGenerateNewsletter}
+              disabled={generating}
+            >
+              {generating ? "Generating..." : "Generate New Newsletter"}
+            </button>
+          )}
         </div>
       ) : (
         <div className="newsletters-list">

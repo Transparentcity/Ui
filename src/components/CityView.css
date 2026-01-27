@@ -644,8 +644,8 @@
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s ease;
-  min-width: 110px;
-  max-width: 140px;
+  min-width: 120px;
+  max-width: 180px;
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
@@ -653,6 +653,9 @@
   background-size: 10px;
   padding-right: 28px;
   flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .comparison-selector-dropdown:hover {
@@ -683,8 +686,8 @@
   .comparison-selector-dropdown {
     padding: 4px 8px;
     font-size: 12px;
-    min-width: 90px;
-    max-width: 120px;
+    min-width: 110px;
+    max-width: 150px;
     padding-right: 24px;
     background-position: right 5px center;
     background-size: 9px;
@@ -1746,6 +1749,21 @@ button.metrics-table-row {
 /* When anomalies tab is active, don't scroll the tab-content - let the panel handle it */
 .city-view .tab-content-wrapper.anomalies-tab .tab-content {
   overflow-y: hidden;
+  padding-bottom: 0;
+}
+
+/* Newsletters Tab */
+.newsletters-section {
+  padding: 0;
+  height: 100%;
+  min-height: 0; /* Required for flex children */
+  display: flex;
+  flex-direction: column;
+}
+
+/* When newsletters tab is active, allow scrolling within the panel */
+.city-view .tab-content-wrapper.newsletters-tab .tab-content {
+  overflow-y: auto;
   padding-bottom: 0;
 }
 

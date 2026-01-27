@@ -3186,7 +3186,7 @@ export default function CityDataAdmin({
                                 <td className={styles.metricExecutionCell}>
                                   {(metricAny.last_execution_at || metric.last_execution_at) ? (
                                     <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                                      {new Date(metricAny.last_execution_at || metric.last_execution_at).toLocaleDateString()}
+                                      {new Date(metricAny.last_execution_at || metric.last_execution_at).toLocaleDateString("en-US", { timeZone: "UTC" })}
                                     </span>
                                   ) : (
                                     <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
