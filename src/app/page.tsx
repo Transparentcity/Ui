@@ -335,6 +335,9 @@ export default function Home() {
               <div className="hero-text">
                 <span className="badge">📊 Your city's data, made clear</span>
                 <h1 className="hero-title">Your City Just Got Easier to Understand</h1>
+                <p className="hero-subhead" style={{ fontSize: "1.1rem", fontWeight: 500, marginTop: "0.5rem", marginBottom: "1rem", color: "var(--text-secondary)" }}>
+                  For city staff or residents
+                </p>
                 <p className="hero-description">
                   See what's changing in your city. Get clear, source-linked views 
                   of the metrics, trends, and issues that matter to you— 
@@ -578,7 +581,7 @@ export default function Home() {
                 transparent<span className={styles.brandDotCity}>.city</span>
               </div>
               <div className={styles.finePrint}>
-                Facts for residents. Evidence for elected officials. Accountability for everyone.
+                Facts for residents. Evidence for city staff. Accountability for everyone.
                 <br />
                 <br />
                 All data is sourced from official city open data portals with documented queries and direct links.
