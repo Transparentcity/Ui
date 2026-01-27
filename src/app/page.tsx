@@ -335,7 +335,6 @@ export default function Home() {
               <div className="hero-text">
                 <span className="badge">📊 Your city's data, made clear</span>
                 <h1 className="hero-title">Your City Just Got Easier to Understand</h1>
-                <p className="hero-subtitle">For city staff or residents</p>
                 <p className="hero-description">
                   See what's changing in your city. Get clear, source-linked views 
                   of the metrics, trends, and issues that matter to you— 
