@@ -489,7 +489,7 @@ export default function Home() {
                 <ul className={styles.toolList}>
                   <li>Briefings and context for operational clarity</li>
                   <li>Consistent measurement across topics</li>
-                  <li>A Pro path for staff tooling</li>
+                  <li>Secure tools for .gov email addresses</li>
                 </ul>
               </div>
             </div>
