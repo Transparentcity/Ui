@@ -155,14 +155,17 @@
 }
 
 .badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   padding: 6px 12px;
   border-radius: 999px;
-  background: var(--brand-secondary);
-  color: var(--brand-primary);
+  background: rgba(173, 53, 250, 0.25);
+  color: #ffffff;
   font-size: 13px;
   font-weight: 500;
   margin-bottom: 16px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .hero-title {
@@ -177,6 +180,13 @@
   .hero-title {
     font-size: 52px;
   }
+}
+
+.hero-subtitle {
+  font-size: 16px;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.7));
+  margin-bottom: 16px;
+  font-weight: 500;
 }
 
 .hero-description {

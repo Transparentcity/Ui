@@ -47,7 +47,6 @@ export default function Header({
 }: HeaderProps) {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const router = useRouter();
-  const [signupMenuOpen, setSignupMenuOpen] = useState(false);
   const cityPickerRef = useRef<HTMLDivElement | null>(null);
 
   const handleLogin = async () => {
@@ -64,12 +63,12 @@ export default function Header({
     });
   };
 
-  const handleGoToDashboard = () => {
+  const handleGoToDashboard = async () => {
     if (isAuthenticated) {
       router.push("/dashboard");
       return;
     }
-    setSignupMenuOpen((v) => !v);
+    await handleSignup("resident");
   };
 
   const handleSignup = async (intent: "resident" | "public-servant") => {
@@ -395,69 +394,21 @@ export default function Header({
           )}
 
           <nav className={styles.navRight} aria-label="Top navigation">
-            <a
-              className={styles.link}
-              href="https://www.transparentsf.com"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Newsletter
-            </a>
-            <Link className={styles.link} href="/pro">
-              For city staff
-            </Link>
-
             <button
-              className={styles.button}
+              className={styles.buttonSignIn}
               onClick={handleLogin}
               disabled={isLoading}
             >
               {isAuthenticated ? "Dashboard" : "Sign in"}
             </button>
 
-            <div className={styles.menuWrap}>
-              <button
-                className={`${styles.button} ${styles.buttonPrimary}`}
-                onClick={handleGoToDashboard}
-                disabled={isLoading}
-                aria-haspopup={!isAuthenticated ? "menu" : undefined}
-                aria-expanded={signupMenuOpen}
-              >
-                {isAuthenticated ? "Go to dashboard" : "Sign up"}
-              </button>
-              {signupMenuOpen && !isAuthenticated && (
-                <div
-                  className={styles.menu}
-                  role="menu"
-                  aria-label="Sign up options"
-                >
-                  <button
-                    className={styles.menuItem}
-                    role="menuitem"
-                    onClick={() => handleSignup("resident")}
-                    disabled={isLoading}
-                  >
-                    <div className={styles.menuItemTitle}>I'm a resident</div>
-                    <div className={styles.menuItemDesc}>
-                      Follow a city, read research, and get the map view.
-                    </div>
-                  </button>
-                  <button
-                    className={styles.menuItem}
-                    role="menuitem"
-                    onClick={() => handleSignup("public-servant")}
-                    disabled={isLoading}
-                  >
-                    <div className={styles.menuItemTitle}>
-                      I'm a public servant
-                    </div>
-                    <div className={styles.menuItemDesc}>
-                      Tools for staff: briefs, context, and operational clarity.
-                    </div>
-                  </button>
-                </div>
-              )}
-            </div>
+            <button
+              className={styles.buttonSignUp}
+              onClick={handleGoToDashboard}
+              disabled={isLoading}
+            >
+              {isAuthenticated ? "Go to dashboard" : "Sign up"}
+            </button>
           </nav>
         </div>
       </div>

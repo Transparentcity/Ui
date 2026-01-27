@@ -141,6 +141,57 @@
   color: var(--text-inverse, #ffffff);
 }
 
+.buttonSignIn {
+  border: 1px solid var(--border-primary, rgba(17, 24, 39, 0.14));
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, rgba(17, 24, 39, 0.92));
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease,
+    border-color 120ms ease, color 120ms ease;
+}
+
+.buttonSignIn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.buttonSignIn:hover:not(:disabled) {
+  box-shadow: var(--shadow-md, 0 8px 18px rgba(0, 0, 0, 0.08));
+  transform: translateY(-1px);
+}
+
+[data-theme="dark"] .buttonSignIn:hover:not(:disabled),
+.dark .buttonSignIn:hover:not(:disabled) {
+  box-shadow: var(--shadow-md, 0 8px 18px rgba(0, 0, 0, 0.3));
+}
+
+.buttonSignUp {
+  background: var(--brand-primary, #ad35fa);
+  border: none;
+  color: var(--text-inverse, #ffffff);
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+}
+
+.buttonSignUp:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.buttonSignUp:hover:not(:disabled) {
+  background: var(--brand-primary-hover, #8b2cc7);
+  box-shadow: var(--shadow-md, 0 8px 18px rgba(173, 53, 250, 0.3));
+  transform: translateY(-1px);
+}
+
 .menuWrap {
   position: relative;
 }
