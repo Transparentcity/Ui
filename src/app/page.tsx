@@ -455,8 +455,7 @@ export default function Home() {
           <div className={styles.container}>
             <h2 className={styles.sectionTitle}>Built for how you work</h2>
             <p className={styles.sectionLead}>
-              Get the clarity you need: understand your city as a resident, build 
-              stronger stories as a researcher, and make better decisions as an elected official.
+              Get the clarity you need: understand your city as a citizen, make smarter decisions as a government leader, and spot opportunities as a business.
             </p>
 
             <div className={styles.grid}>
