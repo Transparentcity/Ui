@@ -459,7 +459,7 @@ export default function Home() {
           <div className={styles.container}>
             <h2 className={styles.sectionTitle}>Built for how you work</h2>
             <p className={styles.sectionLead}>
-              Get the clarity you need: understand your city as a citizen, make smarter decisions as a government leader, and spot opportunities as a business.
+              Get the clarity you need: understand your city as a resident, and make smarter decisions as city staff.
             </p>
 
             <div className={styles.grid}>
@@ -480,7 +480,7 @@ export default function Home() {
 
               <div className={`${styles.card} ${styles.tile}`}>
                 <div className={styles.audienceCardHeader}>
-                  <div className={styles.tileTitle}>Policy makers</div>
+                  <div className={styles.tileTitle}>City staff</div>
                   <span className={styles.audienceTag}>For government</span>
                 </div>
                 <div className={styles.tileBody}>
@@ -491,11 +491,6 @@ export default function Home() {
                   <li>Consistent measurement across topics</li>
                   <li>A Pro path for staff tooling</li>
                 </ul>
-                <div className={styles.ctaRow} style={{ marginTop: 12 }}>
-                  <Link className={styles.button} href="/pro">
-                    City staff: Pro tools
-                  </Link>
-                </div>
               </div>
             </div>
           </div>
