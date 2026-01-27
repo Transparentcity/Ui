@@ -412,40 +412,44 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="hero-cta" style={{ gap: 12, flexWrap: "wrap" }}>
-                  <button
-                    className="btn btn-primary btn-large"
-                    onClick={() => handleSignup("resident")}
-                    disabled={isLoading}
-                  >
-                    {isAuthenticated ? "Go to Dashboard" : "Get updates (Resident)"}
-                  </button>
-                  <button
-                    className="btn btn-secondary btn-large"
-                    onClick={() => handleSignup("public-servant")}
-                    disabled={isLoading}
-                  >
-                    {isAuthenticated ? "Dashboard (Staff)" : "City staff / policy"}
-                  </button>
-                  <a
-                    href="https://dashboard.transparentsf.com/citywide/daniel-lurie/map"
-                    className="btn btn-outline btn-large"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Explore San Francisco
-                  </a>
-                </div>
+                {isAuthenticated && (
+                  <>
+                    <div className="hero-cta" style={{ gap: 12, flexWrap: "wrap" }}>
+                      <button
+                        className="btn btn-primary btn-large"
+                        onClick={() => handleSignup("resident")}
+                        disabled={isLoading}
+                      >
+                        Go to Dashboard
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-large"
+                        onClick={() => handleSignup("public-servant")}
+                        disabled={isLoading}
+                      >
+                        Dashboard (Staff)
+                      </button>
+                      <a
+                        href="https://dashboard.transparentsf.com/citywide/daniel-lurie/map"
+                        className="btn btn-outline btn-large"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Explore San Francisco
+                      </a>
+                    </div>
 
-                {isAuthenticated && user && (
-                  <div style={{ marginTop: 12, fontSize: "0.9rem", color: "var(--text-secondary)" }}>
-                    Signed in as {user.email || user.name}
-                  </div>
+                    {user && (
+                      <div style={{ marginTop: 12, fontSize: "0.9rem", color: "var(--text-secondary)" }}>
+                        Signed in as {user.email || user.name}
+                      </div>
+                    )}
+
+                    <div style={{ marginTop: 10, fontSize: "0.9rem", color: "var(--text-secondary)" }}>
+                      Working in government? <Link href="/pro">Start here</Link>.
+                    </div>
+                  </>
                 )}
-
-                <div style={{ marginTop: 10, fontSize: "0.9rem", color: "var(--text-secondary)" }}>
-                  Working in government? <Link href="/pro">Start here</Link>.
-                </div>
               </div>
             </div>
           </div>
@@ -471,21 +475,6 @@ export default function Home() {
                   <li>City search + city pages</li>
                   <li>Maps and trend views (where available)</li>
                   <li>Source-linked research writeups</li>
-                </ul>
-              </div>
-
-              <div className={`${styles.card} ${styles.tile}`}>
-                <div className={styles.audienceCardHeader}>
-                  <div className={styles.tileTitle}>Researchers &amp; journalists</div>
-                  <span className={styles.audienceTag}>For reporting</span>
-                </div>
-                <div className={styles.tileBody}>
-                  Faster paths from claim → data → chart → explanation.
-                </div>
-                <ul className={styles.toolList}>
-                  <li>Permalink research pages (shareable, citeable)</li>
-                  <li>Embedded charts and maps for stories</li>
-                  <li>Methods that show how numbers were produced</li>
                 </ul>
               </div>
 
