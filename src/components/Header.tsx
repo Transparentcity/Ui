@@ -395,17 +395,21 @@ export default function Header({
           )}
 
           <nav className={styles.navRight} aria-label="Top navigation">
-            <a
-              className={styles.link}
-              href="https://www.transparentsf.com"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Newsletter
-            </a>
-            <Link className={styles.link} href="/pro">
-              For city staff
-            </Link>
+            {isAuthenticated && (
+              <>
+                <a
+                  className={styles.link}
+                  href="https://www.transparentsf.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Newsletter
+                </a>
+                <Link className={styles.link} href="/pro">
+                  For city staff
+                </Link>
+              </>
+            )}
 
             <button
               className={styles.button}
