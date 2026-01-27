@@ -139,7 +139,7 @@ export default function MetricDetailClient({
           </div>
           <div className="footer-bottom">
             <p>
-              &copy; 2025 Transparent.city. The difference between knowing and
+              &copy; 2026 Transparent.city. The difference between knowing and
               guessing is agency.
             </p>
           </div>
