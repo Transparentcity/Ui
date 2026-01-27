@@ -783,7 +783,7 @@ export default function LandingPage() {
           </div>
           <div className="footer-bottom">
             <p>
-              &copy; 2025 Transparent.city. Building a shared, verifiable picture
+              &copy; 2026 Transparent.city. Building a shared, verifiable picture
               of city performance, one city at a time.
             </p>
           </div>
