@@ -421,7 +421,10 @@ export default function Home() {
           <div className={styles.container}>
             <h2 className={styles.sectionTitle}>Giving you the clarity you want</h2>
             <p className={styles.sectionLead}>
-              For city staff: track what's changing in your area of focus and see what solutions are working. For residents: understand what's going on with your city through clear, data-driven insights.
+              For city staff: track what's changing in your area of focus and see what solutions are working.
+            </p>
+            <p className={styles.sectionLead}>
+              For residents: understand what's going on with your city through clear, data-driven insights.
             </p>
 
             <div className={styles.grid}>
