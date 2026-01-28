@@ -419,9 +419,9 @@ export default function Home() {
 
         <section className={styles.section} id="who-this-is-for">
           <div className={styles.container}>
-            <h2 className={styles.sectionTitle}>Built for how you work</h2>
+            <h2 className={styles.sectionTitle}>Giving you the clarity you want</h2>
             <p className={styles.sectionLead}>
-              Get the clarity you need: understand your city as a resident, and make smarter decisions as city staff.
+              For city staff: track what's changing in your area of focus and see what solutions are working. For residents: understand what's going on with your city through clear, data-driven insights.
             </p>
 
             <div className={styles.grid}>
