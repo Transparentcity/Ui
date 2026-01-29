@@ -795,6 +795,7 @@ export interface UpdateAdminMetricRequest {
   show_on_dash?: boolean | null;
   greendirection?: string | null;
   item_noun?: string | null;
+  template_id?: number | null;
   map_query?: string | null;
   map_filters?: Record<string, any> | null;
   map_config?: Record<string, any> | null;
@@ -934,6 +935,24 @@ export function updateAdminMetric(
 
 export function deleteAdminMetric(metricId: number, token: string): Promise<AdminMetricWriteResponse> {
   return request<AdminMetricWriteResponse>(`/api/admin/metrics/${metricId}`, "DELETE", undefined, token);
+}
+
+export interface PurgeMetricDataResponse {
+  metric_id: number;
+  metric_name: string;
+  deleted_time_series_data: number;
+  deleted_time_series_metadata: number;
+  deleted_saved_maps: number;
+  deleted_anomaly_results: number;
+  deleted_anomaly_runs: number;
+  deleted_completeness_records: number;
+  deleted_stability_patterns: number;
+  deleted_comparisons: number;
+  message: string;
+}
+
+export function purgeAdminMetricData(metricId: number, token: string): Promise<PurgeMetricDataResponse> {
+  return request<PurgeMetricDataResponse>(`/api/admin/metrics/${metricId}/purge`, "DELETE", undefined, token);
 }
 
 export function invalidateAdminMetricMapCache(
@@ -1110,6 +1129,25 @@ export function validateMetricFreshness(
   );
 }
 
+export interface FlushCompletenessResponse {
+  metric_id: number;
+  deleted_records: number;
+  deleted_patterns: number;
+  message: string;
+}
+
+export function flushMetricCompleteness(
+  metricId: number,
+  token: string
+): Promise<FlushCompletenessResponse> {
+  return request<FlushCompletenessResponse>(
+    `/api/admin/metrics/${metricId}/completeness`,
+    "DELETE",
+    undefined,
+    token
+  );
+}
+
 export interface MetricsByFrequencyResponse {
   grouped_by_frequency: Record<string, Array<{
     id: number;
@@ -1168,6 +1206,8 @@ export interface MapData {
   chart_id?: number;
   metric_id: string | number;
   active?: boolean;
+  /** Backend map config: default_view, available_views, aggregations, center (plan: map loading optimization). */
+  map_config?: Record<string, any>;
 }
 
 export interface GetMapDataRequest {
@@ -3123,9 +3163,54 @@ export function getMapById(mapId: number, token: string): Promise<SavedMap> {
   return request<SavedMap>(`/api/maps/${mapId}`, "GET", undefined, token);
 }
 
-// Get a public map by hash (no auth required)
+// Cache for public maps by hash
+const publicMapCache: {
+  [hash: string]: {
+    data: SavedMap | null;
+    promise: Promise<SavedMap> | null;
+    timestamp: number;
+  };
+} = {};
+
+const PUBLIC_MAP_CACHE_TTL = 60000; // 1 minute cache
+
+// Get a public map by hash (no auth required) - with caching
 export function getPublicMap(hash: string): Promise<SavedMap> {
-  return request<SavedMap>(`/api/maps/public/${hash}`, "GET", undefined);
+  const now = Date.now();
+  const cached = publicMapCache[hash];
+  
+  // Return cached data if valid
+  if (cached?.data && (now - cached.timestamp) < PUBLIC_MAP_CACHE_TTL) {
+    return Promise.resolve(cached.data);
+  }
+  
+  // Return in-flight promise if one exists
+  if (cached?.promise && (now - cached.timestamp) < PUBLIC_MAP_CACHE_TTL) {
+    return cached.promise;
+  }
+  
+  // Create new request and cache the promise
+  const promise = request<SavedMap>(`/api/maps/public/${hash}`, "GET", undefined)
+    .then((data) => {
+      publicMapCache[hash] = { data, promise: null, timestamp: Date.now() };
+      return data;
+    })
+    .catch((err) => {
+      // Clear cache on error
+      delete publicMapCache[hash];
+      throw err;
+    });
+  
+  publicMapCache[hash] = { data: null, promise, timestamp: now };
+  return promise;
+}
+
+/** Lazy-load choropleth view data for an alternative shape layer (no auth required). */
+export function getMapView(
+  hash: string,
+  shapeLayerId: number
+): Promise<{ aggregation: { identifier_field: string; display_name: string; rows: Array<Record<string, unknown>> }; shape_layer_instance_id: number }> {
+  return request(`/api/maps/public/${hash}/view/${shapeLayerId}`, "GET", undefined);
 }
 
 // Update a map
@@ -3388,6 +3473,38 @@ export function getDefaultBatchDateRange(): { startDate: string; endDate: string
   const startDate = `${startYear}-01-01`;
   const endDate = today.toISOString().split("T")[0];
   return { startDate, endDate };
+}
+
+// ============================================================================
+// HELPER: Get default start date for execute modal by period type
+// ============================================================================
+
+/**
+ * Get the default start date (Jan 1 of N years ago) for the execute metric modal.
+ * - Daily / Weekly: 2 years (e.g. Jan 1, 2024 for 2026)
+ * - Monthly / YTD: 5 years
+ * - Annual: 10 years
+ */
+export function getDefaultExecuteStartDateByPeriod(periodType: string): string {
+  const year = new Date().getFullYear();
+  let yearsAgo: number;
+  switch (periodType) {
+    case "day":
+    case "week":
+      yearsAgo = 2;
+      break;
+    case "month":
+    case "ytd":
+      yearsAgo = 5;
+      break;
+    case "year":
+      yearsAgo = 10;
+      break;
+    default:
+      yearsAgo = 2;
+  }
+  const startYear = year - yearsAgo;
+  return `${startYear}-01-01`;
 }
 
 // Force rebuild - all exports are defined above

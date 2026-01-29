@@ -106,6 +106,7 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   padding: 0 !important;
   height: calc(100vh - 104px);
   background: var(--bg-primary, #ffffff); /* Opaque background for content readability */
@@ -591,7 +592,7 @@
 /* Dashboard Header with Official Selector - matches map view look */
 .dashboard-header {
   margin-bottom: 24px;
-  padding: 24px 0 0 0; /* Padding for Official Selector, same feel as map overlay */
+  padding: 12px 0 0 0; /* Reduced top padding for Official Selector */
 }
 
 /* District Navigation in Dashboard View - full width Official Selector */
@@ -1418,6 +1419,13 @@ button.metrics-table-row {
   margin-bottom: 6px; /* Space below to set off from next row */
 }
 
+/* Subtle accent when metric has no current-year data (stale); Through date is last available */
+.metric-through-stale {
+  color: var(--text-tertiary, #9ca3af);
+  font-style: italic;
+  opacity: 0.85;
+}
+
 /* Metric Value Columns */
 .metric-date-label {
   font-size: 10px;
@@ -1426,6 +1434,13 @@ button.metrics-table-row {
   line-height: 1.4; /* Improved line height for clarity */
   opacity: 0.8;
   margin-bottom: 1px; /* Tight spacing with value below */
+}
+
+/* When comparison data ends mid-window (cut off); color end date to show truncation */
+.metric-date-cutoff {
+  color: var(--text-tertiary, #6b7280);
+  font-weight: 500;
+  border-bottom: 1px dashed var(--text-tertiary, #9ca3af);
 }
 
 .metric-value {
@@ -2256,7 +2271,7 @@ button.metrics-table-row {
   .tab-content-wrapper .tab-content {
     padding: 0 !important;
     margin-top: 104px; /* Same as desktop - header (56px) + tabs (48px) */
-    height: calc(100vh - 104px);
+    height: calc(100dvh - 104px);
   }
 
   /* Ensure header and tabs are full width on mobile */

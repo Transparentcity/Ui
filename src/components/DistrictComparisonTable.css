@@ -1,0 +1,138 @@
+.district-comparison-table-container {
+  margin-top: 1rem;
+  overflow-x: auto;
+}
+
+.district-comparison-caption {
+  margin-top: 12px;
+  font-size: 0.9375rem;
+  color: var(--text-secondary, #6b7280);
+  line-height: 1.5;
+}
+
+.district-comparison-table-container.loading,
+.district-comparison-table-container.error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.district-comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.district-comparison-table th,
+.district-comparison-table td {
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-light, #e5e7eb);
+}
+
+.district-comparison-table th {
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  background: var(--bg-secondary, #f9fafb);
+  white-space: nowrap;
+}
+
+.district-comparison-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease;
+}
+
+.district-comparison-table th.sortable:hover {
+  background: var(--bg-tertiary, #f3f4f6);
+}
+
+.district-comparison-table th.numeric,
+.district-comparison-table td.numeric {
+  text-align: right;
+}
+
+.district-comparison-table tbody tr:hover {
+  background: var(--bg-secondary, #f9fafb);
+}
+
+.district-comparison-table .district-cell {
+  font-weight: 500;
+  color: var(--text-primary, #111827);
+}
+
+.district-comparison-table .change-cell {
+  font-weight: 600;
+}
+
+.district-comparison-table .change-cell.good {
+  color: var(--color-success, #059669);
+}
+
+.district-comparison-table .change-cell.bad {
+  color: var(--color-danger, #dc2626);
+}
+
+.district-comparison-table .change-cell.neutral {
+  color: var(--text-secondary, #6b7280);
+}
+
+.sort-icon {
+  margin-left: 0.25rem;
+  font-size: 0.75rem;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.sort-icon.inactive {
+  opacity: 0.3;
+}
+
+.sort-icon.active {
+  opacity: 1;
+  color: var(--color-primary, #2563eb);
+}
+
+/* Total row */
+.district-comparison-table .total-row {
+  border-top: 2px solid var(--border-primary, #d1d5db);
+  background: var(--bg-secondary, #f9fafb);
+}
+
+.district-comparison-table .total-row td {
+  font-weight: 600;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.district-comparison-table .total-label {
+  color: var(--text-primary, #111827);
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.025em;
+}
+
+/* Mobile adjustments */
+@media (max-width: 640px) {
+  .district-comparison-table th,
+  .district-comparison-table td {
+    padding: 0.5rem 0.5rem;
+    font-size: 0.8125rem;
+  }
+
+  .district-comparison-table th {
+    font-size: 0.6875rem;
+  }
+
+  .district-comparison-table .district-cell {
+    min-width: 80px;
+  }
+}

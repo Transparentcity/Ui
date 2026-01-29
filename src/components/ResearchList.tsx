@@ -12,9 +12,9 @@ import {
   getAvailableModels,
   ModelGroupInfo
 } from "@/lib/apiClient";
-import { pickDefaultModelKey } from "@/lib/modelDefaults";
 import Loader from "./Loader";
 import RenameDialog from "./RenameDialog";
+import RegenerateModal from "./RegenerateModal";
 import styles from "./SidebarLists.module.css";
 
 interface ResearchListProps {
@@ -39,6 +39,8 @@ export default function ResearchList({
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
   const [renamingReportId, setRenamingReportId] = useState<number | null>(null);
+  const [regenerateModalReport, setRegenerateModalReport] = useState<ResearchReport | null>(null);
+  const [resynthesizeModalReport, setResynthesizeModalReport] = useState<ResearchReport | null>(null);
   const [availableModels, setAvailableModels] = useState<ModelGroupInfo[]>([]);
   const rootRef = useRef<HTMLDivElement>(null);
   const lastUpdateRef = useRef<number>(0);
@@ -203,19 +205,21 @@ export default function ResearchList({
     navigator.clipboard.writeText(url).catch(() => {});
   };
 
-  const handleRegenerate = async (report: ResearchReport) => {
-    if (!confirm("Are you sure you want to regenerate this research? This will re-run the research with the selected model.")) {
-      return;
-    }
-    
+  const handleRegenerateClick = (report: ResearchReport) => {
     setOpenMenuId(null);
+    setRegenerateModalReport(report);
+  };
+
+  const handleRegenerateConfirm = async (modelKey: string) => {
+    if (!regenerateModalReport) return;
+    
+    const report = regenerateModalReport;
     setRegeneratingId(report.id);
     
     try {
       const token = await getAccessTokenSilently();
-      const defaultModel = pickDefaultModelKey(availableModels) || report.model_key || "claude-3-5-sonnet-20241022";
       
-      const response = await regenerateResearch(report.id, { model_key: defaultModel }, token);
+      const response = await regenerateResearch(report.id, { model_key: modelKey }, token);
       
       // Notify job system
       if (typeof window !== "undefined") {
@@ -228,24 +232,28 @@ export default function ResearchList({
     } catch (err: any) {
       console.error("Failed to regenerate research:", err);
       alert(err.message || "Failed to regenerate research");
+      throw err; // Rethrow so modal knows it failed
     } finally {
       setRegeneratingId(null);
+      setRegenerateModalReport(null);
     }
   };
 
-  const handleResynthesize = async (report: ResearchReport) => {
-    if (!confirm("Re-synthesize the final report from existing item results? This will NOT re-run research; it only rebuilds the final report.")) {
-      return;
-    }
-    
+  const handleResynthesizeClick = (report: ResearchReport) => {
     setOpenMenuId(null);
+    setResynthesizeModalReport(report);
+  };
+
+  const handleResynthesizeConfirm = async (modelKey: string) => {
+    if (!resynthesizeModalReport) return;
+    
+    const report = resynthesizeModalReport;
     setRegeneratingId(report.id);
     
     try {
       const token = await getAccessTokenSilently();
-      const defaultModel = pickDefaultModelKey(availableModels) || report.model_key || "claude-3-5-sonnet-20241022";
       
-      const response = await resynthesizeResearch(report.id, { model_key: defaultModel }, token);
+      const response = await resynthesizeResearch(report.id, { model_key: modelKey }, token);
       
       // Notify job system
       if (typeof window !== "undefined") {
@@ -258,8 +266,10 @@ export default function ResearchList({
     } catch (err: any) {
       console.error("Failed to re-synthesize research:", err);
       alert(err.message || "Failed to re-synthesize research");
+      throw err; // Rethrow so modal knows it failed
     } finally {
       setRegeneratingId(null);
+      setResynthesizeModalReport(null);
     }
   };
 
@@ -435,14 +445,14 @@ export default function ResearchList({
                 <>
                   <div 
                     className={styles.menuItem} 
-                    onClick={() => handleRegenerate(report)}
+                    onClick={() => handleRegenerateClick(report)}
                     style={{ opacity: regeneratingId === report.id ? 0.5 : 1 }}
                   >
                     {regeneratingId === report.id ? "Regenerating..." : "Regenerate"}
                   </div>
                   <div 
                     className={styles.menuItem} 
-                    onClick={() => handleResynthesize(report)}
+                    onClick={() => handleResynthesizeClick(report)}
                     style={{ opacity: regeneratingId === report.id ? 0.5 : 1 }}
                   >
                     {regeneratingId === report.id ? "Re-synthesizing..." : "Re-synthesize"}
@@ -468,6 +478,30 @@ export default function ResearchList({
           onSave={handleRenameSave}
           title="Rename Research Report"
           maxLength={200}
+        />
+      )}
+      {regenerateModalReport && (
+        <RegenerateModal
+          isOpen={true}
+          onClose={() => setRegenerateModalReport(null)}
+          onConfirm={handleRegenerateConfirm}
+          availableModels={availableModels}
+          defaultModelKey={regenerateModalReport.model_key || undefined}
+          title="Regenerate Research"
+          description="This will re-run the entire research with the selected model. The original research will be replaced."
+          confirmLabel="Regenerate"
+        />
+      )}
+      {resynthesizeModalReport && (
+        <RegenerateModal
+          isOpen={true}
+          onClose={() => setResynthesizeModalReport(null)}
+          onConfirm={handleResynthesizeConfirm}
+          availableModels={availableModels}
+          defaultModelKey={resynthesizeModalReport.model_key || undefined}
+          title="Re-synthesize Report"
+          description="This will rebuild the final report from existing research results. It will NOT re-run the research items."
+          confirmLabel="Re-synthesize"
         />
       )}
     </>

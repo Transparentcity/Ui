@@ -48,8 +48,8 @@ export function useRunAnomalyDetection() {
       return runAnomalyDetection(payload, token);
     },
     onSuccess: (_, variables) => {
-      // Invalidate anomaly lists for this metric
-      queryClient.invalidateQueries({ queryKey: anomalyKeys.lists() });
+      // Invalidate all anomaly queries (list, city list, periods) so alerts panel refetches
+      queryClient.invalidateQueries({ queryKey: anomalyKeys.all });
       // Also invalidate metric time series since anomalies depend on it
       queryClient.invalidateQueries({ queryKey: ["metrics", "time-series", variables.metric_id] });
     },
@@ -60,7 +60,13 @@ export function useRunAnomalyDetection() {
  * Hook to list anomalies with optional filtering.
  * Cache time: 2 minutes
  */
-export function useAnomalies(options?: { metric_id?: number; is_anomaly?: boolean | null; period_type?: string; limit?: number }) {
+export function useAnomalies(options?: { 
+  metric_id?: number; 
+  is_anomaly?: boolean | null; 
+  period_type?: string; 
+  period_date?: string | null;
+  limit?: number;
+}) {
   const { getAccessTokenSilently } = useAuth0();
 
   return useQuery({

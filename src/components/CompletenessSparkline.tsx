@@ -11,9 +11,10 @@ interface CompletenessSparklineProps {
 }
 
 /**
- * Sparkline showing current count vs last check count for each day.
- * If same: solid green bar
- * If different: split bar (current = blue, last check = orange)
+ * Sparkline showing completeness using stacked bars.
+ * Each bar shows: last seen (base) + difference to current (stacked on top)
+ * If same: solid green bar (stable)
+ * If different: stacked bar (last seen = orange base, current growth = blue on top)
  */
 export default function CompletenessSparkline({
   data,
@@ -67,10 +68,11 @@ export default function CompletenessSparkline({
     return dateA - dateB;
   });
   
-  // Find max count for scaling
+  // Find max count for scaling (use current as it's the total bar height)
   const maxCount = Math.max(
     ...sortedData.map(p => Math.max(
       p.count_current || 0,
+      p.count_at_first_seen || 0,
       p.count_at_last_check || 0
     ))
   );
@@ -88,74 +90,85 @@ export default function CompletenessSparkline({
       <svg width={chartWidth} height={height} style={{ overflow: "visible" }}>
         {sortedData.map((point, index) => {
           const x = index * (barWidth + padding);
-          // Compare current count vs first seen to match statistics
-          // Statistics show first_seen vs last_check (historical growth)
-          // Sparkline shows first_seen vs current (current growth state)
+          // Use count_current (live from time_series_data) or fall back to count_at_last_check
           const currentCount = point.count_current ?? point.count_at_last_check ?? 0;
-          const firstSeenCount = point.count_at_first_seen ?? 0;
-          const countsMatch = currentCount === firstSeenCount && currentCount > 0;
+          // "Last Seen" = count when we FIRST observed this period (shows growth over time)
+          const lastSeenCount = point.count_at_first_seen ?? 0;
+          const countsMatch = currentCount === lastSeenCount && currentCount > 0;
+          
+          // Calculate the difference (growth from first seen to current)
+          const difference = currentCount - lastSeenCount;
           
           // Calculate bar heights (scaled to max)
-          const currentHeight = maxCount > 0 ? (currentCount / maxCount) * chartHeight : 0;
-          const firstSeenHeight = maxCount > 0 ? (firstSeenCount / maxCount) * chartHeight : 0;
+          const lastSeenHeight = maxCount > 0 ? (lastSeenCount / maxCount) * chartHeight : 0;
+          const differenceHeight = maxCount > 0 ? (Math.abs(difference) / maxCount) * chartHeight : 0;
           
-          // Position bars from bottom
-          const currentY = chartTop + chartHeight - currentHeight;
-          const firstSeenY = chartTop + chartHeight - firstSeenHeight;
+          // Position: last seen at bottom, difference stacked on top
+          const lastSeenY = chartTop + chartHeight - lastSeenHeight;
+          const differenceY = lastSeenY - differenceHeight; // Stack on top of last seen
 
-          if (countsMatch || (currentCount === 0 && firstSeenCount === 0)) {
-            // Same count or both zero: single green bar
+          if (countsMatch || (currentCount === 0 && lastSeenCount === 0)) {
+            // Same count or both zero: single green bar (stable - no growth since first seen)
+            const totalHeight = maxCount > 0 ? (currentCount / maxCount) * chartHeight : 0;
+            const totalY = chartTop + chartHeight - totalHeight;
             return (
               <rect
                 key={`${point.date}-${index}`}
                 x={x}
-                y={currentY}
+                y={totalY}
                 width={barWidth}
-                height={Math.max(1, currentHeight)}
+                height={Math.max(1, totalHeight)}
                 fill="var(--color-success, #10b981)"
                 opacity={0.8}
                 rx={1}
               >
-                <title>{`${point.date}: Count = ${currentCount.toLocaleString()} (no growth from first seen)`}</title>
+                <title>{`${point.date}: ${currentCount.toLocaleString()} (stable - no growth since first seen)`}</title>
               </rect>
             );
           } else {
-            // Different counts: split bar showing growth from first seen
-            // Current count on left (blue), first seen on right (orange)
-            const halfWidth = barWidth / 2;
-            const changePct = firstSeenCount > 0 
-              ? ((currentCount - firstSeenCount) / firstSeenCount * 100).toFixed(1)
-              : "0";
+            // Different counts: stacked bar showing growth from first seen to current
+            // Last seen/first seen (orange) as base, then growth to current (blue) stacked on top
+            const changePct = lastSeenCount > 0 
+              ? ((difference / lastSeenCount) * 100).toFixed(1)
+              : "∞";
+            const changeSign = difference > 0 ? "+" : "";
+            
             return (
               <g key={`${point.date}-${index}`}>
-                {/* Current count (left half, blue) - final count */}
-                {currentCount > 0 && (
+                {/* Last seen/first seen count (base, orange) */}
+                {lastSeenCount > 0 && (
                   <rect
                     x={x}
-                    y={currentY}
-                    width={halfWidth}
-                    height={Math.max(1, currentHeight)}
-                    fill="var(--color-info, #3b82f6)"
-                    opacity={0.8}
-                    rx={1}
-                  >
-                    <title>{`${point.date}: Current = ${currentCount.toLocaleString()} (${changePct}% growth)`}</title>
-                  </rect>
-                )}
-                {/* First seen count (right half, orange) - initial count */}
-                {firstSeenCount > 0 && (
-                  <rect
-                    x={x + halfWidth}
-                    y={firstSeenY}
-                    width={halfWidth}
-                    height={Math.max(1, firstSeenHeight)}
+                    y={lastSeenY}
+                    width={barWidth}
+                    height={Math.max(1, lastSeenHeight)}
                     fill="var(--color-warning, #f59e0b)"
                     opacity={0.8}
                     rx={1}
-                  >
-                    <title>{`${point.date}: First seen = ${firstSeenCount.toLocaleString()}`}</title>
-                  </rect>
+                  />
                 )}
+                {/* Growth to current (stacked on top, blue) */}
+                {difference > 0 && (
+                  <rect
+                    x={x}
+                    y={differenceY}
+                    width={barWidth}
+                    height={Math.max(1, differenceHeight)}
+                    fill="var(--color-info, #3b82f6)"
+                    opacity={0.8}
+                    rx={1}
+                  />
+                )}
+                {/* Tooltip covers entire bar */}
+                <rect
+                  x={x}
+                  y={difference > 0 ? differenceY : lastSeenY}
+                  width={barWidth}
+                  height={Math.max(1, lastSeenHeight + (difference > 0 ? differenceHeight : 0))}
+                  fill="transparent"
+                >
+                  <title>{`${point.date}: Last Seen = ${lastSeenCount.toLocaleString()}, Current = ${currentCount.toLocaleString()} (${changeSign}${changePct}%)`}</title>
+                </rect>
               </g>
             );
           }
@@ -216,7 +229,20 @@ export default function CompletenessSparkline({
               marginRight: 4,
             }}
           />
-          Same (Stable)
+          Stable
+        </span>
+        <span>
+          <span
+            style={{
+              display: "inline-block",
+              width: 8,
+              height: 8,
+              backgroundColor: "var(--color-warning, #f59e0b)",
+              borderRadius: 2,
+              marginRight: 4,
+            }}
+          />
+          Last Seen
         </span>
         <span>
           <span
@@ -230,19 +256,6 @@ export default function CompletenessSparkline({
             }}
           />
           Current
-        </span>
-        <span>
-          <span
-            style={{
-              display: "inline-block",
-              width: 8,
-              height: 8,
-              backgroundColor: "var(--color-warning, #f59e0b)",
-              borderRadius: 2,
-              marginRight: 4,
-            }}
-          />
-          First Seen
         </span>
       </div>
     </div>

@@ -51,16 +51,17 @@ export async function generateMetadata({
       // keep cityName from metric.city_name or titleCaseSlug(slug)
     }
 
+    const year = new Date().getFullYear();
     const description =
       metric.summary ||
       metric.definition?.slice(0, 160) ||
-      `View detailed data and trends for ${metric.metric_name} in ${cityName} - ${locationLabel}`;
+      `View detailed data and trends for ${metric.metric_name} in ${cityName} in ${year} - ${locationLabel}`;
 
     return {
-      title: `${metric.metric_name} | ${locationLabel} | ${cityName}`,
+      title: `${metric.metric_name} in ${year} | ${locationLabel} | ${cityName}`,
       description,
       openGraph: {
-        title: `${metric.metric_name} - ${locationLabel}`,
+        title: `${metric.metric_name} in ${year} - ${locationLabel}`,
         description,
         type: "website",
         // TODO: Add OG image generation endpoint

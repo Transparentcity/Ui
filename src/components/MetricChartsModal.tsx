@@ -42,8 +42,10 @@ export default function MetricChartsModal({
   const [isDataTableExpanded, setIsDataTableExpanded] = useState(false);
   const [periodTypeFilter, setPeriodTypeFilter] = useState<string>("all");
   const [districtFilter, setDistrictFilter] = useState<number | null>(null);
-  
-  const chartsQuery = useMetricTimeSeries(metricId);
+  const [groupFieldFilter, setGroupFieldFilter] = useState<"all" | "base" | "group">("all");
+
+  // Fetch all time series including group_field charts (exclude_group_fields: false)
+  const chartsQuery = useMetricTimeSeries(metricId, { exclude_group_fields: false });
   const chartDetailQuery = useMetricTimeSeriesDetail(metricId, chartDetailId);
   
   const chartsData = chartsQuery.data ?? null;
@@ -105,9 +107,20 @@ export default function MetricChartsModal({
         }
       }
 
+      // Group field filter: base = no group_field, group = has group_field
+      if (groupFieldFilter === "base") {
+        if (ts.group_field != null && String(ts.group_field).trim() !== "") {
+          return false;
+        }
+      } else if (groupFieldFilter === "group") {
+        if (ts.group_field == null || String(ts.group_field).trim() === "") {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [chartsData, periodTypeFilter, districtFilter]);
+  }, [chartsData, periodTypeFilter, districtFilter, groupFieldFilter]);
 
   // Get period_type from the list item when opening a chart
   // Normalize to match TimeSeriesChart's PeriodType
@@ -268,6 +281,20 @@ export default function MetricChartsModal({
                     </optgroup>
                   )}
                 </select>
+
+                {/* Group field / chart type filter */}
+                <label className={filterStyles.filterLabel}>Type:</label>
+                <select
+                  className={filterStyles.filterSelect}
+                  value={groupFieldFilter}
+                  onChange={(e) =>
+                    setGroupFieldFilter(e.target.value as "all" | "base" | "group")
+                  }
+                >
+                  <option value="all">All (base + group)</option>
+                  <option value="base">Base only</option>
+                  <option value="group">Group field only</option>
+                </select>
               </div>
 
               {/* Results count */}
@@ -283,6 +310,7 @@ export default function MetricChartsModal({
                     <th className={styles.miniTh}>Chart</th>
                     <th className={styles.miniTh}>Period</th>
                     <th className={styles.miniTh}>District</th>
+                    <th className={styles.miniTh}>Group field</th>
                     <th className={styles.miniTh}>Points</th>
                     <th className={styles.miniTh}>Created</th>
                     <th className={styles.miniTh}>Actions</th>
@@ -291,7 +319,7 @@ export default function MetricChartsModal({
                 <tbody>
                   {filteredTimeSeries.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className={styles.miniTd} style={{ textAlign: "center", padding: 16 }}>
+                      <td colSpan={7} className={styles.miniTd} style={{ textAlign: "center", padding: 16 }}>
                         <div className={styles.muted}>
                           No time series match the selected filters.
                         </div>
@@ -307,6 +335,7 @@ export default function MetricChartsModal({
                             ? "Citywide"
                             : `District ${ts.district}`}
                         </td>
+                        <td className={styles.miniTd}>{ts.group_field ?? "—"}</td>
                         <td className={styles.miniTd}>{ts.data_point_count ?? 0}</td>
                         <td className={styles.miniTd}>{formatDateTime(ts.created_at)}</td>
                         <td className={styles.miniTd}>

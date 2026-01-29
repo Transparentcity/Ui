@@ -12,6 +12,8 @@ import {
   type PublicCityDetail,
 } from "@/lib/publicApiClient";
 import MetricMapEmbed from "./MetricMapEmbed";
+import DeltaMapView from "./DeltaMapView";
+import DistrictComparisonTable from "./DistrictComparisonTable";
 import CategoryBreakdown from "./CategoryBreakdown";
 import { slugify } from "@/lib/utils";
 import { API_BASE } from "@/lib/apiBase";
@@ -91,8 +93,8 @@ function PublicTimeSeriesChart({
   if (loading) {
     return (
       <div className="metric-placeholder" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.75rem" }}>
-        <Loader size="sm" color="dark" />
-        Loading chart…
+        <Loader size="md" color="dark" />
+        <span>Loading chart...</span>
       </div>
     );
   }
@@ -194,6 +196,15 @@ export default function MetricDetailModal({
   const isLoading = metricQuery.isLoading;
   const error = metricQuery.error;
 
+  const currentCalendarYear = new Date().getFullYear();
+  const mostRecentYear = metric?.most_recent_data_date
+    ? new Date(metric.most_recent_data_date).getFullYear()
+    : currentCalendarYear;
+  const comparisonCurrentYear = comparison?.current_period_end
+    ? new Date(comparison.current_period_end).getFullYear()
+    : currentCalendarYear;
+  const isStale = !!(metric && (mostRecentYear < currentCalendarYear || comparisonCurrentYear < currentCalendarYear));
+
   const resolvedCityName = cityDetail?.name || cityName;
   const citySlug = slugify(resolvedCityName);
   const metricPath = metric?.metric_key ?? String(metricId);
@@ -220,12 +231,26 @@ export default function MetricDetailModal({
     mtd_prior_year: "compared to same month last year",
   };
 
-  // Dynamic labels for comparison cards based on period type
-  const comparisonLabels: Record<typeof selectedPeriod, { previous: string; current: string }> = {
-    ytd: { previous: "Last Year", current: "This Year" },
-    mtd: { previous: "Last Month", current: "This Month" },
-    mtd_prior_year: { previous: "Last Year", current: "This Year" },
-  };
+  // Dynamic labels for comparison cards; when stale, contextualize as prior year to date
+  const currentYear =
+    comparison?.current_period_end || comparison?.current_period_start
+      ? new Date(comparison.current_period_end || comparison.current_period_start!).getFullYear()
+      : new Date().getFullYear();
+  const priorYear =
+    comparison?.comparison_period_end || comparison?.comparison_period_start
+      ? new Date(comparison.comparison_period_end || comparison.comparison_period_start!).getFullYear()
+      : currentYear - 1;
+  const comparisonLabels: Record<typeof selectedPeriod, { previous: string; current: string }> = isStale
+    ? {
+        ytd: { previous: `Prior year to date (${priorYear})`, current: `Last available year to date (${currentYear})` },
+        mtd: { previous: `Prior period (${priorYear})`, current: `Last available period (${currentYear})` },
+        mtd_prior_year: { previous: `Prior year (${priorYear})`, current: `Last available year (${currentYear})` },
+      }
+    : {
+        ytd: { previous: "Last Year", current: "This Year" },
+        mtd: { previous: "Last Month", current: "This Month" },
+        mtd_prior_year: { previous: "Last Year", current: "This Year" },
+      };
 
   const formatValue = (value: number | null | undefined): string => {
     if (value === null || value === undefined) return "No data";
@@ -239,10 +264,20 @@ export default function MetricDetailModal({
     if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
       return "—";
     }
-    const startStr = startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    const endStr = endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    const startStr = startDate.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+    const endStr = endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
     return `${startStr} – ${endStr}`;
   };
+
+  const currentPeriodEndFormatted =
+    comparison?.current_period_end
+      ? new Date(comparison.current_period_end).toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+          timeZone: "UTC",
+        })
+      : null;
 
   const trend = comparison && comparison.current_period_value !== null && comparison.comparison_period_value !== null
     ? (() => {
@@ -331,16 +366,16 @@ export default function MetricDetailModal({
       <div className={`${styles.modal} metric-detail-modal`} onMouseDown={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
           <div className="metric-modal-title-row">
+            <button className={`${styles.iconBtn} metric-modal-close-btn`} onClick={onClose} title="Close" aria-label="Close">
+              <i className="fas fa-times" />
+            </button>
             <div className={styles.modalTitle}>
               {isLoading
                 ? "Loading..."
                 : error
                   ? "Error"
-                  : `${locationLabel} — ${metric?.metric_name || "Metric Details"}`}
+                  : `${locationLabel} — ${metric?.metric_name || "Metric Details"} in ${currentYear}`}
             </div>
-            <button className={`${styles.iconBtn} metric-modal-close-btn`} onClick={onClose} title="Close">
-              <i className="fas fa-times" />
-            </button>
           </div>
         </div>
         <div className={`${styles.modalBody} metric-detail-modal-body`}>
@@ -360,6 +395,16 @@ export default function MetricDetailModal({
             </div>
           ) : (
             <div className="metric-detail-content">
+              {/* No data for current period — prominent when metric is stale */}
+              {isStale && (
+                <div className="metric-detail-stale-banner" role="alert">
+                  <strong className="metric-detail-stale-banner-title">No data for the current period</strong>
+                  <p className="metric-detail-stale-banner-text">
+                    The figures below are prior year to date (through the latest available date). There is no data for {currentCalendarYear} yet.
+                  </p>
+                </div>
+              )}
+
               {/* Share row */}
               <div className="metric-share-row">
                 <div className="metric-share-url">
@@ -403,7 +448,11 @@ export default function MetricDetailModal({
 
               {/* Comparison */}
               <section className="metric-section metric-comparison">
-                <h2 className="metric-section-title">How have {metric.metric_name.toLowerCase()} changed in {locationLabel}?</h2>
+                <h2 className="metric-section-title">
+                  {isStale
+                    ? `Prior year to date: how have ${metric.metric_name.toLowerCase()} changed in ${locationLabel}?`
+                    : `How have ${metric.metric_name.toLowerCase()} changed in ${locationLabel} in ${currentYear}?`}
+                </h2>
                 <div className="metric-period-selector">
                   {(["ytd", "mtd", "mtd_prior_year"] as const).map((period) => (
                     <button
@@ -438,19 +487,39 @@ export default function MetricDetailModal({
                 </div>
                 {trend && (
                   <div className="comparison-summary">
-                    In {locationLabel}, {metric.metric_name.toLowerCase()} {metric.item_noun} are{" "}
-                    <span
-                      className={
-                        trendTone === "neutral"
-                          ? "trend-neutral"
-                          : trendTone === "good"
-                            ? "trend-good"
-                            : "trend-bad"
-                      }
-                    >
-                      {trend.isIncrease ? "up" : "down"} {Math.round(Math.abs(trend.percent))}%
-                    </span>{" "}
-                    {periodDescriptions[selectedPeriod]}.
+                    {isStale ? (
+                      <>
+                        In {locationLabel}, {metric.metric_name.toLowerCase()} {metric.item_noun} (prior year to date) are{" "}
+                        <span
+                          className={
+                            trendTone === "neutral"
+                              ? "trend-neutral"
+                              : trendTone === "good"
+                                ? "trend-good"
+                                : "trend-bad"
+                          }
+                        >
+                          {trend.isIncrease ? "up" : "down"} {Math.round(Math.abs(trend.percent))}%
+                        </span>{" "}
+                        {periodDescriptions[selectedPeriod]}. No data for {currentCalendarYear} yet.
+                      </>
+                    ) : (
+                      <>
+                        In {locationLabel}, {metric.metric_name.toLowerCase()} {metric.item_noun} are{" "}
+                        <span
+                          className={
+                            trendTone === "neutral"
+                              ? "trend-neutral"
+                              : trendTone === "good"
+                                ? "trend-good"
+                                : "trend-bad"
+                          }
+                        >
+                          {trend.isIncrease ? "up" : "down"} {Math.round(Math.abs(trend.percent))}%
+                        </span>{" "}
+                        {periodDescriptions[selectedPeriod]}.
+                      </>
+                    )}
                   </div>
                 )}
               </section>
@@ -459,50 +528,124 @@ export default function MetricDetailModal({
               {preferredChartId && (
                 <section className="metric-section metric-chart-section">
                   <h2 className="metric-section-title">What are the trends over time?</h2>
+                  {isStale ? (
+                    <p className="metric-comparison-caption">
+                      No data for the current period. Trends below are prior year to date (through {metric.most_recent_data_date ? new Date(metric.most_recent_data_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }) : "the latest available date"}).
+                    </p>
+                  ) : comparison &&
+                    comparison.current_period_value !== null &&
+                    comparison.comparison_period_value !== null &&
+                    currentPeriodEndFormatted ? (
+                      <p className="metric-comparison-caption">
+                        So far in {currentYear}, {metric.metric_name.toLowerCase()} {metric.item_noun} are{" "}
+                        {formatValue(comparison.current_period_value)}
+                        {trend ? `, ${trend.isIncrease ? "up" : "down"} by ${Math.round(Math.abs(trend.percent))}%` : ""} from last year&apos;s {formatValue(comparison.comparison_period_value)} to this date of {currentPeriodEndFormatted}.
+                      </p>
+                    ) : null}
                   <div className="metric-chart-container">
                     <PublicTimeSeriesChart chartId={preferredChartId} />
                   </div>
                 </section>
               )}
 
-              {/* District Comparison - only show for citywide view */}
-              {(selectedDistrict === null || selectedDistrict === 0) ? (
-                <section className="metric-section">
-                  <h2 className="metric-section-title">Where are {metric.metric_name.toLowerCase()} highest in {resolvedCityName}?</h2>
-                  <MetricMapEmbed
-                    metricId={metric.id}
-                    selectedPeriod={selectedPeriod}
-                    height={400}
-                    showLink={true}
-                    showPeriodSelector={false}
-                    district={null}
-                    metricName={metric.metric_name}
-                    itemNoun={metric.item_noun}
-                    dateRange={{
-                      start: comparison?.current_period_start || null,
-                      end: comparison?.current_period_end || null,
-                    }}
-                  />
-                </section>
-              ) : (
-                <section className="metric-section">
-                  <h2 className="metric-section-title">Where are {metric.metric_name.toLowerCase()} happening in District {selectedDistrict}?</h2>
-                  <MetricMapEmbed
-                    metricId={metric.id}
-                    selectedPeriod={selectedPeriod}
-                    height={400}
-                    showLink={true}
-                    showPeriodSelector={false}
-                    district={selectedDistrict}
-                    metricName={metric.metric_name}
-                    itemNoun={metric.item_noun}
-                    dateRange={{
-                      start: comparison?.current_period_start || null,
-                      end: comparison?.current_period_end || null,
-                    }}
-                  />
-                </section>
+              {/* District Comparison - only show if metric has map_query configured */}
+              {metric.map_query && (
+                (selectedDistrict === null || selectedDistrict === 0) ? (
+                  <section className="metric-section">
+                    <h2 className="metric-section-title">Where are {metric.metric_name.toLowerCase()} highest in {resolvedCityName}?</h2>
+                    {isStale ? (
+                      <p className="metric-section-subtitle">Prior year to date (no current-year data)</p>
+                    ) : comparison?.current_period_start && comparison?.current_period_end ? (
+                      <p className="metric-section-subtitle">
+                        {formatDateRange(comparison.current_period_start, comparison.current_period_end)}
+                      </p>
+                    ) : null}
+                    <MetricMapEmbed
+                      metricId={metric.id}
+                      selectedPeriod={selectedPeriod}
+                      height={400}
+                      showLink={true}
+                      showPeriodSelector={false}
+                      district={null}
+                      metricName={metric.metric_name}
+                      itemNoun={metric.item_noun}
+                      dateRange={{
+                        start: comparison?.current_period_start || null,
+                        end: comparison?.current_period_end || null,
+                      }}
+                    />
+                  </section>
+                ) : (
+                  <section className="metric-section">
+                    <h2 className="metric-section-title">Where are {metric.metric_name.toLowerCase()} happening in District {selectedDistrict}?</h2>
+                    {isStale ? (
+                      <p className="metric-section-subtitle">Prior year to date (no current-year data)</p>
+                    ) : comparison?.current_period_start && comparison?.current_period_end ? (
+                      <p className="metric-section-subtitle">
+                        {formatDateRange(comparison.current_period_start, comparison.current_period_end)}
+                      </p>
+                    ) : null}
+                    <MetricMapEmbed
+                      metricId={metric.id}
+                      selectedPeriod={selectedPeriod}
+                      height={400}
+                      showLink={true}
+                      showPeriodSelector={false}
+                      district={selectedDistrict}
+                      metricName={metric.metric_name}
+                      itemNoun={metric.item_noun}
+                      dateRange={{
+                        start: comparison?.current_period_start || null,
+                        end: comparison?.current_period_end || null,
+                      }}
+                    />
+                  </section>
+                )
               )}
+
+              {/* Delta Map - change by district (citywide view only) */}
+              {metric.map_query && (selectedDistrict === null || selectedDistrict === 0) && (() => {
+                const comparisonPeriodLabel = {
+                  ytd: "last year",
+                  mtd: "last month",
+                  mtd_prior_year: "same month last year",
+                }[selectedPeriod] || "the previous period";
+                
+                const comparisonSubtitleLabel = {
+                  ytd: "same period last year",
+                  mtd: "last month",
+                  mtd_prior_year: "same month last year",
+                }[selectedPeriod] || "the previous period";
+                
+                return (
+                  <section className="metric-section">
+                    <h2 className="metric-section-title">How has {metric.metric_name.toLowerCase()} changed from {comparisonPeriodLabel}?</h2>
+                    {isStale ? (
+                      <p className="metric-section-subtitle">Prior year to date comparison (no current-year data)</p>
+                    ) : comparison?.current_period_start && comparison?.current_period_end ? (
+                      <p className="metric-section-subtitle">
+                        Comparing {formatDateRange(comparison.current_period_start, comparison.current_period_end)} to {comparisonSubtitleLabel}
+                      </p>
+                    ) : null}
+                    <DeltaMapView
+                      metricId={metric.id}
+                      comparisonType={selectedPeriod}
+                      greenDirection={metric.greendirection as "up" | "down" | null}
+                      height={350}
+                    />
+                    <DistrictComparisonTable
+                      metricId={metric.id}
+                      comparisonType={selectedPeriod}
+                      greenDirection={metric.greendirection as "up" | "down" | null}
+                      itemNoun={metric.item_noun}
+                      metricName={metric.metric_name}
+                      cityName={resolvedCityName}
+                      currentPeriodEnd={comparison?.current_period_end ?? undefined}
+                      currentPeriodStart={comparison?.current_period_start ?? undefined}
+                    />
+                  </section>
+                );
+              })()}
 
               {/* Category Breakdown */}
               {metric.category_fields && metric.category_fields.length > 0 && (

@@ -32,6 +32,8 @@ export default function MetricDetailClient({
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(" ");
 
+  const year = new Date().getFullYear();
+
   // Track metric view
   useEffect(() => {
     trackMetricView(metric.metric_key, citySlug, district || undefined);
@@ -99,6 +101,9 @@ export default function MetricDetailClient({
         </div>
       </nav>
       <div className="metric-detail-content-wrapper">
+        <h1 className="metric-detail-page-title">
+          {metric.metric_name} in {year}
+        </h1>
         <MetricDetailContent
           metric={metric}
           cityName={cityName}

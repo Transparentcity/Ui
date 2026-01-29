@@ -302,15 +302,15 @@ export default function DashboardPage() {
           const homeCity = savedCities.find((c) => c.id === homeLocation.city_id);
           
           if (homeCity) {
-            // Use home location city, district, and GPS coordinates
+            // Use home location city and GPS; default to citywide so metrics table and modal show citywide
             setActiveCityId(homeLocation.city_id);
-            setInitialDistrict(homeLocation.district ?? null);
+            setInitialDistrict(null);
             if (homeLocation.coordinates) {
               setGpsLocation(homeLocation.coordinates);
             }
             setCurrentView("city");
             hasAutoSelectedCity.current = true;
-            console.log("Auto-selected home city:", homeLocation.city_id, "district:", homeLocation.district);
+            console.log("Auto-selected home city:", homeLocation.city_id);
             return;
           }
         }

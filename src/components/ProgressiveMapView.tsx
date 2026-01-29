@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type { SavedMap } from "@/lib/apiClient";
+import { getMapView } from "@/lib/apiClient";
 import { API_BASE } from "@/lib/apiBase";
 import Loader from "./Loader";
 import MapLayerPanel from "./MapLayerPanel";
@@ -17,15 +18,129 @@ interface ProgressiveMapViewProps {
 interface ShapeLayer {
   shape_layer_instance_id: number;
   identifier_field: string;
+  shape_identifier_field?: string;
   display_name: string;
   layer_key?: string;
   category?: string;
+  is_city_district?: boolean;
 }
+
+interface DefaultView {
+  type: "points" | "choropleth";
+  shape_layer_instance_id?: number | null;
+  identifier_field?: string | null;
+  display_name?: string | null;
+}
+
+interface AvailableView {
+  type: "points" | "choropleth";
+  point_count?: number;
+  shape_layer_instance_id?: number;
+  identifier_field?: string;
+  display_name?: string;
+  row_count?: number;
+  is_default?: boolean;
+  is_city_district?: boolean;
+}
+
+// Stable empty arrays to avoid new reference every render (prevents useEffect loops)
+const EMPTY_AVAILABLE_VIEWS: AvailableView[] = [];
+const EMPTY_SHAPE_LAYERS: ShapeLayer[] = [];
 
 interface Aggregation {
   identifier_field: string;
   display_name: string;
   rows: Array<{ district: string; value: number; [key: string]: any }>;
+}
+
+// Maximum number of points to render on the map
+// Beyond this limit, point rendering is disabled for performance reasons
+const MAX_POINTS_LIMIT = 5000;
+
+// ============================================================================
+// REQUEST CACHING - Prevent duplicate network requests
+// ============================================================================
+
+interface CacheEntry<T> {
+  data: T | null;
+  promise: Promise<T> | null;
+  timestamp: number;
+}
+
+const CACHE_TTL_MS = 60000; // 1 minute cache
+
+// Cache for city structure data
+const cityStructureCache: Record<number, CacheEntry<any>> = {};
+
+// Cache for shape layers data  
+const shapeLayersCache: Record<number, CacheEntry<any[]>> = {};
+
+// Cache for shape layer geometry
+const shapeGeometryCache: Record<number, CacheEntry<any>> = {};
+
+async function fetchWithCache<T>(
+  cacheKey: number,
+  cache: Record<number, CacheEntry<T>>,
+  fetchFn: () => Promise<T>
+): Promise<T> {
+  const now = Date.now();
+  const cached = cache[cacheKey];
+  
+  // Return cached data if valid
+  if (cached?.data && (now - cached.timestamp) < CACHE_TTL_MS) {
+    return cached.data;
+  }
+  
+  // Return in-flight promise if one exists
+  if (cached?.promise && (now - cached.timestamp) < CACHE_TTL_MS) {
+    return cached.promise;
+  }
+  
+  // Create new request and cache the promise
+  const promise = fetchFn().then((data) => {
+    cache[cacheKey] = { data, promise: null, timestamp: Date.now() };
+    return data;
+  }).catch((err) => {
+    // Clear cache on error
+    delete cache[cacheKey];
+    throw err;
+  });
+  
+  cache[cacheKey] = { data: null, promise, timestamp: now };
+  return promise;
+}
+
+async function getCachedCityStructure(cityId: number): Promise<any> {
+  return fetchWithCache(cityId, cityStructureCache, async () => {
+    const response = await fetch(`/api/cities/${cityId}/structure`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch city structure: ${response.status}`);
+    }
+    return response.json();
+  });
+}
+
+async function getCachedShapeLayers(cityId: number): Promise<any[]> {
+  return fetchWithCache(cityId, shapeLayersCache, async () => {
+    const response = await fetch(`/api/shape-layers/cities/${cityId}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch shape layers: ${response.status}`);
+    }
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data.layers || data.shape_layers || data.data || []);
+  });
+}
+
+async function getCachedShapeGeometry(instanceId: number): Promise<any> {
+  return fetchWithCache(instanceId, shapeGeometryCache, async () => {
+    const response = await fetch(
+      `${API_BASE}/api/shape-layers/public/instances/${instanceId}?include_geometry=true`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch shape geometry: ${response.status}`);
+    }
+    return response.json();
+  });
 }
 
 export default function ProgressiveMapView({
@@ -38,236 +153,71 @@ export default function ProgressiveMapView({
   const [points, setPoints] = useState<Array<{ lat: number; lon: number; [key: string]: any }> | null>(null);
   const [loadingPoints, setLoadingPoints] = useState(false);
   const [selectedDistrictId, setSelectedDistrictId] = useState<string | null>(null);
-  const [showPoints, setShowPoints] = useState(true);
+  const [showPoints, setShowPoints] = useState(false); // Default to false for embedded maps - choropleth is the primary view
   const [mapboxLoaded, setMapboxLoaded] = useState(false);
   const [availableShapeLayers, setAvailableShapeLayers] = useState<ShapeLayer[]>([]);
+  const [lazyLoadedAggregations, setLazyLoadedAggregations] = useState<Record<string, Aggregation>>({});
+  const [loadingLazyView, setLoadingLazyView] = useState(false);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
-  const shapeLayersDiscoveredRef = useRef(false);
 
-  // Get aggregations from map_config
+  // Backend-provided default view and available views (single load, no discovery)
+  const defaultView = mapData.map_config?.default_view as DefaultView | undefined;
+  const availableViews = (mapData.map_config?.available_views ?? EMPTY_AVAILABLE_VIEWS) as AvailableView[];
+  const metricDistrictField = (mapData.map_config?.district_field || mapData.map_config?.metricDistrictField) as string | undefined;
+  const locationDataCount = mapData.location_data?.length || 0;
   const aggregations = mapData.map_config?.aggregations || {};
-  
-  // Discover shape layers that match fields in location_data
+
+  // Build availableShapeLayers from available_views (choropleth entries) or fall back to available_shape_layers
+  const shapeLayersFromConfig = mapData.map_config?.available_shape_layers as ShapeLayer[] | undefined;
+  const initialShapeLayers = useMemo<ShapeLayer[]>(() => {
+    if (availableViews.length > 0) {
+      return availableViews
+        .filter((v): v is AvailableView & { shape_layer_instance_id: number; identifier_field: string; display_name: string } =>
+          v.type === "choropleth" && v.shape_layer_instance_id != null && v.identifier_field != null)
+        .map((v) => ({
+          shape_layer_instance_id: v.shape_layer_instance_id!,
+          identifier_field: v.identifier_field!,
+          display_name: v.display_name ?? String(v.shape_layer_instance_id),
+          is_city_district: v.is_city_district,
+        }));
+    }
+    return shapeLayersFromConfig?.length ? shapeLayersFromConfig : EMPTY_SHAPE_LAYERS;
+  }, [availableViews, shapeLayersFromConfig]);
+
+  // Initial view from default_view (backend decides); fallback for old maps without default_view
+  const initialViewRef = useRef(false);
   useEffect(() => {
-    // Prevent multiple discoveries
-    if (shapeLayersDiscoveredRef.current) {
-      return;
-    }
-    
-    if (!mapData.city_id || !mapData.location_data || mapData.location_data.length === 0) {
-      return;
-    }
-    
-    // Get all unique field names from location_data
-    const locationDataFields = new Set<string>();
-    mapData.location_data.forEach((point: any) => {
-      Object.keys(point).forEach(key => {
-        if (key !== 'lat' && key !== 'lon' && key !== 'latitude' && key !== 'longitude') {
-          locationDataFields.add(key);
-        }
-      });
-    });
-    
-    console.log(`[ProgressiveMapView] Location data fields:`, Array.from(locationDataFields));
-    
-    // If we already have shape layers from map_config, use those
-    if (mapData.map_config?.available_shape_layers && mapData.map_config.available_shape_layers.length > 0) {
-      console.log(`[ProgressiveMapView] Using shape layers from map_config`);
-      setAvailableShapeLayers(mapData.map_config.available_shape_layers);
-      shapeLayersDiscoveredRef.current = true;
-      return;
-    }
-    
-    // Otherwise, fetch shape layers for the city and match them to location_data fields
-    const discoverMatchingShapeLayers = async () => {
-      try {
-        // Common district field names that might be used in shape layers or location_data
-        const commonDistrictFieldNames = ['supervisor_district', 'district', 'ward', 'sup_dist_num', 'district_id', 'council_district', 'nhood', 'neighborhood'];
-        
-        // First, fetch city structure to get district fields mapping
-        console.log(`[ProgressiveMapView] Fetching city structure for city ${mapData.city_id}`);
-        let districtFields: string[] = [];
-        try {
-          const cityStructureResponse = await fetch(`/api/cities/${mapData.city_id}/structure`);
-          if (cityStructureResponse.ok) {
-            const cityStructure = await cityStructureResponse.json();
-            console.log(`[ProgressiveMapView] City structure response:`, cityStructure);
-            // Try different possible locations for district_fields
-            districtFields = cityStructure.district_fields || 
-                            cityStructure.districtFields ||
-                            (cityStructure.location_fields?.filter((f: any) => 
-                              typeof f === 'string' ? f.includes('district') || f.includes('ward') : 
-                              (f.fieldName?.includes('district') || f.fieldName?.includes('ward') || f.name?.includes('district') || f.name?.includes('ward'))
-                            ).map((f: any) => typeof f === 'string' ? f : (f.fieldName || f.name))) ||
-                            [];
-            console.log(`[ProgressiveMapView] City structure district_fields:`, districtFields);
-          } else {
-            const errorText = await cityStructureResponse.text();
-            console.warn(`[ProgressiveMapView] Failed to fetch city structure: ${cityStructureResponse.status}`, errorText);
-          }
-        } catch (err) {
-          console.warn(`[ProgressiveMapView] Failed to fetch city structure:`, err);
-        }
-        
-        // Fallback: if district_fields is empty, check location_data for common district field names
-        // Also include common aliases that might be used in shape layers
-        if (districtFields.length === 0) {
-          const foundDistrictFields = commonDistrictFieldNames.filter(field => 
-            mapData.location_data.some((point: any) => 
-              point[field] !== undefined && 
-              point[field] !== null &&
-              point[field] !== ""
-            )
-          );
-          if (foundDistrictFields.length > 0) {
-            console.log(`[ProgressiveMapView] Using fallback district fields from location_data:`, foundDistrictFields);
-            districtFields = foundDistrictFields;
-          }
-        }
-        
-        // Also check if any shape layer identifier_fields are district-related, even if not in location_data
-        // This helps match shape layers that use different field names (e.g., sup_dist_num vs supervisor_district)
-        const hasAnyDistrictFieldInData = commonDistrictFieldNames.some(field =>
-          mapData.location_data.some((point: any) => 
-            point[field] !== undefined && 
-            point[field] !== null &&
-            point[field] !== ""
-          )
-        );
-        
-        console.log(`[ProgressiveMapView] Fetching shape layers for city ${mapData.city_id}`);
-        const cityLayersResponse = await fetch(`/api/shape-layers/cities/${mapData.city_id}`);
-        
-        if (!cityLayersResponse.ok) {
-          const errorText = await cityLayersResponse.text();
-          console.warn(`[ProgressiveMapView] Failed to fetch city shape layers: ${cityLayersResponse.status}`, errorText);
-          return;
-        }
-        
-        const cityLayersData = await cityLayersResponse.json();
-        console.log(`[ProgressiveMapView] City shape layers API response:`, cityLayersData);
-        
-        const layers = Array.isArray(cityLayersData) ? cityLayersData : (cityLayersData.layers || cityLayersData.shape_layers || cityLayersData.data || []);
-        
-        console.log(`[ProgressiveMapView] Found ${layers.length} shape layers for city`, layers);
-        
-        // Get all unique field names from location_data
-        const locationDataFields = new Set<string>();
-        mapData.location_data.forEach((point: any) => {
-          Object.keys(point).forEach(key => {
-            if (key !== 'lat' && key !== 'lon' && key !== 'latitude' && key !== 'longitude') {
-              locationDataFields.add(key);
-            }
-          });
-        });
-        console.log(`[ProgressiveMapView] Location data fields:`, Array.from(locationDataFields));
-        
-        // For each shape layer, check if we can get its identifier_field
-        // and see if it matches any field in location_data OR any district field from city structure
-        const matchingLayers: any[] = [];
-        
-        for (const layer of layers) {
-          try {
-            // Handle API response structure: {template: {...}, instance: {...}} or {template: {...}, instance: null}
-            const instance = layer.instance || layer;
-            const template = layer.template || {};
-            
-            // Get instance ID from various possible locations
-            const instanceId = instance?.id || 
-                              instance?.shape_layer_instance_id || 
-                              layer.shape_layer_instance_id || 
-                              layer.id || 
-                              layer.instance_id;
-            
-            if (!instanceId) {
-              console.log(`[ProgressiveMapView] Skipping layer without ID:`, layer);
-              continue;
-            }
-            
-            // Get identifier_field from instance or template
-            const identifierField = instance?.identifier_field || 
-                                   template?.default_identifier_field ||
-                                   layer.identifier_field ||
-                                   layer.default_identifier_field;
-            
-            if (!identifierField) {
-              console.log(`[ProgressiveMapView] No identifier_field found for instance ${instanceId}`);
-              continue;
-            }
-            
-            console.log(`[ProgressiveMapView] Checking shape layer instance ${instanceId} with identifier_field "${identifierField}"`);
-            
-            // Check if identifier_field matches:
-            // 1. Direct match in location_data fields
-            // 2. Match in city structure district_fields (meaning it's a related district field)
-            // 3. identifier_field is a known district-related field name AND location_data has any district field
-            const hasDirectMatch = locationDataFields.has(identifierField);
-            const isDistrictField = districtFields.includes(identifierField);
-            const hasRelatedDistrictField = districtFields.some(df => locationDataFields.has(df));
-            const isKnownDistrictFieldName = commonDistrictFieldNames.includes(identifierField);
-            
-            console.log(`[ProgressiveMapView] Match check for "${identifierField}":`, {
-              hasDirectMatch,
-              isDistrictField,
-              hasRelatedDistrictField,
-              isKnownDistrictFieldName,
-              hasAnyDistrictFieldInData,
-              districtFields,
-              locationDataFields: Array.from(locationDataFields)
-            });
-            
-            // Match if:
-            // - Direct field match in location_data, OR
-            // - identifier_field is in district_fields AND location_data has any district field, OR
-            // - identifier_field is a known district field name AND location_data has any district field
-            const matches = hasDirectMatch || 
-                           (isDistrictField && hasRelatedDistrictField) ||
-                           (isKnownDistrictFieldName && hasAnyDistrictFieldInData);
-            
-            if (matches) {
-              // Find the actual field name in location_data to use for aggregation
-              // Prefer direct match, otherwise use the first district field found in location_data
-              const fieldToUse = hasDirectMatch 
-                ? identifierField 
-                : districtFields.find(df => locationDataFields.has(df)) || identifierField;
-              
-              console.log(`[ProgressiveMapView] ✅ Found matching shape layer: ${instanceId} (identifier_field: ${identifierField}, using field: ${fieldToUse})`);
-              matchingLayers.push({
-                shape_layer_instance_id: instanceId,
-                identifier_field: fieldToUse, // Use the field that exists in location_data
-                display_name: template?.default_display_name || 
-                             instance?.structure_type ||
-                             layer.display_name || 
-                             'Shape Layer',
-                layer_key: template?.layer_key || layer.layer_key,
-                category: template?.category || layer.category,
-              });
-            } else {
-              console.log(`[ProgressiveMapView] ❌ No match for field "${identifierField}"`);
-            }
-          } catch (err) {
-            console.error(`[ProgressiveMapView] Error checking shape layer:`, err, layer);
-          }
-        }
-        
-        if (matchingLayers.length > 0) {
-          console.log(`[ProgressiveMapView] Found ${matchingLayers.length} matching shape layers`);
-          setAvailableShapeLayers(matchingLayers);
-          shapeLayersDiscoveredRef.current = true;
-          
-        } else {
-          console.log(`[ProgressiveMapView] No matching shape layers found`);
-          shapeLayersDiscoveredRef.current = true; // Mark as discovered even if no matches
-        }
-      } catch (err) {
-        console.error(`[ProgressiveMapView] Error discovering shape layers:`, err);
-        shapeLayersDiscoveredRef.current = true; // Mark as discovered even on error
+    if (initialViewRef.current) return;
+    initialViewRef.current = true;
+    if (defaultView) {
+      if (defaultView.type === "points") {
+      setShowPoints(true);
+        setSelectedShapeLayer(null);
+      } else if (defaultView.type === "choropleth" && defaultView.shape_layer_instance_id != null) {
+        setShowPoints(false);
+        setSelectedShapeLayer(String(defaultView.shape_layer_instance_id));
       }
-    };
-    
-    discoverMatchingShapeLayers();
-  }, [mapData.city_id, mapData.location_data, mapData.map_config]); // Removed selectedShapeLayer from dependencies
+    } else if (shapeLayersFromConfig?.length && locationDataCount > 1000) {
+      const first = shapeLayersFromConfig[0];
+      setShowPoints(false);
+      setSelectedShapeLayer(String(first.shape_layer_instance_id));
+    } else if (locationDataCount > 0 && locationDataCount <= MAX_POINTS_LIMIT) {
+      setShowPoints(true);
+      setSelectedShapeLayer(null);
+    }
+  }, [defaultView, shapeLayersFromConfig, locationDataCount]);
+
+  // Sync from prop-derived list only when content actually changes (avoid loop from new array refs)
+  useEffect(() => {
+    setAvailableShapeLayers((prev) => {
+      if (prev.length !== initialShapeLayers.length) return initialShapeLayers;
+      const same = initialShapeLayers.every(
+        (s, i) => prev[i]?.shape_layer_instance_id === s.shape_layer_instance_id
+      );
+      return same ? prev : initialShapeLayers;
+    });
+  }, [initialShapeLayers]);
 
   console.log(`[ProgressiveMapView] Map config:`, {
     mapType: mapData.map_type,
@@ -278,9 +228,33 @@ export default function ProgressiveMapView({
     mapConfig: mapData.map_config
   });
 
-  // Determine if we have aggregations (choropleth) or just points
-  const hasAggregations = Object.keys(aggregations).length > 0;
+  // Merged aggregations (map_config + lazy-loaded when user selects alternative view)
+  const effectiveAggregations = useMemo(
+    () => ({ ...aggregations, ...lazyLoadedAggregations }),
+    [aggregations, lazyLoadedAggregations]
+  );
+  const hasAggregations = Object.keys(effectiveAggregations).length > 0;
   const isPointMap = mapData.map_type === "point" && !hasAggregations;
+
+  // Lazy-load choropleth view when user selects a shape layer that has no aggregation yet
+  useEffect(() => {
+    if (!selectedShapeLayer || !mapHash) return;
+    const id = selectedShapeLayer;
+    if (aggregations[id] || lazyLoadedAggregations[id]) return;
+    setLoadingLazyView(true);
+    getMapView(mapHash, Number(id))
+      .then((data) => {
+        setLazyLoadedAggregations((prev) => ({
+          ...prev,
+          [id]: data.aggregation as Aggregation,
+        }));
+      })
+      .catch((err) => {
+        console.error("[ProgressiveMapView] Failed to load view:", err);
+        onError?.(err instanceof Error ? err.message : "Failed to load view");
+      })
+      .finally(() => setLoadingLazyView(false));
+  }, [selectedShapeLayer, mapHash, aggregations, lazyLoadedAggregations, onError]);
 
   // Automatically load points from location_data for point maps
   useEffect(() => {
@@ -414,15 +388,26 @@ export default function ProgressiveMapView({
     try {
       mapboxgl.accessToken = MAPBOX_TOKEN;
 
+      // Use a slightly lower zoom level for the embedded view to show more context
+      const baseZoom = mapData.center?.zoom || 11;
+      const embeddedZoom = Math.max(baseZoom - 1, 10); // Zoom out by 1, but don't go below 10
+      
       const map = new mapboxgl.Map({
         container: container,
         style: "mapbox://styles/mapbox/light-v11",
         center: mapData.center ? [mapData.center.lng, mapData.center.lat] : [-122.4194, 37.7749],
-        zoom: mapData.center?.zoom || 11,
+        zoom: embeddedZoom,
         attributionControl: false,
+        scrollZoom: false, // Disable scroll zoom for embedded maps
       });
 
       mapInstanceRef.current = map;
+
+      // Add zoom controls in the bottom-right corner
+      map.addControl(
+        new mapboxgl.NavigationControl({ showCompass: false }),
+        "bottom-right"
+      );
 
       map.on("load", async () => {
         setTimeout(async () => {
@@ -463,10 +448,23 @@ export default function ProgressiveMapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapboxLoaded]);
 
-  // Load choropleth when shape layer is selected
+  // Load choropleth when shape layer is selected (default_view or user selection)
   useEffect(() => {
     if (!mapInstanceRef.current || !mapboxLoaded) return;
     if (!selectedShapeLayer) return;
+    if (showPoints) setShowPoints(false);
+    
+    // Remove any existing points layer when loading choropleth
+    try {
+      if (mapInstanceRef.current.getLayer("points-layer")) {
+        mapInstanceRef.current.removeLayer("points-layer");
+      }
+      if (mapInstanceRef.current.getSource("points-source")) {
+        mapInstanceRef.current.removeSource("points-source");
+      }
+    } catch {
+      // ignore cleanup errors
+    }
     
     // Can load choropleth if we have:
     // 1. Pre-computed aggregations, OR
@@ -478,8 +476,7 @@ export default function ProgressiveMapView({
     );
     const canLoadChoropleth = hasAggregations || canComputeAggregations;
     
-    if (canLoadChoropleth) {
-      // Wait a bit to ensure map is ready
+    if (canLoadChoropleth && effectiveAggregations[selectedShapeLayer]) {
       const timeoutId = setTimeout(() => {
         try {
           loadChoroplethMap(mapInstanceRef.current, selectedShapeLayer);
@@ -490,7 +487,7 @@ export default function ProgressiveMapView({
       
       return () => clearTimeout(timeoutId);
     }
-  }, [selectedShapeLayer, hasAggregations, mapboxLoaded, mapData.location_data, points]);
+  }, [selectedShapeLayer, hasAggregations, mapboxLoaded, mapData.location_data, points, effectiveAggregations]);
 
   // Update points display when showPoints or selectedDistrictId changes
   useEffect(() => {
@@ -531,7 +528,7 @@ export default function ProgressiveMapView({
     const filteredPoints = selectedDistrictId
       ? points.filter((p: any) => {
           if (!selectedShapeLayer) return true;
-          const aggregation = aggregations[selectedShapeLayer];
+          const aggregation = effectiveAggregations[selectedShapeLayer];
           if (!aggregation) return true;
           const identifierField = aggregation.identifier_field;
           const pointDistrictId = String(p[identifierField] || p.supervisor_district || p.district || "");
@@ -556,26 +553,46 @@ export default function ProgressiveMapView({
     } else {
       console.log(`[ProgressiveMapView] No valid points to display (filtered from ${points.length} total)`);
     }
-  }, [showPoints, selectedDistrictId, points, selectedShapeLayer, aggregations, hasAggregations]);
+  }, [showPoints, selectedDistrictId, points, selectedShapeLayer, effectiveAggregations, hasAggregations]);
 
   // Compute aggregations from points for a given shape layer
+  // Uses metricDistrictField if available, falling back to identifierField and common district fields
   const computeAggregationForShapeLayer = (
     points: Array<{ lat: number; lon: number; [key: string]: any }>,
     identifierField: string
   ): Aggregation => {
     const aggregationMap = new Map<string, number>();
     
+    console.log(`[ProgressiveMapView] computeAggregationForShapeLayer: identifierField=${identifierField}, metricDistrictField=${metricDistrictField}`);
+    console.log(`[ProgressiveMapView] Sample point keys:`, points[0] ? Object.keys(points[0]) : []);
+    
     points.forEach((point: any) => {
-      const id = String(point[identifierField] || point.district || point.supervisor_district || "");
-      if (id && id !== "null" && id !== "undefined") {
+      // Try to get district ID from point data:
+      // 1. First check metric's district_field (highest priority - explicitly configured)
+      // 2. Then check the shape layer's identifier_field
+      // 3. Then fall back to common district field names
+      const id = String(
+        (metricDistrictField && point[metricDistrictField]) ||
+        point[identifierField] || 
+        point.supervisor_district || 
+        point.district || 
+        point.district_id ||
+        ""
+      );
+      if (id && id !== "null" && id !== "undefined" && id !== "") {
         const current = aggregationMap.get(id) || 0;
         aggregationMap.set(id, current + 1);
       }
     });
     
+    console.log(`[ProgressiveMapView] Aggregation computed: ${aggregationMap.size} unique districts`);
+    console.log(`[ProgressiveMapView] District IDs found:`, Array.from(aggregationMap.keys()).slice(0, 10));
+    
     const rows = Array.from(aggregationMap.entries()).map(([id, count]) => ({
       district: id,
       [identifierField]: id,
+      // Also store with metric's district field if different
+      ...(metricDistrictField && metricDistrictField !== identifierField ? { [metricDistrictField]: id } : {}),
       value: count,
       count: count,
     }));
@@ -589,25 +606,23 @@ export default function ProgressiveMapView({
 
   const loadChoroplethMap = async (mapInstance: any, shapeLayerId: string) => {
     try {
+      const aggSource = effectiveAggregations;
       console.log(`[ProgressiveMapView] loadChoroplethMap called for shapeLayerId: ${shapeLayerId}`);
-      console.log(`[ProgressiveMapView] Available aggregations keys:`, Object.keys(aggregations));
+      console.log(`[ProgressiveMapView] Available aggregations keys:`, Object.keys(aggSource));
       console.log(`[ProgressiveMapView] Available shape layers:`, availableShapeLayers.map(sl => ({ id: sl.shape_layer_instance_id, name: sl.display_name, field: sl.identifier_field })));
-      console.log(`[ProgressiveMapView] Full aggregations object:`, aggregations);
       
       // Try to find aggregation - it might be keyed by shape_layer_instance_id as string or number
-      let aggregation = aggregations[shapeLayerId] as Aggregation | undefined;
+      let aggregation = aggSource[shapeLayerId] as Aggregation | undefined;
       if (!aggregation) {
-        // Try with number key
         const shapeLayerIdNum = Number(shapeLayerId);
         if (!isNaN(shapeLayerIdNum)) {
-          aggregation = aggregations[shapeLayerIdNum] as Aggregation | undefined;
+          aggregation = aggSource[String(shapeLayerIdNum)] as Aggregation | undefined;
         }
       }
-      // If still not found, try the first available aggregation (might be keyed differently)
-      if (!aggregation && Object.keys(aggregations).length > 0) {
-        const firstKey = Object.keys(aggregations)[0];
+      if (!aggregation && Object.keys(aggSource).length > 0) {
+        const firstKey = Object.keys(aggSource)[0];
         console.log(`[ProgressiveMapView] Trying first aggregation key: ${firstKey}`);
-        aggregation = aggregations[firstKey] as Aggregation | undefined;
+        aggregation = aggSource[firstKey] as Aggregation | undefined;
       }
       
       // If aggregation doesn't exist for this shape layer, try to compute it from points or location_data
@@ -650,21 +665,17 @@ export default function ProgressiveMapView({
       );
       if (!shapeLayer) return;
 
-      const apiBase = API_BASE;
       const shapeLayerInstanceId = shapeLayer.shape_layer_instance_id;
       const identifierField = shapeLayer.identifier_field;
 
-      // Fetch shape geometry
-      const response = await fetch(
-        `${apiBase}/api/shape-layers/public/instances/${shapeLayerInstanceId}?include_geometry=true`
-      );
-
-      if (!response.ok) {
-        console.error("Failed to fetch shape layer");
+      // Fetch shape geometry (with caching)
+      let shapeLayerData: any;
+      try {
+        shapeLayerData = await getCachedShapeGeometry(shapeLayerInstanceId);
+      } catch (err) {
+        console.error("Failed to fetch shape layer:", err);
         return;
       }
-
-      const shapeLayerData = await response.json();
       if (!shapeLayerData?.instance?.geometry_data) {
         console.error("No geometry data in shape layer");
         return;
@@ -745,18 +756,34 @@ export default function ProgressiveMapView({
       console.log(`[ProgressiveMapView] Processing ${geometryData.features.length} shape features`);
       console.log(`[ProgressiveMapView] Sample feature properties:`, geometryData.features[0]?.properties);
       
+      // Get the shape layer's identifier field from the API (this is the field used in GeoJSON properties)
+      const apiIdentifierField = shapeLayerData.instance.identifier_field;
+      // Also get the shape_identifier_field from our stored shape layer config
+      const shapeIdentifierField = shapeLayer.shape_identifier_field || apiIdentifierField;
+      
+      console.log(`[ProgressiveMapView] Field mapping:`, {
+        dataField: identifierField, // Field in our point/location data
+        shapeField: shapeIdentifierField, // Field in shape layer GeoJSON
+        apiField: apiIdentifierField, // Field from API response
+        metricField: metricDistrictField, // Field from metric config
+      });
+      
       const features = geometryData.features.map((feature: any) => {
         // Try multiple ways to get district ID from shape layer properties
         const props = feature.properties || {};
-        const apiIdentifierField = shapeLayerData.instance.identifier_field;
         
-        // Try all possible identifier fields
+        // Priority for reading from shape layer properties:
+        // 1. API's identifier_field (authoritative)
+        // 2. Shape identifier field we discovered
+        // 3. Common district field names
         const districtIdRaw = 
-          props[identifierField] ||
           props[apiIdentifierField] ||
+          props[shapeIdentifierField] ||
+          props[identifierField] ||
           props.district ||
           props.district_id ||
           props.supervisor_district ||
+          props.sup_dist_num ||
           props.name ||
           props.label ||
           "";
@@ -819,6 +846,17 @@ export default function ProgressiveMapView({
         };
       });
 
+      // Wait for style to load if not already loaded
+      if (!mapInstance.isStyleLoaded()) {
+        console.log("[ProgressiveMapView] Style not loaded, waiting for load event before adding choropleth");
+        await new Promise<void>((resolve) => {
+          mapInstance.once('load', () => {
+            console.log("[ProgressiveMapView] Style now loaded, proceeding with choropleth");
+            resolve();
+          });
+        });
+      }
+
       // Remove existing layers
       try {
         if (mapInstance.getLayer("choropleth-fill")) {
@@ -842,6 +880,11 @@ export default function ProgressiveMapView({
         },
       });
 
+      // Check if points layer exists - choropleth should always render BELOW points
+      // The beforeId parameter inserts the new layer below the specified layer
+      const pointsLayerExists = mapInstance.getLayer("points-layer");
+      const beforeLayerId = pointsLayerExists ? "points-layer" : undefined;
+
       mapInstance.addLayer({
         id: "choropleth-fill",
         type: "fill",
@@ -850,7 +893,7 @@ export default function ProgressiveMapView({
           "fill-color": ["get", "color"],
           "fill-opacity": 0.7,
         },
-      });
+      }, beforeLayerId);
 
       mapInstance.addLayer({
         id: "choropleth-outline",
@@ -858,29 +901,14 @@ export default function ProgressiveMapView({
         source: "choropleth-shapes",
         paint: {
           "line-color": "#ffffff",
-          "line-width": 1.5,
+          "line-width": 0.75,
         },
-      });
+      }, beforeLayerId);
 
-      // Fit to bounds
-      const bounds = new (window as any).mapboxgl.LngLatBounds();
-      features.forEach((feature: any) => {
-        if (feature.geometry.type === "Polygon") {
-          feature.geometry.coordinates[0].forEach((coord: number[]) => {
-            bounds.extend(coord as [number, number]);
-          });
-        } else if (feature.geometry.type === "MultiPolygon") {
-          feature.geometry.coordinates.forEach((polygon: number[][][]) => {
-            polygon[0].forEach((coord: number[]) => {
-              bounds.extend(coord as [number, number]);
-            });
-          });
-        }
-      });
-
-      if (features.length > 0) {
-        mapInstance.fitBounds(bounds, { padding: 20 });
-      }
+      // Don't fit to shape layer bounds - respect the map's initial center and zoom
+      // from mapData.center which is typically set to show the city at an appropriate zoom level.
+      // Fitting to shape layer bounds (like supervisor districts) can zoom all the way out
+      // if the shape layer extends beyond the city boundaries.
 
       // Click handler for progressive display
       mapInstance.off("click", "choropleth-fill");
@@ -911,6 +939,7 @@ export default function ProgressiveMapView({
       mapInstance.off("mouseenter", "choropleth-fill");
       mapInstance.off("mouseleave", "choropleth-fill");
       
+      const itemNoun = (mapData.map_config?.item_noun as string) || "items";
       mapInstance.on("mouseenter", "choropleth-fill", (e: any) => {
         if (!e.features || e.features.length === 0) return;
         const feature = e.features[0];
@@ -920,7 +949,7 @@ export default function ProgressiveMapView({
 
         popup
           .setLngLat(e.lngLat)
-          .setHTML(`<div class="map-popup"><strong>${shapeLayer.display_name} ${districtId}</strong><br/>${value}</div>`)
+          .setHTML(`<div class="map-popup"><strong>${shapeLayer.display_name} ${districtId}</strong><br/>${value} ${itemNoun}</div>`)
           .addTo(mapInstance);
       });
 
@@ -939,153 +968,274 @@ export default function ProgressiveMapView({
     addPointsLayer(mapInstance, pointData);
   };
 
+  const itemNoun = (mapData.map_config?.item_noun as string) || "items";
+  const itemNounCap = itemNoun.charAt(0).toUpperCase() + itemNoun.slice(1);
+
   const addPointsLayer = (mapInstance: any, pointData: Array<{ lat: number; lon: number; [key: string]: any }>) => {
     console.log(`[ProgressiveMapView] addPointsLayer called with ${pointData.length} points`);
     
-    const geojsonData = {
-      type: "FeatureCollection" as const,
-      features: pointData.map((point: any, index: number) => ({
+    // Aggregate points at identical locations to show count-scaled markers
+    const locationMap = new Map<string, { points: any[]; lat: number; lon: number }>();
+    
+    pointData.forEach((point: any) => {
+      // Round to 6 decimal places for grouping (about 0.1 meter precision)
+      const key = `${point.lat.toFixed(6)},${point.lon.toFixed(6)}`;
+      if (!locationMap.has(key)) {
+        locationMap.set(key, { points: [], lat: point.lat, lon: point.lon });
+      }
+      locationMap.get(key)!.points.push(point);
+    });
+    
+    // Create features with count property for scaling
+    const aggregatedFeatures = Array.from(locationMap.entries()).map(([key, data], index) => {
+      const count = data.points.length;
+      // Use the first point's properties, but add count
+      const firstPoint = data.points[0];
+      return {
         type: "Feature" as const,
         geometry: {
           type: "Point" as const,
-          coordinates: [point.lon, point.lat],
+          coordinates: [data.lon, data.lat],
         },
         properties: {
           id: index,
-          ...point,
+          count,
+          // Include all points data for popup (when count > 1)
+          allPoints: count > 1 ? data.points : undefined,
+          ...firstPoint,
         },
-      })),
+      };
+    });
+    
+    console.log(`[ProgressiveMapView] Aggregated ${pointData.length} points into ${aggregatedFeatures.length} unique locations`);
+    
+    const geojsonData = {
+      type: "FeatureCollection" as const,
+      features: aggregatedFeatures,
     };
 
-    try {
-      // Remove existing points layer
-      if (mapInstance.getLayer("points-layer")) {
-        console.log("[ProgressiveMapView] Removing existing points-layer");
-        mapInstance.removeLayer("points-layer");
-      }
-      if (mapInstance.getSource("points-source")) {
-        console.log("[ProgressiveMapView] Removing existing points-source");
-        mapInstance.removeSource("points-source");
-      }
+    // Helper function to actually add the layers
+    const doAddPointsLayer = () => {
+      try {
+        // Remove existing points layer
+        if (mapInstance.getLayer("points-layer")) {
+          console.log("[ProgressiveMapView] Removing existing points-layer");
+          mapInstance.removeLayer("points-layer");
+        }
+        if (mapInstance.getSource("points-source")) {
+          console.log("[ProgressiveMapView] Removing existing points-source");
+          mapInstance.removeSource("points-source");
+        }
 
-      console.log("[ProgressiveMapView] Adding points-source with", geojsonData.features.length, "features");
-      mapInstance.addSource("points-source", {
-        type: "geojson",
-        data: geojsonData,
-      });
+        console.log("[ProgressiveMapView] Adding points-source with", geojsonData.features.length, "features");
+        mapInstance.addSource("points-source", {
+          type: "geojson",
+          data: geojsonData,
+        });
 
-      console.log("[ProgressiveMapView] Adding points-layer");
-      mapInstance.addLayer({
-        id: "points-layer",
-        type: "circle",
-        source: "points-source",
-        paint: {
-          "circle-radius": 5,
-          "circle-color": "#ad35fa",
-          "circle-stroke-color": "#fff",
-          "circle-stroke-width": 1,
-          "circle-opacity": 0.85,
-        },
-      });
-      
-      // Add click handler for points
-      mapInstance.off("click", "points-layer");
-      mapInstance.on("click", "points-layer", (e: any) => {
-        if (!e.features || e.features.length === 0) return;
-        const feature = e.features[0];
-        const props = feature.properties || {};
-        console.log("[ProgressiveMapView] Point clicked:", props);
-        
-        // Show popup with point info
-        const popup = new (window as any).mapboxgl.Popup()
-          .setLngLat(e.lngLat)
-          .setHTML(`<div class="map-popup"><strong>Point Details</strong><br/>${JSON.stringify(props, null, 2).slice(0, 200)}</div>`)
-          .addTo(mapInstance);
-      });
-      
-      // Add hover handler for points
-      mapInstance.off("mouseenter", "points-layer");
-      mapInstance.off("mouseleave", "points-layer");
-      
-      const popup = new (window as any).mapboxgl.Popup({
-        closeButton: false,
-        closeOnClick: false,
-      });
-      
-      mapInstance.on("mouseenter", "points-layer", (e: any) => {
-        mapInstance.getCanvas().style.cursor = "pointer";
-        if (!e.features || e.features.length === 0) return;
-        const feature = e.features[0];
-        const props = feature.properties || {};
-        const displayText = props.incident_description || props.description || "Point";
-        popup
-          .setLngLat(e.lngLat)
-          .setHTML(`<div class="map-popup">${displayText}</div>`)
-          .addTo(mapInstance);
-      });
-      
-      mapInstance.on("mouseleave", "points-layer", () => {
-        mapInstance.getCanvas().style.cursor = "";
-        popup.remove();
-      });
-      
-      console.log("[ProgressiveMapView] Points layer added successfully");
-
-      // Fit to bounds - only if we have valid points
-      const validPoints = pointData.filter((point: any) => 
-        point && 
-        typeof point.lon === 'number' && 
-        typeof point.lat === 'number' &&
-        !isNaN(point.lon) && 
-        !isNaN(point.lat) &&
-        isFinite(point.lon) &&
-        isFinite(point.lat)
-      );
-
-      if (validPoints.length > 0) {
-        const bounds = new (window as any).mapboxgl.LngLatBounds();
-        validPoints.forEach((point: any) => {
-          bounds.extend([point.lon, point.lat]);
+        console.log("[ProgressiveMapView] Adding points-layer");
+        mapInstance.addLayer({
+          id: "points-layer",
+          type: "circle",
+          source: "points-source",
+          paint: {
+            // Scale radius based on point count at location
+            // Base radius 6, scales up with sqrt of count for better visual balance
+            "circle-radius": [
+              "interpolate",
+              ["linear"],
+              ["get", "count"],
+              1, 6,      // 1 point = radius 6
+              2, 9,      // 2 points = radius 9
+              3, 11,     // 3 points = radius 11
+              5, 14,     // 5 points = radius 14
+              10, 18,    // 10 points = radius 18
+              20, 22,    // 20+ points = radius 22
+            ],
+            "circle-color": "#ad35fa",
+            "circle-stroke-color": "#fff",
+            // Scale stroke width slightly with size
+            "circle-stroke-width": [
+              "interpolate",
+              ["linear"],
+              ["get", "count"],
+              1, 1,
+              5, 1.5,
+              10, 2,
+            ],
+            "circle-opacity": 0.85,
+          },
         });
         
-        // Check if bounds are valid before fitting
-        if (bounds.getNorth() !== bounds.getSouth() || bounds.getEast() !== bounds.getWest()) {
-          mapInstance.fitBounds(bounds, { padding: 20 });
-        } else if (validPoints.length === 1) {
-          mapInstance.setCenter([validPoints[0].lon, validPoints[0].lat]);
-          mapInstance.setZoom(15);
-        }
+        // Add click handler for points
+        mapInstance.off("click", "points-layer");
+        mapInstance.on("click", "points-layer", (e: any) => {
+          if (!e.features || e.features.length === 0) return;
+          const feature = e.features[0];
+          const props = feature.properties || {};
+          const count = props.count || 1;
+          console.log("[ProgressiveMapView] Point clicked:", props);
+          
+          // Build popup content
+          let popupContent = `<div class="map-popup" style="max-height:300px;overflow-y:auto;">`;
+          
+          if (count > 1) {
+            popupContent += `<strong style="color:#ad35fa;">${count} incidents at this location</strong><hr style="margin:8px 0;border-color:#eee;"/>`;
+            
+            // Try to parse allPoints if it was stored as string
+            let allPoints = props.allPoints;
+            if (typeof allPoints === 'string') {
+              try { allPoints = JSON.parse(allPoints); } catch { allPoints = null; }
+            }
+            
+            if (allPoints && Array.isArray(allPoints)) {
+              allPoints.forEach((pt: any, i: number) => {
+                const desc = pt.incident_description || pt.description || `Incident ${i + 1}`;
+                const date = pt.incident_date ? new Date(pt.incident_date).toLocaleDateString() : '';
+                popupContent += `<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid #eee;">
+                  <strong>${desc}</strong>${date ? `<br/><small style="color:#666;">${date}</small>` : ''}
+                </div>`;
+              });
+            }
+          } else {
+            const desc = props.incident_description || props.description || itemNounCap;
+            const date = props.incident_date ? new Date(props.incident_date).toLocaleDateString() : '';
+            popupContent += `<strong>${desc}</strong>${date ? `<br/><small style="color:#666;">${date}</small>` : ''}`;
+          }
+          
+          popupContent += `</div>`;
+          
+          // Show popup with point info
+          const clickPopup = new (window as any).mapboxgl.Popup({ maxWidth: '300px' })
+            .setLngLat(e.lngLat)
+            .setHTML(popupContent)
+            .addTo(mapInstance);
+        });
+        
+        // Add hover handler for points
+        mapInstance.off("mouseenter", "points-layer");
+        mapInstance.off("mouseleave", "points-layer");
+        
+        const popup = new (window as any).mapboxgl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+        });
+        
+        mapInstance.on("mouseenter", "points-layer", (e: any) => {
+          mapInstance.getCanvas().style.cursor = "pointer";
+          if (!e.features || e.features.length === 0) return;
+          const feature = e.features[0];
+          const props = feature.properties || {};
+          const count = props.count || 1;
+          const displayText = props.incident_description || props.description || itemNounCap;
+          
+          // Show count badge if multiple points at same location
+          const countBadge = count > 1 
+            ? `<span style="background:#ad35fa;color:white;padding:2px 6px;border-radius:10px;font-size:11px;margin-left:6px;">${count} ${itemNoun}</span>` 
+            : '';
+          
+          popup
+            .setLngLat(e.lngLat)
+            .setHTML(`<div class="map-popup">${displayText}${countBadge}</div>`)
+            .addTo(mapInstance);
+        });
+        
+        mapInstance.on("mouseleave", "points-layer", () => {
+          mapInstance.getCanvas().style.cursor = "";
+          popup.remove();
+        });
+        
+        console.log("[ProgressiveMapView] Points layer added successfully");
+      } catch (err) {
+        console.error("[ProgressiveMapView] Error adding point layers:", err);
       }
-    } catch (err) {
-      console.error("Error adding point layers:", err);
+    };
+
+    // Check if style is loaded before adding layers
+    if (mapInstance.isStyleLoaded()) {
+      doAddPointsLayer();
+    } else {
+      console.log("[ProgressiveMapView] Style not loaded yet, waiting for 'load' event before adding points");
+      mapInstance.once('load', doAddPointsLayer);
     }
   };
 
-  // Check if we have any location data that can be shown as points
-  const canShowDots = !!(mapData.location_data && Array.isArray(mapData.location_data) && mapData.location_data.length > 0);
+  // Legacy addPoints function - delegates to addPointsLayer
+  const addPoints = (mapInstance: any) => {
+    if (!mapData.location_data || !Array.isArray(mapData.location_data)) return;
+    const pointData = mapData.location_data.filter((p: any) => p.lat && p.lon);
+    if (pointData.length === 0) return;
+    addPointsLayer(mapInstance, pointData);
+  };
+
+
+  // Allow showing points whenever we have location data (user can switch from choropleth to points)
+  // When point count > 1000 we show a small warning but still allow it
+  const canShowDots = !!(
+    mapData.location_data &&
+    Array.isArray(mapData.location_data) &&
+    locationDataCount > 0
+  );
+  const isShowingManyPoints = showPoints && locationDataCount > 1000;
 
   return (
     <div className="progressive-map-view" style={{ position: "relative" }}>
       <div className="map-container-wrapper" style={{ position: "relative" }}>
         <MapLayerPanel
           availableShapeLayers={availableShapeLayers}
+          availableViews={availableViews.length > 0 ? availableViews : undefined}
           selectedShapeLayer={selectedShapeLayer}
+          loadingViewId={loadingLazyView && selectedShapeLayer ? selectedShapeLayer : null}
           onShapeLayerSelect={(shapeLayerId) => {
             // Set the shape layer (empty string clears it)
             setSelectedShapeLayer(shapeLayerId || null);
             setSelectedDistrictId(null); // Reset district selection when switching shape layers
+            // Hide points when selecting a shape layer
+            if (shapeLayerId && showPoints) {
+              setShowPoints(false);
+            }
           }}
           showDots={showPoints}
           onToggleDots={() => {
-            setShowPoints(!showPoints);
+            const newShowPoints = !showPoints;
+            setShowPoints(newShowPoints);
+            
+            // When showing points, clear shape layer selection and remove choropleth
+            if (newShowPoints && selectedShapeLayer) {
+              setSelectedShapeLayer(null);
+              setSelectedDistrictId(null);
+              
+              // Remove choropleth layers
+              if (mapInstanceRef.current) {
+                try {
+                  if (mapInstanceRef.current.getLayer("choropleth-fill")) {
+                    mapInstanceRef.current.removeLayer("choropleth-fill");
+                  }
+                  if (mapInstanceRef.current.getLayer("choropleth-outline")) {
+                    mapInstanceRef.current.removeLayer("choropleth-outline");
+                  }
+                  if (mapInstanceRef.current.getSource("choropleth-shapes")) {
+                    mapInstanceRef.current.removeSource("choropleth-shapes");
+                  }
+                } catch {
+                  // ignore cleanup errors
+                }
+              }
+            }
           }}
           canShowDots={canShowDots}
         />
 
-        {loadingPoints && (
+        {(loadingPoints || loadingLazyView) && (
           <div className="points-loading">
             <Loader size="sm" color="dark" />
-            <span>Loading points...</span>
+            <span>{loadingLazyView ? "Loading view..." : "Loading points..."}</span>
+          </div>
+        )}
+
+        {isShowingManyPoints && (
+          <div className="points-many-warning" role="status">
+            Showing many points may be slow.
           </div>
         )}
 

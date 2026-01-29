@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
+import Loader from "./Loader";
 import "./MapLayerPanel.css";
 
 interface ShapeLayer {
@@ -12,13 +13,30 @@ interface ShapeLayer {
   category?: string;
 }
 
+/** Backend-provided view metadata (default_view / available_views from map_config). */
+interface AvailableView {
+  type: "points" | "choropleth";
+  point_count?: number;
+  shape_layer_instance_id?: number;
+  identifier_field?: string;
+  display_name?: string;
+  row_count?: number;
+  is_default?: boolean;
+  is_city_district?: boolean;
+}
+
 interface MapLayerPanelProps {
+  /** Legacy: list of shape layers. Ignored when availableViews is provided. */
   availableShapeLayers: ShapeLayer[];
+  /** When provided, shape layers are derived from choropleth entries (plan: available_views). */
+  availableViews?: AvailableView[];
   selectedShapeLayer: string | null;
   onShapeLayerSelect: (shapeLayerId: string) => void;
   showDots: boolean;
   onToggleDots: () => void;
   canShowDots?: boolean;
+  /** When set, show loading indicator for the selected choropleth view (lazy-loading). */
+  loadingViewId?: string | null;
 }
 
 // Icon mapping for different shape layer types
@@ -56,18 +74,40 @@ const getLayerIcon = (layerKey?: string, category?: string, displayName?: string
   return "📍";
 };
 
+function deriveShapeLayersFromViews(availableViews: AvailableView[]): ShapeLayer[] {
+  return availableViews
+    .filter(
+      (v): v is AvailableView & { shape_layer_instance_id: number; identifier_field: string; display_name: string } =>
+        v.type === "choropleth" &&
+        v.shape_layer_instance_id != null &&
+        v.identifier_field != null
+    )
+    .map((v) => ({
+      shape_layer_instance_id: v.shape_layer_instance_id!,
+      identifier_field: v.identifier_field!,
+      display_name: v.display_name ?? String(v.shape_layer_instance_id),
+    }));
+}
+
 export default function MapLayerPanel({
   availableShapeLayers,
+  availableViews,
   selectedShapeLayer,
   onShapeLayerSelect,
   showDots,
   onToggleDots,
   canShowDots = true,
+  loadingViewId = null,
 }: MapLayerPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { theme } = useTheme();
+  const isLoadingView = loadingViewId != null && selectedShapeLayer === loadingViewId;
 
-  const hasShapeLayers = availableShapeLayers.length > 0;
+  const shapeLayers =
+    availableViews && availableViews.length > 0
+      ? deriveShapeLayersFromViews(availableViews)
+      : availableShapeLayers;
+  const hasShapeLayers = shapeLayers.length > 0;
   const hasContent = hasShapeLayers || canShowDots;
 
   if (!hasContent) {
@@ -122,21 +162,24 @@ export default function MapLayerPanel({
       {!isOpen && (
         <div className="map-layer-panel-icons">
           {/* Shape layers */}
-          {hasShapeLayers && availableShapeLayers.map((layer) => {
+          {hasShapeLayers && shapeLayers.map((layer) => {
             const isSelected = String(layer.shape_layer_instance_id) === selectedShapeLayer && !showDots;
             const icon = getLayerIcon(layer.layer_key, layer.category, layer.display_name);
+            const layerId = String(layer.shape_layer_instance_id);
+            const isLayerLoading = isLoadingView && layerId === selectedShapeLayer;
             return (
               <button
                 key={layer.shape_layer_instance_id}
                 className={`map-layer-icon-button ${isSelected ? "selected" : ""}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleShapeLayerSelect(String(layer.shape_layer_instance_id));
+                  handleShapeLayerSelect(layerId);
                 }}
                 title={layer.display_name}
                 aria-label={`Switch to ${layer.display_name} view`}
+                disabled={isLayerLoading}
               >
-                {icon}
+                {isLayerLoading ? <Loader size="sm" color="dark" /> : icon}
               </button>
             );
           })}
@@ -165,21 +208,25 @@ export default function MapLayerPanel({
           {hasShapeLayers && (
             <div className="map-layer-section">
               <div className="map-layer-section-title">Shape Layers</div>
-              {availableShapeLayers.map((layer) => {
+              {shapeLayers.map((layer) => {
                 const isSelected = String(layer.shape_layer_instance_id) === selectedShapeLayer && !showDots;
                 const icon = getLayerIcon(layer.layer_key, layer.category, layer.display_name);
+                const layerId = String(layer.shape_layer_instance_id);
+                const isLayerLoading = isLoadingView && layerId === selectedShapeLayer;
                 return (
                   <button
                     key={layer.shape_layer_instance_id}
                     className={`map-layer-item ${isSelected ? "selected" : ""}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleShapeLayerSelect(String(layer.shape_layer_instance_id));
+                      handleShapeLayerSelect(layerId);
                     }}
+                    disabled={isLayerLoading}
                   >
-                    <span className="map-layer-icon">{icon}</span>
+                    <span className="map-layer-icon">{isLayerLoading ? <Loader size="sm" color="dark" /> : icon}</span>
                     <span className="map-layer-name">{layer.display_name}</span>
-                    {isSelected && <span className="map-layer-check">✓</span>}
+                    {isSelected && !isLayerLoading && <span className="map-layer-check">✓</span>}
+                    {isLayerLoading && <span className="map-layer-loading">Loading…</span>}
                   </button>
                 );
               })}

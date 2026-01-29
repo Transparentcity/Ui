@@ -278,7 +278,7 @@ export default function MediaGallery({
         </div>
       </div>
 
-      {/* Split View - Image on top, map visible below */}
+      {/* Split View - Image on one side, details (data point info) on the other */}
       {showSplitView && (
         <div className="media-gallery-split">
           <div className="media-gallery-image-container">
@@ -295,7 +295,16 @@ export default function MediaGallery({
               />
             ) : (
               <div className="media-gallery-error">
-                <span>Failed to load image</span>
+                {(currentMedia.title || currentMedia.description) && (
+                  <div className="media-gallery-error-label">
+                    {currentMedia.title && <strong>{currentMedia.title}</strong>}
+                    {currentMedia.description && (
+                      <span className="media-gallery-description">
+                        {currentMedia.description}
+                      </span>
+                    )}
+                  </div>
+                )}
                 <a
                   href={currentMedia.url}
                   target="_blank"
@@ -303,7 +312,7 @@ export default function MediaGallery({
                   className="media-gallery-error-link"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  Open in new tab
+                  Open image attachment
                 </a>
               </div>
             )}
@@ -326,16 +335,39 @@ export default function MediaGallery({
               </>
             )}
           </div>
-          {currentMedia.title && (
-            <div className="media-gallery-caption">
-              <strong>{currentMedia.title}</strong>
-              {currentMedia.description && (
-                <span className="media-gallery-description">
-                  {currentMedia.description}
-                </span>
-              )}
-            </div>
-          )}
+          <div className="media-gallery-details">
+            {currentMedia.title && (
+              <div className="media-gallery-details-title">
+                <strong>{currentMedia.title}</strong>
+              </div>
+            )}
+            {currentMedia.description && (
+              <p className="media-gallery-details-description">
+                {currentMedia.description}
+              </p>
+            )}
+            {currentMedia.featureData && (
+              <div className="media-gallery-details-fields">
+                {Object.entries(currentMedia.featureData)
+                  .filter(
+                    ([key, val]) =>
+                      val != null &&
+                      val !== "" &&
+                      !["tooltip_fields", "lat", "lon", "coordinates", "location", "hasMedia"].includes(key)
+                  )
+                  .map(([key, val]) => (
+                    <div key={key} className="media-gallery-details-row">
+                      <span className="media-gallery-details-key">
+                        {key.replace(/_/g, " ")}
+                      </span>
+                      <span className="media-gallery-details-value">
+                        {typeof val === "object" ? JSON.stringify(val) : String(val)}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -431,7 +463,16 @@ export default function MediaGallery({
               />
             ) : (
               <div className="media-gallery-error">
-                <span>Failed to load image</span>
+                {(currentMedia.title || currentMedia.description) && (
+                  <div className="media-gallery-error-label">
+                    {currentMedia.title && <strong>{currentMedia.title}</strong>}
+                    {currentMedia.description && (
+                      <span className="media-gallery-description">
+                        {currentMedia.description}
+                      </span>
+                    )}
+                  </div>
+                )}
                 <a
                   href={currentMedia.url}
                   target="_blank"
@@ -439,7 +480,7 @@ export default function MediaGallery({
                   className="media-gallery-error-link"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  Open in new tab
+                  Open image attachment
                 </a>
               </div>
             )}

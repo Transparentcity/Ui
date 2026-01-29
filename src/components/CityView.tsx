@@ -54,6 +54,10 @@ interface MetricWithYTD {
   computedAt?: string; // When the comparison was last computed
   maxDataDate?: string; // Most recent data point date
   display_unit?: string | null; // "percentage", "currency", "count", etc.
+  /** True when metric has no current-year data; current column shows "No data", comparison shows last available year. */
+  stale?: boolean;
+  /** When stale: actual end date of comparison data (ISO); if before aligned period end, show as cut-off. */
+  staleComparisonDataEnd?: string;
 }
 
 /**
@@ -504,6 +508,10 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     comparisonPeriodEnd?: Date; // End of comparison period (last year)
     computedAt?: string; // When the comparison was last computed
     maxDataDate?: string; // Most recent data point date
+  /** True when no current-year data; current column shows "No data", comparison shows last available year. */
+  stale?: boolean;
+  /** When stale: actual end date of comparison data (ISO); if before aligned period end, show as cut-off. */
+  staleComparisonDataEnd?: string;
   }>>({});
   const [loadingMetrics, setLoadingMetrics] = useState<Set<number>>(new Set());
   
@@ -571,8 +579,11 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
         comparisonPeriodStart: ytdData[metric.id]?.comparisonPeriodStart,
         comparisonPeriodEnd: ytdData[metric.id]?.comparisonPeriodEnd,
         computedAt: ytdData[metric.id]?.computedAt,
-        maxDataDate: metric.most_recent_data_date || ytdData[metric.id]?.maxDataDate || undefined,
+        // For stale metrics, Through date must be last actual data date (from comparison); list API most_recent_data_date can be wrong (e.g. "yesterday" in current year)
+        maxDataDate: (ytdData[metric.id]?.stale ? ytdData[metric.id]?.maxDataDate : null) ?? metric.most_recent_data_date ?? ytdData[metric.id]?.maxDataDate ?? undefined,
         display_unit: (metric as any).display_unit || null, // "percentage", "currency", etc.
+        stale: ytdData[metric.id]?.stale ?? false,
+        staleComparisonDataEnd: ytdData[metric.id]?.staleComparisonDataEnd,
         metricOrder, // Store for sorting
       } as MetricWithYTD & { metricOrder: number });
     });
@@ -756,10 +767,69 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
 
       const hasCurrentYearData = mostRecentInCurrentYear.year === currentYear || mostRecentInCurrentYear.month > 0 || mostRecentInCurrentYear.day > 0;
       if (!hasCurrentYearData) {
-        setYtdData((prev) => ({
-          ...prev,
-          [metricId]: { lastYear: null, thisYear: null, loading: false, dataYear: currentYear, priorYear, sparklineData: [] },
-        }));
+        // No current year data: find last available year and show its YTD/MTD so we don't misrepresent 2025 as 2026
+        let lastAvailable = { year: 0, month: 0, day: 0 };
+        detail.data.forEach((point) => {
+          const parsed = parseLocalDate(point.time_period);
+          if (
+            parsed.year > lastAvailable.year ||
+            (parsed.year === lastAvailable.year && parsed.month > lastAvailable.month) ||
+            (parsed.year === lastAvailable.year && parsed.month === lastAvailable.month && parsed.day > lastAvailable.day)
+          ) {
+            lastAvailable = parsed;
+          }
+        });
+        if (lastAvailable.year > 0) {
+          const cutoffMonth = lastAvailable.month;
+          const cutoffDay = lastAvailable.day;
+          const periodType = activeSeries.period_type;
+          let lastAvailableYTD = 0;
+          if (periodType === "month" || periodType === "year") {
+            lastAvailableYTD = detail.data
+              .filter((point) => {
+                const parsed = parseLocalDate(point.time_period);
+                return parsed.year === lastAvailable.year && parsed.month <= cutoffMonth;
+              })
+              .reduce((sum, point) => sum + point.numeric_value, 0);
+          } else {
+            lastAvailableYTD = detail.data
+              .filter((point) => {
+                const parsed = parseLocalDate(point.time_period);
+                if (parsed.year !== lastAvailable.year) return false;
+                if (parsed.month < cutoffMonth) return true;
+                return parsed.month === cutoffMonth && parsed.day <= cutoffDay;
+              })
+              .reduce((sum, point) => sum + point.numeric_value, 0);
+          }
+          const rangeStart = new Date(lastAvailable.year, 0, 1);
+          const rangeEnd = new Date(lastAvailable.year, cutoffMonth, cutoffDay);
+          const now = new Date();
+          const currentPeriodStart = new Date(currentYear, 0, 1);
+          const currentPeriodEnd = new Date(currentYear, now.getMonth(), now.getDate());
+          setYtdData((prev) => ({
+            ...prev,
+            [metricId]: {
+              lastYear: lastAvailableYTD || null,
+              thisYear: null,
+              loading: false,
+              dataYear: currentYear,
+              priorYear: lastAvailable.year - 1,
+              dateRangeStart: currentPeriodStart,
+              dateRangeEnd: currentPeriodEnd,
+              comparisonPeriodStart: rangeStart,
+              comparisonPeriodEnd: rangeEnd,
+              maxDataDate: rangeEnd.toISOString().split("T")[0],
+              stale: true,
+              staleComparisonDataEnd: rangeEnd.toISOString().split("T")[0],
+              sparklineData,
+            },
+          }));
+        } else {
+          setYtdData((prev) => ({
+            ...prev,
+            [metricId]: { lastYear: null, thisYear: null, loading: false, dataYear: currentYear, priorYear, sparklineData: [], stale: true },
+          }));
+        }
         return;
       }
 
@@ -939,8 +1009,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
   }, [district, selectedComparisonType]);
 
   // If batch comparisons become available, use them to update the data
-  // Note: Only depend on batchComparisons and selectedComparisonType
-  // district is not needed because batchComparisons is already filtered for the current district
+  // For metrics with no current-year data (stale), shift: show "No data" for this year and last available year in comparison column with correct year label
   useEffect(() => {
     if (!batchComparisons || Object.keys(batchComparisons).length === 0) return;
 
@@ -956,20 +1025,52 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
       const comparison = comparisonsTyped[selectedComparisonType];
       
       if (comparison) {
-        updates[metricId] = {
-          lastYear: comparison.comparison_period_value ?? null,
-          thisYear: comparison.current_period_value ?? null,
-          loading: false,
-          dataYear: currentYear,
-          priorYear,
-          dateRangeStart: comparison.current_period_start ? new Date(comparison.current_period_start) : undefined,
-          dateRangeEnd: comparison.current_period_end ? new Date(comparison.current_period_end) : undefined,
-          comparisonPeriodStart: comparison.comparison_period_start ? new Date(comparison.comparison_period_start) : undefined,
-          comparisonPeriodEnd: comparison.comparison_period_end ? new Date(comparison.comparison_period_end) : undefined,
-          computedAt: comparison.computed_at,
-          maxDataDate: comparison.current_period_end, // Use current period end as the max data date
-          sparklineData: ytdData[metricId]?.sparklineData || [], // Preserve existing sparkline data
-        };
+        const currentPeriodEndYear = comparison.current_period_end
+          ? parseLocalDate(comparison.current_period_end).year
+          : currentYear;
+        const hasCurrentYearData = currentPeriodEndYear >= currentYear;
+        const stale = !hasCurrentYearData;
+
+        if (stale) {
+          // No current-year data: current column = "Jan 1 - today 2026" with No data; comparison column = actual period the value covers so label and value match
+          const now = new Date();
+          const currentPeriodStart = new Date(currentYear, 0, 1);
+          const currentPeriodEnd = new Date(currentYear, now.getMonth(), now.getDate());
+          // Use the API's actual period for the comparison value so we don't show "Jan 1 - Jan 28" with a full-year count (e.g. dataset that started in March)
+          const comparisonPeriodStart = comparison.current_period_start ? new Date(comparison.current_period_start) : undefined;
+          const comparisonPeriodEnd = comparison.current_period_end ? new Date(comparison.current_period_end) : undefined;
+          updates[metricId] = {
+            lastYear: comparison.current_period_value ?? null,
+            thisYear: null,
+            loading: false,
+            dataYear: currentYear,
+            priorYear: currentPeriodEndYear - 1,
+            dateRangeStart: currentPeriodStart,
+            dateRangeEnd: currentPeriodEnd,
+            comparisonPeriodStart,
+            comparisonPeriodEnd,
+            computedAt: comparison.computed_at,
+            maxDataDate: comparison.current_period_end,
+            stale: true,
+            staleComparisonDataEnd: comparison.current_period_end ?? undefined,
+            sparklineData: ytdData[metricId]?.sparklineData || [],
+          };
+        } else {
+          updates[metricId] = {
+            lastYear: comparison.comparison_period_value ?? null,
+            thisYear: comparison.current_period_value ?? null,
+            loading: false,
+            dataYear: currentYear,
+            priorYear,
+            dateRangeStart: comparison.current_period_start ? new Date(comparison.current_period_start) : undefined,
+            dateRangeEnd: comparison.current_period_end ? new Date(comparison.current_period_end) : undefined,
+            comparisonPeriodStart: comparison.comparison_period_start ? new Date(comparison.comparison_period_start) : undefined,
+            comparisonPeriodEnd: comparison.comparison_period_end ? new Date(comparison.comparison_period_end) : undefined,
+            computedAt: comparison.computed_at,
+            maxDataDate: comparison.current_period_end,
+            sparklineData: ytdData[metricId]?.sparklineData || [],
+          };
+        }
       }
     });
     
@@ -992,13 +1093,21 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     return { dataYear: now.getFullYear(), priorYear: now.getFullYear() - 1 };
   }, []);
 
-  // Helper to format date as "Jan 1 - Jan 12"
+  // Helper to format date as "Jan 1 - Jan 12" (no year)
   const formatPeriodDate = (start?: Date, end?: Date) => {
     if (!start || !end) return null;
-    // Use UTC timezone to avoid off-by-one date issues with server dates
     const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
     const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
     return `${startStr} - ${endStr}`;
+  };
+
+  // Format period with year for apples-to-apples labels: "Jan 1 - Jan 5 2026"
+  const formatPeriodDateWithYear = (start?: Date, end?: Date) => {
+    if (!start || !end) return null;
+    const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    const year = end.getFullYear();
+    return `${startStr} - ${endStr} ${year}`;
   };
 
   // Find the currently selected leader based on district
@@ -1272,8 +1381,10 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                     )}
                     
                     {group.metrics.map((metric) => {
-                      // Calculate delta and absolute difference
-                      const hasValidData = metric.ytdThisYear !== null && metric.ytdLastYear !== null && 
+                      // Stale = no current-year data; we show last available year in comparison column and "No data" for current
+                      const isStale = metric.stale === true;
+                      const hasValidData = !isStale &&
+                        metric.ytdThisYear !== null && metric.ytdLastYear !== null &&
                         metric.ytdThisYear !== undefined && metric.ytdLastYear !== undefined;
                       
                       const absoluteDiff = hasValidData ? metric.ytdThisYear! - metric.ytdLastYear! : null;
@@ -1330,8 +1441,8 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                               <span className="metric-name">{metric.metric_name}</span>
                               {maxDataDateFormatted && (
-                                <div className="metric-metadata">
-                                  <span title="Data through this date">
+                                <div className={`metric-metadata${metric.stale ? " metric-through-stale" : ""}`} title={metric.stale ? "No current-year data; through date is last available" : "Data through this date"}>
+                                  <span>
                                     Through: {maxDataDateFormatted}
                                   </span>
                                 </div>
@@ -1339,13 +1450,26 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                             </div>
                           </div>
                           
-                          {/* Last year value column */}
+                          {/* Comparison column: apples-to-apples period (e.g. Jan 1 - Jan 5 2025); cut-off styling when data ends mid-window */}
                           <div className="metric-col metric-col-value">
                             {metric.ytdLoading ? (
                               <Loader size="sm" color="dark" />
                             ) : (
                               <>
-                                <span className="metric-date-label">{comparisonPeriodDates || `Jan 1 - Jan ${displayYears.priorYear}`}</span>
+                                <span className="metric-date-label">
+                                  {metric.stale && metric.staleComparisonDataEnd && metric.comparisonPeriodEnd ? (() => {
+                                    const actualEnd = new Date(metric.staleComparisonDataEnd);
+                                    const alignedEnd = metric.comparisonPeriodEnd;
+                                    const isCutOff = actualEnd.getTime() < alignedEnd.getTime();
+                                    const labelWithYear = formatPeriodDateWithYear(metric.comparisonPeriodStart, isCutOff ? actualEnd : alignedEnd);
+                                    if (isCutOff && labelWithYear) {
+                                      const endStr = actualEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+                                      const startStr = metric.comparisonPeriodStart!.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+                                      return <>{startStr} – <span className="metric-date-cutoff" title="Data ends here; period window is longer">{endStr}</span></>;
+                                    }
+                                    return <>{labelWithYear || `Jan 1 - Jan ${displayYears.priorYear}`}</>;
+                                  })() : (formatPeriodDateWithYear(metric.comparisonPeriodStart, metric.comparisonPeriodEnd) || comparisonPeriodDates || `Jan 1 - Jan ${displayYears.priorYear}`)}
+                                </span>
                                 <span className="metric-value">
                                   {formatMetricValue(metric.ytdLastYear, metric.display_unit)}
                                 </span>
@@ -1353,13 +1477,13 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                             )}
                           </div>
                           
-                          {/* This year value column */}
+                          {/* Current year value column: apples-to-apples (e.g. Jan 1 - Jan 5 2026) or "No data" when stale */}
                           <div className="metric-col metric-col-value">
                             {metric.ytdLoading ? (
                               <Loader size="sm" color="dark" />
                             ) : (
                               <>
-                                <span className="metric-date-label">{currentPeriodDates || `Jan 1 - Jan ${displayYears.dataYear}`}</span>
+                                <span className="metric-date-label">{formatPeriodDateWithYear(metric.currentPeriodStart, metric.currentPeriodEnd) || currentPeriodDates || `Jan 1 - Jan ${displayYears.dataYear}`}</span>
                                 <span className="metric-value">
                                   {formatMetricValue(metric.ytdThisYear, metric.display_unit)}
                                 </span>

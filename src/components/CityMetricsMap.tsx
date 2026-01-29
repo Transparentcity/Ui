@@ -26,6 +26,7 @@ import { getStableColorForKey, LAYER_COLOR_PALETTE } from "@/lib/layerColors";
 import {
   getOrderForTemplate,
   getCategoryDisplayName,
+  getTemplateConfig,
   type GroupedMetric,
 } from "@/lib/metricTemplateConfig";
 import type { AnomalyResult } from "@/lib/hooks/useAnomalies";
@@ -149,7 +150,8 @@ export default function CityMetricsMap({
     isActive && !isAnomalyMode // Don't fetch when in anomaly mode
   );
   
-  // Sync React Query data to local maps state for backwards compatibility with existing rendering code
+  // Sync React Query data to local maps state for backwards compatibility with existing rendering code.
+  // MapData may include map_config.default_view and map_config.available_views (map loading optimization plan).
   useEffect(() => {
     if (!mapLayersQuery.mapDataByMetricId) return;
     
@@ -293,18 +295,21 @@ export default function CityMetricsMap({
     previousCityIdRef.current = cityId;
   }, [cityId, mapInstanceRef, maps, selectedMetricIds, removeMetricLayerFromMap]);
 
-  // Auto-enable metrics with template_id 18 (Violent Crime) or 44 (Property Crime) by default
+  // Auto-enable metrics based on their TEMPLATE's subcategory (not the metric's own subcategory)
+  // Default to 311-related templates (templates with subcategory "311" in TEMPLATE_CONFIG)
   useEffect(() => {
     // Only set defaults once when metrics are loaded and we haven't set them yet
     if (defaultMetricsSetRef.current || availableMetrics.length === 0) {
       return;
     }
 
-    // Find metrics with template_id 18 or 44
-    const defaultTemplateIds = [18, 44];
-    const metricsToEnable = availableMetrics.filter(
-      (m) => m.template_id && defaultTemplateIds.includes(m.template_id)
-    );
+    // Find metrics whose TEMPLATE has subcategory "311"
+    // We look up the template_id in TEMPLATE_CONFIG to get the template's subcategory
+    const metricsToEnable = availableMetrics.filter((m) => {
+      if (!m.template_id) return false;
+      const templateConfig = getTemplateConfig(m.template_id);
+      return templateConfig?.subcategory?.toLowerCase() === "311";
+    });
 
     if (metricsToEnable.length > 0) {
       setSelectedMetricIds((prev) => {
@@ -683,8 +688,8 @@ export default function CityMetricsMap({
             });
           }
 
-          // Create a modified map_data with the filtered location_data
-          const filteredMapData = {
+          // Create a modified map_data with the filtered location_data (preserve map_config for default_view/available_views)
+          const filteredMapData: MapData = {
             ...response.map_data,
             location_data: locationData,
           };
@@ -1660,7 +1665,18 @@ export default function CityMetricsMap({
               }
             });
 
-            // Add fill layer
+            // Find the first point/circle layer to insert choropleth below it
+            // Choropleth (fill) layers should always render BELOW point (circle) layers
+            let firstPointLayerId: string | undefined = undefined;
+            const allLayers = map.getStyle()?.layers || [];
+            for (const layer of allLayers) {
+              if (layer.type === 'circle' && layer.id.startsWith('metric-layer-')) {
+                firstPointLayerId = layer.id;
+                break;
+              }
+            }
+
+            // Add fill layer (below any point layers)
             map.addLayer({
               id: layerId,
               type: 'fill',
@@ -1672,11 +1688,11 @@ export default function CityMetricsMap({
                 'fill-color': ['get', 'color'],
                 'fill-opacity': 0.7 // Slightly more visible
               }
-            });
+            }, firstPointLayerId);
             
-            console.log('Choropleth: Added fill layer', layerId, 'with visibility', isVisible ? 'visible' : 'none', 'and', choroplethFeatures.length, 'features');
+            console.log('Choropleth: Added fill layer', layerId, 'with visibility', isVisible ? 'visible' : 'none', 'and', choroplethFeatures.length, 'features', firstPointLayerId ? `below ${firstPointLayerId}` : '');
 
-            // Add stroke layer
+            // Add stroke layer (also below point layers, after fill so it's on top of fill)
             map.addLayer({
               id: `${layerId}-stroke`,
               type: 'line',
@@ -1689,7 +1705,7 @@ export default function CityMetricsMap({
                 'line-width': 0.5,
                 'line-opacity': 0.8
               }
-            });
+            }, firstPointLayerId);
 
             // Add click handler
             const clickHandlerIdField = actualIdField || districtInfo.field;

@@ -59,8 +59,8 @@ export default function TitleBar({
           </button>
         )}
       </header>
-      {/* Job Status Badge - Fixed in top right, on top of everything */}
-      {isAuthenticated && (
+      {/* Job Status Badge - Fixed in top right, only visible to admins */}
+      {isAuthenticated && isAdmin && (
         <div className={styles.jobBadgeContainer}>
           <JobBadge
             activeJobCount={activeJobs.length}

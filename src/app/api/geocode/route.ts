@@ -1,33 +1,52 @@
 import { NextResponse } from "next/server";
 
-type NominatimSearchResult = {
-  lat: string;
-  lon: string;
-  display_name?: string;
-  address?: {
-    city?: string;
-    town?: string;
-    village?: string;
-    hamlet?: string;
-    municipality?: string;
-    county?: string;
-    state?: string;
-    country?: string;
-    postcode?: string;
+type MapboxFeature = {
+  id: string;
+  type: string;
+  place_type: string[];
+  relevance: number;
+  text: string;
+  place_name: string;
+  center: [number, number]; // [longitude, latitude]
+  context?: Array<{
+    id: string;
+    text: string;
+    short_code?: string;
+  }>;
+  properties?: {
+    short_code?: string;
   };
 };
 
-function extractCityName(address?: NominatimSearchResult["address"]): string | null {
-  if (!address) return null;
-  return (
-    address.city ||
-    address.town ||
-    address.village ||
-    address.municipality ||
-    address.hamlet ||
-    address.county ||
-    null
-  );
+type MapboxResponse = {
+  type: string;
+  query: string[];
+  features: MapboxFeature[];
+};
+
+function extractContextValue(
+  context: MapboxFeature["context"],
+  prefix: string
+): string | null {
+  if (!context) return null;
+  const item = context.find((c) => c.id.startsWith(prefix));
+  return item?.text || null;
+}
+
+function extractPlaceName(feature: MapboxFeature): string | null {
+  // For places, the text field contains the place name
+  // For postcodes, we want the place context
+  if (feature.place_type.includes("postcode")) {
+    return extractContextValue(feature.context, "place.");
+  }
+  if (
+    feature.place_type.includes("place") ||
+    feature.place_type.includes("locality")
+  ) {
+    return feature.text;
+  }
+  // For addresses or POIs, get the place from context
+  return extractContextValue(feature.context, "place.") || feature.text;
 }
 
 export async function GET(req: Request): Promise<Response> {
@@ -38,102 +57,118 @@ export async function GET(req: Request): Promise<Response> {
     return NextResponse.json({ error: "Missing q" }, { status: 400 });
   }
 
-  // Check if this is a zipcode
-  const isZipcode = /^\d{5}(-\d{4})?$/.test(q);
-  const zip5 = isZipcode ? q.split('-')[0] : null;
-
-  const upstreamUrl = new URL("https://nominatim.openstreetmap.org/search");
-  upstreamUrl.searchParams.set("format", "jsonv2");
-  upstreamUrl.searchParams.set("addressdetails", "1");
-  upstreamUrl.searchParams.set("limit", "10"); // Get more results for better matching
-  
-  if (isZipcode && zip5) {
-    // For US zipcodes, use Nominatim's structured query with postalcode parameter
-    // This is more reliable than free-text search
-    upstreamUrl.searchParams.set("postalcode", zip5);
-    upstreamUrl.searchParams.set("country", "USA");
-  } else {
-    // For other queries, use the q parameter as-is
-    upstreamUrl.searchParams.set("q", q);
-  }
-
-  const upstreamRes = await fetch(upstreamUrl.toString(), {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "transparentcity-ui/1.0 (geocode proxy)",
-    },
-    cache: "no-store",
-  });
-
-  if (!upstreamRes.ok) {
-    const text = await upstreamRes.text().catch(() => "");
+  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  if (!mapboxToken) {
+    console.error("NEXT_PUBLIC_MAPBOX_TOKEN not configured");
     return NextResponse.json(
-      { error: "Upstream geocoding failed", details: text },
-      { status: 502 },
+      { error: "Geocoding service not configured" },
+      { status: 500 }
     );
   }
 
-  const data = (await upstreamRes.json()) as NominatimSearchResult[];
-  
-  if (!Array.isArray(data) || data.length === 0) {
-    return NextResponse.json({ error: "No results" }, { status: 404 });
+  // Check if this is a US zipcode
+  const isZipcode = /^\d{5}(-\d{4})?$/.test(q);
+  const zip5 = isZipcode ? q.split("-")[0] : null;
+
+  // Build Mapbox Geocoding API URL
+  // https://docs.mapbox.com/api/search/geocoding/
+  const searchText = encodeURIComponent(q);
+  const upstreamUrl = new URL(
+    `https://api.mapbox.com/geocoding/v5/mapbox.places/${searchText}.json`
+  );
+
+  upstreamUrl.searchParams.set("access_token", mapboxToken);
+  upstreamUrl.searchParams.set("limit", "5");
+
+  if (isZipcode) {
+    // For US zipcodes, restrict to postcode type and US country
+    upstreamUrl.searchParams.set("types", "postcode");
+    upstreamUrl.searchParams.set("country", "US");
+  } else {
+    // For general queries, search for places, localities, addresses
+    upstreamUrl.searchParams.set(
+      "types",
+      "place,locality,neighborhood,address,postcode"
+    );
   }
 
-  // For zipcodes, validate that the result actually matches the zipcode
-  let top = data[0];
-  if (isZipcode && zip5) {
-    // Find a result that matches the zipcode in the postcode field
-    // Normalize postcode by removing spaces and hyphens, then check if it starts with zip5
-    const matchingResult = data.find((result) => {
-      const postcode = result.address?.postcode;
-      if (!postcode) return false;
-      const normalized = postcode.replace(/[\s-]/g, '');
-      return normalized.startsWith(zip5);
+  try {
+    const upstreamRes = await fetch(upstreamUrl.toString(), {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+      cache: "no-store",
     });
-    
-    if (matchingResult) {
-      top = matchingResult;
-    } else {
-      // If no exact match, check if any result has a postcode that contains the zipcode
-      const partialMatch = data.find((result) => {
-        const postcode = result.address?.postcode;
-        if (!postcode) return false;
-        const normalized = postcode.replace(/[\s-]/g, '');
-        return normalized.includes(zip5);
+
+    if (!upstreamRes.ok) {
+      const text = await upstreamRes.text().catch(() => "");
+      console.error("Mapbox geocoding failed:", upstreamRes.status, text);
+      return NextResponse.json(
+        { error: "Upstream geocoding failed", details: text },
+        { status: 502 }
+      );
+    }
+
+    const data = (await upstreamRes.json()) as MapboxResponse;
+
+    if (!data.features || data.features.length === 0) {
+      return NextResponse.json({ error: "No results found" }, { status: 404 });
+    }
+
+    // For zipcodes, validate the result matches
+    let top = data.features[0];
+    if (isZipcode && zip5) {
+      const matchingFeature = data.features.find((f) => {
+        // Check if the feature text starts with our zipcode
+        return f.text.startsWith(zip5);
       });
-      
-      if (partialMatch) {
-        top = partialMatch;
-      } else {
-        // None of the results match the zipcode - return error instead of wrong data
-        console.error(`Zipcode ${zip5} not found. Nominatim returned postcode: ${top.address?.postcode || 'none'}`);
+
+      if (matchingFeature) {
+        top = matchingFeature;
+      } else if (!top.text.startsWith(zip5)) {
+        // None of the results match the zipcode
+        console.error(
+          `Zipcode ${zip5} not found. Mapbox returned: ${top.text}`
+        );
         return NextResponse.json(
-          { error: `ZIP code ${zip5} not found. Please try entering a city name instead.` },
+          {
+            error: `ZIP code ${zip5} not found. Please try entering a city name instead.`,
+          },
           { status: 404 }
         );
       }
     }
+
+    // Extract location data from Mapbox response
+    const [longitude, latitude] = top.center;
+    const cityName = extractPlaceName(top);
+    const stateName = extractContextValue(top.context, "region.");
+    const countryName = extractContextValue(top.context, "country.");
+    const postcode =
+      top.place_type.includes("postcode")
+        ? top.text
+        : extractContextValue(top.context, "postcode.");
+
+    return NextResponse.json({
+      lat: latitude.toString(),
+      lon: longitude.toString(),
+      display_name: top.place_name,
+      address: {
+        city: cityName,
+        state: stateName,
+        country: countryName,
+        postcode: postcode,
+      },
+      cityName,
+      stateName,
+      countryName,
+    });
+  } catch (error) {
+    console.error("Geocoding error:", error);
+    return NextResponse.json(
+      { error: "Geocoding request failed" },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({
-    lat: top.lat,
-    lon: top.lon,
-    display_name: top.display_name || null,
-    address: top.address || null,
-    cityName: extractCityName(top.address),
-    stateName: top.address?.state || null,
-    countryName: top.address?.country || null,
-  });
 }
-
-
-
-
-
-
-
-
-
-
-

@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import {
   ModelGroupInfo,
   getCityStructure,
+  getDefaultExecuteStartDateByPeriod,
 } from "@/lib/apiClient";
 import {
   useCityAdmin,
@@ -211,21 +212,30 @@ export default function CityDataAdmin({
   const [runAllMetricsOpen, setRunAllMetricsOpen] = useState(false);
   const [anomaliesMetricId, setAnomaliesMetricId] = useState<number | null>(null);
   const [anomalyPeriodFilter, setAnomalyPeriodFilter] = useState<string>("all");
+  const [anomalyYesNoFilter, setAnomalyYesNoFilter] = useState<"yes" | "no" | "all">("yes");
+  const [selectedAnomalyPeriodDate, setSelectedAnomalyPeriodDate] = useState<string | null>(null);
   const [selectedAnomalyId, setSelectedAnomalyId] = useState<number | null>(null);
   /** Sort metrics by last execution: null = default (saved order + name), "desc" = newest first, "asc" = oldest first */
   const [metricSortByLastExecution, setMetricSortByLastExecution] = useState<"asc" | "desc" | null>(null);
 
-  // Metric queries - fetch all results (both anomalies and non-anomalies)
-  // Pass period_type to API for server-side filtering (more efficient than client-side)
-  // Normalize options to remove undefined values for proper query key serialization
+  // Metric queries - default to anomalies only; optional filter for non-anomalies or all
+  // Pass period_type, period_date, and is_anomaly to API for server-side filtering
   const anomaliesQueryOptions = anomaliesMetricId 
     ? (() => {
-        const opts: { metric_id: number; period_type?: string; limit: number } = {
+        const opts: { metric_id: number; period_type?: string; period_date?: string | null; limit: number; is_anomaly?: boolean } = {
           metric_id: anomaliesMetricId,
-          limit: 50
+          limit: 100  // Increased limit to get all periods for the dropdown
         };
         if (anomalyPeriodFilter !== "all") {
           opts.period_type = anomalyPeriodFilter;
+        }
+        if (selectedAnomalyPeriodDate) {
+          opts.period_date = selectedAnomalyPeriodDate;
+        }
+        if (anomalyYesNoFilter === "yes") {
+          opts.is_anomaly = true;
+        } else if (anomalyYesNoFilter === "no") {
+          opts.is_anomaly = false;
         }
         return opts;
       })()
@@ -237,13 +247,17 @@ export default function CityDataAdmin({
   const executeMetricMutation = useExecuteMetric();
   const anomaliesData = anomaliesQuery.data ?? null;
   
-  // Refetch anomalies when period filter changes
-  // React Query should auto-refetch when query key changes, but we'll manually trigger to ensure it works
+  // Refetch anomalies when period filter, anomaly yes/no filter, or period date changes
   useEffect(() => {
     if (anomaliesMetricId && anomaliesOpen) {
       anomaliesQuery.refetch();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anomalyPeriodFilter, anomalyYesNoFilter, selectedAnomalyPeriodDate]);
+  
+  // Reset period date when period type changes
+  useEffect(() => {
+    setSelectedAnomalyPeriodDate(null);
   }, [anomalyPeriodFilter]);
 
   const metricData = metricQuery.data ?? null;
@@ -273,14 +287,18 @@ export default function CityDataAdmin({
 
   const openExecuteModal = (metricId: number) => {
     const today = new Date();
-    const startDate = new Date(2023, 0, 1);
-    const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    
+    const endDate = today.toISOString().split("T")[0];
+    const periodType = "day";
     setExecuteMetricId(metricId);
-    setExecutePeriodType("day");
-    setExecuteStartDate(startDate.toISOString().split('T')[0]);
-    setExecuteEndDate(endDate.toISOString().split('T')[0]);
+    setExecutePeriodType(periodType);
+    setExecuteStartDate(getDefaultExecuteStartDateByPeriod(periodType));
+    setExecuteEndDate(endDate);
     setShowExecuteModal(true);
+  };
+
+  const onExecutePeriodTypeChange = (newPeriodType: string) => {
+    setExecutePeriodType(newPeriodType);
+    setExecuteStartDate(getDefaultExecuteStartDateByPeriod(newPeriodType));
   };
 
   const closeExecuteModal = () => {
@@ -339,6 +357,8 @@ export default function CityDataAdmin({
   const openViewAnomalies = (metricId: number) => {
     setAnomaliesMetricId(metricId);
     setAnomalyPeriodFilter("all");
+    setAnomalyYesNoFilter("yes");
+    setSelectedAnomalyPeriodDate(null);
     setAnomaliesOpen(true);
   };
 
@@ -346,6 +366,8 @@ export default function CityDataAdmin({
     setAnomaliesOpen(false);
     setAnomaliesMetricId(null);
     setAnomalyPeriodFilter("all");
+    setAnomalyYesNoFilter("yes");
+    setSelectedAnomalyPeriodDate(null);
     setSelectedAnomalyId(null);
   };
 
@@ -357,16 +379,83 @@ export default function CityDataAdmin({
     setSelectedAnomalyId(null);
   };
 
-  // Get filtered results for navigation
+  // Helper to extract recent date from anomaly chart_payload
+  const getAnomalyRecentDate = (anomaly: any): string | null => {
+    if (!anomaly.chart_payload?.dates || !Array.isArray(anomaly.chart_payload.dates)) {
+      return null;
+    }
+    
+    const dates = anomaly.chart_payload.dates;
+    const periods = anomaly.chart_payload.periods;
+    
+    // Find the most recent "recent" period date
+    if (Array.isArray(periods)) {
+      for (let i = dates.length - 1; i >= 0; i--) {
+        if (periods[i] === "recent" && dates[i]) {
+          return dates[i];
+        }
+      }
+    }
+    
+    // Fallback to last date
+    return dates.length > 0 ? dates[dates.length - 1] : null;
+  };
+
+  // Extract unique periods from anomalies data for the period selector dropdown
+  const availableAnomalyPeriods = useMemo(() => {
+    if (!anomaliesData?.results) return [];
+    
+    // Only extract periods when we have a period type selected (not "all")
+    // This is because different period types have different date formats
+    if (anomalyPeriodFilter === "all") return [];
+    
+    const periodMap = new Map<string, { period_date: string; count: number }>();
+    
+    anomaliesData.results.forEach((anomaly: any) => {
+      const periodDate = getAnomalyRecentDate(anomaly);
+      if (periodDate) {
+        const existing = periodMap.get(periodDate);
+        if (existing) {
+          existing.count++;
+        } else {
+          periodMap.set(periodDate, { period_date: periodDate, count: 1 });
+        }
+      }
+    });
+    
+    // Sort by period_date descending (most recent first)
+    return Array.from(periodMap.values()).sort((a, b) => {
+      // Handle ISO week format (YYYY-WXX)
+      if (a.period_date.includes('-W') && b.period_date.includes('-W')) {
+        return b.period_date.localeCompare(a.period_date);
+      }
+      // Standard date comparison
+      return b.period_date.localeCompare(a.period_date);
+    });
+  }, [anomaliesData, anomalyPeriodFilter]);
+
+  // Get filtered results for navigation - sorted by recentDate descending
   const getFilteredAnomalies = () => {
     if (!anomaliesData) return [];
-    // Since we're now filtering server-side, we can just return all results
-    // But keep client-side filter as fallback for edge cases
-    if (anomalyPeriodFilter === "all") {
-      return anomaliesData.results;
+    
+    let results = anomaliesData.results;
+    
+    // Client-side filter as fallback for edge cases
+    if (anomalyPeriodFilter !== "all") {
+      results = results.filter((anomaly: any) => anomaly.period_type === anomalyPeriodFilter);
     }
-    // Double-check client-side (shouldn't be needed if server filtering works)
-    return anomaliesData.results.filter((anomaly: any) => anomaly.period_type === anomalyPeriodFilter);
+    
+    // Sort by recentDate descending (most recent first)
+    return [...results].sort((a: any, b: any) => {
+      const dateA = getAnomalyRecentDate(a) || "";
+      const dateB = getAnomalyRecentDate(b) || "";
+      // Handle ISO week format (YYYY-WXX)
+      if (dateA.includes('-W') && dateB.includes('-W')) {
+        return dateB.localeCompare(dateA);
+      }
+      // Standard date comparison (descending)
+      return dateB.localeCompare(dateA);
+    });
   };
 
   // Navigation functions
@@ -3357,7 +3446,7 @@ export default function CityDataAdmin({
                     </label>
                     <select
                       value={executePeriodType}
-                      onChange={(e) => setExecutePeriodType(e.target.value)}
+                      onChange={(e) => onExecutePeriodTypeChange(e.target.value)}
                       style={{
                         width: "100%",
                         padding: 8,
@@ -3709,7 +3798,7 @@ export default function CityDataAdmin({
               ) : (
                 <>
                   {/* List View */}
-                  {/* Period Type Filter */}
+                  {/* Period Type and Period Date Filters */}
                   <div 
                     style={{ 
                       marginBottom: "12px", 
@@ -3726,7 +3815,34 @@ export default function CityDataAdmin({
                       color: "var(--text-primary)",
                       whiteSpace: "nowrap"
                     }}>
-                      Filter:
+                      Anomaly:
+                    </label>
+                    <select
+                      value={anomalyYesNoFilter}
+                      onChange={(e) => setAnomalyYesNoFilter(e.target.value as "yes" | "no" | "all")}
+                      style={{
+                        padding: "4px 8px",
+                        fontSize: "12px",
+                        border: "1px solid var(--border-primary)",
+                        borderRadius: "4px",
+                        background: "var(--bg-primary)",
+                        color: "var(--text-primary)",
+                        cursor: "pointer",
+                        minWidth: "100px",
+                      }}
+                    >
+                      <option value="yes">Yes only</option>
+                      <option value="no">No only</option>
+                      <option value="all">All</option>
+                    </select>
+                    <label style={{ 
+                      fontSize: "12px", 
+                      fontWeight: 600, 
+                      color: "var(--text-primary)",
+                      whiteSpace: "nowrap",
+                      marginLeft: "8px"
+                    }}>
+                      Period Type:
                     </label>
                     <select
                       value={anomalyPeriodFilter}
@@ -3748,13 +3864,82 @@ export default function CityDataAdmin({
                       <option value="month">Month</option>
                       <option value="year">Year</option>
                     </select>
+                    
+                    {/* Period Date Selector - only show when a specific period type is selected */}
+                    {anomalyPeriodFilter !== "all" && availableAnomalyPeriods.length > 0 && (
+                      <>
+                        <label style={{ 
+                          fontSize: "12px", 
+                          fontWeight: 600, 
+                          color: "var(--text-primary)",
+                          whiteSpace: "nowrap",
+                          marginLeft: "8px"
+                        }}>
+                          {anomalyPeriodFilter === "week" ? "Week:" : 
+                           anomalyPeriodFilter === "month" ? "Month:" : 
+                           anomalyPeriodFilter === "day" ? "Date:" : "Period:"}
+                        </label>
+                        <select
+                          value={selectedAnomalyPeriodDate || ""}
+                          onChange={(e) => setSelectedAnomalyPeriodDate(e.target.value || null)}
+                          style={{
+                            padding: "4px 8px",
+                            fontSize: "12px",
+                            border: "1px solid var(--border-primary)",
+                            borderRadius: "4px",
+                            background: "var(--bg-primary)",
+                            color: "var(--text-primary)",
+                            cursor: "pointer",
+                            minWidth: "160px",
+                          }}
+                        >
+                          <option value="">All {anomalyPeriodFilter}s</option>
+                          {availableAnomalyPeriods.map((period) => {
+                            // Format the period date for display
+                            let displayLabel = period.period_date;
+                            try {
+                              if (anomalyPeriodFilter === "week" && period.period_date.includes("-W")) {
+                                // Format: "2025-W03" -> "Week 3, 2025"
+                                const [year, weekPart] = period.period_date.split("-W");
+                                displayLabel = `Week ${parseInt(weekPart)}, ${year}`;
+                              } else if (anomalyPeriodFilter === "month") {
+                                // Format: "2025-01" -> "Jan 2025"
+                                const [year, month] = period.period_date.split("-");
+                                const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                                const monthNum = parseInt(month);
+                                if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+                                  displayLabel = `${monthNames[monthNum - 1]} ${year}`;
+                                }
+                              } else if (anomalyPeriodFilter === "day") {
+                                // Format: "2025-01-15" -> "Jan 15, 2025"
+                                const date = new Date(period.period_date + "T00:00:00");
+                                if (!isNaN(date.getTime())) {
+                                  displayLabel = date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                                }
+                              } else if (anomalyPeriodFilter === "year") {
+                                displayLabel = period.period_date.split("-")[0];
+                              }
+                            } catch {
+                              // Keep original displayLabel on error
+                            }
+                            return (
+                              <option key={period.period_date} value={period.period_date}>
+                                {displayLabel} ({period.count})
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </>
+                    )}
                   </div>
                   {(() => {
                     const filteredResults = getFilteredAnomalies();
                     
                     return filteredResults.length === 0 ? (
                       <div className={metricStyles.muted} style={{ padding: 16 }}>
-                        No anomaly data found for this metric{anomalyPeriodFilter !== "all" ? ` with period type "${anomalyPeriodFilter}"` : ""}.
+                        No results for this metric
+                        {anomalyYesNoFilter !== "all" ? ` with anomaly="${anomalyYesNoFilter === "yes" ? "yes only" : "no only"}"` : ""}
+                        {anomalyPeriodFilter !== "all" ? ` and period type "${anomalyPeriodFilter}"` : ""}.
                       </div>
                     ) : (
                       <div className={metricStyles.anomalyTableWrapper}>
@@ -3762,6 +3947,10 @@ export default function CityDataAdmin({
                     <thead>
                       <tr>
                         <th className={metricStyles.anomalyTh}></th>
+                        <th className={metricStyles.anomalyTh}>
+                          <span className={metricStyles.anomalyThFull}>District</span>
+                          <span className={metricStyles.anomalyThShort}>Dist</span>
+                        </th>
                         <th className={metricStyles.anomalyTh}>
                           <span className={metricStyles.anomalyThFull}>Group</span>
                           <span className={metricStyles.anomalyThShort}>Grp</span>
@@ -3920,6 +4109,15 @@ export default function CityDataAdmin({
                                 No data
                               </div>
                             )}
+                          </td>
+                          
+                          {/* District / Citywide */}
+                          <td className={metricStyles.anomalyTd}>
+                            {anomaly.district !== undefined && anomaly.district !== null
+                              ? anomaly.district === 0
+                                ? "Citywide"
+                                : `District ${anomaly.district}`
+                              : "—"}
                           </td>
                           
                           {/* Group Field: Value */}

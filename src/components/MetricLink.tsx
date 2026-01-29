@@ -69,31 +69,28 @@ export function MetricLink({
     );
   }
 
-  // For modal mode with handler, render as button/div
+  // For modal mode with handler, render as span (not button) to allow nesting inside other buttons
   if (mode === "modal" && onModalOpen) {
     return (
-      <button
-        type="button"
+      <span
+        role="button"
+        tabIndex={0}
         className={className}
         onClick={handleClick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            handleClick(e as unknown as React.MouseEvent);
+          }
+        }}
         style={{ 
           ...style, 
-          background: "none", 
-          border: "none", 
-          padding: 0, 
-          margin: 0,
           cursor: "pointer", 
-          textAlign: "inherit", 
-          width: "100%",
-          fontFamily: "inherit",
-          fontSize: "inherit",
-          color: "inherit",
-          display: "grid", // Preserve grid layout
         }}
         {...(props as any)}
       >
         {children}
-      </button>
+      </span>
     );
   }
 
