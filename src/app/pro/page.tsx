@@ -243,11 +243,6 @@ export default function AddYourCityPage() {
                     Cancel
                   </button>
                 </div>
-
-                <p className="form-note">
-                  We'll be in touch at{" "}
-                  <a href="mailto:hello@transparentcity.com">hello@transparentcity.com</a>
-                </p>
               </form>
             </div>
           )}
