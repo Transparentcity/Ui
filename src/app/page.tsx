@@ -510,6 +510,64 @@ export default function Home() {
             </div>
           </div>
         </section>
+
+        {/* CTA Section */}
+        <section className="cta">
+          <div className="container">
+            <div className="cta-content">
+              <h2 className="cta-title">Ready to See How Your City Is Really Doing?</h2>
+              <p className="cta-description">
+                Start with San Francisco today. Use shared, verifiable facts to
+                recognize what's working, question what isn't, and keep
+                conversations between residents, advocates, and officials grounded
+                in reality.
+              </p>
+              <div className="cta-buttons">
+                <a
+                  className="btn btn-primary btn-large"
+                  href="https://dashboard.transparentsf.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Open the SF Dashboard
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M4 10H16M16 10L12 6M16 10L12 14"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </a>
+                <a href="/pro" className="btn btn-outline btn-large">
+                  Partner or Join the Team
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
 
       <footer className={styles.footer}>
@@ -523,7 +581,7 @@ export default function Home() {
                 Facts for residents. Evidence for elected officials. Accountability for everyone.
                 <br />
                 <br />
-                Independent &amp; nonpartisan. All data is sourced from official city open data portals with documented queries and direct links.
+                All data is sourced from official city open data portals with documented queries and direct links.
                 <br />
                 <br />
                 &copy; 2026 Transparent.city
