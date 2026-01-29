@@ -594,7 +594,7 @@ export default function Home() {
                   Learn more
                 </Link>
                 <Link className={styles.link} href="/pro">
-                  Pro
+                  Add Your City
                 </Link>
                 <Link className={styles.link} href="/debug/health">
                   API health
