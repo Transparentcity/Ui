@@ -10,6 +10,7 @@ interface MetricActionsProps {
   onExecute: () => void;
   onDelete: () => void;
   onViewAnomalies?: () => void;
+  onViewMaps?: () => void;
   compact?: boolean;
 }
 
@@ -20,6 +21,7 @@ export default function MetricActions({
   onExecute,
   onDelete,
   onViewAnomalies,
+  onViewMaps,
   compact = false,
 }: MetricActionsProps) {
   return (
@@ -54,6 +56,18 @@ export default function MetricActions({
           title="View anomalies"
         >
           <i className="fas fa-exclamation-triangle" />
+        </button>
+      )}
+      {onViewMaps && (
+        <button
+          className={styles.iconBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewMaps();
+          }}
+          title="View maps"
+        >
+          <i className="fas fa-map-marked-alt" />
         </button>
       )}
       <button

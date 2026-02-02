@@ -28,6 +28,7 @@ import TemplateOrderEditor from "./TemplateOrderEditor";
 import MetricActions from "./MetricActions";
 import MetricEditModal from "./MetricEditModal";
 import MetricChartsModal from "./MetricChartsModal";
+import MetricMapsModal from "./MetricMapsModal";
 import styles from "./MetricsAdmin.module.css";
 
 type StatusFilter = "" | "true" | "false";
@@ -211,6 +212,9 @@ export default function MetricsAdmin() {
   const [chartsOpen, setChartsOpen] = useState(false);
   const [chartsMetricId, setChartsMetricId] = useState<number | null>(null);
 
+  const [mapsOpen, setMapsOpen] = useState(false);
+  const [mapsMetricId, setMapsMetricId] = useState<number | null>(null);
+
   const [editOpen, setEditOpen] = useState(false);
   const [editMode, setEditMode] = useState<"create" | "edit">("create");
   const [editMetricId, setEditMetricId] = useState<number | null>(null);
@@ -309,6 +313,16 @@ export default function MetricsAdmin() {
   const closeCharts = () => {
     setChartsOpen(false);
     setChartsMetricId(null);
+  };
+
+  const openMaps = (metricId: number) => {
+    setMapsMetricId(metricId);
+    setMapsOpen(true);
+  };
+
+  const closeMaps = () => {
+    setMapsOpen(false);
+    setMapsMetricId(null);
   };
 
   const openExecuteModal = (metricId: number) => {
@@ -834,6 +848,7 @@ export default function MetricsAdmin() {
                         metricId={m.id}
                         onEdit={() => openEditModal(m.id)}
                         onViewCharts={() => openCharts(m.id)}
+                        onViewMaps={() => openMaps(m.id)}
                         onExecute={() => openExecuteModal(m.id)}
                         onDelete={() => deleteMetric(m.id)}
                       />
@@ -866,6 +881,14 @@ export default function MetricsAdmin() {
         metricId={chartsMetricId}
         isOpen={chartsOpen}
         onClose={closeCharts}
+      />
+
+      {/* Maps Modal */}
+      <MetricMapsModal
+        metricId={mapsMetricId}
+        metricName={metrics.find((m) => m.id === mapsMetricId)?.metric_name}
+        isOpen={mapsOpen}
+        onClose={closeMaps}
       />
 
       {/* Create/Edit Modal */}

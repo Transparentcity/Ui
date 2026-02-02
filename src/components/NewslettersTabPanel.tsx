@@ -127,6 +127,9 @@ Format as a newsletter-style summary that could be emailed to subscribers intere
         max_subquestions: 1,
         model_key: "gpt-5.1",
         enable_web_search: true,
+        // Mark this as a newsletter so it appears in the newsletter list
+        is_newsletter: true,
+        newsletter_frequency: selectedFrequency as "weekly" | "monthly",
       };
       
       const response: CreateResearchResponse = await createResearch(payload, token);

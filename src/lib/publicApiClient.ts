@@ -120,6 +120,7 @@ export type PublicCityMetricItem = {
 export type PublicCityDetail = {
   id: number;
   name: string;
+  slug?: string | null;
   state?: string | null;
   country?: string | null;
   emoji?: string | null;
@@ -467,7 +468,7 @@ export function getPublicMetricShapefile(
   );
 }
 
-// Map data for metric detail page
+// Map data for metric detail page (legacy - saved maps)
 export type PublicMapResponse = {
   map_hash: string;
   map_url: string;
@@ -492,3 +493,117 @@ export function getPublicMetricMap(
   return getCachedOrFetch(cacheKey, () => requestPublic<PublicMapResponse>(path), 60000); // 1 minute cache
 }
 
+// =============================================================================
+// Dynamic Map Preview (for embedded metric maps - no database save)
+// =============================================================================
+
+export type MapPreviewRequest = {
+  start_date: string;
+  end_date: string;
+  district?: number | null;
+  period_type?: string;
+  // Optional comparison period for dual-layer display
+  comparison_start_date?: string | null;
+  comparison_end_date?: string | null;
+  // Optional group filtering (for anomalies specific to a group value)
+  group_field?: string | null;
+  group_value?: string | null;
+};
+
+export type MapPreviewResponse = {
+  map_type: string;
+  location_data: Array<Record<string, any>>;
+  map_config: Record<string, any>;
+  bounds?: [[number, number], [number, number]] | null;
+  center?: { lat: number; lng: number; zoom: number } | null;
+  city_id?: number | null;
+  metric_id: number;
+  title: string;
+  description?: string | null;
+  location_data_count: number;
+  // Comparison period data (optional - for dual-layer display)
+  comparison_location_data?: Array<Record<string, any>> | null;
+  comparison_location_data_count?: number | null;
+};
+
+/**
+ * Generate map data dynamically for embedding (no database save).
+ * This is the preferred method for embedded maps in metric detail pages.
+ */
+export async function getMetricMapPreview(
+  metricId: number,
+  request: MapPreviewRequest
+): Promise<MapPreviewResponse> {
+  const url = `${API_BASE}/api/public/metrics/${metricId}/map-preview`;
+  
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+  
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let errorMessage = `Map preview failed: ${res.status}`;
+    if (text) {
+      try {
+        const errorJson = JSON.parse(text);
+        errorMessage = errorJson.detail || errorJson.message || errorMessage;
+      } catch {
+        errorMessage = `${errorMessage} - ${text.substring(0, 200)}`;
+      }
+    }
+    const err = new Error(errorMessage) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
+  
+  return res.json();
+}
+
+export type MapSaveResponse = {
+  map_hash: string;
+  map_url: string;
+  map_id: number;
+};
+
+/**
+ * Save a map to the database (called when user clicks "View full map").
+ * Returns the hash/URL for navigation to the full map page.
+ */
+export async function saveMetricMap(
+  metricId: number,
+  request: MapPreviewRequest
+): Promise<MapSaveResponse> {
+  const url = `${API_BASE}/api/public/metrics/${metricId}/map-save`;
+  
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+  
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let errorMessage = `Map save failed: ${res.status}`;
+    if (text) {
+      try {
+        const errorJson = JSON.parse(text);
+        errorMessage = errorJson.detail || errorJson.message || errorMessage;
+      } catch {
+        errorMessage = `${errorMessage} - ${text.substring(0, 200)}`;
+      }
+    }
+    throw new Error(errorMessage);
+  }
+  
+  return res.json();
+}

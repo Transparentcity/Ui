@@ -35,6 +35,7 @@ import Loader from "./Loader";
 import MetricActions from "./MetricActions";
 import MetricEditModal from "./MetricEditModal";
 import MetricChartsModal from "./MetricChartsModal";
+import MetricMapsModal from "./MetricMapsModal";
 import MetricOrderEditor from "./MetricOrderEditor";
 import RunAllMetricsModal from "./RunAllMetricsModal";
 import AnomalySparkline from "./AnomalySparkline";
@@ -203,6 +204,8 @@ export default function CityDataAdmin({
   const [editModalMetricId, setEditModalMetricId] = useState<number | null>(null);
   const [chartsOpen, setChartsOpen] = useState(false);
   const [chartsMetricId, setChartsMetricId] = useState<number | null>(null);
+  const [mapsOpen, setMapsOpen] = useState(false);
+  const [mapsMetricId, setMapsMetricId] = useState<number | null>(null);
   const [showExecuteModal, setShowExecuteModal] = useState(false);
   const [executeMetricId, setExecuteMetricId] = useState<number | null>(null);
   const [executePeriodType, setExecutePeriodType] = useState<string>("day");
@@ -284,6 +287,15 @@ export default function CityDataAdmin({
     setChartsMetricId(null);
   };
 
+  const openMaps = (metricId: number) => {
+    setMapsMetricId(metricId);
+    setMapsOpen(true);
+  };
+
+  const closeMaps = () => {
+    setMapsOpen(false);
+    setMapsMetricId(null);
+  };
 
   const openExecuteModal = (metricId: number) => {
     const today = new Date();
@@ -3237,6 +3249,7 @@ export default function CityDataAdmin({
                                         metricId={metric.id}
                                         onEdit={() => openEditModal(metric.id)}
                                         onViewCharts={() => openCharts(metric.id)}
+                                        onViewMaps={() => openMaps(metric.id)}
                                         onExecute={() => openExecuteModal(metric.id)}
                                         onDelete={() => deleteMetric(metric.id)}
                                         onViewAnomalies={() => openViewAnomalies(metric.id)}
@@ -3405,6 +3418,14 @@ export default function CityDataAdmin({
         metricId={chartsMetricId}
         isOpen={chartsOpen}
         onClose={closeCharts}
+      />
+
+      {/* Maps Modal */}
+      <MetricMapsModal
+        metricId={mapsMetricId}
+        metricName={cityDataTyped?.metrics?.find((m) => m.id === mapsMetricId)?.metric_name}
+        isOpen={mapsOpen}
+        onClose={closeMaps}
       />
 
       {/* Run All Metrics Modal */}

@@ -7,6 +7,8 @@ import {
   JobStats,
   getScheduledJobSummary,
   ScheduledJobSummary,
+  getAllScheduledJobs,
+  CustomScheduledJob,
 } from "@/lib/apiClient";
 import { useJobWebSocketContext } from "@/contexts/JobWebSocketContext";
 import Loader from "./Loader";
@@ -33,6 +35,7 @@ export default function JobLogsViewer() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<JobStats | null>(null);
   const [scheduleSummaries, setScheduleSummaries] = useState<ScheduledJobSummary[]>([]);
+  const [customSchedules, setCustomSchedules] = useState<CustomScheduledJob[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("logs");
@@ -71,8 +74,12 @@ export default function JobLogsViewer() {
       setScheduleLoading(true);
       setScheduleError(null);
       const currentToken = token || (await getAccessTokenSilently());
-      const schedules = await getScheduledJobSummary(currentToken);
+      const [schedules, allSchedules] = await Promise.all([
+        getScheduledJobSummary(currentToken),
+        getAllScheduledJobs(currentToken),
+      ]);
       setScheduleSummaries(schedules);
+      setCustomSchedules(allSchedules.custom_schedules || []);
     } catch (err) {
       console.error("Error loading schedule summary:", err);
       setScheduleError("Failed to load scheduled jobs.");
@@ -190,6 +197,7 @@ export default function JobLogsViewer() {
         {activeTab === "scheduled" && (
           <ScheduledJobsPanel
             scheduleSummaries={scheduleSummaries}
+            customSchedules={customSchedules}
             scheduleLoading={scheduleLoading}
             scheduleError={scheduleError}
             onRefresh={loadScheduleSummary}

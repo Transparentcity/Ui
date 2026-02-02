@@ -124,6 +124,7 @@ export default function MetricEditModal({
     greendirection: string;
     item_noun: string;
     template_id: string;
+    endpoint: string;
   }>({
     metric_name: "",
     category: "",
@@ -135,6 +136,7 @@ export default function MetricEditModal({
     greendirection: "up",
     item_noun: "",
     template_id: "",
+    endpoint: "",
   });
 
   // Query and map config state
@@ -212,6 +214,7 @@ export default function MetricEditModal({
         greendirection: metric.greendirection || "up",
         item_noun: metric.item_noun || "",
         template_id: metric.template_id != null ? String(metric.template_id) : "",
+        endpoint: metric.endpoint || "",
       });
       setEditQueryConfig(metric.metadata?.query_config || null);
       setEditMapFields({
@@ -323,6 +326,7 @@ export default function MetricEditModal({
       greendirection: editForm.greendirection || "up",
       item_noun: editForm.item_noun.trim() || null,
       template_id: parsedTemplateId,
+      endpoint: editForm.endpoint.trim() || null,
     };
     updateMetricMutation.mutate(
       { metricId: metric.id, payload },
@@ -479,26 +483,32 @@ export default function MetricEditModal({
             </div>
           </div>
 
-          {/* Read-only Info Fields */}
+          {/* Endpoint and Data Source Fields */}
           <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid var(--border-primary)" }}>
             <div className={styles.grid2}>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <div className={styles.fieldLabel}>Endpoint (Dataset ID)</div>
+                <input
+                  className={styles.input}
+                  value={editForm.endpoint}
+                  onChange={(e) => setEditForm((p) => ({ ...p, endpoint: e.target.value }))}
+                  placeholder="e.g., wg3w-h783 or https://data.sfgov.org/resource/wg3w-h783.json"
+                />
+                <div className={styles.muted} style={{ fontSize: 11, marginTop: 2 }}>
+                  Socrata endpoint ID (e.g., wg3w-h783) or full URL to the data source.
+                </div>
+              </div>
               <div>
-                <div className={styles.fieldLabel}>Type</div>
+                <div className={styles.fieldLabel}>Type (read-only)</div>
                 <div className={styles.fieldValue}>{metric.metric_type || "queried"}</div>
               </div>
               <div>
-                <div className={styles.fieldLabel}>Data Source</div>
+                <div className={styles.fieldLabel}>Data Source (read-only)</div>
                 <div className={styles.fieldValue}>{metric.data_source_type || "—"}</div>
               </div>
-              {metric.endpoint && (
-                <div>
-                  <div className={styles.fieldLabel}>Endpoint</div>
-                  <div className={styles.fieldValue}>{metric.endpoint}</div>
-                </div>
-              )}
               {metric.city_name && (
                 <div>
-                  <div className={styles.fieldLabel}>City</div>
+                  <div className={styles.fieldLabel}>City (read-only)</div>
                   <div className={styles.fieldValue}>{metric.city_name}</div>
                 </div>
               )}

@@ -339,7 +339,10 @@ export default function AnomaliesTabPanel({
                                 info.metricName
                               )}
                             </span>
-                            <span className={styles.groupValueLarge}>{info.groupValue}</span>
+                            <span className={styles.groupValueLarge}>
+                              {info.groupField && <span className={styles.groupFieldLabel}>{info.groupField}: </span>}
+                              {info.groupValue}
+                            </span>
                           </>
                         ) : (
                           /* No group: metric name prominent */

@@ -573,6 +573,10 @@ export default function MetricDetailModal({
                         start: comparison?.current_period_start || null,
                         end: comparison?.current_period_end || null,
                       }}
+                      comparisonDateRange={{
+                        start: comparison?.comparison_period_start || null,
+                        end: comparison?.comparison_period_end || null,
+                      }}
                     />
                   </section>
                 ) : (
@@ -597,6 +601,10 @@ export default function MetricDetailModal({
                       dateRange={{
                         start: comparison?.current_period_start || null,
                         end: comparison?.current_period_end || null,
+                      }}
+                      comparisonDateRange={{
+                        start: comparison?.comparison_period_start || null,
+                        end: comparison?.comparison_period_end || null,
                       }}
                     />
                   </section>

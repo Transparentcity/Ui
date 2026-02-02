@@ -796,6 +796,7 @@ export interface UpdateAdminMetricRequest {
   greendirection?: string | null;
   item_noun?: string | null;
   template_id?: number | null;
+  endpoint?: string | null;
   map_query?: string | null;
   map_filters?: Record<string, any> | null;
   map_config?: Record<string, any> | null;
@@ -1629,6 +1630,106 @@ export function getScheduledJobSummary(token: string): Promise<ScheduledJobSumma
     undefined,
     token
   ).then((res) => res.schedules);
+}
+
+export type CustomScheduleStatus = "active" | "paused" | "disabled";
+export type CustomScheduleType =
+  | "once"
+  | "hourly"
+  | "daily"
+  | "weekly"
+  | "monthly"
+  | "cron";
+
+export interface CustomScheduledJob {
+  id: number;
+  name: string;
+  description?: string | null;
+  job_type: string;
+  job_config: Record<string, any>;
+  schedule_type: CustomScheduleType;
+  cron_expression?: string | null;
+  schedule_hour?: number | null;
+  schedule_minute?: number | null;
+  schedule_day_of_week?: number | null;
+  schedule_day_of_month?: number | null;
+  timezone?: string | null;
+  max_retries?: number | null;
+  retry_delay_seconds?: number | null;
+  timeout_seconds?: number | null;
+  max_concurrent_cities?: number | null;
+  per_city_concurrency?: number | null;
+  status: CustomScheduleStatus;
+  last_run_at?: string | null;
+  last_run_status?: string | null;
+  last_run_job_id?: string | null;
+  next_run_at?: string | null;
+  run_count?: number | null;
+  failure_count?: number | null;
+  created_by?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  schedule_description?: string | null;
+}
+
+export interface ScheduledJobsAllResponse {
+  system_schedules: Array<{
+    key: string;
+    name: string;
+    description: string;
+    cadence: string;
+    type: "system";
+    is_system: true;
+    status: "active";
+    last_run?: any;
+    recent_runs?: any[];
+  }>;
+  custom_schedules: CustomScheduledJob[];
+  total_count: number;
+}
+
+export function getAllScheduledJobs(token: string): Promise<ScheduledJobsAllResponse> {
+  return request<ScheduledJobsAllResponse>("/api/jobs/schedules/all", "GET", undefined, token);
+}
+
+export interface UpdateCustomScheduledJobRequest {
+  name?: string;
+  description?: string | null;
+  job_type?: string;
+  job_config?: Record<string, any>;
+  schedule_type?: CustomScheduleType;
+  cron_expression?: string | null;
+  schedule_hour?: number | null;
+  schedule_minute?: number | null;
+  schedule_day_of_week?: number | null;
+  schedule_day_of_month?: number | null;
+  timezone?: string | null;
+  max_retries?: number | null;
+  retry_delay_seconds?: number | null;
+  timeout_seconds?: number | null;
+  max_concurrent_cities?: number | null;
+  per_city_concurrency?: number | null;
+  status?: CustomScheduleStatus;
+}
+
+export function updateCustomScheduledJob(
+  jobId: number,
+  payload: UpdateCustomScheduledJobRequest,
+  token: string
+): Promise<any> {
+  return request(`/api/jobs/schedules/custom/${jobId}`, "PUT", payload, token);
+}
+
+export function pauseCustomScheduledJob(jobId: number, token: string): Promise<any> {
+  return request(`/api/jobs/schedules/custom/${jobId}/pause`, "POST", {}, token);
+}
+
+export function resumeCustomScheduledJob(jobId: number, token: string): Promise<any> {
+  return request(`/api/jobs/schedules/custom/${jobId}/resume`, "POST", {}, token);
+}
+
+export function runCustomScheduledJob(jobId: number, token: string): Promise<any> {
+  return request(`/api/jobs/schedules/custom/${jobId}/run`, "POST", {}, token);
 }
 
 export interface RunScheduleRequest {
@@ -2820,6 +2921,9 @@ export interface CreateResearchRequest {
   model_key?: string;
   require_agenda_approval?: boolean;
   enable_web_search?: boolean;
+  // Newsletter metadata fields (optional) - set these to create a newsletter report
+  is_newsletter?: boolean;
+  newsletter_frequency?: "weekly" | "monthly" | null;
 }
 
 export interface CreateResearchResponse {
@@ -3256,6 +3360,7 @@ export function adminListMaps(
     city_id?: number;
     is_public?: boolean;
     map_type?: string;
+    metric_id?: number;
     limit?: number;
     offset?: number;
   }
@@ -3265,12 +3370,29 @@ export function adminListMaps(
   if (options?.city_id) params.append("city_id", options.city_id.toString());
   if (options?.is_public !== undefined) params.append("is_public", String(options.is_public));
   if (options?.map_type) params.append("map_type", options.map_type);
+  if (options?.metric_id) params.append("metric_id", options.metric_id.toString());
   if (options?.limit) params.append("limit", options.limit.toString());
   if (options?.offset) params.append("offset", options.offset.toString());
   
   const query = params.toString();
   const path = `/api/admin/maps${query ? `?${query}` : ""}`;
   return request<MapListResponse>(path, "GET", undefined, token);
+}
+
+// Admin: Get maps for a specific metric
+export function getAdminMetricMaps(
+  metricId: number,
+  token: string,
+  options?: {
+    limit?: number;
+    offset?: number;
+  }
+): Promise<MapListResponse> {
+  return adminListMaps(token, {
+    metric_id: metricId,
+    limit: options?.limit ?? 100,
+    offset: options?.offset ?? 0,
+  });
 }
 
 // Admin: Get map stats
