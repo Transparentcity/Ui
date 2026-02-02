@@ -29,6 +29,20 @@
   color: var(--text-secondary, #6b7280);
 }
 
+.progressive-map-view .points-many-warning {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: "IBM Plex Sans", sans-serif;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+}
+
 .progressive-map-view .map-container {
   width: 100%;
   border-radius: 8px;

@@ -23,9 +23,10 @@ export default function AnomaliesAlertIcon({
 }: AnomaliesAlertIconProps) {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
 
-  // Fetch anomalies for this city and district (default to weekly)
+  // Fetch anomalies for this city (no district filter - show ALL anomalies)
+  // This ensures we show recent anomalies regardless of which district is selected
   const { data: anomaliesData, isLoading } = useCityAnomalies(cityId, {
-    district: district ?? undefined,
+    // district filter removed - show all anomalies for the city
     period_type: "week",
     is_anomaly: true,
     limit: 100,

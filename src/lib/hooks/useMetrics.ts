@@ -17,6 +17,8 @@ import {
   deleteAdminMetric,
   executeAdminMetric,
   validateMetricFreshness,
+  flushMetricCompleteness,
+  purgeAdminMetricData,
   getMetricMapData,
   getCityMetricsForMap,
   getMetricComparison,
@@ -51,7 +53,8 @@ export const metricKeys = {
   categories: () => [...metricKeys.all, "categories"] as const,
   types: () => [...metricKeys.all, "types"] as const,
   cities: () => [...metricKeys.all, "cities"] as const,
-  timeSeries: (id: number) => [...metricKeys.all, "time-series", id] as const,
+  timeSeries: (id: number, options?: { exclude_group_fields?: boolean }) =>
+    [...metricKeys.all, "time-series", id, options] as const,
   timeSeriesDetail: (metricId: number, chartId: number) =>
     [...metricKeys.all, "time-series-detail", metricId, chartId] as const,
   comparisons: (id: number, district?: number | null) =>
@@ -181,19 +184,28 @@ export function useMetricCities() {
   });
 }
 
+export interface UseMetricTimeSeriesOptions {
+  /** If true, exclude time series that have a group_field (multi-series). Default false = include all. */
+  exclude_group_fields?: boolean;
+}
+
 /**
  * Hook to fetch time series data for a metric.
  * Cache time: 5 minutes
+ * Pass exclude_group_fields: false (default) to include group-field time series charts.
  */
-export function useMetricTimeSeries(metricId: number | null) {
+export function useMetricTimeSeries(
+  metricId: number | null,
+  options?: UseMetricTimeSeriesOptions
+) {
   const { getAccessTokenSilently } = useAuth0();
 
   return useQuery({
-    queryKey: metricKeys.timeSeries(metricId!),
+    queryKey: metricKeys.timeSeries(metricId!, options),
     queryFn: async () => {
       if (!metricId) throw new Error("Metric ID is required");
       const token = await getAccessTokenSilently();
-      return getAdminMetricTimeSeries(metricId, token);
+      return getAdminMetricTimeSeries(metricId, token, options);
     },
     enabled: !!metricId,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -340,6 +352,51 @@ export function useValidateMetricFreshness() {
     onSuccess: (_, variables) => {
       // Invalidate the metric to refresh freshness data
       queryClient.invalidateQueries({ queryKey: metricKeys.detail(variables.metricId) });
+    },
+  });
+}
+
+/**
+ * Hook to flush/delete all completeness data for a metric.
+ * Removes all period_completeness and metric_stability_patterns records.
+ * Invalidates the metric on success.
+ */
+export function useFlushMetricCompleteness() {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ metricId }: { metricId: number }) => {
+      const token = await getAccessTokenSilently();
+      return flushMetricCompleteness(metricId, token);
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate the metric to refresh completeness data
+      queryClient.invalidateQueries({ queryKey: metricKeys.detail(variables.metricId) });
+    },
+  });
+}
+
+/**
+ * Hook to purge ALL data for a metric while keeping the metric definition.
+ * Deletes time_series, time_series_metadata, saved_maps, anomaly_results,
+ * anomaly_runs, period_completeness, and metric_stability_patterns.
+ * WARNING: This is a destructive operation that cannot be undone!
+ */
+export function usePurgeMetricData() {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ metricId }: { metricId: number }) => {
+      const token = await getAccessTokenSilently();
+      return purgeAdminMetricData(metricId, token);
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate the metric and related queries to refresh all data
+      queryClient.invalidateQueries({ queryKey: metricKeys.detail(variables.metricId) });
+      queryClient.invalidateQueries({ queryKey: metricKeys.timeSeries(variables.metricId) });
+      queryClient.invalidateQueries({ queryKey: metricKeys.lists() });
     },
   });
 }

@@ -4,12 +4,17 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   type UpdateAdminMetricRequest,
+  flushMetricCompleteness,
+  purgeAdminMetricData,
+  type PurgeMetricDataResponse,
 } from "@/lib/apiClient";
 import {
   useMetric,
   useMetricCityStructure,
   useUpdateMetric,
   useValidateMetricFreshness,
+  useFlushMetricCompleteness,
+  usePurgeMetricData,
 } from "@/lib/hooks/useMetrics";
 import { getPublicMetricCompleteness, getPublicMetricCompletenessStats, getPublicMetricCompletenessDaily, type MetricCompletenessResponse, type CompletenessStatisticsResponse, type DailyCompletenessResponse } from "@/lib/publicApiClient";
 import CompletenessSparkline from "./CompletenessSparkline";
@@ -101,6 +106,8 @@ export default function MetricEditModal({
   const cityStructureQuery = useMetricCityStructure(metricId);
   const updateMetricMutation = useUpdateMetric();
   const validateFreshnessMutation = useValidateMetricFreshness();
+  const flushCompletenessMutation = useFlushMetricCompleteness();
+  const purgeMetricMutation = usePurgeMetricData();
 
   const metric = metricQuery.data ?? null;
   const cityStructure = cityStructureQuery.data ?? null;
@@ -116,6 +123,7 @@ export default function MetricEditModal({
     show_on_dash: boolean;
     greendirection: string;
     item_noun: string;
+    template_id: string;
   }>({
     metric_name: "",
     category: "",
@@ -126,6 +134,7 @@ export default function MetricEditModal({
     show_on_dash: false,
     greendirection: "up",
     item_noun: "",
+    template_id: "",
   });
 
   // Query and map config state
@@ -154,6 +163,12 @@ export default function MetricEditModal({
   const [completenessDaily, setCompletenessDaily] = useState<DailyCompletenessResponse | null>(null);
   const [completenessLoading, setCompletenessLoading] = useState(false);
   const [showCompletenessDetails, setShowCompletenessDetails] = useState(false);
+  const [flushingCompleteness, setFlushingCompleteness] = useState(false);
+  
+  // Purge state
+  const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
+  const [purging, setPurging] = useState(false);
+  const [purgeResult, setPurgeResult] = useState<PurgeMetricDataResponse | null>(null);
 
   // Fetch completeness data when metric loads
   useEffect(() => {
@@ -196,6 +211,7 @@ export default function MetricEditModal({
         show_on_dash: metric.show_on_dash === true,
         greendirection: metric.greendirection || "up",
         item_noun: metric.item_noun || "",
+        template_id: metric.template_id != null ? String(metric.template_id) : "",
       });
       setEditQueryConfig(metric.metadata?.query_config || null);
       setEditMapFields({
@@ -287,6 +303,15 @@ export default function MetricEditModal({
       return;
     }
 
+    // Parse template_id: convert to number or null
+    const parsedTemplateId = editForm.template_id.trim()
+      ? parseInt(editForm.template_id.trim(), 10)
+      : null;
+    if (editForm.template_id.trim() && (parsedTemplateId === null || isNaN(parsedTemplateId))) {
+      alert("Template ID must be a valid number.");
+      return;
+    }
+
     const payload: UpdateAdminMetricRequest = {
       metric_name: editForm.metric_name.trim(),
       category: editForm.category.trim(),
@@ -297,6 +322,7 @@ export default function MetricEditModal({
       show_on_dash: editForm.show_on_dash,
       greendirection: editForm.greendirection || "up",
       item_noun: editForm.item_noun.trim() || null,
+      template_id: parsedTemplateId,
     };
     updateMetricMutation.mutate(
       { metricId: metric.id, payload },
@@ -355,6 +381,21 @@ export default function MetricEditModal({
                 disabled
                 style={{ backgroundColor: "var(--bg-secondary)", color: "var(--text-secondary)" }}
               />
+            </div>
+
+            <div>
+              <div className={styles.fieldLabel}>Template ID</div>
+              <input
+                className={styles.input}
+                type="number"
+                value={editForm.template_id}
+                onChange={(e) => setEditForm((p) => ({ ...p, template_id: e.target.value }))}
+                placeholder="e.g., 19 for 311 metrics"
+                min="0"
+              />
+              <div className={styles.muted} style={{ fontSize: 11, marginTop: 2 }}>
+                Links to metric template. Enter 0 to clear/remove template link.
+              </div>
             </div>
 
             <div>
@@ -792,10 +833,57 @@ export default function MetricEditModal({
                     borderRadius: 4,
                     border: "1px solid var(--border-primary)"
                   }}>
-                    <div style={{ marginBottom: 12 }}>
-                      <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+                    <div style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
                         📊 Completeness Statistics
                       </h4>
+                      <button
+                        className={styles.dangerBtn || styles.secondaryBtn}
+                        onClick={() => {
+                          if (!metric?.id) return;
+                          if (!window.confirm(
+                            `Are you sure you want to flush all completeness data for "${metric.metric_name}"?\n\n` +
+                            `This will delete ${completenessStats.total_checks.toLocaleString()} period records and allow completeness patterns to be relearned from scratch.\n\n` +
+                            `This action cannot be undone.`
+                          )) return;
+                          setFlushingCompleteness(true);
+                          flushCompletenessMutation.mutate(
+                            { metricId: metric.id },
+                            {
+                              onSuccess: (res) => {
+                                alert(res.message || "Completeness data flushed successfully");
+                                // Clear local state to reflect the deletion
+                                setCompletenessData(null);
+                                setCompletenessStats(null);
+                                setCompletenessDaily(null);
+                                metricQuery.refetch();
+                              },
+                              onError: (err) => {
+                                console.error("Error flushing completeness:", err);
+                                alert(err instanceof Error ? err.message : "Failed to flush completeness data");
+                              },
+                              onSettled: () => {
+                                setFlushingCompleteness(false);
+                              },
+                            }
+                          );
+                        }}
+                        disabled={flushingCompleteness}
+                        style={{ 
+                          padding: "4px 10px", 
+                          fontSize: 11, 
+                          backgroundColor: "var(--color-danger, #ef4444)",
+                          color: "white",
+                          border: "none",
+                          borderRadius: 4,
+                          cursor: flushingCompleteness ? "not-allowed" : "pointer",
+                          opacity: flushingCompleteness ? 0.7 : 1,
+                        }}
+                        title="Delete all completeness data and start fresh"
+                      >
+                        <i className={`fas fa-${flushingCompleteness ? "spinner fa-spin" : "trash-alt"}`} style={{ marginRight: 4 }} />
+                        {flushingCompleteness ? "Flushing..." : "Flush Data"}
+                      </button>
                     </div>
                     
                     <div style={{ 
@@ -1267,6 +1355,82 @@ export default function MetricEditModal({
               <i className="fas fa-play" /> Execute
             </button>
           )}
+          <button
+            className={styles.dangerBtn || styles.secondaryBtn}
+            onClick={() => {
+              if (!metric?.id) return;
+              const confirmText = `⚠️ DESTRUCTIVE ACTION ⚠️\n\nAre you sure you want to PURGE ALL DATA for "${metric.metric_name}"?\n\nThis will permanently delete:\n• All time series data points\n• All time series charts/metadata\n• All saved maps\n• All anomaly results and runs\n• All completeness records\n• All stability patterns\n• All metric comparisons\n\nThe metric definition itself will be preserved.\n\nTHIS ACTION CANNOT BE UNDONE!`;
+              if (!window.confirm(confirmText)) return;
+              
+              // Double confirmation for safety
+              const doubleConfirm = window.prompt(
+                `Type "PURGE" to confirm deletion of all data for "${metric.metric_name}":`,
+                ""
+              );
+              if (doubleConfirm !== "PURGE") {
+                if (doubleConfirm !== null) {
+                  alert("Purge cancelled. You must type 'PURGE' exactly to confirm.");
+                }
+                return;
+              }
+              
+              setPurging(true);
+              setPurgeResult(null);
+              purgeMetricMutation.mutate(
+                { metricId: metric.id },
+                {
+                  onSuccess: (res) => {
+                    setPurgeResult(res);
+                    const totalDeleted = 
+                      res.deleted_time_series_data + 
+                      res.deleted_time_series_metadata + 
+                      res.deleted_saved_maps + 
+                      res.deleted_anomaly_results + 
+                      res.deleted_anomaly_runs + 
+                      res.deleted_completeness_records + 
+                      res.deleted_stability_patterns +
+                      res.deleted_comparisons;
+                    alert(
+                      `✅ Successfully purged all data for "${res.metric_name}"\n\n` +
+                      `Deleted:\n` +
+                      `• ${res.deleted_time_series_data.toLocaleString()} data points\n` +
+                      `• ${res.deleted_time_series_metadata.toLocaleString()} charts\n` +
+                      `• ${res.deleted_saved_maps.toLocaleString()} maps\n` +
+                      `• ${res.deleted_anomaly_results.toLocaleString()} anomaly results\n` +
+                      `• ${res.deleted_anomaly_runs.toLocaleString()} anomaly runs\n` +
+                      `• ${res.deleted_completeness_records.toLocaleString()} completeness records\n` +
+                      `• ${res.deleted_stability_patterns.toLocaleString()} stability patterns\n` +
+                      `• ${res.deleted_comparisons.toLocaleString()} comparisons\n\n` +
+                      `Total: ${totalDeleted.toLocaleString()} records deleted`
+                    );
+                    // Clear local state
+                    setCompletenessData(null);
+                    setCompletenessStats(null);
+                    setCompletenessDaily(null);
+                    metricQuery.refetch();
+                  },
+                  onError: (err) => {
+                    console.error("Error purging metric data:", err);
+                    alert(err instanceof Error ? err.message : "Failed to purge metric data");
+                  },
+                  onSettled: () => {
+                    setPurging(false);
+                  },
+                }
+              );
+            }}
+            disabled={purging}
+            style={{
+              backgroundColor: "var(--color-danger, #ef4444)",
+              color: "white",
+              border: "none",
+              cursor: purging ? "not-allowed" : "pointer",
+              opacity: purging ? 0.7 : 1,
+            }}
+            title="Delete ALL data for this metric (time series, maps, anomalies, completeness)"
+          >
+            <i className={`fas fa-${purging ? "spinner fa-spin" : "trash-alt"}`} /> {purging ? "Purging..." : "Purge Data"}
+          </button>
           <button className={styles.primaryBtn} onClick={saveEdit}>
             <i className="fas fa-save" /> Save
           </button>

@@ -180,6 +180,29 @@ export default function PublicMapPage() {
 
   const clearLegend = () => setLegend(null);
 
+  // Total count and item_noun for caption (choropleth: sum of aggregation values; point: location_data.length)
+  const getMapDisplayCount = (m: SavedMap | null): { count: number; itemNoun: string } | null => {
+    if (!m) return null;
+    const itemNoun = (m.map_config?.item_noun as string) || "items";
+    const aggregations = m.map_config?.aggregations as Record<string, { rows?: Array<{ value?: number; count?: number }> }> | undefined;
+    if (aggregations && typeof aggregations === "object") {
+      for (const key of Object.keys(aggregations)) {
+        const agg = aggregations[key];
+        const rows = agg?.rows;
+        if (Array.isArray(rows) && rows.length > 0) {
+          const total = rows.reduce(
+            (sum, row) => sum + (Number(row?.value ?? row?.count ?? 0) || 0),
+            0
+          );
+          if (total > 0) return { count: total, itemNoun };
+        }
+      }
+    }
+    const loc = m.location_data;
+    if (Array.isArray(loc) && loc.length > 0) return { count: loc.length, itemNoun };
+    return null;
+  };
+
   const setLegendFromSeries = (
     seriesField: string,
     seriesValues: any,
@@ -312,7 +335,9 @@ export default function PublicMapPage() {
       ]);
     }
 
-    // Point popup
+    // Point popup (use item_noun for count/value labels)
+    const displayInfo = getMapDisplayCount(map);
+    const itemNounLabel = displayInfo ? displayInfo.itemNoun.charAt(0).toUpperCase() + displayInfo.itemNoun.slice(1) : null;
     mapInstance.on("click", "district-dots", (e: any) => {
       if (!e.features || e.features.length === 0) return;
       const feature = e.features[0];
@@ -320,7 +345,8 @@ export default function PublicMapPage() {
       let content = "<div class='map-popup'>";
       for (const [key, value] of Object.entries(props)) {
         if (key !== "id" && key !== "lat" && key !== "lon" && value) {
-          content += `<p><strong>${key}:</strong> ${value}</p>`;
+          const label = itemNounLabel && (key === "count" || key === "value") ? itemNounLabel : key;
+          content += `<p><strong>${label}:</strong> ${value}</p>`;
         }
       }
       content += "</div>";
@@ -1258,7 +1284,9 @@ export default function PublicMapPage() {
           }
         }
         
-        // Add popup on click
+        // Add popup on click (use item_noun for count/value labels)
+        const displayInfo = getMapDisplayCount(map);
+        const itemNounLabel = displayInfo ? displayInfo.itemNoun.charAt(0).toUpperCase() + displayInfo.itemNoun.slice(1) : null;
         mapInstance.on("click", "map-points", (e: any) => {
           if (!e.features || e.features.length === 0) return;
           
@@ -1269,7 +1297,8 @@ export default function PublicMapPage() {
           let content = "<div class='map-popup'>";
           for (const [key, value] of Object.entries(props)) {
             if (key !== "id" && key !== "lat" && key !== "lon" && value) {
-              content += `<p><strong>${key}:</strong> ${value}</p>`;
+              const label = itemNounLabel && (key === "count" || key === "value") ? itemNounLabel : key;
+              content += `<p><strong>${label}:</strong> ${value}</p>`;
             }
           }
           content += "</div>";
@@ -1595,7 +1624,13 @@ export default function PublicMapPage() {
             </span>
           </a>
           <div className="embedded-meta">
-            <span>{map.location_data?.length || 0} locations</span>
+            <span>
+              {(() => {
+                const d = getMapDisplayCount(map);
+                if (d) return `${d.count.toLocaleString()} ${d.itemNoun}`;
+                return "—";
+              })()}
+            </span>
             <a
               href={`/m/${hash}`}
               target="_blank"
@@ -1667,7 +1702,12 @@ export default function PublicMapPage() {
               </div>
               <div className="map-bottom-panel-body">
                 <div className="map-bottom-panel-count">
-                  <div className="label">Count</div>
+                  <div className="label">
+                    {(() => {
+                      const d = getMapDisplayCount(map);
+                      return d ? d.itemNoun.charAt(0).toUpperCase() + d.itemNoun.slice(1) : "Count";
+                    })()}
+                  </div>
                   <div className="value">
                     {districtPanel.count !== null && !Number.isNaN(districtPanel.count)
                       ? districtPanel.count.toLocaleString()
@@ -1866,7 +1906,13 @@ export default function PublicMapPage() {
             <p className="map-description">{map.description}</p>
           )}
           <div className="map-meta">
-            <span>{map.location_data?.length || 0} locations</span>
+            <span>
+              {(() => {
+                const d = getMapDisplayCount(map);
+                if (d) return `${d.count.toLocaleString()} ${d.itemNoun}`;
+                return "—";
+              })()}
+            </span>
             <span> • </span>
             <span>Created {new Date(map.created_at).toLocaleDateString()}</span>
           </div>
@@ -1949,7 +1995,12 @@ export default function PublicMapPage() {
               </div>
               <div className="map-bottom-panel-body">
                 <div className="map-bottom-panel-count">
-                  <div className="label">Count</div>
+                  <div className="label">
+                    {(() => {
+                      const d = getMapDisplayCount(map);
+                      return d ? d.itemNoun.charAt(0).toUpperCase() + d.itemNoun.slice(1) : "Count";
+                    })()}
+                  </div>
                   <div className="value">
                     {districtPanel.count !== null && !Number.isNaN(districtPanel.count)
                       ? districtPanel.count.toLocaleString()

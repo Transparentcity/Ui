@@ -155,14 +155,17 @@
 }
 
 .badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   padding: 6px 12px;
   border-radius: 999px;
-  background: var(--brand-secondary);
-  color: var(--brand-primary);
+  background: rgba(173, 53, 250, 0.25);
+  color: #ffffff;
   font-size: 13px;
   font-weight: 500;
   margin-bottom: 16px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .hero-title {
@@ -177,6 +180,13 @@
   .hero-title {
     font-size: 52px;
   }
+}
+
+.hero-subtitle {
+  font-size: 16px;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.7));
+  margin-bottom: 16px;
+  font-weight: 500;
 }
 
 .hero-description {
@@ -1402,5 +1412,391 @@
   margin-top: 48px;
   padding-top: 24px;
   border-top: 1px solid var(--border);
+}
+
+/* ============================================================================
+   Add Your City page
+   ============================================================================ */
+
+.add-city-wrapper {
+  min-height: 100vh;
+  background: radial-gradient(
+      1200px 600px at 20% -10%,
+      rgba(173, 53, 250, 0.12),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 520px at 90% 10%,
+      rgba(59, 130, 246, 0.08),
+      transparent 55%
+    ),
+    var(--bg-primary, #ffffff);
+  color: var(--text-primary, #111827);
+}
+
+.add-city-page {
+  padding: 40px 24px 60px;
+}
+
+.add-city-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.add-city-hero {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.add-city-hero .badge {
+  margin-bottom: 20px;
+}
+
+.add-city-hero .hero-title {
+  font-size: 44px;
+  line-height: 1.1;
+  font-weight: 800;
+  margin-bottom: 16px;
+  letter-spacing: -0.03em;
+}
+
+.add-city-hero .hero-description {
+  font-size: 18px;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.7));
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.add-city-card {
+  background: var(--bg-primary, rgba(255, 255, 255, 0.9));
+  border: 1px solid var(--border-primary, rgba(17, 24, 39, 0.1));
+  border-radius: 18px;
+  padding: 32px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+}
+
+.add-city-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.add-city-card-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.audience-pill {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand-primary, #ad35fa);
+  background: rgba(173, 53, 250, 0.12);
+  padding: 6px 12px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.audience-pill.resident-pill {
+  color: #059669;
+  background: rgba(5, 150, 105, 0.12);
+}
+
+.add-city-card-tagline {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  margin-bottom: 16px;
+}
+
+.add-city-card-body {
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.72));
+  margin-bottom: 16px;
+}
+
+.add-city-card-body:last-of-type {
+  margin-bottom: 20px;
+}
+
+.add-city-highlight {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--brand-primary, #ad35fa);
+  background: rgba(173, 53, 250, 0.08);
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  border-left: 3px solid var(--brand-primary, #ad35fa);
+}
+
+.add-city-card .btn {
+  margin-top: 8px;
+}
+
+/* Champion Form */
+.champion-form-container {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-primary, rgba(17, 24, 39, 0.1));
+}
+
+.champion-form-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  letter-spacing: -0.02em;
+}
+
+.champion-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+}
+
+.form-group .required {
+  color: #dc2626;
+}
+
+.form-group input,
+.form-group textarea {
+  padding: 12px 14px;
+  border: 1px solid var(--border-primary, rgba(17, 24, 39, 0.14));
+  border-radius: 10px;
+  font-size: 15px;
+  font-family: inherit;
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #111827);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--brand-primary, #ad35fa);
+  box-shadow: 0 0 0 3px rgba(173, 53, 250, 0.12);
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+  color: var(--text-tertiary, rgba(17, 24, 39, 0.4));
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.form-error {
+  color: #dc2626;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 12px;
+  background: rgba(220, 38, 38, 0.08);
+  border-radius: 8px;
+}
+
+.form-note {
+  font-size: 13px;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.6));
+  margin-top: 8px;
+}
+
+.form-note a {
+  color: var(--brand-primary, #ad35fa);
+  text-decoration: none;
+}
+
+.form-note a:hover {
+  text-decoration: underline;
+}
+
+.form-success {
+  margin-top: 24px;
+  padding: 24px;
+  background: rgba(5, 150, 105, 0.08);
+  border-radius: 12px;
+  border-left: 3px solid #059669;
+}
+
+.form-success h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #059669;
+  margin-bottom: 8px;
+}
+
+.form-success p {
+  font-size: 15px;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.72));
+  margin: 0;
+}
+
+.form-success a {
+  color: var(--brand-primary, #ad35fa);
+  text-decoration: none;
+}
+
+.form-success a:hover {
+  text-decoration: underline;
+}
+
+/* Back to home link */
+.add-city-back {
+  margin-top: 48px;
+  text-align: center;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.7));
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.back-link:hover {
+  color: var(--brand-primary, #ad35fa);
+}
+
+.back-link svg {
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .add-city-page {
+    padding: 24px 16px 40px;
+  }
+
+  .add-city-hero .hero-title {
+    font-size: 32px;
+  }
+
+  .add-city-hero .hero-description {
+    font-size: 16px;
+  }
+
+  .add-city-card {
+    padding: 24px 20px;
+  }
+
+  .add-city-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .add-city-card-title {
+    font-size: 20px;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .form-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Add Your City Footer */
+.add-city-footer {
+  border-top: 1px solid var(--border-primary, rgba(17, 24, 39, 0.08));
+  padding: 48px 24px 32px;
+  margin-top: 48px;
+  background: var(--bg-primary, rgba(255, 255, 255, 0.72));
+}
+
+.add-city-footer-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.add-city-footer-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 0.6fr 0.6fr;
+  gap: 32px;
+  align-items: start;
+}
+
+.add-city-footer-brand {
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--text-primary, #111827);
+}
+
+.brand-dot-city {
+  color: var(--brand-primary, #ad35fa);
+}
+
+.add-city-footer-fine-print {
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.6));
+}
+
+.add-city-footer-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-primary, rgba(17, 24, 39, 0.9));
+  margin-bottom: 12px;
+}
+
+.add-city-footer-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.add-city-footer-links a {
+  font-size: 14px;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.72));
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.add-city-footer-links a:hover {
+  color: var(--brand-primary, #ad35fa);
+}
+
+@media (max-width: 640px) {
+  .add-city-footer {
+    padding: 32px 16px 24px;
+  }
+
+  .add-city-footer-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
 }
 

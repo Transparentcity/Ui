@@ -3,7 +3,7 @@
  * 
  * Shortcode formats:
  * - Charts: [chart:123] → embeds chart with ID 123
- * - Maps: [map:abc123] → embeds map with short hash abc123
+ * - Maps: [map:abc123] or [map:AzOP6s-N] → embeds map with short hash (alphanumeric + hyphens)
  * - Anomalies: [anomaly:456] → embeds anomaly result with ID 456
  * 
  * Note: Charts (/t/{id}) and Maps (/m/{hash}) are FRONTEND routes,
@@ -28,6 +28,15 @@ const DEFAULT_CONFIG: Required<EmbedConfig> = {
   className: "visualization-embed",
 };
 
+/** Escape HTML for safe use in attributes and text. */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 /**
  * Generate an iframe embed HTML for a chart.
  * Uses relative URL since /t/{id} is a frontend route.
@@ -35,11 +44,13 @@ const DEFAULT_CONFIG: Required<EmbedConfig> = {
 export function getChartEmbed(chartId: string | number, config: EmbedConfig = {}): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const height = cfg.chartHeight || cfg.height;
+  const shortcode = `[chart:${chartId}]`;
+  const shortcodeEscaped = escapeHtml(shortcode);
   // Relative URL - /t/{id} is a frontend route in this same app
   const url = `/t/${chartId}?embedded=true`;
   
   return `
-    <div class="${cfg.className} chart-embed" data-chart-id="${chartId}">
+    <div class="${cfg.className} chart-embed" data-chart-id="${chartId}" data-shortcode="${shortcodeEscaped}">
       <iframe 
         src="${url}" 
         width="${cfg.width}" 
@@ -49,6 +60,7 @@ export function getChartEmbed(chartId: string | number, config: EmbedConfig = {}
         style="border: none; border-radius: 8px; background: #f8f9fa;"
         title="Chart ${chartId}"
       ></iframe>
+      <span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>
     </div>
   `.trim();
 }
@@ -60,11 +72,13 @@ export function getChartEmbed(chartId: string | number, config: EmbedConfig = {}
 export function getMapEmbed(shortHash: string, config: EmbedConfig = {}): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const height = cfg.mapHeight || cfg.height;
+  const shortcode = `[map:${shortHash}]`;
+  const shortcodeEscaped = escapeHtml(shortcode);
   // Relative URL - /m/{hash} is a frontend route in this same app
   const url = `/m/${shortHash}?embedded=true`;
   
   return `
-    <div class="${cfg.className} map-embed" data-map-hash="${shortHash}">
+    <div class="${cfg.className} map-embed" data-map-hash="${shortHash}" data-shortcode="${shortcodeEscaped}">
       <iframe 
         src="${url}" 
         width="${cfg.width}" 
@@ -74,6 +88,7 @@ export function getMapEmbed(shortHash: string, config: EmbedConfig = {}): string
         style="border: none; border-radius: 8px; background: #f8f9fa;"
         title="Map ${shortHash}"
       ></iframe>
+      <span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>
     </div>
   `.trim();
 }
@@ -85,11 +100,13 @@ export function getMapEmbed(shortHash: string, config: EmbedConfig = {}): string
 export function getAnomalyEmbed(resultId: string | number, config: EmbedConfig = {}): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const height = cfg.anomalyHeight || cfg.height;
+  const shortcode = `[anomaly:${resultId}]`;
+  const shortcodeEscaped = escapeHtml(shortcode);
   // Relative URL - /a/{id} is a frontend route
   const url = `/a/${resultId}?embedded=true`;
   
   return `
-    <div class="${cfg.className} anomaly-embed" data-anomaly-id="${resultId}">
+    <div class="${cfg.className} anomaly-embed" data-anomaly-id="${resultId}" data-shortcode="${shortcodeEscaped}">
       <iframe 
         src="${url}" 
         width="${cfg.width}" 
@@ -99,6 +116,7 @@ export function getAnomalyEmbed(resultId: string | number, config: EmbedConfig =
         style="border: none; border-radius: 8px; background: #f8f9fa;"
         title="Anomaly ${resultId}"
       ></iframe>
+      <span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>
     </div>
   `.trim();
 }
@@ -108,7 +126,7 @@ export function getAnomalyEmbed(resultId: string | number, config: EmbedConfig =
  * 
  * Shortcode patterns:
  * - [chart:123] - Time series chart
- * - [map:abc123] - Saved map by short hash
+ * - [map:abc123] or [map:AzOP6s-N] - Saved map by short hash (alphanumeric + hyphens)
  * - [anomaly:456] - Anomaly detection result
  * 
  * @param html - The HTML content containing shortcodes
@@ -126,8 +144,8 @@ export function processVisualizationShortcodes(html: string, config: EmbedConfig
     return getChartEmbed(chartId, config);
   });
   
-  // Process map shortcodes: [map:abc123] - alphanumeric short hash
-  const mapRegex = /\[map:([a-zA-Z0-9]+)\]/g;
+  // Process map shortcodes: [map:abc123] or [map:AzOP6s-N] - alphanumeric + hyphens
+  const mapRegex = /\[map:([a-zA-Z0-9-]+)\]/g;
   processed = processed.replace(mapRegex, (match, shortHash) => {
     return getMapEmbed(shortHash, config);
   });
@@ -162,8 +180,8 @@ export function extractVisualizationRefs(html: string): {
     charts.push(parseInt(match[1], 10));
   }
   
-  // Extract map hashes
-  const mapMatches = html.matchAll(/\[map:([a-zA-Z0-9]+)\]/g);
+  // Extract map hashes (alphanumeric + hyphens)
+  const mapMatches = html.matchAll(/\[map:([a-zA-Z0-9-]+)\]/g);
   for (const match of mapMatches) {
     maps.push(match[1]);
   }
@@ -182,5 +200,6 @@ export function extractVisualizationRefs(html: string): {
  */
 export function hasVisualizationShortcodes(html: string): boolean {
   if (!html) return false;
-  return /\[(chart|map|anomaly):[^\]]+\]/.test(html);
+  // Match [chart:123], [map:abc-123], [anomaly:456] patterns
+  return /\[(chart|map|anomaly):[a-zA-Z0-9-]+\]/.test(html);
 }

@@ -179,6 +179,11 @@
   color: var(--text-primary);
 }
 
+.anomaly-location {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
 .anomaly-group-info {
   color: var(--text-primary);
 }

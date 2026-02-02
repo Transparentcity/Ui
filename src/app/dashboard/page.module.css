@@ -129,4 +129,13 @@
     padding: 0;
     overflow: hidden;
   }
+
+  .cityViewContainer:has(.city-view.tab-view-active) {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .contentViewActive:has(.city-view.tab-view-active) {
+    overflow-y: auto;
+  }
 }

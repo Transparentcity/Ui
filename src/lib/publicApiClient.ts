@@ -1,5 +1,52 @@
 import { API_BASE } from "./apiBase";
 
+// ============================================================================
+// REQUEST DEDUPLICATION CACHE
+// Prevents duplicate API calls that can happen with React.StrictMode or
+// rapid component re-renders
+// ============================================================================
+
+interface CacheEntry<T> {
+  data: T | null;
+  promise: Promise<T> | null;
+  timestamp: number;
+}
+
+const requestCache: Map<string, CacheEntry<any>> = new Map();
+const CACHE_TTL_MS = 30000; // 30 second cache for public endpoints
+
+function getCachedOrFetch<T>(
+  cacheKey: string,
+  fetchFn: () => Promise<T>,
+  ttlMs: number = CACHE_TTL_MS
+): Promise<T> {
+  const now = Date.now();
+  const cached = requestCache.get(cacheKey);
+  
+  // Return cached data if valid
+  if (cached?.data && (now - cached.timestamp) < ttlMs) {
+    return Promise.resolve(cached.data);
+  }
+  
+  // Return in-flight promise if one exists
+  if (cached?.promise && (now - cached.timestamp) < ttlMs) {
+    return cached.promise;
+  }
+  
+  // Create new request and cache the promise
+  const promise = fetchFn().then((data) => {
+    requestCache.set(cacheKey, { data, promise: null, timestamp: Date.now() });
+    return data;
+  }).catch((err) => {
+    // Clear cache on error
+    requestCache.delete(cacheKey);
+    throw err;
+  });
+  
+  requestCache.set(cacheKey, { data: null, promise, timestamp: now });
+  return promise;
+}
+
 async function requestPublic<T>(path: string): Promise<T> {
   const url = `${API_BASE}${path}`;
 
@@ -282,17 +329,19 @@ export function getPublicMetricComparisons(
     params.set("comparison_types", comparisonTypes);
   }
   const query = params.toString();
-  return requestPublic<PublicMetricComparisons>(
-    `/api/public/metrics/${metricId}/comparisons?${query}`
-  );
+  const path = `/api/public/metrics/${metricId}/comparisons?${query}`;
+  const cacheKey = `metric-comparisons:${metricId}:${district || 0}:${comparisonTypes || ''}`;
+  
+  return getCachedOrFetch(cacheKey, () => requestPublic<PublicMetricComparisons>(path), 120000); // 2 minute cache
 }
 
 export function getPublicMetricTimeSeriesSummary(
   metricId: number
 ): Promise<PublicTimeSeriesSummary> {
-  return requestPublic<PublicTimeSeriesSummary>(
-    `/api/public/metrics/${metricId}/time-series/summary`
-  );
+  const path = `/api/public/metrics/${metricId}/time-series/summary`;
+  const cacheKey = `metric-ts-summary:${metricId}`;
+  
+  return getCachedOrFetch(cacheKey, () => requestPublic<PublicTimeSeriesSummary>(path), 120000); // 2 minute cache
 }
 
 // Period completeness information
@@ -437,8 +486,9 @@ export function getPublicMetricMap(
   if (district !== undefined && district !== null && district > 0) {
     params.set("district", String(district));
   }
-  return requestPublic<PublicMapResponse>(
-    `/api/public/metrics/${metricId}/map?${params.toString()}`
-  );
+  const path = `/api/public/metrics/${metricId}/map?${params.toString()}`;
+  const cacheKey = `metric-map:${metricId}:${periodType}:${district || 0}`;
+  
+  return getCachedOrFetch(cacheKey, () => requestPublic<PublicMapResponse>(path), 60000); // 1 minute cache
 }
 

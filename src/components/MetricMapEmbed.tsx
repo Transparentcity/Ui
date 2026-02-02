@@ -42,9 +42,10 @@ export default function MetricMapEmbed({
   // Track if map is not available (404 or missing map_query)
   const [mapNotAvailable, setMapNotAvailable] = useState(false);
   
-  // Fetch map hash for current period
+  // Fetch map hash for current period with timeout
   useEffect(() => {
     let mounted = true;
+    let timeoutId: NodeJS.Timeout | null = null;
     
     // Reset map data when period changes
     setMapData(null);
@@ -54,12 +55,32 @@ export default function MetricMapEmbed({
       try {
         setLoading(true);
         setError(null);
+        
+        // Add timeout for map hash fetch (5 seconds)
+        const controller = new AbortController();
+        timeoutId = setTimeout(() => {
+          controller.abort();
+        }, 5000);
+        
         const response = await getPublicMetricMap(metricId, selectedPeriod, district);
+        
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        
         if (mounted) {
           setMapHash(response.map_hash);
         }
       } catch (err) {
         if (mounted) {
+          // Check if it's a timeout
+          if (err instanceof Error && err.name === 'AbortError') {
+            setMapNotAvailable(true);
+            setError(null);
+            return;
+          }
+          
           // Check if it's a 404 (map not available) vs other error
           const is404 = (err as any)?.status === 404 || 
                        (err instanceof Error && (
@@ -79,31 +100,55 @@ export default function MetricMapEmbed({
         if (mounted) {
           setLoading(false);
         }
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
       }
     }
     
     fetchMapHash();
     return () => {
       mounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [metricId, selectedPeriod, district]);
 
-  // Fetch map data when hash is available
+  // Fetch map data when hash is available (with timeout)
   useEffect(() => {
     if (!mapHash) return;
     const hash = mapHash;
 
     let mounted = true;
+    let timeoutId: NodeJS.Timeout | null = null;
 
     async function fetchMapData() {
       try {
+        // Add timeout for map data fetch (8 seconds - it can be larger)
+        const controller = new AbortController();
+        timeoutId = setTimeout(() => {
+          controller.abort();
+        }, 8000);
+        
         const data = await getPublicMap(hash);
+        
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        
         if (mounted) {
           setMapData(data);
         }
       } catch (err) {
         if (mounted) {
-          setError(err instanceof Error ? err.message : "Failed to load map data");
+          // On timeout or error, show "not available" instead of error
+          if (err instanceof Error && err.name === 'AbortError') {
+            setMapNotAvailable(true);
+          } else {
+            setError(err instanceof Error ? err.message : "Failed to load map data");
+          }
         }
       }
     }
@@ -111,6 +156,9 @@ export default function MetricMapEmbed({
     fetchMapData();
     return () => {
       mounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [mapHash]);
 
@@ -142,11 +190,46 @@ export default function MetricMapEmbed({
     }
   };
 
+  // Total count for caption: use sum of values (YTD-style), not number of districts/points
+  const getTotalCount = (): number | null => {
+    if (!mapData) return null;
+    const aggregations = mapData.map_config?.aggregations as Record<string, { rows?: Array<{ value?: number; count?: number }> }> | undefined;
+    if (aggregations && typeof aggregations === "object") {
+      const keys = Object.keys(aggregations);
+      for (const key of keys) {
+        const agg = aggregations[key];
+        const rows = agg?.rows;
+        if (Array.isArray(rows) && rows.length > 0) {
+          const total = rows.reduce(
+            (sum, row) => sum + (Number(row?.value ?? row?.count ?? 0) || 0),
+            0
+          );
+          if (total > 0) return total;
+        }
+      }
+    }
+    const loc = mapData.location_data;
+    if (Array.isArray(loc) && loc.length > 0) {
+      const first = loc[0] as Record<string, unknown>;
+      if (first && (typeof first.value === "number" || typeof first.count === "number")) {
+        const total = loc.reduce(
+          (sum, p: Record<string, unknown>) =>
+            sum + (Number((p as any)?.value ?? (p as any)?.count ?? 0) || 0),
+          0
+        );
+        if (total > 0) return total;
+      }
+      // Point map: each row is one incident
+      return loc.length;
+    }
+    return null;
+  };
+
   // Build caption text
   const buildCaption = (): string => {
     if (!mapData || !metricName) return "";
     
-    const pointCount = mapData.location_data?.length || 0;
+    const totalCount = getTotalCount();
     const locationLabel = district && district > 0 ? `District ${district}` : "citywide";
     
     // Try to get date range from map metadata first, then from props
@@ -159,7 +242,9 @@ export default function MetricMapEmbed({
     
     if (!dateRangeStr) return "";
     
-    return `There ${pointCount === 1 ? "was" : "were"} ${pointCount.toLocaleString()} ${metricName.toLowerCase()} ${itemNoun.toLowerCase()} ${district && district > 0 ? `in ${locationLabel}` : `citywide`} from ${dateRangeStr}.`;
+    if (totalCount === null) return "";
+    
+    return `There ${totalCount === 1 ? "was" : "were"} ${totalCount.toLocaleString()} ${metricName.toLowerCase()} ${itemNoun.toLowerCase()} ${district && district > 0 ? `in ${locationLabel}` : `citywide`} from ${dateRangeStr}.`;
   };
 
   const caption = buildCaption();

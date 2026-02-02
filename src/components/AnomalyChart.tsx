@@ -28,6 +28,8 @@ export interface AnomalyMetadata {
   caption?: string;
   city_name?: string;
   district?: number;
+  /** "Citywide" or "District N" from chart_payload.subtitle */
+  subtitle?: string;
 }
 
 export interface AnomalyChartProps {
@@ -248,22 +250,24 @@ export default function AnomalyChart({
     const metricName =
       metadata?.object_name || metadata?.field_name || "Metric";
     
-    // Build location text (city + district/citywide)
-    let locationText = "";
-    if (metadata?.city_name) {
-      locationText = metadata.city_name;
-      const district = metadata.district !== undefined ? metadata.district : undefined;
-      if (district !== undefined && district !== 0) {
-        locationText += `, District ${district}`;
-      } else if (district === 0) {
-        locationText += " (Citywide)";
-      }
-    } else {
-      const district = metadata?.district;
-      if (district !== undefined && district !== 0) {
-        locationText = `District ${district}`;
+    // Build location text (city + district/citywide); prefer chart_payload.subtitle when set
+    let locationText = metadata?.subtitle ?? "";
+    if (!locationText) {
+      if (metadata?.city_name) {
+        locationText = metadata.city_name;
+        const district = metadata.district !== undefined ? metadata.district : undefined;
+        if (district !== undefined && district !== 0) {
+          locationText += `, District ${district}`;
+        } else if (district === 0) {
+          locationText += " (Citywide)";
+        }
       } else {
-        locationText = "Citywide";
+        const district = metadata?.district;
+        if (district !== undefined && district !== 0) {
+          locationText = `District ${district}`;
+        } else {
+          locationText = "Citywide";
+        }
       }
     }
     

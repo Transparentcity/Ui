@@ -913,6 +913,7 @@ export default function AnomalyChartPage() {
               const groupField = anomaly.metadata?.group_field_name || anomaly.group_field;
               const groupValue = anomaly.metadata?.group_value || anomaly.group_value;
               
+              const locationLabel = anomaly.district === 0 ? "Citywide" : `District ${anomaly.district}`;
               return (
                 <>
                   <h1 className="anomaly-title">
@@ -921,6 +922,8 @@ export default function AnomalyChartPage() {
                   {cityName && (
                     <div className="anomaly-subtitle">
                       <span className="anomaly-city">{cityName}</span>
+                      <span className="anomaly-separator">•</span>
+                      <span className="anomaly-location">{locationLabel}</span>
                       {groupField && groupValue && (
                         <>
                           <span className="anomaly-separator">•</span>
@@ -937,18 +940,22 @@ export default function AnomalyChartPage() {
                       )}
                     </div>
                   )}
-                  {!cityName && (groupField && groupValue || recentDateDisplay) && (
+                  {!cityName && (
                     <div className="anomaly-subtitle">
+                      <span className="anomaly-location">{locationLabel}</span>
                       {groupField && groupValue && (
-                        <span className="anomaly-group-info">
-                          {groupField}: <strong>{groupValue}</strong>
-                        </span>
-                      )}
-                      {groupField && groupValue && recentDateDisplay && (
-                        <span className="anomaly-separator">•</span>
+                        <>
+                          <span className="anomaly-separator">•</span>
+                          <span className="anomaly-group-info">
+                            {groupField}: <strong>{groupValue}</strong>
+                          </span>
+                        </>
                       )}
                       {recentDateDisplay && (
-                        <span className="anomaly-date">{recentDateDisplay}</span>
+                        <>
+                          {(groupField && groupValue) && <span className="anomaly-separator">•</span>}
+                          <span className="anomaly-date">{recentDateDisplay}</span>
+                        </>
                       )}
                     </div>
                   )}

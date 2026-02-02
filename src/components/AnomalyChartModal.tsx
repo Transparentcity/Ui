@@ -143,6 +143,9 @@ export default function AnomalyChartModal({
                     group_value: anomalyDetail.group_value ?? undefined,
                     city_name: anomalyDetail.city_name ?? undefined,
                     district: anomalyDetail.district,
+                    subtitle:
+                      (anomalyDetail.chart_payload as { subtitle?: string } | undefined)
+                        ?.subtitle ?? undefined,
                   }}
                   height={400}
                 />

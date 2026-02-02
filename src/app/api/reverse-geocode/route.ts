@@ -1,32 +1,45 @@
 import { NextResponse } from "next/server";
 
-type NominatimReverseResult = {
-  lat?: string;
-  lon?: string;
-  display_name?: string;
-  address?: {
-    city?: string;
-    town?: string;
-    village?: string;
-    hamlet?: string;
-    municipality?: string;
-    county?: string;
-    state?: string;
-    country?: string;
-    postcode?: string;
-  };
+type MapboxFeature = {
+  id: string;
+  type: string;
+  place_type: string[];
+  relevance: number;
+  text: string;
+  place_name: string;
+  center: [number, number]; // [longitude, latitude]
+  context?: Array<{
+    id: string;
+    text: string;
+    short_code?: string;
+  }>;
 };
 
-function extractCityName(address?: NominatimReverseResult["address"]): string | null {
-  if (!address) return null;
-  return (
-    address.city ||
-    address.town ||
-    address.village ||
-    address.municipality ||
-    address.hamlet ||
-    null
-  );
+type MapboxResponse = {
+  type: string;
+  query: [number, number];
+  features: MapboxFeature[];
+};
+
+function extractContextValue(
+  context: MapboxFeature["context"],
+  prefix: string
+): string | null {
+  if (!context) return null;
+  const item = context.find((c) => c.id.startsWith(prefix));
+  return item?.text || null;
+}
+
+function extractCityName(feature: MapboxFeature): string | null {
+  // For places, the text field contains the place name
+  if (
+    feature.place_type.includes("place") ||
+    feature.place_type.includes("locality")
+  ) {
+    return feature.text;
+  }
+  // For addresses or other types, get the place from context
+  return extractContextValue(feature.context, "place.") || feature.text;
 }
 
 export async function GET(req: Request): Promise<Response> {
@@ -38,49 +51,93 @@ export async function GET(req: Request): Promise<Response> {
     return NextResponse.json({ error: "Missing lat/lng" }, { status: 400 });
   }
 
-  const upstreamUrl = new URL("https://nominatim.openstreetmap.org/reverse");
-  upstreamUrl.searchParams.set("format", "jsonv2");
-  upstreamUrl.searchParams.set("addressdetails", "1");
-  upstreamUrl.searchParams.set("lat", lat);
-  upstreamUrl.searchParams.set("lon", lng);
-
-  const upstreamRes = await fetch(upstreamUrl.toString(), {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "transparentcity-ui/1.0 (reverse-geocode proxy)",
-    },
-    cache: "no-store",
-  });
-
-  if (!upstreamRes.ok) {
-    const text = await upstreamRes.text().catch(() => "");
+  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  if (!mapboxToken) {
+    console.error("NEXT_PUBLIC_MAPBOX_TOKEN not configured");
     return NextResponse.json(
-      { error: "Upstream reverse geocoding failed", details: text },
-      { status: 502 },
+      { error: "Geocoding service not configured" },
+      { status: 500 }
     );
   }
 
-  const data = (await upstreamRes.json()) as NominatimReverseResult;
+  // Mapbox reverse geocoding uses longitude,latitude order
+  // https://docs.mapbox.com/api/search/geocoding/#reverse-geocoding
+  const coordinates = `${lng},${lat}`;
+  const upstreamUrl = new URL(
+    `https://api.mapbox.com/geocoding/v5/mapbox.places/${coordinates}.json`
+  );
 
-  return NextResponse.json({
-    lat: data.lat || lat,
-    lon: data.lon || lng,
-    display_name: data.display_name || null,
-    address: data.address || null,
-    cityName: extractCityName(data.address),
-    stateName: data.address?.state || null,
-    countryName: data.address?.country || null,
-  });
+  upstreamUrl.searchParams.set("access_token", mapboxToken);
+  upstreamUrl.searchParams.set(
+    "types",
+    "place,locality,neighborhood,address,postcode"
+  );
+  upstreamUrl.searchParams.set("limit", "1");
+
+  try {
+    const upstreamRes = await fetch(upstreamUrl.toString(), {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    });
+
+    if (!upstreamRes.ok) {
+      const text = await upstreamRes.text().catch(() => "");
+      console.error("Mapbox reverse geocoding failed:", upstreamRes.status, text);
+      return NextResponse.json(
+        { error: "Upstream reverse geocoding failed", details: text },
+        { status: 502 }
+      );
+    }
+
+    const data = (await upstreamRes.json()) as MapboxResponse;
+
+    if (!data.features || data.features.length === 0) {
+      // Return coordinates even if no place found
+      return NextResponse.json({
+        lat,
+        lon: lng,
+        display_name: null,
+        address: null,
+        cityName: null,
+        stateName: null,
+        countryName: null,
+      });
+    }
+
+    const top = data.features[0];
+    const [longitude, latitude] = top.center;
+
+    // Extract location data from Mapbox response
+    const cityName = extractCityName(top);
+    const stateName = extractContextValue(top.context, "region.");
+    const countryName = extractContextValue(top.context, "country.");
+    const postcode =
+      top.place_type.includes("postcode")
+        ? top.text
+        : extractContextValue(top.context, "postcode.");
+
+    return NextResponse.json({
+      lat: latitude.toString(),
+      lon: longitude.toString(),
+      display_name: top.place_name,
+      address: {
+        city: cityName,
+        state: stateName,
+        country: countryName,
+        postcode: postcode,
+      },
+      cityName,
+      stateName,
+      countryName,
+    });
+  } catch (error) {
+    console.error("Reverse geocoding error:", error);
+    return NextResponse.json(
+      { error: "Reverse geocoding request failed" },
+      { status: 500 }
+    );
+  }
 }
-
-
-
-
-
-
-
-
-
-
-

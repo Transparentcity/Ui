@@ -74,8 +74,7 @@ export const TEMPLATE_CONFIG: TemplateConfig[] = [
   
   // Services Category
   {
-    template_id: 3, // 311 Calls
-    // TODO: Verify actual template_id from database
+    template_id: 19, // 311 Calls
     category: "services",
     subcategory: "311",
     displayName: "311 Calls",

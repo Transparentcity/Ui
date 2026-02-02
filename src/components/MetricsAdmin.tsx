@@ -7,6 +7,7 @@ import {
   type CreateAdminMetricRequest,
   type UpdateAdminMetricRequest,
   invalidateAdminMetricMapCache,
+  getDefaultExecuteStartDateByPeriod,
 } from "@/lib/apiClient";
 import {
   useMetrics,
@@ -311,16 +312,19 @@ export default function MetricsAdmin() {
   };
 
   const openExecuteModal = (metricId: number) => {
-    // Set default values: Daily period from Jan 1, 2023 to today
     const today = new Date();
-    const startDate = new Date(2023, 0, 1); // Jan 1, 2023
-    const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    
+    const endDate = today.toISOString().split("T")[0];
+    const periodType = "day";
     setExecuteMetricId(metricId);
-    setExecutePeriodType("day");
-    setExecuteStartDate(startDate.toISOString().split('T')[0]);
-    setExecuteEndDate(endDate.toISOString().split('T')[0]);
+    setExecutePeriodType(periodType);
+    setExecuteStartDate(getDefaultExecuteStartDateByPeriod(periodType));
+    setExecuteEndDate(endDate);
     setShowExecuteModal(true);
+  };
+
+  const onExecutePeriodTypeChange = (newPeriodType: string) => {
+    setExecutePeriodType(newPeriodType);
+    setExecuteStartDate(getDefaultExecuteStartDateByPeriod(newPeriodType));
   };
 
   const closeExecuteModal = () => {
@@ -1304,7 +1308,7 @@ export default function MetricsAdmin() {
                 </label>
                 <select
                   value={executePeriodType}
-                  onChange={(e) => setExecutePeriodType(e.target.value)}
+                  onChange={(e) => onExecutePeriodTypeChange(e.target.value)}
                   style={{
                     width: "100%",
                     padding: 8,

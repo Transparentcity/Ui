@@ -335,9 +335,6 @@ export default function Home() {
               <div className="hero-text">
                 <span className="badge">📊 Your city's data, made clear</span>
                 <h1 className="hero-title">Your City Just Got Easier to Understand</h1>
-                <p className="hero-subhead" style={{ fontSize: "1.1rem", fontWeight: 500, marginTop: "0.5rem", marginBottom: "1rem", color: "var(--text-secondary)" }}>
-                  For city staff or residents
-                </p>
                 <p className="hero-description">
                   See what's changing in your city. Get clear, source-linked views 
                   of the metrics, trends, and issues that matter to you— 
@@ -415,44 +412,6 @@ export default function Home() {
                   </div>
                 </div>
 
-                {isAuthenticated && (
-                  <>
-                    <div className="hero-cta" style={{ gap: 12, flexWrap: "wrap" }}>
-                      <button
-                        className="btn btn-primary btn-large"
-                        onClick={() => handleSignup("resident")}
-                        disabled={isLoading}
-                      >
-                        Go to Dashboard
-                      </button>
-                      <button
-                        className="btn btn-secondary btn-large"
-                        onClick={() => handleSignup("public-servant")}
-                        disabled={isLoading}
-                      >
-                        Dashboard (Staff)
-                      </button>
-                      <a
-                        href="https://dashboard.transparentsf.com/citywide/daniel-lurie/map"
-                        className="btn btn-outline btn-large"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Explore San Francisco
-                      </a>
-                    </div>
-
-                    {user && (
-                      <div style={{ marginTop: 12, fontSize: "0.9rem", color: "var(--text-secondary)" }}>
-                        Signed in as {user.email || user.name}
-                      </div>
-                    )}
-
-                    <div style={{ marginTop: 10, fontSize: "0.9rem", color: "var(--text-secondary)" }}>
-                      Working in government? <Link href="/pro">Start here</Link>.
-                    </div>
-                  </>
-                )}
               </div>
             </div>
           </div>
@@ -460,9 +419,9 @@ export default function Home() {
 
         <section className={styles.section} id="who-this-is-for">
           <div className={styles.container}>
-            <h2 className={styles.sectionTitle}>Built for how you work</h2>
+            <h2 className={styles.sectionTitle}>Giving you the clarity you want</h2>
             <p className={styles.sectionLead}>
-              Get the clarity you need: understand your city as a resident, and make smarter decisions as city staff.
+              For city staff: track what's changing in your area of focus and see what solutions are working. For residents: understand what's going on with your city through clear, data-driven insights.
             </p>
 
             <div className={styles.grid}>
@@ -551,6 +510,64 @@ export default function Home() {
             </div>
           </div>
         </section>
+
+        {/* CTA Section */}
+        <section className="cta">
+          <div className="container">
+            <div className="cta-content">
+              <h2 className="cta-title">Ready to See How Your City Is Really Doing?</h2>
+              <p className="cta-description">
+                Start with San Francisco today. Use shared, verifiable facts to
+                recognize what's working, question what isn't, and keep
+                conversations between residents, advocates, and officials grounded
+                in reality.
+              </p>
+              <div className="cta-buttons">
+                <a
+                  className="btn btn-primary btn-large"
+                  href="https://dashboard.transparentsf.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Open the SF Dashboard
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M4 10H16M16 10L12 6M16 10L12 14"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </a>
+                <a href="/pro" className="btn btn-outline btn-large">
+                  Partner or Join the Team
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
 
       <footer className={styles.footer}>
@@ -564,7 +581,10 @@ export default function Home() {
                 Facts for residents. Evidence for city staff. Accountability for everyone.
                 <br />
                 <br />
-                Independent &amp; nonpartisan. All data is sourced from official city open data portals with documented queries and direct links.
+                All data is sourced from official city open data portals with documented queries and direct links.
+                <br />
+                <br />
+                &copy; 2026 Transparent.city
               </div>
             </div>
             <div>
@@ -574,7 +594,7 @@ export default function Home() {
                   Learn more
                 </Link>
                 <Link className={styles.link} href="/pro">
-                  Pro
+                  Add Your City
                 </Link>
                 <Link className={styles.link} href="/debug/health">
                   API health
