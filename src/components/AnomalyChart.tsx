@@ -331,7 +331,7 @@ export default function AnomalyChart({
       pad: { t: 5, b: 5 },
     },
     xaxis: {
-      title: "",
+      title: { text: "" },
       showgrid: false,
       tickformat: anomaly.period_type === "week" ? "%b %d, %Y" : "%b %Y",
       tickfont: {

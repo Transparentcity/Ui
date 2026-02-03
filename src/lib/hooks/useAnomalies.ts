@@ -66,6 +66,8 @@ export function useAnomalies(options?: {
   period_type?: string; 
   period_date?: string | null;
   limit?: number;
+  city_id?: number;
+  district?: number | null;
 }) {
   const { getAccessTokenSilently } = useAuth0();
 
@@ -164,7 +166,7 @@ export function useCityAnomalies(
         district: options?.district ?? undefined,
         period_type: options?.period_type,
         is_anomaly: options?.is_anomaly ?? true,
-        limit: options?.limit ?? 100,
+        limit: options?.limit ?? 200, // Backend max limit is 200
         period_date: options?.period_date ?? undefined,
       });
     },

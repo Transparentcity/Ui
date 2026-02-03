@@ -1549,7 +1549,7 @@ export interface JobsListResponse {
   total: number;
 }
 
-export function listJobs(
+export async function listJobs(
   token: string,
   limit: number = 20,
   status?: string,
@@ -1562,7 +1562,14 @@ export function listJobs(
   
   const query = params.toString();
   const path = `/api/jobs${query ? `?${query}` : ""}`;
-  return request<JobsListResponse>(path, "GET", undefined, token);
+  
+  try {
+    return await request<JobsListResponse>(path, "GET", undefined, token);
+  } catch (error) {
+    // Return empty result if jobs API is unavailable
+    // This makes the jobs system optional for CRM-only usage
+    return { jobs: [], total: 0 };
+  }
 }
 
 export function getJob(jobId: string, token: string): Promise<Job> {
