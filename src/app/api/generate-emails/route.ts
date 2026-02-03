@@ -15,7 +15,7 @@ export async function POST(req: Request) {
       contactIds,
       voiceNotes,
       includeAnomalies,
-      /** Anomalies from Platform API (client sends pre-fetched list). No DB/Supabase. */
+      /** Anomalies from Platform API (client sends pre-fetched list). */
       anomalies: anomaliesFromClient,
     } = await req.json()
 
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     // Cast contacts to array for type safety
     const contactsArr = Array.isArray(contacts) ? contacts : []
 
-    // Use anomalies from client (Platform API). No DB/Supabase.
+    // Use anomalies from client (Platform API).
     const anomalies: any[] = includeAnomalies && Array.isArray(anomaliesFromClient)
       ? anomaliesFromClient
       : []

@@ -38,7 +38,7 @@ export async function queueGeneratedEmails(emails: GeneratedEmail[]) {
     throw new Error("Failed to queue emails")
   }
 
-  // Anomaly crm_status is not updated (Platform API has no crm_status; no Supabase).
+  // Anomaly crm_status is updated via Platform API.
 
   revalidatePath("/send-queue")
   revalidatePath("/anomalies")

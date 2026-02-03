@@ -400,8 +400,8 @@ async def list_metrics(
 **Problem**: Static assets served from application server
 
 **Solution**: 
-- Use Vercel's CDN (already using Vercel)
-- Or configure CloudFlare/CDN for API static assets
+- Use a CDN for static assets (CloudFlare, Cloud CDN, etc.)
+- Configure caching headers for static assets
 
 **Expected Impact**:
 - **50-70% faster** asset loading globally

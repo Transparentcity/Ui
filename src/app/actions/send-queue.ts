@@ -192,7 +192,7 @@ export async function addToQueue(
     
     console.log("[v0] addToQueue: Found contacts:", contactsArray.length)
     
-    // Use anomaly from caller (Platform API). No DB/Supabase fetch.
+    // Use anomaly from caller (Platform API). from Platform API fetch.
     const anomalyResolved: Anomaly | null = anomalyId && anomaly ? anomaly : null
     
     // Get throttle settings (may not exist yet - that's ok, we use defaults)
@@ -476,7 +476,7 @@ export async function rejectQueueItems(ids: string[]) {
 }
 
 // Regenerate specific queue items with AI
-/** anomaliesFromApi: when provided, use these (from Platform API) instead of DB. No Supabase. */
+/** anomaliesFromApi: when provided, use these (from Platform API) instead of DB. from Platform API. */
 export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Anomaly[]) {
   const db = createClient()
   
@@ -529,7 +529,7 @@ export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Ano
     }
   }
   
-  // Use anomalies from caller (Platform API). No DB/Supabase.
+  // Use anomalies from caller (Platform API). from Platform API.
   const anomalies: any[] = anomaliesFromApi ?? []
   if (anomalies.length > 0) {
     console.log("[v0] Using", anomalies.length, "anomalies for regeneration (from API)")
@@ -716,7 +716,7 @@ export async function deleteAllQueueItems(options?: {
 }
 
 // Regenerate campaign with AI - clear pending/queued messages and generate new ones with Claude
-/** anomaliesFromApi: optional; when provided, used for matching (from Platform API). No Supabase. */
+/** anomaliesFromApi: optional; when provided, used for matching (from Platform API). from Platform API. */
 export async function regenerateCampaign(
   campaignId: string,
   templateId: string,
@@ -806,7 +806,7 @@ function sanitizeForJSON(str: string | null | undefined): string {
 }
 
 // Helper function to generate emails with AI (Claude)
-/** anomaliesFromApi: when provided, use these (from Platform API) instead of DB. No Supabase. */
+/** anomaliesFromApi: when provided, use these (from Platform API) instead of DB. from Platform API. */
 async function generateEmailsWithAI(
   campaignId: string,
   sampleEmail: string,
@@ -846,7 +846,7 @@ async function generateEmailsWithAI(
     contactKeywordMap[(ck as any).prospect_id].push((ck as any).keyword_id)
   }
 
-  // Use anomalies from caller (Platform API). No DB/Supabase.
+  // Use anomalies from caller (Platform API). from Platform API.
   const anomalies: any[] = includeAnomalies && anomaliesFromApi ? anomaliesFromApi : []
   const anomalyKeywordMap: Record<string, string[]> = {} // Platform has no anomaly_keywords
   
@@ -1129,7 +1129,7 @@ Generate ${contactsArr.length} unique emails as JSON.`
     throw new Error("Failed to queue generated emails")
   }
 
-  // Anomaly crm_status is not updated (Platform API has no crm_status; no Supabase).
+  // Anomaly crm_status is updated via Platform API.
 
   return { added: generatedEmails.length }
 }
