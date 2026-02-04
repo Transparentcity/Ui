@@ -49,6 +49,10 @@ import {
   useAnomalies,
   useAnomalyDetail,
 } from "@/lib/hooks/useAnomalies";
+import {
+  useCityShapeLayers,
+  useUpdateShapeLayerInstance,
+} from "@/lib/hooks/useCities";
 import styles from "./CityDataAdmin.module.css";
 import metricStyles from "./MetricsAdmin.module.css";
 
@@ -131,6 +135,245 @@ interface CityDataAdminProps {
   cityId: number;
   onBack?: () => void;
   embedded?: boolean;
+}
+
+/**
+ * Shape Layers Section Component
+ * Displays shape layer instances and allows editing identifier field aliases
+ */
+function ShapeLayersSection({ cityId }: { cityId: number }) {
+  const { data: shapeLayers, isLoading, refetch } = useCityShapeLayers(cityId, false);
+  const updateMutation = useUpdateShapeLayerInstance(cityId);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingAliases, setEditingAliases] = useState<string[]>([]);
+
+  const handleEditAliases = (instance: any) => {
+    setEditingId(instance.id);
+    setEditingAliases(instance.identifier_field_aliases || []);
+  };
+
+  const handleSaveAliases = async (instanceId: number) => {
+    try {
+      // Filter out empty strings
+      const cleanAliases = editingAliases.filter((a) => a.trim() !== "");
+      await updateMutation.mutateAsync({
+        instanceId,
+        updates: { identifier_field_aliases: cleanAliases },
+      });
+      setEditingId(null);
+      setEditingAliases([]);
+      await refetch();
+    } catch (err: any) {
+      alert("Failed to update aliases: " + err.message);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditingAliases([]);
+  };
+
+  // Get instances that exist (have been fetched/created)
+  const instances = (shapeLayers || [])
+    .filter((layer: any) => layer.instance !== null)
+    .map((layer: any) => layer.instance);
+
+  return (
+    <div
+      style={{
+        marginBottom: "24px",
+        border: "1px solid var(--border-primary)",
+        borderRadius: "8px",
+        padding: "16px",
+        background: "var(--bg-primary)",
+      }}
+    >
+      <h4 style={{ margin: "0 0 12px 0" }}>
+        Shape Layers {instances.length > 0 ? `(${instances.length})` : ""}
+      </h4>
+      <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "12px" }}>
+        Shape layers define geographic boundaries for choropleth maps. You can add <strong>field name aliases</strong> to 
+        match datasets that use different field names for the same geographic unit (e.g., &quot;pddistrict&quot; for Police Districts).
+      </div>
+
+      {isLoading ? (
+        <div style={{ padding: "12px", textAlign: "center" }}>Loading shape layers...</div>
+      ) : instances.length === 0 ? (
+        <div style={{ fontSize: "12px", color: "var(--text-secondary)", padding: "12px" }}>
+          No shape layers found. Run &quot;Re-load All&quot; in Geographic Structures above to fetch shape layers.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {instances.map((instance: any) => (
+            <div
+              key={instance.id}
+              style={{
+                padding: "12px",
+                border: "1px solid var(--border-primary)",
+                borderRadius: "6px",
+                background: "var(--bg-secondary)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "13px" }}>
+                    {instance.shapefile_name || instance.structure_type}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px" }}>
+                    ID: {instance.id} | Type: {instance.structure_type} | Features: {instance.feature_count || "?"} |{" "}
+                    Status: <span style={{ color: instance.status === "active" ? "#10b981" : "#f59e0b" }}>{instance.status}</span>
+                  </div>
+                </div>
+                {editingId !== instance.id && (
+                  <button
+                    onClick={() => handleEditAliases(instance)}
+                    style={{
+                      padding: "4px 10px",
+                      background: "var(--brand-primary)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                      fontSize: "11px",
+                    }}
+                  >
+                    Edit Aliases
+                  </button>
+                )}
+              </div>
+
+              {/* Identifier Field Info */}
+              <div style={{ fontSize: "12px", marginBottom: "8px" }}>
+                <strong>Identifier Field:</strong>{" "}
+                <code style={{ background: "var(--bg-tertiary)", padding: "2px 6px", borderRadius: "3px" }}>
+                  {instance.identifier_field || "(not set)"}
+                </code>
+              </div>
+
+              {/* Aliases display/edit */}
+              {editingId === instance.id ? (
+                <div style={{ marginTop: "8px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 600, marginBottom: "6px", color: "var(--text-secondary)" }}>
+                    Field Name Aliases:
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {editingAliases.map((alias, index) => (
+                      <div key={index} style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                        <input
+                          type="text"
+                          value={alias}
+                          onChange={(e) => {
+                            const newAliases = [...editingAliases];
+                            newAliases[index] = e.target.value;
+                            setEditingAliases(newAliases);
+                          }}
+                          placeholder="e.g., pddistrict"
+                          style={{
+                            flex: 1,
+                            padding: "4px 8px",
+                            border: "1px solid var(--border-primary)",
+                            borderRadius: "4px",
+                            background: "var(--bg-tertiary)",
+                            color: "var(--text-primary)",
+                            fontSize: "12px",
+                          }}
+                        />
+                        <button
+                          onClick={() => {
+                            const newAliases = editingAliases.filter((_, i) => i !== index);
+                            setEditingAliases(newAliases);
+                          }}
+                          style={{
+                            padding: "4px 8px",
+                            background: "#ef4444",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontSize: "11px",
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => setEditingAliases([...editingAliases, ""])}
+                      style={{
+                        padding: "4px 10px",
+                        background: "transparent",
+                        color: "var(--brand-primary)",
+                        border: "1px dashed var(--brand-primary)",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        fontSize: "11px",
+                        alignSelf: "flex-start",
+                      }}
+                    >
+                      + Add Alias
+                    </button>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+                    <button
+                      onClick={() => handleSaveAliases(instance.id)}
+                      disabled={updateMutation.isPending}
+                      style={{
+                        padding: "6px 12px",
+                        background: "#10b981",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: updateMutation.isPending ? "not-allowed" : "pointer",
+                        fontSize: "11px",
+                        opacity: updateMutation.isPending ? 0.6 : 1,
+                      }}
+                    >
+                      {updateMutation.isPending ? "Saving..." : "Save Aliases"}
+                    </button>
+                    <button
+                      onClick={handleCancelEdit}
+                      style={{
+                        padding: "6px 12px",
+                        background: "var(--bg-tertiary)",
+                        color: "var(--text-primary)",
+                        border: "1px solid var(--border-primary)",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        fontSize: "11px",
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: "12px" }}>
+                  <strong>Aliases:</strong>{" "}
+                  {(instance.identifier_field_aliases || []).length > 0 ? (
+                    instance.identifier_field_aliases.map((alias: string, i: number) => (
+                      <code
+                        key={i}
+                        style={{
+                          background: "var(--bg-tertiary)",
+                          padding: "2px 6px",
+                          borderRadius: "3px",
+                          marginRight: "4px",
+                        }}
+                      >
+                        {alias}
+                      </code>
+                    ))
+                  ) : (
+                    <span style={{ color: "var(--text-secondary)", fontStyle: "italic" }}>none configured</span>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function CityDataAdmin({
@@ -1811,6 +2054,9 @@ export default function CityDataAdmin({
               </button>
             </div>
           </div>
+
+          {/* Shape Layers Box */}
+          <ShapeLayersSection cityId={cityId} />
 
           {/* Elected Officials Box */}
           {(() => {

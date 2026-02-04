@@ -193,6 +193,8 @@ export default function MetricDetailModal({
   }, [metric?.city_id]);
 
   const comparison = comparisonsQuery.data?.comparisons[selectedPeriod];
+  // Consider "loading" if actively fetching OR if we don't have comparison data yet for the selected period
+  const isComparisonsLoading = comparisonsQuery.isLoading || comparisonsQuery.isFetching || (!comparisonsQuery.isError && !comparison);
   const isLoading = metricQuery.isLoading;
   const error = metricQuery.error;
 
@@ -252,12 +254,14 @@ export default function MetricDetailModal({
         mtd_prior_year: { previous: "Last Year", current: "This Year" },
       };
 
-  const formatValue = (value: number | null | undefined): string => {
+  const formatValue = (value: number | null | undefined, loading?: boolean): string => {
+    if (loading) return "Loading...";
     if (value === null || value === undefined) return "No data";
     return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
   };
 
-  const formatDateRange = (start: string | null | undefined, end: string | null | undefined): string => {
+  const formatDateRange = (start: string | null | undefined, end: string | null | undefined, loading?: boolean): string => {
+    if (loading) return "Loading...";
     if (!start || !end) return "—";
     const startDate = new Date(start);
     const endDate = new Date(end);
@@ -466,26 +470,26 @@ export default function MetricDetailModal({
                 </div>
                 <div className="metric-comparison-grid">
                   {/* Previous period on LEFT */}
-                  <div className="comparison-card">
+                  <div className={`comparison-card${isComparisonsLoading ? " loading" : ""}`}>
                     <div className="comparison-label">{comparisonLabels[selectedPeriod].previous}</div>
                     <div className="comparison-dates">
-                      {formatDateRange(comparison?.comparison_period_start, comparison?.comparison_period_end)}
+                      {formatDateRange(comparison?.comparison_period_start, comparison?.comparison_period_end, isComparisonsLoading)}
                     </div>
-                    <div className="comparison-value">{formatValue(comparison?.comparison_period_value)}</div>
+                    <div className="comparison-value">{formatValue(comparison?.comparison_period_value, isComparisonsLoading)}</div>
                     <div className="comparison-unit">{metric.item_noun}</div>
                   </div>
                   <div className="comparison-vs">→</div>
                   {/* Current period on RIGHT */}
-                  <div className="comparison-card">
+                  <div className={`comparison-card${isComparisonsLoading ? " loading" : ""}`}>
                     <div className="comparison-label">{comparisonLabels[selectedPeriod].current}</div>
                     <div className="comparison-dates">
-                      {formatDateRange(comparison?.current_period_start, comparison?.current_period_end)}
+                      {formatDateRange(comparison?.current_period_start, comparison?.current_period_end, isComparisonsLoading)}
                     </div>
-                    <div className="comparison-value">{formatValue(comparison?.current_period_value)}</div>
+                    <div className="comparison-value">{formatValue(comparison?.current_period_value, isComparisonsLoading)}</div>
                     <div className="comparison-unit">{metric.item_noun}</div>
                   </div>
                 </div>
-                {trend && (
+                {trend && !isComparisonsLoading && (
                   <div className="comparison-summary">
                     {isStale ? (
                       <>

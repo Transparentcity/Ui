@@ -94,6 +94,45 @@ async function requestPublic<T>(path: string): Promise<T> {
   }
 }
 
+async function requestPublicPost<T>(path: string, body: object): Promise<T> {
+  const url = `${API_BASE}${path}`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      let errorMessage = `API POST ${path} failed: ${res.status}`;
+      if (text) {
+        try {
+          const errorJson = JSON.parse(text);
+          errorMessage = errorJson.message || errorJson.detail || errorMessage;
+        } catch {
+          errorMessage = `${errorMessage} - ${text.substring(0, 200)}`;
+        }
+      }
+      const err = new Error(errorMessage) as Error & { status?: number };
+      err.status = res.status;
+      throw err;
+    }
+    return (await res.json()) as T;
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes("fetch")) {
+      throw new Error(
+        `Failed to connect to API at ${API_BASE}. Please check if the API server is running and accessible.`
+      );
+    }
+    if (error instanceof Error) throw error;
+    throw new Error(`Unexpected error fetching ${path}: ${String(error)}`);
+  }
+}
+
 export type PublicCitySitemapItem = {
   id: number;
   name: string;
@@ -334,6 +373,57 @@ export function getPublicMetricComparisons(
   const cacheKey = `metric-comparisons:${metricId}:${district || 0}:${comparisonTypes || ''}`;
   
   return getCachedOrFetch(cacheKey, () => requestPublic<PublicMetricComparisons>(path), 120000); // 2 minute cache
+}
+
+export type PublicBatchComparisonsRequest = {
+  metric_ids: number[];
+  district?: number | null;
+  comparison_types?: string[] | null;
+};
+
+/** Backend returns Record<metric_id, Record<comparison_type, PublicMetricComparison>> */
+type PublicBatchComparisonsRaw = Record<
+  number,
+  Record<string, PublicMetricComparison>
+>;
+
+/**
+ * Fetch precomputed comparisons for multiple metrics in one request.
+ * Use this for city and category dashboards instead of one call per metric.
+ */
+export function getPublicMetricComparisonsBatch(
+  request: PublicBatchComparisonsRequest
+): Promise<Record<number, PublicMetricComparisons>> {
+  if (!request.metric_ids?.length) {
+    return Promise.resolve({});
+  }
+  const cacheKey = `metric-comparisons-batch:${request.metric_ids.join(",")}:${request.district ?? 0}:${(request.comparison_types ?? ["ytd"]).join(",")}`;
+  return getCachedOrFetch(
+    cacheKey,
+    async () => {
+      const raw = await requestPublicPost<PublicBatchComparisonsRaw>(
+        "/api/public/metrics/comparisons/batch",
+        {
+          metric_ids: request.metric_ids,
+          district: request.district ?? 0,
+          comparison_types: request.comparison_types ?? ["ytd"],
+        }
+      );
+      const result: Record<number, PublicMetricComparisons> = {};
+      for (const [idStr, comps] of Object.entries(raw)) {
+        const metricId = Number(idStr);
+        const compDict = comps as Record<string, PublicMetricComparison>;
+        const first = Object.values(compDict)[0];
+        result[metricId] = {
+          metric_id: metricId,
+          district: first?.district ?? null,
+          comparisons: compDict,
+        };
+      }
+      return result;
+    },
+    120000
+  );
 }
 
 export function getPublicMetricTimeSeriesSummary(

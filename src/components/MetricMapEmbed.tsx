@@ -337,25 +337,35 @@ export default function MetricMapEmbed({
           )}
         </div>
       )}
-      {/* Legend showing what the dot colors mean */}
-      {mapData && (
-        <div className="map-legend">
-          <div className="map-legend-item">
-            <span className="map-legend-dot map-legend-dot-current" />
-            <span className="map-legend-label">
-              {currentYear ? `${currentYear}` : "Current"}
-            </span>
-          </div>
-          {hasComparison && (
+      {/* Legend showing what the dot colors mean - only show for point maps, not choropleth */}
+      {mapData && (() => {
+        // Check if this is a point map (not choropleth) where we show the colored dots
+        const defaultView = mapData.map_config?.default_view;
+        const isPointMode = defaultView?.type === "points" || 
+          (mapData.map_type === "point" && !mapData.map_config?.aggregations);
+        
+        // Only show the point legend if we're in point mode
+        if (!isPointMode) return null;
+        
+        return (
+          <div className="map-legend">
             <div className="map-legend-item">
-              <span className="map-legend-dot map-legend-dot-comparison" />
+              <span className="map-legend-dot map-legend-dot-current" />
               <span className="map-legend-label">
-                {comparisonYear ? `${comparisonYear}` : "Prior period"}
+                {currentYear ? `${currentYear}` : "Current"}
               </span>
             </div>
-          )}
-        </div>
-      )}
+            {hasComparison && (
+              <div className="map-legend-item">
+                <span className="map-legend-dot map-legend-dot-comparison" />
+                <span className="map-legend-label">
+                  {comparisonYear ? `${comparisonYear}` : "Prior period"}
+                </span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {caption && (
         <div className="map-caption">
           {caption}
