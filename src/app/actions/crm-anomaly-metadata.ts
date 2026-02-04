@@ -1,7 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { createDb } from "@/lib/db"
+import { createClient } from "@/lib/db"
 import type { CrmAnomalyMetadata } from "@/lib/types"
 
 /**
@@ -9,20 +9,21 @@ import type { CrmAnomalyMetadata } from "@/lib/types"
  * This ensures every anomaly has CRM metadata when needed
  */
 export async function getOrCreateCrmMetadata(anomalyId: number): Promise<CrmAnomalyMetadata> {
-  const db = createDb()
+  const db = await createClient()
   
   // Try to get existing metadata
-  const existing = await db
+  const { data: existing, error: selectError } = await db
     .from('crm_anomaly_metadata')
-    .where({ anomaly_id: anomalyId })
-    .first()
+    .select('*')
+    .eq('anomaly_id', anomalyId)
+    .single()
   
-  if (existing) {
+  if (existing && !selectError) {
     return existing as CrmAnomalyMetadata
   }
   
   // Create new metadata with defaults
-  const newMetadata = await db
+  const { data: newMetadata, error: insertError } = await db
     .from('crm_anomaly_metadata')
     .insert({
       anomaly_id: anomalyId,
@@ -32,8 +33,12 @@ export async function getOrCreateCrmMetadata(anomalyId: number): Promise<CrmAnom
       crm_status: 'new',
       notes: null,
     })
-    .returning()
-    .first()
+    .select()
+    .single()
+  
+  if (insertError || !newMetadata) {
+    throw new Error(`Failed to create CRM metadata: ${insertError?.message}`)
+  }
   
   revalidatePath("/anomalies")
   return newMetadata as CrmAnomalyMetadata
@@ -46,16 +51,20 @@ export async function updateCrmStatus(
   anomalyId: number, 
   status: 'new' | 'sent' | 'acknowledged' | 'resolved'
 ): Promise<void> {
-  const db = createDb()
+  const db = await createClient()
   
   // Ensure metadata exists
   await getOrCreateCrmMetadata(anomalyId)
   
   // Update status
-  await db
+  const { error } = await db
     .from('crm_anomaly_metadata')
-    .where({ anomaly_id: anomalyId })
     .update({ crm_status: status })
+    .eq('anomaly_id', anomalyId)
+  
+  if (error) {
+    throw new Error(`Failed to update CRM status: ${error.message}`)
+  }
   
   revalidatePath("/anomalies")
   revalidatePath("/send-queue")
@@ -68,16 +77,20 @@ export async function updateCrmSeverity(
   anomalyId: number,
   severity: 'low' | 'medium' | 'high' | 'critical'
 ): Promise<void> {
-  const db = createDb()
+  const db = await createClient()
   
   // Ensure metadata exists
   await getOrCreateCrmMetadata(anomalyId)
   
   // Update severity
-  await db
+  const { error } = await db
     .from('crm_anomaly_metadata')
-    .where({ anomaly_id: anomalyId })
     .update({ severity })
+    .eq('anomaly_id', anomalyId)
+  
+  if (error) {
+    throw new Error(`Failed to update CRM severity: ${error.message}`)
+  }
   
   revalidatePath("/anomalies")
 }
@@ -90,19 +103,23 @@ export async function updateCrmDistrictLabel(
   districtLabel: string | null,
   isCitywide: boolean = false
 ): Promise<void> {
-  const db = createDb()
+  const db = await createClient()
   
   // Ensure metadata exists
   await getOrCreateCrmMetadata(anomalyId)
   
   // Update district label and citywide flag
-  await db
+  const { error } = await db
     .from('crm_anomaly_metadata')
-    .where({ anomaly_id: anomalyId })
     .update({ 
       district_label: districtLabel,
       is_citywide: isCitywide
     })
+    .eq('anomaly_id', anomalyId)
+  
+  if (error) {
+    throw new Error(`Failed to update CRM district label: ${error.message}`)
+  }
   
   revalidatePath("/anomalies")
 }
@@ -114,16 +131,20 @@ export async function updateCrmNotes(
   anomalyId: number,
   notes: string | null
 ): Promise<void> {
-  const db = createDb()
+  const db = await createClient()
   
   // Ensure metadata exists
   await getOrCreateCrmMetadata(anomalyId)
   
   // Update notes
-  await db
+  const { error } = await db
     .from('crm_anomaly_metadata')
-    .where({ anomaly_id: anomalyId })
     .update({ notes })
+    .eq('anomaly_id', anomalyId)
+  
+  if (error) {
+    throw new Error(`Failed to update CRM notes: ${error.message}`)
+  }
   
   revalidatePath("/anomalies")
 }
@@ -135,18 +156,24 @@ export async function bulkUpdateCrmStatus(
   anomalyIds: number[],
   status: 'new' | 'sent' | 'acknowledged' | 'resolved'
 ): Promise<void> {
-  const db = createDb()
+  const db = await createClient()
   
   // Ensure all have metadata
   for (const anomalyId of anomalyIds) {
     await getOrCreateCrmMetadata(anomalyId)
   }
   
-  // Bulk update
-  await db
-    .from('crm_anomaly_metadata')
-    .whereIn('anomaly_id', anomalyIds)
-    .update({ crm_status: status })
+  // Bulk update using individual updates (Supabase doesn't support whereIn directly)
+  for (const anomalyId of anomalyIds) {
+    const { error } = await db
+      .from('crm_anomaly_metadata')
+      .update({ crm_status: status })
+      .eq('anomaly_id', anomalyId)
+    
+    if (error) {
+      console.error(`Failed to update anomaly ${anomalyId}:`, error)
+    }
+  }
   
   revalidatePath("/anomalies")
   revalidatePath("/send-queue")
@@ -156,12 +183,16 @@ export async function bulkUpdateCrmStatus(
  * Delete CRM metadata for an anomaly
  */
 export async function deleteCrmMetadata(anomalyId: number): Promise<void> {
-  const db = createDb()
+  const db = await createClient()
   
-  await db
+  const { error } = await db
     .from('crm_anomaly_metadata')
-    .where({ anomaly_id: anomalyId })
     .delete()
+    .eq('anomaly_id', anomalyId)
+  
+  if (error) {
+    throw new Error(`Failed to delete CRM metadata: ${error.message}`)
+  }
   
   revalidatePath("/anomalies")
 }

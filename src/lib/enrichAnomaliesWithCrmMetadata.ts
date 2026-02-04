@@ -3,7 +3,7 @@
  * from the crm_anomaly_metadata table.
  */
 
-import { createDb } from "./db"
+import { createClient } from "./db"
 import type { Anomaly, CrmAnomalyMetadata } from "./types"
 
 /**
@@ -15,17 +15,27 @@ export async function enrichAnomaliesWithCrmMetadata(
 ): Promise<Anomaly[]> {
   if (anomalies.length === 0) return anomalies
 
-  const db = createDb()
+  const db = await createClient()
   const anomalyIds = anomalies.map(a => Number(a.id)).filter(id => !isNaN(id))
 
   if (anomalyIds.length === 0) return anomalies
 
   try {
     // Fetch all CRM metadata for these anomalies
-    const crmMetadata = await db
+    // Note: Supabase doesn't have .whereIn(), so we need to use .in() or loop
+    const { data: crmMetadata, error } = await db
       .from('crm_anomaly_metadata')
-      .whereIn('anomaly_id', anomalyIds)
-      .select()
+      .select('*')
+      .in('anomaly_id', anomalyIds)
+
+    if (error) {
+      console.error('[enrichAnomaliesWithCrmMetadata] Error fetching CRM metadata:', error)
+      return anomalies
+    }
+
+    if (!crmMetadata) {
+      return anomalies
+    }
 
     // Create a map for quick lookup
     const metadataMap = new Map<number, CrmAnomalyMetadata>()

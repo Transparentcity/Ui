@@ -89,8 +89,12 @@ export function useMetrics(options: UseMetricsOptions = {}) {
   return useQuery({
     queryKey: metricKeys.list(options),
     queryFn: async () => {
+      const startTime = performance.now();
       const token = await getAccessTokenSilently();
-      return listAdminMetrics(token, options);
+      const result = await listAdminMetrics(token, options);
+      const endTime = performance.now();
+      console.log(`[PERF] useMetrics took ${(endTime - startTime).toFixed(2)}ms`, { options, count: result?.length });
+      return result;
     },
     staleTime: 2 * 60 * 1000, // 2 minutes - metrics can change frequently
     enabled: true,
@@ -126,8 +130,12 @@ export function useMetricsSummary() {
   return useQuery({
     queryKey: metricKeys.summary(),
     queryFn: async () => {
+      const startTime = performance.now();
       const token = await getAccessTokenSilently();
-      return getAdminMetricsSummary(token);
+      const result = await getAdminMetricsSummary(token);
+      const endTime = performance.now();
+      console.log(`[PERF] useMetricsSummary took ${(endTime - startTime).toFixed(2)}ms`, result);
+      return result;
     },
     staleTime: 1 * 60 * 1000, // 1 minute
   });
