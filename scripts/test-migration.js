@@ -58,6 +58,7 @@ async function runTests() {
     console.log('📋 TEST 1: CRM Tables Existence\n');
     
     const expectedTables = [
+      'crm_anomaly_metadata',
       'prospects', 'keywords', 'prospect_keywords', 'anomaly_keywords',
       'templates', 'template_variations', 'subject_variations',
       'campaigns', 'messages', 'responses', 'followups',
@@ -75,42 +76,57 @@ async function runTests() {
     }
 
     // =========================================================================
-    // TEST 2: anomaly_results CRM columns added
+    // TEST 2: crm_anomaly_metadata table schema
     // =========================================================================
-    console.log('\n📋 TEST 2: anomaly_results CRM Columns\n');
+    console.log('\n📋 TEST 2: crm_anomaly_metadata Table Schema\n');
 
-    const anomalyColumnsResult = await client.query(`
+    const crmMetadataColumnsResult = await client.query(`
       SELECT column_name, data_type, column_default
       FROM information_schema.columns 
-      WHERE table_name = 'anomaly_results'
+      WHERE table_name = 'crm_anomaly_metadata'
       ORDER BY ordinal_position
     `);
-    const anomalyColumns = anomalyColumnsResult.rows;
+    const crmMetadataColumns = crmMetadataColumnsResult.rows;
 
     // List all columns for reference
-    console.log('     ℹ️  anomaly_results columns:');
-    anomalyColumns.forEach(col => {
+    console.log('     ℹ️  crm_anomaly_metadata columns:');
+    crmMetadataColumns.forEach(col => {
       console.log(`        - ${col.column_name} (${col.data_type})`);
     });
     console.log('');
 
-    // Check that core columns still exist (id, district, created_at are common)
-    const coreColumn = anomalyColumns.find(c => c.column_name === 'id');
-    test('Core column "id" exists', !!coreColumn);
-
-    // Check new CRM columns
-    const crmColumns = [
+    // Check required columns
+    const requiredColumns = [
+      { name: 'id', type: 'uuid' },
+      { name: 'anomaly_id', type: 'integer' },
       { name: 'district_label', type: 'text' },
       { name: 'is_citywide', type: 'boolean' },
       { name: 'severity', type: 'text' },
-      { name: 'crm_status', type: 'text' }
+      { name: 'crm_status', type: 'text' },
+      { name: 'notes', type: 'text' },
+      { name: 'created_at', type: 'timestamp with time zone' },
+      { name: 'updated_at', type: 'timestamp with time zone' }
     ];
-    for (const col of crmColumns) {
-      const found = anomalyColumns.find(c => c.column_name === col.name);
-      test(`CRM column '${col.name}' exists with type '${col.type}'`, 
+    
+    for (const col of requiredColumns) {
+      const found = crmMetadataColumns.find(c => c.column_name === col.name);
+      test(`Column '${col.name}' exists with type '${col.type}'`, 
            found && found.data_type === col.type,
            found ? `got type: ${found.data_type}` : 'column not found');
     }
+
+    // Verify anomaly_results table is NOT modified
+    console.log('\n     ℹ️  Verifying anomaly_results table was not modified...');
+    const anomalyColumnsResult = await client.query(`
+      SELECT column_name FROM information_schema.columns 
+      WHERE table_name = 'anomaly_results'
+    `);
+    const anomalyColumns = anomalyColumnsResult.rows.map(r => r.column_name);
+    
+    test('anomaly_results table exists (read-only)', anomalyColumns.includes('id'));
+    test('anomaly_results NOT modified (no district_label)', !anomalyColumns.includes('district_label'));
+    test('anomaly_results NOT modified (no crm_status)', !anomalyColumns.includes('crm_status'));
+    test('anomaly_results NOT modified (no is_citywide)', !anomalyColumns.includes('is_citywide'));
 
     // =========================================================================
     // TEST 3: Table schemas are correct
@@ -211,7 +227,8 @@ async function runTests() {
     test('idx_prospects_jurisdiction exists', indexes.includes('idx_prospects_jurisdiction'));
     test('idx_messages_status exists', indexes.includes('idx_messages_status'));
     test('idx_send_queue_status exists', indexes.includes('idx_send_queue_status'));
-    test('idx_anomaly_results_crm_status exists', indexes.includes('idx_anomaly_results_crm_status'));
+    test('idx_crm_anomaly_metadata_anomaly_id exists', indexes.includes('idx_crm_anomaly_metadata_anomaly_id'));
+    test('idx_crm_anomaly_metadata_crm_status exists', indexes.includes('idx_crm_anomaly_metadata_crm_status'));
 
     // =========================================================================
     // TEST 6: Seed data
@@ -297,67 +314,74 @@ async function runTests() {
     test('Can DELETE test data (cleanup)', true);
 
     // =========================================================================
-    // TEST 8: Existing anomaly_results functionality
+    // TEST 8: CRM Anomaly Metadata functionality
     // =========================================================================
-    console.log('\n📋 TEST 8: Existing anomaly_results Functionality\n');
+    console.log('\n📋 TEST 8: CRM Anomaly Metadata Functionality\n');
 
-    // Check if anomaly_results has data
+    // Check if anomaly_results has data (read-only table from Platform)
     const anomalyCount = await client.query('SELECT COUNT(*) as count FROM anomaly_results');
     const count = parseInt(anomalyCount.rows[0].count);
-    test('anomaly_results table is accessible', true);
+    test('anomaly_results table is accessible (read-only)', true);
     console.log(`     ℹ️  Found ${count} existing anomaly records`);
 
+    // Test crm_anomaly_metadata table
+    const crmMetadataCount = await client.query('SELECT COUNT(*) as count FROM crm_anomaly_metadata');
+    test('crm_anomaly_metadata table exists', true);
+    console.log(`     ℹ️  Found ${crmMetadataCount.rows[0].count} CRM metadata records`);
+
     if (count > 0) {
-      // Query only columns we know exist (from the schema check above)
-      const anomalyQuery = await client.query(`
-        SELECT id, district, district_label, is_citywide, severity, crm_status
-        FROM anomaly_results 
-        LIMIT 5
-      `);
-      test('Can SELECT with CRM columns from anomaly_results', anomalyQuery.rows.length > 0);
+      // Get a sample anomaly
+      const anomalyQuery = await client.query('SELECT id, district FROM anomaly_results LIMIT 1');
+      const sampleAnomaly = anomalyQuery.rows[0];
       
-      // Show sample data
-      if (anomalyQuery.rows.length > 0) {
-        const sample = anomalyQuery.rows[0];
-        console.log(`     ℹ️  Sample anomaly: id=${sample.id}, district=${sample.district}, district_label=${sample.district_label}, is_citywide=${sample.is_citywide}`);
-      }
-
-      // Test update of CRM columns
-      const firstAnomaly = anomalyQuery.rows[0];
-      if (firstAnomaly) {
-        const originalStatus = firstAnomaly.crm_status;
-        const updateAnomaly = await client.query(`
-          UPDATE anomaly_results 
-          SET crm_status = 'new', severity = 'medium'
-          WHERE id = $1
-          RETURNING crm_status, severity
-        `, [firstAnomaly.id]);
-        test('Can UPDATE CRM columns on anomaly_results', 
-             updateAnomaly.rows[0]?.crm_status === 'new');
+      if (sampleAnomaly) {
+        // Insert test CRM metadata for this anomaly
+        const insertMetadata = await client.query(`
+          INSERT INTO crm_anomaly_metadata 
+          (anomaly_id, district_label, is_citywide, severity, crm_status, notes)
+          VALUES ($1, 'D5', false, 'high', 'new', 'Test CRM metadata')
+          ON CONFLICT (anomaly_id) DO UPDATE 
+          SET severity = EXCLUDED.severity, notes = EXCLUDED.notes
+          RETURNING id, anomaly_id, crm_status
+        `, [sampleAnomaly.id]);
+        test('Can INSERT into crm_anomaly_metadata', insertMetadata.rows.length === 1);
+        const testMetadataId = insertMetadata.rows[0]?.id;
         
-        // Restore original if it was different
-        if (originalStatus && originalStatus !== 'new') {
-          await client.query(`
-            UPDATE anomaly_results SET crm_status = $1 WHERE id = $2
-          `, [originalStatus, firstAnomaly.id]);
-        }
+        // Read it back
+        const readMetadata = await client.query(`
+          SELECT * FROM crm_anomaly_metadata WHERE anomaly_id = $1
+        `, [sampleAnomaly.id]);
+        test('Can SELECT from crm_anomaly_metadata', readMetadata.rows.length === 1);
+        test('CRM metadata is correct', readMetadata.rows[0]?.district_label === 'D5');
+        
+        // Update it
+        const updateMetadata = await client.query(`
+          UPDATE crm_anomaly_metadata 
+          SET crm_status = 'sent', severity = 'critical'
+          WHERE anomaly_id = $1
+          RETURNING crm_status, severity
+        `, [sampleAnomaly.id]);
+        test('Can UPDATE crm_anomaly_metadata', 
+             updateMetadata.rows[0]?.crm_status === 'sent' &&
+             updateMetadata.rows[0]?.severity === 'critical');
+        
+        // Test join with anomaly_results
+        const joinQuery = await client.query(`
+          SELECT a.id, a.district, m.district_label, m.is_citywide, m.crm_status, m.severity
+          FROM anomaly_results a
+          LEFT JOIN crm_anomaly_metadata m ON a.id = m.anomaly_id
+          WHERE a.id = $1
+        `, [sampleAnomaly.id]);
+        test('Can JOIN anomaly_results with crm_anomaly_metadata', 
+             joinQuery.rows.length === 1 && joinQuery.rows[0]?.district_label === 'D5');
+        
+        // Clean up test metadata
+        await client.query('DELETE FROM crm_anomaly_metadata WHERE id = $1', [testMetadataId]);
+        test('Can DELETE from crm_anomaly_metadata', true);
       }
-
-      // Test that district_label was populated from district
-      const labelCheck = await client.query(`
-        SELECT COUNT(*) as total,
-               COUNT(district_label) as with_label,
-               COUNT(CASE WHEN is_citywide = true THEN 1 END) as citywide
-        FROM anomaly_results
-        WHERE district IS NOT NULL
-      `);
-      const labelStats = labelCheck.rows[0];
-      console.log(`     ℹ️  District label population: ${labelStats.with_label}/${labelStats.total} records have labels`);
-      console.log(`     ℹ️  Citywide anomalies: ${labelStats.citywide}`);
-      test('district_label migration ran', parseInt(labelStats.with_label) > 0 || parseInt(labelStats.total) === 0);
     } else {
-      console.log('     ⚠️  No existing anomaly data - CRM columns added but no data to migrate');
-      test('CRM columns added to empty anomaly_results', true);
+      console.log('     ⚠️  No existing anomaly data - crm_anomaly_metadata table created but no data to test with');
+      test('crm_anomaly_metadata table created successfully', true);
     }
 
     // =========================================================================

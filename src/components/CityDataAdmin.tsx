@@ -33,6 +33,7 @@ import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import DatasetsList from "@/components/DatasetsList";
 import Loader from "./Loader";
 import MetricActions from "./MetricActions";
+import NewslettersTabPanel from "@/components/NewslettersTabPanel";
 import MetricEditModal from "./MetricEditModal";
 import MetricChartsModal from "./MetricChartsModal";
 import MetricMapsModal from "./MetricMapsModal";
@@ -168,7 +169,7 @@ export default function CityDataAdmin({
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"data" | "structure" | "metrics" | "datasets">("data");
+  const [activeTab, setActiveTab] = useState<"data" | "structure" | "metrics" | "datasets" | "newsletters">("data");
 
   // Form state
   const [formData, setFormData] = useState({
@@ -926,6 +927,12 @@ export default function CityDataAdmin({
           onClick={() => setActiveTab("datasets")}
         >
           Datasets
+        </button>
+        <button
+          className={`${styles.tabBtn} ${activeTab === "newsletters" ? styles.tabBtnActive : ""}` }
+          onClick={() => setActiveTab("newsletters")}
+        >
+          Newsletters
         </button>
       </div>
 
@@ -3314,6 +3321,18 @@ export default function CityDataAdmin({
       {activeTab === "datasets" && (
         <div>
           <DatasetsList cityId={cityId} showStats={false} showCityFilter={false} />
+        </div>
+      )}
+
+      {/* Newsletters Tab */}
+      {activeTab === "newsletters" && (
+        <div>
+          <NewslettersTabPanel
+            cityId={cityId}
+            cityName={cityData?.name || ""}
+            initialDistrict={null}
+            isAdmin={true}
+          />
         </div>
       )}
 

@@ -7,7 +7,6 @@ import CityHeader from "@/components/CityHeader";
 import MetricDateRangeSelector from "@/components/MetricDateRangeSelector";
 import DistrictNavigation from "@/components/DistrictNavigation";
 import AnomaliesTabPanel from "@/components/AnomaliesTabPanel";
-import NewslettersTabPanel from "@/components/NewslettersTabPanel";
 import { useCity, useSavedCities, useSaveCity, useUnsaveCity, useCityLeaders, useRepresentativeFollowerCounts } from "@/lib/hooks/useCities";
 import type { CityLeader } from "@/lib/apiClient";
 import { useCityMetricOrdering } from "@/lib/hooks/useCityAdmin";
@@ -30,7 +29,7 @@ interface CityViewProps {
   initialDistrict?: number | null; // Initial district to select when loading
 }
 
-type TabType = "map" | "dashboard" | "anomalies" | "newsletters" | "admin";
+type TabType = "map" | "dashboard" | "anomalies" | "admin";
 
 interface MetricWithYTD {
   id: number;
@@ -1772,12 +1771,6 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             >
               Alerts
             </button>
-            <button
-              className="tab-btn"
-              onClick={() => setActiveTab("newsletters")}
-            >
-              Newsletters
-            </button>
             {isAdmin && (
               <button
                 className="tab-btn"
@@ -1821,7 +1814,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
 
       {/* Non-Map Tabs - Full Width Layout with Attached Header */}
       {activeTab !== "map" && (
-        <div className={`tab-content-wrapper ${activeTab === "dashboard" ? "dashboard-tab" : activeTab === "anomalies" ? "anomalies-tab" : activeTab === "newsletters" ? "newsletters-tab" : "admin-tab"}`}>
+        <div className={`tab-content-wrapper ${activeTab === "dashboard" ? "dashboard-tab" : activeTab === "anomalies" ? "anomalies-tab" : "admin-tab"}`}>
           {/* Header - Attached to top */}
           <CityHeader
             emoji={cityData.emoji || undefined}
@@ -1859,12 +1852,6 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
               onClick={() => setActiveTab("anomalies")}
             >
               Alerts
-            </button>
-            <button
-              className={`tab-btn ${activeTab === "newsletters" ? "active" : ""}`}
-              onClick={() => setActiveTab("newsletters")}
-            >
-              Newsletters
             </button>
             {isAdmin && (
               <button
@@ -1906,17 +1893,6 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
                   setSelectedMetricId(metricId);
                   setSelectedMetricDistrict(district ?? selectedDistrict);
                 }}
-                />
-              </div>
-            )}
-
-            {activeTab === "newsletters" && (
-              <div className="newsletters-section">
-                <NewslettersTabPanel
-                  cityId={cityId}
-                  cityName={cityData.name}
-                  initialDistrict={selectedDistrict}
-                  isAdmin={isAdmin}
                 />
               </div>
             )}

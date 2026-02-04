@@ -4,11 +4,11 @@
 -- Run this migration against your PostgreSQL database to create all CRM tables.
 -- 
 -- IMPORTANT: The `anomaly_results` table is assumed to ALREADY EXIST in your database.
--- This migration adds CRM-specific columns without modifying existing ones.
+-- This migration does NOT modify anomaly_results - it creates a separate CRM metadata table.
 --
--- COMPATIBILITY NOTE:
--- - The existing anomaly_results.district is INTEGER (0 = citywide)
--- - We add district_label TEXT for CRM-friendly matching (e.g., "D5", "District 11")
+-- ARCHITECTURE:
+-- - anomaly_results remains untouched (owned by TransparentCity Platform)
+-- - crm_anomaly_metadata stores CRM-specific data with a foreign key to anomaly_results.id
 -- - The existing anomaly_results.id is SERIAL (integer), not UUID
 -- =============================================================================
 
@@ -16,64 +16,36 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- =============================================================================
--- MODIFY EXISTING TABLE: anomaly_results
+-- NEW TABLE: crm_anomaly_metadata
 -- =============================================================================
--- Add CRM-specific columns to existing anomaly_results table if they don't exist
--- NOTE: We do NOT modify the existing 'district' INTEGER column
+-- CRM-specific metadata for anomalies - separate from core anomaly_results table
+-- This allows the CRM to track additional data without modifying the platform's tables
 
-DO $$ 
-BEGIN
-    -- Add district_label for CRM-friendly district names (e.g., "D5", "District 11")
-    -- This is separate from the existing 'district' INTEGER column used by the backend
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name = 'anomaly_results' AND column_name = 'district_label') THEN
-        ALTER TABLE anomaly_results ADD COLUMN district_label TEXT;
-        COMMENT ON COLUMN anomaly_results.district_label IS 'CRM district label for matching (e.g., D5, District 11). Separate from backend district INTEGER.';
-    END IF;
+CREATE TABLE IF NOT EXISTS crm_anomaly_metadata (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    anomaly_id INTEGER NOT NULL UNIQUE,  -- References anomaly_results.id (SERIAL/INTEGER)
+    district_label TEXT,                  -- CRM-friendly district name (e.g., "D5", "District 11")
+    is_citywide BOOLEAN DEFAULT false,    -- True if relevant to all officials regardless of district
+    severity TEXT DEFAULT 'medium',       -- Severity level: low, medium, high, critical
+    crm_status TEXT DEFAULT 'new',        -- CRM workflow status: new, sent, acknowledged, resolved
+    notes TEXT,                            -- Internal CRM notes about this anomaly
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
-    -- Add is_citywide flag for anomalies that apply to all officials
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name = 'anomaly_results' AND column_name = 'is_citywide') THEN
-        ALTER TABLE anomaly_results ADD COLUMN is_citywide BOOLEAN DEFAULT false;
-        COMMENT ON COLUMN anomaly_results.is_citywide IS 'True if this anomaly is relevant to all contacts regardless of district';
-    END IF;
+COMMENT ON TABLE crm_anomaly_metadata IS 'CRM-specific metadata for anomalies - does not modify anomaly_results table';
+COMMENT ON COLUMN crm_anomaly_metadata.anomaly_id IS 'References anomaly_results.id (INTEGER/SERIAL from Platform)';
+COMMENT ON COLUMN crm_anomaly_metadata.district_label IS 'CRM district label for matching officials (e.g., D5, District 11)';
+COMMENT ON COLUMN crm_anomaly_metadata.is_citywide IS 'True if this anomaly is relevant to all contacts regardless of district';
+COMMENT ON COLUMN crm_anomaly_metadata.severity IS 'CRM severity assessment: low, medium, high, critical';
+COMMENT ON COLUMN crm_anomaly_metadata.crm_status IS 'CRM workflow status: new, sent, acknowledged, resolved';
 
-    -- Add severity column if not exists
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name = 'anomaly_results' AND column_name = 'severity') THEN
-        ALTER TABLE anomaly_results ADD COLUMN severity TEXT DEFAULT 'medium';
-        COMMENT ON COLUMN anomaly_results.severity IS 'Severity level: low, medium, high, critical';
-    END IF;
-
-    -- Add CRM status column (separate from any existing status)
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name = 'anomaly_results' AND column_name = 'crm_status') THEN
-        ALTER TABLE anomaly_results ADD COLUMN crm_status TEXT DEFAULT 'new';
-        COMMENT ON COLUMN anomaly_results.crm_status IS 'CRM status: new, sent, acknowledged, resolved';
-    END IF;
-END $$;
-
--- Populate district_label from existing district integer (if district column exists)
--- district = 0 means citywide, district > 0 means specific district
-DO $$
-BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.columns 
-               WHERE table_name = 'anomaly_results' AND column_name = 'district') THEN
-        UPDATE anomaly_results 
-        SET 
-            district_label = CASE 
-                WHEN district = 0 THEN NULL
-                ELSE 'D' || district::TEXT 
-            END,
-            is_citywide = (district = 0)
-        WHERE district_label IS NULL AND district IS NOT NULL;
-    END IF;
-END $$;
-
--- Create indexes on new CRM columns
-CREATE INDEX IF NOT EXISTS idx_anomaly_results_district_label ON anomaly_results(district_label);
-CREATE INDEX IF NOT EXISTS idx_anomaly_results_is_citywide ON anomaly_results(is_citywide);
-CREATE INDEX IF NOT EXISTS idx_anomaly_results_crm_status ON anomaly_results(crm_status);
+-- Create indexes for efficient querying
+CREATE INDEX IF NOT EXISTS idx_crm_anomaly_metadata_anomaly_id ON crm_anomaly_metadata(anomaly_id);
+CREATE INDEX IF NOT EXISTS idx_crm_anomaly_metadata_district_label ON crm_anomaly_metadata(district_label);
+CREATE INDEX IF NOT EXISTS idx_crm_anomaly_metadata_is_citywide ON crm_anomaly_metadata(is_citywide);
+CREATE INDEX IF NOT EXISTS idx_crm_anomaly_metadata_crm_status ON crm_anomaly_metadata(crm_status);
+CREATE INDEX IF NOT EXISTS idx_crm_anomaly_metadata_severity ON crm_anomaly_metadata(severity);
 
 -- =============================================================================
 -- NEW TABLE: prospects (government officials/contacts)
@@ -380,7 +352,7 @@ DO $$
 DECLARE
     t TEXT;
 BEGIN
-    FOR t IN SELECT unnest(ARRAY['prospects', 'templates', 'campaigns', 'campaign_throttle_settings', 'template_variations'])
+    FOR t IN SELECT unnest(ARRAY['crm_anomaly_metadata', 'prospects', 'templates', 'campaigns', 'campaign_throttle_settings', 'template_variations'])
     LOOP
         EXECUTE format('
             DROP TRIGGER IF EXISTS update_%I_updated_at ON %I;
@@ -399,14 +371,14 @@ END $$;
 --
 -- SELECT table_name FROM information_schema.tables 
 -- WHERE table_schema = 'public' 
--- AND table_name IN ('prospects', 'keywords', 'prospect_keywords', 'anomaly_keywords', 
---                    'templates', 'campaigns', 'messages', 'responses', 'followups', 
---                    'send_queue', 'campaign_throttle_settings', 'tone_profiles',
+-- AND table_name IN ('crm_anomaly_metadata', 'prospects', 'keywords', 'prospect_keywords', 
+--                    'anomaly_keywords', 'templates', 'campaigns', 'messages', 'responses', 
+--                    'followups', 'send_queue', 'campaign_throttle_settings', 'tone_profiles',
 --                    'template_variations', 'subject_variations');
 --
--- Check CRM columns on anomaly_results:
+-- Check crm_anomaly_metadata table structure:
 --
 -- SELECT column_name, data_type 
 -- FROM information_schema.columns 
--- WHERE table_name = 'anomaly_results' 
--- AND column_name IN ('district_label', 'is_citywide', 'severity', 'crm_status');
+-- WHERE table_name = 'crm_anomaly_metadata'
+-- ORDER BY ordinal_position;

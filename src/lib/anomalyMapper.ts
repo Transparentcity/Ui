@@ -91,13 +91,15 @@ function buildDescription(
 /**
  * Map a single Platform API AnomalyResult to CRM Anomaly shape.
  * Includes extra fields used by generate-emails (recent_mean, comparison_mean, metric_category).
+ * 
+ * NOTE: This creates CRM metadata structure but doesn't persist it to DB.
+ * The crm_anomaly_metadata table should be populated separately via CRM actions.
  */
 export function mapApiAnomalyToCrm(api: AnomalyResult): Anomaly & {
   recent_mean?: number | null
   comparison_mean?: number | null
   metric_category?: string
   metric_name?: string
-  severity?: string
   data_source?: string
 } {
   const { district_label, is_citywide } = districtToLabel(api.district ?? 0)
@@ -120,13 +122,24 @@ export function mapApiAnomalyToCrm(api: AnomalyResult): Anomaly & {
     api.item_noun
   )
   
+  // Build CRM metadata object (not yet persisted to DB)
+  const crm_metadata = {
+    id: '', // Will be assigned by DB when persisted
+    anomaly_id: api.id ?? 0,
+    district_label,
+    is_citywide,
+    severity,
+    crm_status: 'new' as const,
+    notes: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+  
   return {
     id: api.id ?? 0,
     title,
     description,
     district: api.district ?? null,
-    district_label,
-    is_citywide,
     metric_id: api.metric_id,
     period_type: api.period_type,
     group_field: api.group_field ?? undefined,
@@ -137,11 +150,18 @@ export function mapApiAnomalyToCrm(api: AnomalyResult): Anomaly & {
     created_at: api.created_at ?? new Date().toISOString(),
     status: "new",
     anomaly_keywords: [],
+    // CRM metadata
+    crm_metadata,
+    // Convenience accessors (for backward compatibility)
+    district_label,
+    is_citywide,
+    severity,
+    crm_status: 'new',
+    // Extra fields for generate-emails
     recent_mean: api.recent_mean ?? null,
     comparison_mean: api.comparison_mean ?? null,
     metric_category: api.greendirection === "down" ? "negative" : api.greendirection === "up" ? "positive" : "general",
     metric_name: metricName,
-    severity,
     data_source: api.city_name ?? undefined,
   }
 }

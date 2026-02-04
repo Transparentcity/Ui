@@ -101,9 +101,9 @@ async function runMigration() {
       const tablesResult = await client.query(`
         SELECT table_name FROM information_schema.tables 
         WHERE table_schema = 'public' 
-        AND table_name IN ('prospects', 'keywords', 'prospect_keywords', 'anomaly_keywords', 
-                           'templates', 'campaigns', 'messages', 'responses', 'followups', 
-                           'send_queue', 'campaign_throttle_settings', 'tone_profiles',
+        AND table_name IN ('crm_anomaly_metadata', 'prospects', 'keywords', 'prospect_keywords', 
+                           'anomaly_keywords', 'templates', 'campaigns', 'messages', 'responses', 
+                           'followups', 'send_queue', 'campaign_throttle_settings', 'tone_profiles',
                            'template_variations', 'subject_variations')
         ORDER BY table_name;
       `);
@@ -113,14 +113,13 @@ async function runMigration() {
         console.log(`   ✓ ${row.table_name}`);
       });
 
-      // Check CRM columns on anomaly_results
-      console.log('\n📊 CRM columns on anomaly_results:');
+      // Check crm_anomaly_metadata table structure
+      console.log('\n📊 CRM Anomaly Metadata table structure:');
       const columnsResult = await client.query(`
         SELECT column_name, data_type 
         FROM information_schema.columns 
-        WHERE table_name = 'anomaly_results' 
-        AND column_name IN ('district_label', 'is_citywide', 'severity', 'crm_status')
-        ORDER BY column_name;
+        WHERE table_name = 'crm_anomaly_metadata'
+        ORDER BY ordinal_position;
       `);
 
       if (columnsResult.rows.length > 0) {
@@ -128,7 +127,7 @@ async function runMigration() {
           console.log(`   ✓ ${row.column_name} (${row.data_type})`);
         });
       } else {
-        console.log('   ⚠️  Note: anomaly_results table may not exist yet (columns not added)');
+        console.log('   ⚠️  Note: crm_anomaly_metadata table not found');
       }
 
       // Check seed data

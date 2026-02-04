@@ -116,19 +116,31 @@ export interface Followup {
 }
 
 /**
+ * CRM-specific metadata for anomalies
+ * Stored in the `crm_anomaly_metadata` table - separate from core anomaly_results
+ */
+export interface CrmAnomalyMetadata {
+  id: string                        // UUID primary key
+  anomaly_id: number                // References anomaly_results.id (INTEGER/SERIAL)
+  district_label: string | null     // CRM district label for matching (e.g., "D5", "District 11")
+  is_citywide: boolean              // true = relevant to all contacts regardless of district
+  severity: 'low' | 'medium' | 'high' | 'critical'
+  crm_status: 'new' | 'sent' | 'acknowledged' | 'resolved'  // CRM workflow status
+  notes: string | null              // Internal CRM notes
+  created_at: string
+  updated_at: string
+}
+
+/**
  * Anomaly type for CRM integration
  * 
- * NOTE: This interfaces with the `anomaly_results` table in your existing database.
+ * NOTE: This interfaces with the `anomaly_results` table from TransparentCity Platform.
+ * The core anomaly_results table is NOT modified - CRM data is stored separately.
  * 
- * IMPORTANT - Column compatibility:
- * - `district` (INTEGER): Original backend column (0 = citywide, 1-11 = district number)
- * - `district_label` (TEXT): CRM column for matching (e.g., "D5", "District 11")
- * - `is_citywide` (BOOLEAN): CRM flag derived from district = 0
- * - `severity` (TEXT): Priority level
- * - `crm_status` (TEXT): CRM workflow status (separate from backend status)
- * 
- * The `id` field is INTEGER (SERIAL) in the database, but treated as string in TypeScript
- * for consistency with UUID-based CRM tables.
+ * ARCHITECTURE:
+ * - Core fields come from anomaly_results (owned by Platform)
+ * - CRM-specific data comes from crm_anomaly_metadata table (optional join)
+ * - The `id` field is INTEGER (SERIAL) in the database
  */
 export interface Anomaly {
   id: string | number               // SERIAL in database (integer), but can be string in JS
@@ -136,11 +148,7 @@ export interface Anomaly {
   description?: string | null
   data_source?: string | null
   district?: number | null          // Backend INTEGER column (0 = citywide, 1-11 = district)
-  district_label?: string | null    // CRM TEXT column for matching (e.g., "D5", "District 11")
-  is_citywide?: boolean             // true = relevant to all contacts regardless of district/keywords
-  severity?: 'low' | 'medium' | 'high' | 'critical'
-  crm_status?: 'new' | 'sent' | 'acknowledged' | 'resolved'  // CRM workflow status
-  status?: string                   // Original status from anomaly_results (kept for compatibility)
+  status?: string                   // Original status from anomaly_results
   metadata?: Record<string, unknown> | null
   created_at: string
   updated_at?: string
@@ -157,6 +165,13 @@ export interface Anomaly {
     values?: number[]
     [key: string]: unknown
   }
+  // CRM metadata (populated via join to crm_anomaly_metadata table)
+  crm_metadata?: CrmAnomalyMetadata
+  // Convenience accessors (for backward compatibility - read from crm_metadata if available)
+  district_label?: string | null
+  is_citywide?: boolean
+  severity?: 'low' | 'medium' | 'high' | 'critical'
+  crm_status?: 'new' | 'sent' | 'acknowledged' | 'resolved'
   // Join table data (populated when fetching with joins)
   anomaly_keywords?: Array<{
     keyword_id: string
