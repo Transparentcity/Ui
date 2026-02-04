@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useId, useEffect } from "react";
-import type { PublicMetricDetail } from "@/lib/publicApiClient";
+import type { PublicMetricDetail, PublicMetricComparisons, PublicTimeSeriesSummary } from "@/lib/publicApiClient";
 import MetricDetailContent from "@/components/MetricDetailContent";
 import CitySignupButton from "../../CitySignupButton";
 import { trackMetricView } from "@/lib/analytics";
@@ -14,12 +14,16 @@ interface MetricDetailClientProps {
   metric: PublicMetricDetail;
   citySlug: string;
   district?: number | null;
+  initialComparisons?: PublicMetricComparisons;
+  initialTimeSeriesSummary?: PublicTimeSeriesSummary;
 }
 
 export default function MetricDetailClient({
   metric,
   citySlug,
   district,
+  initialComparisons,
+  initialTimeSeriesSummary,
 }: MetricDetailClientProps) {
   const baseId = useId();
   const logoMaskIdBl = `${baseId}-logo-mask-bl`;
@@ -108,6 +112,8 @@ export default function MetricDetailClient({
           metric={metric}
           cityName={cityName}
           district={district}
+          initialComparisons={initialComparisons}
+          initialTimeSeriesSummary={initialTimeSeriesSummary}
         />
       </div>
 

@@ -15,6 +15,7 @@ import {
   unfollowRepresentative,
   getCityShapefiles,
   getCityShapeLayers,
+  updateShapeLayerInstance,
   saveCity,
   unsaveCity,
   type CityDetail,
@@ -24,6 +25,7 @@ import {
   type CityLeader,
   type CityShapefile,
   type CityShapeLayerListItem,
+  type UpdateShapeLayerInstanceRequest,
 } from "@/lib/apiClient";
 
 // Query keys factory for cities
@@ -330,6 +332,30 @@ export function useCityShapeLayers(cityId: number | null, includeGeometry: boole
     },
     enabled: !!cityId,
     staleTime: 10 * 60 * 1000, // 10 minutes
+  });
+}
+
+/**
+ * Hook to update a shape layer instance.
+ * Invalidates shape layers cache on success.
+ */
+export function useUpdateShapeLayerInstance(cityId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ instanceId, updates }: { instanceId: number; updates: UpdateShapeLayerInstanceRequest }) => {
+      if (!cityId) throw new Error("City ID is required");
+      const token = await getAccessTokenSilently();
+      return updateShapeLayerInstance(cityId, instanceId, updates, token);
+    },
+    onSuccess: () => {
+      // Invalidate shape layers cache so it refetches
+      queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayers(cityId!, false) });
+      queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayers(cityId!, true) });
+      queryClient.invalidateQueries({ queryKey: cityKeys.shapefiles(cityId!) });
+      queryClient.invalidateQueries({ queryKey: cityKeys.structure(cityId!) });
+    },
   });
 }
 

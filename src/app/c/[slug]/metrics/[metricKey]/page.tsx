@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
   getPublicMetricByKey,
+  getPublicMetricComparisons,
+  getPublicMetricTimeSeriesSummary,
   listPublicCitiesForSitemap,
+  type PublicMetricComparisons,
+  type PublicTimeSeriesSummary,
 } from "@/lib/publicApiClient";
 import MetricDetailClient from "./MetricDetailClient";
 import MetricLoadErrorClient from "./MetricLoadErrorClient";
@@ -120,5 +124,29 @@ export default async function MetricDetailPage({ params, searchParams }: PagePro
     );
   }
 
-  return <MetricDetailClient metric={metric} citySlug={slug} district={districtNum} />;
+  // Prefetch comparisons and time series summary in parallel to improve initial load time
+  let initialComparisons: PublicMetricComparisons | undefined;
+  let initialTimeSeriesSummary: PublicTimeSeriesSummary | undefined;
+  
+  try {
+    const [comparisons, timeSeriesSummary] = await Promise.all([
+      getPublicMetricComparisons(metric.id, districtNum, undefined),
+      getPublicMetricTimeSeriesSummary(metric.id),
+    ]);
+    initialComparisons = comparisons;
+    initialTimeSeriesSummary = timeSeriesSummary;
+  } catch (error) {
+    // Non-critical: client will refetch if server prefetch fails
+    console.warn("Failed to prefetch metric comparisons/summary:", error);
+  }
+
+  return (
+    <MetricDetailClient
+      metric={metric}
+      citySlug={slug}
+      district={districtNum}
+      initialComparisons={initialComparisons}
+      initialTimeSeriesSummary={initialTimeSeriesSummary}
+    />
+  );
 }

@@ -2184,6 +2184,7 @@ export interface CityShapefile {
   source_url?: string | null;
   feature_count?: number | null;
   identifier_field?: string | null;
+  identifier_field_aliases?: string[];
   status?: "active" | "disabled" | "needs_refresh";
   render_order?: number | null;
   style_overrides_json?: Record<string, any> | null;
@@ -2235,6 +2236,35 @@ export function getCityShapeLayers(
   );
 }
 
+export interface UpdateShapeLayerInstanceRequest {
+  identifier_field?: string;
+  identifier_field_aliases?: string[];
+  status?: "active" | "disabled" | "needs_refresh";
+  render_order?: number;
+  style_overrides_json?: Record<string, any>;
+  shapefile_name?: string;
+}
+
+export interface UpdateShapeLayerInstanceResponse {
+  city_id: number;
+  instance_id: number;
+  updated: boolean;
+  layer: CityShapeLayerListItem | null;
+}
+
+export function updateShapeLayerInstance(
+  cityId: number,
+  instanceId: number,
+  updates: UpdateShapeLayerInstanceRequest,
+  token: string
+): Promise<UpdateShapeLayerInstanceResponse> {
+  return request<UpdateShapeLayerInstanceResponse>(
+    `/api/shape-layers/cities/${cityId}/instances/${instanceId}`,
+    "PUT",
+    updates,
+    token
+  );
+}
 
 export function getCityShapefiles(cityId: number, token: string): Promise<CityShapefile[]> {
   return request<any>(`/api/cities/${cityId}/structure`, "GET", undefined, token)
@@ -3497,6 +3527,7 @@ export interface MetricOrderingItem {
   city_id?: number;
   category_name: string;
   category_order: number;
+  subcategory_name?: string | null;  // Optional subcategory override
   metric_id: number | null;
   metric_order: number;
   metric_name?: string;

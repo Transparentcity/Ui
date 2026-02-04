@@ -1304,10 +1304,15 @@ export default function ProgressiveMapView({
   };
 
   // Effect to render comparison points when available
+  // Only render comparison points for point maps - choropleth shows recent period only
   useEffect(() => {
     if (!mapInstanceRef.current || !mapboxLoaded) return;
-    if (!comparisonLocationData || comparisonLocationData.length === 0) {
-      // Remove comparison layer if no data
+    
+    // Don't show comparison points in choropleth mode - choropleth shows recent period only
+    const isChoroplethMode = defaultView?.type === "choropleth" || hasAggregations;
+    
+    if (!comparisonLocationData || comparisonLocationData.length === 0 || isChoroplethMode) {
+      // Remove comparison layer if no data or in choropleth mode
       try {
         if (mapInstanceRef.current.getLayer("comparison-points-layer")) {
           mapInstanceRef.current.removeLayer("comparison-points-layer");
@@ -1317,6 +1322,9 @@ export default function ProgressiveMapView({
         }
       } catch {
         // ignore cleanup errors
+      }
+      if (isChoroplethMode && comparisonLocationData && comparisonLocationData.length > 0) {
+        console.log(`[ProgressiveMapView] Skipping comparison points in choropleth mode - showing recent period only`);
       }
       return;
     }
@@ -1330,7 +1338,7 @@ export default function ProgressiveMapView({
     } else {
       console.log(`[ProgressiveMapView] No valid comparison points found after normalization. Sample data:`, comparisonLocationData[0]);
     }
-  }, [comparisonLocationData, mapboxLoaded]);
+  }, [comparisonLocationData, mapboxLoaded, defaultView, hasAggregations]);
 
   // Legacy addPoints function - delegates to addPointsLayer
   const addPoints = (mapInstance: any) => {

@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { usePublicMetricComparisons, usePublicMetricTimeSeriesSummary } from "@/lib/hooks/usePublicMetric";
-import type { PublicMetricDetail } from "@/lib/publicApiClient";
+import type { PublicMetricDetail, PublicMetricComparisons, PublicTimeSeriesSummary } from "@/lib/publicApiClient";
 import {
   getPublicCityDetail,
   getPublicMetricCompletenessDaily,
@@ -159,12 +159,16 @@ interface MetricDetailContentProps {
   metric: PublicMetricDetail;
   cityName: string;
   district?: number | null;
+  initialComparisons?: PublicMetricComparisons;
+  initialTimeSeriesSummary?: PublicTimeSeriesSummary;
 }
 
 export default function MetricDetailContent({
   metric,
   cityName,
   district,
+  initialComparisons,
+  initialTimeSeriesSummary,
 }: MetricDetailContentProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<"ytd" | "mtd" | "mtd_prior_year">("ytd");
   const [definitionExpanded, setDefinitionExpanded] = useState(false);
@@ -173,9 +177,10 @@ export default function MetricDetailContent({
   const comparisonsQuery = usePublicMetricComparisons(
     metric.id,
     selectedDistrict,
-    selectedPeriod
+    selectedPeriod,
+    initialComparisons
   );
-  const timeSeriesQuery = usePublicMetricTimeSeriesSummary(metric.id);
+  const timeSeriesQuery = usePublicMetricTimeSeriesSummary(metric.id, initialTimeSeriesSummary);
   
   // Fetch completeness information
   const [completenessDaily, setCompletenessDaily] = useState<DailyCompletenessResponse | null>(null);
@@ -224,6 +229,9 @@ export default function MetricDetailContent({
   }, [metric.city_id]);
 
   const comparison = comparisonsQuery.data?.comparisons[selectedPeriod];
+  // Consider "loading" if actively fetching OR if we don't have comparison data yet for the selected period
+  const isComparisonsLoading = comparisonsQuery.isLoading || comparisonsQuery.isFetching || (!comparisonsQuery.isError && !comparison);
+  const isTimeSeriesLoading = timeSeriesQuery.isLoading || timeSeriesQuery.isFetching;
 
   const currentCalendarYear = new Date().getFullYear();
   const mostRecentYear = metric.most_recent_data_date
@@ -274,7 +282,8 @@ export default function MetricDetailContent({
         mtd_prior_year: { previous: "Last Year", current: "This Year" },
       };
 
-  const formatValue = (value: number | null | undefined): string => {
+  const formatValue = (value: number | null | undefined, isLoading?: boolean): string => {
+    if (isLoading) return "Loading...";
     if (value === null || value === undefined) return "No data";
     const absValue = Math.abs(value);
     const sign = value < 0 ? "-" : "";
@@ -288,7 +297,8 @@ export default function MetricDetailContent({
     return `${sign}${rounded.toLocaleString(undefined, { maximumFractionDigits: 1 })}`;
   };
 
-  const formatDateRange = (start: string | null | undefined, end: string | null | undefined): string => {
+  const formatDateRange = (start: string | null | undefined, end: string | null | undefined, isLoading?: boolean): string => {
+    if (isLoading) return "Loading...";
     if (!start || !end) return "—";
     const startDate = new Date(start);
     const endDate = new Date(end);
@@ -413,26 +423,26 @@ export default function MetricDetailContent({
         </div>
         <div className="metric-comparison-grid">
           {/* Previous period on LEFT */}
-          <div className="comparison-card">
+          <div className={`comparison-card${isComparisonsLoading ? " loading" : ""}`}>
             <div className="comparison-label">{comparisonLabels[selectedPeriod].previous}</div>
             <div className="comparison-dates">
-              {formatDateRange(comparison?.comparison_period_start, comparison?.comparison_period_end)}
+              {formatDateRange(comparison?.comparison_period_start, comparison?.comparison_period_end, isComparisonsLoading)}
             </div>
-            <div className="comparison-value">{formatValue(comparison?.comparison_period_value)}</div>
+            <div className="comparison-value">{formatValue(comparison?.comparison_period_value, isComparisonsLoading)}</div>
             <div className="comparison-unit">{metric.item_noun}</div>
           </div>
           <div className="comparison-vs">→</div>
           {/* Current period on RIGHT */}
-          <div className="comparison-card">
+          <div className={`comparison-card${isComparisonsLoading ? " loading" : ""}`}>
             <div className="comparison-label">{comparisonLabels[selectedPeriod].current}</div>
             <div className="comparison-dates">
-              {formatDateRange(comparison?.current_period_start, comparison?.current_period_end)}
+              {formatDateRange(comparison?.current_period_start, comparison?.current_period_end, isComparisonsLoading)}
             </div>
-            <div className="comparison-value">{formatValue(comparison?.current_period_value)}</div>
+            <div className="comparison-value">{formatValue(comparison?.current_period_value, isComparisonsLoading)}</div>
             <div className="comparison-unit">{metric.item_noun}</div>
           </div>
         </div>
-        {trend && (
+        {trend && !isComparisonsLoading && (
           <div className="comparison-summary">
             {isStale ? (
               <>

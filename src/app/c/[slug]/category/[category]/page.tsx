@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
-import "../../landing.css";
+import "../../../../landing.css";
 
 import {
   listPublicCitiesForSitemap,
@@ -10,32 +11,39 @@ import {
   getPublicMetricDistrictComparisons,
   listPublicMapsForCity,
 } from "@/lib/publicApiClient";
-import CitySignupButton from "./CitySignupButton";
-import CityDashboardSection from "./CityDashboardSection";
-import CityViewTracker from "./CityViewTracker";
-import CityPageClient from "./CityPageClient";
-import CityHeroNewsletter from "./CityHeroNewsletter";
+import NewsletterSignup from "@/components/NewsletterSignup";
+import CitySignupButton from "../../CitySignupButton";
+import CityViewTracker from "../../CityViewTracker";
+import CategoryDashboardSection from "./CategoryDashboardSection";
 
 export const revalidate = 3600;
 
 type PageProps = {
-  params: Promise<{ slug: string }>;
+  params: Promise<{ slug: string; category: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
+
+function decodeCategory(encoded: string): string {
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return encoded;
+  }
+}
 
 export async function generateMetadata({
   params,
   searchParams,
 }: PageProps): Promise<Metadata> {
-  const { slug } = await params;
+  const { slug, category } = await params;
   const sp = (await searchParams) || {};
   const idParam = Array.isArray(sp.id) ? sp.id[0] : sp.id;
   const id = idParam ? Number(idParam) : null;
+  const categoryName = decodeCategory(category);
 
   let name = slug;
   let state: string | null | undefined = null;
   let country: string | null | undefined = null;
-  let datasetsCount: number | null = null;
 
   try {
     const cities = await listPublicCitiesForSitemap();
@@ -47,10 +55,9 @@ export async function generateMetadata({
       name = match.name;
       state = match.state;
       country = match.country;
-      datasetsCount = match.datasets_count;
     }
   } catch {
-    // Keep a reasonable fallback; crawlers will retry.
+    // Keep fallback for crawlers
   }
 
   const display =
@@ -61,28 +68,31 @@ export async function generateMetadata({
         : country && country !== "United States"
           ? `${name}, ${country}`
           : name;
-  const description =
-    datasetsCount !== null
-      ? `${display} on Transparent.city. Browse ${datasetsCount} public datasets and source-linked civic context.`
-      : `${display} on Transparent.city. Browse public datasets and source-linked civic context.`;
+
+  const title = `${categoryName} | ${display}`;
+  const description = `${categoryName} metrics and data for ${display}. Browse source-linked civic context on Transparent.city.`;
 
   return {
-    title: display,
+    title,
     description,
     alternates: {
       canonical:
         typeof id === "number" && Number.isFinite(id)
-          ? `/c/${slug}?id=${id}`
-          : `/c/${slug}`,
+          ? `/c/${slug}/category/${encodeURIComponent(categoryName)}?id=${id}`
+          : `/c/${slug}/category/${encodeURIComponent(categoryName)}`,
     },
   };
 }
 
-export default async function CityLandingPage({ params, searchParams }: PageProps) {
-  const { slug } = await params;
+export default async function CityCategoryPage({
+  params,
+  searchParams,
+}: PageProps) {
+  const { slug, category } = await params;
   const sp = (await searchParams) || {};
   const idParam = Array.isArray(sp.id) ? sp.id[0] : sp.id;
   const id = idParam ? Number(idParam) : null;
+  const categoryName = decodeCategory(category);
 
   let city:
     | (Awaited<ReturnType<typeof listPublicCitiesForSitemap>>[number] & {
@@ -111,50 +121,58 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
     // noop
   }
 
-  const cityDisplayName = city?.display ?? slug;
-  // Fetch mayor-level dashboard data, district list, and recent maps for CityDashboardSection
+  if (!city) {
+    notFound();
+  }
+
+  const cityDisplayName = city.display;
+  const idQuery =
+    typeof id === "number" && Number.isFinite(id) ? `?id=${id}` : "";
   let cityDetail: Awaited<ReturnType<typeof getPublicCityDetail>> | null = null;
   let comparisonsMap: Awaited<
     ReturnType<typeof getPublicMetricComparisonsBatch>
   > = {};
   let districts: number[] = [];
   let maps: Awaited<ReturnType<typeof listPublicMapsForCity>> = [];
-  if (city?.id) {
-    try {
-      cityDetail = await getPublicCityDetail(city.id);
-      const metrics = cityDetail?.metrics ?? [];
-      if (metrics.length > 0) {
-        comparisonsMap = await getPublicMetricComparisonsBatch({
-          metric_ids: metrics.map((m) => m.id),
-          district: 0,
-          comparison_types: ["ytd"],
-        }).catch(() => ({}));
-        const dc = await getPublicMetricDistrictComparisons(
-          metrics[0].id,
-          "ytd"
-        ).catch(() => null);
-        if (dc?.districts)
-          districts = dc.districts
-            .map((d) => d.district)
-            .filter((n) => n > 0)
-            .sort((a, b) => a - b);
-      }
-      maps = await listPublicMapsForCity(city.id).catch(() => []);
-    } catch {
-      // leave defaults
+
+  try {
+    cityDetail = await getPublicCityDetail(city.id);
+    const allMetrics = cityDetail?.metrics ?? [];
+    const categoryMetrics = allMetrics.filter(
+      (m) => (m.category || "Uncategorized") === categoryName
+    );
+
+    if (categoryMetrics.length === 0) {
+      notFound();
     }
+
+    comparisonsMap = await getPublicMetricComparisonsBatch({
+      metric_ids: categoryMetrics.map((m) => m.id),
+      district: 0,
+      comparison_types: ["ytd"],
+    }).catch(() => ({}));
+
+    const dc = await getPublicMetricDistrictComparisons(
+      categoryMetrics[0].id,
+      "ytd"
+    ).catch(() => null);
+    if (dc?.districts)
+      districts = dc.districts
+        .map((d) => d.district)
+        .filter((n) => n > 0)
+        .sort((a, b) => a - b);
+
+    maps = await listPublicMapsForCity(city.id).catch(() => []);
+  } catch {
+    notFound();
   }
 
-  const uniqueCategories = Array.from(
-    new Set(
-      (cityDetail?.metrics ?? [])
-        .map((m) => m.category)
-        .filter((c): c is string => Boolean(c))
-    )
-  ).sort((a, b) => a.localeCompare(b));
+  const categoryMetricsList = (cityDetail?.metrics ?? []).filter(
+    (m) => (m.category || "Uncategorized") === categoryName
+  );
 
   return (
-    <CityPageClient>
+    <>
       <CityViewTracker citySlug={slug} cityId={city?.id} />
       <nav className="navbar">
         <div className="container">
@@ -183,6 +201,9 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
               <Link href="/" className="nav-link">
                 Home
               </Link>
+              <Link href={`/c/${slug}${idQuery}`} className="nav-link">
+                {cityDisplayName}
+              </Link>
               <CitySignupButton />
             </div>
           </div>
@@ -195,23 +216,25 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
             <div className="hero-text">
               <span className="badge">City page</span>
               <h1 className="hero-title">
-                {city ? `${city.emoji || "🏙️"} ${city.display}` : slug}
+                {city ? `${city.emoji || "🏙️"} ${cityDisplayName}` : slug} —{" "}
+                {categoryName}
               </h1>
               <p className="hero-description">
-                {city
-                  ? `Browse ${city.datasets_count} public datasets and source-linked civic context.`
-                  : "Browse public datasets and source-linked civic context."}
+                Metrics and data for {categoryName}. Browse source-linked civic
+                context.
               </p>
 
-              {/* Mayor and subscriber count - prominent in hero */}
               {(cityDetail?.mayor || cityDetail?.mayor_subscriber_count != null) && (
                 <div className="hero-mayor-subscribers">
                   {cityDetail?.mayor && (
-                    <span className="hero-mayor-name">Mayor {cityDetail.mayor.name}</span>
+                    <span className="hero-mayor-name">
+                      Mayor {cityDetail.mayor.name}
+                    </span>
                   )}
-                  {cityDetail?.mayor && cityDetail?.mayor_subscriber_count != null && (
-                    <span className="hero-mayor-sep"> · </span>
-                  )}
+                  {cityDetail?.mayor &&
+                    cityDetail?.mayor_subscriber_count != null && (
+                      <span className="hero-mayor-sep"> · </span>
+                    )}
                   {cityDetail?.mayor_subscriber_count != null && (
                     <span className="hero-subscriber-count">
                       {cityDetail.mayor_subscriber_count} followers
@@ -219,26 +242,35 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                   )}
                 </div>
               )}
-              
-              {/* Newsletter Signup - Above the fold */}
+
               <div className="hero-newsletter">
-                <CityHeroNewsletter cityName={city?.display ?? slug} />
+                <NewsletterSignup cityName={cityDisplayName} />
               </div>
 
-              {/* Category links - below newsletter */}
-              {uniqueCategories.length > 0 && (
-                <div className="hero-category-links">
-                  {uniqueCategories.map((cat) => (
-                    <Link
-                      key={cat}
-                      href={`/c/${slug}/category/${encodeURIComponent(cat)}`}
-                      className="hero-category-link"
-                    >
-                      {cat}
-                    </Link>
-                  ))}
-                </div>
-              )}
+              {(() => {
+                const uniqueCategories = Array.from(
+                  new Set(
+                    (cityDetail?.metrics ?? [])
+                      .map((m) => m.category)
+                      .filter((c): c is string => Boolean(c))
+                  )
+                ).sort((a, b) => a.localeCompare(b));
+                return (
+                  uniqueCategories.length > 0 && (
+                    <div className="hero-category-links">
+                      {uniqueCategories.map((cat) => (
+                        <Link
+                          key={cat}
+                          href={`/c/${slug}/category/${encodeURIComponent(cat)}${idQuery}`}
+                          className={`hero-category-link ${cat === categoryName ? "hero-category-link-active" : ""}`}
+                        >
+                          {cat}
+                        </Link>
+                      ))}
+                    </div>
+                  )
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -249,10 +281,11 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         </div>
       </section>
 
-      <CityDashboardSection
+      <CategoryDashboardSection
         cityDisplayName={cityDisplayName}
         slug={slug}
-        metrics={cityDetail?.metrics ?? []}
+        categoryName={categoryName}
+        metrics={categoryMetricsList}
         comparisonsMap={comparisonsMap}
         districts={districts}
         maps={maps}
@@ -270,8 +303,8 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
               </div>
               <p className="footer-description">
                 Maps, metrics, and research built from public city data—so
-                residents and elected officials can share the same picture of what’s
-                happening.
+                residents and elected officials can share the same picture of
+                what's happening.
               </p>
             </div>
             <div className="footer-column">
@@ -282,17 +315,19 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
               <Link href="/sitemap" className="footer-link">
                 Site Map
               </Link>
+              <Link href={`/c/${slug}${idQuery}`} className="footer-link">
+                {cityDisplayName}
+              </Link>
             </div>
           </div>
           <div className="footer-bottom">
             <p>
-              &copy; 2026 Transparent.city. The difference between knowing and
+              &copy; 2025 Transparent.city. The difference between knowing and
               guessing is agency.
             </p>
           </div>
         </div>
       </footer>
-    </CityPageClient>
+    </>
   );
 }
-

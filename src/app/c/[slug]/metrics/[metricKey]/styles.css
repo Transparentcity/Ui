@@ -144,6 +144,22 @@
   padding: 2rem;
 }
 
+/* Loading state for comparison cards */
+.comparison-card.loading .comparison-value,
+.comparison-card.loading .comparison-dates {
+  animation: pulse-fade 1.5s ease-in-out infinite;
+  color: var(--text-tertiary);
+}
+
+@keyframes pulse-fade {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 .metric-provenance {
   background: var(--bg-secondary);
   border-radius: 8px;

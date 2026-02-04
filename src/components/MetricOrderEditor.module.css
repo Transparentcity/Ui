@@ -229,6 +229,28 @@
   background: rgba(173, 53, 250, 0.08);
 }
 
+.dropZone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 14px;
+  margin-top: 4px;
+  background: rgba(173, 53, 250, 0.03);
+  border: 2px dashed rgba(173, 53, 250, 0.2);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text-tertiary, #9ca3af);
+  transition: all 0.15s ease;
+  /* Ensure drop zone doesn't block other elements when not being dragged over */
+  pointer-events: auto;
+}
+
+.dropZoneActive {
+  background: rgba(173, 53, 250, 0.08);
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary, #ad35fa);
+}
+
 .metricName {
   font-size: 13px;
   color: var(--text-primary, #222222);

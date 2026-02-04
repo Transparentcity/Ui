@@ -1261,6 +1261,34 @@
   margin: 32px 0;
 }
 
+.hero-category-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.hero-category-link {
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  color: var(--text-secondary, #6b7280);
+  text-decoration: none;
+  font-size: 14px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.hero-category-link:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--text-primary, #1f2937);
+}
+
+.hero-category-link-active {
+  background: rgba(255, 255, 255, 0.25);
+  color: var(--text-primary, #1f2937);
+  font-weight: 600;
+}
+
 /* Nav Signup Button Styles */
 .nav-signup-wrapper {
   display: flex;
