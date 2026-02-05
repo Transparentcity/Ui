@@ -6,6 +6,8 @@ import { ContactImportDialog } from "@/components/contact-import-dialog"
 import { Button } from "@/components/ui/button"
 import { Plus, Upload } from "lucide-react"
 
+export const dynamic = 'force-dynamic'
+
 export default async function ContactsPage() {
   const db = await createClient()
   

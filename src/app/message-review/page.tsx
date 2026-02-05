@@ -7,6 +7,7 @@ export const metadata = {
   description: "Review, edit, and approve outgoing messages before sending",
 }
 
+export const dynamic = 'force-dynamic'
 export default async function MessageReviewPage() {
   const db = createClient()
   

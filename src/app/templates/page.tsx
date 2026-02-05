@@ -5,6 +5,7 @@ import { TemplateDialog } from "@/components/template-dialog"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 
+export const dynamic = 'force-dynamic'
 export default async function TemplatesPage() {
   const db = await createClient()
   

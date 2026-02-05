@@ -7,6 +7,7 @@ export const metadata = {
   description: "View and manage scheduled outgoing messages",
 }
 
+export const dynamic = 'force-dynamic'
 export default async function SendQueuePage() {
   const db = createClient()
   

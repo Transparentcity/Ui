@@ -5,6 +5,7 @@ import { FollowupDialog } from "@/components/followup-dialog"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 
+export const dynamic = 'force-dynamic'
 export default async function FollowupsPage() {
   const db = await createClient()
   

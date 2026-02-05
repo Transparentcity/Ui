@@ -2,6 +2,9 @@ import { createClient } from "@/lib/db"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { AnalyticsDashboard } from "@/components/analytics-dashboard"
 
+// Force dynamic rendering (no static generation)
+export const dynamic = 'force-dynamic'
+
 async function getAnalyticsData() {
   const db = await createClient()
   

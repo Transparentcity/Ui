@@ -5,6 +5,7 @@ import { ResponseDialog } from "@/components/response-dialog"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 
+export const dynamic = 'force-dynamic'
 export default async function ResponsesPage() {
   const db = await createClient()
   

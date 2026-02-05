@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/db"
 import { ComposePageContent } from "@/components/compose-page-content"
 
+export const dynamic = 'force-dynamic'
 export default async function ComposePage() {
   const db = await createClient()
 

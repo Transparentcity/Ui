@@ -5,6 +5,8 @@ import { CampaignDialog } from "@/components/campaign-dialog"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 
+export const dynamic = 'force-dynamic'
+
 export default async function CampaignsPage() {
   const db = await createClient()
   
