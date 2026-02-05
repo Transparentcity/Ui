@@ -266,6 +266,33 @@ export function getCityStats(cityId: number, token: string): Promise<CityStatsRe
   );
 }
 
+export interface MetricRecordCounts {
+  active_charts: number;
+  inactive_charts: number;
+  active_data_points: number;
+  inactive_data_points: number;
+  anomaly_runs: number;
+  anomaly_results: number;
+  saved_maps: number;
+  total_active: number;
+  total_inactive: number;
+  most_recent_period_total: number | null;
+}
+
+export interface MetricRecordCountsResponse {
+  city_id: number;
+  counts: Record<number, MetricRecordCounts>;
+}
+
+export function getMetricRecordCounts(cityId: number, token: string): Promise<MetricRecordCountsResponse> {
+  return request<MetricRecordCountsResponse>(
+    `/api/admin/cities/${cityId}/metrics/record-counts`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
 export function updateCity(
   cityId: number,
   data: UpdateCityRequest,

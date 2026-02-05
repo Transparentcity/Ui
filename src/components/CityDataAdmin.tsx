@@ -7,6 +7,7 @@ import {
   ModelGroupInfo,
   getCityStructure,
   getDefaultExecuteStartDateByPeriod,
+  getMetricRecordCounts,
 } from "@/lib/apiClient";
 import {
   useCityAdmin,
@@ -493,6 +494,24 @@ export default function CityDataAdmin({
   const deleteMetricMutation = useDeleteMetric();
   const executeMetricMutation = useExecuteMetric();
   const anomaliesData = anomaliesQuery.data ?? null;
+  
+  // Record counts state (loaded on-demand)
+  const [recordCounts, setRecordCounts] = useState<Record<number, any> | null>(null);
+  const [loadingRecordCounts, setLoadingRecordCounts] = useState(false);
+  
+  // Function to fetch record counts on-demand
+  const fetchRecordCounts = async () => {
+    try {
+      setLoadingRecordCounts(true);
+      const token = await getAccessTokenSilently();
+      const response = await getMetricRecordCounts(cityId, token);
+      setRecordCounts(response.counts);
+    } catch (err) {
+      console.error("Failed to fetch record counts:", err);
+    } finally {
+      setLoadingRecordCounts(false);
+    }
+  };
   
   // Refetch anomalies when period filter, anomaly yes/no filter, or period date changes
   useEffect(() => {
@@ -3342,6 +3361,28 @@ export default function CityDataAdmin({
             </div>
             <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <button
+                onClick={fetchRecordCounts}
+                disabled={loadingRecordCounts}
+                style={{
+                  padding: "8px 16px",
+                  background: recordCounts
+                    ? "var(--brand-primary, #ad35fa)"
+                    : loadingRecordCounts
+                    ? "var(--text-secondary, #666)"
+                    : "var(--brand-accent, #6366f1)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  cursor: loadingRecordCounts ? "wait" : "pointer",
+                  opacity: loadingRecordCounts ? 0.7 : 1,
+                }}
+                title="Load detailed record counts (charts, data points, anomalies)"
+              >
+                {loadingRecordCounts ? "⏳ Loading..." : recordCounts ? "✓ Record Counts Loaded" : "📊 Load Record Counts"}
+              </button>
+              <button
                 onClick={handleStructureMetrics}
                 disabled={structureCityMetricsMutation.isPending}
                 style={{
@@ -3405,9 +3446,13 @@ export default function CityDataAdmin({
                   // Update category order to match any metric in it (they should all have the same)
                   grouped[category].categoryOrder = Math.min(grouped[category].categoryOrder, categoryOrder);
                   
+                  // Merge record counts if available
+                  const counts = recordCounts?.[metric.id];
+                  
                   grouped[category].metrics.push({
                     ...metric,
                     metricOrder, // Store for sorting
+                    record_counts: counts, // Add fetched record counts if available
                   } as Metric & { metricOrder: number });
                 });
 
