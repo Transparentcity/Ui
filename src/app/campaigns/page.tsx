@@ -30,15 +30,22 @@ export default async function CampaignsPage() {
   const campaignIds = campaigns.map((c: any) => c.id)
   let prospectsByCampaign: Record<string, string[]> = {}
   if (campaignIds.length > 0) {
-    const prospectsResult = await new Promise<{ data: { campaign_id: string; prospect_id: string }[] | null; error: Error | null }>((res) => {
-      db.from('campaign_prospects').select('campaign_id, prospect_id').then(res)
-    })
-    if (!prospectsResult.error && prospectsResult.data) {
-      const rows = prospectsResult.data
-      for (const row of rows) {
-        if (!prospectsByCampaign[row.campaign_id]) prospectsByCampaign[row.campaign_id] = []
-        prospectsByCampaign[row.campaign_id].push(row.prospect_id)
+    try {
+      const prospectsResult = await new Promise<{ data: { campaign_id: string; prospect_id: string }[] | null; error: Error | null }>((resolve) => {
+        db.from('campaign_prospects').select('campaign_id, prospect_id').then(resolve).catch((err: Error) => {
+          resolve({ data: null, error: err })
+        })
+      })
+      if (!prospectsResult.error && prospectsResult.data) {
+        const rows = prospectsResult.data
+        for (const row of rows) {
+          if (!prospectsByCampaign[row.campaign_id]) prospectsByCampaign[row.campaign_id] = []
+          prospectsByCampaign[row.campaign_id].push(row.prospect_id)
+        }
       }
+    } catch (error) {
+      // Table may not exist yet - continue without prospect assignments
+      console.error('[Campaigns] Error fetching campaign_prospects:', error)
     }
   }
   const campaignsWithStats = campaigns.map((campaign: any) => ({
