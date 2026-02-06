@@ -560,11 +560,12 @@ export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Ano
     const firstName = contact.name?.split(" ")[0] || "there"
     
     // Find matching anomalies for this contact
-    const contactJurisdiction = contact.jurisdiction?.toLowerCase()?.trim() || ""
+    // Support both 'district' and 'jurisdiction' field names
+    const contactDistrict = (contact.district || contact.jurisdiction || "").toString().toLowerCase().trim()
     const matchedAnomalies = anomalies.filter(anomaly => {
-      if (!anomaly.district_label || !contactJurisdiction) return false
+      if (!anomaly.district_label || !contactDistrict) return false
       const anomalyDistrict = anomaly.district_label.toLowerCase().trim()
-      const contactNum = contactJurisdiction.replace(/\D/g, '')
+      const contactNum = contactDistrict.replace(/\D/g, '')
       const anomalyNum = anomalyDistrict.replace(/\D/g, '')
       return contactNum === anomalyNum
     }).slice(0, 3)
@@ -606,7 +607,7 @@ Return a JSON object with "subject" and "body" fields only.`
     const cleanFirstName = sanitizeForJSON(firstName)
     const cleanTitle = sanitizeForJSON(contact.title) || 'N/A'
     const cleanOrg = sanitizeForJSON(contact.organization) || 'N/A'
-    const cleanJurisdiction = sanitizeForJSON(contact.jurisdiction) || 'N/A'
+    const cleanJurisdiction = sanitizeForJSON(contact.district || contact.jurisdiction) || 'N/A'
     const cleanTemplateSubject = template ? sanitizeForJSON(template.subject) || 'Update from Transparent City' : ''
     
     const userPrompt = `Generate a new email for:
@@ -871,15 +872,16 @@ async function generateEmailsWithAI(
   
   for (let contactIdx = 0; contactIdx < contactsArr.length; contactIdx++) {
     const contact = contactsArr[contactIdx] as any
-    const contactJurisdiction = contact.jurisdiction?.toLowerCase()?.trim() || ""
+    // Support both 'district' and 'jurisdiction' field names
+    const contactDistrict = (contact.district || contact.jurisdiction || "").toString().toLowerCase().trim()
     const contactKwIds = contactKeywordMap[contact.id] || []
     
     // 1. District matches (highest priority)
-    // Contact has "1", anomaly has "D1" - extract just numbers to compare
+    // Contact has "1" or "11", anomaly has "District 1" or "District 11" - extract numbers to compare
     const districtMatches = anomalies.filter(anomaly => {
-      if (!anomaly.district_label || !contactJurisdiction) return false
+      if (!anomaly.district_label || !contactDistrict) return false
       const anomalyDistrict = anomaly.district_label.toLowerCase().trim()
-      const contactNum = contactJurisdiction.replace(/\D/g, '')
+      const contactNum = contactDistrict.replace(/\D/g, '')
       const anomalyNum = anomalyDistrict.replace(/\D/g, '')
       return contactNum === anomalyNum
     })
@@ -905,7 +907,7 @@ async function generateEmailsWithAI(
     
     // Log first few contacts with details
     if (contactIdx < 3) {
-      console.log(`[v0] Contact "${contact.name}" (jurisdiction: "${contact.jurisdiction}"):`)
+      console.log(`[v0] Contact "${contact.name}" (district: "${contact.district || contact.jurisdiction}"):`)
       console.log(`[v0]   - District matches: ${districtMatches.length}`)
       console.log(`[v0]   - Keyword matches: ${keywordMatches.length}`)
       console.log(`[v0]   - Citywide matches: ${citywideMatches.length}`)
@@ -979,7 +981,7 @@ FIRST NAME TO USE: ${firstName}
 Title: ${sanitizeForJSON(contact.title) || "N/A"}
 Organization: ${sanitizeForJSON(contact.organization) || "N/A"}
 Department: ${sanitizeForJSON(contact.department) || "N/A"}
-Jurisdiction/District: ${sanitizeForJSON(contact.jurisdiction) || "N/A"}
+Jurisdiction/District: ${sanitizeForJSON(contact.district || contact.jurisdiction) || "N/A"}
 Contact ID: ${contact.id}
 
 ${matchedAnomalies.length > 0 ? `ANOMALIES TO INCLUDE:

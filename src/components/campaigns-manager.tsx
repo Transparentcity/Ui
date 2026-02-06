@@ -65,12 +65,20 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
   
   // Fetch anomalies from Platform API for email generation
   // High limit ensures 5+ anomalies per district plus citywide
-  const { data: anomalyData } = useAnomalies({
+  const { data: anomalyData, isLoading: anomaliesLoading, error: anomaliesError } = useAnomalies({
     is_anomaly: true,
     limit: 500,
     city_id: SF_CITY_ID,
   })
   const anomalies = anomalyData?.results ? mapApiAnomaliesToCrm(anomalyData.results) : []
+  
+  // Debug logging for anomalies
+  console.log('[CampaignsManager] Anomalies status:', {
+    loading: anomaliesLoading,
+    error: anomaliesError?.message,
+    count: anomalies.length,
+    rawResultsCount: anomalyData?.results?.length ?? 0
+  })
 
   const filteredCampaigns = campaigns.filter(campaign =>
     campaign.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -112,6 +120,10 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
     }
 
     if (confirm(`Generate ${contactIds.length} AI-personalized messages with anomaly data for this campaign? This may take 30-60 seconds.`)) {
+      console.log('[CampaignsManager] Starting email generation with', anomalies.length, 'anomalies')
+      if (anomalies.length === 0) {
+        console.warn('[CampaignsManager] WARNING: No anomalies available! Check auth and API connection.')
+      }
       setGeneratingCampaignId(campaignId)
       setStatusMessage({ type: 'loading', text: `Generating ${contactIds.length} personalized emails with AI...` })
       startTransition(async () => {
@@ -143,6 +155,10 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
     }
 
     if (confirm(`This will clear any pending/queued messages and generate ${contactIds.length} new AI-personalized messages. This may take 30-60 seconds. Continue?`)) {
+      console.log('[CampaignsManager] Starting regeneration with', anomalies.length, 'anomalies')
+      if (anomalies.length === 0) {
+        console.warn('[CampaignsManager] WARNING: No anomalies available! Check auth and API connection.')
+      }
       setGeneratingCampaignId(campaignId)
       setStatusMessage({ type: 'loading', text: `Generating ${contactIds.length} personalized emails with AI...` })
 
