@@ -1,6 +1,10 @@
 import type { MetadataRoute } from "next";
 
-import { listPublicCitiesForSitemap, listPublicMapsForSitemap } from "@/lib/publicApiClient";
+import {
+  listPublicCitiesForSitemap,
+  listPublicMapsForSitemap,
+  getPublicCityDetail,
+} from "@/lib/publicApiClient";
 import { getSiteOrigin } from "@/lib/siteUrl";
 
 export const revalidate = 3600;
@@ -75,11 +79,37 @@ export async function GET(): Promise<Response> {
     priority: 0.5,
   }));
 
+  const categoryEntries: SitemapEntry[] = [];
+  for (const city of cities) {
+    try {
+      const cityDetail = await getPublicCityDetail(city.id);
+      if (cityDetail?.metrics?.length) {
+        const categories = [
+          ...new Set(
+            cityDetail.metrics
+              .map((m) => m.category)
+              .filter((c): c is string => Boolean(c))
+          ),
+        ];
+        for (const cat of categories) {
+          categoryEntries.push({
+            loc: `${origin}/c/${city.slug}/category/${encodeURIComponent(cat)}?id=${city.id}`,
+            changefreq: "weekly",
+            priority: 0.5,
+          });
+        }
+      }
+    } catch {
+      // Skip this city's categories if detail fetch fails
+    }
+  }
+
   const entries: SitemapEntry[] = [
     { loc: `${origin}/`, changefreq: "weekly", priority: 1.0 },
     { loc: `${origin}/sitemap`, changefreq: "daily", priority: 0.8 },
     { loc: `${origin}/landing`, changefreq: "monthly", priority: 0.4 },
     ...cityEntries,
+    ...categoryEntries,
     ...mapEntries,
   ];
 

@@ -4,10 +4,10 @@
 
 `/c/[slug]` (city pages) and `/m/[hash]` (public maps) can work when you navigate **within the app** (e.g. from the sitemap or dashboard) but return **404 when you open the URL directly** (new tab, paste, refresh, or from an external link).
 
-## Why in‑app works but direct load can fail
+## Why in-app works but direct load can fail
 
-- **In‑app**: Next.js does client-side navigation. The browser does not request `GET /c/phoenix` or `GET /m/abc` as a full document; it fetches RSC/data. The initial load was for another URL (e.g. `/` or `/sitemap`), which already succeeded.
-- **Direct load**: The browser does `GET /c/phoenix` or `GET /m/abc`. The **host** (Vercel, your Node server, or the thing in front of it) must hand that path to the Next.js app. If it does not, you get 404.
+- **In-app**: Next.js does client-side navigation. The browser does not request `GET /c/phoenix` or `GET /m/abc` as a full document; it fetches RSC/data. The initial load was for another URL (e.g. `/` or `/sitemap`), which already succeeded.
+- **Direct load**: The browser does `GET /c/phoenix` or `GET /m/abc`. The **host** (your Node server, Cloud Run, or the infrastructure in front of it) must hand that path to the Next.js app. If it does not, you get 404.
 
 ## Requirements for /c and /m to work on direct load
 
@@ -16,13 +16,10 @@
 
 2. **Proxy / CDN in front**  
    If you put nginx, Cloud Run, or a CDN in front of Next:
-   - Send **all** non‑static requests (or everything except `/_next/static`, `/_next/image`, favicon, etc.) to the Next.js server.
+   - Send **all** non-static requests (or everything except `/_next/static`, `/_next/image`, favicon, etc.) to the Next.js server.
    - Do **not** only proxy `location = /` or a small set of paths.
 
-3. **Vercel**  
-   Vercel runs Next and routes all paths to it. No extra config is needed for `/c` and `/m` **as long as** you’re using the default Next.js setup (no `output: 'export'`). With `output: "standalone"` you would deploy differently (e.g. Docker/Cloud Run), not typical Vercel.
-
-4. **Standalone / Node (Docker, Cloud Run, etc.)**  
+3. **Standalone / Node (Docker, Cloud Run, etc.)**  
    Run the built app with:
    ```bash
    node .next/standalone/server.js
@@ -34,10 +31,10 @@
 ## API rewrites and /m, /c
 
 - **`/m/[hash]`**  
-  The page loads map data via `GET /api/maps/public/:hash`. In both dev and prod, that is **rewritten** to the backend (`NEXT_PUBLIC_API_BASE_URL`) so the browser always calls the app origin; the app proxies to the API. This avoids CORS and keeps behavior the same on direct load and in‑app nav.
+  The page loads map data via `GET /api/maps/public/:hash`. In both dev and prod, that is **rewritten** to the backend (`NEXT_PUBLIC_API_BASE_URL`) so the browser always calls the app origin; the app proxies to the API. This avoids CORS and keeps behavior the same on direct load and in-app nav.
 
 - **`/c/[slug]`**  
-  The page uses `listPublicCitiesForSitemap()` and other public API calls with the **full** `NEXT_PUBLIC_API_BASE_URL`. Those run **server‑side**; the rewrite is only for incoming `/api/...` requests to the app, so `/c` does not rely on it. Ensure the Next.js server can reach `NEXT_PUBLIC_API_BASE_URL` (and that it’s set in the deployment env).
+  The page uses `listPublicCitiesForSitemap()` and other public API calls with the **full** `NEXT_PUBLIC_API_BASE_URL`. Those run **server-side**; the rewrite is only for incoming `/api/...` requests to the app, so `/c` does not rely on it. Ensure the Next.js server can reach `NEXT_PUBLIC_API_BASE_URL` (and that it's set in the deployment env).
 
 ## Quick checks
 
@@ -51,7 +48,7 @@ curl -s -o /dev/null -w "%{http_code}" "https://app.transparent.city/m/abc123"
 
 If you get 404:
 
-- Confirm the app is really being served by the Next.js process (or Vercel’s Next runtime), not a static host or a proxy that only forwards `/`.
+- Confirm the app is really being served by the Next.js process, not a static host or a proxy that only forwards `/`.
 - Confirm `NEXT_PUBLIC_API_BASE_URL` is set in the deployment so server-side fetches for `/c` can reach the API.
 
 ## Relevant config

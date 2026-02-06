@@ -4,12 +4,14 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { trackSignupStart, trackSignupClick, trackLogin } from "@/lib/analytics";
+import { useSignupEmail } from "./SignupEmailContext";
 
 export default function CitySignupButton() {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const router = useRouter();
   const [signupMenuOpen, setSignupMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { email: prefillEmail } = useSignupEmail();
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -43,6 +45,8 @@ export default function CitySignupButton() {
       authorizationParams: {
         screen_hint: "signup",
         prompt: "login",
+        // Pre-fill email if user entered one in newsletter form
+        ...(prefillEmail && { login_hint: prefillEmail }),
       },
       appState: { returnTo: `/dashboard?signup=${intent}` },
     });

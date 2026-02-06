@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useRouter } from "next/navigation";
-import { listNewsletterReports, createResearch, type NewsletterReport, type CreateResearchResponse, type CreateResearchRequest } from "@/lib/apiClient";
+import { listNewsletterReports, createResearch, type NewsletterReport, type CreateResearchRequest } from "@/lib/apiClient";
+import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import Loader from "./Loader";
 import "./NewslettersTabPanel.css";
 
@@ -127,33 +128,17 @@ Format as a newsletter-style summary that could be emailed to subscribers intere
         max_subquestions: 1,
         model_key: "gpt-5.1",
         enable_web_search: true,
+        // Mark this as a newsletter so it appears in the newsletter list
+        is_newsletter: true,
+        newsletter_frequency: selectedFrequency as "weekly" | "monthly",
       };
       
-      const response: CreateResearchResponse = await createResearch(payload, token);
+      const response = await createResearch(payload, token);
 
-      // Reload newsletters after a short delay to see the new one
-      setTimeout(() => {
-        const loadNewsletters = async () => {
-          try {
-            const reports = await listNewsletterReports(
-              cityId,
-              {
-                district: selectedDistrict,
-                frequency: selectedFrequency ?? undefined,
-                limit: 50,
-              },
-              token
-            );
-            setNewsletters(reports);
-          } catch (err: any) {
-            console.error("Failed to reload newsletters:", err);
-          }
-        };
-        loadNewsletters();
-      }, 2000);
-
-      // Navigate to the new research report
-      router.push(response.public_url);
+      // Notify the job system so the badge shows progress
+      if (response.job_id) {
+        notifyJobCreated(response.job_id);
+      }
     } catch (err: any) {
       console.error("Failed to generate newsletter:", err);
       setError(err.message || "Failed to generate newsletter");

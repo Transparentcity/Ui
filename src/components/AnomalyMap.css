@@ -1,0 +1,127 @@
+/* AnomalyMap.css - Styles for the anomaly location map */
+
+.anomaly-map-wrapper {
+  margin: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-secondary, #f9f9f9);
+  border: 1px solid var(--border-color, #e5e7eb);
+}
+
+.anomaly-map-wrapper.no-header {
+  border-radius: 12px;
+}
+
+.anomaly-map-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--bg-primary, #ffffff);
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.anomaly-map-title {
+  font-family: 'Inter', 'IBM Plex Sans', Arial, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary, #222222);
+}
+
+.anomaly-map-count {
+  font-family: 'IBM Plex Sans', Arial, sans-serif;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #666666);
+}
+
+.anomaly-map-container {
+  width: 100%;
+  position: relative;
+  min-height: 200px;
+}
+
+/* Loading state */
+.anomaly-map-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  height: 100%;
+  min-height: 200px;
+  background: var(--bg-secondary, #f9f9f9);
+  color: var(--text-secondary, #666666);
+  font-family: 'IBM Plex Sans', Arial, sans-serif;
+  font-size: 0.875rem;
+}
+
+.anomaly-map-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border-color, #e5e7eb);
+  border-top-color: var(--brand-primary, #ad35fa);
+  border-radius: 50%;
+  animation: anomaly-map-spin 0.8s linear infinite;
+}
+
+@keyframes anomaly-map-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Error state */
+.anomaly-map-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 200px;
+  background: var(--bg-secondary, #f9f9f9);
+  color: var(--text-secondary, #666666);
+  font-family: 'IBM Plex Sans', Arial, sans-serif;
+  font-size: 0.875rem;
+}
+
+/* Mapbox overrides */
+.anomaly-map-container .mapboxgl-ctrl-top-right {
+  top: 8px;
+  right: 8px;
+}
+
+.anomaly-map-container .mapboxgl-ctrl-group {
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.anomaly-map-container .mapboxgl-ctrl-group button {
+  width: 32px;
+  height: 32px;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .anomaly-map-wrapper {
+    background: var(--bg-secondary, #1a1a1a);
+    border-color: var(--border-color, #333333);
+  }
+
+  .anomaly-map-header {
+    background: var(--bg-primary, #222222);
+    border-color: var(--border-color, #333333);
+  }
+
+  .anomaly-map-title {
+    color: var(--text-primary, #f0f0f0);
+  }
+
+  .anomaly-map-count {
+    color: var(--text-secondary, #999999);
+  }
+
+  .anomaly-map-loading,
+  .anomaly-map-error {
+    background: var(--bg-secondary, #1a1a1a);
+    color: var(--text-secondary, #999999);
+  }
+}

@@ -94,6 +94,45 @@ async function requestPublic<T>(path: string): Promise<T> {
   }
 }
 
+async function requestPublicPost<T>(path: string, body: object): Promise<T> {
+  const url = `${API_BASE}${path}`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      let errorMessage = `API POST ${path} failed: ${res.status}`;
+      if (text) {
+        try {
+          const errorJson = JSON.parse(text);
+          errorMessage = errorJson.message || errorJson.detail || errorMessage;
+        } catch {
+          errorMessage = `${errorMessage} - ${text.substring(0, 200)}`;
+        }
+      }
+      const err = new Error(errorMessage) as Error & { status?: number };
+      err.status = res.status;
+      throw err;
+    }
+    return (await res.json()) as T;
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes("fetch")) {
+      throw new Error(
+        `Failed to connect to API at ${API_BASE}. Please check if the API server is running and accessible.`
+      );
+    }
+    if (error instanceof Error) throw error;
+    throw new Error(`Unexpected error fetching ${path}: ${String(error)}`);
+  }
+}
+
 export type PublicCitySitemapItem = {
   id: number;
   name: string;
@@ -120,6 +159,7 @@ export type PublicCityMetricItem = {
 export type PublicCityDetail = {
   id: number;
   name: string;
+  slug?: string | null;
   state?: string | null;
   country?: string | null;
   emoji?: string | null;
@@ -335,6 +375,57 @@ export function getPublicMetricComparisons(
   return getCachedOrFetch(cacheKey, () => requestPublic<PublicMetricComparisons>(path), 120000); // 2 minute cache
 }
 
+export type PublicBatchComparisonsRequest = {
+  metric_ids: number[];
+  district?: number | null;
+  comparison_types?: string[] | null;
+};
+
+/** Backend returns Record<metric_id, Record<comparison_type, PublicMetricComparison>> */
+type PublicBatchComparisonsRaw = Record<
+  number,
+  Record<string, PublicMetricComparison>
+>;
+
+/**
+ * Fetch precomputed comparisons for multiple metrics in one request.
+ * Use this for city and category dashboards instead of one call per metric.
+ */
+export function getPublicMetricComparisonsBatch(
+  request: PublicBatchComparisonsRequest
+): Promise<Record<number, PublicMetricComparisons>> {
+  if (!request.metric_ids?.length) {
+    return Promise.resolve({});
+  }
+  const cacheKey = `metric-comparisons-batch:${request.metric_ids.join(",")}:${request.district ?? 0}:${(request.comparison_types ?? ["ytd"]).join(",")}`;
+  return getCachedOrFetch(
+    cacheKey,
+    async () => {
+      const raw = await requestPublicPost<PublicBatchComparisonsRaw>(
+        "/api/public/metrics/comparisons/batch",
+        {
+          metric_ids: request.metric_ids,
+          district: request.district ?? 0,
+          comparison_types: request.comparison_types ?? ["ytd"],
+        }
+      );
+      const result: Record<number, PublicMetricComparisons> = {};
+      for (const [idStr, comps] of Object.entries(raw)) {
+        const metricId = Number(idStr);
+        const compDict = comps as Record<string, PublicMetricComparison>;
+        const first = Object.values(compDict)[0];
+        result[metricId] = {
+          metric_id: metricId,
+          district: first?.district ?? null,
+          comparisons: compDict,
+        };
+      }
+      return result;
+    },
+    120000
+  );
+}
+
 export function getPublicMetricTimeSeriesSummary(
   metricId: number
 ): Promise<PublicTimeSeriesSummary> {
@@ -467,7 +558,7 @@ export function getPublicMetricShapefile(
   );
 }
 
-// Map data for metric detail page
+// Map data for metric detail page (legacy - saved maps)
 export type PublicMapResponse = {
   map_hash: string;
   map_url: string;
@@ -492,3 +583,117 @@ export function getPublicMetricMap(
   return getCachedOrFetch(cacheKey, () => requestPublic<PublicMapResponse>(path), 60000); // 1 minute cache
 }
 
+// =============================================================================
+// Dynamic Map Preview (for embedded metric maps - no database save)
+// =============================================================================
+
+export type MapPreviewRequest = {
+  start_date: string;
+  end_date: string;
+  district?: number | null;
+  period_type?: string;
+  // Optional comparison period for dual-layer display
+  comparison_start_date?: string | null;
+  comparison_end_date?: string | null;
+  // Optional group filtering (for anomalies specific to a group value)
+  group_field?: string | null;
+  group_value?: string | null;
+};
+
+export type MapPreviewResponse = {
+  map_type: string;
+  location_data: Array<Record<string, any>>;
+  map_config: Record<string, any>;
+  bounds?: [[number, number], [number, number]] | null;
+  center?: { lat: number; lng: number; zoom: number } | null;
+  city_id?: number | null;
+  metric_id: number;
+  title: string;
+  description?: string | null;
+  location_data_count: number;
+  // Comparison period data (optional - for dual-layer display)
+  comparison_location_data?: Array<Record<string, any>> | null;
+  comparison_location_data_count?: number | null;
+};
+
+/**
+ * Generate map data dynamically for embedding (no database save).
+ * This is the preferred method for embedded maps in metric detail pages.
+ */
+export async function getMetricMapPreview(
+  metricId: number,
+  request: MapPreviewRequest
+): Promise<MapPreviewResponse> {
+  const url = `${API_BASE}/api/public/metrics/${metricId}/map-preview`;
+  
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+  
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let errorMessage = `Map preview failed: ${res.status}`;
+    if (text) {
+      try {
+        const errorJson = JSON.parse(text);
+        errorMessage = errorJson.detail || errorJson.message || errorMessage;
+      } catch {
+        errorMessage = `${errorMessage} - ${text.substring(0, 200)}`;
+      }
+    }
+    const err = new Error(errorMessage) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
+  
+  return res.json();
+}
+
+export type MapSaveResponse = {
+  map_hash: string;
+  map_url: string;
+  map_id: number;
+};
+
+/**
+ * Save a map to the database (called when user clicks "View full map").
+ * Returns the hash/URL for navigation to the full map page.
+ */
+export async function saveMetricMap(
+  metricId: number,
+  request: MapPreviewRequest
+): Promise<MapSaveResponse> {
+  const url = `${API_BASE}/api/public/metrics/${metricId}/map-save`;
+  
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+  
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let errorMessage = `Map save failed: ${res.status}`;
+    if (text) {
+      try {
+        const errorJson = JSON.parse(text);
+        errorMessage = errorJson.detail || errorJson.message || errorMessage;
+      } catch {
+        errorMessage = `${errorMessage} - ${text.substring(0, 200)}`;
+      }
+    }
+    throw new Error(errorMessage);
+  }
+  
+  return res.json();
+}

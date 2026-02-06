@@ -15,9 +15,9 @@ This error typically occurs due to one of these issues:
 
 ## Diagnostic Steps
 
-### Step 1: Verify Environment Variables in Vercel
+### Step 1: Verify Environment Variables
 
-1. Go to Vercel Dashboard → Your Project → Settings → Environment Variables
+1. Check your deployment environment variables
 2. Verify these variables are set:
    - `NEXT_PUBLIC_API_BASE_URL` = `https://api.transparent.city`
    - `NEXT_PUBLIC_SITE_URL` = `https://app.transparent.city`
@@ -97,7 +97,7 @@ tail -f /var/log/transparentcity/application.log
 **Symptom**: Error shows `http://localhost:8001` in the error message
 
 **Fix**:
-1. Set `NEXT_PUBLIC_API_BASE_URL` in Vercel
+1. Set `NEXT_PUBLIC_API_BASE_URL` in your deployment environment
 2. Redeploy the application
 
 ### Solution 2: Backend Not Accessible
@@ -158,18 +158,8 @@ After applying fixes:
 
 ## Still Having Issues?
 
-1. Check Vercel deployment logs for build-time errors
+1. Check deployment logs for build-time errors
 2. Check backend application logs for runtime errors
 3. Verify all environment variables are set correctly
 4. Test API endpoint directly with `curl` or Postman
 5. Compare working dev environment with production configuration
-
-
-
-
-
-
-
-
-
-

@@ -158,6 +158,11 @@
   line-height: 1.3;
 }
 
+.groupFieldLabel {
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+}
+
 /* When there's no group: metric name is prominent */
 .metricNameLarge {
   font-size: 15px;

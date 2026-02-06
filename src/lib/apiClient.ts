@@ -266,6 +266,33 @@ export function getCityStats(cityId: number, token: string): Promise<CityStatsRe
   );
 }
 
+export interface MetricRecordCounts {
+  active_charts: number;
+  inactive_charts: number;
+  active_data_points: number;
+  inactive_data_points: number;
+  anomaly_runs: number;
+  anomaly_results: number;
+  saved_maps: number;
+  total_active: number;
+  total_inactive: number;
+  most_recent_period_total: number | null;
+}
+
+export interface MetricRecordCountsResponse {
+  city_id: number;
+  counts: Record<number, MetricRecordCounts>;
+}
+
+export function getMetricRecordCounts(cityId: number, token: string): Promise<MetricRecordCountsResponse> {
+  return request<MetricRecordCountsResponse>(
+    `/api/admin/cities/${cityId}/metrics/record-counts`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
 export function updateCity(
   cityId: number,
   data: UpdateCityRequest,
@@ -796,6 +823,7 @@ export interface UpdateAdminMetricRequest {
   greendirection?: string | null;
   item_noun?: string | null;
   template_id?: number | null;
+  endpoint?: string | null;
   map_query?: string | null;
   map_filters?: Record<string, any> | null;
   map_config?: Record<string, any> | null;
@@ -1548,7 +1576,7 @@ export interface JobsListResponse {
   total: number;
 }
 
-export function listJobs(
+export async function listJobs(
   token: string,
   limit: number = 20,
   status?: string,
@@ -1561,7 +1589,14 @@ export function listJobs(
   
   const query = params.toString();
   const path = `/api/jobs${query ? `?${query}` : ""}`;
-  return request<JobsListResponse>(path, "GET", undefined, token);
+  
+  try {
+    return await request<JobsListResponse>(path, "GET", undefined, token);
+  } catch (error) {
+    // Return empty result if jobs API is unavailable
+    // This makes the jobs system optional for CRM-only usage
+    return { jobs: [], total: 0 };
+  }
 }
 
 export function getJob(jobId: string, token: string): Promise<Job> {
@@ -1629,6 +1664,106 @@ export function getScheduledJobSummary(token: string): Promise<ScheduledJobSumma
     undefined,
     token
   ).then((res) => res.schedules);
+}
+
+export type CustomScheduleStatus = "active" | "paused" | "disabled";
+export type CustomScheduleType =
+  | "once"
+  | "hourly"
+  | "daily"
+  | "weekly"
+  | "monthly"
+  | "cron";
+
+export interface CustomScheduledJob {
+  id: number;
+  name: string;
+  description?: string | null;
+  job_type: string;
+  job_config: Record<string, any>;
+  schedule_type: CustomScheduleType;
+  cron_expression?: string | null;
+  schedule_hour?: number | null;
+  schedule_minute?: number | null;
+  schedule_day_of_week?: number | null;
+  schedule_day_of_month?: number | null;
+  timezone?: string | null;
+  max_retries?: number | null;
+  retry_delay_seconds?: number | null;
+  timeout_seconds?: number | null;
+  max_concurrent_cities?: number | null;
+  per_city_concurrency?: number | null;
+  status: CustomScheduleStatus;
+  last_run_at?: string | null;
+  last_run_status?: string | null;
+  last_run_job_id?: string | null;
+  next_run_at?: string | null;
+  run_count?: number | null;
+  failure_count?: number | null;
+  created_by?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  schedule_description?: string | null;
+}
+
+export interface ScheduledJobsAllResponse {
+  system_schedules: Array<{
+    key: string;
+    name: string;
+    description: string;
+    cadence: string;
+    type: "system";
+    is_system: true;
+    status: "active";
+    last_run?: any;
+    recent_runs?: any[];
+  }>;
+  custom_schedules: CustomScheduledJob[];
+  total_count: number;
+}
+
+export function getAllScheduledJobs(token: string): Promise<ScheduledJobsAllResponse> {
+  return request<ScheduledJobsAllResponse>("/api/jobs/schedules/all", "GET", undefined, token);
+}
+
+export interface UpdateCustomScheduledJobRequest {
+  name?: string;
+  description?: string | null;
+  job_type?: string;
+  job_config?: Record<string, any>;
+  schedule_type?: CustomScheduleType;
+  cron_expression?: string | null;
+  schedule_hour?: number | null;
+  schedule_minute?: number | null;
+  schedule_day_of_week?: number | null;
+  schedule_day_of_month?: number | null;
+  timezone?: string | null;
+  max_retries?: number | null;
+  retry_delay_seconds?: number | null;
+  timeout_seconds?: number | null;
+  max_concurrent_cities?: number | null;
+  per_city_concurrency?: number | null;
+  status?: CustomScheduleStatus;
+}
+
+export function updateCustomScheduledJob(
+  jobId: number,
+  payload: UpdateCustomScheduledJobRequest,
+  token: string
+): Promise<any> {
+  return request(`/api/jobs/schedules/custom/${jobId}`, "PUT", payload, token);
+}
+
+export function pauseCustomScheduledJob(jobId: number, token: string): Promise<any> {
+  return request(`/api/jobs/schedules/custom/${jobId}/pause`, "POST", {}, token);
+}
+
+export function resumeCustomScheduledJob(jobId: number, token: string): Promise<any> {
+  return request(`/api/jobs/schedules/custom/${jobId}/resume`, "POST", {}, token);
+}
+
+export function runCustomScheduledJob(jobId: number, token: string): Promise<any> {
+  return request(`/api/jobs/schedules/custom/${jobId}/run`, "POST", {}, token);
 }
 
 export interface RunScheduleRequest {
@@ -2076,6 +2211,7 @@ export interface CityShapefile {
   source_url?: string | null;
   feature_count?: number | null;
   identifier_field?: string | null;
+  identifier_field_aliases?: string[];
   status?: "active" | "disabled" | "needs_refresh";
   render_order?: number | null;
   style_overrides_json?: Record<string, any> | null;
@@ -2127,6 +2263,35 @@ export function getCityShapeLayers(
   );
 }
 
+export interface UpdateShapeLayerInstanceRequest {
+  identifier_field?: string;
+  identifier_field_aliases?: string[];
+  status?: "active" | "disabled" | "needs_refresh";
+  render_order?: number;
+  style_overrides_json?: Record<string, any>;
+  shapefile_name?: string;
+}
+
+export interface UpdateShapeLayerInstanceResponse {
+  city_id: number;
+  instance_id: number;
+  updated: boolean;
+  layer: CityShapeLayerListItem | null;
+}
+
+export function updateShapeLayerInstance(
+  cityId: number,
+  instanceId: number,
+  updates: UpdateShapeLayerInstanceRequest,
+  token: string
+): Promise<UpdateShapeLayerInstanceResponse> {
+  return request<UpdateShapeLayerInstanceResponse>(
+    `/api/shape-layers/cities/${cityId}/instances/${instanceId}`,
+    "PUT",
+    updates,
+    token
+  );
+}
 
 export function getCityShapefiles(cityId: number, token: string): Promise<CityShapefile[]> {
   return request<any>(`/api/cities/${cityId}/structure`, "GET", undefined, token)
@@ -2820,6 +2985,9 @@ export interface CreateResearchRequest {
   model_key?: string;
   require_agenda_approval?: boolean;
   enable_web_search?: boolean;
+  // Newsletter metadata fields (optional) - set these to create a newsletter report
+  is_newsletter?: boolean;
+  newsletter_frequency?: "weekly" | "monthly" | null;
 }
 
 export interface CreateResearchResponse {
@@ -3256,6 +3424,7 @@ export function adminListMaps(
     city_id?: number;
     is_public?: boolean;
     map_type?: string;
+    metric_id?: number;
     limit?: number;
     offset?: number;
   }
@@ -3265,12 +3434,29 @@ export function adminListMaps(
   if (options?.city_id) params.append("city_id", options.city_id.toString());
   if (options?.is_public !== undefined) params.append("is_public", String(options.is_public));
   if (options?.map_type) params.append("map_type", options.map_type);
+  if (options?.metric_id) params.append("metric_id", options.metric_id.toString());
   if (options?.limit) params.append("limit", options.limit.toString());
   if (options?.offset) params.append("offset", options.offset.toString());
   
   const query = params.toString();
   const path = `/api/admin/maps${query ? `?${query}` : ""}`;
   return request<MapListResponse>(path, "GET", undefined, token);
+}
+
+// Admin: Get maps for a specific metric
+export function getAdminMetricMaps(
+  metricId: number,
+  token: string,
+  options?: {
+    limit?: number;
+    offset?: number;
+  }
+): Promise<MapListResponse> {
+  return adminListMaps(token, {
+    metric_id: metricId,
+    limit: options?.limit ?? 100,
+    offset: options?.offset ?? 0,
+  });
 }
 
 // Admin: Get map stats
@@ -3368,6 +3554,7 @@ export interface MetricOrderingItem {
   city_id?: number;
   category_name: string;
   category_order: number;
+  subcategory_name?: string | null;  // Optional subcategory override
   metric_id: number | null;
   metric_order: number;
   metric_name?: string;

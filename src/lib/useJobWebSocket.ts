@@ -105,7 +105,12 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
       console.log(`📥 Jobs loaded: ${jobsMap.size} total, ${activeCount} active`);
       setJobs(jobsMap);
     } catch (error) {
-      console.error("❌ Error loading jobs:", error instanceof Error ? error.message : error);
+      // Silently handle expected errors (auth issues, backend unavailable)
+      // These are non-critical - the jobs API is optional for CRM functionality
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (!errorMessage.includes('Authentication') && !errorMessage.includes('Failed to fetch')) {
+        console.error("❌ Error loading jobs:", errorMessage);
+      }
     } finally {
       isLoadingJobsRef.current = false;
     }

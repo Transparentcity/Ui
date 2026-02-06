@@ -1,0 +1,125 @@
+"use client"
+
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { 
+  Users, 
+  LayoutDashboard, 
+  Send, 
+  FileText,
+  BarChart3,
+  AlertTriangle,
+  CheckSquare,
+  Tags,
+  ListTodo,
+  Inbox,
+  Sparkles,
+  ArrowLeft,
+} from "lucide-react"
+import { cn } from "@/lib/utils"
+
+const navigation = [
+  { name: "AI Compose", href: "/compose", icon: Sparkles, highlight: true },
+  { name: "Contacts", href: "/contacts", icon: Users },
+  { name: "Keywords", href: "/keywords", icon: Tags },
+  { name: "Templates", href: "/templates", icon: FileText },
+  { name: "Campaigns", href: "/campaigns", icon: Send },
+  { name: "Message Review", href: "/message-review", icon: ListTodo },
+  { name: "Send Queue", href: "/send-queue", icon: Send },
+  { name: "Responses", href: "/responses", icon: Inbox },
+  { name: "Follow-ups", href: "/followups", icon: CheckSquare },
+  { name: "Anomalies", href: "/anomalies", icon: AlertTriangle },
+  { name: "Analytics", href: "/analytics", icon: BarChart3 },
+]
+
+export function CRMSidebar() {
+  const pathname = usePathname()
+
+  return (
+    <aside className="w-[280px] min-w-[280px] h-screen bg-white border-r border-gray-200 flex flex-col sticky top-0 left-0 z-50">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 min-h-16">
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2.5 text-inherit no-underline flex-1"
+        >
+          {/* Logo */}
+          <div className="w-5 h-5 flex-shrink-0">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className="overflow-visible w-full h-full">
+              <path
+                d="M 0 45 Q 0 0, 45 0 L 50 0 L 50 8.333 L 45 8.333 Q 8.333 8.333, 8.333 45 L 8.333 50 L 0 50 Z"
+                className="fill-gray-900"
+              />
+              <path
+                d="M 100 55 Q 100 100, 55 100 L 50 100 L 50 91.666 L 55 91.666 Q 91.666 91.666, 91.666 55 L 91.666 50 L 100 50 Z"
+                className="fill-gray-900"
+              />
+            </svg>
+          </div>
+          <div className="font-bold text-lg whitespace-nowrap">
+            <span className="text-gray-900">Transparent</span>
+            <span className="text-purple-600">.city</span>
+          </div>
+        </Link>
+      </div>
+
+      {/* CRM Label */}
+      <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          CRM Dashboard
+        </span>
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-1 text-xs text-gray-400 no-underline hover:text-purple-600 transition-colors"
+        >
+          <ArrowLeft className="w-3 h-3" />
+          Main App
+        </Link>
+      </div>
+      
+      {/* Navigation */}
+      <nav className="flex-1 py-2 overflow-y-auto">
+        <ul className="list-none m-0 p-0">
+          {navigation.map((item) => {
+            const isActive = pathname === item.href || 
+              (item.href !== "/" && pathname.startsWith(item.href))
+            
+            return (
+              <li key={item.name}>
+                <Link
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-2.5 text-sm no-underline transition-all border-l-[3px]",
+                    isActive 
+                      ? "text-purple-600 font-semibold bg-gray-100 border-l-purple-600" 
+                      : "text-gray-600 font-normal bg-transparent border-l-transparent hover:bg-gray-50 hover:text-gray-900"
+                  )}
+                >
+                  <item.icon 
+                    className={cn(
+                      "w-[18px] h-[18px]",
+                      item.highlight && !isActive ? "text-purple-600" : ""
+                    )}
+                  />
+                  <span className="flex-1">{item.name}</span>
+                  {item.highlight && (
+                    <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-purple-600 text-white rounded">
+                      NEW
+                    </span>
+                  )}
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+      </nav>
+      
+      {/* Footer */}
+      <div className="px-4 py-3 border-t border-gray-200 bg-white">
+        <p className="text-xs text-gray-400 m-0">
+          Government Official Outreach
+        </p>
+      </div>
+    </aside>
+  )
+}

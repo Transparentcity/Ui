@@ -368,6 +368,21 @@
   max-width: none;
 }
 
+.comparison-card.loading .comparison-value,
+.comparison-card.loading .comparison-dates {
+  animation: pulse-fade 1.5s ease-in-out infinite;
+  color: var(--text-tertiary);
+}
+
+@keyframes pulse-fade {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 .comparison-label {
   font-size: 0.8125rem;
   font-weight: 600;

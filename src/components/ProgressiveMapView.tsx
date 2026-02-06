@@ -13,6 +13,8 @@ interface ProgressiveMapViewProps {
   mapHash: string;
   height?: number;
   onError?: (error: string) => void;
+  /** Optional comparison period points - rendered as grey dots behind current period */
+  comparisonLocationData?: Array<Record<string, any>>;
 }
 
 interface ShapeLayer {
@@ -143,11 +145,63 @@ async function getCachedShapeGeometry(instanceId: number): Promise<any> {
   });
 }
 
+/**
+ * Normalize point data to ensure lat/lon fields exist.
+ * Handles various coordinate formats:
+ * - Direct lat/lon fields
+ * - GeoJSON Point format (intersection_point, point, location, geometry)
+ * - Separate latitude/longitude fields
+ */
+function normalizePointData(points: Array<Record<string, any>>): Array<{ lat: number; lon: number; [key: string]: any }> {
+  return points
+    .map((p: any) => {
+      // Already has lat/lon
+      if (typeof p.lat === 'number' && typeof p.lon === 'number') {
+        return p;
+      }
+      
+      // Try to extract from GeoJSON Point format
+      const geoJsonFields = ['intersection_point', 'point', 'location', 'geometry', 'geom'];
+      for (const field of geoJsonFields) {
+        const geoPoint = p[field];
+        if (geoPoint && geoPoint.type === 'Point' && Array.isArray(geoPoint.coordinates)) {
+          const [lng, lat] = geoPoint.coordinates;
+          if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
+            return { ...p, lat, lon: lng };
+          }
+        }
+      }
+      
+      // Try latitude/longitude fields
+      if (typeof p.latitude === 'number' && typeof p.longitude === 'number') {
+        return { ...p, lat: p.latitude, lon: p.longitude };
+      }
+      
+      // Try lng instead of lon
+      if (typeof p.lat === 'number' && typeof p.lng === 'number') {
+        return { ...p, lon: p.lng };
+      }
+      
+      // Could not extract coordinates
+      return null;
+    })
+    .filter((p): p is { lat: number; lon: number; [key: string]: any } => 
+      p !== null && 
+      typeof p.lat === 'number' && 
+      typeof p.lon === 'number' &&
+      !isNaN(p.lat) && 
+      !isNaN(p.lon) &&
+      isFinite(p.lat) &&
+      isFinite(p.lon)
+    );
+}
+
 export default function ProgressiveMapView({
   mapData,
   mapHash,
   height = 400,
   onError,
+  comparisonLocationData,
 }: ProgressiveMapViewProps) {
   const [selectedShapeLayer, setSelectedShapeLayer] = useState<string | null>(null);
   const [points, setPoints] = useState<Array<{ lat: number; lon: number; [key: string]: any }> | null>(null);
@@ -260,20 +314,15 @@ export default function ProgressiveMapView({
   useEffect(() => {
     // For point maps, load points immediately from location_data
     if (isPointMap && mapData.location_data && Array.isArray(mapData.location_data) && mapData.location_data.length > 0 && points === null) {
-      const validLocationData = mapData.location_data.filter((p: any) => 
-        p && 
-        typeof p.lat === 'number' && 
-        typeof p.lon === 'number' &&
-        !isNaN(p.lat) && 
-        !isNaN(p.lon) &&
-        isFinite(p.lat) &&
-        isFinite(p.lon)
-      );
+      // Normalize point data to extract lat/lon from various formats (including GeoJSON)
+      const validLocationData = normalizePointData(mapData.location_data);
 
       if (validLocationData.length > 0) {
-        console.log(`[ProgressiveMapView] Loading ${validLocationData.length} points from location_data for point map`);
+        console.log(`[ProgressiveMapView] Loading ${validLocationData.length} points from location_data for point map (normalized from ${mapData.location_data.length})`);
         setPoints(validLocationData);
         setShowPoints(true);
+      } else {
+        console.log(`[ProgressiveMapView] No valid points found after normalization. Sample data:`, mapData.location_data[0]);
       }
     }
   }, [isPointMap, mapData.location_data, points]);
@@ -288,20 +337,12 @@ export default function ProgressiveMapView({
     }
 
     if (hasAggregations && mapData.location_data && Array.isArray(mapData.location_data) && mapData.location_data.length > 0) {
-      // Check if location_data has valid points with lat/lon
-      const validLocationData = mapData.location_data.filter((p: any) => 
-        p && 
-        typeof p.lat === 'number' && 
-        typeof p.lon === 'number' &&
-        !isNaN(p.lat) && 
-        !isNaN(p.lon) &&
-        isFinite(p.lat) &&
-        isFinite(p.lon)
-      );
+      // Normalize point data to extract lat/lon from various formats (including GeoJSON)
+      const validLocationData = normalizePointData(mapData.location_data);
 
       if (validLocationData.length > 0 && points === null) {
         // Use location_data directly if it has valid points
-        console.log(`[ProgressiveMapView] Using ${validLocationData.length} points from location_data for choropleth map`);
+        console.log(`[ProgressiveMapView] Using ${validLocationData.length} points from location_data for choropleth map (normalized from ${mapData.location_data.length})`);
         setPoints(validLocationData);
         // Don't auto-show points for choropleth maps - let user toggle them
       } else if (points === null && !loadingPoints && validLocationData.length === 0) {
@@ -1159,6 +1200,145 @@ export default function ProgressiveMapView({
       mapInstance.once('load', doAddPointsLayer);
     }
   };
+
+  // Add comparison period points as grey dots (rendered below current period points)
+  const addComparisonPointsLayer = (mapInstance: any, pointData: Array<{ lat: number; lon: number; [key: string]: any }>) => {
+    console.log(`[ProgressiveMapView] addComparisonPointsLayer called with ${pointData.length} comparison points`);
+    
+    // Aggregate points at identical locations
+    const locationMap = new Map<string, { points: any[]; lat: number; lon: number }>();
+    
+    pointData.forEach((point: any) => {
+      const key = `${point.lat.toFixed(6)},${point.lon.toFixed(6)}`;
+      if (!locationMap.has(key)) {
+        locationMap.set(key, { points: [], lat: point.lat, lon: point.lon });
+      }
+      locationMap.get(key)!.points.push(point);
+    });
+    
+    const aggregatedFeatures = Array.from(locationMap.entries()).map(([key, data], index) => {
+      const count = data.points.length;
+      const firstPoint = data.points[0];
+      return {
+        type: "Feature" as const,
+        geometry: {
+          type: "Point" as const,
+          coordinates: [data.lon, data.lat],
+        },
+        properties: {
+          id: index,
+          count,
+          ...firstPoint,
+        },
+      };
+    });
+    
+    const geojsonData = {
+      type: "FeatureCollection" as const,
+      features: aggregatedFeatures,
+    };
+
+    const doAddComparisonLayer = () => {
+      try {
+        // Remove existing comparison layer
+        if (mapInstance.getLayer("comparison-points-layer")) {
+          mapInstance.removeLayer("comparison-points-layer");
+        }
+        if (mapInstance.getSource("comparison-points-source")) {
+          mapInstance.removeSource("comparison-points-source");
+        }
+
+        mapInstance.addSource("comparison-points-source", {
+          type: "geojson",
+          data: geojsonData,
+        });
+
+        // Check if points-layer exists before using it as beforeId
+        // This ensures we don't get "Layer with id 'points-layer' does not exist" error
+        const pointsLayerExists = mapInstance.getLayer("points-layer");
+        const beforeLayerId = pointsLayerExists ? "points-layer" : undefined;
+
+        // Add comparison layer BEFORE the main points layer (so it renders below)
+        // Use a grey color and slightly smaller radius
+        mapInstance.addLayer({
+          id: "comparison-points-layer",
+          type: "circle",
+          source: "comparison-points-source",
+          paint: {
+            "circle-radius": [
+              "interpolate",
+              ["linear"],
+              ["get", "count"],
+              1, 5,      // Slightly smaller than main points
+              2, 7,
+              3, 9,
+              5, 12,
+              10, 15,
+              20, 18,
+            ],
+            "circle-color": "#9ca3af", // Grey color for comparison period
+            "circle-stroke-color": "#fff",
+            "circle-stroke-width": [
+              "interpolate",
+              ["linear"],
+              ["get", "count"],
+              1, 0.5,
+              5, 1,
+              10, 1.5,
+            ],
+            "circle-opacity": 0.6, // More transparent than current period
+          },
+        }, beforeLayerId); // Insert below points-layer if it exists
+        
+        console.log("[ProgressiveMapView] Comparison points layer added successfully");
+      } catch (err) {
+        console.error("[ProgressiveMapView] Error adding comparison points layer:", err);
+      }
+    };
+
+    if (mapInstance.isStyleLoaded()) {
+      doAddComparisonLayer();
+    } else {
+      mapInstance.once('load', doAddComparisonLayer);
+    }
+  };
+
+  // Effect to render comparison points when available
+  // Only render comparison points for point maps - choropleth shows recent period only
+  useEffect(() => {
+    if (!mapInstanceRef.current || !mapboxLoaded) return;
+    
+    // Don't show comparison points in choropleth mode - choropleth shows recent period only
+    const isChoroplethMode = defaultView?.type === "choropleth" || hasAggregations;
+    
+    if (!comparisonLocationData || comparisonLocationData.length === 0 || isChoroplethMode) {
+      // Remove comparison layer if no data or in choropleth mode
+      try {
+        if (mapInstanceRef.current.getLayer("comparison-points-layer")) {
+          mapInstanceRef.current.removeLayer("comparison-points-layer");
+        }
+        if (mapInstanceRef.current.getSource("comparison-points-source")) {
+          mapInstanceRef.current.removeSource("comparison-points-source");
+        }
+      } catch {
+        // ignore cleanup errors
+      }
+      if (isChoroplethMode && comparisonLocationData && comparisonLocationData.length > 0) {
+        console.log(`[ProgressiveMapView] Skipping comparison points in choropleth mode - showing recent period only`);
+      }
+      return;
+    }
+    
+    // Normalize comparison points to extract lat/lon from various formats (including GeoJSON)
+    const validComparisonPoints = normalizePointData(comparisonLocationData);
+    
+    if (validComparisonPoints.length > 0) {
+      console.log(`[ProgressiveMapView] Rendering ${validComparisonPoints.length} comparison points (normalized from ${comparisonLocationData.length})`);
+      addComparisonPointsLayer(mapInstanceRef.current, validComparisonPoints);
+    } else {
+      console.log(`[ProgressiveMapView] No valid comparison points found after normalization. Sample data:`, comparisonLocationData[0]);
+    }
+  }, [comparisonLocationData, mapboxLoaded, defaultView, hasAggregations]);
 
   // Legacy addPoints function - delegates to addPointsLayer
   const addPoints = (mapInstance: any) => {

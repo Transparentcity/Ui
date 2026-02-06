@@ -6,14 +6,15 @@ import "../../landing.css";
 import {
   listPublicCitiesForSitemap,
   getPublicCityDetail,
-  getPublicMetricComparisons,
+  getPublicMetricComparisonsBatch,
   getPublicMetricDistrictComparisons,
   listPublicMapsForCity,
 } from "@/lib/publicApiClient";
-import NewsletterSignup from "@/components/NewsletterSignup";
 import CitySignupButton from "./CitySignupButton";
 import CityDashboardSection from "./CityDashboardSection";
 import CityViewTracker from "./CityViewTracker";
+import CityPageClient from "./CityPageClient";
+import CityHeroNewsletter from "./CityHeroNewsletter";
 
 export const revalidate = 3600;
 
@@ -113,7 +114,9 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
   const cityDisplayName = city?.display ?? slug;
   // Fetch mayor-level dashboard data, district list, and recent maps for CityDashboardSection
   let cityDetail: Awaited<ReturnType<typeof getPublicCityDetail>> | null = null;
-  const comparisonsMap: Record<number, Awaited<ReturnType<typeof getPublicMetricComparisons>>> = {};
+  let comparisonsMap: Awaited<
+    ReturnType<typeof getPublicMetricComparisonsBatch>
+  > = {};
   let districts: number[] = [];
   let maps: Awaited<ReturnType<typeof listPublicMapsForCity>> = [];
   if (city?.id) {
@@ -121,15 +124,11 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       cityDetail = await getPublicCityDetail(city.id);
       const metrics = cityDetail?.metrics ?? [];
       if (metrics.length > 0) {
-        const toFetch = metrics.slice(0, 25);
-        const comps = await Promise.all(
-          toFetch.map((m) =>
-            getPublicMetricComparisons(m.id, 0, "ytd").catch(() => null)
-          )
-        );
-        toFetch.forEach((m, i) => {
-          if (comps[i]) comparisonsMap[m.id] = comps[i];
-        });
+        comparisonsMap = await getPublicMetricComparisonsBatch({
+          metric_ids: metrics.map((m) => m.id),
+          district: 0,
+          comparison_types: ["ytd"],
+        }).catch(() => ({}));
         const dc = await getPublicMetricDistrictComparisons(
           metrics[0].id,
           "ytd"
@@ -146,8 +145,16 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
     }
   }
 
+  const uniqueCategories = Array.from(
+    new Set(
+      (cityDetail?.metrics ?? [])
+        .map((m) => m.category)
+        .filter((c): c is string => Boolean(c))
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
   return (
-    <>
+    <CityPageClient>
       <CityViewTracker citySlug={slug} cityId={city?.id} />
       <nav className="navbar">
         <div className="container">
@@ -215,8 +222,23 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
               
               {/* Newsletter Signup - Above the fold */}
               <div className="hero-newsletter">
-                <NewsletterSignup cityName={city?.display ?? slug} />
+                <CityHeroNewsletter cityName={city?.display ?? slug} />
               </div>
+
+              {/* Category links - below newsletter */}
+              {uniqueCategories.length > 0 && (
+                <div className="hero-category-links">
+                  {uniqueCategories.map((cat) => (
+                    <Link
+                      key={cat}
+                      href={`/c/${slug}/category/${encodeURIComponent(cat)}`}
+                      className="hero-category-link"
+                    >
+                      {cat}
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -270,7 +292,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
           </div>
         </div>
       </footer>
-    </>
+    </CityPageClient>
   );
 }
 

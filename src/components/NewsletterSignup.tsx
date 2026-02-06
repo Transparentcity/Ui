@@ -8,12 +8,19 @@ type NewsletterSignupProps = {
   citySlug?: string;
   /** District number for district-level newsletter. Pass with citySlug to open newsletter with ?city=slug&district=d */
   district?: number;
+  /** Optional callback when email changes - used to sync with signup button */
+  onEmailChange?: (email: string) => void;
 };
 
-export default function NewsletterSignup({ cityName, citySlug, district }: NewsletterSignupProps) {
+export default function NewsletterSignup({ cityName, citySlug, district, onEmailChange }: NewsletterSignupProps) {
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
+
+  const handleEmailChange = (newEmail: string) => {
+    setEmail(newEmail);
+    onEmailChange?.(newEmail);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +58,7 @@ export default function NewsletterSignup({ cityName, citySlug, district }: Newsl
             id="newsletter-email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => handleEmailChange(e.target.value)}
             placeholder="Enter your email"
             className="newsletter-input"
             required

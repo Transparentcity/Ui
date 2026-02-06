@@ -86,7 +86,12 @@ export default function MetricOrderEditor({
     if (!metrics || metrics.length === 0) return;
 
     // Create a map of saved ordering - same structure as dashboard
-    const orderingMap = new Map<number, { categoryOrder: number; metricOrder: number; categoryName: string }>();
+    const orderingMap = new Map<number, { 
+      categoryOrder: number; 
+      metricOrder: number; 
+      categoryName: string;
+      subcategoryName: string | null;
+    }>();
     if (orderingData?.orderings) {
       orderingData.orderings.forEach((o) => {
         if (o.metric_id) {
@@ -94,13 +99,14 @@ export default function MetricOrderEditor({
             categoryOrder: o.category_order,
             metricOrder: o.metric_order,
             categoryName: o.category_name,
+            subcategoryName: o.subcategory_name ?? null,
           });
         }
       });
     }
 
     // Group metrics by category using saved ordering's categoryName (same as dashboard)
-    const grouped: Record<string, { metrics: Array<{ metric: Metric; order: number }>; categoryOrder: number }> = {};
+    const grouped: Record<string, { metrics: Array<{ metric: Metric; order: number; overrideSubcategory?: string | null }>; categoryOrder: number }> = {};
     
     metrics.forEach((metric) => {
       const ordering = orderingMap.get(metric.id);
@@ -108,6 +114,8 @@ export default function MetricOrderEditor({
       const category = ordering?.categoryName || metric.category || "Uncategorized";
       const categoryOrder = ordering?.categoryOrder ?? 1000;
       const metricOrder = ordering?.metricOrder ?? 1000;
+      // Use ordering's subcategory if set (allows cross-subcategory moves to persist)
+      const overrideSubcategory = ordering?.subcategoryName;
       
       if (!grouped[category]) {
         grouped[category] = { metrics: [], categoryOrder };
@@ -115,7 +123,7 @@ export default function MetricOrderEditor({
       // Update category order to match any metric in it (they should all have the same)
       grouped[category].categoryOrder = Math.min(grouped[category].categoryOrder, categoryOrder);
       
-      grouped[category].metrics.push({ metric, order: metricOrder });
+      grouped[category].metrics.push({ metric, order: metricOrder, overrideSubcategory });
     });
 
     // Sort categories by their order, then alphabetically (same as dashboard)
@@ -137,14 +145,19 @@ export default function MetricOrderEditor({
       });
 
       // Group metrics by subcategory within this category (same as dashboard)
+      // Use overrideSubcategory from saved ordering if available, otherwise use metric's native subcategory
       const subcategoryMap = new Map<string | null, Array<{ metric: Metric; order: number }>>();
       
       sortedMetrics.forEach((metricItem) => {
-        const subcat = metricItem.metric.subcategory || null;
+        // Use saved subcategory override if defined, otherwise use metric's native subcategory
+        const subcat = metricItem.overrideSubcategory !== undefined 
+          ? metricItem.overrideSubcategory 
+          : (metricItem.metric.subcategory || null);
         if (!subcategoryMap.has(subcat)) {
           subcategoryMap.set(subcat, []);
         }
-        subcategoryMap.get(subcat)!.push(metricItem);
+        // Store without overrideSubcategory for the final structure
+        subcategoryMap.get(subcat)!.push({ metric: metricItem.metric, order: metricItem.order });
       });
 
       // Convert to array and sort (null subcategory first, then alphabetically)
@@ -291,8 +304,13 @@ export default function MetricOrderEditor({
   }, []);
 
   // Metric drag handlers
-  const handleMetricDragStart = useCallback((categoryIndex: number, subcategoryIndex: number, metricIndex: number) => {
+  const handleMetricDragStart = useCallback((e: React.DragEvent, categoryIndex: number, subcategoryIndex: number, metricIndex: number) => {
+    // Clear any stale state from previous incomplete drags
+    setDragOverMetricInfo(null);
     setDraggedMetricInfo({ categoryIndex, subcategoryIndex, metricIndex });
+    // Required for Firefox to allow dragging
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', `metric-${categoryIndex}-${subcategoryIndex}-${metricIndex}`);
   }, []);
 
   const handleMetricDragOver = useCallback((e: React.DragEvent, categoryIndex: number, subcategoryIndex: number, metricIndex: number) => {
@@ -327,37 +345,74 @@ export default function MetricOrderEditor({
       return;
     }
 
-    // Only allow reordering within the same category and subcategory
-    if (draggedMetricInfo.categoryIndex !== dropCategoryIndex || 
-        draggedMetricInfo.subcategoryIndex !== dropSubcategoryIndex) {
-      setDraggedMetricInfo(null);
-      setDragOverMetricInfo(null);
-      return;
-    }
-
     setCategoryGroups((prev) => {
       const newGroups = [...prev];
-      const category = { ...newGroups[dropCategoryIndex] };
-      const newSubcategories = [...category.subcategories];
-      const subcategory = { ...newSubcategories[dropSubcategoryIndex] };
-      const newMetrics = [...subcategory.metrics];
-
-      const [draggedMetric] = newMetrics.splice(draggedMetricInfo.metricIndex, 1);
-      const insertIndex =
-        draggedMetricInfo.metricIndex < dropMetricIndex
-          ? dropMetricIndex - 1
-          : dropMetricIndex;
-      newMetrics.splice(insertIndex, 0, draggedMetric);
-
-      // Update order values
-      subcategory.metrics = newMetrics.map((m, i) => ({
+      
+      // Get source info
+      const sourceCategory = { ...newGroups[draggedMetricInfo.categoryIndex] };
+      const sourceSubcategories = [...sourceCategory.subcategories];
+      const sourceSubcategory = { ...sourceSubcategories[draggedMetricInfo.subcategoryIndex] };
+      const sourceMetrics = [...sourceSubcategory.metrics];
+      
+      // Remove from source
+      const [draggedMetric] = sourceMetrics.splice(draggedMetricInfo.metricIndex, 1);
+      
+      // Check if moving to a different category or subcategory
+      const isCrossCategory = draggedMetricInfo.categoryIndex !== dropCategoryIndex;
+      const isCrossSubcategory = draggedMetricInfo.subcategoryIndex !== dropSubcategoryIndex;
+      
+      if (isCrossCategory || isCrossSubcategory) {
+        // Moving to different category/subcategory - update metric's category/subcategory
+        const targetCategoryName = newGroups[dropCategoryIndex].name;
+        const targetSubcategoryName = newGroups[dropCategoryIndex].subcategories[dropSubcategoryIndex]?.name || null;
+        
+        // Update the metric object with new category/subcategory
+        draggedMetric.metric = {
+          ...draggedMetric.metric,
+          category: targetCategoryName,
+          subcategory: targetSubcategoryName,
+        };
+      }
+      
+      // Update source subcategory
+      sourceSubcategory.metrics = sourceMetrics.map((m, i) => ({
         ...m,
         order: (i + 1) * 10,
       }));
-
-      newSubcategories[dropSubcategoryIndex] = subcategory;
-      category.subcategories = newSubcategories;
-      newGroups[dropCategoryIndex] = category;
+      sourceSubcategories[draggedMetricInfo.subcategoryIndex] = sourceSubcategory;
+      sourceCategory.subcategories = sourceSubcategories;
+      newGroups[draggedMetricInfo.categoryIndex] = sourceCategory;
+      
+      // Get target info (re-fetch since we may have modified source which could be same as target)
+      const targetCategory = { ...newGroups[dropCategoryIndex] };
+      const targetSubcategories = [...targetCategory.subcategories];
+      const targetSubcategory = { ...targetSubcategories[dropSubcategoryIndex] };
+      const targetMetrics = [...targetSubcategory.metrics];
+      
+      // Calculate insert index
+      let insertIndex = dropMetricIndex;
+      // If moving within the same subcategory and from before the drop point, adjust index
+      if (
+        draggedMetricInfo.categoryIndex === dropCategoryIndex &&
+        draggedMetricInfo.subcategoryIndex === dropSubcategoryIndex &&
+        draggedMetricInfo.metricIndex < dropMetricIndex
+      ) {
+        insertIndex = dropMetricIndex - 1;
+      }
+      
+      // Insert at target
+      targetMetrics.splice(insertIndex, 0, draggedMetric);
+      
+      // Update order values for target
+      targetSubcategory.metrics = targetMetrics.map((m, i) => ({
+        ...m,
+        order: (i + 1) * 10,
+      }));
+      
+      targetSubcategories[dropSubcategoryIndex] = targetSubcategory;
+      targetCategory.subcategories = targetSubcategories;
+      newGroups[dropCategoryIndex] = targetCategory;
+      
       return newGroups;
     });
 
@@ -386,6 +441,7 @@ export default function MetricOrderEditor({
           orderings.push({
             category_name: category.name,
             category_order: categoryOrder,
+            subcategory_name: subcategory.name,  // Include subcategory for cross-subcategory moves
             metric_id: metricItem.metric.id,
             metric_order: metricOrderCounter * 10,
           });
@@ -432,7 +488,8 @@ export default function MetricOrderEditor({
       {isExpanded && (
         <div className={styles.content}>
           <div className={styles.instructions}>
-            Drag categories to reorder them. Expand a category to reorder subcategories and metrics within it.
+            Drag categories to reorder them. Expand a category to reorder metrics. 
+            <strong> You can drag metrics between categories</strong> — they will adopt the new category and subcategory.
           </div>
 
           <div className={styles.categoryList}>
@@ -457,14 +514,20 @@ export default function MetricOrderEditor({
                   className={`${styles.categoryItem} ${
                     draggedCategoryIndex === catIndex ? styles.dragging : ""
                   } ${dragOverCategoryIndex === catIndex ? styles.dragOver : ""}`}
-                  draggable
-                  onDragStart={() => handleCategoryDragStart(catIndex)}
                   onDragOver={(e) => handleCategoryDragOver(e, catIndex)}
                   onDragLeave={handleCategoryDragLeave}
                   onDrop={(e) => handleCategoryDrop(e, catIndex)}
-                  onDragEnd={handleCategoryDragEnd}
                 >
-                  <div className={styles.categoryHeader}>
+                  <div 
+                    className={styles.categoryHeader}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', `category-${catIndex}`);
+                      handleCategoryDragStart(catIndex);
+                    }}
+                    onDragEnd={handleCategoryDragEnd}
+                  >
                     <span className={styles.dragHandle}>⋮⋮</span>
                     <span
                       className={styles.expandToggle}
@@ -538,7 +601,7 @@ export default function MetricOrderEditor({
                               draggable
                               onDragStart={(e) => {
                                 e.stopPropagation();
-                                handleMetricDragStart(catIndex, subIndex, metricIndex);
+                                handleMetricDragStart(e, catIndex, subIndex, metricIndex);
                               }}
                               onDragOver={(e) => handleMetricDragOver(e, catIndex, subIndex, metricIndex)}
                               onDragLeave={handleMetricDragLeave}
@@ -551,6 +614,23 @@ export default function MetricOrderEditor({
                               </span>
                             </div>
                           ))}
+                          {/* Drop zone at the end of each subcategory for cross-category drops */}
+                          {draggedMetricInfo !== null && (
+                            <div
+                              className={`${styles.dropZone} ${
+                                dragOverMetricInfo?.categoryIndex === catIndex &&
+                                dragOverMetricInfo?.subcategoryIndex === subIndex &&
+                                dragOverMetricInfo?.metricIndex === subcategory.metrics.length
+                                  ? styles.dropZoneActive
+                                  : ""
+                              }`}
+                              onDragOver={(e) => handleMetricDragOver(e, catIndex, subIndex, subcategory.metrics.length)}
+                              onDragLeave={handleMetricDragLeave}
+                              onDrop={(e) => handleMetricDrop(e, catIndex, subIndex, subcategory.metrics.length)}
+                            >
+                              Drop metric here
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

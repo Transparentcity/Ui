@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { getPublicMetricMap } from "@/lib/publicApiClient";
-import { getPublicMap } from "@/lib/apiClient";
+import { useState, useEffect, useCallback } from "react";
+import { getMetricMapPreview, saveMetricMap, type MapPreviewResponse } from "@/lib/publicApiClient";
 import type { SavedMap } from "@/lib/apiClient";
 import ProgressiveMapView from "./ProgressiveMapView";
 import Loader from "./Loader";
@@ -18,7 +17,31 @@ interface MetricMapEmbedProps {
   district?: number | null; // District to filter by (null/0 = citywide)
   metricName?: string; // Metric name for caption
   itemNoun?: string; // Item noun (e.g., "incidents", "cases") for caption
-  dateRange?: { start: string | null; end: string | null }; // Date range for caption
+  dateRange?: { start: string | null; end: string | null }; // Date range from comparison data
+  comparisonDateRange?: { start: string | null; end: string | null }; // Comparison period dates (shown as grey dots behind)
+}
+
+// Convert MapPreviewResponse to SavedMap format for ProgressiveMapView
+function previewToSavedMap(preview: MapPreviewResponse): SavedMap {
+  return {
+    id: 0, // Not saved yet
+    short_hash: "", // No hash yet
+    title: preview.title,
+    description: preview.description ?? null,
+    map_type: preview.map_type as "point" | "choropleth" | "symbol" | "heatmap" | "multi_layer",
+    location_data: preview.location_data as Array<{ lat: number; lon: number; [key: string]: any }>,
+    map_config: preview.map_config,
+    bounds: preview.bounds ?? null,
+    center: preview.center ?? null,
+    city_id: preview.city_id ?? null,
+    metric_id: preview.metric_id,
+    query_source: null,
+    is_public: false,
+    view_count: 0,
+    user_id: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
 }
 
 export default function MetricMapEmbed({
@@ -32,66 +55,67 @@ export default function MetricMapEmbed({
   metricName,
   itemNoun = "items",
   dateRange,
+  comparisonDateRange,
 }: MetricMapEmbedProps) {
-  const [mapHash, setMapHash] = useState<string | null>(null);
   const [mapData, setMapData] = useState<SavedMap | null>(null);
+  const [comparisonLocationData, setComparisonLocationData] = useState<Array<Record<string, any>> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-
-  // Track if map is not available (404 or missing map_query)
   const [mapNotAvailable, setMapNotAvailable] = useState(false);
-  
-  // Fetch map hash for current period with timeout
+  const [savingMap, setSavingMap] = useState(false);
+
+  // Fetch map preview dynamically (no database save)
   useEffect(() => {
     let mounted = true;
-    let timeoutId: NodeJS.Timeout | null = null;
     
-    // Reset map data when period changes
+    // Reset state when inputs change
     setMapData(null);
+    setComparisonLocationData(null);
     setMapNotAvailable(false);
+    setError(null);
     
-    async function fetchMapHash() {
+    // Need date range to generate map
+    if (!dateRange?.start || !dateRange?.end) {
+      setLoading(false);
+      return;
+    }
+    
+    async function fetchMapPreview() {
       try {
         setLoading(true);
-        setError(null);
         
-        // Add timeout for map hash fetch (5 seconds)
-        const controller = new AbortController();
-        timeoutId = setTimeout(() => {
-          controller.abort();
-        }, 5000);
-        
-        const response = await getPublicMetricMap(metricId, selectedPeriod, district);
-        
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = null;
-        }
+        // Include comparison dates if provided
+        const response = await getMetricMapPreview(metricId, {
+          start_date: dateRange!.start!,
+          end_date: dateRange!.end!,
+          district: district || undefined,
+          period_type: selectedPeriod,
+          comparison_start_date: comparisonDateRange?.start || undefined,
+          comparison_end_date: comparisonDateRange?.end || undefined,
+        });
         
         if (mounted) {
-          setMapHash(response.map_hash);
+          // Convert to SavedMap format for ProgressiveMapView
+          setMapData(previewToSavedMap(response));
+          
+          // Store comparison data if returned
+          if (response.comparison_location_data && response.comparison_location_data.length > 0) {
+            setComparisonLocationData(response.comparison_location_data);
+          }
         }
       } catch (err) {
         if (mounted) {
-          // Check if it's a timeout
-          if (err instanceof Error && err.name === 'AbortError') {
-            setMapNotAvailable(true);
-            setError(null);
-            return;
-          }
-          
-          // Check if it's a 404 (map not available) vs other error
+          // Check if it's a 404 (map not available for this metric)
           const is404 = (err as any)?.status === 404 || 
                        (err instanceof Error && (
                          err.message.includes("404") || 
                          err.message.includes("not available") ||
-                         err.message.includes("does not have a map_query")
+                         err.message.includes("no map_query")
                        ));
           
           if (is404) {
             setMapNotAvailable(true);
-            setError(null); // Don't show error for missing map
+            setError(null);
           } else {
             setError(err instanceof Error ? err.message : "Failed to load map");
           }
@@ -100,74 +124,61 @@ export default function MetricMapEmbed({
         if (mounted) {
           setLoading(false);
         }
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
       }
     }
     
-    fetchMapHash();
+    fetchMapPreview();
     return () => {
       mounted = false;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
     };
-  }, [metricId, selectedPeriod, district]);
+  }, [metricId, selectedPeriod, district, dateRange?.start, dateRange?.end, comparisonDateRange?.start, comparisonDateRange?.end]);
 
-  // Fetch map data when hash is available (with timeout)
-  useEffect(() => {
-    if (!mapHash) return;
-    const hash = mapHash;
-
-    let mounted = true;
-    let timeoutId: NodeJS.Timeout | null = null;
-
-    async function fetchMapData() {
-      try {
-        // Add timeout for map data fetch (8 seconds - it can be larger)
-        const controller = new AbortController();
-        timeoutId = setTimeout(() => {
-          controller.abort();
-        }, 8000);
-        
-        const data = await getPublicMap(hash);
-        
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = null;
-        }
-        
-        if (mounted) {
-          setMapData(data);
-        }
-      } catch (err) {
-        if (mounted) {
-          // On timeout or error, show "not available" instead of error
-          if (err instanceof Error && err.name === 'AbortError') {
-            setMapNotAvailable(true);
-          } else {
-            setError(err instanceof Error ? err.message : "Failed to load map data");
-          }
-        }
-      }
+  // Handle "View full map" click - save map then navigate
+  const handleViewFullMap = useCallback(async () => {
+    if (!dateRange?.start || !dateRange?.end) return;
+    
+    try {
+      setSavingMap(true);
+      
+      const response = await saveMetricMap(metricId, {
+        start_date: dateRange.start,
+        end_date: dateRange.end,
+        district: district || undefined,
+        period_type: selectedPeriod,
+      });
+      
+      // Navigate to the full map page
+      window.open(response.map_url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error("Failed to save map:", err);
+      setError(err instanceof Error ? err.message : "Failed to save map");
+    } finally {
+      setSavingMap(false);
     }
-
-    fetchMapData();
-    return () => {
-      mounted = false;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, [mapHash]);
-
+  }, [metricId, selectedPeriod, district, dateRange]);
 
   const periodButtonLabels = {
     ytd: "Year-to-Date",
     mtd: "Month-to-Date",
     mtd_prior_year: "Month-to-Date (Prior Year)",
   };
+
+  // Get year from date string for legend
+  const getYearFromDate = (dateStr: string | null | undefined): number | null => {
+    if (!dateStr) return null;
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return null;
+      return date.getFullYear();
+    } catch {
+      return null;
+    }
+  };
+
+  // Build legend labels based on period type and dates
+  const currentYear = getYearFromDate(dateRange?.start);
+  const comparisonYear = getYearFromDate(comparisonDateRange?.start);
+  const hasComparison = comparisonLocationData && comparisonLocationData.length > 0;
 
   // Format date range for caption
   const formatDateRange = (start: string | null | undefined, end: string | null | undefined): string => {
@@ -244,10 +255,24 @@ export default function MetricMapEmbed({
     
     if (totalCount === null) return "";
     
-    return `There ${totalCount === 1 ? "was" : "were"} ${totalCount.toLocaleString()} ${metricName.toLowerCase()} ${itemNoun.toLowerCase()} ${district && district > 0 ? `in ${locationLabel}` : `citywide`} from ${dateRangeStr}.`;
+    // Use item_noun from map_config if available
+    const displayItemNoun = mapData.map_config?.item_noun || itemNoun;
+    
+    return `There ${totalCount === 1 ? "was" : "were"} ${totalCount.toLocaleString()} ${metricName.toLowerCase()} ${displayItemNoun.toLowerCase()} ${district && district > 0 ? `in ${locationLabel}` : `citywide`} from ${dateRangeStr}.`;
   };
 
   const caption = buildCaption();
+
+  // If no date range provided, show message
+  if (!dateRange?.start || !dateRange?.end) {
+    return (
+      <div className="metric-map-embed" style={{ height }}>
+        <div className="map-not-available">
+          <p>Map data requires date range information.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -293,12 +318,13 @@ export default function MetricMapEmbed({
           ))}
         </div>
       )}
-      {mapData && mapHash ? (
+      {mapData ? (
         <ProgressiveMapView
           mapData={mapData}
-          mapHash={mapHash}
+          mapHash="" // No hash for preview mode - points are already in mapData
           height={height}
           onError={setError}
+          comparisonLocationData={comparisonLocationData || undefined}
         />
       ) : (
         <div className="map-container-wrapper">
@@ -311,16 +337,58 @@ export default function MetricMapEmbed({
           )}
         </div>
       )}
+      {/* Legend showing what the dot colors mean - only show for point maps, not choropleth */}
+      {mapData && (() => {
+        // Check if this is a point map (not choropleth) where we show the colored dots
+        const defaultView = mapData.map_config?.default_view;
+        const isPointMode = defaultView?.type === "points" || 
+          (mapData.map_type === "point" && !mapData.map_config?.aggregations);
+        
+        // Only show the point legend if we're in point mode
+        if (!isPointMode) return null;
+        
+        return (
+          <div className="map-legend">
+            <div className="map-legend-item">
+              <span className="map-legend-dot map-legend-dot-current" />
+              <span className="map-legend-label">
+                {currentYear ? `${currentYear}` : "Current"}
+              </span>
+            </div>
+            {hasComparison && (
+              <div className="map-legend-item">
+                <span className="map-legend-dot map-legend-dot-comparison" />
+                <span className="map-legend-label">
+                  {comparisonYear ? `${comparisonYear}` : "Prior period"}
+                </span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {caption && (
         <div className="map-caption">
           {caption}
         </div>
       )}
-      {showLink && mapHash && (
+      {showLink && mapData && (
         <div className="map-link-row">
-          <a href={`/m/${mapHash}`} target="_blank" rel="noopener noreferrer" className="map-link">
-            View full map <i className="fas fa-external-link-alt" />
-          </a>
+          <button 
+            onClick={handleViewFullMap}
+            disabled={savingMap}
+            className="map-link"
+            style={{ 
+              background: "none", 
+              border: "none", 
+              cursor: savingMap ? "wait" : "pointer",
+              padding: 0,
+              font: "inherit",
+              color: "inherit",
+              textDecoration: "underline"
+            }}
+          >
+            {savingMap ? "Opening..." : "View full map"} <i className="fas fa-external-link-alt" />
+          </button>
         </div>
       )}
     </div>

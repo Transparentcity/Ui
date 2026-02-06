@@ -100,7 +100,7 @@ The `.env.local` file takes precedence, so it will override any other settings.
 
 - The `.env.local` file is in `.gitignore` and won't be committed
 - Changes to `.env.local` require restarting the dev server
-- This setup is only for testing - production deployments use Vercel environment variables
+- This setup is only for testing - production deployments use deployment platform environment variables
 
 
 
