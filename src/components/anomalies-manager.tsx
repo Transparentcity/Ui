@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useEffect } from "react"
+import { useState, useTransition, useEffect, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,13 +14,20 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Search, MoreHorizontal, Send, CheckCircle, Trash2, AlertTriangle, AlertCircle, Info, EyeOff, Eye } from "lucide-react"
+import { Search, MoreHorizontal, Send, CheckCircle, Trash2, AlertTriangle, AlertCircle, Info, EyeOff, Eye, Sparkles, Loader2, Copy, Check } from "lucide-react"
 import { Anomaly, Keyword } from "@/lib/types"
 import { AnomalyDialog } from "./anomaly-dialog"
 import { updateAnomalyStatus, deleteAnomaly } from "@/app/actions/anomalies"
@@ -153,6 +160,38 @@ function sortAnomalies(list: AnomalyWithKeywords[], key: SortKey): AnomalyWithKe
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Analyze anomaly via Seymour agent
+// ---------------------------------------------------------------------------
+async function analyzeAnomaly(anomaly: AnomalyWithKeywords): Promise<string> {
+  const res = await fetch("/api/analyze-anomaly", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      anomaly: {
+        title: anomaly.title,
+        description: anomaly.description,
+        pct_change: anomaly.pct_change,
+        recent_mean: (anomaly as any).recent_mean,
+        comparison_mean: (anomaly as any).comparison_mean,
+        period_type: anomaly.period_type,
+        district_label: anomaly.district_label,
+        data_source: anomaly.data_source,
+        metric_name: (anomaly as any).metric_name,
+        chart_payload: anomaly.chart_payload,
+      },
+    }),
+  })
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+    throw new Error(data.error || `Analysis failed (${res.status})`)
+  }
+
+  const data = await res.json()
+  return data.analysis ?? "No analysis returned."
+}
+
 export function AnomaliesManager({ anomalies, keywords }: AnomaliesManagerProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -163,6 +202,35 @@ export function AnomaliesManager({ anomalies, keywords }: AnomaliesManagerProps)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [ignoredIds, setIgnoredIds] = useState<Set<string>>(new Set())
   const [showIgnored, setShowIgnored] = useState(false)
+
+  // Analyze dialog state
+  const [analyzeTarget, setAnalyzeTarget] = useState<AnomalyWithKeywords | null>(null)
+  const [analysisText, setAnalysisText] = useState("")
+  const [analysisLoading, setAnalysisLoading] = useState(false)
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
+  const [analysisCopied, setAnalysisCopied] = useState(false)
+
+  const startAnalysis = useCallback(async (anomaly: AnomalyWithKeywords) => {
+    setAnalyzeTarget(anomaly)
+    setAnalysisText("")
+    setAnalysisError(null)
+    setAnalysisLoading(true)
+    setAnalysisCopied(false)
+    try {
+      const result = await analyzeAnomaly(anomaly)
+      setAnalysisText(result)
+    } catch (e) {
+      setAnalysisError(e instanceof Error ? e.message : "Unknown error")
+    } finally {
+      setAnalysisLoading(false)
+    }
+  }, [])
+
+  const copyAnalysis = useCallback(async () => {
+    await navigator.clipboard.writeText(analysisText)
+    setAnalysisCopied(true)
+    setTimeout(() => setAnalysisCopied(false), 2000)
+  }, [analysisText])
 
   // Load ignored set from localStorage (once, on mount)
   useEffect(() => {
@@ -539,6 +607,11 @@ export function AnomaliesManager({ anomalies, keywords }: AnomaliesManagerProps)
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="z-50">
+                            <DropdownMenuItem onClick={() => startAnalysis(anomaly)} className="text-purple-600">
+                              <Sparkles className="w-4 h-4 mr-2" />
+                              Analyze with Seymour
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             {(anomaly.crm_status || anomaly.status || 'new') === 'new' && (
                               <DropdownMenuItem onClick={() => handleStatusChange(String(anomaly.id), 'sent')} disabled={isPending}>
                                 <Send className="w-4 h-4 mr-2" />
@@ -598,6 +671,65 @@ export function AnomaliesManager({ anomalies, keywords }: AnomaliesManagerProps)
           })}
         </div>
       )}
+
+      {/* Analyze Dialog */}
+      <Dialog open={!!analyzeTarget} onOpenChange={() => setAnalyzeTarget(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-purple-600" />
+              Seymour Analysis
+            </DialogTitle>
+          </DialogHeader>
+          {analyzeTarget && (
+            <div className="space-y-4">
+              <div className="p-3 rounded-lg bg-muted/50">
+                <p className="font-medium">{analyzeTarget.title}</p>
+                {analyzeTarget.pct_change != null && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {analyzeTarget.pct_change > 0 ? '+' : ''}{analyzeTarget.pct_change.toFixed(1)}% · {analyzeTarget.district_label || 'Citywide'}
+                  </p>
+                )}
+              </div>
+
+              {analysisLoading && (
+                <div className="flex items-center justify-center py-12 text-muted-foreground">
+                  <Loader2 className="w-6 h-6 mr-3 animate-spin text-purple-600" />
+                  <span>Seymour is analyzing this anomaly...</span>
+                </div>
+              )}
+
+              {analysisError && (
+                <div className="p-4 rounded-lg bg-destructive/10 text-destructive text-sm">
+                  {analysisError}
+                </div>
+              )}
+
+              {analysisText && (
+                <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed">
+                  {analysisText}
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            {analysisText && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={copyAnalysis}
+                className="gap-2"
+              >
+                {analysisCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                {analysisCopied ? "Copied!" : "Copy Analysis"}
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setAnalyzeTarget(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

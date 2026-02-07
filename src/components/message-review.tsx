@@ -26,11 +26,14 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Copy,
+  SendHorizontal,
 } from "lucide-react"
 import type { SendQueueItem, Contact } from "@/lib/types"
 import { 
   updateQueueItemContent, 
+  updateQueueItemStatus,
   approveQueueItems, 
   rejectQueueItems,
   regenerateQueueItems
@@ -124,6 +127,26 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
         personalized_subject: editSubject,
         personalized_body: editBody,
       })
+      setEditingItem(null)
+      onUpdate?.()
+    })
+  }
+
+  // Copy helpers for edit dialog
+  const [copiedField, setCopiedField] = useState<"subject" | "body" | null>(null)
+  const copyToClipboard = async (text: string, field: "subject" | "body") => {
+    await navigator.clipboard.writeText(text)
+    setCopiedField(field)
+    setTimeout(() => setCopiedField(null), 2000)
+  }
+
+  // Mark as manually sent
+  const markAsManuallySent = () => {
+    if (!editingItem) return
+    if (!confirm("Mark this message as manually sent? This cannot be undone.")) return
+    
+    startTransition(async () => {
+      await updateQueueItemStatus(editingItem.id, "sent")
       setEditingItem(null)
       onUpdate?.()
     })
@@ -502,7 +525,19 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
             )}
             
             <div className="space-y-2">
-              <Label>Subject</Label>
+              <div className="flex items-center justify-between">
+                <Label>Subject</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs text-muted-foreground"
+                  onClick={() => copyToClipboard(editSubject, "subject")}
+                >
+                  {copiedField === "subject" ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  {copiedField === "subject" ? "Copied" : "Copy"}
+                </Button>
+              </div>
               <Input
                 value={editSubject}
                 onChange={(e) => setEditSubject(e.target.value)}
@@ -511,7 +546,19 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
             </div>
             
             <div className="space-y-2">
-              <Label>Message Body</Label>
+              <div className="flex items-center justify-between">
+                <Label>Message Body</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs text-muted-foreground"
+                  onClick={() => copyToClipboard(editBody, "body")}
+                >
+                  {copiedField === "body" ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  {copiedField === "body" ? "Copied" : "Copy"}
+                </Button>
+              </div>
               <Textarea
                 value={editBody}
                 onChange={(e) => setEditBody(e.target.value)}
@@ -520,7 +567,16 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={markAsManuallySent}
+              disabled={isPending || editingItem?.status === "sent"}
+              className="gap-2 text-green-600 border-green-300 hover:bg-green-50 sm:mr-auto"
+            >
+              <SendHorizontal className="w-4 h-4" />
+              Mark as Manually Sent
+            </Button>
             <Button variant="outline" onClick={() => setEditingItem(null)}>
               Cancel
             </Button>
