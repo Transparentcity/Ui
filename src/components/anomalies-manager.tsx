@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
   SelectContent,
@@ -16,12 +17,44 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Search, MoreHorizontal, Send, CheckCircle, Trash2, AlertTriangle, AlertCircle, Info } from "lucide-react"
+import { Search, MoreHorizontal, Send, CheckCircle, Trash2, AlertTriangle, AlertCircle, Info, EyeOff, Eye, XCircle } from "lucide-react"
 import { Anomaly, Keyword } from "@/lib/types"
 import { AnomalyDialog } from "./anomaly-dialog"
 import { updateAnomalyStatus, deleteAnomaly } from "@/app/actions/anomalies"
+
+// LocalStorage key for ignored anomalies
+const IGNORED_ANOMALIES_KEY = 'transparentcity_ignored_anomalies'
+
+// Helper functions for localStorage
+function getIgnoredAnomalies(): Set<string | number> {
+  if (typeof window === 'undefined') return new Set()
+  try {
+    const stored = localStorage.getItem(IGNORED_ANOMALIES_KEY)
+    if (stored) {
+      return new Set(JSON.parse(stored))
+    }
+  } catch (e) {
+    console.error('Error reading ignored anomalies from localStorage:', e)
+  }
+  return new Set()
+}
+
+function saveIgnoredAnomalies(ids: Set<string | number>) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(IGNORED_ANOMALIES_KEY, JSON.stringify([...ids]))
+  } catch (e) {
+    console.error('Error saving ignored anomalies to localStorage:', e)
+  }
+}
+
+// Export function for email generation to check if anomaly is ignored
+export function isAnomalyIgnored(id: string | number): boolean {
+  return getIgnoredAnomalies().has(id) || getIgnoredAnomalies().has(String(id))
+}
 
 interface AnomalyWithKeywords extends Anomaly {
   keywords: Keyword[]
@@ -67,6 +100,57 @@ export function AnomaliesManager({ anomalies, keywords }: AnomaliesManagerProps)
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [severityFilter, setSeverityFilter] = useState<string>("all")
   const [isPending, startTransition] = useTransition()
+  const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set())
+  const [ignoredIds, setIgnoredIds] = useState<Set<string | number>>(new Set())
+  const [showIgnored, setShowIgnored] = useState(false)
+
+  // Load ignored anomalies from localStorage on mount
+  useEffect(() => {
+    setIgnoredIds(getIgnoredAnomalies())
+  }, [])
+
+  const toggleSelect = (id: string | number) => {
+    const newSelected = new Set(selectedIds)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
+    }
+    setSelectedIds(newSelected)
+  }
+
+  const selectAll = () => {
+    if (selectedIds.size === filteredAnomalies.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredAnomalies.map(a => a.id)))
+    }
+  }
+
+  const handleIgnore = (ids: (string | number)[]) => {
+    const newIgnored = new Set(ignoredIds)
+    for (const id of ids) {
+      newIgnored.add(id)
+    }
+    setIgnoredIds(newIgnored)
+    saveIgnoredAnomalies(newIgnored)
+    setSelectedIds(new Set()) // Clear selection
+  }
+
+  const handleUnignore = (ids: (string | number)[]) => {
+    const newIgnored = new Set(ignoredIds)
+    for (const id of ids) {
+      newIgnored.delete(id)
+      newIgnored.delete(String(id))
+    }
+    setIgnoredIds(newIgnored)
+    saveIgnoredAnomalies(newIgnored)
+    setSelectedIds(new Set()) // Clear selection
+  }
+
+  const isIgnored = (id: string | number) => {
+    return ignoredIds.has(id) || ignoredIds.has(String(id))
+  }
 
   const filteredAnomalies = anomalies.filter(anomaly => {
     const searchLower = searchQuery.toLowerCase()
@@ -86,8 +170,14 @@ export function AnomaliesManager({ anomalies, keywords }: AnomaliesManagerProps)
     const matchesStatus = statusFilter === 'all' || status === statusFilter
     const matchesSeverity = severityFilter === 'all' || (anomaly.severity || 'medium') === severityFilter
     
-    return matchesSearch && matchesStatus && matchesSeverity
+    // Filter by ignored status
+    const anomalyIsIgnored = isIgnored(anomaly.id)
+    const matchesIgnored = showIgnored ? anomalyIsIgnored : !anomalyIsIgnored
+    
+    return matchesSearch && matchesStatus && matchesSeverity && matchesIgnored
   })
+
+  const ignoredCount = anomalies.filter(a => isIgnored(a.id)).length
 
   const handleStatusChange = async (id: string, status: string) => {
     startTransition(async () => {
@@ -105,6 +195,7 @@ export function AnomaliesManager({ anomalies, keywords }: AnomaliesManagerProps)
 
   return (
     <div className="space-y-4">
+      {/* Filters Row */}
       <div className="flex flex-wrap items-center gap-4">
         <div className="relative flex-1 min-w-64 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -144,6 +235,58 @@ export function AnomaliesManager({ anomalies, keywords }: AnomaliesManagerProps)
         </p>
       </div>
 
+      {/* Selection & Ignore Controls */}
+      <div className="flex flex-wrap items-center justify-between gap-4 p-3 bg-muted/50 rounded-lg">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={selectAll}
+          >
+            {selectedIds.size === filteredAnomalies.length && filteredAnomalies.length > 0 ? "Deselect All" : "Select All"}
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            {selectedIds.size} selected
+          </span>
+          {selectedIds.size > 0 && !showIgnored && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleIgnore([...selectedIds])}
+              className="gap-2 text-orange-600 border-orange-300 hover:bg-orange-50"
+            >
+              <EyeOff className="w-4 h-4" />
+              Ignore Selected ({selectedIds.size})
+            </Button>
+          )}
+          {selectedIds.size > 0 && showIgnored && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleUnignore([...selectedIds])}
+              className="gap-2 text-green-600 border-green-300 hover:bg-green-50"
+            >
+              <Eye className="w-4 h-4" />
+              Unignore Selected ({selectedIds.size})
+            </Button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={showIgnored ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setShowIgnored(!showIgnored)
+              setSelectedIds(new Set()) // Clear selection when switching views
+            }}
+            className="gap-2"
+          >
+            {showIgnored ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+            {showIgnored ? "Showing Ignored" : `Ignored (${ignoredCount})`}
+          </Button>
+        </div>
+      </div>
+
       {filteredAnomalies.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
@@ -155,11 +298,18 @@ export function AnomaliesManager({ anomalies, keywords }: AnomaliesManagerProps)
       ) : (
         <div className="space-y-3">
           {filteredAnomalies.map((anomaly) => (
-            <Card key={anomaly.id}>
+            <Card key={anomaly.id} className={isIgnored(anomaly.id) ? 'opacity-75 border-orange-200 bg-orange-50/50' : ''}>
               <CardContent className="p-4">
                 <div className="flex items-start gap-4">
-                  <div className={`p-2 rounded-lg ${getSeverityColor(anomaly.severity || 'medium')}`}>
-                    {getSeverityIcon(anomaly.severity || 'medium')}
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      checked={selectedIds.has(anomaly.id)}
+                      onCheckedChange={() => toggleSelect(anomaly.id)}
+                      className="mt-1"
+                    />
+                    <div className={`p-2 rounded-lg ${getSeverityColor(anomaly.severity || 'medium')}`}>
+                      {getSeverityIcon(anomaly.severity || 'medium')}
+                    </div>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -182,6 +332,12 @@ export function AnomaliesManager({ anomalies, keywords }: AnomaliesManagerProps)
                       <Badge variant="outline" className={getStatusColor(anomaly.crm_status || anomaly.status || 'new')}>
                         {anomaly.crm_status || anomaly.status || 'new'}
                       </Badge>
+                      {isIgnored(anomaly.id) && (
+                        <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300">
+                          <EyeOff className="w-3 h-3 mr-1" />
+                          Ignored
+                        </Badge>
+                      )}
                     </div>
                     {/* Percentage change highlight */}
                     {anomaly.pct_change != null && (
@@ -260,6 +416,24 @@ export function AnomaliesManager({ anomalies, keywords }: AnomaliesManagerProps)
                           Edit
                         </DropdownMenuItem>
                       </AnomalyDialog>
+                      <DropdownMenuSeparator />
+                      {isIgnored(anomaly.id) ? (
+                        <DropdownMenuItem 
+                          onClick={() => handleUnignore([anomaly.id])}
+                          className="text-green-600"
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          Unignore
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem 
+                          onClick={() => handleIgnore([anomaly.id])}
+                          className="text-orange-600"
+                        >
+                          <EyeOff className="w-4 h-4 mr-2" />
+                          Ignore
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem 
                         className="text-destructive"
                         onClick={() => handleDelete(String(anomaly.id))}

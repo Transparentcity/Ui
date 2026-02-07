@@ -3,8 +3,35 @@
  * Used when the UI fetches anomalies from the Platform API instead of direct DB.
  */
 
-import type { AnomalyResult } from "@/lib/apiClient"
 import type { Anomaly } from "@/lib/types"
+
+/**
+ * Permissive input type that accepts anomaly data from any API source
+ * (authenticated or public endpoints).
+ */
+export interface AnomalyInput {
+  id?: number | null;
+  run_id?: number | null;
+  metric_id: number;
+  object_id?: string | null;
+  object_name?: string | null;
+  metric_name?: string | null;
+  period_type: string;
+  group_field?: string | null;
+  group_value?: string | null;
+  district?: number | null;
+  recent_mean?: number | null;
+  comparison_mean?: number | null;
+  stddev?: number | null;
+  difference?: number | null;
+  pct_change?: number | null;
+  is_anomaly: boolean;
+  chart_payload?: Record<string, any> | null;
+  item_noun?: string | null;
+  city_name?: string | null;
+  greendirection?: string | null;
+  created_at?: string | null;
+}
 
 /**
  * Derive district_label and is_citywide from Platform's district number.
@@ -94,8 +121,10 @@ function buildDescription(
  * 
  * NOTE: This creates CRM metadata structure but doesn't persist it to DB.
  * The crm_anomaly_metadata table should be populated separately via CRM actions.
+ * 
+ * Accepts both authenticated (AnomalyResult) and public (PublicAnomalyResult) API responses.
  */
-export function mapApiAnomalyToCrm(api: AnomalyResult): Anomaly & {
+export function mapApiAnomalyToCrm(api: AnomalyInput): Anomaly & {
   recent_mean?: number | null
   comparison_mean?: number | null
   metric_category?: string
@@ -168,7 +197,8 @@ export function mapApiAnomalyToCrm(api: AnomalyResult): Anomaly & {
 
 /**
  * Map list of Platform API results to CRM Anomaly array.
+ * Accepts both authenticated and public API responses.
  */
-export function mapApiAnomaliesToCrm(apiList: AnomalyResult[]): Anomaly[] {
+export function mapApiAnomaliesToCrm(apiList: AnomalyInput[]): Anomaly[] {
   return apiList.map(mapApiAnomalyToCrm)
 }

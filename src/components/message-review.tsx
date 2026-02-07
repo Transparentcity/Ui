@@ -35,8 +35,9 @@ import {
   rejectQueueItems,
   regenerateQueueItems
 } from "@/app/actions/send-queue"
-import { useAnomalies } from "@/lib/hooks/useAnomalies"
+import { useAnomaliesPublic } from "@/lib/hooks/useAnomaliesPublic"
 import { mapApiAnomaliesToCrm } from "@/lib/anomalyMapper"
+import { isAnomalyIgnored } from "./anomalies-manager"
 
 // San Francisco city_id - TODO: make this configurable
 const SF_CITY_ID = 57260
@@ -58,15 +59,17 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
   
   // Fetch anomalies from Platform API for email regeneration
   // API max limit is 200 - this provides enough for district + citywide coverage
-  const { data: anomalyData, isLoading: anomaliesLoading, error: anomaliesError } = useAnomalies({
+  // Using public hook (no Auth0 required) for CRM pages
+  const { data: anomalyData, isLoading: anomaliesLoading, error: anomaliesError } = useAnomaliesPublic({
     is_anomaly: true,
     limit: 200,
     city_id: SF_CITY_ID,
   })
   const anomalies = anomalyData?.results ? mapApiAnomaliesToCrm(anomalyData.results) : []
   
-  // Create slim anomaly objects to avoid payload size issues with server actions
-  const slimAnomalies = anomalies.map(a => ({
+  // Filter out ignored anomalies and create slim objects to avoid payload size issues
+  const activeAnomalies = anomalies.filter(a => !isAnomalyIgnored(a.id))
+  const slimAnomalies = activeAnomalies.map(a => ({
     id: a.id,
     title: a.title,
     description: a.description,

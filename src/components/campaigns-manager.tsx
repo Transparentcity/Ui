@@ -20,8 +20,9 @@ import { CampaignDialog } from "./campaign-dialog"
 import { ThrottleSettings } from "./throttle-settings"
 import { deleteCampaign, updateCampaignStatus } from "@/app/actions/campaigns"
 import { queueCampaignMessages, regenerateCampaign } from "@/app/actions/send-queue"
-import { useAnomalies } from "@/lib/hooks/useAnomalies"
+import { useAnomaliesPublic } from "@/lib/hooks/useAnomaliesPublic"
 import { mapApiAnomaliesToCrm } from "@/lib/anomalyMapper"
+import { isAnomalyIgnored } from "./anomalies-manager"
 
 // San Francisco city_id - TODO: make this configurable
 const SF_CITY_ID = 57260
@@ -65,7 +66,8 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
   
   // Fetch anomalies from Platform API for email generation
   // API max limit is 200 - this should provide ~15+ anomalies per district plus citywide
-  const { data: anomalyData, isLoading: anomaliesLoading, error: anomaliesError } = useAnomalies({
+  // Using public hook (no Auth0 required) for CRM pages
+  const { data: anomalyData, isLoading: anomaliesLoading, error: anomaliesError } = useAnomaliesPublic({
     is_anomaly: true,
     limit: 200,
     city_id: SF_CITY_ID,
@@ -184,9 +186,17 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
     if (confirm(`This will clear any pending/queued messages and generate ${contactIds.length} new AI-personalized messages. This may take 30-60 seconds. Continue?`)) {
       console.log('[CampaignsManager] Starting regeneration with', anomalies.length, 'anomalies')
       console.log('[CampaignsManager] Anomaly loading state:', { loading: anomaliesLoading, error: anomaliesError?.message })
+      
+      // Filter out ignored anomalies before creating slim versions
+      const activeAnomalies = anomalies.filter(a => !isAnomalyIgnored(a.id))
+      const ignoredCount = anomalies.length - activeAnomalies.length
+      if (ignoredCount > 0) {
+        console.log(`[CampaignsManager] Excluded ${ignoredCount} ignored anomalies`)
+      }
+      
       // Create slim anomaly objects with only fields needed for email generation
       // This avoids Next.js server action payload size limits (chart_payload can be huge)
-      const slimAnomalies = anomalies.map(a => ({
+      const slimAnomalies = activeAnomalies.map(a => ({
         id: a.id,
         title: a.title,
         description: a.description,
