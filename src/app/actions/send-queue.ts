@@ -639,7 +639,11 @@ export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Ano
       const change = a.pct_change ? ` (${a.pct_change > 0 ? '+' : ''}${a.pct_change.toFixed(1)}% change)` : ''
       const recentVal = a.recent_mean ? `, Recent: ${a.recent_mean.toFixed(1)}` : ''
       const avgVal = a.comparison_mean ? `, Avg: ${a.comparison_mean.toFixed(1)}` : ''
-      return `- ${name}${change}${recentVal}${avgVal} - Severity: ${a.severity || 'medium'}`
+      // Include time period info
+      const periodType = a.period_type || 'week'
+      const periodDate = a.period_date ? new Date(a.period_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
+      const periodInfo = periodDate ? ` [${periodType}ly, ending ${periodDate}]` : ` [${periodType}ly]`
+      return `- ${name}${change}${recentVal}${avgVal} - Severity: ${a.severity || 'medium'}${periodInfo}`
     }
     
     let anomalyContext = ""
@@ -674,6 +678,13 @@ FACTUAL ACCURACY (CRITICAL):
 - If data is for specific neighborhoods/areas, say so - don't claim it's "citywide" unless the anomaly is labeled as citywide (district 0)
 - Never invent trends, patterns, or conclusions not explicitly in the data
 
+TIME PERIOD CLARITY (REQUIRED):
+- Always specify the time period and approximate date for the data
+- GOOD: "In the week ending February 3rd, drug incidents jumped to 21..."
+- GOOD: "This past week, homeless calls spiked to 20..."
+- BAD: "this period" or "recently" without specifying when
+- The reader should know exactly what timeframe the numbers represent
+
 STAY CLOSE TO TEMPLATE - DO NOT ADD:
 - Do NOT add interpretive "what this means" or "summary" paragraphs - just report the data
 - Do NOT invent organization names - sign off with just the sender's name (e.g., "Best, Adam")
@@ -693,13 +704,21 @@ When citywide data is UNRELATED to district data:
 - BAD: "For broader context..." (implies connection when there isn't one)
 - BAD: "...which makes X particularly noteworthy" (forces false narrative)
 
-SMALL NUMBERS CAVEAT (REQUIRED when applicable):
+SMALL NUMBERS CAVEAT (REQUIRED - DO NOT SKIP):
 - You MUST add a brief caveat when an anomaly involves small absolute numbers
 - Small numbers = when EITHER the Recent value OR Average is under 15
-- Example: If evictions went from 1.7 to 5 (even though that's 194% increase), you MUST note: "eviction notices tripled from about 2 to 5 cases—though with numbers this small, we'll watch to see if the trend continues."
-- Example: If incidents went from 3 to 6 (100% increase), write: "incidents doubled to 6, though we'll keep an eye on this given the small sample size."
-- Keep the caveat BRIEF (one short clause) - don't over-explain, just acknowledge
-- This builds credibility by showing we understand statistical significance
+- Example: If evictions went from 1.7 to 5 (194% increase), MUST write: "eviction notices tripled from about 2 to 5 cases—though with numbers this small, we'll watch to see if the trend continues."
+- Example: If incidents went from 3 to 6 (100% increase), MUST write: "incidents doubled to 6, though we'll keep an eye on this given the small sample size."
+- ALWAYS include this caveat - a dramatic percentage from small numbers needs context
+- Keep it BRIEF: one clause like "—though with numbers this small, we'll keep watching"
+
+EXTREME/QUESTIONABLE DATA (when change is 500%+ or seems implausible):
+- If an anomaly shows an extreme change (500%+) that seems too dramatic to be real, acknowledge it may need verification
+- ALWAYS include the actual numbers so the reader can see what we're talking about
+- Example: "911 calls categorized as 'other' jumped from 50 to 847—a 1,594% increase. Numbers this extreme suggest a possible data anomaly we're looking into, but wanted to flag it for you."
+- Example: "Traffic stops went from 12 to 189 (1,475% increase)—we're verifying this data, but it caught our attention."
+- Don't hide questionable data - share it and acknowledge when something looks off
+- This builds trust by showing we're careful with the data
 
 CLOSING (REQUIRED - vary each time):
 - Always end the email with an offer to provide more details or explore specific topics
@@ -1169,9 +1188,15 @@ async function generateEmailsWithAI(
     const groupContext = groupValue ? ` (${groupValue})` : ''
     const category = sanitizeForJSON(anomaly.metric_category) || 'general'
     
+    // Include time period info
+    const periodType = anomaly.period_type || 'week'
+    const periodDate = anomaly.period_date ? new Date(anomaly.period_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'recent'
+    const periodLabel = `${periodType}ly data ending ${periodDate}`
+
     return `
   - ANOMALY: "${metricName}${groupContext}"
     - Location: ${location}
+    - Time Period: ${periodLabel}
     - Severity: ${anomaly.severity || 'medium'}
     - Change: ${direction} by ${magnitude}%
     - Recent Value: ${anomaly.recent_mean?.toFixed(1) || 'N/A'}
@@ -1245,6 +1270,15 @@ FACTUAL ACCURACY (CRITICAL):
 - If data is for specific neighborhoods/areas, say so - don't claim it's "citywide" unless you have actual citywide (district 0) data
 - Never invent trends, patterns, or conclusions not explicitly in the data
 
+TIME PERIOD CLARITY (REQUIRED):
+- Always specify the time period and approximate date for the data
+- Use the period_type (weekly/monthly) and period_date from the anomaly data
+- GOOD: "In the week ending February 3rd, drug crime incidents jumped to 21..."
+- GOOD: "This past week, we saw homeless calls spike to 20..."
+- GOOD: "For the week of January 27th, eviction notices tripled..."
+- BAD: "this period" or "recently" without specifying when
+- The reader should know exactly what timeframe the numbers represent
+
 STAY CLOSE TO TEMPLATE - DO NOT ADD:
 - Do NOT add interpretive "what this means" or "summary" paragraphs - stick to reporting the data
 - Do NOT invent organization names like "Department of Data Analysis" - sign as just the sender's name (e.g., "Adam")
@@ -1265,13 +1299,21 @@ When citywide data is UNRELATED to district data, use transitional language that
 - BAD: "For broader context, citywide..." (implies the facts are connected when they're not)
 - BAD: "...which makes the district trend particularly noteworthy" (forces false connection)
 
-SMALL NUMBERS CAVEAT (REQUIRED when applicable):
+SMALL NUMBERS CAVEAT (REQUIRED - DO NOT SKIP):
 - You MUST add a brief caveat when an anomaly involves small absolute numbers
 - Small numbers = when EITHER the Recent value OR Average is under 15
-- Example: If evictions went from 1.7 to 5 (even though that's 194% increase), you MUST note: "eviction notices tripled from about 2 to 5 cases—though with numbers this small, we'll watch to see if the trend continues."
-- Example: If incidents went from 3 to 6 (100% increase), write: "incidents doubled to 6, though we'll keep an eye on this given the small sample size."
-- Keep the caveat BRIEF (one short clause) - don't over-explain, just acknowledge
-- This builds credibility by showing we understand statistical significance
+- Example: If evictions went from 1.7 to 5 (194% increase), MUST write: "eviction notices tripled from about 2 to 5 cases—though with numbers this small, we'll watch to see if the trend continues."
+- Example: If incidents went from 3 to 6 (100% increase), MUST write: "incidents doubled to 6, though we'll keep an eye on this given the small sample size."
+- ALWAYS include this caveat - a dramatic percentage from small numbers needs context
+- Keep it BRIEF: one clause like "—though with numbers this small, we'll keep watching"
+
+EXTREME/QUESTIONABLE DATA (when change is 500%+ or seems implausible):
+- If an anomaly shows an extreme change (500%+) that seems too dramatic to be real, acknowledge it may need verification
+- ALWAYS include the actual numbers so the reader can see what we're talking about
+- Example: "911 calls categorized as 'other' jumped from 50 to 847—a 1,594% increase. Numbers this extreme suggest a possible data anomaly we're looking into, but wanted to flag it for you."
+- Example: "Traffic stops went from 12 to 189 (1,475% increase)—we're verifying this data, but it caught our attention."
+- Don't hide questionable data - share it and acknowledge when something looks off
+- This builds trust by showing we're careful with the data
 
 CLOSING (REQUIRED - vary each time):
 - Always end each email with an offer to provide more details or explore specific topics
