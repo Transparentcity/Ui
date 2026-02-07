@@ -666,11 +666,36 @@ CRITICAL RULES:
 4. The email should be concise but informative
 5. This is a REGENERATION - create something notably DIFFERENT from typical emails
 
+FACTUAL ACCURACY (CRITICAL):
+- ONLY make claims that are DIRECTLY supported by the provided data
+- Do NOT extrapolate or generalize beyond what the data shows
+- BAD: "citywide increases in traffic enforcement" (when you only have data for specific neighborhoods)
+- GOOD: "traffic enforcement is up significantly in Russian Hill and Seacliff"  
+- If data is for specific neighborhoods/areas, say so - don't claim it's "citywide" unless the anomaly is labeled as citywide (district 0)
+- Never invent trends, patterns, or conclusions not explicitly in the data
+
 MANDATORY ANOMALY INCLUSION:
 - You MUST include at least ONE district-specific anomaly (if provided)
 - You MUST include at least ONE citywide anomaly (if provided) to give broader context
 - CONNECT the district trend to the citywide trend for insight
 - Example: "In District 3, we saw a 25% increase in 911 response times. Interestingly, citywide the average only increased 8%, making your district an outlier worth monitoring."
+
+SMALL NUMBERS CAVEAT (REQUIRED when applicable):
+- You MUST add a brief caveat when an anomaly involves small absolute numbers
+- Small numbers = when EITHER the Recent value OR Average is under 15
+- Example: If evictions went from 1.7 to 5 (even though that's 194% increase), you MUST note: "eviction notices tripled from about 2 to 5 cases—though with numbers this small, we'll watch to see if the trend continues."
+- Example: If incidents went from 3 to 6 (100% increase), write: "incidents doubled to 6, though we'll keep an eye on this given the small sample size."
+- Keep the caveat BRIEF (one short clause) - don't over-explain, just acknowledge
+- This builds credibility by showing we understand statistical significance
+
+CLOSING (REQUIRED - vary each time):
+- Always end the email with an offer to provide more details or explore specific topics
+- Vary the wording each time. Examples:
+  "Let me know if you'd like more details on any of these findings."
+  "Happy to dig deeper into any of these trends if you're interested."
+  "If there's something specific you'd like to explore, just let me know."
+  "Feel free to reach out if you want to discuss any of this further."
+  "I'm happy to provide more context on anything that catches your attention."
 
 Return a JSON object with "subject" and "body" fields only.`
 
@@ -1199,11 +1224,37 @@ CRITICAL RULES:
 5. NEVER use placeholders like [ANOMALY], [FIRST NAME], {{name}}, [Recent Value], etc. Use the ACTUAL values provided.
 6. If a contact has no anomalies, write a general update email without specific data points.
 
+FACTUAL ACCURACY (CRITICAL):
+- ONLY make claims that are DIRECTLY supported by the provided data
+- Do NOT extrapolate or generalize beyond what the data shows
+- BAD: "citywide increases in traffic enforcement" (when you only have data for 2 neighborhoods)
+- GOOD: "traffic enforcement is up significantly in Russian Hill and Seacliff"
+- If data is for specific neighborhoods/areas, say so - don't claim it's "citywide" unless you have actual citywide (district 0) data
+- Never invent trends, patterns, or conclusions not explicitly in the data
+
 CONNECTING DISTRICT TO CITYWIDE:
 - When both district-specific and citywide anomalies are provided, CONNECT THEM for context
 - Example: "In District 6, we saw a 25% increase in business permits. This is notably higher than the citywide average, which only increased 8%."
 - Example: "While homelessness incidents citywide decreased 12%, your district saw a 5% increase—worth monitoring."
 - This helps officials understand if their district is following or diverging from city trends
+
+SMALL NUMBERS CAVEAT (REQUIRED when applicable):
+- You MUST add a brief caveat when an anomaly involves small absolute numbers
+- Small numbers = when EITHER the Recent value OR Average is under 15
+- Example: If evictions went from 1.7 to 5 (even though that's 194% increase), you MUST note: "eviction notices tripled from about 2 to 5 cases—though with numbers this small, we'll watch to see if the trend continues."
+- Example: If incidents went from 3 to 6 (100% increase), write: "incidents doubled to 6, though we'll keep an eye on this given the small sample size."
+- Keep the caveat BRIEF (one short clause) - don't over-explain, just acknowledge
+- This builds credibility by showing we understand statistical significance
+
+CLOSING (REQUIRED - vary each time):
+- Always end each email with an offer to provide more details or explore specific topics
+- Vary the wording for each email. Examples:
+  "Let me know if you'd like more details on any of these findings."
+  "Happy to dig deeper into any of these trends if you're interested."
+  "If there's something specific you'd like to explore, just let me know."
+  "Feel free to reach out if you want to discuss any of this further."
+  "I'm happy to provide more context on anything that catches your attention."
+  "Want to dive deeper into any of these numbers? Just say the word."
 
 Return valid JSON with this structure:
 {
