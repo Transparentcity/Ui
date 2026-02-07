@@ -674,11 +674,24 @@ FACTUAL ACCURACY (CRITICAL):
 - If data is for specific neighborhoods/areas, say so - don't claim it's "citywide" unless the anomaly is labeled as citywide (district 0)
 - Never invent trends, patterns, or conclusions not explicitly in the data
 
+STAY CLOSE TO TEMPLATE - DO NOT ADD:
+- Do NOT add interpretive "what this means" or "summary" paragraphs - just report the data
+- Do NOT invent organization names - sign off with just the sender's name (e.g., "Best, Adam")
+- Do NOT speculate about causes, resource allocation, or policy implications
+- Keep it factual and brief - report the numbers, add the small-numbers caveat if needed, offer to discuss, done
+
 MANDATORY ANOMALY INCLUSION:
 - You MUST include at least ONE district-specific anomaly (if provided)
-- You MUST include at least ONE citywide anomaly (if provided) to give broader context
-- CONNECT the district trend to the citywide trend for insight
-- Example: "In District 3, we saw a 25% increase in 911 response times. Interestingly, citywide the average only increased 8%, making your district an outlier worth monitoring."
+- You MUST include at least ONE citywide anomaly (if provided)
+- ONLY connect district and citywide if they are the SAME or CLOSELY RELATED metric
+- GOOD: "In District 3, homeless calls increased 25%. Citywide, they only increased 8%—making your district an outlier." (same metric - connection makes sense)
+
+When citywide data is UNRELATED to district data:
+- GOOD: "Zooming out, here's an interesting citywide trend: [fact]"
+- GOOD: "On a separate note, citywide we noticed [fact]"
+- GOOD: "Here's another notable finding from our citywide data: [fact]"
+- BAD: "For broader context..." (implies connection when there isn't one)
+- BAD: "...which makes X particularly noteworthy" (forces false narrative)
 
 SMALL NUMBERS CAVEAT (REQUIRED when applicable):
 - You MUST add a brief caveat when an anomaly involves small absolute numbers
@@ -1232,11 +1245,25 @@ FACTUAL ACCURACY (CRITICAL):
 - If data is for specific neighborhoods/areas, say so - don't claim it's "citywide" unless you have actual citywide (district 0) data
 - Never invent trends, patterns, or conclusions not explicitly in the data
 
+STAY CLOSE TO TEMPLATE - DO NOT ADD:
+- Do NOT add interpretive "what this means" or "summary" paragraphs - stick to reporting the data
+- Do NOT invent organization names like "Department of Data Analysis" - sign as just the sender's name (e.g., "Adam")
+- Do NOT speculate about causes, resource allocation, or policy implications
+- Keep it factual and brief - report the numbers, add context where relevant, done
+- The closing should just be the sender's first name, not a made-up department
+
 CONNECTING DISTRICT TO CITYWIDE:
-- When both district-specific and citywide anomalies are provided, CONNECT THEM for context
-- Example: "In District 6, we saw a 25% increase in business permits. This is notably higher than the citywide average, which only increased 8%."
-- Example: "While homelessness incidents citywide decreased 12%, your district saw a 5% increase—worth monitoring."
-- This helps officials understand if their district is following or diverging from city trends
+- ONLY connect district and citywide data if they are the SAME or CLOSELY RELATED metric
+- GOOD connection: District homeless calls vs citywide homeless calls (same metric)
+- GOOD connection: District evictions vs citywide evictions (same metric)
+- BAD connection: District homeless calls vs citywide property crime (unrelated metrics - don't connect these!)
+
+When citywide data is UNRELATED to district data, use transitional language that does NOT imply connection:
+- GOOD: "Zooming out, here's an interesting citywide trend: property crime is down 31%."
+- GOOD: "On a separate note, citywide we're seeing..."
+- GOOD: "Here's another notable finding from our citywide data that you might find interesting..."
+- BAD: "For broader context, citywide..." (implies the facts are connected when they're not)
+- BAD: "...which makes the district trend particularly noteworthy" (forces false connection)
 
 SMALL NUMBERS CAVEAT (REQUIRED when applicable):
 - You MUST add a brief caveat when an anomaly involves small absolute numbers
