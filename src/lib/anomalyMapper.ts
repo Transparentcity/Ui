@@ -93,27 +93,34 @@ function getRecentPeriodDate(chartPayload: any): string | undefined {
 
 /**
  * Build a description string showing Recent vs Avg comparison.
+ * Format: "This week: 264 requests vs 12-week avg of 133"
  */
 function buildDescription(
   recentMean: number | null | undefined,
   comparisonMean: number | null | undefined,
   pctChange: number | null | undefined,
   periodType: string | undefined,
-  itemNoun: string | null | undefined
+  itemNoun: string | null | undefined,
+  comparisonWindow?: { size?: number } | null
 ): string {
-  const periodLabel = getPeriodLabel(periodType)
-  const unit = itemNoun ?? "units"
+  const unit = itemNoun ?? ""
+  
+  // Build readable period labels
+  const windowSize = comparisonWindow?.size || 12
+  const periodUnit = periodType === 'month' ? 'month' : 'week'
+  const thisPeriod = periodType === 'month' ? 'This month' : 'This week'
   
   if (recentMean != null && comparisonMean != null) {
-    const changeDir = (pctChange ?? 0) > 0 ? "↑" : "↓"
-    const pctStr = pctChange != null ? `${pctChange > 0 ? "+" : ""}${pctChange.toFixed(1)}%` : ""
-    return `${periodLabel}: Recent: ${formatNumber(recentMean)} vs Avg of 12: ${formatNumber(comparisonMean)} ${unit} (${changeDir} ${pctStr})`
+    const unitStr = unit ? ` ${unit}` : ''
+    return `${thisPeriod}: ${formatNumber(recentMean)}${unitStr} vs ${windowSize}-${periodUnit} avg of ${formatNumber(comparisonMean)}`
   }
   
   if (pctChange != null) {
+    const periodLabel = getPeriodLabel(periodType)
     return `${periodLabel}: ${pctChange > 0 ? "+" : ""}${pctChange.toFixed(1)}% change`
   }
   
+  const periodLabel = getPeriodLabel(periodType)
   return `${periodLabel} anomaly detected`
 }
 
@@ -150,7 +157,8 @@ export function mapApiAnomalyToCrm(api: AnomalyInput): Anomaly & {
     api.comparison_mean,
     api.pct_change,
     api.period_type,
-    api.item_noun
+    api.item_noun,
+    api.comparison_window
   )
   
   // Build CRM metadata object (not yet persisted to DB)

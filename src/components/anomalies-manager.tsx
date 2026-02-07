@@ -339,21 +339,35 @@ export function AnomaliesManager({ anomalies, keywords }: AnomaliesManagerProps)
                         </Badge>
                       )}
                     </div>
-                    {/* Percentage change highlight */}
-                    {anomaly.pct_change != null && (
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className={`text-lg font-semibold ${anomaly.pct_change < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          {anomaly.pct_change > 0 ? '↑' : '↓'} {anomaly.pct_change > 0 ? '+' : ''}{anomaly.pct_change.toFixed(1)}%
-                        </span>
+                    {/* Stats display */}
+                    {(anomaly.pct_change != null || (anomaly as any).recent_mean != null) && (
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2 text-sm">
+                        {/* Percentage change */}
+                        {anomaly.pct_change != null && (
+                          <span className={`font-semibold ${anomaly.pct_change < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            {anomaly.pct_change > 0 ? '↑' : '↓'} {anomaly.pct_change > 0 ? '+' : ''}{anomaly.pct_change.toFixed(1)}%
+                          </span>
+                        )}
+                        {/* Period badge */}
                         {anomaly.period_type && (
                           <Badge variant="outline" className="text-xs uppercase">
                             {anomaly.period_type}ly
                           </Badge>
                         )}
+                        {/* Comparison numbers */}
+                        {(anomaly as any).recent_mean != null && (anomaly as any).comparison_mean != null && (
+                          <span className="text-muted-foreground">
+                            <span className="font-medium text-foreground">{Number((anomaly as any).recent_mean).toLocaleString(undefined, {maximumFractionDigits: 1})}</span>
+                            {' '}this {anomaly.period_type || 'week'}
+                            {' · '}
+                            <span className="font-medium text-foreground">{Number((anomaly as any).comparison_mean).toLocaleString(undefined, {maximumFractionDigits: 1})}</span>
+                            {' '}({(anomaly as any).comparison_window?.size || 12}-{anomaly.period_type || 'week'} avg)
+                          </span>
+                        )}
                       </div>
                     )}
-                    {/* Description with comparison stats */}
-                    {anomaly.description && (
+                    {/* Description - only show if it has additional info beyond the stats */}
+                    {anomaly.description && !(anomaly as any).recent_mean && (
                       <p className="text-sm text-muted-foreground mb-2">
                         {anomaly.description}
                       </p>
