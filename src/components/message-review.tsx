@@ -57,13 +57,35 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
   const [viewMode, setViewMode] = useState<"list" | "single">("list")
   
   // Fetch anomalies from Platform API for email regeneration
-  // High limit ensures 5+ anomalies per district plus citywide
-  const { data: anomalyData } = useAnomalies({
+  // API max limit is 200 - this provides enough for district + citywide coverage
+  const { data: anomalyData, isLoading: anomaliesLoading, error: anomaliesError } = useAnomalies({
     is_anomaly: true,
-    limit: 500,
+    limit: 200,
     city_id: SF_CITY_ID,
   })
   const anomalies = anomalyData?.results ? mapApiAnomaliesToCrm(anomalyData.results) : []
+  
+  // Create slim anomaly objects to avoid payload size issues with server actions
+  const slimAnomalies = anomalies.map(a => ({
+    id: a.id,
+    title: a.title,
+    description: a.description,
+    district: a.district,
+    district_label: a.district_label,
+    is_citywide: a.is_citywide,
+    metric_id: a.metric_id,
+    metric_name: (a as any).metric_name,
+    pct_change: a.pct_change,
+    severity: a.severity,
+    period_type: a.period_type,
+    group_field: a.group_field,
+    group_value: a.group_value,
+    recent_mean: (a as any).recent_mean,
+    comparison_mean: (a as any).comparison_mean,
+    metric_category: (a as any).metric_category,
+    is_anomaly: a.is_anomaly,
+    created_at: a.created_at,
+  }))
 
   const toggleSelect = (id: string) => {
     const newSelected = new Set(selectedIds)
@@ -126,14 +148,46 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
 
   const handleRegenerate = async (ids: string[]) => {
     if (ids.length === 0) return
-    if (!confirm(`Regenerate ${ids.length} message(s) with AI? The current content will be replaced.`)) return
+    
+    // Check if anomalies are still loading
+    if (anomaliesLoading) {
+      alert('Anomaly data is still loading. Please wait a moment and try again.')
+      return
+    }
+    
+    // Warn if no anomalies available
+    if (slimAnomalies.length === 0) {
+      const proceed = confirm(
+        'Warning: No anomaly data available for regeneration.\n\n' +
+        'This could be an authentication or API issue.\n' +
+        'Regenerating without anomaly data will produce generic emails.\n\n' +
+        'Continue anyway?'
+      )
+      if (!proceed) return
+    }
+    
+    if (!confirm(`Regenerate ${ids.length} message(s) with AI using DIFFERENT anomalies? The current content will be replaced.`)) return
+    
+    // Log detailed anomaly info
+    const citywideCount = slimAnomalies.filter(a => a.is_citywide === true || a.district === 0).length
+    const districtCounts: Record<string, number> = {}
+    slimAnomalies.forEach(a => {
+      const d = a.district === 0 ? 'Citywide' : `D${a.district}`
+      districtCounts[d] = (districtCounts[d] || 0) + 1
+    })
+    console.log('[MessageReview] Regenerating with', slimAnomalies.length, 'anomalies available')
+    console.log('[MessageReview] Citywide anomalies:', citywideCount)
+    console.log('[MessageReview] By district:', districtCounts)
+    if (slimAnomalies.length > 0) {
+      console.log('[MessageReview] Sample anomaly:', JSON.stringify(slimAnomalies[0]))
+    }
     
     // Mark items as regenerating
     setIsRegenerating(new Set(ids))
     
     startTransition(async () => {
       try {
-        await regenerateQueueItems(ids, anomalies)
+        await regenerateQueueItems(ids, slimAnomalies as any)
         onUpdate?.()
       } finally {
         setIsRegenerating(new Set())
