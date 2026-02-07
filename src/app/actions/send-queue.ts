@@ -678,8 +678,14 @@ FACTUAL ACCURACY (CRITICAL):
 - Do NOT extrapolate or generalize beyond what the data shows
 - BAD: "citywide increases in traffic enforcement" (when you only have data for specific neighborhoods)
 - GOOD: "traffic enforcement is up significantly in Russian Hill and Seacliff"  
-- If data is for specific neighborhoods/areas, say so - don't claim it's "citywide" unless the anomaly is labeled as citywide (district 0)
 - Never invent trends, patterns, or conclusions not explicitly in the data
+
+CITYWIDE vs DISTRICT - BE PRECISE:
+- ONLY call something "citywide" if the anomaly is explicitly labeled as citywide (district = 0 or is_citywide = true)
+- If an anomaly is from District 11, do NOT describe it as "citywide" - it's a District 11 finding
+- Check the district/location field in each anomaly and describe it accurately
+- BAD: "here's a citywide trend: traffic stops surged..." (if this is District 11 data)
+- GOOD: "also in District 11, traffic stops surged..." (if this is District 11 data)
 
 TIME PERIOD CLARITY (REQUIRED):
 - Always specify the time period and approximate date for the data
@@ -1281,8 +1287,15 @@ FACTUAL ACCURACY (CRITICAL):
 - Do NOT extrapolate or generalize beyond what the data shows
 - BAD: "citywide increases in traffic enforcement" (when you only have data for 2 neighborhoods)
 - GOOD: "traffic enforcement is up significantly in Russian Hill and Seacliff"
-- If data is for specific neighborhoods/areas, say so - don't claim it's "citywide" unless you have actual citywide (district 0) data
 - Never invent trends, patterns, or conclusions not explicitly in the data
+
+CITYWIDE vs DISTRICT - BE PRECISE:
+- ONLY call something "citywide" if the anomaly is explicitly labeled as citywide (district = 0 or is_citywide = true)
+- If an anomaly is from District 11, do NOT describe it as "citywide" - it's a District 11 finding
+- The anomaly data tells you exactly which district it's from - use that information accurately
+- BAD: "here's an interesting citywide trend: traffic stops surged to 17..." (if this is District 11 data)
+- GOOD: "also in District 11, traffic stops surged to 17..." (if this is District 11 data)
+- GOOD: "citywide, traffic stops surged to 17..." (ONLY if district = 0 / is_citywide = true)
 
 TIME PERIOD CLARITY (REQUIRED):
 - Always specify the time period and approximate date for the data
