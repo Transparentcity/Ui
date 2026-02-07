@@ -17,6 +17,7 @@ export interface AnomalyInput {
   object_name?: string | null;
   metric_name?: string | null;
   period_type: string;
+  period_date?: string | null;
   group_field?: string | null;
   group_value?: string | null;
   district?: number | null;
@@ -31,6 +32,7 @@ export interface AnomalyInput {
   city_name?: string | null;
   greendirection?: string | null;
   created_at?: string | null;
+  comparison_window?: { label?: string; size?: number; match_weekday?: boolean } | null;
 }
 
 /**
@@ -192,6 +194,9 @@ export function mapApiAnomalyToCrm(api: AnomalyInput): Anomaly & {
     metric_category: api.greendirection === "down" ? "negative" : api.greendirection === "up" ? "positive" : "general",
     metric_name: metricName,
     data_source: api.city_name ?? undefined,
+    // Time period fields for emails
+    period_date: (api as any).period_date ?? undefined,
+    comparison_window: (api as any).comparison_window ?? undefined,
   }
 }
 

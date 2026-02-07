@@ -638,11 +638,14 @@ export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Ano
       const name = sanitizeForJSON(a.metric_name || a.title) || 'Unknown'
       const change = a.pct_change ? ` (${a.pct_change > 0 ? '+' : ''}${a.pct_change.toFixed(1)}% change)` : ''
       const recentVal = a.recent_mean ? `, Recent: ${a.recent_mean.toFixed(1)}` : ''
-      const avgVal = a.comparison_mean ? `, Avg: ${a.comparison_mean.toFixed(1)}` : ''
-      // Include time period info
+      // Include comparison period context - use actual window size if available
       const periodType = a.period_type || 'week'
+      const windowSize = a.comparison_window?.size || 12
+      const periodUnit = periodType === 'week' ? 'week' : periodType === 'month' ? 'month' : 'period'
+      const avgVal = a.comparison_mean ? `, ${windowSize}-${periodUnit} avg: ${a.comparison_mean.toFixed(1)}` : ''
+      // Include time period info
       const periodDate = a.period_date ? new Date(a.period_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
-      const periodInfo = periodDate ? ` [${periodType}ly, ending ${periodDate}]` : ` [${periodType}ly]`
+      const periodInfo = periodDate ? ` [${periodType}ly data ending ${periodDate}]` : ` [${periodType}ly]`
       return `- ${name}${change}${recentVal}${avgVal} - Severity: ${a.severity || 'medium'}${periodInfo}`
     }
     
@@ -683,7 +686,14 @@ TIME PERIOD CLARITY (REQUIRED):
 - GOOD: "In the week ending February 3rd, drug incidents jumped to 21..."
 - GOOD: "This past week, homeless calls spiked to 20..."
 - BAD: "this period" or "recently" without specifying when
-- The reader should know exactly what timeframe the numbers represent
+
+AVERAGE/COMPARISON PERIOD CLARITY (REQUIRED):
+- When mentioning the average or "usual" number, specify what time period it's based on
+- The comparison is typically against a 12-period rolling average (12 weeks or 12 months)
+- GOOD: "jumped to 264 from the 12-week average of 133"
+- GOOD: "up from the typical 133 (average over prior 12 weeks)"
+- BAD: "from the usual 133" (usual over what period?)
+- The reader should understand both the current value AND what the comparison baseline represents
 
 STAY CLOSE TO TEMPLATE - DO NOT ADD:
 - Do NOT add interpretive "what this means" or "summary" paragraphs - just report the data
@@ -1192,6 +1202,10 @@ async function generateEmailsWithAI(
     const periodType = anomaly.period_type || 'week'
     const periodDate = anomaly.period_date ? new Date(anomaly.period_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'recent'
     const periodLabel = `${periodType}ly data ending ${periodDate}`
+    // Comparison period context - use actual window size if available
+    const windowSize = anomaly.comparison_window?.size || 12
+    const periodUnit = periodType === 'week' ? 'weeks' : periodType === 'month' ? 'months' : 'periods'
+    const comparisonPeriod = `${windowSize} ${periodUnit}`
 
     return `
   - ANOMALY: "${metricName}${groupContext}"
@@ -1200,7 +1214,7 @@ async function generateEmailsWithAI(
     - Severity: ${anomaly.severity || 'medium'}
     - Change: ${direction} by ${magnitude}%
     - Recent Value: ${anomaly.recent_mean?.toFixed(1) || 'N/A'}
-    - Previous Average: ${anomaly.comparison_mean?.toFixed(1) || 'N/A'}
+    - Comparison Average: ${anomaly.comparison_mean?.toFixed(1) || 'N/A'} (rolling average over prior ${comparisonPeriod})
     - Category: ${category}
     - ID: ${anomaly.id}`
   }
@@ -1275,9 +1289,17 @@ TIME PERIOD CLARITY (REQUIRED):
 - Use the period_type (weekly/monthly) and period_date from the anomaly data
 - GOOD: "In the week ending February 3rd, drug crime incidents jumped to 21..."
 - GOOD: "This past week, we saw homeless calls spike to 20..."
-- GOOD: "For the week of January 27th, eviction notices tripled..."
 - BAD: "this period" or "recently" without specifying when
-- The reader should know exactly what timeframe the numbers represent
+
+AVERAGE/COMPARISON PERIOD CLARITY (REQUIRED):
+- When mentioning the average or "usual" number, specify what time period it's based on
+- The comparison is typically against a 12-period rolling average (12 weeks or 12 months)
+- GOOD: "jumped to 264 from the 12-week average of 133"
+- GOOD: "up from the typical 133 we see on average over a 3-month period"
+- GOOD: "compared to the historical average of 133 (based on the prior 12 weeks)"
+- BAD: "from the usual 133" (usual over what period?)
+- BAD: "compared to 133" (what does 133 represent?)
+- The reader should understand both the current period AND what the comparison baseline represents
 
 STAY CLOSE TO TEMPLATE - DO NOT ADD:
 - Do NOT add interpretive "what this means" or "summary" paragraphs - stick to reporting the data

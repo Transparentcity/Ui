@@ -731,6 +731,9 @@ export interface PublicAnomalyResult {
   item_noun?: string | null;
   greendirection?: string | null;
   city_name?: string | null;
+  // Window configuration - tells us how many periods the comparison covers
+  comparison_window?: { label?: string; size?: number; match_weekday?: boolean } | null;
+  recent_window?: { label?: string; size?: number; match_weekday?: boolean } | null;
 }
 
 export interface ListAnomaliesPublicResponse {
