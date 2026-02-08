@@ -18,6 +18,7 @@ import {
 import {
   getFoiaRequest,
   listFoiaMessages,
+  listFoiaAttachments,
   listFoiaRequestEvents,
   listFoiaTasks,
 } from "@/lib/foiaApiClient"
@@ -38,6 +39,7 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
   const [activeTab, setActiveTab] = useState<TabId>("overview")
   const [request, setRequest] = useState<FoiaRequest | null>(null)
   const [messages, setMessages] = useState<FoiaMessage[]>([])
+  const [attachments, setAttachments] = useState<FoiaAttachment[]>([])
   const [events, setEvents] = useState<FoiaRequestEvent[]>([])
   const [tasks, setTasks] = useState<FoiaTask[]>([])
   const [loading, setLoading] = useState(true)
@@ -46,14 +48,16 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
     async function load() {
       try {
         const id = parseInt(requestId, 10)
-        const [req, msgs, evts, tsks] = await Promise.all([
+        const [req, msgs, atts, evts, tsks] = await Promise.all([
           getFoiaRequest(id),
           listFoiaMessages(id),
+          listFoiaAttachments(id),
           listFoiaRequestEvents(id),
           listFoiaTasks({ status: undefined }),
         ])
         setRequest(req)
         setMessages(msgs)
+        setAttachments(atts)
         setEvents(evts)
         setTasks(tsks.filter((t) => t.request_id === id))
       } catch (err) {
@@ -197,6 +201,11 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
                   {messages.length}
                 </span>
               )}
+              {tab.id === "attachments" && attachments.length > 0 && (
+                <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-purple-100 text-xs text-purple-600">
+                  {attachments.length}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -205,7 +214,7 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
       {/* Tab Content */}
       {activeTab === "overview" && <OverviewTab request={request} tasks={tasks} />}
       {activeTab === "messages" && <MessagesTab messages={messages} />}
-      {activeTab === "attachments" && <AttachmentsTab />}
+      {activeTab === "attachments" && <AttachmentsTab attachments={attachments} />}
       {activeTab === "events" && <EventsTab events={events} />}
     </div>
   )
@@ -345,10 +354,53 @@ function MessagesTab({ messages }: { messages: FoiaMessage[] }) {
   )
 }
 
-function AttachmentsTab() {
+function AttachmentsTab({ attachments }: { attachments: FoiaAttachment[] }) {
+  if (attachments.length === 0) {
+    return (
+      <div className="py-12 text-center text-sm text-gray-400">
+        No attachments for this request yet.
+      </div>
+    )
+  }
+
+  function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
   return (
-    <div className="py-12 text-center text-sm text-gray-400">
-      No attachments for this request yet.
+    <div className="flex flex-col gap-3">
+      {attachments.map((att) => (
+        <div
+          key={att.id}
+          className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-50">
+              <Paperclip className="h-4 w-4 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">{att.filename}</p>
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                {att.file_type && <span>{att.file_type.toUpperCase()}</span>}
+                {att.file_size_bytes > 0 && <span>{formatFileSize(att.file_size_bytes)}</span>}
+                <span>{format(new Date(att.uploaded_at), "MMM d, yyyy")}</span>
+              </div>
+            </div>
+          </div>
+          {att.uri && (
+            <a
+              href={att.uri}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              Download
+            </a>
+          )}
+        </div>
+      ))}
     </div>
   )
 }

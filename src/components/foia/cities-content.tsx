@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Loader2, Building2, ArrowRight } from "lucide-react"
+import { Loader2, Building2, ArrowRight, Search } from "lucide-react"
 import { API_BASE } from "@/lib/apiBase"
 
 interface CityListItem {
@@ -15,15 +15,17 @@ interface CityListItem {
 export function CitiesContent() {
   const [cities, setCities] = useState<CityListItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
     async function load() {
       try {
-        // Use existing platform cities endpoint
-        const res = await fetch(`${API_BASE}/api/admin/cities`)
+        // Use the platform cities search endpoint
+        const res = await fetch(`${API_BASE}/api/cities/search?q=&limit=100`, {
+          headers: { "Content-Type": "application/json" },
+        })
         if (res.ok) {
           const data = await res.json()
-          // The admin cities endpoint may return an array or an object with items
           const list = Array.isArray(data) ? data : data.cities ?? data.items ?? []
           setCities(list)
         }
@@ -53,8 +55,27 @@ export function CitiesContent() {
         </p>
       </div>
 
+      {/* Search */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Search cities..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400"
+        />
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {cities.map((city) => (
+        {cities
+          .filter((c) =>
+            searchQuery
+              ? c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                c.state.toLowerCase().includes(searchQuery.toLowerCase())
+              : true
+          )
+          .map((city) => (
           <Link
             key={city.id}
             href={`/foia/cities/${city.id}`}
@@ -73,7 +94,12 @@ export function CitiesContent() {
             <ArrowRight className="h-4 w-4 text-gray-300" />
           </Link>
         ))}
-        {cities.length === 0 && (
+        {cities.filter((c) =>
+            searchQuery
+              ? c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                c.state.toLowerCase().includes(searchQuery.toLowerCase())
+              : true
+          ).length === 0 && (
           <div className="col-span-full rounded-xl border border-gray-200 bg-white px-6 py-12 text-center text-sm text-gray-400">
             No cities configured. Add cities from the main admin panel first.
           </div>

@@ -115,6 +115,10 @@ export function listFoiaMessages(requestId: number): Promise<FoiaMessage[]> {
   return apiFetch(`/api/foia/requests/${requestId}/messages`)
 }
 
+export function listFoiaAttachments(requestId: number): Promise<FoiaAttachment[]> {
+  return apiFetch(`/api/foia/requests/${requestId}/attachments`)
+}
+
 export function createFoiaMessage(requestId: number, data: Partial<FoiaMessage>): Promise<FoiaMessage> {
   return apiFetch(`/api/foia/requests/${requestId}/messages`, {
     method: "POST",
