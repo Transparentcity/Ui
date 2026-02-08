@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   ArrowLeft,
   Send,
@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   FileText,
-  Sparkles,
   Loader2,
   Plus,
   X,
@@ -25,12 +24,10 @@ import {
   listFoiaAttachments,
   listFoiaRequestEvents,
   listFoiaTasks,
-  aiDraftFoiaRequest,
   listFoiaSubmissionAttempts,
   markFoiaExternallyFiled,
 } from "@/lib/foiaApiClient"
 import {
-  submitFoiaRequest,
   createFoiaMessage,
   completeFoiaTask,
   updateRequestStatus,
@@ -94,6 +91,8 @@ const STATUS_ACTIONS: Partial<Record<RequestStatus, { label: string; to: Request
 
 export function RequestDetailContent({ requestId }: { requestId: string }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const autoOpenExternal = searchParams.get("external") === "1"
   const [activeTab, setActiveTab] = useState<TabId>("overview")
   const [request, setRequest] = useState<FoiaRequest | null>(null)
   const [messages, setMessages] = useState<FoiaMessage[]>([])
@@ -103,7 +102,6 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
   const [submissionAttempts, setSubmissionAttempts] = useState<FoiaSubmissionAttempt[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
-  const [aiDrafting, setAiDrafting] = useState(false)
   const [showStatusMenu, setShowStatusMenu] = useState(false)
 
   const loadData = useCallback(async () => {
@@ -134,19 +132,6 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
     loadData()
   }, [loadData])
 
-  async function handleSubmit() {
-    if (!confirm("Submit this request? It will move from Draft to Submitted.")) return
-    setActionLoading(true)
-    try {
-      await submitFoiaRequest(parseInt(requestId, 10))
-      await loadData()
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Submit failed")
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
   async function handleStatusChange(toStatus: RequestStatus) {
     const notes = prompt(`Notes for transition to "${toStatus.replace(/_/g, " ")}":`) ?? undefined
     setShowStatusMenu(false)
@@ -161,32 +146,8 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
     }
   }
 
-  async function handleAiDraft() {
-    const mode = request?.status === "clarification_requested"
-      ? "draft_rewrite"
-      : request?.status && !["draft", "submitted"].includes(request.status)
-      ? "draft_followup"
-      : "draft_request"
-
-    const defaultContext =
-      request?.city?.name === "San Francisco"
-        ? "Request should be directed to the San Francisco Police Department (SFPD). This is specifically for drone program data for the last 12 months (UAS/drone flights, deployments, and related records)."
-        : ""
-    const additionalContext =
-      prompt("Optional: add department/context for this draft", defaultContext) ?? undefined
-
-    setAiDrafting(true)
-    try {
-      await aiDraftFoiaRequest(parseInt(requestId, 10), mode, additionalContext || undefined)
-      // Reload to show the new draft message
-      await loadData()
-      setActiveTab("messages")
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "AI draft failed")
-    } finally {
-      setAiDrafting(false)
-    }
-  }
+  // AI Draft + Submit buttons removed from this page (drafting/submission is done
+  // via the "Generate portal steps" flow + external filing confirmation).
 
   async function handleRewrite() {
     setActionLoading(true)
@@ -264,20 +225,6 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* AI Draft */}
-          <button
-            onClick={handleAiDraft}
-            disabled={aiDrafting || actionLoading}
-            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
-          >
-            {aiDrafting ? (
-              <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
-            ) : (
-              <Sparkles className="h-4 w-4 text-purple-600" />
-            )}
-            {aiDrafting ? "Drafting..." : "AI Draft"}
-          </button>
-
           {/* Status transition dropdown */}
           {statusActions.length > 0 && (
             <div className="relative">
@@ -312,17 +259,6 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
                 </>
               )}
             </div>
-          )}
-
-          {request.status === "draft" && (
-            <button
-              onClick={handleSubmit}
-              disabled={actionLoading}
-              className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-700 disabled:opacity-50"
-            >
-              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Submit
-            </button>
           )}
           {request.status === "clarification_requested" && (
             <button
@@ -416,6 +352,7 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
           tasks={tasks}
           submissionAttempts={submissionAttempts}
           onTaskComplete={loadData}
+          autoOpenExternalModal={autoOpenExternal}
         />
       )}
       {activeTab === "messages" && (
@@ -454,11 +391,13 @@ function OverviewTab({
   tasks,
   submissionAttempts,
   onTaskComplete,
+  autoOpenExternalModal,
 }: {
   request: FoiaRequest
   tasks: FoiaTask[]
   submissionAttempts: FoiaSubmissionAttempt[]
   onTaskComplete: () => Promise<void>
+  autoOpenExternalModal: boolean
 }) {
   const [completing, setCompleting] = useState<number | null>(null)
   const [showExternalModal, setShowExternalModal] = useState(false)
@@ -479,6 +418,12 @@ function OverviewTab({
   const snapPortalFields =
     latestSnap["portal_fields"] && typeof latestSnap["portal_fields"] === "object" ? latestSnap["portal_fields"] : null
   const externalConfirmationId = latestAttempt?.external_confirmation_id ?? ""
+
+  useEffect(() => {
+    if (autoOpenExternalModal) {
+      setShowExternalModal(true)
+    }
+  }, [autoOpenExternalModal])
 
   async function copyText(label: string, text: string) {
     if (!text.trim()) {
