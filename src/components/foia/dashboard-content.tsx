@@ -10,9 +10,11 @@ import {
   TrendingUp,
   ArrowRight,
   Loader2,
+  Plus,
 } from "lucide-react"
 import { getFoiaDashboard, listFoiaRequests, listFoiaTasks } from "@/lib/foiaApiClient"
 import { RequestStatusBadge, TaskStatusBadge } from "@/components/foia/status-badge"
+import { NewRequestModal } from "@/components/foia/new-request-modal"
 import { formatDistanceToNow } from "date-fns"
 import type { FoiaDashboardSummary, FoiaRequest, FoiaTask } from "@/lib/foia/types"
 
@@ -64,6 +66,7 @@ export function DashboardContent() {
   const [recentRequests, setRecentRequests] = useState<FoiaRequest[]>([])
   const [pendingTasks, setPendingTasks] = useState<FoiaTask[]>([])
   const [loading, setLoading] = useState(true)
+  const [showNewRequest, setShowNewRequest] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -96,11 +99,20 @@ export function DashboardContent() {
   return (
     <div className="flex flex-col gap-8">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">FOIA Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Public records request overview and key metrics
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">FOIA Dashboard</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Public records request overview and key metrics
+          </p>
+        </div>
+        <button
+          onClick={() => setShowNewRequest(true)}
+          className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-purple-700"
+        >
+          <Plus className="h-4 w-4" />
+          New Request
+        </button>
       </div>
 
       {/* KPI Cards */}
@@ -254,6 +266,8 @@ export function DashboardContent() {
           </div>
         </div>
       </div>
+
+      <NewRequestModal open={showNewRequest} onClose={() => setShowNewRequest(false)} />
     </div>
   )
 }

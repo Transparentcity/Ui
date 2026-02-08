@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Plus, Search, Filter, ArrowUpDown, Loader2 } from "lucide-react"
+import { Plus, Search, Filter, Loader2 } from "lucide-react"
 import { listFoiaRequests } from "@/lib/foiaApiClient"
 import { RequestStatusBadge } from "@/components/foia/status-badge"
+import { NewRequestModal } from "@/components/foia/new-request-modal"
 import type { RequestStatus, FoiaRequest } from "@/lib/foia/types"
 import { formatDistanceToNow, differenceInDays } from "date-fns"
 
@@ -28,6 +29,7 @@ export function RequestsListContent() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<RequestStatus | "all">("all")
+  const [showNewRequest, setShowNewRequest] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -63,7 +65,10 @@ export function RequestsListContent() {
             {total} total requests - {openCount} open
           </p>
         </div>
-        <button className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-purple-700">
+        <button
+          onClick={() => setShowNewRequest(true)}
+          className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-purple-700"
+        >
           <Plus className="h-4 w-4" />
           New Request
         </button>
@@ -182,6 +187,8 @@ export function RequestsListContent() {
           </table>
         </div>
       )}
+
+      <NewRequestModal open={showNewRequest} onClose={() => setShowNewRequest(false)} />
     </div>
   )
 }

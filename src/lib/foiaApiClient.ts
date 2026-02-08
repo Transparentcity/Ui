@@ -186,6 +186,31 @@ export function getDatasetInstance(id: number): Promise<DatasetInstance> {
 }
 
 // ---------------------------------------------------------------------------
+// City Profile lookup (for form auto-populate)
+// ---------------------------------------------------------------------------
+
+export function getCityFoiaProfileAndTargets(
+  cityId: number
+): Promise<{ profile: CityFoiaProfile | null; dataset_targets: CityDatasetTarget[] }> {
+  return apiFetch(`/api/foia/cities/${cityId}/profile`)
+}
+
+// ---------------------------------------------------------------------------
+// AI Draft
+// ---------------------------------------------------------------------------
+
+export function aiDraftFoiaRequest(
+  requestId: number,
+  mode: "draft_request" | "draft_followup" | "draft_rewrite" = "draft_request",
+  additionalContext?: string
+): Promise<{ draft: string; mode: string; saved_as_message: boolean }> {
+  return apiFetch(`/api/foia/requests/${requestId}/ai-draft`, {
+    method: "POST",
+    body: JSON.stringify({ mode, additional_context: additionalContext }),
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Admin: City Profiles
 // ---------------------------------------------------------------------------
 

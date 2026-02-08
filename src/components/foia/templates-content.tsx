@@ -3,24 +3,28 @@
 import { useEffect, useState } from "react"
 import { Loader2, Plus, Edit3, Trash2 } from "lucide-react"
 import { listFoiaTemplates, deleteFoiaTemplate } from "@/lib/foiaApiClient"
+import { TemplateModal } from "@/components/foia/template-modal"
 import type { FoiaRequestTemplate } from "@/lib/foia/types"
 import { format } from "date-fns"
 
 export function TemplatesContent() {
   const [templates, setTemplates] = useState<FoiaRequestTemplate[]>([])
   const [loading, setLoading] = useState(true)
+  const [showModal, setShowModal] = useState(false)
+  const [editingTemplate, setEditingTemplate] = useState<FoiaRequestTemplate | null>(null)
+
+  async function load() {
+    try {
+      const data = await listFoiaTemplates()
+      setTemplates(data)
+    } catch (err) {
+      console.error("Failed to load templates:", err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    async function load() {
-      try {
-        const data = await listFoiaTemplates()
-        setTemplates(data)
-      } catch (err) {
-        console.error("Failed to load templates:", err)
-      } finally {
-        setLoading(false)
-      }
-    }
     load()
   }, [])
 
@@ -32,6 +36,21 @@ export function TemplatesContent() {
     } catch (err) {
       console.error("Failed to delete template:", err)
     }
+  }
+
+  function handleEdit(tmpl: FoiaRequestTemplate) {
+    setEditingTemplate(tmpl)
+    setShowModal(true)
+  }
+
+  function handleNew() {
+    setEditingTemplate(null)
+    setShowModal(true)
+  }
+
+  function handleSaved() {
+    // Reload templates after create/edit
+    load()
   }
 
   if (loading) {
@@ -51,7 +70,10 @@ export function TemplatesContent() {
             Reusable request letter templates by jurisdiction and dataset type
           </p>
         </div>
-        <button className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700">
+        <button
+          onClick={handleNew}
+          className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700"
+        >
           <Plus className="h-4 w-4" />
           New Template
         </button>
@@ -70,7 +92,11 @@ export function TemplatesContent() {
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
-                <button className="rounded-lg border border-gray-200 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50" title="Edit">
+                <button
+                  onClick={() => handleEdit(tmpl)}
+                  className="rounded-lg border border-gray-200 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                  title="Edit"
+                >
                   <Edit3 className="h-4 w-4" />
                 </button>
                 <button
@@ -103,6 +129,16 @@ export function TemplatesContent() {
           </div>
         )}
       </div>
+
+      <TemplateModal
+        open={showModal}
+        onClose={() => {
+          setShowModal(false)
+          setEditingTemplate(null)
+        }}
+        onSaved={handleSaved}
+        template={editingTemplate}
+      />
     </div>
   )
 }

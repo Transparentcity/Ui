@@ -1,7 +1,8 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   ArrowLeft,
   Send,
@@ -14,6 +15,9 @@ import {
   FileText,
   Sparkles,
   Loader2,
+  Plus,
+  X,
+  ChevronDown,
 } from "lucide-react"
 import {
   getFoiaRequest,
@@ -21,10 +25,24 @@ import {
   listFoiaAttachments,
   listFoiaRequestEvents,
   listFoiaTasks,
+  aiDraftFoiaRequest,
 } from "@/lib/foiaApiClient"
+import {
+  submitFoiaRequest,
+  createFoiaMessage,
+  completeFoiaTask,
+  updateRequestStatus,
+} from "@/app/actions/foia"
 import { RequestStatusBadge, TaskStatusBadge } from "@/components/foia/status-badge"
 import { formatDistanceToNow, format } from "date-fns"
-import type { FoiaRequest, FoiaMessage, FoiaRequestEvent, FoiaTask, FoiaAttachment } from "@/lib/foia/types"
+import type {
+  FoiaRequest,
+  FoiaMessage,
+  FoiaRequestEvent,
+  FoiaTask,
+  FoiaAttachment,
+  RequestStatus,
+} from "@/lib/foia/types"
 
 const tabs = [
   { id: "overview", label: "Overview", icon: FileText },
@@ -35,7 +53,44 @@ const tabs = [
 
 type TabId = (typeof tabs)[number]["id"]
 
+// Status transitions allowed from each status
+const STATUS_ACTIONS: Partial<Record<RequestStatus, { label: string; to: RequestStatus; variant: string }[]>> = {
+  submitted: [
+    { label: "Mark Acknowledged", to: "acknowledged", variant: "primary" },
+    { label: "Mark Denied", to: "denied", variant: "destructive" },
+  ],
+  submitted_unacknowledged: [
+    { label: "Mark Acknowledged", to: "acknowledged", variant: "primary" },
+    { label: "Mark Denied", to: "denied", variant: "destructive" },
+  ],
+  acknowledged: [
+    { label: "Partially Fulfilled", to: "partially_fulfilled", variant: "primary" },
+    { label: "Clarification Requested", to: "clarification_requested", variant: "secondary" },
+    { label: "Fee Requested", to: "fee_requested", variant: "secondary" },
+    { label: "Extension Claimed", to: "extension_claimed", variant: "secondary" },
+    { label: "Fulfilled", to: "fulfilled", variant: "success" },
+    { label: "Denied", to: "denied", variant: "destructive" },
+  ],
+  clarification_requested: [
+    { label: "Re-Acknowledged", to: "acknowledged", variant: "primary" },
+    { label: "Partially Fulfilled", to: "partially_fulfilled", variant: "primary" },
+  ],
+  partially_fulfilled: [
+    { label: "Mark Fulfilled", to: "fulfilled", variant: "success" },
+    { label: "Clarification Requested", to: "clarification_requested", variant: "secondary" },
+  ],
+  fee_requested: [
+    { label: "Mark Acknowledged", to: "acknowledged", variant: "primary" },
+  ],
+  extension_claimed: [
+    { label: "Mark Acknowledged", to: "acknowledged", variant: "primary" },
+    { label: "Partially Fulfilled", to: "partially_fulfilled", variant: "primary" },
+    { label: "Fulfilled", to: "fulfilled", variant: "success" },
+  ],
+}
+
 export function RequestDetailContent({ requestId }: { requestId: string }) {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabId>("overview")
   const [request, setRequest] = useState<FoiaRequest | null>(null)
   const [messages, setMessages] = useState<FoiaMessage[]>([])
@@ -43,31 +98,107 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
   const [events, setEvents] = useState<FoiaRequestEvent[]>([])
   const [tasks, setTasks] = useState<FoiaTask[]>([])
   const [loading, setLoading] = useState(true)
+  const [actionLoading, setActionLoading] = useState(false)
+  const [aiDrafting, setAiDrafting] = useState(false)
+  const [showStatusMenu, setShowStatusMenu] = useState(false)
+
+  const loadData = useCallback(async () => {
+    try {
+      const id = parseInt(requestId, 10)
+      const [req, msgs, atts, evts, tsks] = await Promise.all([
+        getFoiaRequest(id),
+        listFoiaMessages(id),
+        listFoiaAttachments(id),
+        listFoiaRequestEvents(id),
+        listFoiaTasks({ status: undefined }),
+      ])
+      setRequest(req)
+      setMessages(msgs)
+      setAttachments(atts)
+      setEvents(evts)
+      setTasks(tsks.filter((t) => t.request_id === id))
+    } catch (err) {
+      console.error("Failed to load request detail:", err)
+    } finally {
+      setLoading(false)
+    }
+  }, [requestId])
 
   useEffect(() => {
-    async function load() {
-      try {
-        const id = parseInt(requestId, 10)
-        const [req, msgs, atts, evts, tsks] = await Promise.all([
-          getFoiaRequest(id),
-          listFoiaMessages(id),
-          listFoiaAttachments(id),
-          listFoiaRequestEvents(id),
-          listFoiaTasks({ status: undefined }),
-        ])
-        setRequest(req)
-        setMessages(msgs)
-        setAttachments(atts)
-        setEvents(evts)
-        setTasks(tsks.filter((t) => t.request_id === id))
-      } catch (err) {
-        console.error("Failed to load request detail:", err)
-      } finally {
-        setLoading(false)
-      }
+    loadData()
+  }, [loadData])
+
+  async function handleSubmit() {
+    if (!confirm("Submit this request? It will move from Draft to Submitted.")) return
+    setActionLoading(true)
+    try {
+      await submitFoiaRequest(parseInt(requestId, 10))
+      await loadData()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Submit failed")
+    } finally {
+      setActionLoading(false)
     }
-    load()
-  }, [requestId])
+  }
+
+  async function handleStatusChange(toStatus: RequestStatus) {
+    const notes = prompt(`Notes for transition to "${toStatus.replace(/_/g, " ")}":`) ?? undefined
+    setShowStatusMenu(false)
+    setActionLoading(true)
+    try {
+      await updateRequestStatus(parseInt(requestId, 10), toStatus, "admin", notes || undefined)
+      await loadData()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Status change failed")
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleAiDraft() {
+    const mode = request?.status === "clarification_requested"
+      ? "draft_rewrite"
+      : request?.status && !["draft", "submitted"].includes(request.status)
+      ? "draft_followup"
+      : "draft_request"
+
+    const defaultContext =
+      request?.city?.name === "San Francisco"
+        ? "Request should be directed to the San Francisco Police Department (SFPD). This is specifically for drone program data for the last 12 months (UAS/drone flights, deployments, and related records)."
+        : ""
+    const additionalContext =
+      prompt("Optional: add department/context for this draft", defaultContext) ?? undefined
+
+    setAiDrafting(true)
+    try {
+      await aiDraftFoiaRequest(parseInt(requestId, 10), mode, additionalContext || undefined)
+      // Reload to show the new draft message
+      await loadData()
+      setActiveTab("messages")
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "AI draft failed")
+    } finally {
+      setAiDrafting(false)
+    }
+  }
+
+  async function handleRewrite() {
+    setActionLoading(true)
+    try {
+      // Creates a new version as a draft - navigates to the new request
+      const { rewriteFoiaRequest } = await import("@/app/actions/foia")
+      const result = (await rewriteFoiaRequest(parseInt(requestId, 10), {})) as { id?: number }
+      if (result?.id) {
+        router.push(`/foia/requests/${result.id}`)
+      } else {
+        await loadData()
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Rewrite failed")
+    } finally {
+      setActionLoading(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -87,6 +218,8 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
       </div>
     )
   }
+
+  const statusActions = STATUS_ACTIONS[request.status as RequestStatus] ?? []
 
   return (
     <div className="flex flex-col gap-6">
@@ -120,19 +253,73 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50">
-            <Sparkles className="h-4 w-4 text-purple-600" />
-            AI Draft
+          {/* AI Draft */}
+          <button
+            onClick={handleAiDraft}
+            disabled={aiDrafting || actionLoading}
+            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+          >
+            {aiDrafting ? (
+              <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+            ) : (
+              <Sparkles className="h-4 w-4 text-purple-600" />
+            )}
+            {aiDrafting ? "Drafting..." : "AI Draft"}
           </button>
+
+          {/* Status transition dropdown */}
+          {statusActions.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setShowStatusMenu(!showStatusMenu)}
+                disabled={actionLoading}
+                className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+              >
+                Update Status
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              {showStatusMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowStatusMenu(false)} />
+                  <div className="absolute right-0 top-full z-20 mt-1 min-w-[200px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                    {statusActions.map((action) => (
+                      <button
+                        key={action.to}
+                        onClick={() => handleStatusChange(action.to)}
+                        className={`flex w-full items-center px-4 py-2 text-left text-sm hover:bg-gray-50 ${
+                          action.variant === "destructive"
+                            ? "text-red-600"
+                            : action.variant === "success"
+                            ? "text-emerald-600"
+                            : "text-gray-700"
+                        }`}
+                      >
+                        {action.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {request.status === "draft" && (
-            <button className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-700">
-              <Send className="h-4 w-4" />
+            <button
+              onClick={handleSubmit}
+              disabled={actionLoading}
+              className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-700 disabled:opacity-50"
+            >
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               Submit
             </button>
           )}
           {request.status === "clarification_requested" && (
-            <button className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-700">
-              <RefreshCw className="h-4 w-4" />
+            <button
+              onClick={handleRewrite}
+              disabled={actionLoading}
+              className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-700 disabled:opacity-50"
+            >
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Rewrite
             </button>
           )}
@@ -212,8 +399,10 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
       </div>
 
       {/* Tab Content */}
-      {activeTab === "overview" && <OverviewTab request={request} tasks={tasks} />}
-      {activeTab === "messages" && <MessagesTab messages={messages} />}
+      {activeTab === "overview" && <OverviewTab request={request} tasks={tasks} onTaskComplete={loadData} />}
+      {activeTab === "messages" && (
+        <MessagesTab messages={messages} requestId={parseInt(requestId, 10)} onMessageSent={loadData} />
+      )}
       {activeTab === "attachments" && <AttachmentsTab attachments={attachments} />}
       {activeTab === "events" && <EventsTab events={events} />}
     </div>
@@ -242,7 +431,29 @@ function InfoCard({
   )
 }
 
-function OverviewTab({ request, tasks }: { request: FoiaRequest; tasks: FoiaTask[] }) {
+function OverviewTab({
+  request,
+  tasks,
+  onTaskComplete,
+}: {
+  request: FoiaRequest
+  tasks: FoiaTask[]
+  onTaskComplete: () => Promise<void>
+}) {
+  const [completing, setCompleting] = useState<number | null>(null)
+
+  async function handleComplete(taskId: number) {
+    setCompleting(taskId)
+    try {
+      await completeFoiaTask(taskId)
+      await onTaskComplete()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to complete task")
+    } finally {
+      setCompleting(null)
+    }
+  }
+
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="rounded-xl border border-gray-200 bg-white p-6">
@@ -293,7 +504,18 @@ function OverviewTab({ request, tasks }: { request: FoiaRequest; tasks: FoiaTask
                     {task.assigned_to ? `Assigned to ${task.assigned_to}` : "Unassigned"}
                   </p>
                 </div>
-                <TaskStatusBadge status={task.status} />
+                <div className="flex items-center gap-2">
+                  <TaskStatusBadge status={task.status} />
+                  {task.status !== "completed" && task.status !== "cancelled" && (
+                    <button
+                      onClick={() => handleComplete(task.id)}
+                      disabled={completing === task.id}
+                      className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      {completing === task.id ? "..." : "Complete"}
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -303,16 +525,145 @@ function OverviewTab({ request, tasks }: { request: FoiaRequest; tasks: FoiaTask
   )
 }
 
-function MessagesTab({ messages }: { messages: FoiaMessage[] }) {
-  if (messages.length === 0) {
-    return (
-      <div className="py-12 text-center text-sm text-gray-400">
-        No messages for this request yet.
-      </div>
-    )
+function MessagesTab({
+  messages,
+  requestId,
+  onMessageSent,
+}: {
+  messages: FoiaMessage[]
+  requestId: number
+  onMessageSent: () => Promise<void>
+}) {
+  const [showCompose, setShowCompose] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [msgForm, setMsgForm] = useState({
+    direction: "outbound" as "outbound" | "inbound",
+    classification: "follow_up",
+    subject: "",
+    body: "",
+    sender: "admin@transparentcity.org",
+    recipient: "",
+  })
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault()
+    if (!msgForm.subject.trim() || !msgForm.body.trim()) return
+    setSending(true)
+    try {
+      await createFoiaMessage(requestId, {
+        direction: msgForm.direction,
+        classification: msgForm.classification,
+        subject: msgForm.subject,
+        body: msgForm.body,
+        sender: msgForm.sender || undefined,
+        recipient: msgForm.recipient || undefined,
+      })
+      setShowCompose(false)
+      setMsgForm((f) => ({ ...f, subject: "", body: "", recipient: "" }))
+      await onMessageSent()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to send message")
+    } finally {
+      setSending(false)
+    }
   }
+
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowCompose(!showCompose)}
+          className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          {showCompose ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+          {showCompose ? "Cancel" : "Compose Message"}
+        </button>
+      </div>
+
+      {showCompose && (
+        <form onSubmit={handleSend} className="rounded-xl border border-purple-200 bg-purple-50/30 p-5">
+          <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-700">Direction</label>
+                <select
+                  value={msgForm.direction}
+                  onChange={(e) =>
+                    setMsgForm((f) => ({ ...f, direction: e.target.value as "outbound" | "inbound" }))
+                  }
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                >
+                  <option value="outbound">Outbound (Sent)</option>
+                  <option value="inbound">Inbound (Received)</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-700">Classification</label>
+                <select
+                  value={msgForm.classification}
+                  onChange={(e) => setMsgForm((f) => ({ ...f, classification: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                >
+                  <option value="initial_request">Initial Request</option>
+                  <option value="follow_up">Follow Up</option>
+                  <option value="clarification">Clarification</option>
+                  <option value="acknowledgment">Acknowledgment</option>
+                  <option value="data_delivery">Data Delivery</option>
+                  <option value="fee_notice">Fee Notice</option>
+                  <option value="denial">Denial</option>
+                  <option value="reroute">Reroute</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-700">Recipient</label>
+              <input
+                type="text"
+                value={msgForm.recipient}
+                onChange={(e) => setMsgForm((f) => ({ ...f, recipient: e.target.value }))}
+                placeholder="records@sfgov.org"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-700">Subject</label>
+              <input
+                type="text"
+                value={msgForm.subject}
+                onChange={(e) => setMsgForm((f) => ({ ...f, subject: e.target.value }))}
+                placeholder="RE: Public Records Request..."
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-700">Body</label>
+              <textarea
+                value={msgForm.body}
+                onChange={(e) => setMsgForm((f) => ({ ...f, body: e.target.value }))}
+                rows={5}
+                placeholder="Dear Records Custodian..."
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm leading-relaxed focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              />
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={sending || !msgForm.subject.trim() || !msgForm.body.trim()}
+                className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+              >
+                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Save Message
+              </button>
+            </div>
+          </div>
+        </form>
+      )}
+
+      {messages.length === 0 && !showCompose && (
+        <div className="py-12 text-center text-sm text-gray-400">
+          No messages for this request yet.
+        </div>
+      )}
       {messages.map((msg) => (
         <div
           key={msg.id}

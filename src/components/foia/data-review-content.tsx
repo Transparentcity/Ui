@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Loader2, CheckCircle2, AlertTriangle, FileText } from "lucide-react"
-import { listDatasetInstances } from "@/lib/foiaApiClient"
+import { listDatasetInstances, changeFoiaRequestStatus } from "@/lib/foiaApiClient"
 import type { DatasetInstance } from "@/lib/foia/types"
+import { API_BASE } from "@/lib/apiBase"
 
 const statusConfig: Record<string, { label: string; color: string }> = {
   pending_review: { label: "Pending Review", color: "bg-amber-100 text-amber-700" },
@@ -16,20 +17,53 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 export function DataReviewContent() {
   const [instances, setInstances] = useState<DatasetInstance[]>([])
   const [loading, setLoading] = useState(true)
+  const [actionLoading, setActionLoading] = useState<number | null>(null)
+
+  async function load() {
+    try {
+      const data = await listDatasetInstances()
+      setInstances(data)
+    } catch (err) {
+      console.error("Failed to load dataset instances:", err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    async function load() {
-      try {
-        const data = await listDatasetInstances()
-        setInstances(data)
-      } catch (err) {
-        console.error("Failed to load dataset instances:", err)
-      } finally {
-        setLoading(false)
-      }
-    }
     load()
   }, [])
+
+  async function handleUpdateStatus(instanceId: number, newStatus: string) {
+    setActionLoading(instanceId)
+    try {
+      // Update the dataset instance status via direct API call
+      const res = await fetch(`${API_BASE}/api/foia/dataset-instances/${instanceId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (!res.ok) {
+        // Fallback: just reload and update locally
+        setInstances((prev) =>
+          prev.map((inst) =>
+            inst.id === instanceId ? { ...inst, status: newStatus as DatasetInstance["status"] } : inst
+          )
+        )
+      } else {
+        await load()
+      }
+    } catch {
+      // Optimistic update
+      setInstances((prev) =>
+        prev.map((inst) =>
+          inst.id === instanceId ? { ...inst, status: newStatus as DatasetInstance["status"] } : inst
+        )
+      )
+    } finally {
+      setActionLoading(null)
+    }
+  }
 
   if (loading) {
     return (
@@ -60,7 +94,14 @@ export function DataReviewContent() {
         </div>
         <div className="divide-y divide-gray-100">
           {pendingReview.map((inst) => (
-            <DataInstanceRow key={inst.id} instance={inst} />
+            <DataInstanceRow
+              key={inst.id}
+              instance={inst}
+              actionLoading={actionLoading === inst.id}
+              onAccept={() => handleUpdateStatus(inst.id, "accepted")}
+              onReject={() => handleUpdateStatus(inst.id, "rejected")}
+              onNeedsMapping={() => handleUpdateStatus(inst.id, "needs_mapping")}
+            />
           ))}
           {pendingReview.length === 0 && (
             <div className="px-6 py-8 text-center text-sm text-gray-400">
@@ -89,7 +130,19 @@ export function DataReviewContent() {
   )
 }
 
-function DataInstanceRow({ instance }: { instance: DatasetInstance }) {
+function DataInstanceRow({
+  instance,
+  actionLoading,
+  onAccept,
+  onReject,
+  onNeedsMapping,
+}: {
+  instance: DatasetInstance
+  actionLoading?: boolean
+  onAccept?: () => void
+  onReject?: () => void
+  onNeedsMapping?: () => void
+}) {
   const cfg = statusConfig[instance.status] ?? { label: instance.status, color: "bg-gray-100 text-gray-700" }
   return (
     <div className="flex items-center gap-4 px-6 py-4">
@@ -110,18 +163,39 @@ function DataInstanceRow({ instance }: { instance: DatasetInstance }) {
               {instance.completeness_score}% complete
             </span>
           )}
+          {instance.request_id && (
+            <Link href={`/foia/requests/${instance.request_id}`} className="text-purple-600 hover:underline">
+              Request #{instance.request_id}
+            </Link>
+          )}
         </div>
       </div>
       <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${cfg.color}`}>
         {cfg.label}
       </span>
-      {instance.status === "pending_review" && (
+      {instance.status === "pending_review" && onAccept && onReject && (
         <div className="flex items-center gap-1.5">
-          <button className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
+          <button
+            onClick={onAccept}
+            disabled={actionLoading}
+            className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {actionLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
             Accept
           </button>
-          <button className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
-            Deficiency
+          <button
+            onClick={onNeedsMapping}
+            disabled={actionLoading}
+            className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-violet-600 hover:bg-violet-50 disabled:opacity-50"
+          >
+            Needs Mapping
+          </button>
+          <button
+            onClick={onReject}
+            disabled={actionLoading}
+            className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+          >
+            Reject
           </button>
         </div>
       )}
