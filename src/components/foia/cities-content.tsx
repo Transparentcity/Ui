@@ -20,15 +20,9 @@ export function CitiesContent() {
   useEffect(() => {
     async function load() {
       try {
-        // Use the platform cities search endpoint
-        const res = await fetch(`${API_BASE}/api/cities/search?q=&limit=100`, {
-          headers: { "Content-Type": "application/json" },
-        })
-        if (res.ok) {
-          const data = await res.json()
-          const list = Array.isArray(data) ? data : data.cities ?? data.items ?? []
-          setCities(list)
-        }
+        // Avoid calling /api/cities/search with an empty query (backend returns 422).
+        // This page is intended for searching; load results only after a query.
+        setCities([])
       } catch (err) {
         console.error("Failed to load cities:", err)
       } finally {
@@ -37,6 +31,35 @@ export function CitiesContent() {
     }
     load()
   }, [])
+
+  useEffect(() => {
+    async function search() {
+      const q = searchQuery.trim()
+      if (q.length < 2) {
+        setCities([])
+        return
+      }
+      setLoading(true)
+      try {
+        const res = await fetch(`${API_BASE}/api/cities/search?q=${encodeURIComponent(q)}&limit=100`, {
+          headers: { "Content-Type": "application/json" },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const list = Array.isArray(data) ? data : data.cities ?? data.items ?? []
+          setCities(list)
+        } else {
+          setCities([])
+        }
+      } catch (err) {
+        console.error("Failed to search cities:", err)
+        setCities([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    search()
+  }, [searchQuery])
 
   if (loading) {
     return (
@@ -94,14 +117,11 @@ export function CitiesContent() {
             <ArrowRight className="h-4 w-4 text-gray-300" />
           </Link>
         ))}
-        {cities.filter((c) =>
-            searchQuery
-              ? c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                c.state.toLowerCase().includes(searchQuery.toLowerCase())
-              : true
-          ).length === 0 && (
+        {cities.length === 0 && (
           <div className="col-span-full rounded-xl border border-gray-200 bg-white px-6 py-12 text-center text-sm text-gray-400">
-            No cities configured. Add cities from the main admin panel first.
+            {searchQuery.trim().length < 2
+              ? "Type at least 2 characters to search cities."
+              : "No matching cities found."}
           </div>
         )}
       </div>

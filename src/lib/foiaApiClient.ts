@@ -223,6 +223,7 @@ export function composeCityFoiaRequestBlock(
   data: {
     primary_department_id?: number
     additional_department_ids?: number[]
+    coordination_note?: string
     title?: string
     request_description?: string
     fee_waiver?: boolean
@@ -251,6 +252,16 @@ export function aiDraftFoiaRequest(
 
 export function listFoiaSubmissionAttempts(requestId: number): Promise<FoiaSubmissionAttempt[]> {
   return apiFetch(`/api/foia/requests/${requestId}/submission-attempts`)
+}
+
+export function markFoiaExternallyFiled(
+  requestId: number,
+  data: { external_confirmation_id: string; screenshot_uri?: string }
+): Promise<FoiaSubmissionAttempt> {
+  return apiFetch(`/api/foia/requests/${requestId}/externally-filed`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  })
 }
 
 // ---------------------------------------------------------------------------

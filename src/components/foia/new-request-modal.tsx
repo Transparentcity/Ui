@@ -61,9 +61,12 @@ export function NewRequestModal({
   const [suggestingDept, setSuggestingDept] = useState(false)
   const [deptSuggestionInfo, setDeptSuggestionInfo] = useState<string>("")
   const [additionalDeptIds, setAdditionalDeptIds] = useState<number[]>([])
+  const [coordinationNote, setCoordinationNote] = useState<string>("")
   const [composingBlock, setComposingBlock] = useState(false)
   const [requestBlock, setRequestBlock] = useState<string>("")
   const [requestBlockInfo, setRequestBlockInfo] = useState<string>("")
+  const [openRecordsCategory, setOpenRecordsCategory] = useState<string>("")
+  const [openRecordsAgency, setOpenRecordsAgency] = useState<string>("")
 
   const [form, setForm] = useState({
     city_id: 0,
@@ -126,8 +129,11 @@ export function NewRequestModal({
     setForm((f) => ({ ...f, department_id: undefined }))
     setDeptSuggestionInfo("")
     setAdditionalDeptIds([])
+    setCoordinationNote("")
     setRequestBlock("")
     setRequestBlockInfo("")
+    setOpenRecordsCategory("")
+    setOpenRecordsAgency("")
 
     // Load city FOIA profile and auto-populate
     try {
@@ -169,11 +175,27 @@ export function NewRequestModal({
       setDepartments(depts)
       if (depts.length > 0) {
         setForm((f) => ({ ...f, department_id: depts[0].id }))
+        // For NYC OpenRecords, the "agency" field often matches the selected department.
+        if (!openRecordsAgency) {
+          setOpenRecordsAgency(depts[0].name)
+        }
       }
     } catch {
       setDepartments([])
     }
   }
+
+  const isSf = form.city_id === SF_CITY_ID
+  const isOpenRecords = Boolean(cityProfile?.portal_url?.includes("openrecords.nyc.gov"))
+
+  const effectiveRequesterEmail =
+    (form.requester_email_override || "").trim() || (requesterProfile?.email || "").trim()
+  const requesterName = (requesterProfile?.display_name || "").trim()
+  const requesterPhone = (requesterProfile?.phone || "").trim()
+  const requesterStreet = (requesterProfile?.street_address || "").trim()
+  const requesterCity = (requesterProfile?.city || "").trim()
+  const requesterState = (requesterProfile?.state || "").trim()
+  const requesterZip = (requesterProfile?.zip || "").trim()
 
   async function handleComposeBlock() {
     setError("")
@@ -196,12 +218,23 @@ export function NewRequestModal({
       setError("Please add a title (SF portal requires it)")
       return
     }
+    if (isOpenRecords) {
+      if (!openRecordsCategory.trim()) {
+        setError("Please select an NYC OpenRecords category")
+        return
+      }
+      if (!openRecordsAgency.trim()) {
+        setError("Please enter the NYC OpenRecords agency")
+        return
+      }
+    }
 
     setComposingBlock(true)
     try {
       const res = await composeCityFoiaRequestBlock(form.city_id, {
         primary_department_id: form.department_id,
         additional_department_ids: additionalDeptIds,
+        coordination_note: coordinationNote || undefined,
         title: form.title || undefined,
         request_description: form.request_description || undefined,
         fee_waiver: true,
@@ -281,9 +314,43 @@ export function NewRequestModal({
         setError("Please add a request description (SF portal requires it)")
         return
       }
-      const effectiveEmail = (form.requester_email_override || "").trim() || (requesterProfile?.email || "").trim()
-      if (!effectiveEmail) {
+      if (!effectiveRequesterEmail) {
         setError("Please provide a requester email (SF portal requires it)")
+        return
+      }
+      if (!requesterName) {
+        setError("Requester name is missing in the org-wide profile (SF portal requires it)")
+        return
+      }
+      // Address fields are required for SF portals when email is not sufficient; enforce minimally here.
+      if (!requesterStreet || !requesterCity || !requesterState || !requesterZip) {
+        setError("Requester mailing address is incomplete in the org-wide profile (SF portal requires it)")
+        return
+      }
+    }
+    if (isOpenRecords) {
+      if (!openRecordsCategory.trim()) {
+        setError("Please select an NYC OpenRecords category")
+        return
+      }
+      if (!openRecordsAgency.trim()) {
+        setError("Please enter the NYC OpenRecords agency")
+        return
+      }
+      if (!form.title.trim()) {
+        setError("Please add a title (NYC OpenRecords requires it)")
+        return
+      }
+      if (!form.request_description.trim()) {
+        setError("Please add a request description (NYC OpenRecords requires it)")
+        return
+      }
+      if (!requesterName) {
+        setError("Requester name is missing in the org-wide profile (NYC OpenRecords requires it)")
+        return
+      }
+      if (!effectiveRequesterEmail && !requesterPhone && !requesterStreet) {
+        setError("NYC OpenRecords requires email or alternate contact info (phone or address)")
         return
       }
     }
@@ -301,6 +368,15 @@ export function NewRequestModal({
 
     setSaving(true)
     try {
+      const portalFields: Record<string, unknown> = {}
+      if (additionalDeptIds.length > 0) portalFields.additional_department_ids = additionalDeptIds
+      if (coordinationNote.trim()) portalFields.coordination_note = coordinationNote.trim()
+      if (requestBlock.trim()) portalFields.request_block_draft = requestBlock.trim()
+      if (isOpenRecords) {
+        portalFields.openrecords_category = openRecordsCategory.trim()
+        portalFields.openrecords_agency = openRecordsAgency.trim()
+      }
+
       const result = await createFoiaRequest({
         city_id: form.city_id,
         dataset_type_id: datasetTypeFinal,
@@ -308,13 +384,7 @@ export function NewRequestModal({
         request_description: form.request_description || undefined,
         department_id: form.department_id,
         requester_email_override: form.requester_email_override || undefined,
-        portal_fields:
-          additionalDeptIds.length > 0 || requestBlock
-            ? {
-                additional_department_ids: additionalDeptIds,
-                request_block_draft: requestBlock || undefined,
-              }
-            : undefined,
+        portal_fields: Object.keys(portalFields).length > 0 ? portalFields : undefined,
         coverage_start: form.coverage_start,
         coverage_end: form.coverage_end,
         format_requested: form.format_requested,
@@ -458,13 +528,30 @@ export function NewRequestModal({
                     </div>
                   </div>
                 </div>
+
+                <div className="mt-2">
+                  <label className="mb-1 block text-[11px] font-medium text-gray-700">
+                    Coordination note (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={coordinationNote}
+                    onChange={(e) => {
+                      setCoordinationNote(e.target.value)
+                      setRequestBlock("")
+                      setRequestBlockInfo("")
+                    }}
+                    placeholder='e.g. "all departments that sponsored or implemented OpenGov products or services"'
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
               </div>
             )}
 
             {/* Request core fields (MuckRock/portal aligned) */}
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-700">
-                Title{form.city_id === SF_CITY_ID ? " *" : ""}
+                Title{isSf || isOpenRecords ? " *" : ""}
               </label>
               <input
                 type="text"
@@ -477,7 +564,7 @@ export function NewRequestModal({
 
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-700">
-                Request Description{form.city_id === SF_CITY_ID ? " *" : ""}
+                Request Description{isSf || isOpenRecords ? " *" : ""}
               </label>
               <textarea
                 value={form.request_description}
@@ -543,6 +630,48 @@ export function NewRequestModal({
               </div>
             )}
 
+            {(isSf || isOpenRecords) && (
+              <div className="rounded-xl border border-gray-200 bg-white p-4">
+                <p className="text-xs font-semibold text-gray-900">Portal checklist</p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  {isSf
+                    ? "San Francisco portal fields we expect to fill (based on NextRequest)."
+                    : "NYC OpenRecords requires Category + Agency + Title + Description + requester info."}
+                </p>
+                <div className="mt-3 grid gap-2 text-xs">
+                  <ChecklistRow label="Department selected" ok={Boolean(form.department_id)} />
+                  <ChecklistRow label="Title" ok={Boolean(form.title.trim())} />
+                  <ChecklistRow label="Request description" ok={Boolean(form.request_description.trim())} />
+                  <ChecklistRow label="Requester name (org profile)" ok={Boolean(requesterName)} />
+                  <ChecklistRow label="Requester email" ok={Boolean(effectiveRequesterEmail)} />
+                  {isSf && (
+                    <>
+                      <ChecklistRow label="Requester street address" ok={Boolean(requesterStreet)} />
+                      <ChecklistRow label="Requester city" ok={Boolean(requesterCity)} />
+                      <ChecklistRow label="Requester state" ok={Boolean(requesterState)} />
+                      <ChecklistRow label="Requester zip" ok={Boolean(requesterZip)} />
+                      <ChecklistRow label="Requester phone (often required)" ok={Boolean(requesterPhone)} />
+                    </>
+                  )}
+                  {isOpenRecords && (
+                    <>
+                      <ChecklistRow label="OpenRecords category" ok={Boolean(openRecordsCategory.trim())} />
+                      <ChecklistRow label="OpenRecords agency" ok={Boolean(openRecordsAgency.trim())} />
+                      <ChecklistRow
+                        label="Alternate contact info (if no email)"
+                        ok={Boolean(effectiveRequesterEmail || requesterPhone || requesterStreet)}
+                      />
+                    </>
+                  )}
+                </div>
+                {isSf && requesterProfile && (
+                  <p className="mt-3 text-[11px] text-gray-500">
+                    If any requester fields are missing, update the org-wide requester profile in the FOIA admin settings.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-700">
                 Requester Email Override (optional)
@@ -555,6 +684,62 @@ export function NewRequestModal({
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
               />
             </div>
+
+            {isOpenRecords && (
+              <div className="rounded-xl border border-gray-200 bg-white p-4">
+                <p className="text-xs font-semibold text-gray-900">NYC OpenRecords fields</p>
+                <div className="mt-3 grid grid-cols-1 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-700">Category *</label>
+                    <select
+                      value={openRecordsCategory}
+                      onChange={(e) => {
+                        setOpenRecordsCategory(e.target.value)
+                        setRequestBlock("")
+                        setRequestBlockInfo("")
+                      }}
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    >
+                      <option value="">Select category…</option>
+                      {[
+                        "Business",
+                        "Civic Services",
+                        "Culture & Recreation",
+                        "Education",
+                        "Environment",
+                        "Equity",
+                        "Health",
+                        "Housing & Development",
+                        "Public Safety",
+                        "Social Services",
+                        "Transportation",
+                      ].map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-700">Agency *</label>
+                    <input
+                      type="text"
+                      value={openRecordsAgency}
+                      onChange={(e) => {
+                        setOpenRecordsAgency(e.target.value)
+                        setRequestBlock("")
+                        setRequestBlockInfo("")
+                      }}
+                      placeholder="e.g. New York City Police Department"
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-400">
+                      OpenRecords requires selecting both Category and Agency in the portal UI.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
               <button
@@ -676,6 +861,21 @@ export function NewRequestModal({
           </div>
         </form>
       </div>
+    </div>
+  )
+}
+
+function ChecklistRow({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-gray-600">{label}</span>
+      <span
+        className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+          ok ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+        }`}
+      >
+        {ok ? "OK" : "Missing"}
+      </span>
     </div>
   )
 }

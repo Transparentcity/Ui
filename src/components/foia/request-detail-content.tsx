@@ -27,6 +27,7 @@ import {
   listFoiaTasks,
   aiDraftFoiaRequest,
   listFoiaSubmissionAttempts,
+  markFoiaExternallyFiled,
 } from "@/lib/foiaApiClient"
 import {
   submitFoiaRequest,
@@ -460,6 +461,10 @@ function OverviewTab({
   onTaskComplete: () => Promise<void>
 }) {
   const [completing, setCompleting] = useState<number | null>(null)
+  const [showExternalModal, setShowExternalModal] = useState(false)
+  const [externalId, setExternalId] = useState("")
+  const [screenshotUri, setScreenshotUri] = useState("")
+  const [markingExternal, setMarkingExternal] = useState(false)
 
   const latestAttempt = submissionAttempts[0]
   const latestSnap = (latestAttempt?.payload_snapshot ?? {}) as Record<string, unknown>
@@ -473,6 +478,7 @@ function OverviewTab({
     typeof latestSnap["case_or_cad_number"] === "string" ? (latestSnap["case_or_cad_number"] as string) : ""
   const snapPortalFields =
     latestSnap["portal_fields"] && typeof latestSnap["portal_fields"] === "object" ? latestSnap["portal_fields"] : null
+  const externalConfirmationId = latestAttempt?.external_confirmation_id ?? ""
 
   async function copyText(label: string, text: string) {
     if (!text.trim()) {
@@ -498,8 +504,41 @@ function OverviewTab({
     }
   }
 
+  async function handleMarkExternallyFiled() {
+    if (!externalId.trim()) {
+      alert("Please enter the portal confirmation number")
+      return
+    }
+    setMarkingExternal(true)
+    try {
+      await markFoiaExternallyFiled(request.id, {
+        external_confirmation_id: externalId.trim(),
+        screenshot_uri: screenshotUri.trim() || undefined,
+      })
+      setShowExternalModal(false)
+      setExternalId("")
+      setScreenshotUri("")
+      await onTaskComplete()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to mark externally filed")
+    } finally {
+      setMarkingExternal(false)
+    }
+  }
+
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <>
+      <ExternalFiledModal
+        open={showExternalModal}
+        onClose={() => setShowExternalModal(false)}
+        externalId={externalId}
+        setExternalId={setExternalId}
+        screenshotUri={screenshotUri}
+        setScreenshotUri={setScreenshotUri}
+        onSave={handleMarkExternallyFiled}
+        saving={markingExternal}
+      />
+      <div className="grid gap-6 lg:grid-cols-2">
       {request.request_description && (
         <div className="rounded-xl border border-gray-200 bg-white p-6 lg:col-span-2">
           <h3 className="text-sm font-semibold text-gray-900">Request Description</h3>
@@ -563,14 +602,26 @@ function OverviewTab({
                 Open portal
               </a>
             )}
+            <button
+              onClick={() => setShowExternalModal(true)}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Mark externally filed
+            </button>
           </div>
 
-          {(snapEmail || snapCaseNumber || snapPortalFields || snapLetterBody) && (
+          {(snapEmail || snapCaseNumber || snapPortalFields || snapLetterBody || externalConfirmationId) && (
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               {(snapEmail || snapCaseNumber) && (
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                   <h4 className="text-xs font-semibold text-gray-900">Key fields</h4>
                   <dl className="mt-3 flex flex-col gap-2">
+                    {externalConfirmationId && (
+                      <div className="flex items-start justify-between gap-4">
+                        <dt className="text-xs text-gray-500">Portal confirmation</dt>
+                        <dd className="text-right text-xs font-medium text-gray-900">{externalConfirmationId}</dd>
+                      </div>
+                    )}
                     {snapEmail && (
                       <div className="flex items-start justify-between gap-4">
                         <dt className="text-xs text-gray-500">Effective requester email</dt>
@@ -676,6 +727,87 @@ function OverviewTab({
           </div>
         </div>
       )}
+      </div>
+    </>
+  )
+}
+
+function ExternalFiledModal({
+  open,
+  onClose,
+  externalId,
+  setExternalId,
+  screenshotUri,
+  setScreenshotUri,
+  onSave,
+  saving,
+}: {
+  open: boolean
+  onClose: () => void
+  externalId: string
+  setExternalId: (v: string) => void
+  screenshotUri: string
+  setScreenshotUri: (v: string) => void
+  onSave: () => void
+  saving: boolean
+}) {
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md rounded-2xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+          <h2 className="text-lg font-semibold text-gray-900">Mark externally filed</h2>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="px-6 py-5">
+          <div className="flex flex-col gap-4">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-700">Portal confirmation number *</label>
+              <input
+                type="text"
+                value={externalId}
+                onChange={(e) => setExternalId(e.target.value)}
+                placeholder="e.g. PRR-12345"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-700">Screenshot URL (optional)</label>
+              <input
+                type="url"
+                value={screenshotUri}
+                onChange={(e) => setScreenshotUri(e.target.value)}
+                placeholder="https://..."
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              />
+              <p className="mt-1 text-xs text-gray-400">
+                Optional: paste a link to a stored screenshot/receipt. We’ll attach it to the request.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving}
+            className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+          >
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
