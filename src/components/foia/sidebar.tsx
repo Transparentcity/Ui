@@ -11,11 +11,13 @@ import {
   Building2,
   FileStack,
   CheckSquare,
+  BarChart3,
   ArrowLeft,
 } from "lucide-react"
 
 const navItems = [
   { label: "Dashboard", href: "/foia", icon: LayoutDashboard },
+  { label: "Readiness", href: "/foia/readiness", icon: BarChart3 },
   { label: "Requests", href: "/foia/requests", icon: FileText },
   { label: "Message Review", href: "/foia/messages", icon: MessageSquareMore },
   { label: "Data Review", href: "/foia/data-review", icon: Database },

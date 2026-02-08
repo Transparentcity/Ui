@@ -2,49 +2,27 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { 
-  Users, 
-  LayoutDashboard, 
-  Send, 
-  FileText,
-  BarChart3,
-  AlertTriangle,
-  CheckSquare,
-  Tags,
-  ListTodo,
-  Inbox,
-  Sparkles,
-  ArrowLeft,
-} from "lucide-react"
+import { ArrowLeft, BarChart3, Table2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-const navigation = [
-  { name: "AI Compose", href: "/compose", icon: Sparkles, highlight: true },
-  { name: "City Readiness", href: "/cityreadiness", icon: BarChart3 },
-  { name: "Contacts", href: "/contacts", icon: Users },
-  { name: "Keywords", href: "/keywords", icon: Tags },
-  { name: "Templates", href: "/templates", icon: FileText },
-  { name: "Campaigns", href: "/campaigns", icon: Send },
-  { name: "Message Review", href: "/message-review", icon: ListTodo },
-  { name: "Send Queue", href: "/send-queue", icon: Send },
-  { name: "Responses", href: "/responses", icon: Inbox },
-  { name: "Follow-ups", href: "/followups", icon: CheckSquare },
-  { name: "Anomalies", href: "/anomalies", icon: AlertTriangle },
-  { name: "Analytics", href: "/analytics", icon: BarChart3 },
+const navItems = [
+  { label: "Coverage", href: "/cityreadiness", icon: BarChart3 },
+  { label: "Schema match", href: "/cityreadiness/schema", icon: Table2 },
 ]
 
-export function CRMSidebar() {
+export function CityReadinessSidebar() {
   const pathname = usePathname()
+
+  function isActive(href: string) {
+    if (href === "/cityreadiness") return pathname === "/cityreadiness"
+    return pathname.startsWith(href)
+  }
 
   return (
     <aside className="w-[280px] min-w-[280px] h-screen bg-white border-r border-gray-200 flex flex-col sticky top-0 left-0 z-50">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 min-h-16">
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-2.5 text-inherit no-underline flex-1"
-        >
-          {/* Logo */}
+        <Link href="/dashboard" className="flex items-center gap-2.5 text-inherit no-underline flex-1">
           <div className="w-5 h-5 shrink-0">
             <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className="overflow-visible w-full h-full">
               <path
@@ -64,11 +42,9 @@ export function CRMSidebar() {
         </Link>
       </div>
 
-      {/* CRM Label */}
+      {/* Module Label */}
       <div className="px-4 pt-3 pb-2 flex items-center justify-between">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-          CRM Dashboard
-        </span>
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">City Readiness</span>
         <Link
           href="/dashboard"
           className="flex items-center gap-1 text-xs text-gray-400 no-underline hover:text-purple-600 transition-colors"
@@ -77,50 +53,37 @@ export function CRMSidebar() {
           Main App
         </Link>
       </div>
-      
+
       {/* Navigation */}
       <nav className="flex-1 py-2 overflow-y-auto">
         <ul className="list-none m-0 p-0">
-          {navigation.map((item) => {
-            const isActive = pathname === item.href || 
-              (item.href !== "/" && pathname.startsWith(item.href))
-            
+          {navItems.map((item) => {
+            const active = isActive(item.href)
             return (
-              <li key={item.name}>
+              <li key={item.href}>
                 <Link
                   href={item.href}
                   className={cn(
                     "flex items-center gap-3 px-4 py-2.5 text-sm no-underline transition-all border-l-[3px]",
-                    isActive 
-                      ? "text-purple-600 font-semibold bg-gray-100 border-l-purple-600" 
+                    active
+                      ? "text-purple-600 font-semibold bg-gray-100 border-l-purple-600"
                       : "text-gray-600 font-normal bg-transparent border-l-transparent hover:bg-gray-50 hover:text-gray-900"
                   )}
                 >
-                  <item.icon 
-                    className={cn(
-                      "w-[18px] h-[18px]",
-                      item.highlight && !isActive ? "text-purple-600" : ""
-                    )}
-                  />
-                  <span className="flex-1">{item.name}</span>
-                  {item.highlight && (
-                    <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-purple-600 text-white rounded">
-                      NEW
-                    </span>
-                  )}
+                  <item.icon className="w-[18px] h-[18px]" />
+                  <span className="flex-1">{item.label}</span>
                 </Link>
               </li>
             )
           })}
         </ul>
       </nav>
-      
+
       {/* Footer */}
       <div className="px-4 py-3 border-t border-gray-200 bg-white">
-        <p className="text-xs text-gray-400 m-0">
-          Government Official Outreach
-        </p>
+        <p className="text-xs text-gray-400 m-0">Data coverage & FOIA targeting</p>
       </div>
     </aside>
   )
 }
+
