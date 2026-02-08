@@ -55,6 +55,13 @@ async function apiDelete(path: string): Promise<void> {
 export async function createFoiaRequest(data: {
   city_id: number
   dataset_type_id: string
+  title?: string
+  request_description?: string
+  department_id?: number
+  requester_profile_id?: number
+  requester_email_override?: string
+  case_or_cad_number?: string
+  portal_fields?: Record<string, unknown>
   coverage_start?: string
   coverage_end?: string
   requested_fields?: string[]

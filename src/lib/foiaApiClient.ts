@@ -18,6 +18,9 @@ import type {
   CityDatasetTarget,
   FoiaDashboardSummary,
   PaginatedResponse,
+  FoiaCityDepartment,
+  FoiaRequesterProfile,
+  FoiaSubmissionAttempt,
 } from "./foia/types"
 
 // ---------------------------------------------------------------------------
@@ -195,6 +198,42 @@ export function getCityFoiaProfileAndTargets(
   return apiFetch(`/api/foia/cities/${cityId}/profile`)
 }
 
+export function listCityFoiaDepartments(cityId: number): Promise<FoiaCityDepartment[]> {
+  return apiFetch(`/api/foia/cities/${cityId}/departments`)
+}
+
+export function suggestCityFoiaDepartment(
+  cityId: number,
+  data: { title?: string; request_description?: string }
+): Promise<{
+  department_id: number | null
+  department_name: string | null
+  reason: string
+  used_ai: boolean
+  warning: string | null
+}> {
+  return apiFetch(`/api/foia/cities/${cityId}/departments/suggest`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  })
+}
+
+export function composeCityFoiaRequestBlock(
+  cityId: number,
+  data: {
+    primary_department_id?: number
+    additional_department_ids?: number[]
+    title?: string
+    request_description?: string
+    fee_waiver?: boolean
+  }
+): Promise<{ block: string; used_ai: boolean; warning: string | null }> {
+  return apiFetch(`/api/foia/cities/${cityId}/compose-request-block`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  })
+}
+
 // ---------------------------------------------------------------------------
 // AI Draft
 // ---------------------------------------------------------------------------
@@ -207,6 +246,27 @@ export function aiDraftFoiaRequest(
   return apiFetch(`/api/foia/requests/${requestId}/ai-draft`, {
     method: "POST",
     body: JSON.stringify({ mode, additional_context: additionalContext }),
+  })
+}
+
+export function listFoiaSubmissionAttempts(requestId: number): Promise<FoiaSubmissionAttempt[]> {
+  return apiFetch(`/api/foia/requests/${requestId}/submission-attempts`)
+}
+
+// ---------------------------------------------------------------------------
+// Admin: Requester profile (org-wide)
+// ---------------------------------------------------------------------------
+
+export function getRequesterProfile(): Promise<FoiaRequesterProfile> {
+  return apiFetch("/api/admin/foia/requester-profile")
+}
+
+export function updateRequesterProfile(
+  data: Partial<FoiaRequesterProfile>
+): Promise<FoiaRequesterProfile> {
+  return apiFetch("/api/admin/foia/requester-profile", {
+    method: "PUT",
+    body: JSON.stringify(data),
   })
 }
 

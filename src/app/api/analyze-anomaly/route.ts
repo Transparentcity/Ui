@@ -130,7 +130,7 @@ Be concise, factual, and skeptical. Reference specific numbers from the time ser
     const { text } = await generateText({
       model: anthropic("claude-sonnet-4-20250514"),
       prompt,
-      maxTokens: 1500,
+      maxOutputTokens: 1500,
     })
 
     return Response.json({ analysis: text })

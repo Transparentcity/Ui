@@ -173,25 +173,25 @@ export function TemplateModal({ open, onClose, onSaved, template }: Props) {
               <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
             )}
           </div>
-        </form>
 
-        <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit as () => void}
-            disabled={saving}
-            className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
-          >
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            {isEdit ? "Save Changes" : "Create Template"}
-          </button>
-        </div>
+          <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isEdit ? "Save Changes" : "Create Template"}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )

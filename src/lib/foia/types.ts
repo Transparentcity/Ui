@@ -37,6 +37,47 @@ export type TaskStatus = "pending" | "assigned" | "in_progress" | "completed" | 
 
 export type DatasetTargetStatus = "targeted" | "optional" | "out_of_scope" | "potentially_obtainable"
 
+export interface FoiaCityDepartment {
+  id: number
+  city_id: number
+  name: string
+  portal_routing_key?: string
+  contact_email?: string
+  contact_phone?: string
+  notes?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface FoiaRequesterProfile {
+  id: number
+  display_name: string
+  organization?: string
+  email?: string
+  phone?: string
+  street_address?: string
+  city?: string
+  state?: string
+  zip?: string
+  no_email_available?: boolean
+  is_default?: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export interface FoiaSubmissionAttempt {
+  id: number
+  request_id: number
+  method: string
+  department_id?: number
+  payload_snapshot: Record<string, unknown>
+  external_confirmation_id?: string
+  status: string
+  submitted_at?: string
+  created_at?: string
+  updated_at?: string
+}
+
 // Core objects
 
 export interface City {
@@ -82,6 +123,15 @@ export interface FoiaRequest {
   city_id: number
   city?: City
   dataset_type_id: string
+  title?: string
+  request_description?: string
+  department_id?: number
+  department?: FoiaCityDepartment | null
+  requester_profile_id?: number
+  requester_profile?: FoiaRequesterProfile | null
+  requester_email_override?: string
+  case_or_cad_number?: string
+  portal_fields?: Record<string, unknown>
   coverage_start: string
   coverage_end: string
   requested_fields: string[]

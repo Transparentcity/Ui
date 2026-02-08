@@ -26,6 +26,7 @@ import {
   listFoiaRequestEvents,
   listFoiaTasks,
   aiDraftFoiaRequest,
+  listFoiaSubmissionAttempts,
 } from "@/lib/foiaApiClient"
 import {
   submitFoiaRequest,
@@ -41,6 +42,7 @@ import type {
   FoiaRequestEvent,
   FoiaTask,
   FoiaAttachment,
+  FoiaSubmissionAttempt,
   RequestStatus,
 } from "@/lib/foia/types"
 
@@ -97,6 +99,7 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
   const [attachments, setAttachments] = useState<FoiaAttachment[]>([])
   const [events, setEvents] = useState<FoiaRequestEvent[]>([])
   const [tasks, setTasks] = useState<FoiaTask[]>([])
+  const [submissionAttempts, setSubmissionAttempts] = useState<FoiaSubmissionAttempt[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [aiDrafting, setAiDrafting] = useState(false)
@@ -105,18 +108,20 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
   const loadData = useCallback(async () => {
     try {
       const id = parseInt(requestId, 10)
-      const [req, msgs, atts, evts, tsks] = await Promise.all([
+      const [req, msgs, atts, evts, tsks, attempts] = await Promise.all([
         getFoiaRequest(id),
         listFoiaMessages(id),
         listFoiaAttachments(id),
         listFoiaRequestEvents(id),
         listFoiaTasks({ status: undefined }),
+        listFoiaSubmissionAttempts(id),
       ])
       setRequest(req)
       setMessages(msgs)
       setAttachments(atts)
       setEvents(evts)
       setTasks(tsks.filter((t) => t.request_id === id))
+      setSubmissionAttempts(attempts)
     } catch (err) {
       console.error("Failed to load request detail:", err)
     } finally {
@@ -241,11 +246,16 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold text-gray-900">
-              {request.city?.name ?? `City #${request.city_id}`} - {request.dataset_type_id}
+              {request.title?.trim()
+                ? request.title
+                : `${request.city?.name ?? `City #${request.city_id}`} - ${request.dataset_type_id}`}
             </h1>
             <RequestStatusBadge status={request.status} />
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-500">
+            <span>{request.city?.name ?? `City #${request.city_id}`}</span>
+            <span>{request.dataset_type_id}</span>
+            {request.department?.name && <span>Dept: {request.department.name}</span>}
             {request.agency_request_number && <span>Ref: {request.agency_request_number}</span>}
             <span>Version {request.request_version}</span>
             <span>Coverage: {request.coverage_start} to {request.coverage_end}</span>
@@ -399,7 +409,14 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
       </div>
 
       {/* Tab Content */}
-      {activeTab === "overview" && <OverviewTab request={request} tasks={tasks} onTaskComplete={loadData} />}
+      {activeTab === "overview" && (
+        <OverviewTab
+          request={request}
+          tasks={tasks}
+          submissionAttempts={submissionAttempts}
+          onTaskComplete={loadData}
+        />
+      )}
       {activeTab === "messages" && (
         <MessagesTab messages={messages} requestId={parseInt(requestId, 10)} onMessageSent={loadData} />
       )}
@@ -434,13 +451,40 @@ function InfoCard({
 function OverviewTab({
   request,
   tasks,
+  submissionAttempts,
   onTaskComplete,
 }: {
   request: FoiaRequest
   tasks: FoiaTask[]
+  submissionAttempts: FoiaSubmissionAttempt[]
   onTaskComplete: () => Promise<void>
 }) {
   const [completing, setCompleting] = useState<number | null>(null)
+
+  const latestAttempt = submissionAttempts[0]
+  const latestSnap = (latestAttempt?.payload_snapshot ?? {}) as Record<string, unknown>
+  const snapPortalUrl = typeof latestSnap["portal_url"] === "string" ? (latestSnap["portal_url"] as string) : ""
+  const snapEmail =
+    typeof latestSnap["requester_email_effective"] === "string"
+      ? (latestSnap["requester_email_effective"] as string)
+      : ""
+  const snapLetterBody = typeof latestSnap["letter_body"] === "string" ? (latestSnap["letter_body"] as string) : ""
+  const snapCaseNumber =
+    typeof latestSnap["case_or_cad_number"] === "string" ? (latestSnap["case_or_cad_number"] as string) : ""
+  const snapPortalFields =
+    latestSnap["portal_fields"] && typeof latestSnap["portal_fields"] === "object" ? latestSnap["portal_fields"] : null
+
+  async function copyText(label: string, text: string) {
+    if (!text.trim()) {
+      alert(`Nothing to copy for: ${label}`)
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      alert(`Failed to copy: ${label}`)
+    }
+  }
 
   async function handleComplete(taskId: number) {
     setCompleting(taskId)
@@ -456,6 +500,15 @@ function OverviewTab({
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
+      {request.request_description && (
+        <div className="rounded-xl border border-gray-200 bg-white p-6 lg:col-span-2">
+          <h3 className="text-sm font-semibold text-gray-900">Request Description</h3>
+          <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-gray-600">
+            {request.request_description}
+          </p>
+        </div>
+      )}
+
       <div className="rounded-xl border border-gray-200 bg-white p-6">
         <h3 className="text-sm font-semibold text-gray-900">Requested Fields</h3>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -469,6 +522,108 @@ function OverviewTab({
           ))}
         </div>
       </div>
+
+      {latestAttempt && (
+        <div className="rounded-xl border border-gray-200 bg-white p-6 lg:col-span-2">
+          <h3 className="text-sm font-semibold text-gray-900">Submission Packet</h3>
+          <p className="mt-1 text-xs text-gray-500">
+            {submissionAttempts.length} submission attempt(s) recorded
+            {latestAttempt.submitted_at ? ` · Last: ${format(new Date(latestAttempt.submitted_at), "MMM d, yyyy")}` : ""}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              onClick={() => copyText("packet JSON", JSON.stringify(latestAttempt.payload_snapshot, null, 2))}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Copy packet JSON
+            </button>
+            {snapLetterBody && (
+              <button
+                onClick={() => copyText("letter body", snapLetterBody)}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Copy letter body
+              </button>
+            )}
+            {snapEmail && (
+              <button
+                onClick={() => copyText("requester email", snapEmail)}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Copy requester email
+              </button>
+            )}
+            {snapPortalUrl && (
+              <a
+                href={snapPortalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Open portal
+              </a>
+            )}
+          </div>
+
+          {(snapEmail || snapCaseNumber || snapPortalFields || snapLetterBody) && (
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              {(snapEmail || snapCaseNumber) && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <h4 className="text-xs font-semibold text-gray-900">Key fields</h4>
+                  <dl className="mt-3 flex flex-col gap-2">
+                    {snapEmail && (
+                      <div className="flex items-start justify-between gap-4">
+                        <dt className="text-xs text-gray-500">Effective requester email</dt>
+                        <dd className="text-right text-xs font-medium text-gray-900">{snapEmail}</dd>
+                      </div>
+                    )}
+                    {snapCaseNumber && (
+                      <div className="flex items-start justify-between gap-4">
+                        <dt className="text-xs text-gray-500">Case / CAD</dt>
+                        <dd className="text-right text-xs font-medium text-gray-900">{snapCaseNumber}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
+              )}
+
+              {snapPortalFields && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="text-xs font-semibold text-gray-900">Portal fields</h4>
+                    <button
+                      onClick={() => copyText("portal fields JSON", JSON.stringify(snapPortalFields, null, 2))}
+                      className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-white p-3 text-[11px] text-gray-700">
+                    {JSON.stringify(snapPortalFields, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {snapLetterBody && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 lg:col-span-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="text-xs font-semibold text-gray-900">Letter body</h4>
+                    <button
+                      onClick={() => copyText("letter body", snapLetterBody)}
+                      className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-white p-3 text-[11px] leading-relaxed text-gray-700">
+                    {snapLetterBody}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       <div className="rounded-xl border border-gray-200 bg-white p-6">
         <h3 className="text-sm font-semibold text-gray-900">Details</h3>
         <dl className="mt-3 flex flex-col gap-3">
