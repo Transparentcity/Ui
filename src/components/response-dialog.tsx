@@ -21,8 +21,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
 import { Response } from "@/lib/types"
 import { createResponse, updateResponse } from "@/app/actions/responses"
+import { cn } from "@/lib/utils"
+import { Check, ChevronsUpDown } from "lucide-react"
 
 interface Contact {
   id: string
@@ -30,15 +45,29 @@ interface Contact {
   organization: string | null
 }
 
+type SentEmailLite = {
+  id: string
+  prospect_id: string
+  personalized_subject: string | null
+  sent_at: string | null
+  channel: string | null
+}
+
 interface ResponseDialogProps {
   response?: Response
   contacts: Contact[]
+  sentEmails?: SentEmailLite[]
   children: React.ReactNode
 }
 
-export function ResponseDialog({ response, contacts, children }: ResponseDialogProps) {
+export function ResponseDialog({ response, contacts, sentEmails = [], children }: ResponseDialogProps) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const NO_EMAIL_VALUE = "__none__"
+  const [selectedProspectId, setSelectedProspectId] = useState<string | undefined>(
+    response?.prospect_id || undefined
+  )
+  const [contactOpen, setContactOpen] = useState(false)
 
   const handleSubmit = async (formData: FormData) => {
     startTransition(async () => {
@@ -51,6 +80,14 @@ export function ResponseDialog({ response, contacts, children }: ResponseDialogP
     })
   }
 
+  const selectedContact = selectedProspectId
+    ? contacts.find((c) => c.id === selectedProspectId) || null
+    : null
+
+  const sentForProspect = selectedProspectId
+    ? sentEmails.filter((e) => e.prospect_id === selectedProspectId)
+    : []
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -62,19 +99,105 @@ export function ResponseDialog({ response, contacts, children }: ResponseDialogP
         </DialogHeader>
         <form action={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="contact_id">Contact *</Label>
-            <Select name="contact_id" defaultValue={response?.contact_id || ''} required>
+            <Label htmlFor="prospect_id">Contact *</Label>
+            {/* Hidden field used by server action */}
+            <input type="hidden" name="prospect_id" value={selectedProspectId || ""} />
+
+            {/* Typeahead combobox (scales to long lists) */}
+            <Popover open={contactOpen} onOpenChange={setContactOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={contactOpen}
+                  className={cn("w-full justify-between", !selectedProspectId && "text-muted-foreground")}
+                >
+                  {selectedContact
+                    ? `${selectedContact.name}${selectedContact.organization ? ` (${selectedContact.organization})` : ""}`
+                    : "Select contact"}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                portalled={false}
+                className="w-(--radix-popover-trigger-width) p-0"
+                align="start"
+              >
+                <Command>
+                  <CommandInput placeholder="Search contacts..." />
+                  <CommandList>
+                    <CommandEmpty>No contacts found.</CommandEmpty>
+                    <CommandGroup>
+                      {contacts.map((c) => (
+                        <CommandItem
+                          key={c.id}
+                          value={`${c.name} ${c.organization || ""}`}
+                          // cmdk selection can be flaky inside dialogs depending on focus;
+                          // handle onMouseDown to guarantee selection on click.
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setSelectedProspectId(c.id)
+                            setContactOpen(false)
+                          }}
+                          onSelect={() => {
+                            setSelectedProspectId(c.id)
+                            setContactOpen(false)
+                          }}
+                          className="flex items-center gap-2"
+                        >
+                          <Check
+                            className={cn(
+                              "h-4 w-4",
+                              selectedProspectId === c.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          <span className="flex-1 truncate">
+                            {c.name}
+                            {c.organization ? (
+                              <span className="text-muted-foreground"> ({c.organization})</span>
+                            ) : null}
+                          </span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="send_queue_id">Link to Sent Email (optional)</Label>
+            <Select name="send_queue_id" defaultValue={NO_EMAIL_VALUE}>
               <SelectTrigger>
-                <SelectValue placeholder="Select contact" />
+                <SelectValue
+                  placeholder={
+                    selectedProspectId
+                      ? sentForProspect.length > 0
+                        ? "Select the email this reply is responding to"
+                        : "No sent emails found for this contact"
+                      : "Select a contact first"
+                  }
+                />
               </SelectTrigger>
-              <SelectContent>
-                {contacts.map(contact => (
-                  <SelectItem key={contact.id} value={contact.id}>
-                    {contact.name} {contact.organization ? `(${contact.organization})` : ''}
-                  </SelectItem>
-                ))}
+              <SelectContent portalled={false}>
+                <SelectItem value={NO_EMAIL_VALUE}>No linked email</SelectItem>
+                {sentForProspect.map((e) => {
+                  const when = e.sent_at ? new Date(e.sent_at).toLocaleDateString() : "unknown date"
+                  const subj = e.personalized_subject?.trim() || "(no subject)"
+                  return (
+                    <SelectItem key={e.id} value={e.id}>
+                      {when} • {subj}
+                    </SelectItem>
+                  )
+                })}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              This connects the response to the exact email you sent via the CRM.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -84,7 +207,7 @@ export function ResponseDialog({ response, contacts, children }: ResponseDialogP
                 <SelectTrigger>
                   <SelectValue placeholder="Select channel" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent portalled={false}>
                   <SelectItem value="email">Email</SelectItem>
                   <SelectItem value="sms">SMS</SelectItem>
                   <SelectItem value="phone">Phone</SelectItem>
@@ -121,7 +244,7 @@ export function ResponseDialog({ response, contacts, children }: ResponseDialogP
                 <SelectTrigger>
                   <SelectValue placeholder="Select sentiment" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent portalled={false}>
                   <SelectItem value="positive">Positive</SelectItem>
                   <SelectItem value="neutral">Neutral</SelectItem>
                   <SelectItem value="negative">Negative</SelectItem>
@@ -135,7 +258,7 @@ export function ResponseDialog({ response, contacts, children }: ResponseDialogP
                 <SelectTrigger>
                   <SelectValue placeholder="Select priority" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent portalled={false}>
                   <SelectItem value="1">1 - Critical</SelectItem>
                   <SelectItem value="2">2 - High</SelectItem>
                   <SelectItem value="3">3 - Medium</SelectItem>
@@ -161,7 +284,7 @@ export function ResponseDialog({ response, contacts, children }: ResponseDialogP
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending}>
+            <Button type="submit" disabled={isPending || !selectedProspectId}>
               {isPending ? 'Saving...' : response ? 'Update Response' : 'Log Response'}
             </Button>
           </div>

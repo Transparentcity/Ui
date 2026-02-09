@@ -73,7 +73,7 @@ export interface Campaign {
 
 export interface Message {
   id: string
-  contact_id: string
+  prospect_id: string
   campaign_id: string | null
   template_id: string | null
   channel: 'email' | 'sms'
@@ -89,7 +89,7 @@ export interface Message {
 export interface Response {
   id: string
   message_id: string | null
-  contact_id: string
+  prospect_id: string
   channel: 'email' | 'sms' | 'phone' | 'other'
   content: string | null
   sentiment: 'positive' | 'neutral' | 'negative' | 'needs_followup' | null
@@ -104,7 +104,7 @@ export interface Response {
 
 export interface Followup {
   id: string
-  contact_id: string
+  prospect_id: string
   response_id: string | null
   title: string
   description: string | null
@@ -157,6 +157,8 @@ export interface Anomaly {
   group_field?: string              // e.g., "priority_final"
   group_value?: string              // e.g., "C"
   period_type?: string              // e.g., "month"
+  period_date?: string              // e.g., "2026-02-01" (optional; for email copy)
+  comparison_window?: string        // e.g., "prior 12 weeks" (optional; for email copy)
   pct_change?: number               // Percentage change
   is_anomaly?: boolean
   chart_payload?: {

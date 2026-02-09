@@ -63,7 +63,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { MoreHorizontal } from "lucide-react"
 import type { SendQueueItem, Contact } from "@/lib/types"
-import { cancelQueueItems, retryFailedItems, deleteQueueItems, deleteAllQueueItems, updateQueueItemContent, updateQueueItemStatus, scheduleQueueItems, sendNowQueueItems } from "@/app/actions/send-queue"
+import { cancelQueueItems, retryFailedItems, deleteQueueItems, deleteAllQueueItems, updateQueueItemContent, updateQueueItemStatus, scheduleQueueItems, sendNowQueueItems, markQueueItemsAsSent } from "@/app/actions/send-queue"
 import { StatCard } from "./stat-card"
 
 interface QueueItemWithProspect extends SendQueueItem {
@@ -146,6 +146,14 @@ export function SendQueueView({ queueItems, campaigns, stats }: SendQueueViewPro
     
     return matchesSearch && matchesStatus && matchesCampaign
   })
+
+  const selectedMarkAsSentIds = Array.from(selectedItems).filter((id) => {
+    const item = filteredItems.find((i) => i.id === id)
+    if (!item) return false
+    // Prevent manual override while "processing" to avoid confusing mid-send state.
+    if (item.status === "processing") return false
+    return item.status !== "sent"
+  })
   
   const toggleSelectAll = () => {
     if (selectedItems.size === filteredItems.length) {
@@ -172,6 +180,17 @@ export function SendQueueView({ queueItems, campaigns, stats }: SendQueueViewPro
     startTransition(async () => {
       await cancelQueueItems(Array.from(selectedItems))
       setSelectedItems(new Set())
+    })
+  }
+
+  const handleMarkAsSentSelected = async () => {
+    if (selectedMarkAsSentIds.length === 0) return
+    if (!confirm(`Mark ${selectedMarkAsSentIds.length} message(s) as sent? This cannot be undone.`)) return
+
+    startTransition(async () => {
+      await markQueueItemsAsSent(selectedMarkAsSentIds)
+      setSelectedItems(new Set())
+      router.refresh()
     })
   }
   
@@ -201,6 +220,20 @@ export function SendQueueView({ queueItems, campaigns, stats }: SendQueueViewPro
         newSet.delete(id)
         return newSet
       })
+    })
+  }
+
+  const handleMarkAsSentOne = async (id: string) => {
+    if (!confirm("Mark this message as sent? This cannot be undone.")) return
+
+    startTransition(async () => {
+      await markQueueItemsAsSent([id])
+      setSelectedItems(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(id)
+        return newSet
+      })
+      router.refresh()
     })
   }
 
@@ -426,6 +459,18 @@ export function SendQueueView({ queueItems, campaigns, stats }: SendQueueViewPro
             <div className="flex gap-2 flex-wrap">
               {selectedItems.size > 0 && (
                 <>
+                  {selectedMarkAsSentIds.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleMarkAsSentSelected}
+                      disabled={isPending}
+                      className="gap-2 text-green-600 border-green-300 hover:bg-green-50"
+                    >
+                      <SendHorizontal className="w-4 h-4" />
+                      Mark as Sent ({selectedMarkAsSentIds.length})
+                    </Button>
+                  )}
                   {selectedQueuedItems.length > 0 && (
                     <>
                       <Button 
@@ -606,6 +651,11 @@ export function SendQueueView({ queueItems, campaigns, stats }: SendQueueViewPro
                           <span className="mr-1">{getStatusIcon(item.status)}</span>
                           {item.status}
                         </Badge>
+                    {item.status === "sent" && item.sent_at && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Marked as sent: {new Date(item.sent_at).toLocaleString()}
+                      </p>
+                    )}
                         {item.error_message && (
                           <p className="text-xs text-destructive mt-1 truncate max-w-[150px]">
                             {item.error_message}
@@ -634,6 +684,18 @@ export function SendQueueView({ queueItems, campaigns, stats }: SendQueueViewPro
                                 <Eye className="w-4 h-4 mr-2" />
                                 Preview
                               </DropdownMenuItem>
+                              {item.status !== "sent" && item.status !== "processing" && (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={() => handleMarkAsSentOne(item.id)}
+                                    className="text-green-700"
+                                  >
+                                    <SendHorizontal className="w-4 h-4 mr-2" />
+                                    Mark as Sent
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                </>
+                              )}
                               {item.status === "queued" && (
                                 <>
                                   <DropdownMenuItem onClick={() => handleSendNow([item.id])}>

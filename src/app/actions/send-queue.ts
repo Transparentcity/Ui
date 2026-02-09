@@ -261,8 +261,167 @@ export async function updateQueueItemStatus(id: string, status: string, errorMes
     console.error("[v0] Error updating queue item:", error)
     throw new Error("Failed to update queue item")
   }
+
+  // If marked as sent, ensure we create/link a `messages` row so replies can be connected.
+  if (status === "sent") {
+    try {
+      const { data: sq } = await db
+        .from("send_queue")
+        .select("*")
+        .eq("id", id)
+        .single()
+
+      const row = sq as any
+      if (row) {
+        const sentAt =
+          (row.sent_at as string | null) ||
+          (updateData.sent_at as string | null) ||
+          new Date().toISOString()
+
+        const existingMessageId = (row.message_id as string | null) || null
+
+        if (existingMessageId) {
+          await db
+            .from("messages")
+            .update({
+              status: "sent",
+              sent_at: sentAt,
+              subject: row.personalized_subject || null,
+              body: row.personalized_body || null,
+              channel: row.channel || "email",
+              campaign_id: row.campaign_id || null,
+              template_id: row.template_id || null,
+              prospect_id: row.prospect_id,
+            })
+            .eq("id", existingMessageId)
+        } else {
+          const { data: msg, error: msgErr } = await db
+            .from("messages")
+            .insert({
+              campaign_id: row.campaign_id || null,
+              prospect_id: row.prospect_id,
+              template_id: row.template_id || null,
+              channel: row.channel || "email",
+              subject: row.personalized_subject || null,
+              body: row.personalized_body || null,
+              status: "sent",
+              sent_at: sentAt,
+            })
+            .select()
+            .single()
+
+          if (msgErr) {
+            console.error("[v0] Error creating messages row:", msgErr)
+          } else if (msg) {
+            const { error: linkErr } = await db
+              .from("send_queue")
+              .update({ message_id: (msg as any).id })
+              .eq("id", id)
+            if (linkErr) {
+              console.error("[v0] Error linking send_queue.message_id:", linkErr)
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error("[v0] Failed ensuring message row for sent queue item:", e)
+      // non-fatal
+    }
+  }
   
   revalidatePath("/send-queue")
+}
+
+/**
+ * Mark one or more queue items as sent (manual override).
+ * - Sets status="sent"
+ * - Sets sent_at to now
+ * - Clears error_message (since it's now considered resolved)
+ */
+export async function markQueueItemsAsSent(ids: string[]) {
+  if (!Array.isArray(ids) || ids.length === 0) return
+
+  const db = createClient()
+
+  const nowIso = new Date().toISOString()
+  const { error } = await db
+    .from("send_queue")
+    .update({
+      status: "sent",
+      sent_at: nowIso,
+      error_message: null,
+    })
+    .in("id", ids)
+
+  if (error) {
+    console.error("[v0] Error marking queue items as sent:", error)
+    throw new Error("Failed to mark messages as sent")
+  }
+
+  // Best-effort: create/link messages rows for each item (without changing sent_at again).
+  for (const id of ids) {
+    try {
+      const { data: sq } = await db
+        .from("send_queue")
+        .select("*")
+        .eq("id", id)
+        .single()
+
+      const row = sq as any
+      if (!row) continue
+
+      const existingMessageId = (row.message_id as string | null) || null
+      if (existingMessageId) {
+        await db
+          .from("messages")
+          .update({
+            status: "sent",
+            sent_at: row.sent_at || nowIso,
+            subject: row.personalized_subject || null,
+            body: row.personalized_body || null,
+            channel: row.channel || "email",
+            campaign_id: row.campaign_id || null,
+            template_id: row.template_id || null,
+            prospect_id: row.prospect_id,
+          })
+          .eq("id", existingMessageId)
+        continue
+      }
+
+      const { data: msg, error: msgErr } = await db
+        .from("messages")
+        .insert({
+          campaign_id: row.campaign_id || null,
+          prospect_id: row.prospect_id,
+          template_id: row.template_id || null,
+          channel: row.channel || "email",
+          subject: row.personalized_subject || null,
+          body: row.personalized_body || null,
+          status: "sent",
+          sent_at: row.sent_at || nowIso,
+        })
+        .select()
+        .single()
+
+      if (msgErr) {
+        console.error("[v0] Error creating messages row:", msgErr)
+        continue
+      }
+
+      const { error: linkErr } = await db
+        .from("send_queue")
+        .update({ message_id: (msg as any).id })
+        .eq("id", id)
+      if (linkErr) {
+        console.error("[v0] Error linking send_queue.message_id:", linkErr)
+      }
+    } catch (e) {
+      console.error("[v0] Failed linking message for sent item:", id, e)
+    }
+  }
+
+  revalidatePath("/send-queue")
+  revalidatePath("/campaigns")
 }
 
 export async function cancelQueueItems(ids: string[]) {

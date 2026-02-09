@@ -72,12 +72,14 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
     limit: 200,
     city_id: SF_CITY_ID,
   })
+  const anomaliesErrorMessage =
+    (anomaliesError as unknown as { message?: string } | null)?.message || null
   const anomalies = anomalyData?.results ? mapApiAnomaliesToCrm(anomalyData.results) : []
   
   // Debug logging for anomalies
   console.log('[CampaignsManager] Anomalies status:', {
     loading: anomaliesLoading,
-    error: anomaliesError?.message,
+    error: anomaliesErrorMessage,
     count: anomalies.length,
     rawResultsCount: anomalyData?.results?.length ?? 0
   })
@@ -167,7 +169,10 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
     
     // Check if there was an error loading anomalies
     if (anomaliesError) {
-      alert(`Error loading anomaly data: ${anomaliesError.message}. Please refresh the page and try again.`)
+      alert(
+        `Error loading anomaly data: ${anomaliesErrorMessage || "Unknown error"}. ` +
+          "Please refresh the page and try again."
+      )
       return
     }
     
@@ -185,7 +190,7 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
 
     if (confirm(`This will clear any pending/queued messages and generate ${contactIds.length} new AI-personalized messages. This may take 30-60 seconds. Continue?`)) {
       console.log('[CampaignsManager] Starting regeneration with', anomalies.length, 'anomalies')
-      console.log('[CampaignsManager] Anomaly loading state:', { loading: anomaliesLoading, error: anomaliesError?.message })
+      console.log('[CampaignsManager] Anomaly loading state:', { loading: anomaliesLoading, error: anomaliesErrorMessage })
       
       // Filter out ignored anomalies before creating slim versions
       const activeAnomalies = anomalies.filter(a => !isAnomalyIgnored(a.id))

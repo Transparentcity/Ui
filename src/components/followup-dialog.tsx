@@ -63,7 +63,7 @@ export function FollowupDialog({
 
   const handleSubmit = async (formData: FormData) => {
     if (contactId) {
-      formData.set('contact_id', contactId)
+      formData.set('prospect_id', contactId)
     }
     if (responseId) {
       formData.set('response_id', responseId)
@@ -111,7 +111,7 @@ export function FollowupDialog({
           {!contactId && contacts.length > 0 && (
             <div className="space-y-2">
               <Label htmlFor="contact_id">Contact *</Label>
-              <Select name="contact_id" defaultValue={followup?.contact_id || ''} required>
+              <Select name="prospect_id" defaultValue={(followup as any)?.prospect_id || ''} required>
                 <SelectTrigger>
                   <SelectValue placeholder="Select contact" />
                 </SelectTrigger>
