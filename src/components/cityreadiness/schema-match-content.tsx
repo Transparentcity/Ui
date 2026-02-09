@@ -125,29 +125,34 @@ function cityLabel(c: CityReadinessResult) {
   return `${c.city.name}, ${c.city.state}`
 }
 
-function MetricRow({ 
-  cityId, 
-  row, 
-  probe, 
-  runProbe, 
-  isSelectedForReview, 
-  toggleReview 
-}: { 
-  cityId: number
-  row: {
-      key: string
-      label: string
-      group: string
-      dataset?: ReadinessDatasetCandidate | null
-      top_matches?: ReadinessDatasetCandidate[]
-      keywords?: string[]
-      match_timestamp?: string // New
-  }
-  probe: Record<string, ProbeResult>
-  runProbe: any
-  isSelectedForReview: boolean
-  toggleReview: any
-}) {
+
+  function MetricRow({ 
+    cityId, 
+    row, 
+    probe, 
+    runProbe, 
+    isSelectedForReview, 
+    toggleReview,
+    onForceMatch,
+    isForcing
+  }: { 
+    cityId: number
+    row: {
+        key: string
+        label: string
+        group: string
+        dataset?: ReadinessDatasetCandidate | null
+        top_matches?: ReadinessDatasetCandidate[]
+        keywords?: string[]
+        match_timestamp?: string 
+    }
+    probe: Record<string, ProbeResult>
+    runProbe: any
+    isSelectedForReview: boolean
+    toggleReview: any
+    onForceMatch: (cityId: number, metricKey: string, datasetId: string) => void
+    isForcing: boolean
+  }) {
   const k = `${cityId}:${row.key}`
   const pr = probe[k] ?? { status: "idle" }
   const expected = getExpectedConcepts(row.key, row.group)
@@ -257,11 +262,30 @@ function MetricRow({
                     <div className="space-y-2">
                         {row.top_matches?.slice(0, 3).map((cand, idx) => (
                             <div key={idx} className="flex items-center justify-between text-xs bg-gray-50 border border-gray-100 rounded p-2">
-                                <span className="truncate flex-1 font-medium text-gray-700">{cand.title}</span>
-                                <span className="text-gray-400 ml-2">Score: {cand.score}</span>
-                                {cand.url && (
-                                    <a href={cand.url} target="_blank" className="ml-2 text-purple-600 hover:underline">Link</a>
-                                )}
+                                <div className="flex flex-col flex-1 min-w-0 mr-2">
+                                    <span className="truncate font-medium text-gray-700" title={cand.title}>{cand.title}</span>
+                                    {cand.url && (
+                                        <a 
+                                            href={cand.url} 
+                                            target="_blank" 
+                                            rel="noreferrer"
+                                            className="text-purple-600 hover:underline flex items-center gap-1 mt-0.5 w-fit"
+                                        >
+                                            View Data <ExternalLink className="h-2.5 w-2.5" />
+                                        </a>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-gray-400 text-[10px]">Score: {cand.score}</span>
+                                    {/* Action to manually ADD (Force Match) this candidate */}
+                                    <button
+                                        onClick={() => onForceMatch(cityId, row.key, cand.dataset_id)}
+                                        disabled={isForcing}
+                                        className="px-2 py-1 rounded text-[10px] font-semibold border border-purple-200 bg-white text-purple-700 hover:bg-purple-50 transition-colors disabled:opacity-50"
+                                    >
+                                        {isForcing ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add This"}
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -359,6 +383,38 @@ export function SchemaMatchContent() {
   const [refining, setRefining] = useState(false)
   const [expandedCityIds, setExpandedCityIds] = useState<Set<number>>(new Set())
   const [q, setQ] = useState("")
+
+  // New state for force matching
+  const [forcing, setForcing] = useState(false)
+
+  async function handleForceMatch(cityId: number, metricKey: string, datasetId: string) {
+      if (!confirm("Are you sure you want to manually assign this dataset to this metric?")) return
+      
+      setForcing(true)
+      try {
+          const res = await fetch("/api/cityreadiness/force-match", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ cityId, metricKey, datasetId }),
+          })
+          const data = await res.json()
+          if (res.ok && data.ok) {
+              // Refresh
+              await refreshAvailableReports()
+              if (data.reportName) {
+                  setSelectedReportName(data.reportName)
+                  await loadReportByName(data.reportName)
+              }
+          } else {
+              alert("Failed to assign dataset: " + (data.error || "Unknown error"))
+          }
+      } catch (e) {
+          console.error(e)
+          alert("Error assigning dataset")
+      } finally {
+          setForcing(false)
+      }
+  }
 
   const sortedCities = useMemo(() => {
     if (!report) return []
@@ -764,6 +820,8 @@ export function SchemaMatchContent() {
                                             runProbe={runProbe}
                                             isSelectedForReview={!!selectedForReview[`${city.city.id}:${row.key}:${row.dataset?.dataset_id}`]}
                                             toggleReview={toggleReview}
+                                            onForceMatch={handleForceMatch}
+                                            isForcing={forcing}
                                         />
                                     ))}
                                     
