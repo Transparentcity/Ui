@@ -16,6 +16,7 @@ export type CityReadinessDatasetMatch = {
   open_data_available: boolean
   best_match: ReadinessDatasetCandidate | null
   top_matches: ReadinessDatasetCandidate[]
+  match_timestamp?: string // Add timestamp for when match was found/verified
 }
 
 export type CityCoreOpenDataCoverage = {
@@ -34,6 +35,7 @@ export type ExpandedDashboardDatasetMatch = {
   open_data_available: boolean
   best_match: ReadinessDatasetCandidate | null
   top_matches: ReadinessDatasetCandidate[]
+  match_timestamp?: string // Add timestamp here too
 }
 
 export type CityExpandedDashboardCoverage = {

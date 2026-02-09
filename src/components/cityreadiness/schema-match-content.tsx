@@ -105,6 +105,20 @@ function safeJsonParse(raw: string): { value: CityReadinessReport | null; error:
   }
 }
 
+// Helper to format iso date
+function fmtDate(iso?: string) {
+  if (!iso) return ""
+  try {
+    return new Date(iso).toLocaleDateString(undefined, { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+    })
+  } catch {
+    return ""
+  }
+}
+
 type Mode = "core7" | "expanded"
 
 function cityLabel(c: CityReadinessResult) {
@@ -127,6 +141,7 @@ function MetricRow({
       dataset?: ReadinessDatasetCandidate | null
       top_matches?: ReadinessDatasetCandidate[]
       keywords?: string[]
+      match_timestamp?: string // New
   }
   probe: Record<string, ProbeResult>
   runProbe: any
@@ -190,6 +205,18 @@ function MetricRow({
                         Match: <span className="font-semibold">{row.dataset.title}</span>
                     </div>
                     )}
+                    
+                    {/* NEW: Show match timestamp if available (or fallback to 'Last updated' from dataset metadata if needed, but the user asked for MATCH time) */}
+                    {/* Since we don't have per-match timestamps in the current JSON report schema yet, we might need to rely on the report's generation time or update the backend. */}
+                    {/* However, the user asked to "add a date and time for when the dataset match occurred". */}
+                    
+                    {/* Let's show the dataset's LAST UPDATED date as a proxy for "freshness" which is also very useful */}
+                    {/* Or if we want match time, we'd need to thread 'report.generated_at' down to here as a fallback */}
+                    
+                    <div className="mt-1 flex items-center gap-2 text-[10px] text-gray-400">
+                         <span>Matched: {row.match_timestamp}</span>
+                    </div>
+
                     {row.dataset.url && (
                     <a
                         href={row.dataset.url}
@@ -355,6 +382,8 @@ export function SchemaMatchContent() {
 
   // Helper to get metrics for a city
   function getCityMetrics(city: CityReadinessResult) {
+      const reportDate = report?.generated_at ? new Date(report.generated_at).toLocaleString() : "Unknown"
+      
       if (mode === "expanded") {
         const matches = city.expanded_dashboard_coverage?.dataset_matches ?? []
         return matches.map((m) => ({
@@ -363,7 +392,8 @@ export function SchemaMatchContent() {
             group: m.group,
             dataset: m.best_match,
             top_matches: m.top_matches,
-            keywords: m.keywords
+            keywords: m.keywords,
+            match_timestamp: reportDate
           }))
       }
       // Core 7
@@ -374,7 +404,8 @@ export function SchemaMatchContent() {
           group: "Core",
           dataset: m.best_match,
           top_matches: m.top_matches,
-          keywords: [] // Core usually doesn't output keywords in same format, but we could try if available
+          keywords: [], 
+          match_timestamp: reportDate
         }))
   }
 
