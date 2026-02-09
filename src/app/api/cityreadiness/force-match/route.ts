@@ -10,6 +10,7 @@ const execAsync = promisify(exec)
 const PLATFORM_DIR = path.resolve(process.cwd(), "../TranparentCityPlatform")
 const DATA_DIR = path.join(PLATFORM_DIR, "data")
 const OVERRIDES_FILE = path.join(DATA_DIR, "dataset_match_overrides.json")
+const MATCH_TIMESTAMPS_FILE = path.join(DATA_DIR, "dataset_match_timestamps.json")
 const REPORTS_DIR = process.env.CITYREADINESS_REPORT_DIR || "/private/tmp"
 const TARGET_CITY_IDS = "57035,56838,57201,57260,56692,56743,57110,56768,57259,56729,57261,56718,56735,56577,56593,56656,57414,56493,56883,56919,57323,56711,56690,57345,57378,57337,56709,56608,56620,57330"
 
@@ -26,11 +27,17 @@ export async function POST(req: Request) {
     await fs.mkdir(DATA_DIR, { recursive: true })
 
     // 2. Load existing overrides
-    let existing: Array<any> = []
+    type OverrideEntry = {
+      city_id: number | string
+      metric_key: string
+      dataset_id: string
+      created_at?: string
+    }
+    let existing: OverrideEntry[] = []
     try {
       const content = await fs.readFile(OVERRIDES_FILE, "utf-8")
       existing = JSON.parse(content)
-    } catch (e) {
+    } catch {
       // ignore missing file
     }
 
@@ -50,6 +57,25 @@ export async function POST(req: Request) {
     // 4. Save updated overrides
     await fs.writeFile(OVERRIDES_FILE, JSON.stringify(existing, null, 2))
 
+    // 4b. Update per-metric match timestamp for this manual assignment.
+    try {
+      let tsMap: Record<string, string> = {}
+      try {
+        const raw = await fs.readFile(MATCH_TIMESTAMPS_FILE, "utf-8")
+        const parsed = JSON.parse(raw)
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          tsMap = parsed as Record<string, string>
+        }
+      } catch {
+        // ignore missing/invalid file
+      }
+      tsMap[`${String(cityId)}:${String(metricKey)}`] = new Date().toISOString()
+      await fs.writeFile(MATCH_TIMESTAMPS_FILE, JSON.stringify(tsMap, null, 2))
+    } catch (e) {
+      console.error("[ForceMatch] Failed to update match timestamps:", e)
+      // non-fatal
+    }
+
     // 5. Trigger report regeneration
     const PYTHON_EXEC = path.join(PLATFORM_DIR, "venv", "bin", "python3")
     const now = new Date()
@@ -58,7 +84,7 @@ export async function POST(req: Request) {
     const reportPath = path.join(REPORTS_DIR, reportFilename)
 
     // Note: We pass --overrides-file to the script
-    const cmd = `"${PYTHON_EXEC}" scripts/city_readiness_report.py --city-ids "${TARGET_CITY_IDS}" --output-json "${reportPath}" --baseline-mode all_templates --exclusions-file "${path.join(DATA_DIR, "dataset_match_exclusions.json")}" --overrides-file "${OVERRIDES_FILE}"`
+    const cmd = `"${PYTHON_EXEC}" scripts/city_readiness_report.py --city-ids "${TARGET_CITY_IDS}" --output-json "${reportPath}" --baseline-mode all_templates --exclusions-file "${path.join(DATA_DIR, "dataset_match_exclusions.json")}" --overrides-file "${OVERRIDES_FILE}" --match-timestamps-file "${MATCH_TIMESTAMPS_FILE}"`
 
     console.log(`[ForceMatch] Running: ${cmd}`)
     
@@ -66,12 +92,16 @@ export async function POST(req: Request) {
       const { stdout, stderr } = await execAsync(cmd, { cwd: PLATFORM_DIR })
       console.log("[ForceMatch] Stdout:", stdout)
       if (stderr) console.error("[ForceMatch] Stderr:", stderr)
-    } catch (e: any) {
-        console.error("[ForceMatch] Script execution failed:", e)
-        return NextResponse.json({ 
-            error: "Failed to regenerate report", 
-            details: e.message
-        }, { status: 500 })
+    } catch (e) {
+      const details = e instanceof Error ? e.message : String(e)
+      console.error("[ForceMatch] Script execution failed:", details)
+      return NextResponse.json(
+        {
+          error: "Failed to regenerate report",
+          details,
+        },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({ 
@@ -80,8 +110,12 @@ export async function POST(req: Request) {
         reportName: reportFilename
     })
 
-  } catch (e: any) {
-    console.error("[ForceMatch] Error:", e)
-    return NextResponse.json({ error: "Internal server error", details: e.message }, { status: 500 })
+  } catch (e) {
+    const details = e instanceof Error ? e.message : String(e)
+    console.error("[ForceMatch] Error:", details)
+    return NextResponse.json(
+      { error: "Internal server error", details },
+      { status: 500 }
+    )
   }
 }

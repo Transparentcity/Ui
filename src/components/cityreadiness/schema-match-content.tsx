@@ -119,6 +119,21 @@ function fmtDate(iso?: string) {
   }
 }
 
+function fmtDateTime(iso?: string) {
+  if (!iso) return ""
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    })
+  } catch {
+    return ""
+  }
+}
+
 type Mode = "core7" | "expanded"
 
 function cityLabel(c: CityReadinessResult) {
@@ -134,7 +149,8 @@ function cityLabel(c: CityReadinessResult) {
     isSelectedForReview, 
     toggleReview,
     onForceMatch,
-    isForcing
+    isForcing,
+    isRefiningMatch
   }: { 
     cityId: number
     row: {
@@ -152,6 +168,7 @@ function cityLabel(c: CityReadinessResult) {
     toggleReview: any
     onForceMatch: (cityId: number, metricKey: string, datasetId: string) => void
     isForcing: boolean
+    isRefiningMatch: boolean
   }) {
   const k = `${cityId}:${row.key}`
   const pr = probe[k] ?? { status: "idle" }
@@ -181,12 +198,19 @@ function cityLabel(c: CityReadinessResult) {
             type="checkbox"
             checked={isSelectedForReview}
             onChange={() => toggleReview(cityId, row.key, row.dataset?.dataset_id)}
+            disabled={isRefiningMatch}
             className="mt-1 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer shrink-0"
             title="Mark as incorrect match / Needs Refinement"
           />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
                 <div className="text-sm font-semibold text-gray-900">{row.label}</div>
+                {isRefiningMatch && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-800">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Refining…
+                  </span>
+                )}
                 {isMissing ? (
                      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
                         Missing
@@ -212,14 +236,8 @@ function cityLabel(c: CityReadinessResult) {
                     )}
                     
                     {/* NEW: Show match timestamp if available (or fallback to 'Last updated' from dataset metadata if needed, but the user asked for MATCH time) */}
-                    {/* Since we don't have per-match timestamps in the current JSON report schema yet, we might need to rely on the report's generation time or update the backend. */}
-                    {/* However, the user asked to "add a date and time for when the dataset match occurred". */}
-                    
-                    {/* Let's show the dataset's LAST UPDATED date as a proxy for "freshness" which is also very useful */}
-                    {/* Or if we want match time, we'd need to thread 'report.generated_at' down to here as a fallback */}
-                    
                     <div className="mt-1 flex items-center gap-2 text-[10px] text-gray-400">
-                         <span>Matched: {row.match_timestamp}</span>
+                         <span>Matched: {row.match_timestamp ? fmtDateTime(row.match_timestamp) : "—"}</span>
                     </div>
 
                     {row.dataset.url && (
@@ -280,7 +298,7 @@ function cityLabel(c: CityReadinessResult) {
                                     {/* Action to manually ADD (Force Match) this candidate */}
                                     <button
                                         onClick={() => onForceMatch(cityId, row.key, cand.dataset_id)}
-                                        disabled={isForcing}
+                                        disabled={isForcing || isRefiningMatch}
                                         className="px-2 py-1 rounded text-[10px] font-semibold border border-purple-200 bg-white text-purple-700 hover:bg-purple-50 transition-colors disabled:opacity-50"
                                     >
                                         {isForcing ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add This"}
@@ -381,6 +399,7 @@ export function SchemaMatchContent() {
   const [selectedReportName, setSelectedReportName] = useState<string>("")
   const [selectedForReview, setSelectedForReview] = useState<Record<string, boolean>>({})
   const [refining, setRefining] = useState(false)
+  const [refiningKeys, setRefiningKeys] = useState<Record<string, boolean>>({})
   const [expandedCityIds, setExpandedCityIds] = useState<Set<number>>(new Set())
   const [q, setQ] = useState("")
 
@@ -438,8 +457,6 @@ export function SchemaMatchContent() {
 
   // Helper to get metrics for a city
   function getCityMetrics(city: CityReadinessResult) {
-      const reportDate = report?.generated_at ? new Date(report.generated_at).toLocaleString() : "Unknown"
-      
       if (mode === "expanded") {
         const matches = city.expanded_dashboard_coverage?.dataset_matches ?? []
         return matches.map((m) => ({
@@ -449,7 +466,7 @@ export function SchemaMatchContent() {
             dataset: m.best_match,
             top_matches: m.top_matches,
             keywords: m.keywords,
-            match_timestamp: reportDate
+            match_timestamp: m.match_timestamp
           }))
       }
       // Core 7
@@ -461,7 +478,7 @@ export function SchemaMatchContent() {
           dataset: m.best_match,
           top_matches: m.top_matches,
           keywords: [], 
-          match_timestamp: reportDate
+          match_timestamp: m.match_timestamp
         }))
   }
 
@@ -629,6 +646,13 @@ export function SchemaMatchContent() {
         return
       }
 
+      // Show per-metric loading indicators for the items being refined.
+      const nextRefiningKeys: Record<string, boolean> = {}
+      for (const ex of exclusions) {
+        nextRefiningKeys[`${String(ex.city_id)}:${String(ex.metric_key)}`] = true
+      }
+      setRefiningKeys(nextRefiningKeys)
+
       const res = await fetch("/api/cityreadiness/refine", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -654,6 +678,7 @@ export function SchemaMatchContent() {
       alert("Refinement error")
     } finally {
       setRefining(false)
+      setRefiningKeys({})
     }
   }
 
@@ -822,6 +847,7 @@ export function SchemaMatchContent() {
                                             toggleReview={toggleReview}
                                             onForceMatch={handleForceMatch}
                                             isForcing={forcing}
+                                            isRefiningMatch={!!refiningKeys[`${city.city.id}:${row.key}`]}
                                         />
                                     ))}
                                     
