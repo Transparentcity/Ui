@@ -1,19 +1,18 @@
 import { CityReadinessShell } from "@/components/cityreadiness-shell"
-import { ReadinessContent } from "@/components/foia/readiness-content"
+import { SchemaMatchContent } from "@/components/cityreadiness/schema-match-content"
 
 export const metadata = {
   title: "City Readiness | Transparent.city",
-  description: "Rank cities by open-data coverage and identify FOIA gaps",
+  description: "Rank cities by open-data coverage, inspect schemas, and identify FOIA gaps",
 }
 
 export default function CityReadinessPage() {
   return (
     <CityReadinessShell
-      title="City Readiness"
-      description="Rank cities by open-data coverage (Core 7 vs Expanded Dashboard) and click through missing items to guide portal search and FOIA."
+      title="City Readiness Dashboard"
+      description="Rank cities by open-data completeness, verify schema matches, and identify gaps for refinement or FOIA."
     >
-      <ReadinessContent backHref="/dashboard" backLabel="Back to Main App" />
+      <SchemaMatchContent />
     </CityReadinessShell>
   )
 }
-

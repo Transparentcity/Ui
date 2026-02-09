@@ -2,12 +2,11 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ArrowLeft, BarChart3, Table2 } from "lucide-react"
+import { ArrowLeft, LayoutDashboard } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navItems = [
-  { label: "Coverage", href: "/cityreadiness", icon: BarChart3 },
-  { label: "Schema match", href: "/cityreadiness/schema", icon: Table2 },
+  { label: "Dashboard", href: "/cityreadiness", icon: LayoutDashboard },
 ]
 
 export function CityReadinessSidebar() {
@@ -86,4 +85,3 @@ export function CityReadinessSidebar() {
     </aside>
   )
 }
-
