@@ -85,8 +85,8 @@ export async function createResponse(formData: FormData) {
     }
   }
 
-  const { error } = await db
-    .from('responses')
+  const { data, error } = await db
+    .from("responses")
     .insert({
       message_id,
       prospect_id,
@@ -96,17 +96,21 @@ export async function createResponse(formData: FormData) {
       priority,
       action_notes: action_notes || null,
       responded_at: responded_at || new Date().toISOString(),
-      status: 'new'
+      status: "new",
     })
+    .select("id")
+    .single()
 
-  if (error) {
-    console.error('Error creating response:', error)
-    throw new Error('Failed to create response')
+  if (error || !data) {
+    console.error("Error creating response:", error)
+    throw new Error("Failed to create response")
   }
 
   revalidatePath('/responses')
   revalidatePath('/send-queue')
   revalidatePath('/')
+
+  return data.id as string
 }
 
 export async function updateResponse(id: string, formData: FormData) {

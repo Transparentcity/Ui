@@ -39,7 +39,13 @@ interface FollowupDialogProps {
   responseId?: string
   contactName?: string
   templates?: Template[]
-  children: React.ReactNode
+  /** Optional controlled open state. */
+  open?: boolean
+  /** Optional controlled open change handler. */
+  onOpenChange?: (open: boolean) => void
+  /** When true, do not render a trigger (for programmatic open). */
+  hideTrigger?: boolean
+  children?: React.ReactNode
 }
 
 export function FollowupDialog({ 
@@ -49,9 +55,15 @@ export function FollowupDialog({
   responseId, 
   contactName,
   templates = [],
+  open: openProp,
+  onOpenChange,
+  hideTrigger = false,
   children 
 }: FollowupDialogProps) {
-  const [open, setOpen] = useState(false)
+  const isControlled = typeof openProp === "boolean"
+  const [openUncontrolled, setOpenUncontrolled] = useState(false)
+  const open = isControlled ? (openProp as boolean) : openUncontrolled
+  const setOpen = isControlled ? (onOpenChange ?? (() => {})) : setOpenUncontrolled
   const [isPending, startTransition] = useTransition()
   const [description, setDescription] = useState(followup?.description || "")
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | undefined>()
@@ -86,9 +98,7 @@ export function FollowupDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
+      {!hideTrigger && children ? <DialogTrigger asChild>{children}</DialogTrigger> : null}
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>

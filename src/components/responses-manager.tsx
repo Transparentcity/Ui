@@ -145,6 +145,12 @@ export function ResponsesManager({ responses, contacts, sentEmails = [] }: Respo
             Log Response
           </Button>
         </ResponseDialog>
+        <FollowupDialog contacts={contacts}>
+          <Button variant="outline">
+            <CalendarPlus className="w-4 h-4 mr-2" />
+            Schedule Follow-up
+          </Button>
+        </FollowupDialog>
         <p className="text-sm text-muted-foreground">
           {filteredResponses.length} response{filteredResponses.length !== 1 ? 's' : ''}
         </p>

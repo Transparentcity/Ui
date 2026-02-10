@@ -38,6 +38,7 @@ import { Response } from "@/lib/types"
 import { createResponse, updateResponse } from "@/app/actions/responses"
 import { cn } from "@/lib/utils"
 import { Check, ChevronsUpDown } from "lucide-react"
+import { FollowupDialog } from "./followup-dialog"
 
 interface Contact {
   id: string
@@ -68,15 +69,26 @@ export function ResponseDialog({ response, contacts, sentEmails = [], children }
     response?.prospect_id || undefined
   )
   const [contactOpen, setContactOpen] = useState(false)
+  const [followupOpen, setFollowupOpen] = useState(false)
+  const [followupResponseId, setFollowupResponseId] = useState<string | undefined>(
+    response?.id
+  )
 
   const handleSubmit = async (formData: FormData) => {
     startTransition(async () => {
       if (response) {
         await updateResponse(response.id, formData)
       } else {
-        await createResponse(formData)
+        const createdId = await createResponse(formData)
+        setFollowupResponseId(createdId)
       }
       setOpen(false)
+
+      const postAction = (formData.get("post_action") as string | null) || "save"
+      if (postAction === "save_and_followup") {
+        // Open the follow-up dialog immediately after saving.
+        setFollowupOpen(true)
+      }
     })
   }
 
@@ -89,15 +101,16 @@ export function ResponseDialog({ response, contacts, sentEmails = [], children }
     : []
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{response ? 'Edit Response' : 'Log New Response'}</DialogTitle>
-        </DialogHeader>
-        <form action={handleSubmit} className="space-y-4">
+    <>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          {children}
+        </DialogTrigger>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{response ? 'Edit Response' : 'Log New Response'}</DialogTitle>
+          </DialogHeader>
+          <form action={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="prospect_id">Contact *</Label>
             {/* Hidden field used by server action */}
@@ -284,12 +297,40 @@ export function ResponseDialog({ response, contacts, sentEmails = [], children }
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending || !selectedProspectId}>
-              {isPending ? 'Saving...' : response ? 'Update Response' : 'Log Response'}
+            <Button
+              type="submit"
+              name="post_action"
+              value="save"
+              variant="outline"
+              disabled={isPending || !selectedProspectId}
+            >
+              {isPending ? "Saving..." : response ? "Update Response" : "Log Response"}
+            </Button>
+            <Button
+              type="submit"
+              name="post_action"
+              value="save_and_followup"
+              disabled={isPending || !selectedProspectId}
+            >
+              {isPending
+                ? "Saving..."
+                : response
+                  ? "Update + Follow-up"
+                  : "Log + Schedule Follow-up"}
             </Button>
           </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <FollowupDialog
+        open={followupOpen}
+        onOpenChange={setFollowupOpen}
+        hideTrigger
+        contactId={selectedProspectId}
+        responseId={followupResponseId}
+        contactName={selectedContact?.name || undefined}
+      />
+    </>
   )
 }
