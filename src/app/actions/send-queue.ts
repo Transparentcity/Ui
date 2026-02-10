@@ -810,9 +810,11 @@ export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Ano
             year: "numeric",
           })
         : ""
+      const relativePeriod =
+        periodType === "month" ? "last month" : periodType === "week" ? "last week" : "the latest reporting period"
       const periodInfo = periodDate
         ? ` [${periodType}ly data week ending ${periodDate}]`
-        : ` [${periodType}ly week ending date unavailable]`
+        : ` [${periodType}ly data (${relativePeriod})]`
       return `- ${name}${change}${recentVal}${avgVal} - Severity: ${a.severity || 'medium'}${periodInfo}`
     }
     
@@ -858,7 +860,11 @@ TIME PERIOD CLARITY (REQUIRED):
 - Always specify the time period AND an explicit week-ending date with year (use the anomaly's period_date).
 - Use this format whenever possible: "In the week ending Feb 3, 2026, ..."
 - Do NOT use vague phrasing like "around early February", "recently", "this period", or "this past week" without a concrete date.
-- If a week-ending date is unavailable, say so explicitly (e.g., "in the most recently reported week (end date unavailable)") rather than guessing.
+- If a week-ending date is unavailable, do NOT mention that it's unavailable. Instead, use relative phrasing like:
+  - Weekly: "last week"
+  - Monthly: "last month"
+  - Otherwise: "in the latest reporting period"
+- Never add meta commentary about missing information (e.g., "Unfortunately, I don't have the exact week-ending date..." or "I don't have the exact date for this period...").
 
 AVERAGE/COMPARISON PERIOD CLARITY (REQUIRED):
 - When mentioning the average or "usual" number, specify what time period it's based on
@@ -1379,8 +1385,16 @@ async function generateEmailsWithAI(
           day: "numeric",
           year: "numeric",
         })
-      : "end date unavailable"
-    const periodLabel = `${periodType}ly data (week ending ${periodDate})`
+      : ""
+    const relativePeriod =
+      periodType === "month"
+        ? "last month"
+        : periodType === "week"
+          ? "last week"
+          : "the latest reporting period"
+    const periodLabel = periodDate
+      ? `${periodType}ly data (week ending ${periodDate})`
+      : `${periodType}ly data (${relativePeriod})`
     // Comparison period context - use actual window size if available
     const windowSize = anomaly.comparison_window?.size || 12
     const periodUnit = periodType === 'week' ? 'weeks' : periodType === 'month' ? 'months' : 'periods'
@@ -1474,7 +1488,11 @@ TIME PERIOD CLARITY (REQUIRED):
 - Always specify the time period AND an explicit week-ending date with year (use the period_type + period_date from the anomaly data).
 - Use this format whenever possible: "In the week ending Feb 3, 2026, ..."
 - Do NOT use vague phrasing like "around early February", "recently", "this period", or "this past week" without a concrete date.
-- If a week-ending date is unavailable, say so explicitly (e.g., "in the most recently reported week (end date unavailable)") rather than guessing.
+- If a week-ending date is unavailable, do NOT mention that it's unavailable. Instead, use relative phrasing like:
+  - Weekly: "last week"
+  - Monthly: "last month"
+  - Otherwise: "in the latest reporting period"
+- Never add meta commentary about missing information (e.g., "Unfortunately, I don't have the exact week-ending date..." or "I don't have the exact date for this period...").
 
 AVERAGE/COMPARISON PERIOD CLARITY (REQUIRED):
 - When mentioning the average or "usual" number, specify what time period it's based on
