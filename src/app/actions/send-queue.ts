@@ -803,8 +803,16 @@ export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Ano
       const periodUnit = periodType === 'week' ? 'week' : periodType === 'month' ? 'month' : 'period'
       const avgVal = a.comparison_mean ? `, ${windowSize}-${periodUnit} avg: ${a.comparison_mean.toFixed(1)}` : ''
       // Include time period info
-      const periodDate = a.period_date ? new Date(a.period_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
-      const periodInfo = periodDate ? ` [${periodType}ly data ending ${periodDate}]` : ` [${periodType}ly]`
+      const periodDate = a.period_date
+        ? new Date(a.period_date).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })
+        : ""
+      const periodInfo = periodDate
+        ? ` [${periodType}ly data week ending ${periodDate}]`
+        : ` [${periodType}ly week ending date unavailable]`
       return `- ${name}${change}${recentVal}${avgVal} - Severity: ${a.severity || 'medium'}${periodInfo}`
     }
     
@@ -847,10 +855,10 @@ CITYWIDE vs DISTRICT - BE PRECISE:
 - GOOD: "also in District 11, traffic stops surged..." (if this is District 11 data)
 
 TIME PERIOD CLARITY (REQUIRED):
-- Always specify the time period and approximate date for the data
-- GOOD: "In the week ending February 3rd, drug incidents jumped to 21..."
-- GOOD: "This past week, homeless calls spiked to 20..."
-- BAD: "this period" or "recently" without specifying when
+- Always specify the time period AND an explicit week-ending date with year (use the anomaly's period_date).
+- Use this format whenever possible: "In the week ending Feb 3, 2026, ..."
+- Do NOT use vague phrasing like "around early February", "recently", "this period", or "this past week" without a concrete date.
+- If a week-ending date is unavailable, say so explicitly (e.g., "in the most recently reported week (end date unavailable)") rather than guessing.
 
 AVERAGE/COMPARISON PERIOD CLARITY (REQUIRED):
 - When mentioning the average or "usual" number, specify what time period it's based on
@@ -1365,8 +1373,14 @@ async function generateEmailsWithAI(
     
     // Include time period info
     const periodType = anomaly.period_type || 'week'
-    const periodDate = anomaly.period_date ? new Date(anomaly.period_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'recent'
-    const periodLabel = `${periodType}ly data ending ${periodDate}`
+    const periodDate = anomaly.period_date
+      ? new Date(anomaly.period_date).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : "end date unavailable"
+    const periodLabel = `${periodType}ly data (week ending ${periodDate})`
     // Comparison period context - use actual window size if available
     const windowSize = anomaly.comparison_window?.size || 12
     const periodUnit = periodType === 'week' ? 'weeks' : periodType === 'month' ? 'months' : 'periods'
@@ -1457,11 +1471,10 @@ CITYWIDE vs DISTRICT - BE PRECISE:
 - GOOD: "citywide, traffic stops surged to 17..." (ONLY if district = 0 / is_citywide = true)
 
 TIME PERIOD CLARITY (REQUIRED):
-- Always specify the time period and approximate date for the data
-- Use the period_type (weekly/monthly) and period_date from the anomaly data
-- GOOD: "In the week ending February 3rd, drug crime incidents jumped to 21..."
-- GOOD: "This past week, we saw homeless calls spike to 20..."
-- BAD: "this period" or "recently" without specifying when
+- Always specify the time period AND an explicit week-ending date with year (use the period_type + period_date from the anomaly data).
+- Use this format whenever possible: "In the week ending Feb 3, 2026, ..."
+- Do NOT use vague phrasing like "around early February", "recently", "this period", or "this past week" without a concrete date.
+- If a week-ending date is unavailable, say so explicitly (e.g., "in the most recently reported week (end date unavailable)") rather than guessing.
 
 AVERAGE/COMPARISON PERIOD CLARITY (REQUIRED):
 - When mentioning the average or "usual" number, specify what time period it's based on
