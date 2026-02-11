@@ -22,9 +22,24 @@ const TEMPLATE_HELP: Record<string, TemplateHelp> = {
   },
   template_911_calls: {
     label: "911 Calls",
-    suggestedKeywords: ["911", "calls for service", "dispatch", "CAD"],
+    // Lesson: every city labels this differently; search the full synonym set.
+    suggestedKeywords: [
+      "calls for service",
+      "911",
+      "911 calls",
+      "CFS",
+      "CAD",
+      "computer aided dispatch",
+      "CAD incidents",
+      "police dispatch",
+      "police dispatched calls",
+      "dispatched calls",
+      "dispatched incidents",
+      "police calls for service",
+      "active calls",
+    ],
     suggestedFoiaScope:
-      "911 / calls-for-service: call id, received datetime, call type/priority, disposition, response times (if available), district/beat/precinct (last 2 years; CSV).",
+      "911 / calls-for-service (CFS) / CAD (incident-level, not 311 and not finalized crime incidents): call id, received/dispatch/arrival datetime (if available), call type/priority, disposition, location, district/beat/precinct/ward (last 2–5 years; CSV).",
   },
   template_violent_crime_fbi_type_i: {
     label: "Violent Crime Incidents",
