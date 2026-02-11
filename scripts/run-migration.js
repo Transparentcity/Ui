@@ -24,6 +24,8 @@ const MIGRATIONS = {
   '005': '005_crm_complete_schema.sql',
   '006': '006_add_pending_review_status.sql',
   '007': '007_campaign_prospects.sql',
+  '008': '008_media_contacts.sql',
+  '009': '009_unify_prospects.sql',
 };
 
 // Load environment variables from .env.local or .env
@@ -137,6 +139,29 @@ async function runMigration() {
 
       const toneProfilesCount = await client.query('SELECT COUNT(*) FROM tone_profiles');
       console.log(`   ✓ ${toneProfilesCount.rows[0].count} tone profiles`);
+    } else if (migrationNumber === '008') {
+      console.log('🔍 Verifying media contacts tables...\n');
+      const tablesResult = await client.query(`
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name IN ('media_contacts', 'media_keywords', 'media_article_links')
+        ORDER BY table_name;
+      `);
+      tablesResult.rows.forEach(row => {
+        console.log(`   ✓ ${row.table_name}`);
+      });
+    } else if (migrationNumber === '009') {
+      console.log('🔍 Verifying unified prospects...\n');
+      const colCheck = await client.query(`
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name = 'prospects' AND column_name IN ('contact_type', 'outlet_platform', 'primary_city')
+        ORDER BY column_name;
+      `);
+      colCheck.rows.forEach(row => console.log(`   ✓ prospects.${row.column_name}`));
+      const tblCheck = await client.query(`
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'prospect_article_links';
+      `);
+      if (tblCheck.rows.length > 0) console.log('   ✓ prospect_article_links');
     } else if (migrationNumber === '006') {
       // Verify the constraint was updated
       console.log('🔍 Verifying send_queue status constraint...\n');

@@ -1,9 +1,11 @@
+/** Contact type: city_staff (officials) or media (reporters). Both are prospects. */
+export type ContactType = 'city_staff' | 'media'
+
 /**
- * Prospect (Government Official) for CRM outreach
- * 
- * The `jurisdiction` field is critical for anomaly matching:
- * - Should match district format (e.g., "D5", "District 11", "Mission")
- * - Used to automatically match anomalies by geographic area
+ * Prospect - unified contact for CRM outreach (city staff + media)
+ *
+ * City staff: jurisdiction (district), organization, department
+ * Media: outlet_platform, primary_city, coverage_cities, sub_geographies
  */
 export interface Prospect {
   id: string
@@ -13,17 +15,34 @@ export interface Prospect {
   organization: string | null
   email: string | null
   phone: string | null
-  jurisdiction: string | null       // District/area for matching anomalies (e.g., "D5", "District 11")
-  priority: number                  // 1=highest, 5=lowest
+  jurisdiction: string | null       // District/area (city staff)
+  priority: number
   status: 'active' | 'inactive' | 'unsubscribed'
   notes: string | null
   created_at: string
   updated_at: string
-  // Join table data (populated when fetching with joins)
+  // Type and media-specific fields
+  contact_type: ContactType
+  outlet_platform?: string | null
+  primary_beat?: string | null
+  primary_city?: string | null
+  coverage_cities?: string[]
+  sub_geographies?: string[]
+  // Join table data
   prospect_keywords?: Array<{
     keyword_id: string
     keyword?: Keyword
   }>
+  article_links?: ProspectArticleLink[]
+}
+
+export interface ProspectArticleLink {
+  id: string
+  prospect_id: string
+  url: string
+  title: string | null
+  published_at: string | null
+  created_at: string
 }
 
 // Alias for backwards compatibility
