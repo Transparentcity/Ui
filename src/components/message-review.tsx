@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useMemo, useState, useTransition } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,10 +34,13 @@ import type { SendQueueItem, Contact } from "@/lib/types"
 import { 
   updateQueueItemContent, 
   updateQueueItemStatus,
+  bulkUpdateQueueItemContent,
+  addRecipientsToDraftEmail,
   approveQueueItems, 
   rejectQueueItems,
   regenerateQueueItems
 } from "@/app/actions/send-queue"
+import { listActiveContactsLite } from "@/app/actions/contacts"
 import { useAnomaliesPublic } from "@/lib/hooks/useAnomaliesPublic"
 import { mapApiAnomaliesToCrm } from "@/lib/anomalyMapper"
 import { isAnomalyIgnored } from "./anomalies-manager"
@@ -59,6 +62,21 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
   const [isRegenerating, setIsRegenerating] = useState<Set<string>>(new Set())
   const [currentIndex, setCurrentIndex] = useState(0)
   const [viewMode, setViewMode] = useState<"list" | "single">("list")
+  const [showAddRecipientsDialog, setShowAddRecipientsDialog] = useState(false)
+  const [contactsLoading, setContactsLoading] = useState(false)
+  const [contactsLite, setContactsLite] = useState<
+    Array<{
+      id: string
+      name: string
+      email: string | null
+      organization: string | null
+      department: string | null
+      jurisdiction: string | null
+      status: string
+    }>
+  >([])
+  const [recipientSearch, setRecipientSearch] = useState("")
+  const [addRecipientIds, setAddRecipientIds] = useState<Set<string>>(new Set())
   
   // Fetch anomalies from Platform API for email regeneration
   // API max limit is 200 - this provides enough for district + citywide coverage
@@ -119,7 +137,7 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
     setEditBody(item.personalized_body || "")
   }
 
-  const saveEdit = () => {
+  const saveDraft = () => {
     if (!editingItem) return
     
     startTransition(async () => {
@@ -132,24 +150,100 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
     })
   }
 
+  const saveAndMarkSent = () => {
+    if (!editingItem) return
+    if (!confirm("Save changes and mark this message as sent? This cannot be undone.")) return
+
+    startTransition(async () => {
+      await updateQueueItemContent(editingItem.id, {
+        personalized_subject: editSubject,
+        personalized_body: editBody,
+      })
+      await updateQueueItemStatus(editingItem.id, "sent")
+      setEditingItem(null)
+      onUpdate?.()
+    })
+  }
+
+  const applyEditToSelected = () => {
+    if (!editingItem) return
+    const ids = new Set<string>(Array.from(selectedIds))
+    ids.add(editingItem.id)
+    const targetIds = Array.from(ids)
+    if (targetIds.length < 2) return
+    if (!confirm(`Apply this exact subject/body to ${targetIds.length} selected message(s)?`)) return
+
+    startTransition(async () => {
+      await bulkUpdateQueueItemContent({
+        ids: targetIds,
+        personalized_subject: editSubject,
+        personalized_body: editBody,
+      })
+      setEditingItem(null)
+      onUpdate?.()
+    })
+  }
+
+  const existingProspectIds = useMemo(() => {
+    return new Set(items.map((i) => String((i as any).prospect_id)))
+  }, [items])
+
+  const filteredContacts = useMemo(() => {
+    const q = recipientSearch.trim().toLowerCase()
+    const rows = contactsLite as any[]
+    const visible = q
+      ? rows.filter((c) => {
+          const hay = `${c.name || ""} ${c.email || ""} ${c.organization || ""} ${
+            c.department || ""
+          } ${c.jurisdiction || ""}`.toLowerCase()
+          return hay.includes(q)
+        })
+      : rows
+
+    // Hide contacts already in this pending-review batch.
+    return visible.filter((c) => !existingProspectIds.has(String(c.id)))
+  }, [contactsLite, recipientSearch, existingProspectIds])
+
+  const openAddRecipients = async () => {
+    if (!editingItem) return
+    setAddRecipientIds(new Set())
+    setRecipientSearch("")
+    setShowAddRecipientsDialog(true)
+
+    if (contactsLite.length === 0 && !contactsLoading) {
+      setContactsLoading(true)
+      try {
+        const rows = await listActiveContactsLite()
+        setContactsLite(rows as any)
+      } finally {
+        setContactsLoading(false)
+      }
+    }
+  }
+
+  const confirmAddRecipients = () => {
+    if (!editingItem) return
+    const ids = Array.from(addRecipientIds)
+    if (ids.length === 0) return
+    startTransition(async () => {
+      await addRecipientsToDraftEmail({
+        source_queue_item_id: editingItem.id,
+        prospect_ids: ids,
+        personalized_subject: editSubject,
+        personalized_body: editBody,
+      })
+      setShowAddRecipientsDialog(false)
+      setAddRecipientIds(new Set())
+      onUpdate?.()
+    })
+  }
+
   // Copy helpers for edit dialog
   const [copiedField, setCopiedField] = useState<"subject" | "body" | null>(null)
   const copyToClipboard = async (text: string, field: "subject" | "body") => {
     await navigator.clipboard.writeText(text)
     setCopiedField(field)
     setTimeout(() => setCopiedField(null), 2000)
-  }
-
-  // Mark as manually sent
-  const markAsManuallySent = () => {
-    if (!editingItem) return
-    if (!confirm("Mark this message as manually sent? This cannot be undone.")) return
-    
-    startTransition(async () => {
-      await updateQueueItemStatus(editingItem.id, "sent")
-      setEditingItem(null)
-      onUpdate?.()
-    })
   }
 
   const handleApprove = (ids: string[]) => {
@@ -307,7 +401,7 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
       {viewMode === "list" && (
         <div className="space-y-3">
           {items.map((item) => (
-            <Card key={item.id} className={selectedIds.has(item.id) ? "ring-2 ring-[var(--brand-primary)]" : ""}>
+            <Card key={item.id} className={selectedIds.has(item.id) ? "ring-2 ring-(--brand-primary)" : ""}>
               <CardContent className="p-4">
                 <div className="flex items-start gap-4">
                   <Checkbox
@@ -570,20 +664,38 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button
               variant="outline"
-              onClick={markAsManuallySent}
-              disabled={isPending || editingItem?.status === "sent"}
-              className="gap-2 text-green-600 border-green-300 hover:bg-green-50 sm:mr-auto"
+              onClick={applyEditToSelected}
+              disabled={isPending || (() => {
+                const ids = new Set<string>(Array.from(selectedIds))
+                if (editingItem?.id) ids.add(editingItem.id)
+                return ids.size < 2
+              })()}
+              className="sm:mr-auto"
+              title="Make the selected messages identical"
             >
-              <SendHorizontal className="w-4 h-4" />
-              Mark as Manually Sent
+              Make Selected Identical
+            </Button>
+            <Button variant="outline" onClick={openAddRecipients} disabled={isPending}>
+              Add Recipients...
             </Button>
             <Button variant="outline" onClick={() => setEditingItem(null)}>
               Cancel
             </Button>
-            <Button 
-              onClick={saveEdit} 
-              disabled={isPending}
-              style={{ background: 'var(--brand-primary)' }}
+            <Button variant="outline" onClick={saveDraft} disabled={isPending}>
+              {isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Draft"
+              )}
+            </Button>
+            <Button
+              onClick={saveAndMarkSent}
+              disabled={isPending || editingItem?.status === "sent"}
+              className="gap-2"
+              style={{ background: "var(--brand-primary)" }}
             >
               {isPending ? (
                 <>
@@ -591,8 +703,87 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
                   Saving...
                 </>
               ) : (
-                "Save Changes"
+                <>
+                  <SendHorizontal className="w-4 h-4" />
+                  Save and Mark Sent
+                </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add recipients dialog */}
+      <Dialog open={showAddRecipientsDialog} onOpenChange={setShowAddRecipientsDialog}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Add Recipients</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Search contacts and add them to this same draft email. New recipients will appear
+              as separate draft messages in Message Review.
+            </p>
+            <Input
+              value={recipientSearch}
+              onChange={(e) => setRecipientSearch(e.target.value)}
+              placeholder="Search contacts by name, email, org…"
+            />
+            <div className="border rounded-md max-h-[320px] overflow-auto">
+              {contactsLoading ? (
+                <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading contacts…
+                </div>
+              ) : filteredContacts.length === 0 ? (
+                <div className="p-4 text-sm text-muted-foreground">No contacts found.</div>
+              ) : (
+                <div className="divide-y">
+                  {filteredContacts.slice(0, 150).map((c: any) => {
+                    const id = String(c.id)
+                    const checked = addRecipientIds.has(id)
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => {
+                          setAddRecipientIds((prev) => {
+                            const next = new Set(prev)
+                            if (next.has(id)) next.delete(id)
+                            else next.add(id)
+                            return next
+                          })
+                        }}
+                        className="w-full text-left p-3 hover:bg-muted/40 flex items-start gap-3"
+                      >
+                        <Checkbox checked={checked} />
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{c.name}</div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {[c.email, c.organization, c.department, c.jurisdiction]
+                              .filter(Boolean)
+                              .join(" • ")}
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Selected: {addRecipientIds.size}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddRecipientsDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmAddRecipients}
+              disabled={isPending || addRecipientIds.size === 0}
+            >
+              Add {addRecipientIds.size || ""} Recipient{addRecipientIds.size === 1 ? "" : "s"}
             </Button>
           </DialogFooter>
         </DialogContent>

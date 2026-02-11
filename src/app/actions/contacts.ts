@@ -122,6 +122,34 @@ export async function deleteContact(id: string) {
   revalidatePath('/')
 }
 
+/** Lightweight list for pickers/typeaheads (client-side filtering). */
+export async function listActiveContactsLite(): Promise<
+  Array<{
+    id: string
+    name: string
+    email: string | null
+    organization: string | null
+    department: string | null
+    jurisdiction: string | null
+    status: string
+  }>
+> {
+  const db = createClient()
+  const { data, error } = await db
+    .from("prospects")
+    .select("id, name, email, organization, department, jurisdiction, status")
+    .order("name")
+
+  if (error) {
+    console.error("[Contacts] Error listing contacts lite:", error)
+    throw new Error("Failed to load contacts")
+  }
+
+  const arr = Array.isArray(data) ? data : []
+  // Keep only active by default (but status is returned for UI display if needed).
+  return arr.filter((c: any) => (c?.status || "active") === "active")
+}
+
 // Bulk import contacts from CSV
 interface ImportContact {
   name: string

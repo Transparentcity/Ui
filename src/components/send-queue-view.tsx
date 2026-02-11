@@ -63,7 +63,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { MoreHorizontal } from "lucide-react"
 import type { SendQueueItem, Contact } from "@/lib/types"
-import { cancelQueueItems, retryFailedItems, deleteQueueItems, deleteAllQueueItems, updateQueueItemContent, updateQueueItemStatus, scheduleQueueItems, sendNowQueueItems, markQueueItemsAsSent } from "@/app/actions/send-queue"
+import { cancelQueueItems, retryFailedItems, deleteQueueItems, deleteAllQueueItems, updateQueueItemContent, updateQueueItemStatus, scheduleQueueItems, sendNowQueueItems, markQueueItemsAsSent, bulkUpdateQueueItemContent } from "@/app/actions/send-queue"
 import { StatCard } from "./stat-card"
 
 interface QueueItemWithProspect extends SendQueueItem {
@@ -282,6 +282,25 @@ export function SendQueueView({ queueItems, campaigns, stats }: SendQueueViewPro
     
     startTransition(async () => {
       await updateQueueItemContent(editingItem.id, {
+        personalized_subject: editSubject,
+        personalized_body: editBody,
+      })
+      setEditingItem(null)
+      router.refresh()
+    })
+  }
+
+  const applyEditToSelected = () => {
+    if (!editingItem) return
+    const ids = new Set<string>(Array.from(selectedItems))
+    ids.add(editingItem.id)
+    const targetIds = Array.from(ids)
+    if (targetIds.length < 2) return
+    if (!confirm(`Apply this exact subject/body to ${targetIds.length} selected message(s)?`)) return
+
+    startTransition(async () => {
+      await bulkUpdateQueueItemContent({
+        ids: targetIds,
         personalized_subject: editSubject,
         personalized_body: editBody,
       })
@@ -927,6 +946,19 @@ export function SendQueueView({ queueItems, campaigns, stats }: SendQueueViewPro
             >
               <SendHorizontal className="w-4 h-4" />
               Mark as Manually Sent
+            </Button>
+            <Button
+              variant="outline"
+              onClick={applyEditToSelected}
+              disabled={isPending || (() => {
+                const ids = new Set<string>(Array.from(selectedItems))
+                if (editingItem?.id) ids.add(editingItem.id)
+                return ids.size < 2
+              })()}
+              className="sm:mr-auto"
+              title="Make the selected messages identical"
+            >
+              Apply to Selected
             </Button>
             <Button variant="outline" onClick={() => setEditingItem(null)}>
               Cancel

@@ -521,6 +521,110 @@ export async function updateQueueItemContent(
   revalidatePath("/send-queue")
 }
 
+// Bulk-update queue items content (e.g., make multiple messages identical)
+export async function bulkUpdateQueueItemContent(options: {
+  ids: string[]
+  personalized_subject: string
+  personalized_body: string
+}) {
+  const { ids, personalized_subject, personalized_body } = options
+  if (!Array.isArray(ids) || ids.length === 0) return
+
+  const db = createClient()
+
+  const { error } = await db
+    .from("send_queue")
+    .update({
+      personalized_subject,
+      personalized_body,
+    })
+    .in("id", ids)
+
+  if (error) {
+    console.error("[v0] Error bulk-updating queue item content:", error)
+    throw new Error("Failed to update messages")
+  }
+
+  revalidatePath("/send-queue")
+  revalidatePath("/message-review")
+}
+
+// Create new draft queue items for additional recipients using the same copy.
+export async function addRecipientsToDraftEmail(options: {
+  source_queue_item_id: string
+  prospect_ids: string[]
+  personalized_subject: string
+  personalized_body: string
+}) {
+  const { source_queue_item_id, prospect_ids, personalized_subject, personalized_body } = options
+  if (!Array.isArray(prospect_ids) || prospect_ids.length === 0) return { added: 0 }
+
+  const db = createClient()
+
+  const { data: source, error: srcErr } = await db
+    .from("send_queue")
+    .select("*")
+    .eq("id", source_queue_item_id)
+    .single()
+
+  if (srcErr || !source) {
+    console.error("[v0] Error loading source queue item:", srcErr)
+    throw new Error("Failed to load source message")
+  }
+
+  // Avoid duplicates: don't add if a draft already exists for that prospect
+  // in the same campaign/template context.
+  let existingQuery = db
+    .from("send_queue")
+    .select("prospect_id")
+    .eq("status", "pending_review")
+    .in("prospect_id", prospect_ids)
+  if ((source as any).campaign_id) {
+    existingQuery = existingQuery.eq("campaign_id", (source as any).campaign_id)
+  } else {
+    existingQuery = existingQuery.is("campaign_id", null)
+  }
+  if ((source as any).template_id) {
+    existingQuery = existingQuery.eq("template_id", (source as any).template_id)
+  } else {
+    existingQuery = existingQuery.is("template_id", null)
+  }
+  const { data: existing } = await existingQuery
+
+  const existingIds = new Set<string>(
+    (Array.isArray(existing) ? existing : []).map((r: any) => String(r.prospect_id))
+  )
+
+  const toInsert = prospect_ids
+    .map((id) => String(id))
+    .filter((id) => !existingIds.has(id))
+    .map((prospect_id) => ({
+      campaign_id: (source as any).campaign_id || null,
+      prospect_id,
+      template_id: (source as any).template_id || null,
+      channel: (source as any).channel || "email",
+      personalized_subject,
+      personalized_body,
+      anomaly_snippet: (source as any).anomaly_snippet || null,
+      variation_seed: Math.floor(Math.random() * 1000000),
+      priority: (source as any).priority ?? 5,
+      status: "pending_review" as const,
+      scheduled_for: null,
+    }))
+
+  if (toInsert.length === 0) return { added: 0 }
+
+  const { error: insErr } = await db.from("send_queue").insert(toInsert)
+  if (insErr) {
+    console.error("[v0] Error inserting additional recipients:", insErr)
+    throw new Error("Failed to add recipients")
+  }
+
+  revalidatePath("/message-review")
+  revalidatePath("/send-queue")
+  return { added: toInsert.length }
+}
+
 // Approve messages and schedule them automatically using throttle settings
 export async function approveQueueItems(ids: string[]) {
   const db = createClient()
