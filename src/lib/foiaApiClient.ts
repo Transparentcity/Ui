@@ -297,6 +297,38 @@ export function updateCityFoiaProfile(cityId: number, data: Partial<CityFoiaProf
 }
 
 // ---------------------------------------------------------------------------
+// Admin: City Departments
+// ---------------------------------------------------------------------------
+
+export function listAdminCityDepartments(cityId: number): Promise<FoiaCityDepartment[]> {
+  return apiFetch(`/api/admin/foia/cities/${cityId}/departments`)
+}
+
+export function createCityDepartment(
+  cityId: number,
+  data: Partial<FoiaCityDepartment>
+): Promise<FoiaCityDepartment> {
+  return apiFetch(`/api/admin/foia/cities/${cityId}/departments`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  })
+}
+
+export function updateCityDepartment(
+  departmentId: number,
+  data: Partial<FoiaCityDepartment>
+): Promise<FoiaCityDepartment> {
+  return apiFetch(`/api/admin/foia/departments/${departmentId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  })
+}
+
+export function deleteCityDepartment(departmentId: number): Promise<{ deleted: boolean }> {
+  return apiFetch(`/api/admin/foia/departments/${departmentId}`, { method: "DELETE" })
+}
+
+// ---------------------------------------------------------------------------
 // Admin: Dataset Targets
 // ---------------------------------------------------------------------------
 
