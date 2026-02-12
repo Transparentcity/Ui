@@ -486,8 +486,8 @@
 
 .researchGrid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
 }
 
 .researchCard {
@@ -499,7 +499,19 @@
   border: 1px solid var(--border-primary, rgba(17, 24, 39, 0.10));
   background: var(--bg-primary, rgba(255, 255, 255, 0.90));
   overflow: hidden;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease,
+    transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.researchCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  border-color: var(--brand-primary, rgba(173, 53, 250, 0.25));
+}
+
+.researchCard:hover .researchReadMore {
+  color: var(--brand-primary, #ad35fa);
 }
 
 .researchContent {
@@ -545,6 +557,17 @@
   line-height: 1.6;
   color: var(--text-secondary, rgba(17, 24, 39, 0.68));
   margin: 0 0 12px 0;
+  flex: 1;
+}
+
+.researchReadMore {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-tertiary, rgba(17, 24, 39, 0.45));
+  transition: color 0.15s ease;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-primary, rgba(17, 24, 39, 0.06));
 }
 
 .researchHighlights {
@@ -628,7 +651,7 @@
   }
 
   .researchGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .cityPicker {
@@ -637,6 +660,10 @@
 }
 
 @media (max-width: 768px) {
+  .researchGrid {
+    grid-template-columns: 1fr;
+  }
+
   .navRight .link {
     display: none;
   }

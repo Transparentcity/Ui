@@ -17,21 +17,73 @@ import { trackSearchReferrer } from "@/lib/analytics";
 
 import "./landing.css";
 
-/** Public research report displayed as a feed item */
+/** Static research item shown on the homepage */
 type ResearchCard = {
   id: number;
   title: string;
   text: string;
-  permalinkPath: string;
+  href: string;
   meta: string;
-  created_at?: string;
-  visual_elements: Array<{
-    type: string;
-    placeholder: string;
-    description: string;
-    url: string;
-  }>;
+  created_at: string;
 };
+
+/** Curated list of recent public research reports (2026 data) */
+const STATIC_RESEARCH: ResearchCard[] = [
+  {
+    id: 95,
+    title:
+      "Property Crime Down 36% Citywide in January; SoMa/Tenderloin District Drops 49%",
+    text: "January 2026 recorded 1,399 property crimes vs. a 6-month average of 2,184. Larceny theft fell 31%, burglary 31%, motor vehicle theft ~74%. District 6 saw the steepest decline at 49%. Year-over-year: 1,399 vs. 2,476 incidents, a 43.5% drop.",
+    href: "https://app.transparent.city/r/QTTC2LmP",
+    meta: "Research",
+    created_at: "2026-02-11",
+  },
+  {
+    id: 93,
+    title:
+      "January 2026: Property Crime Down 47% Over Two Years; Shoplifting Bucks the Trend at +28%",
+    text: "Motor vehicle theft plunged 59% since Jan 2024 (718 to 291). Larceny and burglary each fell 45%. But shoplifting rose to 271 incidents vs. 212 last January. Arrests presented to the DA dropped 35% even as crime fell only 19%.",
+    href: "https://app.transparent.city/r/aunhq3W3",
+    meta: "Monthly Report",
+    created_at: "2026-02-11",
+  },
+  {
+    id: 90,
+    title:
+      "Weekly: Total Police Incidents Down 16.6% YTD; Property Crime Off 42% vs. Last Year",
+    text: "Weekly incidents at 1,650\u20131,800 vs. 1,800\u20131,950 a year ago. Property crime weeks averaging 280\u2013380 incidents, down from 500\u2013600. Violent crime 18\u201323% lower. Homeless 311 cases down 49% YoY but still at 600\u2013650/week. Building permits steady at 450\u2013550/week.",
+    href: "https://app.transparent.city/r/55fy7avL",
+    meta: "Weekly Report",
+    created_at: "2026-02-05",
+  },
+  {
+    id: 87,
+    title:
+      "District 3: Property Crime Down 28%, Permits Up 10\u201315% Above Typical Levels",
+    text: "Total D3 incidents dropped 6% (898 over 4 weeks vs. 954 prior) while citywide ticked up 1.8%. Homeless 311 still 17% above the prior month. Building permit applications running 10\u201315% above their normal weekly level.",
+    href: "https://app.transparent.city/r/LPKodZkg",
+    meta: "District 3",
+    created_at: "2026-02-04",
+  },
+  {
+    id: 72,
+    title:
+      "130,466 311 Requests in January; Sidewalk Parking Complaints Spike 39.5%",
+    text: "311 volume up 13.1% vs. December (130,466 vs. 115,328) and flat (+1.1%) year-over-year. Sidewalk parking complaints hit 918/week vs. a 658 average. Top categories: street cleaning, parking enforcement, graffiti, encampments, homeless concerns.",
+    href: "https://app.transparent.city/r/nNNQNzMR",
+    meta: "311 Data",
+    created_at: "2026-01-29",
+  },
+  {
+    id: 67,
+    title:
+      "District 2 Property Crime Drops 52% in One Week: 18 Incidents vs. 37.6 Average",
+    text: "District 2 logged just 18 property crimes in the latest week, a z-score of 2.9 (statistical outlier). Citywide property crime dipped ~25%, but D2 doubled that. Most other districts still posting 30\u201390+ incidents per week.",
+    href: "https://app.transparent.city/r/9KCLSrmp",
+    meta: "District 2",
+    created_at: "2026-01-27",
+  },
+];
 
 export default function Home() {
   const { isAuthenticated, isLoading } = useAuth0();
@@ -50,8 +102,6 @@ export default function Home() {
 
   // Landing-hero screenshot carousel (matches original landing page)
   const [activeSlide, setActiveSlide] = useState(0);
-  const [feedItems, setFeedItems] = useState<ResearchCard[]>([]);
-  const [feedLoading, setFeedLoading] = useState(true);
 
   const normalizedCityQuery = useMemo(() => cityQuery.trim(), [cityQuery]);
 
@@ -169,44 +219,7 @@ export default function Home() {
     return () => window.clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      setFeedLoading(true);
-      try {
-        // Fetch completed public research reports (standalone feed items)
-        const res = await fetch("/api/research/public?limit=6&status=completed");
-        if (!res.ok) throw new Error(`Failed to fetch research: ${res.status}`);
-        const data = (await res.json()) as { reports: ResearchCard[] };
-        if (cancelled) return;
-
-        if (data.reports && data.reports.length > 0) {
-          setFeedItems(
-            data.reports.map((r) => ({
-              ...r,
-              meta: "Research",
-            })),
-          );
-        } else {
-          setFeedItems([]);
-        }
-      } catch (e) {
-        console.error("Failed to load research:", e);
-        if (cancelled) return;
-        setFeedItems([]);
-      } finally {
-        if (!cancelled) {
-          setFeedLoading(false);
-        }
-      }
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // Research items are statically curated (STATIC_RESEARCH constant above)
 
   // Track search referrer on mount
   useEffect(() => {
@@ -435,68 +448,36 @@ export default function Home() {
             </p>
 
             <div className={styles.researchGrid}>
-              {feedLoading ? (
-                <div className={styles.tileBody}>Loading research...</div>
-              ) : feedItems.length === 0 ? (
-                <div className={styles.tileBody}>No research available</div>
-              ) : (
-                feedItems.map((item) => {
-                  const visuals = item.visual_elements || [];
-                  const chartCount = visuals.filter((v) => v.type === "chart").length;
-                  const mapCount = visuals.filter((v) => v.type === "map").length;
-                  const dateStr = item.created_at
-                    ? new Date(item.created_at).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })
-                    : null;
+              {STATIC_RESEARCH.map((item) => {
+                const dateStr = new Date(item.created_at).toLocaleDateString(
+                  "en-US",
+                  { month: "short", day: "numeric", year: "numeric" },
+                );
 
-                  return (
-                    <div key={item.id} className={styles.researchCard}>
-                      <div className={styles.researchContent}>
-                        <div className={styles.researchTopRow}>
-                          <span className={styles.researchMeta}>{item.meta}</span>
-                          {dateStr && (
-                            <span className={styles.researchDate}>{dateStr}</span>
-                          )}
-                        </div>
-
-                        <h3 className={styles.researchHeadline}>{item.title}</h3>
-                        <p className={styles.researchDescription}>{item.text}</p>
-
-                        {visuals.length > 0 && (
-                          <ul className={styles.researchHighlights}>
-                            {visuals.slice(0, 3).map((v, i) => (
-                              <li key={i} className={styles.researchHighlight}>
-                                <span className={styles.highlightIcon}>
-                                  {v.type === "map" ? "🗺" : "📈"}
-                                </span>
-                                <span>{v.description}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-
-                        {(chartCount > 0 || mapCount > 0) && (
-                          <div className={styles.researchTags}>
-                            {chartCount > 0 && (
-                              <span className={styles.researchTag}>
-                                {chartCount} {chartCount === 1 ? "chart" : "charts"}
-                              </span>
-                            )}
-                            {mapCount > 0 && (
-                              <span className={styles.researchTag}>
-                                {mapCount} {mapCount === 1 ? "map" : "maps"}
-                              </span>
-                            )}
-                          </div>
-                        )}
+                return (
+                  <a
+                    key={item.id}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.researchCard}
+                  >
+                    <div className={styles.researchContent}>
+                      <div className={styles.researchTopRow}>
+                        <span className={styles.researchMeta}>{item.meta}</span>
+                        <span className={styles.researchDate}>{dateStr}</span>
                       </div>
+
+                      <h3 className={styles.researchHeadline}>{item.title}</h3>
+                      <p className={styles.researchDescription}>{item.text}</p>
+
+                      <span className={styles.researchReadMore}>
+                        Read full report &rarr;
+                      </span>
                     </div>
-                  );
-                })
-              )}
+                  </a>
+                );
+              })}
             </div>
           </div>
         </section>
