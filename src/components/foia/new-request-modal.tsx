@@ -78,6 +78,8 @@ export function NewRequestModal({
     department_id: undefined as number | undefined,
     requester_email_override: "",
     format_requested: "CSV",
+    submission_url: "",
+    submission_email_address: "",
   })
 
   // Load org-wide requester profile once when modal opens
@@ -182,6 +184,7 @@ export function NewRequestModal({
   const isSf = form.city_id === SF_CITY_ID
   const isOpenRecords = Boolean(cityProfile?.portal_url?.includes("openrecords.nyc.gov"))
   const isNextRequest = Boolean(cityProfile?.portal_url?.includes("nextrequest.com"))
+  const isJustFoia = Boolean(cityProfile?.portal_url?.includes("justfoia.com") || cityProfile?.portal_url?.includes("request.justfoia"))
 
   const effectiveRequesterEmail =
     (form.requester_email_override || "").trim() || (requesterProfile?.email || "").trim()
@@ -415,6 +418,8 @@ export function NewRequestModal({
         requester_email_override: form.requester_email_override || undefined,
         portal_fields: Object.keys(portalFields).length > 0 ? portalFields : undefined,
         format_requested: form.format_requested,
+        submission_url: form.submission_url.trim() || undefined,
+        submission_email_address: form.submission_email_address.trim() || undefined,
       })
 
       const newId = (result as { id?: number })?.id
@@ -471,6 +476,7 @@ export function NewRequestModal({
           portalUrl={portalUrl}
           isNextRequest={isNextRequest}
           isOpenRecords={isOpenRecords}
+          isJustFoia={isJustFoia}
           departmentName={selectedDepartment?.name || generatedDeptName || ""}
           openRecordsCategory={openRecordsCategory}
           openRecordsAgency={openRecordsAgency}
@@ -550,6 +556,34 @@ export function NewRequestModal({
               </p>
             </div>
 
+            {/* Submission channel - where was the request submitted */}
+            <div className="rounded-xl border border-gray-200 bg-white p-4">
+              <p className="text-xs font-semibold text-gray-900">Where was this submitted?</p>
+              <p className="mt-0.5 text-xs text-gray-500">Track the website or email address used for submission.</p>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">Portal / Website URL</label>
+                  <input
+                    type="url"
+                    value={form.submission_url}
+                    onChange={(e) => setForm((f) => ({ ...f, submission_url: e.target.value }))}
+                    placeholder="https://nextrequest.com/... or https://cityname.justfoia.com/..."
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">Submission Email Address</label>
+                  <input
+                    type="email"
+                    value={form.submission_email_address}
+                    onChange={(e) => setForm((f) => ({ ...f, submission_email_address: e.target.value }))}
+                    placeholder="records@sfgov.org"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="rounded-xl border border-gray-200 bg-white p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -602,12 +636,14 @@ export function NewRequestModal({
               </div>
             )}
 
-            {(isSf || isOpenRecords) && (
+            {(isSf || isOpenRecords || isJustFoia) && (
               <div className="rounded-xl border border-gray-200 bg-white p-4">
                 <p className="text-xs font-semibold text-gray-900">Portal checklist</p>
                 <p className="mt-0.5 text-xs text-gray-500">
                   {isSf
                     ? "San Francisco portal fields we expect to fill (based on NextRequest)."
+                    : isJustFoia
+                    ? "JustFOIA requires Description + requester name + email."
                     : "NYC OpenRecords requires Category + Agency + Title + Description + requester info."}
                 </p>
                 <div className="mt-3 grid gap-2 text-xs">
@@ -1004,6 +1040,7 @@ function SubmissionStepsModal({
   portalUrl,
   isNextRequest,
   isOpenRecords,
+  isJustFoia,
   departmentName,
   openRecordsCategory,
   openRecordsAgency,
@@ -1021,6 +1058,7 @@ function SubmissionStepsModal({
   portalUrl: string
   isNextRequest: boolean
   isOpenRecords: boolean
+  isJustFoia: boolean
   departmentName: string
   openRecordsCategory: string
   openRecordsAgency: string
@@ -1102,6 +1140,34 @@ function SubmissionStepsModal({
                   <li>
                     Copy the request text below and paste it into{" "}
                     <span className="font-semibold">Request description</span>.
+                  </li>
+                </>
+              ) : isJustFoia ? (
+                <>
+                  <li>
+                    Click <span className="font-semibold">Submit a Request</span> (or <span className="font-semibold">New Request</span>).
+                  </li>
+                  {departmentName.trim() ? (
+                    <li>
+                      Select <span className="font-semibold">{dept}</span> from the{" "}
+                      <span className="font-semibold">Department</span> dropdown if available.
+                    </li>
+                  ) : null}
+                  <li>
+                    Paste the request text below into the <span className="font-semibold">Description</span> or{" "}
+                    <span className="font-semibold">Request</span> field.
+                  </li>
+                  <li>
+                    Fill in <span className="font-semibold">Your name</span>, <span className="font-semibold">Email</span>,
+                    and any other required contact fields using the requester info below.
+                  </li>
+                  <li>
+                    JustFOIA will email a confirmation with a case number (e.g.{" "}
+                    <span className="font-semibold">FOIA 92-2026</span>). Save it.
+                  </li>
+                  <li>
+                    Responses come from <span className="font-semibold">[city]@request.justfoia.com</span>.
+                    You can reply directly to that address.
                   </li>
                 </>
               ) : isNextRequest ? (

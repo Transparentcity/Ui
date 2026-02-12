@@ -67,6 +67,8 @@ export async function createFoiaRequest(data: {
   requested_fields?: string[]
   format_requested?: string
   assigned_to?: string
+  submission_url?: string
+  submission_email_address?: string
 }) {
   const result = await apiPost("/api/foia/requests", data)
   revalidatePath("/foia")
@@ -127,6 +129,14 @@ export async function createFoiaMessage(
     body?: string
     sender?: string
     recipient?: string
+    sender_name?: string
+    sender_email?: string
+    sender_phone?: string
+    sender_title?: string
+    notes?: string
+    email_snippet?: string
+    channel?: string
+    response_action_required?: string
   }
 ) {
   const result = await apiPost(`/api/foia/requests/${requestId}/messages`, data)
@@ -153,6 +163,23 @@ export async function uploadFoiaAttachment(
   revalidatePath(`/foia/requests/${requestId}`)
   revalidatePath("/foia/data-review")
   return result
+}
+
+export async function uploadFoiaFile(
+  requestId: number,
+  formData: FormData,
+) {
+  const res = await fetch(`${API_BASE}/api/foia/requests/${requestId}/upload`, {
+    method: "POST",
+    body: formData,
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Upload failed: ${text}`)
+  }
+  revalidatePath(`/foia/requests/${requestId}`)
+  revalidatePath("/foia/data-review")
+  return res.json()
 }
 
 // ---------------------------------------------------------------------------

@@ -17,6 +17,7 @@ import {
   Plus,
   X,
   ChevronDown,
+  Upload,
 } from "lucide-react"
 import {
   getFoiaRequest,
@@ -31,7 +32,9 @@ import {
   createFoiaMessage,
   completeFoiaTask,
   updateRequestStatus,
+  uploadFoiaFile,
 } from "@/app/actions/foia"
+import { API_BASE } from "@/lib/apiBase"
 import { RequestStatusBadge, TaskStatusBadge } from "@/components/foia/status-badge"
 import { formatDistanceToNow, format } from "date-fns"
 import type {
@@ -358,7 +361,13 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
       {activeTab === "messages" && (
         <MessagesTab messages={messages} requestId={parseInt(requestId, 10)} onMessageSent={loadData} />
       )}
-      {activeTab === "attachments" && <AttachmentsTab attachments={attachments} />}
+      {activeTab === "attachments" && (
+        <AttachmentsTab
+          attachments={attachments}
+          requestId={parseInt(requestId, 10)}
+          onUploaded={loadData}
+        />
+      )}
       {activeTab === "events" && <EventsTab events={events} />}
     </div>
   )
@@ -641,6 +650,22 @@ function OverviewTab({
               {format(new Date(request.created_at), "MMM d, yyyy 'at' h:mm a")}
             </dd>
           </div>
+          {request.submission_url && (
+            <div className="flex items-center justify-between">
+              <dt className="text-xs text-gray-500">Submitted via URL</dt>
+              <dd className="text-sm text-purple-600">
+                <a href={request.submission_url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                  {new URL(request.submission_url).hostname}
+                </a>
+              </dd>
+            </div>
+          )}
+          {request.submission_email_address && (
+            <div className="flex items-center justify-between">
+              <dt className="text-xs text-gray-500">Submitted to email</dt>
+              <dd className="text-sm text-gray-900">{request.submission_email_address}</dd>
+            </div>
+          )}
         </dl>
       </div>
       {tasks.length > 0 && (
@@ -768,54 +793,196 @@ function MessagesTab({
 }) {
   const [showCompose, setShowCompose] = useState(false)
   const [sending, setSending] = useState(false)
+  const [creatingTask, setCreatingTask] = useState(false)
+  const [taskCreatedFor, setTaskCreatedFor] = useState<number | null>(null)
   const [msgForm, setMsgForm] = useState({
-    direction: "outbound" as "outbound" | "inbound",
-    classification: "follow_up",
+    direction: "inbound" as "outbound" | "inbound",
+    classification: "follow_up" as string,
     subject: "",
     body: "",
-    sender: "admin@transparentcity.org",
+    sender: "",
     recipient: "",
+    sender_name: "",
+    sender_email: "",
+    sender_phone: "",
+    sender_title: "",
+    notes: "",
+    email_snippet: "",
+    channel: "email" as string,
+    response_action_required: "none" as string,
   })
+
+  function resetForm() {
+    setMsgForm({
+      direction: "inbound",
+      classification: "follow_up",
+      subject: "",
+      body: "",
+      sender: "",
+      recipient: "",
+      sender_name: "",
+      sender_email: "",
+      sender_phone: "",
+      sender_title: "",
+      notes: "",
+      email_snippet: "",
+      channel: "email",
+      response_action_required: "none",
+    })
+  }
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault()
-    if (!msgForm.subject.trim() || !msgForm.body.trim()) return
     setSending(true)
     try {
       await createFoiaMessage(requestId, {
         direction: msgForm.direction,
-        classification: msgForm.classification,
-        subject: msgForm.subject,
-        body: msgForm.body,
-        sender: msgForm.sender || undefined,
+        classification: msgForm.classification || undefined,
+        subject: msgForm.subject || undefined,
+        body: msgForm.body || undefined,
+        sender: msgForm.sender || msgForm.sender_name || undefined,
         recipient: msgForm.recipient || undefined,
+        sender_name: msgForm.sender_name || undefined,
+        sender_email: msgForm.sender_email || undefined,
+        sender_phone: msgForm.sender_phone || undefined,
+        sender_title: msgForm.sender_title || undefined,
+        notes: msgForm.notes || undefined,
+        email_snippet: msgForm.email_snippet || undefined,
+        channel: msgForm.channel || undefined,
+        response_action_required: msgForm.response_action_required !== "none" ? msgForm.response_action_required : undefined,
       })
       setShowCompose(false)
-      setMsgForm((f) => ({ ...f, subject: "", body: "", recipient: "" }))
+      resetForm()
       await onMessageSent()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to send message")
+      alert(err instanceof Error ? err.message : "Failed to save interaction")
     } finally {
       setSending(false)
     }
+  }
+
+  async function handleCreateTask(msg: FoiaMessage) {
+    const action = msg.response_action_required || "general_followup"
+    const taskTypeMap: Record<string, string> = {
+      narrow_request: "narrow_request",
+      pickup_data: "pickup_data",
+      generate_response: "send_response",
+      status_update: "general_followup",
+      no_records: "general_followup",
+      partial_no_records: "follow_up_partial",
+      pay_fee: "pay_fee",
+      appeal: "appeal_denial",
+      none: "general_followup",
+    }
+    const taskTitleMap: Record<string, string> = {
+      narrow_request: "Revise & narrow the original request",
+      pickup_data: "Pick up data (see instructions)",
+      generate_response: "Draft and send response email",
+      status_update: "Review status update",
+      no_records: "Review 'no records' response & determine next steps",
+      partial_no_records: "Follow up with remaining departments still searching",
+      pay_fee: "Pay copying/mailing fee to receive records",
+      appeal: "Appeal denial or exemption claim",
+      none: "Follow up on interaction",
+    }
+
+    const taskType = taskTypeMap[action] || "general_followup"
+    const taskTitle = taskTitleMap[action] || "Follow up on interaction"
+    const description = [
+      msg.subject ? `Subject: ${msg.subject}` : "",
+      msg.sender_name ? `Contact: ${msg.sender_name}` : "",
+      msg.sender_email ? `Email: ${msg.sender_email}` : "",
+      msg.notes ? `Notes: ${msg.notes}` : "",
+      msg.email_snippet ? `Snippet: ${msg.email_snippet.slice(0, 200)}...` : "",
+    ].filter(Boolean).join("\n")
+
+    setCreatingTask(true)
+    try {
+      const { createFoiaTask } = await import("@/app/actions/foia")
+      await createFoiaTask({
+        request_id: requestId,
+        type: taskType,
+        title: taskTitle,
+        description,
+      })
+      setTaskCreatedFor(msg.id)
+      setTimeout(() => setTaskCreatedFor(null), 3000)
+      await onMessageSent()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to create task")
+    } finally {
+      setCreatingTask(false)
+    }
+  }
+
+  const CLASSIFICATION_OPTIONS = [
+    { value: "initial_request", label: "Initial Request" },
+    { value: "follow_up", label: "Follow Up" },
+    { value: "acknowledgment", label: "Acknowledgment" },
+    { value: "clarification", label: "Clarification" },
+    { value: "status_update", label: "Status Update" },
+    { value: "narrow_request", label: "Asked to Narrow Request" },
+    { value: "pickup_instructions", label: "Pickup Instructions (go to city hall, etc.)" },
+    { value: "no_records", label: "No Records / No Data" },
+    { value: "partial_no_records", label: "Partial No Records (some depts still searching)" },
+    { value: "data_delivery", label: "Data Delivery" },
+    { value: "fee_notice", label: "Fee Notice" },
+    { value: "fee_estimate", label: "Fee Estimate (copying/mailing charges)" },
+    { value: "denial", label: "Denial" },
+    { value: "exemption", label: "Exemption Claimed (some/all records exempt)" },
+    { value: "extension", label: "Extension (needs more time)" },
+    { value: "reroute", label: "Reroute to Another Dept" },
+  ]
+
+  const ACTION_OPTIONS = [
+    { value: "none", label: "No action needed" },
+    { value: "narrow_request", label: "Revise request (narrow scope)" },
+    { value: "generate_response", label: "Draft a response email" },
+    { value: "pickup_data", label: "Go pick up data" },
+    { value: "status_update", label: "Note status update" },
+    { value: "no_records", label: "Handle 'no records' response" },
+    { value: "partial_no_records", label: "Follow up with remaining depts" },
+    { value: "pay_fee", label: "Pay copying/mailing fee" },
+    { value: "appeal", label: "Appeal denial or exemption" },
+  ]
+
+  const classificationToAction: Record<string, string> = {
+    narrow_request: "narrow_request",
+    pickup_instructions: "pickup_data",
+    no_records: "no_records",
+    partial_no_records: "partial_no_records",
+    status_update: "status_update",
+    data_delivery: "none",
+    acknowledgment: "none",
+    clarification: "narrow_request",
+    fee_notice: "pay_fee",
+    fee_estimate: "pay_fee",
+    denial: "appeal",
+    exemption: "appeal",
+    extension: "status_update",
+    reroute: "status_update",
   }
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex justify-end">
         <button
-          onClick={() => setShowCompose(!showCompose)}
+          onClick={() => { setShowCompose(!showCompose); if (showCompose) resetForm() }}
           className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
           {showCompose ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-          {showCompose ? "Cancel" : "Compose Message"}
+          {showCompose ? "Cancel" : "Log Interaction"}
         </button>
       </div>
 
       {showCompose && (
         <form onSubmit={handleSend} className="rounded-xl border border-purple-200 bg-purple-50/30 p-5">
-          <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-3">
+          <h3 className="text-sm font-semibold text-gray-900">Log an Interaction</h3>
+          <p className="mt-1 text-xs text-gray-500">Record a follow-up email, phone call, or response you received.</p>
+
+          <div className="mt-4 flex flex-col gap-4">
+            {/* Row 1: Direction + Channel + Classification */}
+            <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-700">Direction</label>
                 <select
@@ -825,66 +992,163 @@ function MessagesTab({
                   }
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                 >
-                  <option value="outbound">Outbound (Sent)</option>
-                  <option value="inbound">Inbound (Received)</option>
+                  <option value="inbound">Received (inbound)</option>
+                  <option value="outbound">Sent (outbound)</option>
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Classification</label>
+                <label className="mb-1 block text-xs font-medium text-gray-700">Channel</label>
                 <select
-                  value={msgForm.classification}
-                  onChange={(e) => setMsgForm((f) => ({ ...f, classification: e.target.value }))}
+                  value={msgForm.channel}
+                  onChange={(e) => setMsgForm((f) => ({ ...f, channel: e.target.value }))}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                 >
-                  <option value="initial_request">Initial Request</option>
-                  <option value="follow_up">Follow Up</option>
-                  <option value="clarification">Clarification</option>
-                  <option value="acknowledgment">Acknowledgment</option>
-                  <option value="data_delivery">Data Delivery</option>
-                  <option value="fee_notice">Fee Notice</option>
-                  <option value="denial">Denial</option>
-                  <option value="reroute">Reroute</option>
+                  <option value="email">Email</option>
+                  <option value="phone">Phone</option>
+                  <option value="portal">Portal</option>
+                  <option value="in_person">In Person</option>
+                  <option value="mail">Physical Mail</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-700">Type of Response</label>
+                <select
+                  value={msgForm.classification}
+                  onChange={(e) => {
+                    const cls = e.target.value
+                    const suggestedAction = classificationToAction[cls] || "none"
+                    setMsgForm((f) => ({ ...f, classification: cls, response_action_required: suggestedAction }))
+                  }}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                >
+                  {CLASSIFICATION_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
                 </select>
               </div>
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">Recipient</label>
-              <input
-                type="text"
-                value={msgForm.recipient}
-                onChange={(e) => setMsgForm((f) => ({ ...f, recipient: e.target.value }))}
-                placeholder="records@sfgov.org"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-              />
+
+            {/* Contact information */}
+            <div className="rounded-lg border border-gray-200 bg-white p-4">
+              <p className="text-xs font-semibold text-gray-900">Contact Person</p>
+              <p className="mt-0.5 text-xs text-gray-500">Who sent this or who did you speak with?</p>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">Name</label>
+                  <input
+                    type="text"
+                    value={msgForm.sender_name}
+                    onChange={(e) => setMsgForm((f) => ({ ...f, sender_name: e.target.value }))}
+                    placeholder="Jane Smith"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">Title / Position</label>
+                  <input
+                    type="text"
+                    value={msgForm.sender_title}
+                    onChange={(e) => setMsgForm((f) => ({ ...f, sender_title: e.target.value }))}
+                    placeholder="Records Custodian"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">Email</label>
+                  <input
+                    type="email"
+                    value={msgForm.sender_email}
+                    onChange={(e) => setMsgForm((f) => ({ ...f, sender_email: e.target.value }))}
+                    placeholder="jsmith@sfgov.org"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">Phone</label>
+                  <input
+                    type="tel"
+                    value={msgForm.sender_phone}
+                    onChange={(e) => setMsgForm((f) => ({ ...f, sender_phone: e.target.value }))}
+                    placeholder="(415) 555-0123"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
             </div>
+
+            {/* Subject + email snippet */}
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-700">Subject</label>
               <input
                 type="text"
                 value={msgForm.subject}
                 onChange={(e) => setMsgForm((f) => ({ ...f, subject: e.target.value }))}
-                placeholder="RE: Public Records Request..."
+                placeholder="RE: Public Records Request PRR-12345"
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">Body</label>
+              <label className="mb-1 block text-xs font-medium text-gray-700">
+                Email Snippet / Key Quote
+              </label>
               <textarea
-                value={msgForm.body}
-                onChange={(e) => setMsgForm((f) => ({ ...f, body: e.target.value }))}
-                rows={5}
-                placeholder="Dear Records Custodian..."
+                value={msgForm.email_snippet}
+                onChange={(e) => setMsgForm((f) => ({ ...f, email_snippet: e.target.value }))}
+                rows={3}
+                placeholder='Paste the relevant part of their email here, e.g. "Your request is too broad. Please narrow to a specific date range..."'
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm leading-relaxed focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
               />
             </div>
+
+            {/* Full body (optional) */}
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-700">Full Message Body (optional)</label>
+              <textarea
+                value={msgForm.body}
+                onChange={(e) => setMsgForm((f) => ({ ...f, body: e.target.value }))}
+                rows={4}
+                placeholder="Paste the full email text if you have it..."
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm leading-relaxed focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              />
+            </div>
+
+            {/* Your notes */}
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-700">Your Notes</label>
+              <textarea
+                value={msgForm.notes}
+                onChange={(e) => setMsgForm((f) => ({ ...f, notes: e.target.value }))}
+                rows={2}
+                placeholder="My observations, next steps I'm thinking about..."
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm leading-relaxed focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              />
+            </div>
+
+            {/* Action required */}
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+              <label className="mb-1 block text-xs font-semibold text-amber-900">What action is needed?</label>
+              <p className="mb-2 text-xs text-amber-700">
+                Auto-suggested based on response type. This will help generate a follow-up task.
+              </p>
+              <select
+                value={msgForm.response_action_required}
+                onChange={(e) => setMsgForm((f) => ({ ...f, response_action_required: e.target.value }))}
+                className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              >
+                {ACTION_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
             <div className="flex justify-end">
               <button
                 type="submit"
-                disabled={sending || !msgForm.subject.trim() || !msgForm.body.trim()}
+                disabled={sending}
                 className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
               >
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                Save Message
+                Save Interaction
               </button>
             </div>
           </div>
@@ -893,9 +1157,10 @@ function MessagesTab({
 
       {messages.length === 0 && !showCompose && (
         <div className="py-12 text-center text-sm text-gray-400">
-          No messages for this request yet.
+          No interactions logged yet. Click "Log Interaction" to record a follow-up.
         </div>
       )}
+
       {messages.map((msg) => (
         <div
           key={msg.id}
@@ -904,7 +1169,7 @@ function MessagesTab({
           }`}
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span
                 className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                   msg.direction === "outbound"
@@ -914,22 +1179,103 @@ function MessagesTab({
               >
                 {msg.direction === "outbound" ? "Sent" : "Received"}
               </span>
-              {msg.classification && (
+              {msg.channel && msg.channel !== "email" && (
                 <span className="rounded-full border border-gray-200 px-2 py-0.5 text-xs text-gray-500">
-                  {msg.classification.replace("_", " ")}
+                  via {msg.channel.replace("_", " ")}
+                </span>
+              )}
+              {msg.classification && (
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                  msg.classification === "narrow_request" ? "bg-amber-100 text-amber-700"
+                  : msg.classification === "no_records" ? "bg-red-100 text-red-700"
+                  : msg.classification === "pickup_instructions" ? "bg-blue-100 text-blue-700"
+                  : msg.classification === "status_update" ? "bg-emerald-100 text-emerald-700"
+                  : msg.classification === "denial" ? "bg-red-100 text-red-700"
+                  : "border border-gray-200 bg-gray-50 text-gray-600"
+                }`}>
+                  {msg.classification.replace(/_/g, " ")}
+                </span>
+              )}
+              {msg.response_action_required && msg.response_action_required !== "none" && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                  Action: {msg.response_action_required.replace(/_/g, " ")}
                 </span>
               )}
             </div>
             <span className="text-xs text-gray-400">
-              {msg.sent_at ? format(new Date(msg.sent_at), "MMM d, yyyy 'at' h:mm a") : "Draft"}
+              {msg.sent_at ? format(new Date(msg.sent_at), "MMM d, yyyy 'at' h:mm a") : msg.created_at ? format(new Date(msg.created_at), "MMM d, yyyy 'at' h:mm a") : ""}
             </span>
           </div>
-          <h4 className="mt-2 text-sm font-medium text-gray-900">{msg.subject}</h4>
-          <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-gray-600">{msg.body}</p>
-          {msg.sender && (
-            <p className="mt-3 text-xs text-gray-400">
+
+          {msg.subject && <h4 className="mt-2 text-sm font-medium text-gray-900">{msg.subject}</h4>}
+
+          {/* Contact info card */}
+          {(msg.sender_name || msg.sender_email || msg.sender_phone || msg.sender_title) && (
+            <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
+                {msg.sender_name && <span className="font-medium">{msg.sender_name}</span>}
+                {msg.sender_title && <span className="text-gray-500">{msg.sender_title}</span>}
+                {msg.sender_email && <span>{msg.sender_email}</span>}
+                {msg.sender_phone && <span>{msg.sender_phone}</span>}
+              </div>
+            </div>
+          )}
+
+          {/* Email snippet */}
+          {msg.email_snippet && (
+            <div className="mt-2 rounded-lg border-l-4 border-purple-300 bg-purple-50/50 px-3 py-2">
+              <p className="text-xs font-medium text-purple-700">Key quote:</p>
+              <p className="mt-1 whitespace-pre-line text-sm italic leading-relaxed text-gray-700">
+                &ldquo;{msg.email_snippet}&rdquo;
+              </p>
+            </div>
+          )}
+
+          {msg.body && (
+            <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-gray-600">{msg.body}</p>
+          )}
+
+          {/* Notes */}
+          {msg.notes && (
+            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+              <p className="text-xs font-medium text-amber-700">Notes:</p>
+              <p className="mt-0.5 text-sm text-amber-900">{msg.notes}</p>
+            </div>
+          )}
+
+          {/* Legacy from/to display */}
+          {!msg.sender_name && msg.sender && (
+            <p className="mt-2 text-xs text-gray-400">
               From: {msg.sender} {msg.recipient ? `To: ${msg.recipient}` : ""}
             </p>
+          )}
+
+          {/* Action buttons for messages with required actions */}
+          {msg.response_action_required && msg.response_action_required !== "none" && (
+            <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-3">
+              <button
+                onClick={() => handleCreateTask(msg)}
+                disabled={creatingTask || taskCreatedFor === msg.id}
+                className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {taskCreatedFor === msg.id ? (
+                  <>
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    Task Created
+                  </>
+                ) : creatingTask ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-3.5 w-3.5" />
+                    Create Follow-up Task
+                  </>
+                )}
+              </button>
+            </div>
           )}
         </div>
       ))}
@@ -937,14 +1283,18 @@ function MessagesTab({
   )
 }
 
-function AttachmentsTab({ attachments }: { attachments: FoiaAttachment[] }) {
-  if (attachments.length === 0) {
-    return (
-      <div className="py-12 text-center text-sm text-gray-400">
-        No attachments for this request yet.
-      </div>
-    )
-  }
+function AttachmentsTab({
+  attachments,
+  requestId,
+  onUploaded,
+}: {
+  attachments: FoiaAttachment[]
+  requestId: number
+  onUploaded: () => void
+}) {
+  const [uploading, setUploading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   function formatFileSize(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`
@@ -952,38 +1302,115 @@ function AttachmentsTab({ attachments }: { attachments: FoiaAttachment[] }) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
+  async function handleFiles(files: FileList | null) {
+    if (!files || files.length === 0) return
+    setUploading(true)
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const formData = new FormData()
+        formData.append("file", file)
+        await uploadFoiaFile(requestId, formData)
+      }
+      onUploaded()
+    } catch (err) {
+      console.error("Upload failed:", err)
+      alert("Upload failed. Please try again.")
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setDragOver(false)
+    handleFiles(e.dataTransfer.files)
+  }
+
   return (
-    <div className="flex flex-col gap-3">
-      {attachments.map((att) => (
-        <div
-          key={att.id}
-          className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4"
-        >
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-50">
-              <Paperclip className="h-4 w-4 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-900">{att.filename}</p>
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                {att.file_type && <span>{att.file_type.toUpperCase()}</span>}
-                {att.file_size_bytes > 0 && <span>{formatFileSize(att.file_size_bytes)}</span>}
-                <span>{format(new Date(att.uploaded_at), "MMM d, yyyy")}</span>
+    <div className="flex flex-col gap-4">
+      {/* Upload area */}
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
+        className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 transition-colors ${
+          dragOver
+            ? "border-purple-400 bg-purple-50"
+            : "border-gray-200 bg-gray-50 hover:border-gray-300"
+        }`}
+      >
+        {uploading ? (
+          <>
+            <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+            <p className="mt-2 text-sm text-gray-600">Uploading...</p>
+          </>
+        ) : (
+          <>
+            <Upload className="h-8 w-8 text-gray-400" />
+            <p className="mt-2 text-sm font-medium text-gray-700">
+              Drag & drop files here, or{" "}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-purple-600 underline hover:text-purple-700"
+              >
+                browse
+              </button>
+            </p>
+            <p className="mt-1 text-xs text-gray-500">
+              PDF, CSV, Excel, images, or any document received from the agency
+            </p>
+          </>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          accept=".pdf,.csv,.xlsx,.xls,.doc,.docx,.txt,.png,.jpg,.jpeg,.gif,.zip"
+          onChange={(e) => handleFiles(e.target.files)}
+        />
+      </div>
+
+      {/* Attachment list */}
+      {attachments.length === 0 ? (
+        <div className="py-6 text-center text-sm text-gray-400">
+          No attachments for this request yet. Upload a file above.
+        </div>
+      ) : (
+        attachments.map((att) => (
+          <div
+            key={att.id}
+            className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-50">
+                <Paperclip className="h-4 w-4 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">{att.filename}</p>
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  {att.file_type && <span>{att.file_type.toUpperCase()}</span>}
+                  {att.file_size_bytes > 0 && <span>{formatFileSize(att.file_size_bytes)}</span>}
+                  <span>{format(new Date(att.uploaded_at), "MMM d, yyyy")}</span>
+                </div>
               </div>
             </div>
+            {att.uri && (
+              <a
+                href={att.uri.startsWith("/") ? `${API_BASE}${att.uri}` : att.uri}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                Download
+              </a>
+            )}
           </div>
-          {att.uri && (
-            <a
-              href={att.uri}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
-            >
-              Download
-            </a>
-          )}
-        </div>
-      ))}
+        ))
+      )}
     </div>
   )
 }

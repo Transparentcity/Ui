@@ -24,6 +24,27 @@ export type MessageClassification =
   | "follow_up"
   | "initial_request"
   | "acknowledgment"
+  | "status_update"
+  | "narrow_request"
+  | "pickup_instructions"
+  | "no_records"
+  | "partial_no_records"
+  | "fee_estimate"
+  | "extension"
+  | "exemption"
+
+export type CommunicationChannel = "email" | "phone" | "portal" | "in_person" | "mail"
+
+export type ResponseAction =
+  | "narrow_request"
+  | "pickup_data"
+  | "no_records"
+  | "partial_no_records"
+  | "status_update"
+  | "pay_fee"
+  | "generate_response"
+  | "appeal"
+  | "none"
 
 export type TaskType =
   | "review_rewrite"
@@ -32,6 +53,13 @@ export type TaskType =
   | "review_data_completeness"
   | "mapping_needed"
   | "review_delivery"
+  | "narrow_request"
+  | "pickup_data"
+  | "send_response"
+  | "general_followup"
+  | "pay_fee"
+  | "appeal_denial"
+  | "follow_up_partial"
 
 export type TaskStatus = "pending" | "assigned" | "in_progress" | "completed" | "cancelled"
 
@@ -145,6 +173,8 @@ export interface FoiaRequest {
   request_version: number
   parent_request_id?: number
   assigned_to?: string
+  submission_url?: string
+  submission_email_address?: string
   created_at: string
   updated_at: string
 }
@@ -158,6 +188,14 @@ export interface FoiaMessage {
   body: string
   sender?: string
   recipient?: string
+  sender_name?: string
+  sender_email?: string
+  sender_phone?: string
+  sender_title?: string
+  notes?: string
+  email_snippet?: string
+  channel?: CommunicationChannel
+  response_action_required?: ResponseAction
   sent_at?: string
   created_at: string
 }
