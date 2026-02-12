@@ -35,6 +35,7 @@ const nextConfig: NextConfig = {
       { source: "/api/maps/:path*", destination: `${apiBase}/api/maps/:path*` },
       { source: "/api/public/:path*", destination: `${apiBase}/api/public/:path*` },
       { source: "/api/shape-layers/:path*", destination: `${apiBase}/api/shape-layers/:path*` },
+      { source: "/api/feed/:path*", destination: `${apiBase}/api/feed/:path*` },
     ];
   },
 };

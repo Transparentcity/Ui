@@ -13,20 +13,18 @@ import {
 } from "@/lib/publicApiClient";
 import Loader from "@/components/Loader";
 import Header from "@/components/Header";
-import {
-  trackSignupStart,
-  trackSignupClick,
-  trackSearchReferrer,
-} from "@/lib/analytics";
+import { trackSearchReferrer } from "@/lib/analytics";
 
 import "./landing.css";
 
+/** Public research report displayed as a feed item */
 type ResearchCard = {
   id: number;
   title: string;
   text: string;
   permalinkPath: string;
   meta: string;
+  created_at?: string;
   visual_elements: Array<{
     type: string;
     placeholder: string;
@@ -36,9 +34,8 @@ type ResearchCard = {
 };
 
 export default function Home() {
-  const { isAuthenticated, isLoading, user, loginWithRedirect } = useAuth0();
+  const { isAuthenticated, isLoading } = useAuth0();
   const router = useRouter();
-  const [signupMenuOpen, setSignupMenuOpen] = useState(false);
   const [cityQuery, setCityQuery] = useState("");
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
   const [cityResults, setCityResults] = useState<PublicCitySearchResult[]>([]);
@@ -53,42 +50,11 @@ export default function Home() {
 
   // Landing-hero screenshot carousel (matches original landing page)
   const [activeSlide, setActiveSlide] = useState(0);
-  const [researchCards, setResearchCards] = useState<ResearchCard[]>([]);
-  const [researchLoading, setResearchLoading] = useState(true);
+  const [feedItems, setFeedItems] = useState<ResearchCard[]>([]);
+  const [feedLoading, setFeedLoading] = useState(true);
 
   const normalizedCityQuery = useMemo(() => cityQuery.trim(), [cityQuery]);
 
-  const handleSignup = async (intent: "resident" | "public-servant") => {
-    if (isAuthenticated) {
-      router.push("/dashboard");
-      return;
-    }
-    
-    // Track signup start
-    trackSignupStart(intent);
-    
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("transparentcity.signup_intent", intent);
-    }
-
-    // Track signup click
-    trackSignupClick(intent);
-
-    await loginWithRedirect({
-      authorizationParams: {
-        screen_hint: "signup",
-        prompt: "login",
-      },
-      appState: { returnTo: `/dashboard?signup=${intent}` },
-    });
-  };
-
-  const isImageUrl = (url: string): boolean => {
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
-    const lowerUrl = url.toLowerCase();
-    return imageExtensions.some(ext => lowerUrl.includes(ext)) || 
-           lowerUrl.startsWith('data:image/');
-  };
 
   const slugify = (text: string): string => {
     const slug = text.trim().toLowerCase();
@@ -207,32 +173,31 @@ export default function Home() {
     let cancelled = false;
 
     const load = async () => {
-      setResearchLoading(true);
+      setFeedLoading(true);
       try {
+        // Fetch completed public research reports (standalone feed items)
         const res = await fetch("/api/research/public?limit=6&status=completed");
-        if (!res.ok) {
-          throw new Error(`Failed to fetch research: ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`Failed to fetch research: ${res.status}`);
         const data = (await res.json()) as { reports: ResearchCard[] };
         if (cancelled) return;
 
         if (data.reports && data.reports.length > 0) {
-          setResearchCards(
+          setFeedItems(
             data.reports.map((r) => ({
               ...r,
               meta: "Research",
             })),
           );
         } else {
-          setResearchCards([]);
+          setFeedItems([]);
         }
       } catch (e) {
-        console.error("Failed to load research cards:", e);
+        console.error("Failed to load research:", e);
         if (cancelled) return;
-        setResearchCards([]);
+        setFeedItems([]);
       } finally {
         if (!cancelled) {
-          setResearchLoading(false);
+          setFeedLoading(false);
         }
       }
     };
@@ -470,45 +435,67 @@ export default function Home() {
             </p>
 
             <div className={styles.researchGrid}>
-              {researchLoading ? (
+              {feedLoading ? (
                 <div className={styles.tileBody}>Loading research...</div>
-              ) : researchCards.length === 0 ? (
+              ) : feedItems.length === 0 ? (
                 <div className={styles.tileBody}>No research available</div>
               ) : (
-                researchCards.map((r) => (
-                  <Link
-                    key={r.id}
-                    href={r.permalinkPath}
-                    className={styles.researchCard}
-                  >
-                    <div className={styles.researchImageWrapper}>
-                      {r.visual_elements && r.visual_elements.length > 0 && r.visual_elements[0].url ? (
-                        isImageUrl(r.visual_elements[0].url) ? (
-                          <Image
-                            src={r.visual_elements[0].url}
-                            alt={r.visual_elements[0].description || `${r.title} preview`}
-                            fill
-                            style={{ objectFit: 'cover' }}
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className={styles.researchChartPlaceholder}>
-                            <span>📊 Chart</span>
-                          </div>
-                        )
-                      ) : (
-                        <div className={styles.researchImagePlaceholder}>
-                          <span>📄</span>
+                feedItems.map((item) => {
+                  const visuals = item.visual_elements || [];
+                  const chartCount = visuals.filter((v) => v.type === "chart").length;
+                  const mapCount = visuals.filter((v) => v.type === "map").length;
+                  const dateStr = item.created_at
+                    ? new Date(item.created_at).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })
+                    : null;
+
+                  return (
+                    <div key={item.id} className={styles.researchCard}>
+                      <div className={styles.researchContent}>
+                        <div className={styles.researchTopRow}>
+                          <span className={styles.researchMeta}>{item.meta}</span>
+                          {dateStr && (
+                            <span className={styles.researchDate}>{dateStr}</span>
+                          )}
                         </div>
-                      )}
+
+                        <h3 className={styles.researchHeadline}>{item.title}</h3>
+                        <p className={styles.researchDescription}>{item.text}</p>
+
+                        {visuals.length > 0 && (
+                          <ul className={styles.researchHighlights}>
+                            {visuals.slice(0, 3).map((v, i) => (
+                              <li key={i} className={styles.researchHighlight}>
+                                <span className={styles.highlightIcon}>
+                                  {v.type === "map" ? "🗺" : "📈"}
+                                </span>
+                                <span>{v.description}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+
+                        {(chartCount > 0 || mapCount > 0) && (
+                          <div className={styles.researchTags}>
+                            {chartCount > 0 && (
+                              <span className={styles.researchTag}>
+                                {chartCount} {chartCount === 1 ? "chart" : "charts"}
+                              </span>
+                            )}
+                            {mapCount > 0 && (
+                              <span className={styles.researchTag}>
+                                {mapCount} {mapCount === 1 ? "map" : "maps"}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className={styles.researchContent}>
-                      <div className={styles.researchMeta}>{r.meta}</div>
-                      <h3 className={styles.researchHeadline}>{r.title}</h3>
-                      <p className={styles.researchDescription}>{r.text}</p>
-                    </div>
-                  </Link>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
