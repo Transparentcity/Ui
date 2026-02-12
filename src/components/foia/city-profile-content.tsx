@@ -58,6 +58,20 @@ interface ProfileForm {
   notes: string
 }
 
+function detectPortalTechnology(portalUrl?: string): string {
+  if (!portalUrl) return "Unknown"
+  const url = portalUrl.toLowerCase()
+  if (url.includes("nextrequest")) return "NextRequest"
+  if (url.includes("civicrequest")) return "CivicRequest"
+  if (url.includes("justfoia")) return "JustFOIA"
+  if (url.includes("openrecords")) return "OpenRecords"
+  if (url.includes("mycusthelp") || url.includes("govqa")) return "GovQA"
+  if (url.includes("granicus")) return "Granicus"
+  if (url.includes("socrata")) return "Socrata-hosted intake"
+  if (url.includes("arcgis")) return "ArcGIS/Open Data intake"
+  return "Unknown/Custom portal"
+}
+
 function profileToForm(p: CityFoiaProfile | null): ProfileForm {
   return {
     submission_method: p?.submission_method ?? "email",
@@ -484,6 +498,17 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
                     <dt className="text-xs text-gray-500">Portal URL</dt>
                     <dd className="text-sm text-purple-600 hover:underline">
                       <a href={profile.portal_url} target="_blank" rel="noreferrer">{profile.portal_url}</a>
+                    </dd>
+                  </div>
+                </div>
+              )}
+              {profile.portal_url && (
+                <div className="flex items-center gap-3">
+                  <Globe className="h-4 w-4 text-gray-400" />
+                  <div>
+                    <dt className="text-xs text-gray-500">Portal Technology</dt>
+                    <dd className="text-sm text-gray-900">
+                      {detectPortalTechnology(profile.portal_url)}
                     </dd>
                   </div>
                 </div>

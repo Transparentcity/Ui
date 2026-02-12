@@ -53,7 +53,9 @@ async function requestPublic<T>(path: string): Promise<T> {
   try {
     const res = await fetch(url, {
       method: "GET",
-      credentials: "include",
+      // Public endpoints should not require cookies/auth headers.
+      // Omitting credentials avoids cross-origin credential/CORS failures.
+      credentials: "omit",
       headers: {
         Accept: "application/json",
       },
@@ -99,7 +101,8 @@ async function requestPublicPost<T>(path: string, body: object): Promise<T> {
   try {
     const res = await fetch(url, {
       method: "POST",
-      credentials: "include",
+      // Public endpoints should not require cookies/auth headers.
+      credentials: "omit",
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",

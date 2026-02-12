@@ -11,6 +11,9 @@ import {
   ArrowRight,
   Loader2,
   Plus,
+  MessageSquare,
+  Database,
+  RefreshCw,
 } from "lucide-react"
 import { getFoiaDashboard, listFoiaRequests, listFoiaTasks } from "@/lib/foiaApiClient"
 import { RequestStatusBadge, TaskStatusBadge } from "@/components/foia/status-badge"
@@ -115,36 +118,71 @@ export function DashboardContent() {
         </button>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KpiCard
-          label="Open Requests"
-          value={summary?.open_requests ?? 0}
-          icon={FileText}
-          href="/foia/requests"
-          accent="primary"
-        />
-        <KpiCard
-          label="Unacknowledged"
-          value={summary?.unacknowledged ?? 0}
-          icon={AlertTriangle}
-          href="/foia/requests?status=submitted_unacknowledged"
-          accent="warning"
-        />
-        <KpiCard
-          label="Overdue"
-          value={summary?.overdue_requests ?? 0}
-          icon={Clock}
-          href="/foia/requests?overdue=true"
-          accent="destructive"
-        />
-        <KpiCard
-          label="Tasks Due"
-          value={summary?.tasks_due ?? 0}
-          icon={CheckCircle2}
-          href="/foia/tasks"
-          accent="primary"
-        />
+      {/* Workflow: Request pipeline */}
+      <div>
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+          Request pipeline
+        </h2>
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <KpiCard
+            label="Open Requests"
+            value={summary?.open_requests ?? 0}
+            icon={FileText}
+            href="/foia/requests"
+            accent="primary"
+          />
+          <KpiCard
+            label="Unacknowledged"
+            value={summary?.unacknowledged ?? 0}
+            icon={AlertTriangle}
+            href="/foia/requests?status=submitted_unacknowledged"
+            accent="warning"
+          />
+          <KpiCard
+            label="Overdue"
+            value={summary?.overdue_requests ?? 0}
+            icon={Clock}
+            href="/foia/requests?overdue=true"
+            accent="destructive"
+          />
+          <KpiCard
+            label="Tasks Due"
+            value={summary?.tasks_due ?? 0}
+            icon={CheckCircle2}
+            href="/foia/tasks"
+            accent="primary"
+          />
+        </div>
+      </div>
+
+      {/* Workflow: Action needed */}
+      <div>
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+          Action needed
+        </h2>
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <KpiCard
+            label="Messages to Respond To"
+            value={summary?.messages_to_respond ?? 0}
+            icon={MessageSquare}
+            href="/foia/messages"
+            accent={summary?.messages_to_respond ? "warning" : undefined}
+          />
+          <KpiCard
+            label="Data to Review"
+            value={summary?.pending_data_review ?? 0}
+            icon={Database}
+            href="/foia/data-review"
+            accent={summary?.pending_data_review ? "warning" : undefined}
+          />
+          <KpiCard
+            label="Incomplete Deliveries"
+            value={summary?.incomplete_deliveries ?? 0}
+            icon={RefreshCw}
+            href="/foia/data-review"
+            accent={summary?.incomplete_deliveries ? "warning" : undefined}
+          />
+        </div>
       </div>
 
       {/* Completeness by City */}

@@ -17,7 +17,7 @@ import {
 const navItems = [
   { label: "Dashboard", href: "/foia", icon: LayoutDashboard },
   { label: "Requests", href: "/foia/requests", icon: FileText },
-  { label: "Message Review", href: "/foia/messages", icon: MessageSquareMore },
+  { label: "Follow Ups", href: "/foia/messages", icon: MessageSquareMore },
   { label: "Data Review", href: "/foia/data-review", icon: Database },
   { label: "Tasks", href: "/foia/tasks", icon: CheckSquare },
   { label: "City Profiles", href: "/foia/cities", icon: Building2 },

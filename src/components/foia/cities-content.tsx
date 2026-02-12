@@ -2,8 +2,12 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Loader2, Building2, ArrowRight, Search } from "lucide-react"
-import { API_BASE } from "@/lib/apiBase"
+import { useAuth0 } from "@auth0/auth0-react"
+import { Loader2, Building2, ArrowRight } from "lucide-react"
+import { listCities, type CityListItem as AdminCityListItem } from "@/lib/apiClient"
+
+const COUNTRY_FILTER = "United States"
+const MAX_CITY_PROFILES = 20
 
 interface CityListItem {
   id: number
@@ -12,54 +16,50 @@ interface CityListItem {
   population?: number
 }
 
+function parsePopulation(value: number | string | undefined): number | undefined {
+  if (typeof value === "number") return value
+  if (typeof value !== "string") return undefined
+  const parsed = Number(value.replace(/,/g, ""))
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function toCityListItem(city: AdminCityListItem): CityListItem {
+  return {
+    id: city.city_id,
+    name: city.city_name,
+    state: city.state ?? "",
+    population: parsePopulation(city.population),
+  }
+}
+
 export function CitiesContent() {
+  const { getAccessTokenSilently } = useAuth0()
   const [cities, setCities] = useState<CityListItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState("")
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
+      setLoading(true)
+      setError(null)
       try {
-        // Avoid calling /api/cities/search with an empty query (backend returns 422).
-        // This page is intended for searching; load results only after a query.
-        setCities([])
+        const token = await getAccessTokenSilently()
+        const rows = await listCities(token, undefined, COUNTRY_FILTER, true)
+        const mapped = rows
+          .map(toCityListItem)
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .slice(0, MAX_CITY_PROFILES)
+        setCities(mapped)
       } catch (err) {
-        console.error("Failed to load cities:", err)
+        console.error("Failed to load city profiles:", err)
+        setError("Failed to load city profiles")
+        setCities([])
       } finally {
         setLoading(false)
       }
     }
     load()
-  }, [])
-
-  useEffect(() => {
-    async function search() {
-      const q = searchQuery.trim()
-      if (q.length < 2) {
-        setCities([])
-        return
-      }
-      setLoading(true)
-      try {
-        const res = await fetch(`${API_BASE}/api/cities/search?q=${encodeURIComponent(q)}&limit=100`, {
-          headers: { "Content-Type": "application/json" },
-        })
-        if (res.ok) {
-          const data = await res.json()
-          const list = Array.isArray(data) ? data : data.cities ?? data.items ?? []
-          setCities(list)
-        } else {
-          setCities([])
-        }
-      } catch (err) {
-        console.error("Failed to search cities:", err)
-        setCities([])
-      } finally {
-        setLoading(false)
-      }
-    }
-    search()
-  }, [searchQuery])
+  }, [getAccessTokenSilently])
 
   if (loading) {
     return (
@@ -74,31 +74,18 @@ export function CitiesContent() {
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">City Profiles</h1>
         <p className="mt-1 text-sm text-gray-500">
-          FOIA submission methods, contacts, and responsiveness stats per city
+          FOIA submission methods, contacts, and responsiveness stats for 20 cities
         </p>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search cities..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400"
-        />
-      </div>
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {cities
-          .filter((c) =>
-            searchQuery
-              ? c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                c.state.toLowerCase().includes(searchQuery.toLowerCase())
-              : true
-          )
-          .map((city) => (
+        {cities.map((city) => (
           <Link
             key={city.id}
             href={`/foia/cities/${city.id}`}
@@ -119,9 +106,7 @@ export function CitiesContent() {
         ))}
         {cities.length === 0 && (
           <div className="col-span-full rounded-xl border border-gray-200 bg-white px-6 py-12 text-center text-sm text-gray-400">
-            {searchQuery.trim().length < 2
-              ? "Type at least 2 characters to search cities."
-              : "No matching cities found."}
+            No city profiles available.
           </div>
         )}
       </div>

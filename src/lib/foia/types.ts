@@ -238,6 +238,13 @@ export interface FoiaRequestEvent {
   created_at: string
 }
 
+export type DatasetInstanceStatus =
+  | "pending_review"
+  | "accepted"
+  | "rejected"
+  | "needs_mapping"
+  | "incomplete"
+
 export interface DatasetInstance {
   id: number
   city_id: number
@@ -245,12 +252,13 @@ export interface DatasetInstance {
   dataset_type_id: string
   request_id?: number
   attachment_id?: number
-  status: "pending_review" | "accepted" | "rejected" | "needs_mapping"
+  status: DatasetInstanceStatus
   row_count?: number
   coverage_start?: string
   coverage_end?: string
   completeness_score?: number
   field_mapping?: Record<string, string>
+  review_notes?: string
   created_at: string
   updated_at: string
 }
@@ -282,6 +290,9 @@ export interface FoiaDashboardSummary {
   total_requests: number
   open_requests: number
   unacknowledged: number
+  messages_to_respond?: number
+  pending_data_review?: number
+  incomplete_deliveries?: number
   awaiting_review: number
   tasks_due: number
   overdue_requests: number

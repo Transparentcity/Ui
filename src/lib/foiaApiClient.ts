@@ -188,6 +188,16 @@ export function getDatasetInstance(id: number): Promise<DatasetInstance> {
   return apiFetch(`/api/foia/dataset-instances/${id}`)
 }
 
+export function updateDatasetInstance(
+  id: number,
+  data: Partial<Pick<DatasetInstance, "status" | "review_notes">>
+): Promise<DatasetInstance> {
+  return apiFetch(`/api/foia/dataset-instances/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  })
+}
+
 // ---------------------------------------------------------------------------
 // City Profile lookup (for form auto-populate)
 // ---------------------------------------------------------------------------

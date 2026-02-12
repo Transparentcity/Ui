@@ -1,5 +1,5 @@
-import { MessageReviewContent } from "@/components/foia/message-review-content"
+import { FollowUpsContent } from "@/components/foia/message-review-content"
 
-export default function MessageReviewPage() {
-  return <MessageReviewContent />
+export default function FollowUpsPage() {
+  return <FollowUpsContent />
 }
