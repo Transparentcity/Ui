@@ -102,3 +102,10 @@
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.4);
 }
+
+/* Apply theme text/background to body so inherited text (e.g. chat) is readable in dark mode */
+[data-theme="dark"] body,
+.dark body {
+  color: var(--text-primary);
+  background: var(--bg-primary);
+}

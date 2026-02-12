@@ -13,7 +13,9 @@ interface Metric {
   id: number;
   metric_name: string;
   category?: string;
+  /** From metrics table: subcategory. API may return as subcategory or sub_category. */
   subcategory?: string | null;
+  sub_category?: string | null;
 }
 
 interface MetricOrderEditorProps {
@@ -150,9 +152,11 @@ export default function MetricOrderEditor({
       
       sortedMetrics.forEach((metricItem) => {
         // Use saved subcategory override if defined, otherwise use metric's native subcategory
-        const subcat = metricItem.overrideSubcategory !== undefined 
-          ? metricItem.overrideSubcategory 
-          : (metricItem.metric.subcategory || null);
+        // Support both subcategory and sub_category (metrics table column is subcategory)
+        const rawSub = metricItem.overrideSubcategory !== undefined
+          ? metricItem.overrideSubcategory
+          : (metricItem.metric.subcategory ?? metricItem.metric.sub_category ?? null);
+        const subcat = (rawSub && String(rawSub).trim()) || null;
         if (!subcategoryMap.has(subcat)) {
           subcategoryMap.set(subcat, []);
         }
@@ -488,8 +492,8 @@ export default function MetricOrderEditor({
       {isExpanded && (
         <div className={styles.content}>
           <div className={styles.instructions}>
-            Drag categories to reorder them. Expand a category to reorder metrics. 
-            <strong> You can drag metrics between categories</strong> — they will adopt the new category and subcategory.
+            Drag categories to reorder them. Expand a category to see subcategories and reorder metrics. 
+            <strong> You can drag metrics between categories or subcategories</strong> — they will be updated to the new category and subcategory when you save.
           </div>
 
           <div className={styles.categoryList}>
@@ -502,11 +506,8 @@ export default function MetricOrderEditor({
                 (sum, sub) => sum + sub.metrics.length, 0
               );
               
-              // Check if we should show subcategory headers
-              const hasMultipleSubcategories = subcategories.length > 1;
-              const hasSingleNamedSubcategory = subcategories.length === 1 && 
-                subcategories[0].name !== null;
-              const showSubcategoryHeaders = hasMultipleSubcategories || hasSingleNamedSubcategory;
+              // Always show subcategory level so users can drag metrics between subcategories
+              const showSubcategoryHeaders = true;
               
               return (
                 <div
@@ -547,12 +548,12 @@ export default function MetricOrderEditor({
                   {category.isExpanded && (
                     <div className={styles.metricList}>
                       {subcategories.map((subcategory, subIndex) => (
-                        <div key={subcategory.name || 'uncategorized'}>
+                        <div key={subcategory.name ?? 'uncategorized'}>
                           {/* Subcategory header - draggable if we have multiple subcategories */}
-                          {showSubcategoryHeaders && subcategory.name && (
+                          {showSubcategoryHeaders && (
                             <div 
                               className={`${styles.subcategoryHeader} ${
-                                hasMultipleSubcategories ? styles.draggableSubcategory : ''
+                                subcategories.length > 1 ? styles.draggableSubcategory : ''
                               } ${
                                 draggedSubcategoryInfo?.categoryIndex === catIndex &&
                                 draggedSubcategoryInfo?.subcategoryIndex === subIndex
@@ -564,17 +565,19 @@ export default function MetricOrderEditor({
                                   ? styles.dragOver
                                   : ""
                               }`}
-                              draggable={hasMultipleSubcategories}
+                              draggable={subcategories.length > 1}
                               onDragStart={(e) => handleSubcategoryDragStart(e, catIndex, subIndex)}
                               onDragOver={(e) => handleSubcategoryDragOver(e, catIndex, subIndex)}
                               onDragLeave={handleSubcategoryDragLeave}
                               onDrop={(e) => handleSubcategoryDrop(e, catIndex, subIndex)}
                               onDragEnd={handleSubcategoryDragEnd}
                             >
-                              {hasMultipleSubcategories && (
+                              {subcategories.length > 1 && (
                                 <span className={styles.dragHandle}>⋮⋮</span>
                               )}
-                              <span className={styles.subcategoryName}>{subcategory.name}</span>
+                              <span className={styles.subcategoryName}>
+                                {subcategory.name ?? "(Uncategorized)"}
+                              </span>
                               <span className={styles.subcategoryCount}>
                                 ({subcategory.metrics.length})
                               </span>

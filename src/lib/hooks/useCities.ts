@@ -161,9 +161,14 @@ export function useCityLeaders(cityId: number | null) {
  * Hook to fetch representative follower counts per district for a city.
  * Returns Record<string, number> keyed by district ("0"=mayor, "1"-"11"=districts).
  * On error or 404, data is {}. Cache time: 5 minutes.
+ * Pass options.enabled to defer fetch (e.g. until city has loaded) to avoid blocking on slow connections.
  */
-export function useRepresentativeFollowerCounts(cityId: number | null) {
+export function useRepresentativeFollowerCounts(
+  cityId: number | null,
+  options?: { enabled?: boolean }
+) {
   const { getAccessTokenSilently } = useAuth0();
+  const enabled = options?.enabled !== undefined ? (!!cityId && options.enabled) : !!cityId;
 
   return useQuery({
     queryKey: cityKeys.representativeFollowerCounts(cityId!),
@@ -177,7 +182,7 @@ export function useRepresentativeFollowerCounts(cityId: number | null) {
       }
       return map;
     },
-    enabled: !!cityId,
+    enabled,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
@@ -185,9 +190,14 @@ export function useRepresentativeFollowerCounts(cityId: number | null) {
 /**
  * Hook to fetch which districts the current user follows for a city.
  * Returns Record<string, true> for followed districts. Cache: 2 minutes.
+ * Pass options.enabled to defer fetch until after critical data has loaded.
  */
-export function useRepresentativeFollows(cityId: number | null) {
+export function useRepresentativeFollows(
+  cityId: number | null,
+  options?: { enabled?: boolean }
+) {
   const { getAccessTokenSilently } = useAuth0();
+  const enabled = options?.enabled !== undefined ? (!!cityId && options.enabled) : !!cityId;
 
   return useQuery({
     queryKey: cityKeys.representativeFollows(cityId!),
@@ -201,7 +211,7 @@ export function useRepresentativeFollows(cityId: number | null) {
       }
       return map;
     },
-    enabled: !!cityId,
+    enabled,
     staleTime: 2 * 60 * 1000,
   });
 }

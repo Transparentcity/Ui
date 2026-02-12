@@ -8,6 +8,7 @@ import {
   getCityStructure,
   getDefaultExecuteStartDateByPeriod,
   getMetricRecordCounts,
+  clearCityStructureCache,
 } from "@/lib/apiClient";
 import {
   useCityAdmin,
@@ -28,7 +29,9 @@ import {
   useDeleteCityLeader,
   useCityMetricOrdering,
   useStructureCityMetrics,
+  cityAdminKeys,
 } from "@/lib/hooks/useCityAdmin";
+import { useQueryClient } from "@tanstack/react-query";
 import { pickDefaultModelKey } from "@/lib/modelDefaults";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import DatasetsList from "@/components/DatasetsList";
@@ -388,9 +391,31 @@ export default function CityDataAdmin({
   useEffect(() => setIsClient(true), []);
   
   // React Query hooks for data fetching
+  const queryClient = useQueryClient();
   const { data: cityData, isLoading: loadingCity, error: cityError, refetch: refetchCity } = useCityAdmin(cityId);
   const { data: structureData, isLoading: loadingStructure, refetch: refetchStructure } = useCityAdminStructure(cityId);
   const { data: availableModelsData } = useAvailableModels();
+
+  // When a restructure_city job completes for this city, refetch structure so leaders/geographic data appear
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ job_id: string; data: { status: string; job_type?: string; job_metadata?: { city_id?: number } } }>;
+      const { data } = ce.detail ?? {};
+      if (
+        data?.status === "completed" &&
+        data?.job_type === "restructure_city" &&
+        data?.job_metadata?.city_id === cityId
+      ) {
+        clearCityStructureCache(cityId);
+        queryClient.invalidateQueries({ queryKey: cityAdminKeys.structure(cityId) });
+        queryClient.invalidateQueries({ queryKey: cityAdminKeys.detail(cityId) });
+        refetchStructure();
+        refetchCity();
+      }
+    };
+    window.addEventListener("job:update", handler);
+    return () => window.removeEventListener("job:update", handler);
+  }, [cityId, queryClient, refetchStructure, refetchCity]);
   
   // Fetch metric ordering for this city (same as dashboard)
   const { data: orderingData } = useCityMetricOrdering(cityId);
@@ -994,12 +1019,13 @@ export default function CityDataAdmin({
     }
 
     try {
+      clearCityStructureCache(cityId);
       const result = await restructureCityMutation.mutateAsync({
         cityId,
         model: selectedModel || undefined,
       });
       notifyJobCreated(result.job_id);
-      alert(`Re-structuring started! Job ID: ${result.job_id}\n\nYou can monitor progress in the jobs badge at the top of the page.`);
+      alert(`Re-structuring started! Job ID: ${result.job_id}\n\nWhen the job completes, this tab will refresh automatically. You can also click "Refresh structure data" to load the latest leaders and geographic structures.`);
     } catch (err: any) {
       alert("Failed to start re-structure: " + err.message);
     }
@@ -1686,6 +1712,31 @@ export default function CityDataAdmin({
               border: "1px solid var(--border-primary)",
             }}
           >
+            <button
+              onClick={async () => {
+                clearCityStructureCache(cityId);
+                queryClient.invalidateQueries({ queryKey: cityAdminKeys.structure(cityId) });
+                queryClient.invalidateQueries({ queryKey: cityAdminKeys.detail(cityId) });
+                await refetchStructure();
+                await refetchCity();
+              }}
+              style={{
+                padding: "8px 16px",
+                background: "var(--bg-tertiary)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border-primary)",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontWeight: 500,
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+              title="Reload structure from server (leaders, geographic structures, query configs). Use after re-structure job completes."
+            >
+              <span>↻</span>
+              <span>Refresh structure data</span>
+            </button>
             <button
               onClick={handleRefreshMetadata}
               style={{

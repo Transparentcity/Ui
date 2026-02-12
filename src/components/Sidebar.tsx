@@ -66,7 +66,7 @@ export default function Sidebar({
   onGPSLocation,
   onMenuToggle,
 }: SidebarProps) {
-  const [recentChatsExpanded, setRecentChatsExpanded] = useState(true);
+  const [recentChatsExpanded, setRecentChatsExpanded] = useState(false);
   const [researchExpanded, setResearchExpanded] = useState(false);
   const [jobSessionsExpanded, setJobSessionsExpanded] = useState(false);
   
@@ -449,10 +449,12 @@ export default function Sidebar({
 
           {/* Job Sessions Section (Admin Only) */}
           {isAdmin && (
-            <div
-              id="job-sessions-section"
-              className={styles.jobSessionsSection}
-            >
+            <>
+              <div className={styles.navSectionSpacer} />
+              <div
+                id="job-sessions-section"
+                className={styles.jobSessionsSection}
+              >
               <div
                 id="job-sessions-header"
                 className={`${styles.navSectionHeader} ${styles.navSectionCollapsible}` }
@@ -489,7 +491,8 @@ export default function Sidebar({
                   />
                 </div>
               )}
-            </div>
+              </div>
+            </>
           )}
         </div>
 

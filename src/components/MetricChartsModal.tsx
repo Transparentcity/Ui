@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { createPortal } from "react-dom";
 import {
   useMetricTimeSeries,
@@ -9,11 +10,16 @@ import {
 import TimeSeriesChart from "./TimeSeriesChart";
 import styles from "./MetricsAdmin.module.css";
 import filterStyles from "./AnomaliesTabPanel.module.css";
+import type { AdminMetricTimeSeriesDetailPoint } from "@/lib/apiClient";
 
 interface MetricChartsModalProps {
   metricId: number | null;
   isOpen: boolean;
   onClose: () => void;
+  /** Public metric key for full-view permalink (e.g. "drug-crime-incidents"). */
+  metricKey?: string | null;
+  /** City slug for full-view permalink (e.g. "san-francisco"). */
+  citySlug?: string | null;
 }
 
 function formatDateTime(value?: string | null): string {
@@ -33,10 +39,46 @@ const PERIOD_TYPES = [
   { value: "ytd", label: "Year-to-Date" },
 ] as const;
 
+/** Build crosstab: rows = groups, columns = dates, cells = values. */
+function buildCrosstab(data: AdminMetricTimeSeriesDetailPoint[]): {
+  dateColumns: string[];
+  groupRows: string[];
+  getValue: (group: string, date: string) => number | null;
+} {
+  const dateSet = new Set<string>();
+  const groupSet = new Set<string>();
+  const valueByKey = new Map<string, number>();
+
+  for (const d of data) {
+    const group = d.group_value != null && String(d.group_value).trim() !== ""
+      ? String(d.group_value).trim()
+      : "—";
+    dateSet.add(d.time_period);
+    groupSet.add(group);
+    valueByKey.set(`${group}\t${d.time_period}`, d.numeric_value);
+  }
+
+  const dateColumns = Array.from(dateSet).sort();
+  const groupRows = Array.from(groupSet).sort((a, b) => {
+    if (a === "—") return -1;
+    if (b === "—") return 1;
+    return a.localeCompare(b);
+  });
+
+  const getValue = (group: string, date: string): number | null => {
+    const v = valueByKey.get(`${group}\t${date}`);
+    return v !== undefined ? v : null;
+  };
+
+  return { dateColumns, groupRows, getValue };
+}
+
 export default function MetricChartsModal({
   metricId,
   isOpen,
   onClose,
+  metricKey,
+  citySlug,
 }: MetricChartsModalProps) {
   const [chartDetailId, setChartDetailId] = useState<number | null>(null);
   const [isDataTableExpanded, setIsDataTableExpanded] = useState(false);
@@ -166,9 +208,22 @@ export default function MetricChartsModal({
           {chartDetail ? (
             <>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                <button className={styles.secondaryBtn} onClick={closeChartDetail}>
-                  <i className="fas fa-arrow-left" /> Back to list
-                </button>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button className={styles.secondaryBtn} onClick={closeChartDetail}>
+                    <i className="fas fa-arrow-left" /> Back to list
+                  </button>
+                  {metricKey && citySlug && (
+                    <Link
+                      href={`/c/${citySlug}/metrics/${metricKey}`}
+                      className={styles.primaryBtn}
+                      style={{ textDecoration: "none" }}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <i className="fas fa-external-link-alt" /> View full page
+                    </Link>
+                  )}
+                </div>
                 <div className={styles.muted} style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                   <span>
                     <strong>Points:</strong> {chartDetail.count}
@@ -195,32 +250,44 @@ export default function MetricChartsModal({
                   aria-expanded={isDataTableExpanded}
                 >
                   <i className={`fas fa-chevron-${isDataTableExpanded ? 'down' : 'right'}`} />
-                  <span>Data Table ({chartDetail.data.length} rows)</span>
+                  <span>Data Table (crosstab — {chartDetail.data.length} points)</span>
                 </button>
-                {isDataTableExpanded && (
-                  <table className={styles.miniTable}>
-                    <thead>
-                      <tr>
-                        <th className={styles.miniTh}>Time Period</th>
-                        <th className={styles.miniTh}>Value</th>
-                        <th className={styles.miniTh}>Group</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {chartDetail.data.map((d, idx) => (
-                        <tr key={idx}>
-                          <td className={styles.miniTd}>{d.time_period}</td>
-                          <td className={styles.miniTd}>
-                            {typeof d.numeric_value === "number"
-                              ? d.numeric_value.toLocaleString()
-                              : String(d.numeric_value)}
-                          </td>
-                          <td className={styles.miniTd}>{d.group_value ?? "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+                {isDataTableExpanded && (() => {
+                  const { dateColumns, groupRows, getValue } = buildCrosstab(chartDetail.data);
+                  return (
+                    <div style={{ overflowX: "auto" }}>
+                      <table className={styles.miniTable}>
+                        <thead>
+                          <tr>
+                            <th className={styles.miniTh}>Group</th>
+                            {dateColumns.map((d) => (
+                              <th key={d} className={styles.miniTh}>{d}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {groupRows.map((group) => (
+                            <tr key={group}>
+                              <td className={styles.miniTd}>{group}</td>
+                              {dateColumns.map((date) => {
+                                const v = getValue(group, date);
+                                return (
+                                  <td key={date} className={styles.miniTd}>
+                                    {v !== null
+                                      ? typeof v === "number"
+                                        ? v.toLocaleString()
+                                        : String(v)
+                                      : "—"}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </div>
             </>
           ) : chartsData.count === 0 ? (

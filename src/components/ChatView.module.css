@@ -632,6 +632,47 @@
   color: var(--text-secondary);
 }
 
+/* Dark mode: ensure chat text is clearly readable (light on dark) */
+:global([data-theme="dark"]) .messageContent,
+:global([data-theme="dark"]) .messageContent p,
+:global([data-theme="dark"]) .messageContent h1,
+:global([data-theme="dark"]) .messageContent h2,
+:global([data-theme="dark"]) .messageContent h3,
+:global([data-theme="dark"]) .messageContent h4,
+:global([data-theme="dark"]) .messageContent li,
+:global([data-theme="dark"]) .messageContent td,
+:global([data-theme="dark"]) .messageContent th,
+:global([data-theme="dark"]) .assistantName,
+:global([data-theme="dark"]) .welcomeTitle,
+:global([data-theme="dark"]) .welcomeSubtitle,
+:global([data-theme="dark"]) .welcomeHint,
+:global(.dark) .messageContent,
+:global(.dark) .messageContent p,
+:global(.dark) .messageContent h1,
+:global(.dark) .messageContent h2,
+:global(.dark) .messageContent h3,
+:global(.dark) .messageContent h4,
+:global(.dark) .messageContent li,
+:global(.dark) .messageContent td,
+:global(.dark) .messageContent th,
+:global(.dark) .assistantName,
+:global(.dark) .welcomeTitle,
+:global(.dark) .welcomeSubtitle,
+:global(.dark) .welcomeHint {
+  color: var(--text-primary, #f1f5f9);
+}
+
+:global([data-theme="dark"]) .messageContent blockquote,
+:global(.dark) .messageContent blockquote {
+  color: var(--text-secondary, #cbd5e1);
+}
+
+:global([data-theme="dark"]) .messageContent code,
+:global(.dark) .messageContent code {
+  color: var(--text-primary, #f1f5f9);
+  background: var(--bg-tertiary, #334155);
+}
+
 /* ============================
    Welcome Composer (New Chat State)
    ============================ */

@@ -156,7 +156,19 @@ export default function AnomalyMap({
   // Initialize map when both Mapbox and data are ready
   useEffect(() => {
     if (!mapboxLoaded || !mapData || !mapContainerRef.current) return;
-    if (!mapData.location_data || mapData.location_data.length === 0) return;
+    const overlay = (mapData as any)?.map_config?.custom_dimension_overlay;
+    const circlesGeojson = overlay?.circles_geojson;
+    const hasCircles =
+      circlesGeojson &&
+      circlesGeojson.type === "FeatureCollection" &&
+      Array.isArray(circlesGeojson.features) &&
+      circlesGeojson.features.length > 0;
+
+    const hasPoints =
+      Array.isArray(mapData.location_data) &&
+      mapData.location_data.some((p) => p.lat && (p.lon || p.lng));
+
+    if (!hasPoints && !hasCircles) return;
 
     const mapboxgl = (window as any).mapboxgl;
     if (!mapboxgl) return;
@@ -185,6 +197,33 @@ export default function AnomalyMap({
       }
     }
 
+    // Fallback bounds from circle overlay if we have circles but no point-derived bounds
+    if (!bounds && hasCircles) {
+      try {
+        const coords: Array<[number, number]> = [];
+        for (const f of circlesGeojson.features) {
+          const geom = f?.geometry;
+          if (geom?.type === "Polygon" && Array.isArray(geom.coordinates?.[0])) {
+            for (const c of geom.coordinates[0]) {
+              if (Array.isArray(c) && c.length >= 2) {
+                coords.push([c[0], c[1]]);
+              }
+            }
+          }
+        }
+        if (coords.length > 0) {
+          const lons = coords.map((c) => c[0]);
+          const lats = coords.map((c) => c[1]);
+          bounds = [
+            [Math.min(...lons), Math.min(...lats)],
+            [Math.max(...lons), Math.max(...lats)],
+          ];
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     // Create map
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
@@ -197,6 +236,39 @@ export default function AnomalyMap({
     mapInstanceRef.current = map;
 
     map.on("load", () => {
+      // Custom location dimension overlay (e.g. hotspot circles)
+      const overlay = (mapData as any)?.map_config?.custom_dimension_overlay;
+      const circlesGeojson = overlay?.circles_geojson;
+      if (circlesGeojson && circlesGeojson.type === "FeatureCollection") {
+        map.addSource("custom-dimension-circles", {
+          type: "geojson",
+          data: circlesGeojson,
+        });
+
+        // Fill (light) under points
+        map.addLayer({
+          id: "custom-dimension-circles-fill",
+          type: "fill",
+          source: "custom-dimension-circles",
+          paint: {
+            "fill-color": "#ad35fa",
+            "fill-opacity": 0.08,
+          },
+        });
+
+        // Outline under points
+        map.addLayer({
+          id: "custom-dimension-circles-line",
+          type: "line",
+          source: "custom-dimension-circles",
+          paint: {
+            "line-color": "#ad35fa",
+            "line-width": 2,
+            "line-opacity": 0.7,
+          },
+        });
+      }
+
       // Add source for points
       map.addSource("anomaly-points", {
         type: "geojson",
@@ -280,7 +352,15 @@ export default function AnomalyMap({
   }
 
   // No data - don't render
-  if (!mapData || !mapData.location_data || mapData.location_data.length === 0) {
+  const overlay = (mapData as any)?.map_config?.custom_dimension_overlay;
+  const circlesGeojson = overlay?.circles_geojson;
+  const hasCircles =
+    circlesGeojson &&
+    circlesGeojson.type === "FeatureCollection" &&
+    Array.isArray(circlesGeojson.features) &&
+    circlesGeojson.features.length > 0;
+
+  if (!mapData || ((!mapData.location_data || mapData.location_data.length === 0) && !hasCircles)) {
     return null;
   }
 

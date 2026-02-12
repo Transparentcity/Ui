@@ -640,7 +640,7 @@
   font-size: 13px;
   font-weight: 500;
   color: var(--text-primary, #111827);
-  background-color: white;
+  background-color: var(--bg-primary, #ffffff);
   border: 1px solid var(--border-color, #d1d5db);
   border-radius: 6px;
   cursor: pointer;
@@ -668,6 +668,19 @@
   outline: none;
   border-color: var(--primary-color, #ad35fa);
   box-shadow: 0 0 0 3px rgba(173, 53, 250, 0.1);
+}
+
+[data-theme="dark"] .comparison-selector-dropdown,
+.dark .comparison-selector-dropdown {
+  background-color: var(--bg-primary, #111827);
+  border-color: var(--border-primary, #374151);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%23d1d5db' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+}
+
+[data-theme="dark"] .comparison-selector-dropdown:hover,
+.dark .comparison-selector-dropdown:hover {
+  border-color: var(--primary-color, #ad35fa);
+  background-color: var(--bg-secondary, #1f2937);
 }
 
 @media (max-width: 640px) {

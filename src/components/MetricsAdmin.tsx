@@ -881,6 +881,20 @@ export default function MetricsAdmin() {
         metricId={chartsMetricId}
         isOpen={chartsOpen}
         onClose={closeCharts}
+        metricKey={chartsMetricId ? metrics.find((m) => m.id === chartsMetricId)?.metric_key : null}
+        citySlug={(() => {
+          if (!chartsMetricId) return null;
+          const metric = metrics.find((m) => m.id === chartsMetricId);
+          if (!metric?.city_id) return null;
+          const city = cities.find((c) => c.id === metric.city_id);
+          if (!city?.name) return null;
+          return city.name
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9\s-]/g, "")
+            .replace(/[\s_-]+/g, "-")
+            .replace(/^-|-$/g, "");
+        })()}
       />
 
       {/* Maps Modal */}

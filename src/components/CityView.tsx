@@ -36,7 +36,8 @@ interface MetricWithYTD {
   metric_name: string;
   metric_key?: string;
   category?: string | null;
-  subcategory?: string | null; // Subcategory within the main category
+  subcategory?: string | null; // Subcategory within the main category (metrics table: subcategory)
+  sub_category?: string | null; // Alternate key some APIs may return
   most_recent_data_date?: string | null;
   freshness?: any;
   ytdLastYear?: number | null;
@@ -110,6 +111,7 @@ interface DashboardMetricsSectionProps {
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void; // Callback when GPS location is set
   onMetricClick?: (metricId: number, district?: number | null) => void; // Callback when metric is clicked (for modal)
   leaderFollowerCounts?: Record<string, number>; // Follower counts per district ("0"=mayor) for Official Selector
+  newsletterQueriesEnabled?: boolean; // When false, defers newsletter/follow API calls (slow-connection UX)
 }
 
 // Time series data point for sparkline
@@ -470,7 +472,7 @@ const YTDSparkline = React.memo(function YTDSparkline({
   );
 });
 
-function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts }: DashboardMetricsSectionProps) {
+function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts, newsletterQueriesEnabled }: DashboardMetricsSectionProps) {
   const { getAccessTokenSilently } = useAuth0();
   
   // New state for explicit period selection
@@ -526,9 +528,9 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
   // Fetch metric ordering for this city
   const { data: orderingData } = useCityMetricOrdering(cityId);
 
-  // Build ordering map from saved ordering data
+  // Build ordering map from saved ordering data (includes subcategory for display when set)
   const orderingMap = useMemo(() => {
-    const map = new Map<number, { categoryOrder: number; metricOrder: number; categoryName: string }>();
+    const map = new Map<number, { categoryOrder: number; metricOrder: number; categoryName: string; subcategoryName: string | null }>();
     if (orderingData?.orderings) {
       orderingData.orderings.forEach((o) => {
         if (o.metric_id) {
@@ -536,6 +538,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
             categoryOrder: o.category_order,
             metricOrder: o.metric_order,
             categoryName: o.category_name,
+            subcategoryName: o.subcategory_name ?? null,
           });
         }
       });
@@ -563,7 +566,12 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
         id: metric.id,
         metric_name: metric.metric_name,
         category: metric.category,
-        subcategory: metric.subcategory || null,
+        subcategory: (() => {
+          const fromOrdering = ordering?.subcategoryName;
+          if (fromOrdering != null && String(fromOrdering).trim()) return fromOrdering.trim();
+          const fromMetric = metric.subcategory ?? (metric as MetricWithYTD).sub_category ?? null;
+          return (fromMetric != null && String(fromMetric).trim()) ? String(fromMetric).trim() : null;
+        })(),
         most_recent_data_date: metric.most_recent_data_date,
         freshness: (metric as any).freshness,
         ytdLastYear: ytdData[metric.id]?.lastYear ?? null,
@@ -1263,6 +1271,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
               leaderFollowerCounts={leaderFollowerCounts}
               cityId={cityId}
               publicPagePath={cityName ? `/c/${slugify(cityName)}` : undefined}
+              newsletterQueriesEnabled={newsletterQueriesEnabled}
             />
           </div>
         ) : (
@@ -1334,7 +1343,8 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
           const subcategoryMap = new Map<string | null, typeof metricsWithData>();
           
           metricsWithData.forEach((metric) => {
-            const subcat = metric.subcategory || null;
+            const raw = metric.subcategory ?? metric.sub_category ?? null;
+            const subcat = (raw != null && String(raw).trim()) ? String(raw).trim() : null;
             if (!subcategoryMap.has(subcat)) {
               subcategoryMap.set(subcat, []);
             }
@@ -1569,9 +1579,10 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
   }, [activeTab]);
 
   // Use React Query hooks for data fetching - these handle caching automatically
-  const { data: cityData, isLoading: loadingCity, error: cityError } = useCity(cityId);
+  const { data: cityData, isLoading: loadingCity, error: cityError, isSuccess: cityLoaded } = useCity(cityId);
   const { data: savedCities = [], isLoading: loadingSaved } = useSavedCities();
-  const { data: leaderFollowerCounts } = useRepresentativeFollowerCounts(cityId);
+  // Defer newsletter/follower requests until city has loaded to avoid blocking on slow connections
+  const { data: leaderFollowerCounts } = useRepresentativeFollowerCounts(cityId, { enabled: cityLoaded });
   
   // Mutations for save/unsave
   const saveCityMutation = useSaveCity();
@@ -1798,6 +1809,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
                 leaderFollowerCounts={leaderFollowerCounts}
                 cityId={cityId}
                 publicPagePath={cityData?.name ? `/c/${slugify(cityData.name)}` : undefined}
+                newsletterQueriesEnabled={cityLoaded}
               />
             </div>
           )}
@@ -1880,6 +1892,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
                   setSelectedMetricDistrict(district ?? selectedDistrict);
                 }}
                 leaderFollowerCounts={leaderFollowerCounts}
+                newsletterQueriesEnabled={cityLoaded}
               />
             )}
 

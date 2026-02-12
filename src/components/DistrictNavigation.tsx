@@ -35,6 +35,8 @@ interface DistrictNavigationProps {
   cityId?: number | null;
   /** Public page path (e.g. `/c/san-francisco`) for the Share button. If omitted, Share is hidden. */
   publicPagePath?: string | null;
+  /** When false, defers fetching follow state until e.g. city has loaded (improves slow-connection UX). */
+  newsletterQueriesEnabled?: boolean;
 }
 
 // Helper function to check if a point is inside a polygon
@@ -149,10 +151,13 @@ export default function DistrictNavigation({
   leaderFollowerCounts,
   cityId,
   publicPagePath,
+  newsletterQueriesEnabled = true,
 }: DistrictNavigationProps) {
   const district = selectedDistrict ?? 0;
   const districtStr = String(district);
-  const { data: followedDistricts = {} } = useRepresentativeFollows(cityId ?? null);
+  const { data: followedDistricts = {} } = useRepresentativeFollows(cityId ?? null, {
+    enabled: newsletterQueriesEnabled,
+  });
   const followMutation = useFollowRepresentative(cityId ?? null);
   const unfollowMutation = useUnfollowRepresentative(cityId ?? null);
   const isFollowed = !!(followedDistricts[districtStr]);

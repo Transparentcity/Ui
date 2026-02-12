@@ -6,7 +6,7 @@
 }
 
 .item {
-  padding: var(--space-xs) var(--space-md);
+  padding: var(--space-xs) var(--space-lg);
   cursor: pointer;
   transition: background 0.2s ease;
   border-left: 3px solid transparent;
@@ -161,7 +161,7 @@
 
 
 .sectionHeader {
-  padding: 8px 12px;
+  padding: var(--space-md) var(--space-lg);
   font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
@@ -204,7 +204,7 @@
 }
 
 .listItem {
-  padding: var(--space-xs) var(--space-md);
+  padding: var(--space-xs) var(--space-lg);
   cursor: pointer;
   transition: background 0.2s ease;
   border-left: 3px solid transparent;
