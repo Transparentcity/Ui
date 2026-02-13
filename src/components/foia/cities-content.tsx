@@ -2,38 +2,81 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { useAuth0 } from "@auth0/auth0-react"
 import { Loader2, Building2, ArrowRight } from "lucide-react"
-import { listCities, type CityListItem as AdminCityListItem } from "@/lib/apiClient"
+import {
+  listPublicCitiesForSitemap,
+  searchPublicCities,
+  type PublicCitySitemapItem,
+  type PublicCitySearchResult,
+} from "@/lib/publicApiClient"
 
-const COUNTRY_FILTER = "United States"
 const MAX_CITY_PROFILES = 20
+const PINNED_CITIES = [
+  { name: "Pasadena", state: "CA" },
+  { name: "Portsmouth", state: "NH" },
+  { name: "Bloomington", state: "IL" },
+  { name: "Oakland", state: "CA" },
+]
+const PINNED_CITY_KEYS = new Set(PINNED_CITIES.map((city) => `${city.name.toLowerCase()}|${city.state.toLowerCase()}`))
 
 interface CityListItem {
   id: number
   name: string
   state: string
-  population?: number
 }
 
-function parsePopulation(value: number | string | undefined): number | undefined {
-  if (typeof value === "number") return value
-  if (typeof value !== "string") return undefined
-  const parsed = Number(value.replace(/,/g, ""))
-  return Number.isFinite(parsed) ? parsed : undefined
+const STATE_ABBREVIATIONS: Record<string, string> = {
+  california: "ca",
+  "new hampshire": "nh",
+  illinois: "il",
 }
 
-function toCityListItem(city: AdminCityListItem): CityListItem {
+function toCityListItem(city: PublicCitySitemapItem): CityListItem {
   return {
-    id: city.city_id,
-    name: city.city_name,
+    id: city.id,
+    name: city.name,
     state: city.state ?? "",
-    population: parsePopulation(city.population),
   }
 }
 
+function toCityListItemFromSearch(city: PublicCitySearchResult): CityListItem {
+  return {
+    id: city.id,
+    name: city.name,
+    state: city.state ?? "",
+  }
+}
+
+function normalizeStateForKey(state: string): string {
+  const normalized = state.toLowerCase().trim()
+  if (normalized.length === 2) return normalized
+  return STATE_ABBREVIATIONS[normalized] ?? normalized
+}
+
+function cityKey(city: CityListItem): string {
+  return `${city.name.toLowerCase().trim()}|${normalizeStateForKey(city.state)}`
+}
+
+async function resolvePinnedCities(): Promise<CityListItem[]> {
+  const resolved = await Promise.all(
+    PINNED_CITIES.map(async (target) => {
+      try {
+        const results = await searchPublicCities(`${target.name} ${target.state}`, 20)
+        const match = results.find(
+          (city) =>
+            city.name.toLowerCase() === target.name.toLowerCase() &&
+            (city.state ?? "").toLowerCase() === target.state.toLowerCase()
+        )
+        return match ? toCityListItemFromSearch(match) : null
+      } catch {
+        return null
+      }
+    })
+  )
+  return resolved.filter((city): city is CityListItem => city !== null)
+}
+
 export function CitiesContent() {
-  const { getAccessTokenSilently } = useAuth0()
   const [cities, setCities] = useState<CityListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -43,13 +86,27 @@ export function CitiesContent() {
       setLoading(true)
       setError(null)
       try {
-        const token = await getAccessTokenSilently()
-        const rows = await listCities(token, undefined, COUNTRY_FILTER, true)
+        const [rows, pinnedResolved] = await Promise.all([
+          listPublicCitiesForSitemap(),
+          resolvePinnedCities(),
+        ])
         const mapped = rows
           .map(toCityListItem)
           .sort((a, b) => a.name.localeCompare(b.name))
+
+        const byKey = new Map<string, CityListItem>()
+        for (const city of [...mapped, ...pinnedResolved]) {
+          byKey.set(cityKey(city), city)
+        }
+
+        const merged = Array.from(byKey.values()).sort((a, b) => a.name.localeCompare(b.name))
+        const pinned = merged.filter((city) => PINNED_CITY_KEYS.has(cityKey(city)))
+        const unpinned = merged.filter((city) => !PINNED_CITY_KEYS.has(cityKey(city)))
+
+        const selected = [...pinned, ...unpinned]
           .slice(0, MAX_CITY_PROFILES)
-        setCities(mapped)
+          .sort((a, b) => a.name.localeCompare(b.name))
+        setCities(selected)
       } catch (err) {
         console.error("Failed to load city profiles:", err)
         setError("Failed to load city profiles")
@@ -59,7 +116,7 @@ export function CitiesContent() {
       }
     }
     load()
-  }, [getAccessTokenSilently])
+  }, [])
 
   if (loading) {
     return (
@@ -97,9 +154,6 @@ export function CitiesContent() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-900">{city.name}</p>
               <p className="text-xs text-gray-500">{city.state}</p>
-              {city.population && (
-                <p className="text-xs text-gray-400">Pop. {city.population.toLocaleString()}</p>
-              )}
             </div>
             <ArrowRight className="h-4 w-4 text-gray-300" />
           </Link>
