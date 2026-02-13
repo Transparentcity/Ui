@@ -1,0 +1,68 @@
+.chart-view-page {
+  min-height: 100vh;
+  background: var(--bg-primary);
+}
+
+.chart-view-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.chart-view-inner {
+  background: var(--bg-primary);
+}
+
+.chart-view-title {
+  font-family: "Inter", sans-serif;
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 0.5rem 0;
+  line-height: 1.3;
+}
+
+.chart-view-caption {
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  margin: 0 0 1.5rem 0;
+  line-height: 1.5;
+}
+
+.chart-view-chart {
+  margin-bottom: 1rem;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+.chart-view-meta {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  margin: 0 0 1.5rem 0;
+}
+
+.chart-view-back {
+  display: inline-block;
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.chart-view-back:hover {
+  color: var(--brand-primary, #8b5cf6);
+  text-decoration: underline;
+}
+
+.metric-detail-nav-sep {
+  color: var(--text-secondary);
+  margin: 0 0.25rem;
+  font-size: 0.875rem;
+}
+
+.metric-detail-nav-current {
+  font-size: 0.9375rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}

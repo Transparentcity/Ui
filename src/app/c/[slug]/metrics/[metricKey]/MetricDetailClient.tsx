@@ -111,6 +111,7 @@ export default function MetricDetailClient({
         <MetricDetailContent
           metric={metric}
           cityName={cityName}
+          citySlug={citySlug}
           district={district}
           initialComparisons={initialComparisons}
           initialTimeSeriesSummary={initialTimeSeriesSummary}

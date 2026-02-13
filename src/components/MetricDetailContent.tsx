@@ -158,6 +158,8 @@ function PublicTimeSeriesChart({
 interface MetricDetailContentProps {
   metric: PublicMetricDetail;
   cityName: string;
+  /** When provided (e.g. on metric page), enables "View full page" link for the time series chart. */
+  citySlug?: string | null;
   district?: number | null;
   initialComparisons?: PublicMetricComparisons;
   initialTimeSeriesSummary?: PublicTimeSeriesSummary;
@@ -166,6 +168,7 @@ interface MetricDetailContentProps {
 export default function MetricDetailContent({
   metric,
   cityName,
+  citySlug,
   district,
   initialComparisons,
   initialTimeSeriesSummary,
@@ -484,7 +487,19 @@ export default function MetricDetailContent({
       {/* YTD Comparison Chart */}
       {preferredChartId && (
         <section className="metric-section metric-chart-section">
-          <h2 className="metric-section-title">What are the trends over time?</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+            <h2 className="metric-section-title" style={{ marginBottom: 0 }}>What are the trends over time?</h2>
+            {citySlug && (
+              <a
+                href={`/c/${citySlug}/metrics/${metric.metric_key}/chart/${preferredChartId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="metric-chart-full-page-link"
+              >
+                View full page →
+              </a>
+            )}
+          </div>
           {isStale ? (
             <p className="metric-comparison-caption">
               No data for the current period. Trends below are prior year to date (through {metric.most_recent_data_date ? new Date(metric.most_recent_data_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }) : "the latest available date"}).

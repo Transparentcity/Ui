@@ -121,6 +121,8 @@ function PublicTimeSeriesChart({
 interface MetricDetailModalProps {
   metricId: number | null;
   cityName: string;
+  /** City URL slug (e.g. "san-francisco") for "View full page" chart link. */
+  citySlug?: string | null;
   isOpen: boolean;
   onClose: () => void;
   district?: number | null;
@@ -129,6 +131,7 @@ interface MetricDetailModalProps {
 export default function MetricDetailModal({
   metricId,
   cityName,
+  citySlug,
   isOpen,
   onClose,
   district,
@@ -208,11 +211,11 @@ export default function MetricDetailModal({
   const isStale = !!(metric && (mostRecentYear < currentCalendarYear || comparisonCurrentYear < currentCalendarYear));
 
   const resolvedCityName = cityDetail?.name || cityName;
-  const citySlug = slugify(resolvedCityName);
+  const resolvedCitySlug = citySlug ?? slugify(resolvedCityName);
   const metricPath = metric?.metric_key ?? String(metricId);
   const districtParam = selectedDistrict !== null && selectedDistrict > 0 ? `?district=${selectedDistrict}` : "";
   const publicUrl = typeof window !== "undefined" 
-    ? `${window.location.origin}/c/${citySlug}/metrics/${metricPath}${districtParam}`
+    ? `${window.location.origin}/c/${resolvedCitySlug}/metrics/${metricPath}${districtParam}`
     : "";
 
   const periodLabels: Record<typeof selectedPeriod, string> = {
@@ -430,7 +433,7 @@ export default function MetricDetailModal({
                   </button>
                   <button
                     className={styles.secondaryBtn}
-                    onClick={() => window.open(`/c/${citySlug}/metrics/${metricPath}`, "_blank")}
+                    onClick={() => window.open(`/c/${resolvedCitySlug}/metrics/${metricPath}`, "_blank")}
                     title="Open public page"
                   >
                     <i className="fas fa-external-link-alt" /> Open Page
@@ -529,9 +532,21 @@ export default function MetricDetailModal({
               </section>
 
               {/* YTD Comparison Chart */}
-              {preferredChartId && (
+              {preferredChartId && metric && (
                 <section className="metric-section metric-chart-section">
-                  <h2 className="metric-section-title">What are the trends over time?</h2>
+                  <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+                    <h2 className="metric-section-title" style={{ marginBottom: 0 }}>What are the trends over time?</h2>
+                    {resolvedCitySlug && metric.metric_key && (
+                      <a
+                        href={`/c/${resolvedCitySlug}/metrics/${metric.metric_key}/chart/${preferredChartId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="metric-chart-full-page-link"
+                      >
+                        View full page →
+                      </a>
+                    )}
+                  </div>
                   {isStale ? (
                     <p className="metric-comparison-caption">
                       No data for the current period. Trends below are prior year to date (through {metric.most_recent_data_date ? new Date(metric.most_recent_data_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }) : "the latest available date"}).

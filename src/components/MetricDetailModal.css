@@ -143,6 +143,17 @@
   /* Inherits padding from .metric-section:not(.full-bleed) */
 }
 
+.metric-chart-full-page-link {
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.metric-chart-full-page-link:hover {
+  color: var(--brand-primary, #8b5cf6);
+  text-decoration: underline;
+}
+
 .metric-placeholder {
   color: var(--text-secondary);
   text-align: center;

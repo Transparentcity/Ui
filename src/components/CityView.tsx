@@ -1924,6 +1924,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
         <MetricDetailModal
           metricId={selectedMetricId}
           cityName={cityData.name}
+          citySlug={slugify(cityData.name)}
           isOpen={selectedMetricId !== null}
           onClose={() => {
             setSelectedMetricId(null);

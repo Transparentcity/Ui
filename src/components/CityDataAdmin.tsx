@@ -3779,6 +3779,12 @@ export default function CityDataAdmin({
         metricId={chartsMetricId}
         isOpen={chartsOpen}
         onClose={closeCharts}
+        metricKey={chartsMetricId && cityDataTyped?.metrics ? cityDataTyped.metrics.find((m) => m.id === chartsMetricId)?.metric_key ?? null : null}
+        citySlug={(() => {
+          const name = cityDataTyped?.name || cityDataTyped?.city_name;
+          if (!name) return null;
+          return name.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/[\s_-]+/g, "-").replace(/^-|-$/g, "");
+        })()}
       />
 
       {/* Maps Modal */}

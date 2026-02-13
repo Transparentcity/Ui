@@ -212,9 +212,9 @@ export default function MetricChartsModal({
                   <button className={styles.secondaryBtn} onClick={closeChartDetail}>
                     <i className="fas fa-arrow-left" /> Back to list
                   </button>
-                  {metricKey && citySlug && (
+                  {metricKey && citySlug && chartDetailId && (
                     <Link
-                      href={`/c/${citySlug}/metrics/${metricKey}`}
+                      href={`/c/${citySlug}/metrics/${metricKey}/chart/${chartDetailId}`}
                       className={styles.primaryBtn}
                       style={{ textDecoration: "none" }}
                       target="_blank"

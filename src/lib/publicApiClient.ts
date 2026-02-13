@@ -435,6 +435,34 @@ export function getPublicMetricTimeSeriesSummary(
   return getCachedOrFetch(cacheKey, () => requestPublic<PublicTimeSeriesSummary>(path), 120000); // 2 minute cache
 }
 
+/** Single time series chart data (public endpoint: GET /api/time-series/public/{chart_id}) */
+export type PublicTimeSeriesChartPoint = {
+  time_period: string;
+  numeric_value: number;
+  group_value?: string | null;
+};
+
+export type PublicTimeSeriesChartResponse = {
+  count: number;
+  metadata?: {
+    chart_id?: number;
+    object_id?: string;
+    object_name?: string;
+    chart_title?: string;
+    caption?: string;
+    period_type?: string;
+    district?: number | null;
+    [key: string]: unknown;
+  };
+  data: PublicTimeSeriesChartPoint[];
+};
+
+export function getPublicTimeSeriesChart(chartId: number): Promise<PublicTimeSeriesChartResponse> {
+  const path = `/api/time-series/public/${chartId}`;
+  const cacheKey = `metric-ts-chart:${chartId}`;
+  return getCachedOrFetch(cacheKey, () => requestPublic<PublicTimeSeriesChartResponse>(path), 120000);
+}
+
 // Period completeness information
 export type PeriodCompletenessInfo = {
   period_type: string;
