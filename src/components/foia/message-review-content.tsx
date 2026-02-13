@@ -20,8 +20,11 @@ import {
   Copy,
   Check,
   Plus,
+  AlertTriangle,
 } from "lucide-react"
+import { useAuth0 } from "@auth0/auth0-react"
 import {
+  deleteFoiaTask,
   listFoiaTasks,
   listFoiaMessages,
   getFoiaRequest,
@@ -45,6 +48,7 @@ type IntentCategory =
   | "send_response"
   | "follow_up_partial"
   | "general_followup"
+  | "no_response"
   | "review_draft"
 
 interface IntentMeta {
@@ -136,6 +140,17 @@ const INTENT_META: Record<Exclude<IntentCategory, "all">, IntentMeta> = {
     templateGuidance:
       "Draft a polite follow-up referencing the original request date, the statutory response period, and requesting an update on status.",
   },
+  no_response: {
+    label: "No Response",
+    shortLabel: "No Reply",
+    description: "No reply received — send a simple status-check email",
+    icon: Clock,
+    color: "text-gray-700",
+    bgColor: "bg-gray-50",
+    borderColor: "border-gray-200",
+    templateGuidance:
+      'Use a short status check: "Re: [confirmation number] [summary]. I have not heard from you in 9 days. Can you tell me the status of the request?"',
+  },
   review_draft: {
     label: "Review AI Draft",
     shortLabel: "Review",
@@ -158,6 +173,7 @@ const FILTER_TABS: { id: IntentCategory; label: string }[] = [
   { id: "send_response", label: "Draft Response" },
   { id: "follow_up_partial", label: "Partial Records" },
   { id: "general_followup", label: "General" },
+  { id: "no_response", label: "No Response" },
   { id: "review_draft", label: "Review Draft" },
 ]
 
@@ -171,6 +187,7 @@ function taskTypeToIntent(taskType: string): Exclude<IntentCategory, "all"> {
     send_response: "send_response",
     follow_up_partial: "follow_up_partial",
     general_followup: "general_followup",
+    no_response: "no_response",
     review_rewrite: "review_draft",
     approve_follow_up: "review_draft",
     review_delivery: "general_followup",
@@ -195,15 +212,27 @@ interface EnrichedFollowUp {
 // ---------------------------------------------------------------------------
 
 export function FollowUpsContent() {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
   const [followUps, setFollowUps] = useState<EnrichedFollowUp[]>([])
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<IntentCategory>("all")
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [showNewForm, setShowNewForm] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   const loadFollowUps = useCallback(async () => {
+    setApiError(null)
+    let token: string | undefined
+    if (isAuthenticated) {
+      try {
+        token = await getAccessTokenSilently()
+      } catch {
+        // continue without token
+      }
+    }
     try {
-      const allTasks = await listFoiaTasks()
+      const allTasks = await listFoiaTasks({}, token)
       // Filter to actionable follow-up tasks (not completed/cancelled)
       const actionable = allTasks.filter(
         (t) =>
@@ -217,6 +246,7 @@ export function FollowUpsContent() {
             "pickup_data",
             "send_response",
             "general_followup",
+            "no_response",
             "pay_fee",
             "appeal_denial",
             "follow_up_partial",
@@ -232,7 +262,10 @@ export function FollowUpsContent() {
       await Promise.all(
         uniqueRequestIds.map(async (rid) => {
           try {
-            const [req, msgs] = await Promise.all([getFoiaRequest(rid), listFoiaMessages(rid)])
+            const [req, msgs] = await Promise.all([
+              getFoiaRequest(rid, token),
+              listFoiaMessages(rid, token),
+            ])
             requestMap.set(rid, req)
             messageMap.set(rid, msgs)
           } catch {
@@ -269,14 +302,43 @@ export function FollowUpsContent() {
       setFollowUps(enriched)
     } catch (err) {
       console.error("Failed to load follow-ups:", err)
+      setApiError(err instanceof Error ? err.message : "Failed to load follow-ups")
+      setFollowUps([])
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [isAuthenticated, getAccessTokenSilently])
 
   useEffect(() => {
     loadFollowUps()
   }, [loadFollowUps])
+
+  const handleDelete = useCallback(
+    async (taskId: number) => {
+      const ok = confirm("Delete this follow-up/task? This cannot be undone.")
+      if (!ok) return
+
+      setDeletingId(taskId)
+      let token: string | undefined
+      if (isAuthenticated) {
+        try {
+          token = await getAccessTokenSilently()
+        } catch {
+          // continue without token
+        }
+      }
+      try {
+        await deleteFoiaTask(taskId, token)
+        if (expandedId === taskId) setExpandedId(null)
+        await loadFollowUps()
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "Delete failed")
+      } finally {
+        setDeletingId(null)
+      }
+    },
+    [expandedId, getAccessTokenSilently, isAuthenticated, loadFollowUps]
+  )
 
   const filtered =
     activeFilter === "all" ? followUps : followUps.filter((fu) => fu.intent === activeFilter)
@@ -298,6 +360,25 @@ export function FollowUpsContent() {
 
   return (
     <div className="flex flex-col gap-6">
+      {apiError && (
+        <div
+          className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+          role="alert"
+        >
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-medium">Could not load follow-ups</p>
+            <p className="mt-0.5 text-amber-700">{apiError}</p>
+            <p className="mt-1 text-xs text-amber-600">
+              Ensure the backend is running and{" "}
+              <code className="rounded bg-amber-100 px-1">NEXT_PUBLIC_API_BASE_URL</code> matches
+              (e.g. <code className="rounded bg-amber-100 px-1">http://localhost:8001</code>). Sign
+              in if the API requires authentication.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
@@ -388,16 +469,22 @@ export function FollowUpsContent() {
             expanded={expandedId === fu.task.id}
             onToggle={() => setExpandedId(expandedId === fu.task.id ? null : fu.task.id)}
             onRefresh={loadFollowUps}
+            onDelete={() => handleDelete(fu.task.id)}
+            deleting={deletingId === fu.task.id}
           />
         ))}
-        {filtered.length === 0 && (
+        {filtered.length === 0 && !loading && (
           <div className="rounded-xl border border-gray-200 bg-white px-6 py-16 text-center">
             <MessageSquare className="mx-auto h-10 w-10 text-gray-300" />
-            <p className="mt-3 text-sm font-medium text-gray-500">No follow-ups in this category</p>
+            <p className="mt-3 text-sm font-medium text-gray-500">
+              {apiError ? "Follow-ups could not be loaded. Check the message above." : "No follow-ups in this category"}
+            </p>
             <p className="mt-1 text-xs text-gray-400">
-              {activeFilter === "all"
-                ? "All caught up! Follow-ups appear here when inbound messages need a response."
-                : "Try a different filter or check back later."}
+              {apiError
+                ? "Fix the API connection and refresh the page."
+                : activeFilter === "all"
+                  ? "All caught up! Follow-ups appear here when inbound messages need a response."
+                  : "Try a different filter or check back later."}
             </p>
           </div>
         )}
@@ -418,11 +505,15 @@ function FollowUpCard({
   expanded,
   onToggle,
   onRefresh,
+  onDelete,
+  deleting,
 }: {
   followUp: EnrichedFollowUp
   expanded: boolean
   onToggle: () => void
   onRefresh: () => Promise<void>
+  onDelete: () => void
+  deleting: boolean
 }) {
   const { task, intent, request, triggerMessage } = followUp
   const meta = INTENT_META[intent]
@@ -433,6 +524,28 @@ function FollowUpCard({
   const [draftError, setDraftError] = useState("")
   const [completing, setCompleting] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  function getRequestSummary(r: FoiaRequest): string {
+    const title = (r.title || "").trim()
+    if (title) return title
+    const desc = (r.request_description || "").trim()
+    const firstLine = desc.split(/\r?\n/).map((s) => s.trim()).find(Boolean) || ""
+    if (firstLine) return firstLine.length > 120 ? `${firstLine.slice(0, 119).trimEnd()}…` : firstLine
+    return r.dataset_type_id
+  }
+
+  function buildNoResponseEmail(r: FoiaRequest): string {
+    const ref = (r.agency_request_number || "").trim() || `REQ-${r.id}`
+    const summary = getRequestSummary(r)
+    return [
+      `Re: ${ref} ${summary}`.trim(),
+      "",
+      "I have not heard from you in 9 days. Can you tell me the status of the request?",
+      "",
+      "Thank you,",
+      "",
+    ].join("\n")
+  }
 
   async function handleDraftResponse() {
     if (!request) return
@@ -448,6 +561,12 @@ function FollowUpCard({
     } finally {
       setDraftLoading(false)
     }
+  }
+
+  function handleUseStandardNoResponse() {
+    if (!request) return
+    setDraftError("")
+    setDraftText(buildNoResponseEmail(request))
   }
 
   async function handleComplete() {
@@ -635,6 +754,16 @@ function FollowUpCard({
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-semibold text-gray-900">Draft Response</p>
               <div className="flex items-center gap-2">
+                {intent === "no_response" && request && (
+                  <button
+                    onClick={handleUseStandardNoResponse}
+                    className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                    title="Insert standard no-response status check"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    Standard Email
+                  </button>
+                )}
                 {request && (
                   <button
                     onClick={handleDraftResponse}
@@ -727,6 +856,16 @@ function FollowUpCard({
               )}
             </div>
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onDelete}
+                disabled={deleting}
+                className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                title="Delete follow-up"
+              >
+                {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                Delete
+              </button>
               {!draftText && (
                 <button
                   onClick={handleComplete}
@@ -755,6 +894,7 @@ function FollowUpCard({
 
 const CLASSIFICATION_OPTIONS = [
   { value: "follow_up", label: "Follow Up" },
+  { value: "no_response", label: "No Response" },
   { value: "narrow_request", label: "Asked to Narrow Request" },
   { value: "pickup_instructions", label: "Pickup Instructions (visit city hall, etc.)" },
   { value: "fee_notice", label: "Fee Notice" },
@@ -773,6 +913,7 @@ const CLASSIFICATION_OPTIONS = [
 
 const ACTION_OPTIONS = [
   { value: "none", label: "No action needed" },
+  { value: "no_response", label: "No Response (status check)" },
   { value: "narrow_request", label: "Revise request (narrow scope)" },
   { value: "generate_response", label: "Draft a response email" },
   { value: "pickup_data", label: "Go pick up data" },
@@ -784,6 +925,7 @@ const ACTION_OPTIONS = [
 ]
 
 const classificationToAction: Record<string, string> = {
+  no_response: "no_response",
   narrow_request: "narrow_request",
   pickup_instructions: "pickup_data",
   no_records: "no_records",
@@ -802,6 +944,7 @@ const classificationToAction: Record<string, string> = {
 }
 
 const actionToTaskType: Record<string, string> = {
+  no_response: "no_response",
   narrow_request: "narrow_request",
   pickup_data: "pickup_data",
   generate_response: "send_response",
@@ -814,6 +957,7 @@ const actionToTaskType: Record<string, string> = {
 }
 
 const actionToTaskTitle: Record<string, string> = {
+  no_response: "No response — send status check email",
   narrow_request: "Revise & narrow the original request",
   pickup_data: "Pick up data (see instructions)",
   generate_response: "Draft and send response email",
@@ -835,6 +979,7 @@ function NewFollowUpForm({
   const [requests, setRequests] = useState<FoiaRequest[]>([])
   const [loadingRequests, setLoadingRequests] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [autoDraftNarrowReply, setAutoDraftNarrowReply] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null)
   const [showRequestDropdown, setShowRequestDropdown] = useState(false)
@@ -901,7 +1046,30 @@ function NewFollowUpForm({
 
   function handleClassificationChange(cls: string) {
     const suggestedAction = classificationToAction[cls] || "none"
+    if (cls === "no_response") {
+      // For "no response", there isn't an inbound email to paste; add a default note
+      // so the form can be submitted without forcing a fake quote.
+      setForm((f) => ({
+        ...f,
+        classification: cls,
+        response_action_required: suggestedAction,
+        notes: f.notes || "No response after 9 days — send a status check email.",
+      }))
+      return
+    }
     setForm((f) => ({ ...f, classification: cls, response_action_required: suggestedAction }))
+  }
+
+  async function createNoResponseTask(requestId: number, reason: string) {
+    const { createFoiaTask } = await import("@/app/actions/foia")
+    const due = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString()
+    await createFoiaTask({
+      request_id: requestId,
+      type: "no_response",
+      title: "No response - send 10-day status check",
+      description: reason,
+      due_at: due,
+    })
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -934,6 +1102,30 @@ function NewFollowUpForm({
         response_action_required:
           form.response_action_required !== "none" ? form.response_action_required : undefined,
       })
+
+      const shouldAutoDraftNarrowReply =
+        autoDraftNarrowReply && ["narrow_request", "clarification"].includes(form.classification)
+      if (shouldAutoDraftNarrowReply) {
+        try {
+          const extraContext = [
+            "The agency asked us to narrow scope.",
+            "Draft a concise narrowed response that confirms we are narrowing the request.",
+            "Keep tone cooperative and specific.",
+            form.subject ? `Agency subject: ${form.subject}` : "",
+            form.email_snippet ? `Agency key quote: ${form.email_snippet}` : "",
+            form.body ? `Agency full text: ${form.body.slice(0, 1500)}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n")
+          await aiDraftFoiaRequest(selectedRequestId, "draft_followup", extraContext)
+          await createNoResponseTask(
+            selectedRequestId,
+            "Auto-created after narrowed-scope reply draft. If no response in 10 days, send a status check."
+          )
+        } catch (err) {
+          console.error("Auto-draft for narrowed request failed:", err)
+        }
+      }
 
       // 2. Create the follow-up task
       if (form.response_action_required && form.response_action_required !== "none") {
@@ -1232,6 +1424,19 @@ function NewFollowUpForm({
                 </option>
               ))}
             </select>
+            {(form.classification === "narrow_request" || form.classification === "clarification") && (
+              <label className="mt-2 flex items-start gap-2 text-xs text-amber-800">
+                <input
+                  type="checkbox"
+                  checked={autoDraftNarrowReply}
+                  onChange={(e) => setAutoDraftNarrowReply(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  Auto-generate my narrowed reply and create a 10-day no-response reminder.
+                </span>
+              </label>
+            )}
             {form.response_action_required !== "none" && (
               <p className="mt-2 text-xs text-amber-800">
                 <span className="font-medium">Task to be created: </span>

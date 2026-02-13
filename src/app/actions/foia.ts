@@ -60,8 +60,13 @@ export async function createFoiaRequest(data: {
   return result
 }
 
-export async function submitFoiaRequest(requestId: number) {
-  const result = await apiRequest("POST", `/api/foia/requests/${requestId}/submit`)
+export async function submitFoiaRequest(
+  requestId: number,
+  data?: {
+    submitted_date?: string
+  }
+) {
+  const result = await apiRequest("POST", `/api/foia/requests/${requestId}/submit`, data)
   revalidatePath("/foia")
   revalidatePath("/foia/requests")
   revalidatePath(`/foia/requests/${requestId}`)

@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { Plus, Search, Filter, Loader2 } from "lucide-react"
-import { listFoiaRequests } from "@/lib/foiaApiClient"
+import { Plus, Search, Filter, Loader2, AlertTriangle, Trash2, Pencil } from "lucide-react"
+import { useAuth0 } from "@auth0/auth0-react"
+import { deleteFoiaRequest, listFoiaRequests } from "@/lib/foiaApiClient"
 import { RequestStatusBadge } from "@/components/foia/status-badge"
 import { NewRequestModal } from "@/components/foia/new-request-modal"
 import type { RequestStatus, FoiaRequest } from "@/lib/foia/types"
@@ -24,32 +25,74 @@ const statusOptions: { value: RequestStatus | "all"; label: string }[] = [
 ]
 
 export function RequestsListContent() {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
   const [requests, setRequests] = useState<FoiaRequest[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<RequestStatus | "all">("all")
   const [showNewRequest, setShowNewRequest] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true)
+  const loadRequests = useCallback(async () => {
+    setLoading(true)
+    setApiError(null)
+    let token: string | undefined
+    if (isAuthenticated) {
       try {
-        const res = await listFoiaRequests({
+        token = await getAccessTokenSilently()
+      } catch {
+        // continue without token
+      }
+    }
+    try {
+      const res = await listFoiaRequests(
+        {
           status: statusFilter === "all" ? undefined : statusFilter,
           q: search || undefined,
           page_size: 100,
-        })
-        setRequests(res.items)
-        setTotal(res.total)
-      } catch (err) {
-        console.error("Failed to load requests:", err)
-      } finally {
-        setLoading(false)
+        },
+        token
+      )
+      setRequests(res.items)
+      setTotal(res.total)
+    } catch (err) {
+      console.error("Failed to load requests:", err)
+      setApiError(err instanceof Error ? err.message : "Failed to load requests")
+      setRequests([])
+      setTotal(0)
+    } finally {
+      setLoading(false)
+    }
+  }, [statusFilter, search, isAuthenticated, getAccessTokenSilently])
+
+  useEffect(() => {
+    loadRequests()
+  }, [loadRequests])
+
+  async function handleDelete(requestId: number) {
+    const ok = confirm("Delete this request? This cannot be undone.")
+    if (!ok) return
+
+    setDeletingId(requestId)
+    let token: string | undefined
+    if (isAuthenticated) {
+      try {
+        token = await getAccessTokenSilently()
+      } catch {
+        // continue without token
       }
     }
-    load()
-  }, [statusFilter, search])
+    try {
+      await deleteFoiaRequest(requestId, token)
+      await loadRequests()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Delete failed")
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   const openCount = requests.filter(
     (r) => !["fulfilled", "denied", "closed_incomplete"].includes(r.status)
@@ -57,6 +100,23 @@ export function RequestsListContent() {
 
   return (
     <div className="flex flex-col gap-6">
+      {apiError && (
+        <div
+          className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+          role="alert"
+        >
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-medium">Could not load requests</p>
+            <p className="mt-0.5 text-amber-700">{apiError}</p>
+            <p className="mt-1 text-xs text-amber-600">
+              Ensure the backend is running and <code className="rounded bg-amber-100 px-1">NEXT_PUBLIC_API_BASE_URL</code>{" "}
+              matches (e.g. <code className="rounded bg-amber-100 px-1">http://localhost:8001</code>). Sign in if the API requires authentication.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -130,6 +190,9 @@ export function RequestsListContent() {
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Owner
                 </th>
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -144,7 +207,7 @@ export function RequestsListContent() {
                     <td className="px-6 py-4">
                       <Link href={`/foia/requests/${req.id}`} className="block">
                         <p className="text-sm font-medium text-gray-900 hover:text-purple-600">
-                          {req.city?.name ?? `City #${req.city_id}`}
+                          {req.city?.name ?? "Unknown city"}
                         </p>
                         <p className="text-xs text-gray-500">{req.dataset_type_id}</p>
                         {req.agency_request_number && (
@@ -173,13 +236,40 @@ export function RequestsListContent() {
                     <td className="px-4 py-4 text-sm text-gray-500">
                       {req.assigned_to || <span className="text-gray-300">Unassigned</span>}
                     </td>
+                    <td className="px-4 py-4 text-right">
+                      <div className="inline-flex items-center gap-2">
+                        <Link
+                          href={`/foia/requests/${req.id}?edit=1`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                          title={req.status === "draft" ? "Edit request" : "Edit submission email/URL + confirmation number"}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            void handleDelete(req.id)
+                          }}
+                          disabled={deletingId === req.id}
+                          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                          title="Delete request"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          {deletingId === req.id ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 )
               })}
-              {requests.length === 0 && (
+              {requests.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-400">
-                    No requests match your filters.
+                  <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-400">
+                    {apiError ? "Requests could not be loaded. Check the message above." : "No requests match your filters."}
                   </td>
                 </tr>
               )}

@@ -12,6 +12,7 @@ import {
   X,
   RefreshCw,
 } from "lucide-react"
+import { useAuth0 } from "@auth0/auth0-react"
 import {
   listDatasetInstances,
   listFoiaRequests,
@@ -34,26 +35,40 @@ const ACCEPTED_FILE_TYPES = ".pdf,.csv,.xlsx,.xls,.doc,.docx,.txt,.png,.jpg,.jpe
 
 export function DataReviewContent() {
   const router = useRouter()
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
   const [instances, setInstances] = useState<DatasetInstance[]>([])
   const [requests, setRequests] = useState<FoiaRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<number | null>(null)
   const [showUpload, setShowUpload] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    setApiError(null)
+    let token: string | undefined
+    if (isAuthenticated) {
+      try {
+        token = await getAccessTokenSilently()
+      } catch {
+        // continue without token
+      }
+    }
     try {
       const [instData, reqRes] = await Promise.all([
-        listDatasetInstances(),
-        listFoiaRequests({ page_size: 100 }),
+        listDatasetInstances({}, token),
+        listFoiaRequests({ page_size: 100 }, token),
       ])
       setInstances(instData)
       setRequests(reqRes.items)
     } catch (err) {
       console.error("Failed to load data:", err)
+      setApiError(err instanceof Error ? err.message : "Failed to load data")
+      setInstances([])
+      setRequests([])
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [isAuthenticated, getAccessTokenSilently])
 
   useEffect(() => {
     load()
@@ -65,11 +80,23 @@ export function DataReviewContent() {
     reviewNotes?: string
   ) {
     setActionLoading(instanceId)
+    let token: string | undefined
+    if (isAuthenticated) {
+      try {
+        token = await getAccessTokenSilently()
+      } catch {
+        // continue without token
+      }
+    }
     try {
-      await updateDatasetInstance(instanceId, {
-        status: newStatus,
-        ...(reviewNotes && { review_notes: reviewNotes }),
-      })
+      await updateDatasetInstance(
+        instanceId,
+        {
+          status: newStatus,
+          ...(reviewNotes && { review_notes: reviewNotes }),
+        },
+        token
+      )
       await load()
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to update status")
@@ -94,6 +121,25 @@ export function DataReviewContent() {
 
   return (
     <div className="flex flex-col gap-6">
+      {apiError && (
+        <div
+          className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+          role="alert"
+        >
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-medium">Could not load data review</p>
+            <p className="mt-0.5 text-amber-700">{apiError}</p>
+            <p className="mt-1 text-xs text-amber-600">
+              Ensure the backend is running and{" "}
+              <code className="rounded bg-amber-100 px-1">NEXT_PUBLIC_API_BASE_URL</code> matches
+              (e.g. <code className="rounded bg-amber-100 px-1">http://localhost:8001</code>). Sign
+              in if the API requires authentication.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">Data Review</h1>
         <p className="mt-1 text-sm text-gray-500">
@@ -220,6 +266,7 @@ function UploadSection({
   requests: FoiaRequest[]
   onUploaded: () => void
 }) {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
   const [selectedRequestId, setSelectedRequestId] = useState<number | "">("")
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
@@ -233,6 +280,14 @@ function UploadSection({
       alert("Selected request not found")
       return
     }
+    let token: string | undefined
+    if (isAuthenticated) {
+      try {
+        token = await getAccessTokenSilently()
+      } catch {
+        // continue without token
+      }
+    }
     setUploading(true)
     try {
       for (let i = 0; i < files.length; i++) {
@@ -240,13 +295,16 @@ function UploadSection({
         const formData = new FormData()
         formData.append("file", file)
         const att = await uploadFoiaFile(selectedRequestId, formData)
-        await createDatasetInstance({
-          city_id: req.city_id,
-          dataset_type_id: req.dataset_type_id,
-          request_id: selectedRequestId,
-          attachment_id: (att as { id?: number }).id,
-          status: "pending_review",
-        })
+        await createDatasetInstance(
+          {
+            city_id: req.city_id,
+            dataset_type_id: req.dataset_type_id,
+            request_id: selectedRequestId,
+            attachment_id: (att as { id?: number }).id,
+            status: "pending_review",
+          },
+          token
+        )
       }
       onUploaded()
     } catch (err) {

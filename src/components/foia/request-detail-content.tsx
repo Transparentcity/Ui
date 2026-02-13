@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import {
   ArrowLeft,
   Send,
+  Trash2,
   RefreshCw,
   MessageSquare,
   Paperclip,
@@ -18,8 +19,12 @@ import {
   X,
   ChevronDown,
   Upload,
+  Pencil,
 } from "lucide-react"
+import { useAuth0 } from "@auth0/auth0-react"
 import {
+  deleteFoiaRequest,
+  deleteFoiaTask,
   getFoiaRequest,
   listFoiaMessages,
   listFoiaAttachments,
@@ -27,10 +32,13 @@ import {
   listFoiaTasks,
   listFoiaSubmissionAttempts,
   markFoiaExternallyFiled,
+  updateFoiaRequest,
+  aiDraftFoiaRequest,
 } from "@/lib/foiaApiClient"
 import {
   createFoiaMessage,
   completeFoiaTask,
+  submitFoiaRequest,
   updateRequestStatus,
   uploadFoiaFile,
 } from "@/app/actions/foia"
@@ -93,9 +101,19 @@ const STATUS_ACTIONS: Partial<Record<RequestStatus, { label: string; to: Request
 }
 
 export function RequestDetailContent({ requestId }: { requestId: string }) {
+  const getTodayDateInput = () => {
+    const d = new Date()
+    const yyyy = d.getFullYear()
+    const mm = String(d.getMonth() + 1).padStart(2, "0")
+    const dd = String(d.getDate()).padStart(2, "0")
+    return `${yyyy}-${mm}-${dd}`
+  }
+
   const router = useRouter()
   const searchParams = useSearchParams()
   const autoOpenExternal = searchParams.get("external") === "1"
+  const autoOpenEdit = searchParams.get("edit") === "1"
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
   const [activeTab, setActiveTab] = useState<TabId>("overview")
   const [request, setRequest] = useState<FoiaRequest | null>(null)
   const [messages, setMessages] = useState<FoiaMessage[]>([])
@@ -106,6 +124,11 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [showStatusMenu, setShowStatusMenu] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deletingTaskId, setDeletingTaskId] = useState<number | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showSubmitModal, setShowSubmitModal] = useState(false)
+  const [submittedDate, setSubmittedDate] = useState(getTodayDateInput())
 
   const loadData = useCallback(async () => {
     try {
@@ -134,6 +157,12 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  useEffect(() => {
+    if (autoOpenEdit && request) {
+      setShowEditModal(true)
+    }
+  }, [autoOpenEdit, request])
 
   async function handleStatusChange(toStatus: RequestStatus) {
     const notes = prompt(`Notes for transition to "${toStatus.replace(/_/g, " ")}":`) ?? undefined
@@ -167,6 +196,95 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
       alert(err instanceof Error ? err.message : "Rewrite failed")
     } finally {
       setActionLoading(false)
+    }
+  }
+
+  async function handleSaveEdits(data: {
+    title?: string
+    request_description?: string
+    submission_url?: string
+    submission_email_address?: string
+    agency_request_number?: string
+  }) {
+    if (!request) return
+    try {
+      await updateFoiaRequest(request.id, data)
+      setShowEditModal(false)
+      await loadData()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Update failed")
+    }
+  }
+
+  async function handleMarkSubmitted() {
+    const d = new Date()
+    const yyyy = d.getFullYear()
+    const mm = String(d.getMonth() + 1).padStart(2, "0")
+    const dd = String(d.getDate()).padStart(2, "0")
+    setSubmittedDate(`${yyyy}-${mm}-${dd}`)
+    setShowSubmitModal(true)
+  }
+
+  async function handleConfirmMarkSubmitted() {
+    if (!request) return
+    setActionLoading(true)
+    try {
+      await submitFoiaRequest(request.id, {
+        submitted_date: submittedDate || undefined,
+      })
+      await loadData()
+      setShowSubmitModal(false)
+      router.push(`/foia/requests/${request.id}?external=1`)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to mark submitted")
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleDelete() {
+    const ok = confirm("Delete this request? This cannot be undone.")
+    if (!ok) return
+
+    setDeleting(true)
+    let token: string | undefined
+    if (isAuthenticated) {
+      try {
+        token = await getAccessTokenSilently()
+      } catch {
+        // continue without token
+      }
+    }
+    try {
+      await deleteFoiaRequest(parseInt(requestId, 10), token)
+      router.push("/foia/requests")
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Delete failed")
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  async function handleDeleteTask(taskId: number) {
+    const ok = confirm("Delete this follow-up/task? This cannot be undone.")
+    if (!ok) return
+
+    setDeletingTaskId(taskId)
+    let token: string | undefined
+    if (isAuthenticated) {
+      try {
+        token = await getAccessTokenSilently()
+      } catch {
+        // continue without token
+      }
+    }
+    try {
+      await deleteFoiaTask(taskId, token)
+      await loadData()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Delete failed")
+    } finally {
+      setDeletingTaskId(null)
     }
   }
 
@@ -213,12 +331,12 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
             <h1 className="text-2xl font-semibold text-gray-900">
               {request.title?.trim()
                 ? request.title
-                : `${request.city?.name ?? `City #${request.city_id}`} - ${request.dataset_type_id}`}
+                : `${request.city?.name ?? "Unknown city"} - ${request.dataset_type_id}`}
             </h1>
             <RequestStatusBadge status={request.status} />
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-500">
-            <span>{request.city?.name ?? `City #${request.city_id}`}</span>
+            <span>{request.city?.name ?? "Unknown city"}</span>
             <span>{request.dataset_type_id}</span>
             {request.department?.name && <span>Dept: {request.department.name}</span>}
             {request.agency_request_number && <span>Ref: {request.agency_request_number}</span>}
@@ -228,6 +346,35 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {request.status === "draft" && (
+            <button
+              onClick={handleMarkSubmitted}
+              disabled={deleting || actionLoading}
+              className="flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+              title="Mark request as submitted"
+            >
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Mark Submitted
+            </button>
+          )}
+          <button
+            onClick={() => setShowEditModal(true)}
+            disabled={deleting || actionLoading}
+            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+            title={request.status === "draft" ? "Edit request" : "Edit submission email/URL + confirmation number"}
+          >
+            <Pencil className="h-4 w-4" />
+            Edit
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={deleting || actionLoading}
+            className="flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50"
+            title="Delete request"
+          >
+            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            Delete
+          </button>
           {/* Status transition dropdown */}
           {statusActions.length > 0 && (
             <div className="relative">
@@ -275,6 +422,22 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
           )}
         </div>
       </div>
+
+      <EditRequestModal
+        open={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        request={request}
+        onSave={handleSaveEdits}
+        saving={actionLoading}
+      />
+      <SubmitRequestModal
+        open={showSubmitModal}
+        onClose={() => setShowSubmitModal(false)}
+        submittedDate={submittedDate}
+        setSubmittedDate={setSubmittedDate}
+        onConfirm={handleConfirmMarkSubmitted}
+        saving={actionLoading}
+      />
 
       {/* Quick Info Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -352,6 +515,7 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
       {activeTab === "overview" && (
         <OverviewTab
           request={request}
+          messages={messages}
           tasks={tasks}
           submissionAttempts={submissionAttempts}
           onTaskComplete={loadData}
@@ -397,12 +561,14 @@ function InfoCard({
 
 function OverviewTab({
   request,
+  messages,
   tasks,
   submissionAttempts,
   onTaskComplete,
   autoOpenExternalModal,
 }: {
   request: FoiaRequest
+  messages: FoiaMessage[]
   tasks: FoiaTask[]
   submissionAttempts: FoiaSubmissionAttempt[]
   onTaskComplete: () => Promise<void>
@@ -480,6 +646,36 @@ function OverviewTab({
     }
   }
 
+  const timeline = [
+    {
+      key: "initial-request",
+      type: "initial" as const,
+      direction: "outbound" as const,
+      subject: request.title?.trim() || `Initial request - ${request.dataset_type_id}`,
+      body: request.request_description || "",
+      created_at: request.created_at,
+      classification: "initial_request",
+    },
+    ...messages.map((m) => ({
+      key: `msg-${m.id}`,
+      type: "message" as const,
+      direction: m.direction,
+      subject: m.subject || "(no subject)",
+      body: m.body || m.email_snippet || m.notes || "",
+      created_at: m.sent_at || m.created_at,
+      classification: m.classification,
+    })),
+  ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+
+  const openTasks = tasks
+    .filter((t) => t.status !== "completed" && t.status !== "cancelled")
+    .sort((a, b) => {
+      const aTs = a.due_at ? new Date(a.due_at).getTime() : Number.MAX_SAFE_INTEGER
+      const bTs = b.due_at ? new Date(b.due_at).getTime() : Number.MAX_SAFE_INTEGER
+      return aTs - bTs
+    })
+  const nextTask = openTasks[0]
+
   return (
     <>
       <ExternalFiledModal
@@ -547,14 +743,22 @@ function OverviewTab({
               </button>
             )}
             {snapPortalUrl && (
-              <a
-                href={snapPortalUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Open portal
-              </a>
+              <>
+                <a
+                  href={snapPortalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Open portal
+                </a>
+                <button
+                  onClick={() => copyText("portal URL", snapPortalUrl)}
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Copy portal URL
+                </button>
+              </>
             )}
             <button
               onClick={() => setShowExternalModal(true)}
@@ -653,20 +857,99 @@ function OverviewTab({
           {request.submission_url && (
             <div className="flex items-center justify-between">
               <dt className="text-xs text-gray-500">Submitted via URL</dt>
-              <dd className="text-sm text-purple-600">
-                <a href={request.submission_url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+              <dd className="flex items-center gap-2 text-sm">
+                <a
+                  href={request.submission_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-purple-600 hover:underline"
+                >
                   {new URL(request.submission_url).hostname}
                 </a>
+                <button
+                  type="button"
+                  onClick={() => copyText("submission URL", request.submission_url ?? "")}
+                  className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Copy
+                </button>
               </dd>
             </div>
           )}
           {request.submission_email_address && (
             <div className="flex items-center justify-between">
               <dt className="text-xs text-gray-500">Submitted to email</dt>
-              <dd className="text-sm text-gray-900">{request.submission_email_address}</dd>
+              <dd className="flex items-center gap-2 text-sm text-gray-900">
+                <span className="break-all">{request.submission_email_address}</span>
+                <button
+                  type="button"
+                  onClick={() => copyText("submission email", request.submission_email_address ?? "")}
+                  className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Copy
+                </button>
+              </dd>
             </div>
           )}
         </dl>
+      </div>
+      <div className="rounded-xl border border-gray-200 bg-white p-6 lg:col-span-2">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-gray-900">Request correspondence timeline</h3>
+          <span className="text-xs text-gray-500">{timeline.length} entries</span>
+        </div>
+        <p className="mt-1 text-xs text-gray-500">
+          Full record of your original request, city responses, your follow-ups, and acknowledgments.
+        </p>
+        <div className="mt-4 space-y-3">
+          {timeline.map((item) => {
+            const isInbound = item.direction === "inbound"
+            const tone = isInbound
+              ? "border-blue-200 bg-blue-50 text-blue-700"
+              : "border-purple-200 bg-purple-50 text-purple-700"
+            return (
+              <div key={item.key} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase ${tone}`}>
+                      {item.type === "initial" ? "Initial" : isInbound ? "City response" : "Your response"}
+                    </span>
+                    {item.classification && (
+                      <span className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] text-gray-600">
+                        {item.classification.replace(/_/g, " ")}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-gray-500">
+                    {format(new Date(item.created_at), "MMM d, yyyy 'at' h:mm a")}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm font-medium text-gray-900">{item.subject}</p>
+                {item.body && (
+                  <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-gray-700">{item.body}</p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-white p-6 lg:col-span-2">
+        <h3 className="text-sm font-semibold text-gray-900">Next step</h3>
+        {nextTask ? (
+          <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm font-medium text-amber-900">{nextTask.title}</p>
+            {nextTask.description && <p className="mt-1 text-xs text-amber-800">{nextTask.description}</p>}
+            <p className="mt-2 text-xs text-amber-700">
+              {nextTask.due_at ? `Due ${format(new Date(nextTask.due_at), "MMM d, yyyy")}` : "No due date set yet"}
+            </p>
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-gray-500">
+            No pending follow-up tasks. If no response is received after your latest outbound message, create a
+            10-day no-response follow-up.
+          </p>
+        )}
       </div>
       {tasks.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-white p-6 lg:col-span-2">
@@ -682,6 +965,15 @@ function OverviewTab({
                 </div>
                 <div className="flex items-center gap-2">
                   <TaskStatusBadge status={task.status} />
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteTask(task.id)}
+                    disabled={deletingTaskId === task.id}
+                    className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    title="Delete"
+                  >
+                    {deletingTaskId === task.id ? "..." : "Delete"}
+                  </button>
                   {task.status !== "completed" && task.status !== "cancelled" && (
                     <button
                       onClick={() => handleComplete(task.id)}
@@ -782,6 +1074,231 @@ function ExternalFiledModal({
   )
 }
 
+function SubmitRequestModal({
+  open,
+  onClose,
+  submittedDate,
+  setSubmittedDate,
+  onConfirm,
+  saving,
+}: {
+  open: boolean
+  onClose: () => void
+  submittedDate: string
+  setSubmittedDate: (v: string) => void
+  onConfirm: () => Promise<void>
+  saving: boolean
+}) {
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md rounded-2xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+          <h2 className="text-lg font-semibold text-gray-900">Mark submitted</h2>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="px-6 py-5">
+          <label className="mb-1 block text-xs font-medium text-gray-700">Date submitted</label>
+          <input
+            type="date"
+            value={submittedDate}
+            onChange={(e) => setSubmittedDate(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          />
+          <p className="mt-2 text-xs text-gray-500">
+            We use this date to set request timeline and deadline tracking.
+          </p>
+        </div>
+        <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={saving}
+            className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save & Continue
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EditRequestModal({
+  open,
+  onClose,
+  request,
+  onSave,
+  saving,
+}: {
+  open: boolean
+  onClose: () => void
+  request: FoiaRequest
+  onSave: (data: {
+    title?: string
+    request_description?: string
+    submission_url?: string
+    submission_email_address?: string
+    agency_request_number?: string
+  }) => Promise<void>
+  saving: boolean
+}) {
+  const [title, setTitle] = useState("")
+  const [desc, setDesc] = useState("")
+  const [submissionUrl, setSubmissionUrl] = useState("")
+  const [submissionEmail, setSubmissionEmail] = useState("")
+  const [agencyRef, setAgencyRef] = useState("")
+
+  useEffect(() => {
+    if (!open) return
+    setTitle((request.title || "").trim())
+    setDesc((request.request_description || "").trim())
+    setSubmissionUrl((request.submission_url || "").trim())
+    setSubmissionEmail((request.submission_email_address || "").trim())
+    setAgencyRef((request.agency_request_number || "").trim())
+  }, [open, request])
+
+  if (!open) return null
+
+  const isDraft = request.status === "draft"
+  const canEditTrackingFields = true
+  const canEditCoreFields = isDraft
+
+  return (
+    <div className="fixed inset-0 z-60 flex items-center justify-center">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-2xl rounded-2xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900">Edit request</h3>
+            <p className="mt-0.5 text-xs text-gray-500">Request #{request.id}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="max-h-[75vh] overflow-y-auto px-6 py-5">
+          {!isDraft && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Only <span className="font-semibold">draft</span> requests can edit title/description. You can still update
+              the submission email/URL and confirmation number here.
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-4">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-700">Title</label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                disabled={!canEditCoreFields || saving}
+                placeholder="Optional title"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-50 disabled:text-gray-400"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-700">Request description</label>
+              <textarea
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+                disabled={!canEditCoreFields || saving}
+                rows={6}
+                placeholder="What records are you requesting?"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm leading-relaxed focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-50 disabled:text-gray-400"
+              />
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-white p-4">
+              <p className="text-xs font-semibold text-gray-900">Submission address (optional)</p>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">Portal / Website URL</label>
+                  <input
+                    type="url"
+                    value={submissionUrl}
+                    onChange={(e) => setSubmissionUrl(e.target.value)}
+                    disabled={!canEditTrackingFields || saving}
+                    placeholder="https://..."
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-50 disabled:text-gray-400"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">Submission email</label>
+                  <input
+                    type="email"
+                    value={submissionEmail}
+                    onChange={(e) => setSubmissionEmail(e.target.value)}
+                    disabled={!canEditTrackingFields || saving}
+                    placeholder="records@city.gov"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-50 disabled:text-gray-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-white p-4">
+              <p className="text-xs font-semibold text-gray-900">Confirmation / case number (optional)</p>
+              <p className="mt-0.5 text-xs text-gray-500">If you already have the portal confirmation number, save it here.</p>
+              <div className="mt-3">
+                <input
+                  value={agencyRef}
+                  onChange={(e) => setAgencyRef(e.target.value)}
+                  disabled={!canEditTrackingFields || saving}
+                  placeholder="e.g. PRR-12345"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-50 disabled:text-gray-400"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              await onSave({
+                title: canEditCoreFields ? title.trim() || undefined : undefined,
+                request_description: canEditCoreFields ? desc.trim() || undefined : undefined,
+                submission_url: submissionUrl.trim() || undefined,
+                submission_email_address: submissionEmail.trim() || undefined,
+                agency_request_number: agencyRef.trim() || undefined,
+              })
+            }}
+            disabled={saving}
+            className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function MessagesTab({
   messages,
   requestId,
@@ -795,6 +1312,7 @@ function MessagesTab({
   const [sending, setSending] = useState(false)
   const [creatingTask, setCreatingTask] = useState(false)
   const [taskCreatedFor, setTaskCreatedFor] = useState<number | null>(null)
+  const [autoDraftNarrowReply, setAutoDraftNarrowReply] = useState(true)
   const [msgForm, setMsgForm] = useState({
     direction: "inbound" as "outbound" | "inbound",
     classification: "follow_up" as string,
@@ -829,6 +1347,71 @@ function MessagesTab({
       channel: "email",
       response_action_required: "none",
     })
+    setAutoDraftNarrowReply(true)
+  }
+
+  async function createNoResponseTask(reason: string) {
+    const { createFoiaTask } = await import("@/app/actions/foia")
+    const due = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString()
+    await createFoiaTask({
+      request_id: requestId,
+      type: "no_response",
+      title: "No response - send 10-day status check",
+      description: reason,
+      due_at: due,
+    })
+  }
+
+  function isNarrowingInbound(msg: FoiaMessage): boolean {
+    if (msg.direction !== "inbound") return false
+    if (msg.classification === "narrow_request" || msg.classification === "clarification") return true
+    const text = `${msg.subject || ""}\n${msg.email_snippet || ""}\n${msg.body || ""}`.toLowerCase()
+    return /\bnarrow\b|\btoo broad\b|\bvoluminous\b/.test(text)
+  }
+
+  function openPasteOwnNarrowReply() {
+    setShowCompose(true)
+    setMsgForm((f) => ({
+      ...f,
+      direction: "outbound",
+      classification: "follow_up",
+      response_action_required: "none",
+      subject: f.subject || "Re: Request narrowed scope",
+      body: "",
+      notes: f.notes || "Narrowing response sent by requester.",
+    }))
+  }
+
+  async function handleGenerateNarrowedReply() {
+    const latestInboundNeedingNarrow = [...messages].reverse().find(isNarrowingInbound)
+    if (!latestInboundNeedingNarrow) return
+    setSending(true)
+    try {
+      const extraContext = [
+        "The agency asked us to narrow scope.",
+        "Draft a concise narrowed response that confirms we are narrowing the request.",
+        "Keep tone cooperative and specific.",
+        latestInboundNeedingNarrow.subject ? `Agency subject: ${latestInboundNeedingNarrow.subject}` : "",
+        latestInboundNeedingNarrow.email_snippet
+          ? `Agency key quote: ${latestInboundNeedingNarrow.email_snippet}`
+          : "",
+        latestInboundNeedingNarrow.body
+          ? `Agency full text: ${latestInboundNeedingNarrow.body.slice(0, 1500)}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
+
+      await aiDraftFoiaRequest(requestId, "draft_followup", extraContext)
+      await createNoResponseTask(
+        "Auto-created after narrowed-scope reply draft. If no response in 10 days, send a status check."
+      )
+      await onMessageSent()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to generate narrowed reply")
+    } finally {
+      setSending(false)
+    }
   }
 
   async function handleSend(e: React.FormEvent) {
@@ -851,6 +1434,45 @@ function MessagesTab({
         channel: msgForm.channel || undefined,
         response_action_required: msgForm.response_action_required !== "none" ? msgForm.response_action_required : undefined,
       })
+
+      const isInboundNarrowing =
+        msgForm.direction === "inbound" &&
+        ["narrow_request", "clarification"].includes(msgForm.classification) &&
+        autoDraftNarrowReply
+
+      if (isInboundNarrowing) {
+        try {
+          const extraContext = [
+            "The agency asked us to narrow scope.",
+            "Draft a concise narrowed response that confirms we are narrowing the request.",
+            "Keep tone cooperative and specific.",
+            msgForm.subject ? `Agency subject: ${msgForm.subject}` : "",
+            msgForm.email_snippet ? `Agency key quote: ${msgForm.email_snippet}` : "",
+            msgForm.body ? `Agency full text: ${msgForm.body.slice(0, 1500)}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n")
+
+          await aiDraftFoiaRequest(requestId, "draft_followup", extraContext)
+          await createNoResponseTask(
+            "Auto-created after narrowed-scope reply draft. If no response in 10 days, send a status check."
+          )
+        } catch (err) {
+          console.error("Auto-draft for narrowed request failed:", err)
+          // Don't fail the interaction log if AI/task automation fails.
+        }
+      }
+
+      if (msgForm.direction === "outbound") {
+        try {
+          await createNoResponseTask(
+            "No response reminder after outbound follow-up. Send a status check if no reply in 10 days."
+          )
+        } catch (err) {
+          console.error("Auto-create 10-day reminder failed:", err)
+        }
+      }
+
       setShowCompose(false)
       resetForm()
       await onMessageSent()
@@ -963,8 +1585,49 @@ function MessagesTab({
     reroute: "status_update",
   }
 
+  const latestInboundNeedingNarrow = [...messages].reverse().find(isNarrowingInbound)
+  const hasOutboundAfterNarrow =
+    !!latestInboundNeedingNarrow &&
+    messages.some(
+      (m) =>
+        m.direction === "outbound" &&
+        new Date(m.created_at).getTime() > new Date(latestInboundNeedingNarrow.created_at).getTime()
+    )
+  const showNarrowPrompt = !!latestInboundNeedingNarrow && !hasOutboundAfterNarrow
+
   return (
     <div className="flex flex-col gap-4">
+      {showNarrowPrompt && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-amber-900">Agency asked you to narrow this request</p>
+          <p className="mt-1 text-xs text-amber-800">
+            You should send a narrowed-scope reply now. You can generate one or paste your own.
+          </p>
+          {latestInboundNeedingNarrow?.email_snippet && (
+            <p className="mt-2 rounded-md border border-amber-200 bg-white px-3 py-2 text-xs italic text-amber-900">
+              "{latestInboundNeedingNarrow.email_snippet}"
+            </p>
+          )}
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleGenerateNarrowedReply}
+              disabled={sending}
+              className="rounded-lg bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+            >
+              {sending ? "Generating..." : "Generate narrowed reply"}
+            </button>
+            <button
+              type="button"
+              onClick={openPasteOwnNarrowReply}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Paste my own reply
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-end">
         <button
           onClick={() => { setShowCompose(!showCompose); if (showCompose) resetForm() }}
@@ -1139,6 +1802,20 @@ function MessagesTab({
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
+              {(msgForm.classification === "narrow_request" || msgForm.classification === "clarification") &&
+                msgForm.direction === "inbound" && (
+                  <label className="mt-3 flex items-start gap-2 text-xs text-amber-800">
+                    <input
+                      type="checkbox"
+                      checked={autoDraftNarrowReply}
+                      onChange={(e) => setAutoDraftNarrowReply(e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      Auto-generate my narrowing reply after save and create a 10-day no-response reminder task.
+                    </span>
+                  </label>
+                )}
             </div>
 
             <div className="flex justify-end">

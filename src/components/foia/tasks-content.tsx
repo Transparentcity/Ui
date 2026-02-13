@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { Loader2, Plus, X, CheckCircle2 } from "lucide-react"
-import { listFoiaTasks } from "@/lib/foiaApiClient"
+import { Loader2, Plus, X, CheckCircle2, AlertTriangle, Trash2 } from "lucide-react"
+import { useAuth0 } from "@auth0/auth0-react"
+import { deleteFoiaTask, listFoiaTasks } from "@/lib/foiaApiClient"
 import { assignFoiaTask, completeFoiaTask, createFoiaTask } from "@/app/actions/foia"
 import { TaskStatusBadge } from "@/components/foia/status-badge"
 import type { FoiaTask, TaskStatus, TaskType } from "@/lib/foia/types"
@@ -28,11 +29,14 @@ const TASK_TYPES: { value: TaskType; label: string }[] = [
 ]
 
 export function TasksContent() {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
   const [tasks, setTasks] = useState<FoiaTask[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<TaskStatus | "all">("all")
   const [showNewTask, setShowNewTask] = useState(false)
   const [actionLoading, setActionLoading] = useState<number | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [apiError, setApiError] = useState<string | null>(null)
 
   const [newTask, setNewTask] = useState({
     type: "review_delivery" as TaskType,
@@ -42,23 +46,35 @@ export function TasksContent() {
   })
   const [creating, setCreating] = useState(false)
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true)
+    setApiError(null)
+    let token: string | undefined
+    if (isAuthenticated) {
+      try {
+        token = await getAccessTokenSilently()
+      } catch {
+        // continue without token
+      }
+    }
     try {
-      const data = await listFoiaTasks({
-        status: filter === "all" ? undefined : filter,
-      })
+      const data = await listFoiaTasks(
+        { status: filter === "all" ? undefined : filter },
+        token
+      )
       setTasks(data)
     } catch (err) {
       console.error("Failed to load tasks:", err)
+      setApiError(err instanceof Error ? err.message : "Failed to load tasks")
+      setTasks([])
     } finally {
       setLoading(false)
     }
-  }
+  }, [filter, isAuthenticated, getAccessTokenSilently])
 
   useEffect(() => {
     load()
-  }, [filter])
+  }, [load])
 
   async function handleComplete(taskId: number) {
     setActionLoading(taskId)
@@ -107,8 +123,50 @@ export function TasksContent() {
     }
   }
 
+  async function handleDelete(taskId: number) {
+    const ok = confirm("Delete this follow-up/task? This cannot be undone.")
+    if (!ok) return
+
+    setDeletingId(taskId)
+    let token: string | undefined
+    if (isAuthenticated) {
+      try {
+        token = await getAccessTokenSilently()
+      } catch {
+        // continue without token
+      }
+    }
+    try {
+      await deleteFoiaTask(taskId, token)
+      await load()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Delete failed")
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
+      {apiError && (
+        <div
+          className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+          role="alert"
+        >
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-medium">Could not load tasks</p>
+            <p className="mt-0.5 text-amber-700">{apiError}</p>
+            <p className="mt-1 text-xs text-amber-600">
+              Ensure the backend is running and{" "}
+              <code className="rounded bg-amber-100 px-1">NEXT_PUBLIC_API_BASE_URL</code> matches
+              (e.g. <code className="rounded bg-amber-100 px-1">http://localhost:8001</code>). Sign
+              in if the API requires authentication.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Tasks</h1>
@@ -225,6 +283,18 @@ export function TasksContent() {
                 </div>
               </div>
               <TaskStatusBadge status={task.status} />
+              <button
+                type="button"
+                onClick={() => handleDelete(task.id)}
+                disabled={deletingId === task.id}
+                className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                title="Delete"
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {deletingId === task.id ? "Deleting..." : "Delete"}
+                </span>
+              </button>
               {task.status !== "completed" && task.status !== "cancelled" && (
                 <div className="flex items-center gap-1.5">
                   {!task.assigned_to && (
@@ -252,9 +322,9 @@ export function TasksContent() {
               )}
             </div>
           ))}
-          {tasks.length === 0 && (
+          {tasks.length === 0 && !loading && (
             <div className="px-6 py-12 text-center text-sm text-gray-400">
-              No tasks match your filter.
+              {apiError ? "Tasks could not be loaded. Check the message above." : "No tasks match your filter."}
             </div>
           )}
         </div>

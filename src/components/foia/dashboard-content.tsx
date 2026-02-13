@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import {
   FileText,
@@ -15,11 +15,26 @@ import {
   Database,
   RefreshCw,
 } from "lucide-react"
+import { useAuth0 } from "@auth0/auth0-react"
 import { getFoiaDashboard, listFoiaRequests, listFoiaTasks } from "@/lib/foiaApiClient"
+import { API_BASE } from "@/lib/apiBase"
 import { RequestStatusBadge, TaskStatusBadge } from "@/components/foia/status-badge"
 import { NewRequestModal } from "@/components/foia/new-request-modal"
 import { formatDistanceToNow } from "date-fns"
 import type { FoiaDashboardSummary, FoiaRequest, FoiaTask } from "@/lib/foia/types"
+
+const DEFAULT_SUMMARY: FoiaDashboardSummary = {
+  total_requests: 0,
+  open_requests: 0,
+  unacknowledged: 0,
+  messages_to_respond: 0,
+  pending_data_review: 0,
+  incomplete_deliveries: 0,
+  awaiting_review: 0,
+  tasks_due: 0,
+  overdue_requests: 0,
+  completeness_by_city: [],
+}
 
 function KpiCard({
   label,
@@ -65,31 +80,49 @@ function KpiCard({
 }
 
 export function DashboardContent() {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
   const [summary, setSummary] = useState<FoiaDashboardSummary | null>(null)
   const [recentRequests, setRecentRequests] = useState<FoiaRequest[]>([])
   const [pendingTasks, setPendingTasks] = useState<FoiaTask[]>([])
   const [loading, setLoading] = useState(true)
   const [showNewRequest, setShowNewRequest] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
 
-  useEffect(() => {
-    async function load() {
+  const load = useCallback(async () => {
+    setLoading(true)
+    setApiError(null)
+    let token: string | undefined
+    if (isAuthenticated) {
       try {
-        const [dash, reqData, taskData] = await Promise.all([
-          getFoiaDashboard(),
-          listFoiaRequests({ page_size: 5 }),
-          listFoiaTasks({ status: "pending" }),
-        ])
-        setSummary(dash)
-        setRecentRequests(reqData.items.slice(0, 5))
-        setPendingTasks(taskData.slice(0, 5))
-      } catch (err) {
-        console.error("Failed to load FOIA dashboard:", err)
-      } finally {
-        setLoading(false)
+        token = await getAccessTokenSilently()
+      } catch {
+        // Not logged in or token failed; continue without token (backend may use DEV_MODE)
       }
     }
+    try {
+      const [dash, reqData, taskData] = await Promise.all([
+        getFoiaDashboard(token),
+        listFoiaRequests({ page_size: 5 }, token),
+        listFoiaTasks({ status: "pending" }, token),
+      ])
+      setSummary(dash)
+      setRecentRequests(reqData.items.slice(0, 5))
+      setPendingTasks(taskData.slice(0, 5))
+    } catch (err) {
+      console.error("Failed to load FOIA dashboard:", err)
+      const message = err instanceof Error ? err.message : "Failed to load dashboard"
+      setApiError(message)
+      setSummary(DEFAULT_SUMMARY)
+      setRecentRequests([])
+      setPendingTasks([])
+    } finally {
+      setLoading(false)
+    }
+  }, [isAuthenticated, getAccessTokenSilently])
+
+  useEffect(() => {
     load()
-  }, [])
+  }, [load])
 
   if (loading) {
     return (
@@ -99,8 +132,38 @@ export function DashboardContent() {
     )
   }
 
+  const displaySummary = summary ?? DEFAULT_SUMMARY
+
   return (
     <div className="flex flex-col gap-8">
+      {apiError && (
+        <div
+          className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+          role="alert"
+        >
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="font-medium">Could not load dashboard data</p>
+            <p className="mt-0.5 text-amber-700">{apiError}</p>
+            <p className="mt-1 text-xs text-amber-600">
+              Requests are being sent to: <code className="rounded bg-amber-100 px-1 break-all">{API_BASE}</code>
+              . Ensure the backend is running there (or set{" "}
+              <code className="rounded bg-amber-100 px-1">NEXT_PUBLIC_API_BASE_URL</code> to match
+              your backend, e.g. <code className="rounded bg-amber-100 px-1">http://localhost:8001</code>
+              ) and you are signed in if the API requires authentication.
+            </p>
+            <button
+              type="button"
+              onClick={() => load()}
+              className="mt-3 flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -126,28 +189,28 @@ export function DashboardContent() {
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <KpiCard
             label="Open Requests"
-            value={summary?.open_requests ?? 0}
+            value={displaySummary.open_requests}
             icon={FileText}
             href="/foia/requests"
             accent="primary"
           />
           <KpiCard
             label="Unacknowledged"
-            value={summary?.unacknowledged ?? 0}
+            value={displaySummary.unacknowledged}
             icon={AlertTriangle}
             href="/foia/requests?status=submitted_unacknowledged"
             accent="warning"
           />
           <KpiCard
             label="Overdue"
-            value={summary?.overdue_requests ?? 0}
+            value={displaySummary.overdue_requests}
             icon={Clock}
             href="/foia/requests?overdue=true"
             accent="destructive"
           />
           <KpiCard
             label="Tasks Due"
-            value={summary?.tasks_due ?? 0}
+            value={displaySummary.tasks_due}
             icon={CheckCircle2}
             href="/foia/tasks"
             accent="primary"
@@ -163,30 +226,30 @@ export function DashboardContent() {
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <KpiCard
             label="Messages to Respond To"
-            value={summary?.messages_to_respond ?? 0}
+            value={displaySummary.messages_to_respond ?? 0}
             icon={MessageSquare}
             href="/foia/messages"
-            accent={summary?.messages_to_respond ? "warning" : undefined}
+            accent={displaySummary.messages_to_respond ? "warning" : undefined}
           />
           <KpiCard
             label="Data to Review"
-            value={summary?.pending_data_review ?? 0}
+            value={displaySummary.pending_data_review ?? 0}
             icon={Database}
             href="/foia/data-review"
-            accent={summary?.pending_data_review ? "warning" : undefined}
+            accent={displaySummary.pending_data_review ? "warning" : undefined}
           />
           <KpiCard
             label="Incomplete Deliveries"
-            value={summary?.incomplete_deliveries ?? 0}
+            value={displaySummary.incomplete_deliveries ?? 0}
             icon={RefreshCw}
             href="/foia/data-review"
-            accent={summary?.incomplete_deliveries ? "warning" : undefined}
+            accent={displaySummary.incomplete_deliveries ? "warning" : undefined}
           />
         </div>
       </div>
 
       {/* Completeness by City */}
-      {(summary?.completeness_by_city?.length ?? 0) > 0 && (
+      {(displaySummary.completeness_by_city?.length ?? 0) > 0 && (
         <div className="rounded-xl border border-gray-200 bg-white">
           <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
             <div className="flex items-center gap-2">
@@ -201,7 +264,7 @@ export function DashboardContent() {
             </Link>
           </div>
           <div className="divide-y divide-gray-100">
-            {summary!.completeness_by_city.map((snap) => (
+            {displaySummary.completeness_by_city!.map((snap) => (
               <div key={snap.city_id} className="flex items-center gap-6 px-6 py-4">
                 <div className="min-w-[140px]">
                   <Link
