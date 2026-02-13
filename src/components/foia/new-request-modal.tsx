@@ -453,6 +453,7 @@ export function NewRequestModal({
   async function handleSaveConfirmationFromSteps(args: {
     confirmationCode: string
     screenshotUri?: string
+    requestUrl?: string
   }) {
     const id = createdRequestId ?? (await createDraft())
     if (!id) return
@@ -460,6 +461,7 @@ export function NewRequestModal({
     await markFoiaExternallyFiled(id, {
       external_confirmation_id: args.confirmationCode,
       screenshot_uri: (args.screenshotUri || "").trim() || undefined,
+      external_request_url: (args.requestUrl || "").trim() || undefined,
     })
 
     setShowSteps(false)
@@ -1007,7 +1009,7 @@ function generateTitleFromDescription(description: string, preferredCityName?: s
 
   // IMPORTANT: Always prefer the selected city over any city-name text in the description.
   // Descriptions can include unrelated city references (e.g., legal comparisons) and should not override.
-  let city = (preferredCityName || "").trim()
+  const city = (preferredCityName || "").trim()
 
   const droneish =
     /\b(drone|uav|uas)\b/.test(norm) ||
@@ -1107,12 +1109,13 @@ function SubmissionStepsModal({
   onCopy: (label: string, text: string) => Promise<void>
   onRequestTextChange: (text: string) => void
   onSubmitted: () => Promise<void>
-  onSaveConfirmation: (args: { confirmationCode: string; screenshotUri?: string }) => Promise<void>
+  onSaveConfirmation: (args: { confirmationCode: string; screenshotUri?: string; requestUrl?: string }) => Promise<void>
   submitting: boolean
 }) {
   const [copied, setCopied] = useState(false)
   const [confirmationCode, setConfirmationCode] = useState("")
   const [screenshotUri, setScreenshotUri] = useState("")
+  const [requestUrl, setRequestUrl] = useState("")
   const [savingConfirmation, setSavingConfirmation] = useState(false)
 
   const safeCityName = (cityName || "").trim() || "city portal"
@@ -1378,6 +1381,16 @@ function SubmissionStepsModal({
                 />
               </div>
               <div className="sm:col-span-1">
+                <label className="mb-1 block text-xs font-medium text-gray-700">Request URL (optional)</label>
+                <input
+                  type="url"
+                  value={requestUrl}
+                  onChange={(e) => setRequestUrl(e.target.value)}
+                  placeholder="https://sanfrancisco.nextrequest.com/requests/26-915"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                />
+              </div>
+              <div className="sm:col-span-1">
                 <label className="mb-1 block text-xs font-medium text-gray-700">Receipt / screenshot URL (optional)</label>
                 <input
                   value={screenshotUri}
@@ -1403,6 +1416,7 @@ function SubmissionStepsModal({
                     setSavingConfirmation(true)
                     await onSaveConfirmation({
                       confirmationCode: code,
+                      requestUrl: requestUrl.trim() || undefined,
                       screenshotUri: screenshotUri.trim() || undefined,
                     })
                   } finally {

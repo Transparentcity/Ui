@@ -31,6 +31,13 @@ import {
   aiDraftFoiaRequest,
   listFoiaRequests,
 } from "@/lib/foiaApiClient"
+import {
+  FOLLOW_UP_ACTION_OPTIONS,
+  FOLLOW_UP_CLASSIFICATION_TO_ACTION,
+  FOLLOW_UP_QUICK_INSERTS,
+  buildNoResponseTaskPayload,
+  getFollowUpTaskSpec,
+} from "@/lib/foia/followUpWorkflow"
 import { TaskStatusBadge, RequestStatusBadge } from "@/components/foia/status-badge"
 import type { FoiaTask, FoiaRequest, FoiaMessage } from "@/lib/foia/types"
 import { formatDistanceToNow, format } from "date-fns"
@@ -911,64 +918,6 @@ const CLASSIFICATION_OPTIONS = [
   { value: "reroute", label: "Reroute to Another Dept" },
 ]
 
-const ACTION_OPTIONS = [
-  { value: "none", label: "No action needed" },
-  { value: "no_response", label: "No Response (status check)" },
-  { value: "narrow_request", label: "Revise request (narrow scope)" },
-  { value: "generate_response", label: "Draft a response email" },
-  { value: "pickup_data", label: "Go pick up data" },
-  { value: "status_update", label: "Note status update" },
-  { value: "no_records", label: "Handle 'no records' response" },
-  { value: "partial_no_records", label: "Follow up with remaining depts" },
-  { value: "pay_fee", label: "Pay copying/mailing fee" },
-  { value: "appeal", label: "Appeal denial or exemption" },
-]
-
-const classificationToAction: Record<string, string> = {
-  no_response: "no_response",
-  narrow_request: "narrow_request",
-  pickup_instructions: "pickup_data",
-  no_records: "no_records",
-  partial_no_records: "partial_no_records",
-  status_update: "status_update",
-  data_delivery: "none",
-  acknowledgment: "none",
-  clarification: "narrow_request",
-  fee_notice: "pay_fee",
-  fee_estimate: "pay_fee",
-  denial: "appeal",
-  exemption: "appeal",
-  extension: "status_update",
-  reroute: "status_update",
-  follow_up: "generate_response",
-}
-
-const actionToTaskType: Record<string, string> = {
-  no_response: "no_response",
-  narrow_request: "narrow_request",
-  pickup_data: "pickup_data",
-  generate_response: "send_response",
-  status_update: "general_followup",
-  no_records: "general_followup",
-  partial_no_records: "follow_up_partial",
-  pay_fee: "pay_fee",
-  appeal: "appeal_denial",
-  none: "general_followup",
-}
-
-const actionToTaskTitle: Record<string, string> = {
-  no_response: "No response — send status check email",
-  narrow_request: "Revise & narrow the original request",
-  pickup_data: "Pick up data (see instructions)",
-  generate_response: "Draft and send response email",
-  status_update: "Review status update",
-  no_records: "Review 'no records' response & determine next steps",
-  partial_no_records: "Follow up with remaining departments still searching",
-  pay_fee: "Pay copying/mailing fee to receive records",
-  appeal: "Appeal denial or exemption claim",
-  none: "Follow up on interaction",
-}
-
 function NewFollowUpForm({
   onCreated,
   onCancel,
@@ -980,6 +929,7 @@ function NewFollowUpForm({
   const [loadingRequests, setLoadingRequests] = useState(true)
   const [saving, setSaving] = useState(false)
   const [autoDraftNarrowReply, setAutoDraftNarrowReply] = useState(true)
+  const [quickInsert, setQuickInsert] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null)
   const [showRequestDropdown, setShowRequestDropdown] = useState(false)
@@ -989,7 +939,6 @@ function NewFollowUpForm({
     classification: "follow_up" as string,
     channel: "email" as string,
     response_action_required: "generate_response" as string,
-    subject: "",
     email_snippet: "",
     body: "",
     sender_name: "",
@@ -1045,7 +994,7 @@ function NewFollowUpForm({
     : requests
 
   function handleClassificationChange(cls: string) {
-    const suggestedAction = classificationToAction[cls] || "none"
+    const suggestedAction = FOLLOW_UP_CLASSIFICATION_TO_ACTION[cls] || "none"
     if (cls === "no_response") {
       // For "no response", there isn't an inbound email to paste; add a default note
       // so the form can be submitted without forcing a fake quote.
@@ -1062,14 +1011,7 @@ function NewFollowUpForm({
 
   async function createNoResponseTask(requestId: number, reason: string) {
     const { createFoiaTask } = await import("@/app/actions/foia")
-    const due = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString()
-    await createFoiaTask({
-      request_id: requestId,
-      type: "no_response",
-      title: "No response - send 10-day status check",
-      description: reason,
-      due_at: due,
-    })
+    await createFoiaTask(buildNoResponseTaskPayload(requestId, reason))
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -1090,7 +1032,6 @@ function NewFollowUpForm({
       await createFoiaMessage(selectedRequestId, {
         direction: "inbound",
         classification: form.classification || undefined,
-        subject: form.subject || undefined,
         body: form.body || undefined,
         sender_name: form.sender_name || undefined,
         sender_email: form.sender_email || undefined,
@@ -1111,7 +1052,6 @@ function NewFollowUpForm({
             "The agency asked us to narrow scope.",
             "Draft a concise narrowed response that confirms we are narrowing the request.",
             "Keep tone cooperative and specific.",
-            form.subject ? `Agency subject: ${form.subject}` : "",
             form.email_snippet ? `Agency key quote: ${form.email_snippet}` : "",
             form.body ? `Agency full text: ${form.body.slice(0, 1500)}` : "",
           ]
@@ -1130,11 +1070,9 @@ function NewFollowUpForm({
       // 2. Create the follow-up task
       if (form.response_action_required && form.response_action_required !== "none") {
         const action = form.response_action_required
-        const taskType = actionToTaskType[action] || "general_followup"
-        const taskTitle = actionToTaskTitle[action] || "Follow up on interaction"
+        const { type: taskType, title: taskTitle } = getFollowUpTaskSpec(action)
 
         const description = [
-          form.subject ? `Subject: ${form.subject}` : "",
           form.sender_name ? `Contact: ${form.sender_name}` : "",
           form.sender_email ? `Email: ${form.sender_email}` : "",
           form.email_snippet ? `Key quote: "${form.email_snippet}"` : "",
@@ -1358,14 +1296,39 @@ function NewFollowUpForm({
           </label>
           <div className="flex flex-col gap-3">
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">Subject</label>
-              <input
-                type="text"
-                value={form.subject}
-                onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
-                placeholder="RE: Public Records Request PRR-12345"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-              />
+              <label className="mb-1 block text-xs font-medium text-gray-700">
+                Reason agency asked to revise / add info (optional)
+              </label>
+              <select
+                value={quickInsert}
+                onChange={(e) => {
+                  const next = e.target.value
+                  setQuickInsert(next)
+                  if (!next) return
+                  const chosen = FOLLOW_UP_QUICK_INSERTS.find((x) => x.text === next)
+                  if (!chosen) return
+                  setForm((f) => {
+                    if (!f.email_snippet.trim()) {
+                      return { ...f, email_snippet: chosen.text }
+                    }
+                    const mergedBody = f.body.trim()
+                      ? `${f.body.trim()}\n\n${chosen.text}`
+                      : chosen.text
+                    return { ...f, body: mergedBody }
+                  })
+                }}
+                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              >
+                <option value="">Select a revision/info reason...</option>
+                {FOLLOW_UP_QUICK_INSERTS.map((opt) => (
+                  <option key={opt.label} value={opt.text}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-gray-500">
+                Focused on narrowing requests and clarification reasons only.
+              </p>
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-700">
@@ -1418,7 +1381,7 @@ function NewFollowUpForm({
               onChange={(e) => setForm((f) => ({ ...f, response_action_required: e.target.value }))}
               className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
             >
-              {ACTION_OPTIONS.map((opt) => (
+              {FOLLOW_UP_ACTION_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
@@ -1440,7 +1403,7 @@ function NewFollowUpForm({
             {form.response_action_required !== "none" && (
               <p className="mt-2 text-xs text-amber-800">
                 <span className="font-medium">Task to be created: </span>
-                {actionToTaskTitle[form.response_action_required] || "Follow up on interaction"}
+                {getFollowUpTaskSpec(form.response_action_required).title}
               </p>
             )}
           </div>

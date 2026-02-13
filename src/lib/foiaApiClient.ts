@@ -101,7 +101,10 @@ export function createFoiaRequest(data: Partial<FoiaRequest>): Promise<FoiaReque
   return apiFetch("/api/foia/requests", { method: "POST", body: JSON.stringify(data) })
 }
 
-export function updateFoiaRequest(id: number, data: Partial<FoiaRequest>): Promise<FoiaRequest> {
+export function updateFoiaRequest(
+  id: number,
+  data: Partial<FoiaRequest> & { submitted_date?: string }
+): Promise<FoiaRequest> {
   return apiFetch(`/api/foia/requests/${id}`, { method: "PUT", body: JSON.stringify(data) })
 }
 
@@ -322,7 +325,11 @@ export function listFoiaSubmissionAttempts(requestId: number): Promise<FoiaSubmi
 
 export function markFoiaExternallyFiled(
   requestId: number,
-  data: { external_confirmation_id: string; screenshot_uri?: string }
+  data: {
+    external_confirmation_id: string
+    screenshot_uri?: string
+    external_request_url?: string
+  }
 ): Promise<FoiaSubmissionAttempt> {
   return apiFetch(`/api/foia/requests/${requestId}/externally-filed`, {
     method: "POST",

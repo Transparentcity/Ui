@@ -39,7 +39,9 @@ export function CitiesContent() {
     }
     try {
       const rows = await listAdminFoiaCities(token)
-      setCities(rows)
+      // Show curated FOIA cities only (not the full master city table).
+      const curated = rows.filter((c) => (c.total_datasets ?? 0) > 0)
+      setCities(curated.length > 0 ? curated : rows.slice(0, 25))
     } catch (err) {
       console.error("Failed to load city profiles:", err)
       setError(err instanceof Error ? err.message : "Failed to load city profiles")
@@ -248,7 +250,7 @@ export function CitiesContent() {
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">City Profiles</h1>
           <p className="mt-1 text-sm text-gray-500">
-            FOIA submission methods, contacts, departments, and dataset targets
+            Curated FOIA city set (not full city master list)
           </p>
         </div>
         <button
@@ -275,7 +277,7 @@ export function CitiesContent() {
           className="h-10 w-full max-w-sm rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
         />
         <div className="text-xs text-gray-500">
-          {filtered.length.toLocaleString()} cities
+          {filtered.length.toLocaleString()} cities shown
         </div>
       </div>
 

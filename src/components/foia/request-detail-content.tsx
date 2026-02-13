@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   ArrowLeft,
   Send,
@@ -38,11 +38,20 @@ import {
 import {
   createFoiaMessage,
   completeFoiaTask,
+  createFoiaTask,
   submitFoiaRequest,
   updateRequestStatus,
   uploadFoiaFile,
 } from "@/app/actions/foia"
 import { API_BASE } from "@/lib/apiBase"
+import {
+  FOLLOW_UP_ACTION_OPTIONS,
+  FOLLOW_UP_CLASSIFICATION_TO_ACTION,
+  FOLLOW_UP_QUICK_INSERTS,
+  buildNoResponseTaskPayload,
+  getFollowUpTaskSpec,
+  isNarrowingSignal,
+} from "@/lib/foia/followUpWorkflow"
 import { RequestStatusBadge, TaskStatusBadge } from "@/components/foia/status-badge"
 import { formatDistanceToNow, format } from "date-fns"
 import type {
@@ -110,6 +119,7 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
   }
 
   const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const autoOpenExternal = searchParams.get("external") === "1"
   const autoOpenEdit = searchParams.get("edit") === "1"
@@ -161,8 +171,21 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
   useEffect(() => {
     if (autoOpenEdit && request) {
       setShowEditModal(true)
+      const nextParams = new URLSearchParams(searchParams.toString())
+      nextParams.delete("edit")
+      const nextQuery = nextParams.toString()
+      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname)
     }
-  }, [autoOpenEdit, request])
+  }, [autoOpenEdit, pathname, request, router, searchParams])
+
+  function closeEditModal() {
+    setShowEditModal(false)
+    if (!autoOpenEdit) return
+    const nextParams = new URLSearchParams(searchParams.toString())
+    nextParams.delete("edit")
+    const nextQuery = nextParams.toString()
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname)
+  }
 
   async function handleStatusChange(toStatus: RequestStatus) {
     const notes = prompt(`Notes for transition to "${toStatus.replace(/_/g, " ")}":`) ?? undefined
@@ -205,11 +228,12 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
     submission_url?: string
     submission_email_address?: string
     agency_request_number?: string
+    submitted_date?: string
   }) {
     if (!request) return
     try {
       await updateFoiaRequest(request.id, data)
-      setShowEditModal(false)
+      closeEditModal()
       await loadData()
     } catch (err) {
       alert(err instanceof Error ? err.message : "Update failed")
@@ -341,7 +365,9 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
             {request.department?.name && <span>Dept: {request.department.name}</span>}
             {request.agency_request_number && <span>Ref: {request.agency_request_number}</span>}
             <span>Version {request.request_version}</span>
-            <span>Coverage: {request.coverage_start} to {request.coverage_end}</span>
+            {request.coverage_start && request.coverage_end && (
+              <span>Coverage: {request.coverage_start} to {request.coverage_end}</span>
+            )}
             <span>Format: {request.format_requested}</span>
           </div>
         </div>
@@ -424,8 +450,9 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
       </div>
 
       <EditRequestModal
+        key={`${request.id}-${showEditModal ? "open" : "closed"}-${request.updated_at || ""}`}
         open={showEditModal}
-        onClose={() => setShowEditModal(false)}
+        onClose={closeEditModal}
         request={request}
         onSave={handleSaveEdits}
         saving={actionLoading}
@@ -519,6 +546,8 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
           tasks={tasks}
           submissionAttempts={submissionAttempts}
           onTaskComplete={loadData}
+          onDeleteTask={handleDeleteTask}
+          deletingTaskId={deletingTaskId}
           autoOpenExternalModal={autoOpenExternal}
         />
       )}
@@ -549,7 +578,7 @@ function InfoCard({
   warn?: boolean
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-4">
+    <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3">
       <Icon className={`h-4 w-4 ${warn ? "text-red-500" : "text-gray-400"}`} />
       <div>
         <p className="text-xs text-gray-500">{label}</p>
@@ -565,6 +594,8 @@ function OverviewTab({
   tasks,
   submissionAttempts,
   onTaskComplete,
+  onDeleteTask,
+  deletingTaskId,
   autoOpenExternalModal,
 }: {
   request: FoiaRequest
@@ -572,13 +603,17 @@ function OverviewTab({
   tasks: FoiaTask[]
   submissionAttempts: FoiaSubmissionAttempt[]
   onTaskComplete: () => Promise<void>
+  onDeleteTask: (taskId: number) => Promise<void>
+  deletingTaskId: number | null
   autoOpenExternalModal: boolean
 }) {
   const [completing, setCompleting] = useState<number | null>(null)
   const [showExternalModal, setShowExternalModal] = useState(false)
   const [externalId, setExternalId] = useState("")
+  const [externalRequestUrl, setExternalRequestUrl] = useState("")
   const [screenshotUri, setScreenshotUri] = useState("")
   const [markingExternal, setMarkingExternal] = useState(false)
+  const [showPacketDetails, setShowPacketDetails] = useState(false)
 
   const latestAttempt = submissionAttempts[0]
   const latestSnap = (latestAttempt?.payload_snapshot ?? {}) as Record<string, unknown>
@@ -593,12 +628,23 @@ function OverviewTab({
   const snapPortalFields =
     latestSnap["portal_fields"] && typeof latestSnap["portal_fields"] === "object" ? latestSnap["portal_fields"] : null
   const externalConfirmationId = latestAttempt?.external_confirmation_id ?? ""
+  const normalizedTitle = (request.title || "").trim().toLowerCase()
+  const normalizedDescription = (request.request_description || "").trim().toLowerCase()
+  const showDescription = Boolean(request.request_description?.trim()) && normalizedDescription !== normalizedTitle
+  const showRequestedFields = (request.requested_fields || []).length > 0
+  const hasSubmissionDetails =
+    Boolean(snapEmail) ||
+    Boolean(snapCaseNumber) ||
+    Boolean(snapPortalFields) ||
+    Boolean(snapLetterBody) ||
+    Boolean(externalConfirmationId)
 
   useEffect(() => {
     if (autoOpenExternalModal) {
+      setExternalRequestUrl((request.submission_url || "").trim())
       setShowExternalModal(true)
     }
-  }, [autoOpenExternalModal])
+  }, [autoOpenExternalModal, request.submission_url])
 
   async function copyText(label: string, text: string) {
     if (!text.trim()) {
@@ -633,10 +679,12 @@ function OverviewTab({
     try {
       await markFoiaExternallyFiled(request.id, {
         external_confirmation_id: externalId.trim(),
+        external_request_url: externalRequestUrl.trim() || undefined,
         screenshot_uri: screenshotUri.trim() || undefined,
       })
       setShowExternalModal(false)
       setExternalId("")
+      setExternalRequestUrl("")
       setScreenshotUri("")
       await onTaskComplete()
     } catch (err) {
@@ -683,14 +731,16 @@ function OverviewTab({
         onClose={() => setShowExternalModal(false)}
         externalId={externalId}
         setExternalId={setExternalId}
+        externalRequestUrl={externalRequestUrl}
+        setExternalRequestUrl={setExternalRequestUrl}
         screenshotUri={screenshotUri}
         setScreenshotUri={setScreenshotUri}
         onSave={handleMarkExternallyFiled}
         saving={markingExternal}
       />
-      <div className="grid gap-6 lg:grid-cols-2">
-      {request.request_description && (
-        <div className="rounded-xl border border-gray-200 bg-white p-6 lg:col-span-2">
+      <div className="grid gap-4 lg:grid-cols-2">
+      {showDescription && (
+        <div className="rounded-xl border border-gray-200 bg-white p-4 lg:col-span-2">
           <h3 className="text-sm font-semibold text-gray-900">Request Description</h3>
           <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-gray-600">
             {request.request_description}
@@ -698,7 +748,8 @@ function OverviewTab({
         </div>
       )}
 
-      <div className="rounded-xl border border-gray-200 bg-white p-6">
+      {showRequestedFields && (
+      <div className="rounded-xl border border-gray-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-gray-900">Requested Fields</h3>
         <div className="mt-3 flex flex-wrap gap-2">
           {request.requested_fields.map((field) => (
@@ -711,9 +762,10 @@ function OverviewTab({
           ))}
         </div>
       </div>
+      )}
 
       {latestAttempt && (
-        <div className="rounded-xl border border-gray-200 bg-white p-6 lg:col-span-2">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 lg:col-span-2">
           <h3 className="text-sm font-semibold text-gray-900">Submission Packet</h3>
           <p className="mt-1 text-xs text-gray-500">
             {submissionAttempts.length} submission attempt(s) recorded
@@ -761,14 +813,25 @@ function OverviewTab({
               </>
             )}
             <button
-              onClick={() => setShowExternalModal(true)}
+              onClick={() => {
+                setExternalRequestUrl((request.submission_url || "").trim())
+                setShowExternalModal(true)
+              }}
               className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
             >
               Mark externally filed
             </button>
+            {hasSubmissionDetails && (
+              <button
+                onClick={() => setShowPacketDetails((v) => !v)}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+              >
+                {showPacketDetails ? "Hide details" : "Show details"}
+              </button>
+            )}
           </div>
 
-          {(snapEmail || snapCaseNumber || snapPortalFields || snapLetterBody || externalConfirmationId) && (
+          {hasSubmissionDetails && showPacketDetails && (
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               {(snapEmail || snapCaseNumber) && (
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
@@ -833,27 +896,21 @@ function OverviewTab({
           )}
         </div>
       )}
-      <div className="rounded-xl border border-gray-200 bg-white p-6">
+      <div className="rounded-xl border border-gray-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-gray-900">Details</h3>
         <dl className="mt-3 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <dt className="text-xs text-gray-500">Assigned To</dt>
-            <dd className="text-sm text-gray-900">{request.assigned_to || "Unassigned"}</dd>
-          </div>
-          <div className="flex items-center justify-between">
-            <dt className="text-xs text-gray-500">Format</dt>
-            <dd className="text-sm text-gray-900">{request.format_requested}</dd>
-          </div>
-          <div className="flex items-center justify-between">
-            <dt className="text-xs text-gray-500">Version</dt>
-            <dd className="text-sm text-gray-900">{request.request_version}</dd>
-          </div>
           <div className="flex items-center justify-between">
             <dt className="text-xs text-gray-500">Created</dt>
             <dd className="text-sm text-gray-900">
               {format(new Date(request.created_at), "MMM d, yyyy 'at' h:mm a")}
             </dd>
           </div>
+          {request.assigned_to && (
+            <div className="flex items-center justify-between">
+              <dt className="text-xs text-gray-500">Assigned To</dt>
+              <dd className="text-sm text-gray-900">{request.assigned_to}</dd>
+            </div>
+          )}
           {request.submission_url && (
             <div className="flex items-center justify-between">
               <dt className="text-xs text-gray-500">Submitted via URL</dt>
@@ -893,7 +950,7 @@ function OverviewTab({
           )}
         </dl>
       </div>
-      <div className="rounded-xl border border-gray-200 bg-white p-6 lg:col-span-2">
+      <div className="rounded-xl border border-gray-200 bg-white p-4 lg:col-span-2">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-gray-900">Request correspondence timeline</h3>
           <span className="text-xs text-gray-500">{timeline.length} entries</span>
@@ -934,7 +991,7 @@ function OverviewTab({
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-6 lg:col-span-2">
+      <div className="rounded-xl border border-gray-200 bg-white p-4 lg:col-span-2">
         <h3 className="text-sm font-semibold text-gray-900">Next step</h3>
         {nextTask ? (
           <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-4">
@@ -952,7 +1009,7 @@ function OverviewTab({
         )}
       </div>
       {tasks.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white p-6 lg:col-span-2">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 lg:col-span-2">
           <h3 className="text-sm font-semibold text-gray-900">Related Tasks</h3>
           <div className="mt-3 divide-y divide-gray-100">
             {tasks.map((task) => (
@@ -967,7 +1024,7 @@ function OverviewTab({
                   <TaskStatusBadge status={task.status} />
                   <button
                     type="button"
-                    onClick={() => handleDeleteTask(task.id)}
+                    onClick={() => onDeleteTask(task.id)}
                     disabled={deletingTaskId === task.id}
                     className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
                     title="Delete"
@@ -999,6 +1056,8 @@ function ExternalFiledModal({
   onClose,
   externalId,
   setExternalId,
+  externalRequestUrl,
+  setExternalRequestUrl,
   screenshotUri,
   setScreenshotUri,
   onSave,
@@ -1008,6 +1067,8 @@ function ExternalFiledModal({
   onClose: () => void
   externalId: string
   setExternalId: (v: string) => void
+  externalRequestUrl: string
+  setExternalRequestUrl: (v: string) => void
   screenshotUri: string
   setScreenshotUri: (v: string) => void
   onSave: () => void
@@ -1033,6 +1094,16 @@ function ExternalFiledModal({
                 value={externalId}
                 onChange={(e) => setExternalId(e.target.value)}
                 placeholder="e.g. PRR-12345"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-700">Request URL (optional)</label>
+              <input
+                type="url"
+                value={externalRequestUrl}
+                onChange={(e) => setExternalRequestUrl(e.target.value)}
+                placeholder="https://sanfrancisco.nextrequest.com/requests/26-915"
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
               />
             </div>
@@ -1151,23 +1222,20 @@ function EditRequestModal({
     submission_url?: string
     submission_email_address?: string
     agency_request_number?: string
+    submitted_date?: string
   }) => Promise<void>
   saving: boolean
 }) {
-  const [title, setTitle] = useState("")
-  const [desc, setDesc] = useState("")
-  const [submissionUrl, setSubmissionUrl] = useState("")
-  const [submissionEmail, setSubmissionEmail] = useState("")
-  const [agencyRef, setAgencyRef] = useState("")
-
-  useEffect(() => {
-    if (!open) return
-    setTitle((request.title || "").trim())
-    setDesc((request.request_description || "").trim())
-    setSubmissionUrl((request.submission_url || "").trim())
-    setSubmissionEmail((request.submission_email_address || "").trim())
-    setAgencyRef((request.agency_request_number || "").trim())
-  }, [open, request])
+  const [title, setTitle] = useState(() => (request.title || "").trim())
+  const [desc, setDesc] = useState(() => (request.request_description || "").trim())
+  const [submissionUrl, setSubmissionUrl] = useState(() => (request.submission_url || "").trim())
+  const [submissionEmail, setSubmissionEmail] = useState(
+    () => (request.submission_email_address || "").trim()
+  )
+  const [agencyRef, setAgencyRef] = useState(() => (request.agency_request_number || "").trim())
+  const [submittedDate, setSubmittedDate] = useState(() =>
+    request.submitted_at ? request.submitted_at.slice(0, 10) : ""
+  )
 
   if (!open) return null
 
@@ -1266,6 +1334,20 @@ function EditRequestModal({
                 />
               </div>
             </div>
+
+            <div className="rounded-xl border border-gray-200 bg-white p-4">
+              <p className="text-xs font-semibold text-gray-900">Submitted date (optional)</p>
+              <p className="mt-0.5 text-xs text-gray-500">Adjust when this request was actually submitted.</p>
+              <div className="mt-3">
+                <input
+                  type="date"
+                  value={submittedDate}
+                  onChange={(e) => setSubmittedDate(e.target.value)}
+                  disabled={!canEditTrackingFields || saving}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-50 disabled:text-gray-400"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1286,6 +1368,7 @@ function EditRequestModal({
                 submission_url: submissionUrl.trim() || undefined,
                 submission_email_address: submissionEmail.trim() || undefined,
                 agency_request_number: agencyRef.trim() || undefined,
+                submitted_date: submittedDate || undefined,
               })
             }}
             disabled={saving}
@@ -1313,6 +1396,7 @@ function MessagesTab({
   const [creatingTask, setCreatingTask] = useState(false)
   const [taskCreatedFor, setTaskCreatedFor] = useState<number | null>(null)
   const [autoDraftNarrowReply, setAutoDraftNarrowReply] = useState(true)
+  const [quickInsert, setQuickInsert] = useState("")
   const [msgForm, setMsgForm] = useState({
     direction: "inbound" as "outbound" | "inbound",
     classification: "follow_up" as string,
@@ -1348,25 +1432,21 @@ function MessagesTab({
       response_action_required: "none",
     })
     setAutoDraftNarrowReply(true)
+    setQuickInsert("")
   }
 
   async function createNoResponseTask(reason: string) {
-    const { createFoiaTask } = await import("@/app/actions/foia")
-    const due = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString()
-    await createFoiaTask({
-      request_id: requestId,
-      type: "no_response",
-      title: "No response - send 10-day status check",
-      description: reason,
-      due_at: due,
-    })
+    await createFoiaTask(buildNoResponseTaskPayload(requestId, reason))
   }
 
   function isNarrowingInbound(msg: FoiaMessage): boolean {
-    if (msg.direction !== "inbound") return false
-    if (msg.classification === "narrow_request" || msg.classification === "clarification") return true
-    const text = `${msg.subject || ""}\n${msg.email_snippet || ""}\n${msg.body || ""}`.toLowerCase()
-    return /\bnarrow\b|\btoo broad\b|\bvoluminous\b/.test(text)
+    return isNarrowingSignal({
+      direction: msg.direction,
+      classification: msg.classification,
+      subject: msg.subject,
+      emailSnippet: msg.email_snippet,
+      body: msg.body,
+    })
   }
 
   function openPasteOwnNarrowReply() {
@@ -1485,31 +1565,7 @@ function MessagesTab({
 
   async function handleCreateTask(msg: FoiaMessage) {
     const action = msg.response_action_required || "general_followup"
-    const taskTypeMap: Record<string, string> = {
-      narrow_request: "narrow_request",
-      pickup_data: "pickup_data",
-      generate_response: "send_response",
-      status_update: "general_followup",
-      no_records: "general_followup",
-      partial_no_records: "follow_up_partial",
-      pay_fee: "pay_fee",
-      appeal: "appeal_denial",
-      none: "general_followup",
-    }
-    const taskTitleMap: Record<string, string> = {
-      narrow_request: "Revise & narrow the original request",
-      pickup_data: "Pick up data (see instructions)",
-      generate_response: "Draft and send response email",
-      status_update: "Review status update",
-      no_records: "Review 'no records' response & determine next steps",
-      partial_no_records: "Follow up with remaining departments still searching",
-      pay_fee: "Pay copying/mailing fee to receive records",
-      appeal: "Appeal denial or exemption claim",
-      none: "Follow up on interaction",
-    }
-
-    const taskType = taskTypeMap[action] || "general_followup"
-    const taskTitle = taskTitleMap[action] || "Follow up on interaction"
+    const { type: taskType, title: taskTitle } = getFollowUpTaskSpec(action)
     const description = [
       msg.subject ? `Subject: ${msg.subject}` : "",
       msg.sender_name ? `Contact: ${msg.sender_name}` : "",
@@ -1520,7 +1576,6 @@ function MessagesTab({
 
     setCreatingTask(true)
     try {
-      const { createFoiaTask } = await import("@/app/actions/foia")
       await createFoiaTask({
         request_id: requestId,
         type: taskType,
@@ -1556,34 +1611,9 @@ function MessagesTab({
     { value: "reroute", label: "Reroute to Another Dept" },
   ]
 
-  const ACTION_OPTIONS = [
-    { value: "none", label: "No action needed" },
-    { value: "narrow_request", label: "Revise request (narrow scope)" },
-    { value: "generate_response", label: "Draft a response email" },
-    { value: "pickup_data", label: "Go pick up data" },
-    { value: "status_update", label: "Note status update" },
-    { value: "no_records", label: "Handle 'no records' response" },
-    { value: "partial_no_records", label: "Follow up with remaining depts" },
-    { value: "pay_fee", label: "Pay copying/mailing fee" },
-    { value: "appeal", label: "Appeal denial or exemption" },
-  ]
+  const ACTION_OPTIONS = FOLLOW_UP_ACTION_OPTIONS
 
-  const classificationToAction: Record<string, string> = {
-    narrow_request: "narrow_request",
-    pickup_instructions: "pickup_data",
-    no_records: "no_records",
-    partial_no_records: "partial_no_records",
-    status_update: "status_update",
-    data_delivery: "none",
-    acknowledgment: "none",
-    clarification: "narrow_request",
-    fee_notice: "pay_fee",
-    fee_estimate: "pay_fee",
-    denial: "appeal",
-    exemption: "appeal",
-    extension: "status_update",
-    reroute: "status_update",
-  }
+  const classificationToAction: Record<string, string> = FOLLOW_UP_CLASSIFICATION_TO_ACTION
 
   const latestInboundNeedingNarrow = [...messages].reverse().find(isNarrowingInbound)
   const hasOutboundAfterNarrow =
@@ -1605,7 +1635,7 @@ function MessagesTab({
           </p>
           {latestInboundNeedingNarrow?.email_snippet && (
             <p className="mt-2 rounded-md border border-amber-200 bg-white px-3 py-2 text-xs italic text-amber-900">
-              "{latestInboundNeedingNarrow.email_snippet}"
+              &quot;{latestInboundNeedingNarrow.email_snippet}&quot;
             </p>
           )}
           <div className="mt-3 flex items-center gap-2">
@@ -1741,6 +1771,41 @@ function MessagesTab({
 
             {/* Subject + email snippet */}
             <div>
+              <label className="mb-1 block text-xs font-medium text-gray-700">
+                Reason agency asked to revise / add info (optional)
+              </label>
+              <select
+                value={quickInsert}
+                onChange={(e) => {
+                  const next = e.target.value
+                  setQuickInsert(next)
+                  if (!next) return
+                  const chosen = FOLLOW_UP_QUICK_INSERTS.find((x) => x.text === next)
+                  if (!chosen) return
+                  setMsgForm((f) => {
+                    if (!f.email_snippet.trim()) {
+                      return { ...f, email_snippet: chosen.text }
+                    }
+                    const mergedBody = f.body.trim()
+                      ? `${f.body.trim()}\n\n${chosen.text}`
+                      : chosen.text
+                    return { ...f, body: mergedBody }
+                  })
+                }}
+                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              >
+                <option value="">Select a revision/info reason...</option>
+                {FOLLOW_UP_QUICK_INSERTS.map((opt) => (
+                  <option key={opt.label} value={opt.text}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-gray-500">
+                Focused on narrowing requests and clarification reasons only.
+              </p>
+            </div>
+            <div>
               <label className="mb-1 block text-xs font-medium text-gray-700">Subject</label>
               <input
                 type="text"
@@ -1834,7 +1899,7 @@ function MessagesTab({
 
       {messages.length === 0 && !showCompose && (
         <div className="py-12 text-center text-sm text-gray-400">
-          No interactions logged yet. Click "Log Interaction" to record a follow-up.
+          No interactions logged yet. Click Log Interaction to record a follow-up.
         </div>
       )}
 
