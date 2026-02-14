@@ -22,10 +22,9 @@ import { deleteCampaign, updateCampaignStatus } from "@/app/actions/campaigns"
 import { queueCampaignMessages, regenerateCampaign } from "@/app/actions/send-queue"
 import { useAnomaliesPublic } from "@/lib/hooks/useAnomaliesPublic"
 import { mapApiAnomaliesToCrm } from "@/lib/anomalyMapper"
+import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
+import { toSlimEmailAnomaly, type CrmEmailAnomaly } from "@/lib/crmAnomalyUtils"
 import { isAnomalyIgnored } from "./anomalies-manager"
-
-// San Francisco city_id - TODO: make this configurable
-const SF_CITY_ID = 57260
 
 interface CampaignWithStats extends Campaign {
   template?: { id: string; name: string; channel: string } | null
@@ -70,7 +69,7 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
   const { data: anomalyData, isLoading: anomaliesLoading, error: anomaliesError } = useAnomaliesPublic({
     is_anomaly: true,
     limit: 200,
-    city_id: SF_CITY_ID,
+    city_id: CRM_DEFAULT_CITY_ID,
   })
   const anomaliesErrorMessage =
     (anomaliesError as unknown as { message?: string } | null)?.message || null
@@ -201,28 +200,9 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
       
       // Create slim anomaly objects with only fields needed for email generation
       // This avoids Next.js server action payload size limits (chart_payload can be huge)
-      const slimAnomalies = activeAnomalies.map(a => ({
-        id: a.id,
-        title: a.title,
-        description: a.description,
-        district: a.district,
-        district_label: a.district_label,
-        is_citywide: a.is_citywide,
-        metric_id: a.metric_id,
-        metric_name: (a as any).metric_name,
-        pct_change: a.pct_change,
-        severity: a.severity,
-        period_type: a.period_type,
-        period_date: (a as any).period_date,
-        group_field: a.group_field,
-        group_value: a.group_value,
-        recent_mean: (a as any).recent_mean,
-        comparison_mean: (a as any).comparison_mean,
-        comparison_window: (a as any).comparison_window,
-        metric_category: (a as any).metric_category,
-        is_anomaly: a.is_anomaly,
-        created_at: a.created_at,
-      }))
+      const slimAnomalies = activeAnomalies.map((a) =>
+        toSlimEmailAnomaly(a as CrmEmailAnomaly)
+      )
       console.log('[CampaignsManager] Slim anomalies count:', slimAnomalies.length)
       if (slimAnomalies.length > 0) {
         console.log('[CampaignsManager] First slim anomaly:', slimAnomalies[0])

@@ -26,9 +26,9 @@ import {
   listFoiaTasks,
   listFoiaSubmissionAttempts,
   markFoiaExternallyFiled,
+  createFoiaMessage,
 } from "@/lib/foiaApiClient"
 import {
-  createFoiaMessage,
   completeFoiaTask,
   updateRequestStatus,
 } from "@/app/actions/foia"
@@ -187,6 +187,13 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
   }
 
   const statusActions = STATUS_ACTIONS[request.status as RequestStatus] ?? []
+  const lastCompletedTask = [...tasks]
+    .filter((t) => t.status === "completed")
+    .sort((a, b) => {
+      const aTime = new Date(a.completed_at ?? a.updated_at).getTime()
+      const bTime = new Date(b.completed_at ?? b.updated_at).getTime()
+      return bTime - aTime
+    })[0]
 
   return (
     <div className="flex flex-col gap-6">
@@ -281,13 +288,20 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
           icon={Send}
         />
         <InfoCard
-          label="Acknowledged"
+          label="Last Action"
           value={
-            request.acknowledged_at
-              ? format(new Date(request.acknowledged_at), "MMM d, yyyy")
-              : "Pending"
+            lastCompletedTask
+              ? lastCompletedTask.title
+              : "No completed actions yet"
           }
           icon={CheckCircle2}
+          subtitle={
+            lastCompletedTask?.completed_at
+              ? `Completed ${formatDistanceToNow(new Date(lastCompletedTask.completed_at), {
+                  addSuffix: true,
+                })}`
+              : undefined
+          }
         />
         <InfoCard
           label="Deadline"
@@ -369,11 +383,13 @@ function InfoCard({
   value,
   icon: Icon,
   warn,
+  subtitle,
 }: {
   label: string
   value: string
   icon: React.ComponentType<{ className?: string }>
   warn?: boolean
+  subtitle?: string
 }) {
   return (
     <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-4">
@@ -381,6 +397,7 @@ function InfoCard({
       <div>
         <p className="text-xs text-gray-500">{label}</p>
         <p className={`text-sm font-medium ${warn ? "text-red-600" : "text-gray-900"}`}>{value}</p>
+        {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
       </div>
     </div>
   )

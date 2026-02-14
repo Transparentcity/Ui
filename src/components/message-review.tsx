@@ -43,10 +43,9 @@ import {
 import { listActiveContactsLite } from "@/app/actions/contacts"
 import { useAnomaliesPublic } from "@/lib/hooks/useAnomaliesPublic"
 import { mapApiAnomaliesToCrm } from "@/lib/anomalyMapper"
+import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
+import { toSlimEmailAnomaly, type CrmEmailAnomaly } from "@/lib/crmAnomalyUtils"
 import { isAnomalyIgnored } from "./anomalies-manager"
-
-// San Francisco city_id - TODO: make this configurable
-const SF_CITY_ID = 57260
 
 interface MessageReviewProps {
   items: (SendQueueItem & { prospect?: Contact })[]
@@ -77,41 +76,31 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
   >([])
   const [recipientSearch, setRecipientSearch] = useState("")
   const [addRecipientIds, setAddRecipientIds] = useState<Set<string>>(new Set())
+  type ContactLite = {
+    id: string
+    name: string
+    email: string | null
+    organization: string | null
+    department: string | null
+    jurisdiction: string | null
+    status: string
+  }
   
   // Fetch anomalies from Platform API for email regeneration
   // API max limit is 200 - this provides enough for district + citywide coverage
   // Using public hook (no Auth0 required) for CRM pages
-  const { data: anomalyData, isLoading: anomaliesLoading, error: anomaliesError } = useAnomaliesPublic({
+  const { data: anomalyData, isLoading: anomaliesLoading } = useAnomaliesPublic({
     is_anomaly: true,
     limit: 200,
-    city_id: SF_CITY_ID,
+    city_id: CRM_DEFAULT_CITY_ID,
   })
   const anomalies = anomalyData?.results ? mapApiAnomaliesToCrm(anomalyData.results) : []
   
   // Filter out ignored anomalies and create slim objects to avoid payload size issues
   const activeAnomalies = anomalies.filter(a => !isAnomalyIgnored(a.id))
-  const slimAnomalies = activeAnomalies.map(a => ({
-    id: a.id,
-    title: a.title,
-    description: a.description,
-    district: a.district,
-    district_label: a.district_label,
-    is_citywide: a.is_citywide,
-    metric_id: a.metric_id,
-    metric_name: (a as any).metric_name,
-    pct_change: a.pct_change,
-    severity: a.severity,
-    period_type: a.period_type,
-    period_date: (a as any).period_date,
-    group_field: a.group_field,
-    group_value: a.group_value,
-    recent_mean: (a as any).recent_mean,
-    comparison_mean: (a as any).comparison_mean,
-    comparison_window: (a as any).comparison_window,
-    metric_category: (a as any).metric_category,
-    is_anomaly: a.is_anomaly,
-    created_at: a.created_at,
-  }))
+  const slimAnomalies = activeAnomalies.map((a) =>
+    toSlimEmailAnomaly(a as CrmEmailAnomaly)
+  )
 
   const toggleSelect = (id: string) => {
     const newSelected = new Set(selectedIds)
@@ -185,12 +174,12 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
   }
 
   const existingProspectIds = useMemo(() => {
-    return new Set(items.map((i) => String((i as any).prospect_id)))
+    return new Set(items.map((i) => String(i.prospect_id)))
   }, [items])
 
   const filteredContacts = useMemo(() => {
     const q = recipientSearch.trim().toLowerCase()
-    const rows = contactsLite as any[]
+    const rows = contactsLite
     const visible = q
       ? rows.filter((c) => {
           const hay = `${c.name || ""} ${c.email || ""} ${c.organization || ""} ${
@@ -214,7 +203,7 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
       setContactsLoading(true)
       try {
         const rows = await listActiveContactsLite()
-        setContactsLite(rows as any)
+        setContactsLite(rows as ContactLite[])
       } finally {
         setContactsLoading(false)
       }
@@ -309,7 +298,7 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
     
     startTransition(async () => {
       try {
-        await regenerateQueueItems(ids, slimAnomalies as any)
+        await regenerateQueueItems(ids, slimAnomalies)
         onUpdate?.()
       } finally {
         setIsRegenerating(new Set())
@@ -739,7 +728,7 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
                 <div className="p-4 text-sm text-muted-foreground">No contacts found.</div>
               ) : (
                 <div className="divide-y">
-                  {filteredContacts.slice(0, 150).map((c: any) => {
+                  {filteredContacts.slice(0, 150).map((c) => {
                     const id = String(c.id)
                     const checked = addRecipientIds.has(id)
                     return (

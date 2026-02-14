@@ -12,7 +12,7 @@ import {
   Loader2,
   Plus,
 } from "lucide-react"
-import { getFoiaDashboard, listFoiaRequests, listFoiaTasks } from "@/lib/foiaApiClient"
+import { getFoiaDashboard } from "@/lib/foiaApiClient"
 import { RequestStatusBadge, TaskStatusBadge } from "@/components/foia/status-badge"
 import { NewRequestModal } from "@/components/foia/new-request-modal"
 import { formatDistanceToNow } from "date-fns"
@@ -71,14 +71,10 @@ export function DashboardContent() {
   useEffect(() => {
     async function load() {
       try {
-        const [dash, reqData, taskData] = await Promise.all([
-          getFoiaDashboard(),
-          listFoiaRequests({ page_size: 5 }),
-          listFoiaTasks({ status: "pending" }),
-        ])
+        const dash = await getFoiaDashboard()
         setSummary(dash)
-        setRecentRequests(reqData.items.slice(0, 5))
-        setPendingTasks(taskData.slice(0, 5))
+        setRecentRequests((dash.recent_requests ?? []).slice(0, 5))
+        setPendingTasks((dash.pending_tasks ?? []).slice(0, 5))
       } catch (err) {
         console.error("Failed to load FOIA dashboard:", err)
       } finally {

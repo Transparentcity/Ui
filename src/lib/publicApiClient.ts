@@ -12,7 +12,7 @@ interface CacheEntry<T> {
   timestamp: number;
 }
 
-const requestCache: Map<string, CacheEntry<any>> = new Map();
+const requestCache: Map<string, CacheEntry<unknown>> = new Map();
 const CACHE_TTL_MS = 30000; // 30 second cache for public endpoints
 
 function getCachedOrFetch<T>(
@@ -25,12 +25,12 @@ function getCachedOrFetch<T>(
   
   // Return cached data if valid
   if (cached?.data && (now - cached.timestamp) < ttlMs) {
-    return Promise.resolve(cached.data);
+    return Promise.resolve(cached.data as T);
   }
   
   // Return in-flight promise if one exists
   if (cached?.promise && (now - cached.timestamp) < ttlMs) {
-    return cached.promise;
+    return cached.promise as Promise<T>;
   }
   
   // Create new request and cache the promise
@@ -285,13 +285,13 @@ export type PublicMetricDetail = {
   source_url: string | null;
   template_id: number | null;
   metric_prompt: string | null;
-  structuring_notes: Record<string, any> | null;
-  metadata: Record<string, any> | null;
-  location_fields: Array<Record<string, any>> | null;
-  category_fields: Array<Record<string, any>> | null;
+  structuring_notes: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
+  location_fields: Array<Record<string, unknown>> | null;
+  category_fields: Array<Record<string, unknown>> | null;
   map_query: string | null;
-  map_filters: Record<string, any> | null;
-  map_config: Record<string, any> | null;
+  map_filters: Record<string, unknown> | null;
+  map_config: Record<string, unknown> | null;
   last_execution_at: string | null;
   last_execution_status: string | null;
   last_execution_error: string | null;
@@ -299,7 +299,7 @@ export type PublicMetricDetail = {
   execution_count: number | null;
   created_at: string | null;
   updated_at: string | null;
-  data_freshness_metadata: Record<string, any> | null;
+  data_freshness_metadata: Record<string, unknown> | null;
   most_recent_data_date: string | null;
   earliest_data_date: string | null;
   city_name?: string | null;
@@ -602,8 +602,17 @@ export type MapPreviewRequest = {
 
 export type MapPreviewResponse = {
   map_type: string;
-  location_data: Array<Record<string, any>>;
-  map_config: Record<string, any>;
+  location_data: Array<{
+    count?: number
+    value?: number
+    lat: number
+    lon: number
+    lng?: number
+    latitude?: number
+    longitude?: number
+    [key: string]: unknown
+  }>;
+  map_config: Record<string, unknown>;
   bounds?: [[number, number], [number, number]] | null;
   center?: { lat: number; lng: number; zoom: number } | null;
   city_id?: number | null;
@@ -612,7 +621,16 @@ export type MapPreviewResponse = {
   description?: string | null;
   location_data_count: number;
   // Comparison period data (optional - for dual-layer display)
-  comparison_location_data?: Array<Record<string, any>> | null;
+  comparison_location_data?: Array<{
+    count?: number
+    value?: number
+    lat: number
+    lon: number
+    lng?: number
+    latitude?: number
+    longitude?: number
+    [key: string]: unknown
+  }> | null;
   comparison_location_data_count?: number | null;
 };
 
@@ -722,7 +740,7 @@ export interface PublicAnomalyResult {
   group_value: string | null;
   title: string | null;
   description: string | null;
-  chart_payload: any | null;
+  chart_payload: Record<string, unknown> | null;
   created_at: string;
   // Additional fields returned by API and used by anomaly mapper
   object_id?: string | null;
@@ -743,7 +761,7 @@ export interface ListAnomaliesPublicResponse {
 
 /**
  * List anomalies without authentication.
- * Uses the public /api/anomalies endpoint.
+ * Uses the /api/anomalies endpoint.
  */
 export async function listAnomaliesPublic(options?: {
   metric_id?: number;

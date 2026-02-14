@@ -163,6 +163,8 @@ export interface CrmAnomalyMetadata {
  */
 export interface Anomaly {
   id: string | number               // SERIAL in database (integer), but can be string in JS
+  anomaly_id?: number | null        // Canonical anomaly_results.id for CRM metadata operations
+  fingerprint?: string              // Stable UI key across API rows/refreshes
   title?: string                    // Optional - may not exist in anomaly_results
   description?: string | null
   data_source?: string | null
@@ -177,7 +179,14 @@ export interface Anomaly {
   group_value?: string              // e.g., "C"
   period_type?: string              // e.g., "month"
   period_date?: string              // e.g., "2026-02-01" (optional; for email copy)
-  comparison_window?: string        // e.g., "prior 12 weeks" (optional; for email copy)
+  comparison_window?:
+    | string
+    | {
+        label?: string
+        size?: number
+        match_weekday?: boolean
+      }
+    | null
   pct_change?: number               // Percentage change
   is_anomaly?: boolean
   chart_payload?: {

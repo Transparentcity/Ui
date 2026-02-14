@@ -4,6 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import { getMetricMapPreview, type MapPreviewResponse } from "@/lib/publicApiClient";
 import "./AnomalyMap.css";
 
+function isFiniteNumber(value: number | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
 // Mapbox access token
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
@@ -174,8 +178,10 @@ export default function AnomalyMap({
     let center = mapData.center;
 
     if (!bounds && mapData.location_data.length > 0) {
-      const lats = mapData.location_data.map((p) => p.lat).filter(Boolean);
-      const lons = mapData.location_data.map((p) => p.lon || p.lng).filter(Boolean);
+      const lats = mapData.location_data.map((p) => p.lat).filter(isFiniteNumber);
+      const lons = mapData.location_data
+        .map((p) => p.lon || p.lng)
+        .filter(isFiniteNumber);
       
       if (lats.length > 0 && lons.length > 0) {
         bounds = [

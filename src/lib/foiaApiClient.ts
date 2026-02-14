@@ -27,14 +27,25 @@ import type {
 // Helpers
 // ---------------------------------------------------------------------------
 
+let foiaAuthToken: string | null = null
+
+export function setFoiaAuthToken(token?: string | null): void {
+  foiaAuthToken = token && token.trim() ? token : null
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${API_BASE}${path}`
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    ...(init?.headers || {}),
+  }
+  if (foiaAuthToken) {
+    headers["Authorization"] = `Bearer ${foiaAuthToken}`
+  }
   const res = await fetch(url, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers || {}),
-    },
+    credentials: "include",
+    headers,
   })
   if (!res.ok) {
     const body = await res.text().catch(() => "")

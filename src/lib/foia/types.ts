@@ -248,6 +248,8 @@ export interface FoiaDashboardSummary {
   tasks_due: number
   overdue_requests: number
   completeness_by_city: CompletenessSnapshot[]
+  recent_requests?: FoiaRequest[]
+  pending_tasks?: FoiaTask[]
 }
 
 export interface PaginatedResponse<T> {

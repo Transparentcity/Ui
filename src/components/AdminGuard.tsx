@@ -4,6 +4,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getMyPermissions, type UserPermissions } from "@/lib/apiClient";
+import { setFoiaAuthToken } from "@/lib/foiaApiClient";
 import Loader from "@/components/Loader";
 
 interface AdminGuardProps {
@@ -43,6 +44,7 @@ export function AdminGuard({ children, fallbackUrl = "/dashboard" }: AdminGuardP
 
       // If not authenticated, redirect to login
       if (!isAuthenticated) {
+        setFoiaAuthToken(null);
         await loginWithRedirect({
           appState: { returnTo: window.location.pathname },
         });
@@ -52,6 +54,7 @@ export function AdminGuard({ children, fallbackUrl = "/dashboard" }: AdminGuardP
       try {
         setIsCheckingAdmin(true);
         const token = await getAccessTokenSilently();
+        setFoiaAuthToken(token);
         const permissions: UserPermissions = await getMyPermissions(token);
         
         if (permissions.is_admin) {
@@ -63,6 +66,7 @@ export function AdminGuard({ children, fallbackUrl = "/dashboard" }: AdminGuardP
         }
       } catch (err) {
         console.error("[AdminGuard] Error checking admin status:", err);
+        setFoiaAuthToken(null);
         setError("Unable to verify admin access. Please try again.");
         setIsAdmin(false);
       } finally {
