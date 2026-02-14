@@ -108,13 +108,39 @@ type ProbeResult =
       fetchedFrom?: string
     }
 
+type ReportOption = { name: string; generated_at: string | null }
+
+function asObject(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object") return null
+  return value as Record<string, unknown>
+}
+
+function getString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined
+}
+
+function parseReportList(data: unknown): ReportOption[] {
+  const obj = asObject(data)
+  const reportsRaw = obj?.reports
+  if (!Array.isArray(reportsRaw)) return []
+
+  return reportsRaw.map((item) => {
+    const row = asObject(item)
+    return {
+      name: getString(row?.name) ?? "",
+      generated_at: getString(row?.generated_at) ?? null,
+    }
+  })
+}
+
 function safeJsonParse(raw: string): { value: CityReadinessReport | null; error: string | null } {
   try {
-    const v = JSON.parse(raw) as CityReadinessReport
-    if (!v || typeof v !== "object" || !Array.isArray((v as any).cities)) {
+    const v = JSON.parse(raw) as unknown
+    const obj = asObject(v)
+    if (!obj || !Array.isArray(obj.cities)) {
       return { value: null, error: "That JSON doesn't look like a readiness report (missing `cities`)." }
     }
-    return { value: v, error: null }
+    return { value: v as CityReadinessReport, error: null }
   } catch (e) {
     return { value: null, error: e instanceof Error ? e.message : "Invalid JSON." }
   }
@@ -178,9 +204,19 @@ function cityLabel(c: CityReadinessResult) {
         match_timestamp?: string 
     }
     probe: Record<string, ProbeResult>
-    runProbe: any
+    runProbe: (
+      cityId: number,
+      metricKey: string,
+      metricLabel: string,
+      group: string,
+      dataset: Pick<ReadinessDatasetCandidate, "dataset_id" | "url" | "title">
+    ) => Promise<void>
     isSelectedForReview: boolean
-    toggleReview: any
+    toggleReview: (
+      cityId: number,
+      metricKey: string,
+      datasetId: string | undefined
+    ) => void
     onForceMatch: (cityId: number, metricKey: string, datasetId: string) => void
     isForcing: boolean
     isRefiningMatch: boolean
@@ -408,7 +444,7 @@ export function SchemaMatchContent() {
   const [mode, setMode] = useState<Mode>("core7")
   const [probe, setProbe] = useState<Record<string, ProbeResult>>({})
   const [availableReports, setAvailableReports] = useState<
-    Array<{ name: string; generated_at: string | null }>
+    ReportOption[]
   >([])
   const [loadingReports, setLoadingReports] = useState(false)
   const [selectedReportName, setSelectedReportName] = useState<string>("")
@@ -431,14 +467,19 @@ export function SchemaMatchContent() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ cityId, metricKey, datasetId }),
           })
-          const data = await res.json()
-          if (res.ok && data.ok) {
-              if (data.reportName) {
-                  setSelectedReportName(data.reportName)
-                  await loadReportByName(data.reportName)
+          const data: unknown = await res.json()
+          const obj = asObject(data)
+          const ok = obj?.ok === true
+          const reportName = getString(obj?.reportName)
+          const errorMessage = getString(obj?.error)
+
+          if (res.ok && ok) {
+              if (reportName) {
+                  setSelectedReportName(reportName)
+                  await loadReportByName(reportName)
               }
           } else {
-              alert("Failed to assign dataset: " + (data.error || "Unknown error"))
+              alert("Failed to assign dataset: " + (errorMessage || "Unknown error"))
           }
       } catch (e) {
           console.error(e)
@@ -502,9 +543,10 @@ export function SchemaMatchContent() {
       const res = await fetch(`/api/cityreadiness/reports?name=${encodeURIComponent(name)}`, {
         cache: "no-store",
       })
-      const data = (await res.json()) as any
+      const data: unknown = await res.json()
+      const obj = asObject(data)
       if (!res.ok) {
-        setError(data?.error || "Failed to load report.")
+        setError(getString(obj?.error) ?? "Failed to load report.")
         return
       }
       const parsed = safeJsonParse(JSON.stringify(data))
@@ -526,16 +568,12 @@ export function SchemaMatchContent() {
     setLoadingReports(true)
     try {
       const res = await fetch("/api/cityreadiness/reports", { cache: "no-store" })
-      const data = (await res.json()) as any
-      const list = Array.isArray(data?.reports) ? data.reports : []
-      setAvailableReports(
-        list.map((r: any) => ({
-          name: String(r?.name || ""),
-          generated_at: typeof r?.generated_at === "string" ? r.generated_at : null,
-        }))
-      )
+      const data: unknown = await res.json()
+      const reports = parseReportList(data)
+      setAvailableReports(reports)
+      const list = reports
       if (!selectedReportName && list.length > 0) {
-        setSelectedReportName(String(list[0].name))
+        setSelectedReportName(list[0].name)
       }
       return list
     } catch {
@@ -551,13 +589,10 @@ export function SchemaMatchContent() {
       setLoadingReports(true)
       try {
         const res = await fetch("/api/cityreadiness/reports", { cache: "no-store" })
-        const data = await res.json()
+        const data: unknown = await res.json()
         if (!mounted) return
-        const list = Array.isArray(data?.reports) ? data.reports : []
-        setAvailableReports(list.map((r: any) => ({
-            name: String(r?.name || ""),
-            generated_at: typeof r?.generated_at === "string" ? r.generated_at : null,
-        })))
+        const list = parseReportList(data)
+        setAvailableReports(list)
         if (list.length > 0) {
           const latest = list[0]
           setSelectedReportName(latest.name)
@@ -581,7 +616,13 @@ export function SchemaMatchContent() {
     return `${cityId}:${metricKey}`
   }
 
-  async function runProbe(cityId: number, metricKey: string, metricLabel: string, group: string, dataset: any) {
+  async function runProbe(
+    cityId: number,
+    metricKey: string,
+    metricLabel: string,
+    group: string,
+    dataset: Pick<ReadinessDatasetCandidate, "dataset_id" | "url" | "title">
+  ) {
     const k = probeKey(cityId, metricKey)
     setProbe((p) => ({ ...p, [k]: { status: "loading" } }))
     try {
@@ -594,22 +635,35 @@ export function SchemaMatchContent() {
           dataset: { dataset_id: dataset.dataset_id, url: dataset.url, title: dataset.title },
         }),
       })
-      const data = (await res.json()) as any
-      if (!res.ok || !data?.ok) {
-        setProbe((p) => ({ ...p, [k]: { status: "error", error: data?.error || "Probe failed." } }))
+      const data: unknown = await res.json()
+      const obj = asObject(data)
+      const ok = obj?.ok === true
+      if (!res.ok || !ok) {
+        setProbe((p) => ({
+          ...p,
+          [k]: { status: "error", error: getString(obj?.error) || "Probe failed." },
+        }))
         return
       }
-      const colsRaw = (data?.meta?.columns ?? []) as any[]
-      const columns: string[] = colsRaw.map((c) => String(c?.field || c?.name || "").trim()).filter(Boolean)
-      const sample = (data?.sample?.record ?? null) as Record<string, unknown> | null
+      const metaObj = asObject(obj?.meta)
+      const sampleObj = asObject(obj?.sample)
+      const colsRaw = Array.isArray(metaObj?.columns) ? metaObj.columns : []
+      const columns: string[] = colsRaw
+        .map((c) => {
+          const column = asObject(c)
+          return String(column?.field || column?.name || "").trim()
+        })
+        .filter(Boolean)
+      const sampleRecord = asObject(sampleObj?.record)
+      const sample = sampleRecord ?? null
       setProbe((p) => ({
         ...p,
         [k]: {
           status: "ok",
-          provider: String(data?.provider || "unknown"),
+          provider: getString(obj?.provider) || "unknown",
           columns,
           sample,
-          fetchedFrom: data?.sample?.fetched_from,
+          fetchedFrom: getString(sampleObj?.fetched_from),
         },
       }))
     } catch (e) {
@@ -659,19 +713,24 @@ export function SchemaMatchContent() {
         body: JSON.stringify({ exclusions }),
       })
 
-      const data = (await res.json()) as any
-      if (res.ok && data.ok && data.reportName) {
+      const data: unknown = await res.json()
+      const obj = asObject(data)
+      const ok = obj?.ok === true
+      const reportName = getString(obj?.reportName)
+      const errorMessage = getString(obj?.error)
+
+      if (res.ok && ok && reportName) {
         const nextSelected = { ...selectedForReview }
         Object.keys(nextSelected).forEach((k) => { if (nextSelected[k]) delete nextSelected[k] })
         setSelectedForReview(nextSelected)
         await refreshAvailableReports()
         await new Promise((resolve) => setTimeout(resolve, 100))
-        if (data.reportName) {
-            setSelectedReportName(data.reportName)
-            await loadReportByName(data.reportName)
+        if (reportName) {
+            setSelectedReportName(reportName)
+            await loadReportByName(reportName)
         }
       } else {
-        alert("Refinement failed: " + (data.error || "Unknown error"))
+        alert("Refinement failed: " + (errorMessage || "Unknown error"))
       }
     } catch (e) {
       console.error(e)
