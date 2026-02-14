@@ -433,8 +433,6 @@ export function SchemaMatchContent() {
           })
           const data = await res.json()
           if (res.ok && data.ok) {
-              // Refresh
-              await refreshAvailableReports()
               if (data.reportName) {
                   setSelectedReportName(data.reportName)
                   await loadReportByName(data.reportName)
@@ -496,19 +494,6 @@ export function SchemaMatchContent() {
           match_timestamp: m.match_timestamp
         }))
   }
-
-  // ... (keeping load functions same as before)
-    function safeJsonParse(raw: string): { value: CityReadinessReport | null; error: string | null } {
-    try {
-        const v = JSON.parse(raw) as CityReadinessReport
-        if (!v || typeof v !== "object" || !Array.isArray((v as any).cities)) {
-        return { value: null, error: "That JSON doesn't look like a readiness report (missing `cities`)." }
-        }
-        return { value: v, error: null }
-    } catch (e) {
-        return { value: null, error: e instanceof Error ? e.message : "Invalid JSON." }
-    }
-    }
 
   async function loadReportByName(name: string) {
     if (!name) return
