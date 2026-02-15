@@ -271,7 +271,9 @@ export function DashboardContent() {
                     href={`/foia/cities/${snap.city_id}`}
                     className="font-medium text-gray-900 hover:text-purple-600"
                   >
-                    City #{snap.city_id}
+                    {snap.city?.name
+                      ? `${snap.city.name}${snap.city.state ? `, ${snap.city.state}` : ""}`
+                      : `City #${snap.city_id}`}
                   </Link>
                   <p className="text-xs text-gray-500">
                     {snap.fulfilled_targets}/{snap.total_targets} targets fulfilled
