@@ -469,24 +469,6 @@ export function WasteAnalysisContent() {
               </select>
             </label>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={copyForGoogleDocs}>
-              <ClipboardCopy className="h-4 w-4" />
-              Copy for Google Docs
-            </Button>
-            <Button variant="outline" onClick={openGoogleDocs}>
-              <FileText className="h-4 w-4" />
-              Open Google Docs
-            </Button>
-            <Button variant="outline" onClick={downloadDoc}>
-              <Download className="h-4 w-4" />
-              Download .doc
-            </Button>
-          </div>
-          {statusMessage ? (
-            <p className="text-sm text-gray-600">{statusMessage}</p>
-          ) : null}
         </CardContent>
       </Card>
 
@@ -588,6 +570,34 @@ export function WasteAnalysisContent() {
           </CardContent>
         </Card>
       ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Export report</CardTitle>
+          <CardDescription>
+            Export this generated report after reviewing the findings above.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={copyForGoogleDocs}>
+              <ClipboardCopy className="h-4 w-4" />
+              Copy for Google Docs
+            </Button>
+            <Button variant="outline" onClick={openGoogleDocs}>
+              <FileText className="h-4 w-4" />
+              Open Google Docs
+            </Button>
+            <Button variant="outline" onClick={downloadDoc}>
+              <Download className="h-4 w-4" />
+              Download .doc
+            </Button>
+          </div>
+          {statusMessage ? (
+            <p className="text-sm text-gray-600">{statusMessage}</p>
+          ) : null}
+        </CardContent>
+      </Card>
     </WasteShell>
   )
 }
