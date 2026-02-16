@@ -64,6 +64,7 @@ export default function DashboardPage() {
   const [activeCityId, setActiveCityId] = useState<number | null>(null);
   const [initialDistrict, setInitialDistrict] = useState<number | null>(null);
   const [currentResearchId, setCurrentResearchId] = useState<number | null>(null);
+  const [initialChatPrompt, setInitialChatPrompt] = useState<string | null>(null);
   const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const hasAutoSelectedCity = useRef(false);
@@ -87,6 +88,30 @@ export default function DashboardPage() {
       router.push("/");
     }
   }, [isLoading, isAuthenticated, router]);
+
+  // Accept one-time prefilled prompts (e.g. from Waste "Ask Seymour" button)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const prefill = params.get("prefill") || params.get("prompt");
+    if (!prefill) return;
+
+    setCurrentView("chat");
+    setCurrentSessionId(null);
+    setIsCurrentSessionJobSession(false);
+    setActiveCityId(null);
+    setCurrentResearchId(null);
+    setInitialChatPrompt(prefill);
+
+    // Clean URL so refresh/back doesn't resend the same prompt.
+    params.delete("prefill");
+    params.delete("prompt");
+    const nextQuery = params.toString();
+    const nextUrl = nextQuery
+      ? `${window.location.pathname}?${nextQuery}`
+      : window.location.pathname;
+    router.replace(nextUrl);
+  }, [router]);
 
   // Track dashboard view when authenticated
   useEffect(() => {
@@ -682,6 +707,8 @@ export default function DashboardPage() {
               <ChatView
                 sessionId={currentSessionId}
                 onSessionChange={setCurrentSessionId}
+                initialPrompt={initialChatPrompt}
+                onInitialPromptHandled={() => setInitialChatPrompt(null)}
               />
             </div>
           )}

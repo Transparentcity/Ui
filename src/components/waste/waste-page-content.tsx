@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { useWasteAnalysis } from "@/lib/hooks/useWaste"
 import { WasteShell } from "./waste-shell"
 import { Button } from "@/components/ui/button"
 import { RefreshCw, AlertTriangle, Clock, Database } from "lucide-react"
-import type { WasteFinding, WasteDataFreshness } from "@/lib/apiClient"
+import type { WasteDataFreshness } from "@/lib/apiClient"
 
 import { WasteStatBar } from "./waste-stat-bar"
 import { WasteCategoryTabs } from "./waste-category-tabs"
@@ -15,6 +15,24 @@ import { WasteExport } from "./waste-export"
 import { WasteClusterMap } from "./waste-cluster-map"
 
 type SeverityFilter = "all" | "critical" | "high" | "medium"
+type WasteCategoryKey = "payroll" | "vendor" | "infrastructure"
+
+function normalizeWasteCategory(category: string): WasteCategoryKey {
+  const key = category.toLowerCase().trim().replace(/[_\s-]+/g, "_")
+  if (key === "payroll" || key === "payroll_compensation") return "payroll"
+  if (key === "vendor" || key === "vendors" || key === "vendor_procurement") {
+    return "vendor"
+  }
+  if (
+    key === "infrastructure" ||
+    key === "services" ||
+    key === "service" ||
+    key === "infrastructure_services"
+  ) {
+    return "infrastructure"
+  }
+  return "payroll"
+}
 
 function formatAge(isoDate: string): string {
   const date = new Date(isoDate)
@@ -90,9 +108,20 @@ function DataFreshnessBanner({ freshness }: { freshness: WasteDataFreshness[] })
 }
 
 export function WastePageContent() {
-  const [activeCategory, setActiveCategory] = useState("payroll")
+  const [activeCategory, setActiveCategory] = useState<WasteCategoryKey>("payroll")
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
   const [forceRefresh, setForceRefresh] = useState(false)
+  const now = new Date()
+  const localDateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+    now.getDate()
+  ).padStart(2, "0")}`
+  const tokenStorageKey = `waste:seymour_tokens:${localDateKey}`
+  const [todaySeymourTokens, setTodaySeymourTokens] = useState(() => {
+    if (typeof window === "undefined") return 0
+    const saved = window.localStorage.getItem(tokenStorageKey)
+    const parsed = saved ? parseInt(saved, 10) : 0
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+  })
 
   const { data, isLoading, error, refetch } = useWasteAnalysis(
     undefined,
@@ -104,11 +133,29 @@ export function WastePageContent() {
     refetch().finally(() => setForceRefresh(false))
   }
 
+  // Keep category state in sync with hash navigation from the sidebar.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const applyHashCategory = () => {
+      const raw = window.location.hash.replace("#", "")
+      if (!raw) return
+      setActiveCategory(normalizeWasteCategory(raw))
+      setSeverityFilter("all")
+    }
+
+    applyHashCategory()
+    window.addEventListener("hashchange", applyHashCategory)
+    return () => window.removeEventListener("hashchange", applyHashCategory)
+  }, [])
+
   // Findings come pre-sorted by priority_score from the backend
   const categoryFindings = useMemo(() => {
     if (!data?.findings) return []
-    return data.findings.filter((f) => f.category === activeCategory)
-  }, [data?.findings, activeCategory])
+    return data.findings.filter(
+      (f) => normalizeWasteCategory(f.category) === activeCategory
+    )
+  }, [data, activeCategory])
 
   // Filter by severity
   const filteredFindings = useMemo(() => {
@@ -122,18 +169,35 @@ export function WastePageContent() {
     return data.findings.filter(
       (f) => f.category === "infrastructure" && f.subcategory === "Infrastructure Cluster"
     )
-  }, [data?.findings])
+  }, [data])
 
   // Reset severity filter when category changes
   const handleCategoryChange = (cat: string) => {
-    setActiveCategory(cat)
+    const normalized = normalizeWasteCategory(cat)
+    setActiveCategory(normalized)
     setSeverityFilter("all")
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", `#${normalized}`)
+    }
+  }
+
+  const handleSeymourUsage = (tokensUsed: number) => {
+    if (!tokensUsed || tokensUsed <= 0) return
+    setTodaySeymourTokens((prev) => {
+      const next = prev + tokensUsed
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(tokenStorageKey, String(next))
+      }
+      return next
+    })
   }
 
   return (
     <WasteShell
       title="Waste Detection"
       description="Anomaly detection across payroll, vendor payments, and city services"
+      activeCategory={activeCategory}
+      onCategoryChange={handleCategoryChange}
       actions={
         <Button
           variant="outline"
@@ -209,11 +273,17 @@ export function WastePageContent() {
           ))}
         </div>
       ) : (
-        <WasteFindingsList findings={filteredFindings} />
+        <WasteFindingsList
+          findings={filteredFindings}
+          onSeymourUsage={handleSeymourUsage}
+        />
       )}
 
       {/* Footer */}
       <div className="mt-8 pt-4 border-t border-gray-200">
+        <p className="text-xs text-gray-500 text-center mb-1">
+          Seymour tokens used today in Waste: {todaySeymourTokens.toLocaleString()}
+        </p>
         <p className="text-xs text-gray-400 text-center">
           Data: DataSF Open Data Portal &middot; Anomalies &ne; confirmed fraud &middot; Sorted by confidence &amp; priority
         </p>

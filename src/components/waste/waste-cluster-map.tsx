@@ -19,16 +19,47 @@ interface ClusterPoint {
   severity: string
 }
 
-function parseClusterFromFinding(finding: WasteFinding): ClusterPoint | null {
-  const coordMatch = finding.description.match(
-    /\((\d+\.\d+),\s*(-?\d+\.\d+)\)/
-  )
-  if (!coordMatch) return null
+function extractCoordinates(text: string): [number, number] | null {
+  const patterns = [
+    /\(([-+]?\d+(?:\.\d+)?),\s*([-+]?\d+(?:\.\d+)?)\)/,
+    /near\s+([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)/i,
+    /lat(?:itude)?[:=]\s*([-+]?\d+(?:\.\d+)?)[^\d-+]+lon(?:gitude)?[:=]\s*([-+]?\d+(?:\.\d+)?)/i,
+  ]
 
-  const lat = parseFloat(coordMatch[1])
-  const lon = parseFloat(coordMatch[2])
-  const countMatch = finding.metric.match(/(\d+)/)
+  for (const pattern of patterns) {
+    const match = text.match(pattern)
+    if (!match) continue
+
+    let a = parseFloat(match[1])
+    let b = parseFloat(match[2])
+    if (!Number.isFinite(a) || !Number.isFinite(b)) continue
+
+    // Most findings use (lat, lon). If detected as (lon, lat), swap.
+    if (Math.abs(a) > 90 && Math.abs(b) <= 90) {
+      ;[a, b] = [b, a]
+    }
+
+    if (Math.abs(a) <= 90 && Math.abs(b) <= 180) {
+      return [a, b]
+    }
+  }
+  return null
+}
+
+function parseClusterFromFinding(finding: WasteFinding): ClusterPoint | null {
+  const description =
+    typeof finding.description === "string" ? finding.description : ""
+  const metric = typeof finding.metric === "string" ? finding.metric : ""
+  const metricDetail =
+    typeof finding.metricDetail === "string" ? finding.metricDetail : ""
+  const coords = extractCoordinates(description)
+  if (!coords) return null
+
+  const [lat, lon] = coords
+  const countMatch = `${metric} ${metricDetail}`.match(/(\d+)/)
   const count = countMatch ? parseInt(countMatch[1], 10) : 5
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
 
   return {
     lat,
@@ -87,6 +118,8 @@ export function WasteClusterMap({ findings }: WasteClusterMapProps) {
     if (!mapboxLoaded || clusters.length === 0 || !mapContainerRef.current)
       return
 
+    if (!MAPBOX_TOKEN) return
+
     const mapboxgl = (window as any).mapboxgl
     if (!mapboxgl) return
 
@@ -98,13 +131,18 @@ export function WasteClusterMap({ findings }: WasteClusterMapProps) {
       mapInstanceRef.current = null
     }
 
-    const map = new mapboxgl.Map({
-      container: mapContainerRef.current,
-      style: "mapbox://styles/mapbox/light-v11",
-      center: SF_CENTER,
-      zoom: SF_ZOOM,
-      attributionControl: false,
-    })
+    let map
+    try {
+      map = new mapboxgl.Map({
+        container: mapContainerRef.current,
+        style: "mapbox://styles/mapbox/light-v11",
+        center: SF_CENTER,
+        zoom: SF_ZOOM,
+        attributionControl: false,
+      })
+    } catch (error) {
+      return
+    }
 
     mapInstanceRef.current = map
 
@@ -273,7 +311,27 @@ export function WasteClusterMap({ findings }: WasteClusterMapProps) {
     }
   }, [mapboxLoaded, clusters])
 
-  if (clusters.length === 0) return null
+  if (clusters.length === 0) {
+    return (
+      <div className="anomaly-map-wrapper" style={{ marginBottom: "1.5rem" }}>
+        <div className="anomaly-map-header">
+          <span className="anomaly-map-title">Infrastructure Complaint Hotspots</span>
+          <span className="anomaly-map-count">No mappable coordinates found for current findings</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (!MAPBOX_TOKEN) {
+    return (
+      <div className="anomaly-map-wrapper" style={{ marginBottom: "1.5rem" }}>
+        <div className="anomaly-map-header">
+          <span className="anomaly-map-title">Infrastructure Complaint Hotspots</span>
+          <span className="anomaly-map-count">Map token missing (`NEXT_PUBLIC_MAPBOX_TOKEN`)</span>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="anomaly-map-wrapper" style={{ marginBottom: "1.5rem" }}>

@@ -1359,6 +1359,9 @@ export interface SessionDetail {
   intermediate_steps: any[];
   total_execution_time_ms: number;
   total_tokens_used: number;
+  total_prompt_tokens?: number;
+  total_completion_tokens?: number;
+  estimated_cost_usd?: number;
   llm_call_count: number;
   message_count: number;
   created_at: string;
@@ -1368,6 +1371,8 @@ export interface SessionDetail {
 export interface SessionStats {
   session_id: string;
   total_tokens_used: number;
+  total_prompt_tokens?: number;
+  total_completion_tokens?: number;
   llm_call_count: number;
   total_execution_time_ms: number;
   model_key: string;
@@ -1497,11 +1502,14 @@ export function getSessionStats(
   return getSession(sessionId, token).then((session) => ({
     session_id: session.session_id,
     total_tokens_used: session.total_tokens_used,
+    total_prompt_tokens: session.total_prompt_tokens ?? 0,
+    total_completion_tokens: session.total_completion_tokens ?? 0,
     llm_call_count: session.llm_call_count,
     total_execution_time_ms: session.total_execution_time_ms,
     model_key: session.model_key || "",
     last_message_at: session.last_message_at || null,
     created_at: session.created_at,
+    estimated_cost_usd: session.estimated_cost_usd ?? 0,
   }));
 }
 

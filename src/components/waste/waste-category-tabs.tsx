@@ -18,6 +18,23 @@ interface CategoryConfig {
   icon: React.ReactNode
 }
 
+function normalizeWasteCategory(category: string): string {
+  const key = category.toLowerCase().trim().replace(/[_\s-]+/g, "_")
+  if (key === "payroll" || key === "payroll_compensation") return "payroll"
+  if (key === "vendor" || key === "vendors" || key === "vendor_procurement") {
+    return "vendor"
+  }
+  if (
+    key === "infrastructure" ||
+    key === "services" ||
+    key === "service" ||
+    key === "infrastructure_services"
+  ) {
+    return "infrastructure"
+  }
+  return key
+}
+
 const CATEGORIES: CategoryConfig[] = [
   { key: "payroll", label: "Payroll & Compensation", icon: <Users className="w-5 h-5" /> },
   { key: "vendor", label: "Vendor & Procurement", icon: <ShoppingCart className="w-5 h-5" /> },
@@ -36,7 +53,7 @@ export function WasteCategoryTabs({
   categorySummaries,
 }: WasteCategoryTabsProps) {
   const getSummary = (key: string) =>
-    categorySummaries.find((c) => c.category === key)
+    categorySummaries.find((c) => normalizeWasteCategory(c.category) === key)
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">

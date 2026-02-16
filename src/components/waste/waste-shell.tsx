@@ -17,24 +17,28 @@ import Loader from "@/components/Loader"
 
 const navigation = [
   {
+    key: "payroll",
     name: "Overview",
     href: "/waste",
     icon: ShieldAlert,
     description: "All anomalies",
   },
   {
+    key: "payroll",
     name: "Payroll",
     href: "/waste#payroll",
     icon: DollarSign,
     description: "Compensation analysis",
   },
   {
+    key: "vendor",
     name: "Vendors",
     href: "/waste#vendor",
     icon: Truck,
     description: "Procurement analysis",
   },
   {
+    key: "infrastructure",
     name: "Infrastructure",
     href: "/waste#infrastructure",
     icon: Building2,
@@ -47,6 +51,8 @@ interface WasteShellProps {
   title: string
   description?: string
   actions?: React.ReactNode
+  activeCategory?: string
+  onCategoryChange?: (category: string) => void
 }
 
 export function WasteShell({
@@ -54,6 +60,8 @@ export function WasteShell({
   title,
   description,
   actions,
+  activeCategory,
+  onCategoryChange,
 }: WasteShellProps) {
   const pathname = usePathname()
   const { isAuthenticated, isLoading: authLoading, loginWithRedirect } = useAuth0()
@@ -141,31 +149,53 @@ export function WasteShell({
         <nav className="flex-1 py-2 overflow-y-auto">
           <ul className="list-none m-0 p-0">
             {navigation.map((item) => {
-              const isActive =
-                item.href === "/waste"
+              const isActive = activeCategory
+                ? item.key === activeCategory
+                : item.href === "/waste"
                   ? pathname === "/waste"
                   : pathname.startsWith(item.href.split("#")[0]) &&
                     item.href !== "/waste"
 
               return (
                 <li key={item.name}>
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      "flex items-center gap-3 px-4 py-2.5 text-sm no-underline transition-all border-l-[3px]",
-                      isActive
-                        ? "text-purple-600 font-semibold bg-gray-100 border-l-purple-600"
-                        : "text-gray-600 font-normal bg-transparent border-l-transparent hover:bg-gray-50 hover:text-gray-900"
-                    )}
-                  >
-                    <item.icon className="w-[18px] h-[18px]" />
-                    <div className="flex-1">
-                      <span className="block">{item.name}</span>
-                      <span className="block text-[11px] text-gray-400 font-normal">
-                        {item.description}
-                      </span>
-                    </div>
-                  </Link>
+                  {onCategoryChange ? (
+                    <button
+                      type="button"
+                      onClick={() => onCategoryChange(item.key)}
+                      className={cn(
+                        "w-full text-left flex items-center gap-3 px-4 py-2.5 text-sm no-underline transition-all border-l-[3px]",
+                        isActive
+                          ? "text-purple-600 font-semibold bg-gray-100 border-l-purple-600"
+                          : "text-gray-600 font-normal bg-transparent border-l-transparent hover:bg-gray-50 hover:text-gray-900"
+                      )}
+                    >
+                      <item.icon className="w-[18px] h-[18px]" />
+                      <div className="flex-1">
+                        <span className="block">{item.name}</span>
+                        <span className="block text-[11px] text-gray-400 font-normal">
+                          {item.description}
+                        </span>
+                      </div>
+                    </button>
+                  ) : (
+                    <Link
+                      href={item.href}
+                      className={cn(
+                        "flex items-center gap-3 px-4 py-2.5 text-sm no-underline transition-all border-l-[3px]",
+                        isActive
+                          ? "text-purple-600 font-semibold bg-gray-100 border-l-purple-600"
+                          : "text-gray-600 font-normal bg-transparent border-l-transparent hover:bg-gray-50 hover:text-gray-900"
+                      )}
+                    >
+                      <item.icon className="w-[18px] h-[18px]" />
+                      <div className="flex-1">
+                        <span className="block">{item.name}</span>
+                        <span className="block text-[11px] text-gray-400 font-normal">
+                          {item.description}
+                        </span>
+                      </div>
+                    </Link>
+                  )}
                 </li>
               )
             })}

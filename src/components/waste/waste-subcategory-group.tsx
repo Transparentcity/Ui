@@ -19,6 +19,7 @@ interface WasteSubcategoryGroupProps {
   findings: WasteFinding[]
   expandedFindingId: string | null
   onFindingToggle: (id: string) => void
+  onSeymourUsage?: (tokensUsed: number) => void
 }
 
 export function WasteSubcategoryGroup({
@@ -26,6 +27,7 @@ export function WasteSubcategoryGroup({
   findings,
   expandedFindingId,
   onFindingToggle,
+  onSeymourUsage,
 }: WasteSubcategoryGroupProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
 
@@ -81,6 +83,7 @@ export function WasteSubcategoryGroup({
               finding={finding}
               isExpanded={expandedFindingId === finding.id}
               onToggle={() => onFindingToggle(finding.id)}
+              onSeymourUsage={onSeymourUsage}
             />
           ))}
         </div>
