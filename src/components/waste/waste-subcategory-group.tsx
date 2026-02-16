@@ -29,7 +29,7 @@ export function WasteSubcategoryGroup({
   onFindingToggle,
   onSeymourUsage,
 }: WasteSubcategoryGroupProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(true)
 
   const critCount = findings.filter((f) => f.severity === "critical").length
   const highCount = findings.filter((f) => f.severity === "high").length
