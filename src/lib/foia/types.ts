@@ -124,6 +124,10 @@ export interface CityFoiaProfile {
   contact_email?: string
   contact_phone?: string
   portal_url?: string
+  civic_platform_url?: string
+  civic_platform_username?: string
+  civic_platform_email?: string
+  civic_platform_password?: string
   required_fields: string[]
   statute_name: string
   default_response_days: number

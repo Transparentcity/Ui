@@ -51,6 +51,10 @@ interface ProfileForm {
   contact_email: string
   contact_phone: string
   portal_url: string
+  civic_platform_url: string
+  civic_platform_username: string
+  civic_platform_email: string
+  civic_platform_password: string
   statute_name: string
   default_response_days: string
   observed_ack_latency_days: string
@@ -79,6 +83,10 @@ function profileToForm(p: CityFoiaProfile | null): ProfileForm {
     contact_email: p?.contact_email ?? "",
     contact_phone: p?.contact_phone ?? "",
     portal_url: p?.portal_url ?? "",
+    civic_platform_url: p?.civic_platform_url ?? "",
+    civic_platform_username: p?.civic_platform_username ?? "",
+    civic_platform_email: p?.civic_platform_email ?? "",
+    civic_platform_password: p?.civic_platform_password ?? "",
     statute_name: p?.statute_name ?? "",
     default_response_days: p?.default_response_days?.toString() ?? "10",
     observed_ack_latency_days: p?.observed_ack_latency_days?.toString() ?? "",
@@ -148,6 +156,10 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
         contact_email: form.contact_email || undefined,
         contact_phone: form.contact_phone || undefined,
         portal_url: form.portal_url || undefined,
+        civic_platform_url: form.civic_platform_url || undefined,
+        civic_platform_username: form.civic_platform_username || undefined,
+        civic_platform_email: form.civic_platform_email || undefined,
+        civic_platform_password: form.civic_platform_password || undefined,
         statute_name: form.statute_name || undefined,
         default_response_days: form.default_response_days ? parseInt(form.default_response_days, 10) : undefined,
         observed_ack_latency_days: form.observed_ack_latency_days ? parseInt(form.observed_ack_latency_days, 10) : undefined,
@@ -381,6 +393,71 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
                   />
                 </div>
               </div>
+
+              <div className="mt-1 border-t border-gray-200 pt-4">
+                <h5 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Civic/Open Data Platform Access
+                </h5>
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                      Civic Platform URL
+                    </label>
+                    <input
+                      type="url"
+                      value={form.civic_platform_url}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, civic_platform_url: e.target.value }))
+                      }
+                      placeholder="https://portal.city.gov/login"
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-gray-600">
+                        Platform Username
+                      </label>
+                      <input
+                        value={form.civic_platform_username}
+                        onChange={(e) =>
+                          setForm((f) => ({ ...f, civic_platform_username: e.target.value }))
+                        }
+                        placeholder="username"
+                        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-gray-600">
+                        Platform Email
+                      </label>
+                      <input
+                        type="email"
+                        value={form.civic_platform_email}
+                        onChange={(e) =>
+                          setForm((f) => ({ ...f, civic_platform_email: e.target.value }))
+                        }
+                        placeholder="records@transparentcity.org"
+                        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                      Platform Password
+                    </label>
+                    <input
+                      type="password"
+                      value={form.civic_platform_password}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, civic_platform_password: e.target.value }))
+                      }
+                      placeholder="Stored for internal filing workflows"
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Right: Statute & Responsiveness */}
@@ -499,6 +576,46 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
                     <dd className="text-sm text-purple-600 hover:underline">
                       <a href={profile.portal_url} target="_blank" rel="noreferrer">{profile.portal_url}</a>
                     </dd>
+                  </div>
+                </div>
+              )}
+              {profile.civic_platform_url && (
+                <div className="flex items-center gap-3">
+                  <Globe className="h-4 w-4 text-gray-400" />
+                  <div>
+                    <dt className="text-xs text-gray-500">Civic Platform URL</dt>
+                    <dd className="text-sm text-purple-600 hover:underline">
+                      <a href={profile.civic_platform_url} target="_blank" rel="noreferrer">
+                        {profile.civic_platform_url}
+                      </a>
+                    </dd>
+                  </div>
+                </div>
+              )}
+              {profile.civic_platform_username && (
+                <div className="flex items-center gap-3">
+                  <Building2 className="h-4 w-4 text-gray-400" />
+                  <div>
+                    <dt className="text-xs text-gray-500">Civic Platform Username</dt>
+                    <dd className="text-sm text-gray-900">{profile.civic_platform_username}</dd>
+                  </div>
+                </div>
+              )}
+              {profile.civic_platform_email && (
+                <div className="flex items-center gap-3">
+                  <Mail className="h-4 w-4 text-gray-400" />
+                  <div>
+                    <dt className="text-xs text-gray-500">Civic Platform Email</dt>
+                    <dd className="text-sm text-gray-900">{profile.civic_platform_email}</dd>
+                  </div>
+                </div>
+              )}
+              {profile.civic_platform_password && (
+                <div className="flex items-center gap-3">
+                  <FileText className="h-4 w-4 text-gray-400" />
+                  <div>
+                    <dt className="text-xs text-gray-500">Civic Platform Password</dt>
+                    <dd className="text-sm text-gray-900">{"*".repeat(12)}</dd>
                   </div>
                 </div>
               )}
