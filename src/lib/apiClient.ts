@@ -3694,5 +3694,102 @@ export function getDefaultExecuteStartDateByPeriod(periodType: string): string {
   return `${startYear}-01-01`;
 }
 
+// ============================================================================
+// WASTE DETECTION
+// ============================================================================
+
+export interface WasteFinding {
+  id: string;
+  category: "payroll" | "vendor" | "infrastructure";
+  subcategory: string;
+  severity: "critical" | "high" | "medium";
+  entity: string;
+  metric: string;
+  metricDetail: string;
+  amount: number | null;
+  description: string;
+  tool: string;
+  confidence: "high" | "medium" | "low";
+  confidenceReason: string | null;
+  priority_score: number;
+  isPartialData: boolean;
+  caveat: string | null;
+}
+
+export interface WasteDataFreshness {
+  dataset_name: string;
+  data_as_of: string | null;
+  data_loaded_at: string | null;
+  rows_fetched: number;
+  is_partial_year: boolean;
+  stale: boolean;
+  stale_reason: string | null;
+}
+
+export interface WasteCategorySummary {
+  category: string;
+  finding_count: number;
+  critical_count: number;
+  high_count: number;
+  medium_count: number;
+  total_amount: number | null;
+  records_analyzed: number;
+}
+
+export interface WasteSummaryResponse {
+  total_findings: number;
+  critical_count: number;
+  estimated_exposure: number | null;
+  departments_affected: number;
+  categories: WasteCategorySummary[];
+}
+
+export interface WasteAnalyzeResponse {
+  findings: WasteFinding[];
+  summary: WasteSummaryResponse;
+  cached: boolean;
+  analysis_timestamp: string | null;
+  errors: string[];
+  data_freshness: WasteDataFreshness[];
+}
+
+export function getWasteAnalysis(
+  token: string,
+  category?: string,
+  forceRefresh?: boolean
+): Promise<WasteAnalyzeResponse> {
+  const params = new URLSearchParams();
+  if (category) params.append("category", category);
+  if (forceRefresh) params.append("force_refresh", "true");
+  const query = params.toString();
+  const path = `/api/waste/analyze${query ? `?${query}` : ""}`;
+  return request<WasteAnalyzeResponse>(path, "GET", undefined, token);
+}
+
+export function getWasteSummary(
+  token: string
+): Promise<WasteSummaryResponse> {
+  return request<WasteSummaryResponse>("/api/waste/summary", "GET", undefined, token);
+}
+
+export async function exportWasteFindings(
+  token: string,
+  category: string,
+  format: "csv" | "json"
+): Promise<Blob> {
+  const url = `${API_BASE}/api/waste/export/${category}?format=${format}`;
+  const res = await fetch(url, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Export failed: ${res.status}`);
+  }
+  return res.blob();
+}
+
 // Force rebuild - all exports are defined above
 
