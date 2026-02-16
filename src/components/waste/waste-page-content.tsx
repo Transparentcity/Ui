@@ -287,7 +287,10 @@ export function WastePageContent() {
   const infraFindings = useMemo(() => {
     if (!displayData?.findings) return []
     return displayData.findings.filter(
-      (f) => f.category === "infrastructure" && f.subcategory === "Infrastructure Cluster"
+      (f) =>
+        f.category === "infrastructure" &&
+        (f.subcategory === "Infrastructure Cluster" ||
+          f.subcategory === "Pavement/Sidewalk Failure Hotspot")
     )
   }, [displayData])
 

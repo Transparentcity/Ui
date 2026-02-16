@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useState } from "react"
 import { useAuth0 } from "@auth0/auth0-react"
 import { useRouter } from "next/navigation"
-import { Sparkles, X } from "lucide-react"
+import {
+  Loader2,
+  PanelRightClose,
+  PanelRightOpen,
+  Sparkles,
+  X,
+} from "lucide-react"
 import {
   getAvailableModels,
   getSessionStats,
@@ -72,12 +78,19 @@ export function WasteSeymourPanel({
   onClose,
   onSeymourUsage,
 }: WasteSeymourPanelProps) {
+  const MIN_PANEL_WIDTH = 360
+  const MAX_PANEL_WIDTH = 760
+  const DEFAULT_PANEL_WIDTH = 440
   const router = useRouter()
   const { getAccessTokenSilently } = useAuth0()
+  const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH)
+  const [isResizing, setIsResizing] = useState(false)
   const [promptDraft, setPromptDraft] = useState("")
   const [analysisResult, setAnalysisResult] = useState("")
   const [analysisError, setAnalysisError] = useState<string | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [analysisStartedAt, setAnalysisStartedAt] = useState<number | null>(null)
+  const [analysisElapsedSeconds, setAnalysisElapsedSeconds] = useState(0)
   const [usageStats, setUsageStats] = useState<SessionStats | null>(null)
 
   const finding = request?.finding ?? null
@@ -85,11 +98,27 @@ export function WasteSeymourPanel({
 
   useEffect(() => {
     if (!finding) return
-    setPromptDraft(buildAnalysisPrompt(finding))
+    const nextPrompt = buildAnalysisPrompt(finding)
+    setPromptDraft(nextPrompt)
     setAnalysisResult("")
     setAnalysisError(null)
     setUsageStats(null)
+    // Auto-run once when a new finding is opened in the side panel.
+    void runAnalysis(nextPrompt)
   }, [finding])
+
+  useEffect(() => {
+    if (!isAnalyzing || analysisStartedAt == null) return
+    setAnalysisElapsedSeconds(
+      Math.max(0, Math.floor((Date.now() - analysisStartedAt) / 1000))
+    )
+    const interval = window.setInterval(() => {
+      setAnalysisElapsedSeconds(
+        Math.max(0, Math.floor((Date.now() - analysisStartedAt) / 1000))
+      )
+    }, 1000)
+    return () => window.clearInterval(interval)
+  }, [isAnalyzing, analysisStartedAt])
 
   const heading = useMemo(() => {
     if (!finding) return "Seymour Side Chat"
@@ -109,9 +138,11 @@ export function WasteSeymourPanel({
     return `$${costUsd.toFixed(2)}`
   }
 
-  const handleAnalyze = async () => {
-    if (!promptDraft.trim() || isAnalyzing) return
+  const runAnalysis = async (promptToRun: string) => {
+    if (!promptToRun.trim() || isAnalyzing) return
     setIsAnalyzing(true)
+    setAnalysisStartedAt(Date.now())
+    setAnalysisElapsedSeconds(0)
     setAnalysisError(null)
     setAnalysisResult("")
     setUsageStats(null)
@@ -131,7 +162,7 @@ export function WasteSeymourPanel({
       const response = await withTimeout(
         sendChatMessage(
           {
-            message: promptDraft,
+            message: promptToRun,
             model_key: selectedModel,
           },
           token
@@ -160,7 +191,12 @@ export function WasteSeymourPanel({
       setAnalysisError(message)
     } finally {
       setIsAnalyzing(false)
+      setAnalysisStartedAt(null)
     }
+  }
+
+  const handleAnalyze = async () => {
+    await runAnalysis(promptDraft)
   }
 
   const handleOpenFullChat = () => {
@@ -168,10 +204,53 @@ export function WasteSeymourPanel({
     router.push(`/dashboard?prefill=${prompt}`)
   }
 
+  const handleResizeStart = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsResizing(true)
+    const startX = event.clientX
+    const startWidth = panelWidth
+    document.body.style.cursor = "col-resize"
+    document.body.style.userSelect = "none"
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const delta = startX - moveEvent.clientX
+      const nextWidth = Math.min(
+        MAX_PANEL_WIDTH,
+        Math.max(MIN_PANEL_WIDTH, startWidth + delta)
+      )
+      setPanelWidth(nextWidth)
+    }
+
+    const handlePointerUp = () => {
+      setIsResizing(false)
+      document.body.style.cursor = ""
+      document.body.style.userSelect = ""
+      window.removeEventListener("pointermove", handlePointerMove)
+      window.removeEventListener("pointerup", handlePointerUp)
+    }
+
+    window.addEventListener("pointermove", handlePointerMove)
+    window.addEventListener("pointerup", handlePointerUp)
+  }
+
   if (!isOpen || !finding) return null
 
   return (
-    <aside className="fixed right-4 top-20 bottom-4 z-40 w-[440px] max-w-[calc(100vw-2rem)] rounded-xl border border-purple-200 bg-white shadow-2xl flex flex-col">
+    <aside
+      className={`fixed right-4 top-20 bottom-4 z-40 max-w-[calc(100vw-2rem)] rounded-xl border border-purple-200 bg-white shadow-2xl flex flex-col ${
+        isResizing ? "select-none" : ""
+      }`}
+      style={{ width: `${panelWidth}px` }}
+    >
+      <div
+        className="absolute left-0 top-0 bottom-0 w-3 -translate-x-1.5 cursor-col-resize group"
+        onPointerDown={handleResizeStart}
+        onDoubleClick={() => setPanelWidth(DEFAULT_PANEL_WIDTH)}
+        title="Drag to resize Seymour panel (double-click to reset)"
+        aria-hidden="true"
+      >
+        <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 rounded-full bg-purple-200/80 group-hover:bg-purple-400 transition-colors" />
+      </div>
       <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-gray-900 truncate">{heading}</p>
@@ -179,14 +258,34 @@ export function WasteSeymourPanel({
             {finding.metric} - {finding.entity}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 text-gray-500"
-          aria-label="Close Seymour side chat"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setPanelWidth((prev) => Math.max(MIN_PANEL_WIDTH, prev - 60))}
+            className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 text-gray-500"
+            aria-label="Make Seymour panel narrower"
+            title="Narrower"
+          >
+            <PanelRightClose className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setPanelWidth((prev) => Math.min(MAX_PANEL_WIDTH, prev + 60))}
+            className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 text-gray-500"
+            aria-label="Make Seymour panel wider"
+            title="Wider"
+          >
+            <PanelRightOpen className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 text-gray-500"
+            aria-label="Close Seymour side chat"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       <div className="p-4 space-y-3 overflow-y-auto flex-1">
@@ -212,9 +311,20 @@ export function WasteSeymourPanel({
           </p>
           <div className="whitespace-pre-wrap text-sm text-gray-800">
             {isAnalyzing
-              ? "Seymour is analyzing this finding... You can keep using the module."
+              ? `Seymour is analyzing this finding... (${analysisElapsedSeconds}s elapsed)\nYou can keep using the module while this runs.`
               : analysisResult || "Run analysis to see Seymour's output."}
           </div>
+          {isAnalyzing ? (
+            <div className="mt-3">
+              <div className="h-2 w-full rounded-full bg-purple-100 overflow-hidden">
+                <div className="h-full w-1/2 rounded-full bg-purple-500 animate-pulse" />
+              </div>
+              <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Request in progress. Long analyses can take up to 60s.
+              </p>
+            </div>
+          ) : null}
           {usageStats && !isAnalyzing ? (
             <div className="mt-3 border-t border-gray-200 pt-2 text-xs text-gray-700 grid grid-cols-2 gap-2">
               <div>Tokens: {formatTokens(usageStats.total_tokens_used)}</div>

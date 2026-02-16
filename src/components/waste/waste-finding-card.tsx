@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion, AlertCircle, Sparkles } from "lucide-react"
 import { type WasteFinding } from "@/lib/apiClient"
@@ -67,6 +68,69 @@ interface WasteFindingCardProps {
   onAskSeymour?: (finding: WasteFinding) => void
 }
 
+interface PayrollDetailRow {
+  employee_identifier?: string
+  job?: string
+  hours?: string
+  salaries?: string
+  overtime?: string
+  other_salaries?: string
+  total_salary?: string
+}
+
+const DETAILS_LIMIT = 20
+const SOCRATA_BASE = "https://data.sfgov.org/resource/88g8-5mnd.json"
+
+function escapeSoqlLike(value: string): string {
+  return value.replace(/'/g, "''")
+}
+
+function formatHours(hours: string | undefined): string {
+  const parsed = Number(hours ?? "0")
+  if (!Number.isFinite(parsed) || parsed <= 0) return "N/A"
+  return `${parsed.toLocaleString(undefined, { maximumFractionDigits: 1 })} hrs`
+}
+
+function formatWeeklyHours(hours: string | undefined): string {
+  const parsed = Number(hours ?? "0")
+  if (!Number.isFinite(parsed) || parsed <= 0) return "N/A"
+  return `${(parsed / 52).toFixed(1)} hrs/wk`
+}
+
+function formatCurrency(raw: string | undefined): string {
+  const parsed = Number(raw ?? "0")
+  if (!Number.isFinite(parsed)) return "N/A"
+  return `$${parsed.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+}
+
+function getDepartmentFilter(finding: WasteFinding): string {
+  return escapeSoqlLike((finding.entity || "").split("(")[0].trim())
+}
+
+function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
+  if (finding.category !== "payroll") return null
+  const dept = getDepartmentFilter(finding)
+  if (!dept) return null
+
+  const select =
+    "employee_identifier,job,hours,salaries,overtime,other_salaries,total_salary"
+  const baseWhere = `upper(department) like upper('%${dept}%') and hours > 0`
+
+  if (finding.subcategory === "Comp Time Manipulation") {
+    const where = `${baseWhere} and salaries > 10000 and other_salaries > 0 and (other_salaries / salaries) > 0.30`
+    return `${SOCRATA_BASE}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent("other_salaries desc")}&$limit=${DETAILS_LIMIT}`
+  }
+
+  if (
+    finding.subcategory === "Hours Feasibility" ||
+    finding.subcategory === "Impossibility Check"
+  ) {
+    return `${SOCRATA_BASE}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("hours desc")}&$limit=${DETAILS_LIMIT}`
+  }
+
+  return null
+}
+
 export function WasteFindingCard({
   finding,
   isExpanded,
@@ -76,10 +140,46 @@ export function WasteFindingCard({
   const sev = severityConfig[finding.severity]
   const conf = confidenceConfig[finding.confidence ?? "medium"]
   const ConfIcon = conf.icon
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
+  const [isDetailsLoading, setIsDetailsLoading] = useState(false)
+  const [detailsError, setDetailsError] = useState<string | null>(null)
+  const [detailsRows, setDetailsRows] = useState<PayrollDetailRow[] | null>(null)
 
   const handleAskSeymour = (e: React.MouseEvent) => {
     e.stopPropagation()
     onAskSeymour?.(finding)
+  }
+
+  const detailsUrl = buildSocrataDetailsUrl(finding)
+  const canShowDetails = Boolean(detailsUrl)
+
+  const loadDetails = async () => {
+    if (!detailsUrl || isDetailsLoading) return
+    setIsDetailsLoading(true)
+    setDetailsError(null)
+    try {
+      const response = await fetch(detailsUrl)
+      if (!response.ok) {
+        throw new Error(`Failed to load details (${response.status})`)
+      }
+      const rows = (await response.json()) as PayrollDetailRow[]
+      setDetailsRows(rows)
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to load employee details."
+      setDetailsError(message)
+    } finally {
+      setIsDetailsLoading(false)
+    }
+  }
+
+  const handleToggleDetails = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const next = !isDetailsOpen
+    setIsDetailsOpen(next)
+    if (next && detailsRows == null && !isDetailsLoading) {
+      await loadDetails()
+    }
   }
 
   return (
@@ -161,6 +261,56 @@ export function WasteFindingCard({
           <p className="text-sm text-gray-700 leading-relaxed mb-3">
             {finding.description}
           </p>
+
+          {canShowDetails && (
+            <div className="mb-3">
+              <button
+                type="button"
+                onClick={handleToggleDetails}
+                className="text-xs font-medium text-violet-700 hover:text-violet-800 underline"
+              >
+                {isDetailsOpen ? "Hide employee details" : "Show employee details"}
+              </button>
+              {isDetailsOpen && (
+                <div className="mt-2 rounded-md border border-gray-200 bg-white overflow-x-auto">
+                  {isDetailsLoading ? (
+                    <p className="px-3 py-2 text-xs text-gray-500">Loading employee rows...</p>
+                  ) : detailsError ? (
+                    <p className="px-3 py-2 text-xs text-red-600">{detailsError}</p>
+                  ) : detailsRows && detailsRows.length > 0 ? (
+                    <table className="min-w-full text-xs">
+                      <thead className="bg-gray-50 text-gray-600">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium">Employee</th>
+                          <th className="px-3 py-2 text-left font-medium">Job</th>
+                          <th className="px-3 py-2 text-left font-medium">Hours</th>
+                          <th className="px-3 py-2 text-left font-medium">Weekly Avg</th>
+                          <th className="px-3 py-2 text-left font-medium">Other Salaries</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detailsRows.map((row, idx) => (
+                          <tr key={`${row.employee_identifier ?? "employee"}-${idx}`} className="border-t border-gray-100">
+                            <td className="px-3 py-2 text-gray-800">
+                              {row.employee_identifier || "Unknown"}
+                            </td>
+                            <td className="px-3 py-2 text-gray-600">{row.job || "—"}</td>
+                            <td className="px-3 py-2 text-gray-600">{formatHours(row.hours)}</td>
+                            <td className="px-3 py-2 text-gray-600">{formatWeeklyHours(row.hours)}</td>
+                            <td className="px-3 py-2 text-gray-600">
+                              {formatCurrency(row.other_salaries)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <p className="px-3 py-2 text-xs text-gray-500">No matching rows found.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Confidence badge */}
           <div className={cn(
