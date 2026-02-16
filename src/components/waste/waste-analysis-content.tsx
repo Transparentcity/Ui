@@ -10,7 +10,7 @@ import {
   ShieldCheck,
 } from "lucide-react"
 import { useWasteAnalysis } from "@/lib/hooks/useWaste"
-import type { WasteFinding } from "@/lib/apiClient"
+import type { WasteAnalyzeResponse, WasteFinding } from "@/lib/apiClient"
 import { WasteShell } from "./waste-shell"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,6 +22,9 @@ import {
 } from "@/components/ui/card"
 
 type WasteCategory = "all" | "payroll" | "vendor" | "infrastructure"
+const ANALYSIS_REFRESH_ESTIMATED_SECONDS = 40
+const ANALYSIS_REFRESH_TIMEOUT_MS = 120_000
+const WASTE_ANALYSIS_CACHE_KEY = "waste:last-analysis:v1"
 
 function normalizeWasteCategory(category: string): WasteCategory {
   const key = category.toLowerCase().trim().replace(/[_\s-]+/g, "_")
@@ -45,6 +48,39 @@ function formatCategoryLabel(category: WasteCategory): string {
   if (category === "payroll") return "Payroll & Compensation"
   if (category === "vendor") return "Vendor & Procurement"
   return "Infrastructure & Services"
+}
+
+function getAnalysisRefreshProgress(elapsedSeconds: number): {
+  step: string
+  etaLabel: string
+  progressPct: number
+  isLongRunning: boolean
+} {
+  let step = "Loading latest anomaly findings"
+  if (elapsedSeconds > 8) {
+    step = "Recomputing sub-cluster summaries and outliers"
+  }
+  if (elapsedSeconds > 20) {
+    step = "Preparing auditor report sections"
+  }
+  if (elapsedSeconds > 30) {
+    step = "Finalizing data sources and export payloads"
+  }
+
+  const remaining = Math.max(0, ANALYSIS_REFRESH_ESTIMATED_SECONDS - elapsedSeconds)
+  const isLongRunning = elapsedSeconds > ANALYSIS_REFRESH_ESTIMATED_SECONDS + 12
+  const etaLabel = isLongRunning
+    ? "Taking longer than usual, but still processing in the background"
+    : remaining > 0
+      ? `Estimated time left: ~${remaining}s`
+      : "Estimated time left: wrapping up"
+
+  const progressPct = Math.min(
+    95,
+    Math.max(6, Math.round((elapsedSeconds / ANALYSIS_REFRESH_ESTIMATED_SECONDS) * 100)),
+  )
+
+  return { step, etaLabel, progressPct, isLongRunning }
 }
 
 function looksLikeSamePersonConflict(finding: WasteFinding): boolean {
@@ -125,13 +161,85 @@ export function WasteAnalysisContent() {
   const [selectedSubcluster, setSelectedSubcluster] = useState<string>("")
   const [statusMessage, setStatusMessage] = useState("")
   const [forceRefresh, setForceRefresh] = useState(false)
+  const [allowAutoFetch, setAllowAutoFetch] = useState(false)
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false)
+  const [refreshTimedOut, setRefreshTimedOut] = useState(false)
+  const [cachedData, setCachedData] = useState<WasteAnalyzeResponse | null>(() => {
+    if (typeof window === "undefined") return null
+    try {
+      const raw = window.localStorage.getItem(WASTE_ANALYSIS_CACHE_KEY)
+      if (!raw) return null
+      return JSON.parse(raw) as WasteAnalyzeResponse
+    } catch {
+      return null
+    }
+  })
+  const [refreshStartedAt, setRefreshStartedAt] = useState<number | null>(null)
+  const [refreshElapsedSeconds, setRefreshElapsedSeconds] = useState(0)
 
-  const { data, isLoading, error, refetch } = useWasteAnalysis(undefined, forceRefresh)
+  const { data, isLoading, error } = useWasteAnalysis(
+    undefined,
+    forceRefresh,
+    allowAutoFetch
+  )
+  const displayData = data ?? cachedData
+
+  useEffect(() => {
+    if (!data) return
+    setCachedData(data)
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(WASTE_ANALYSIS_CACHE_KEY, JSON.stringify(data))
+    }
+  }, [data])
+
+  useEffect(() => {
+    if (isManualRefreshing) {
+      setRefreshStartedAt((prev) => prev ?? Date.now())
+      return
+    }
+    setRefreshStartedAt(null)
+    setRefreshElapsedSeconds(0)
+  }, [isManualRefreshing])
+
+  useEffect(() => {
+    if (!isManualRefreshing || refreshStartedAt == null) return
+    setRefreshElapsedSeconds(
+      Math.max(0, Math.floor((Date.now() - refreshStartedAt) / 1000)),
+    )
+    const interval = window.setInterval(() => {
+      setRefreshElapsedSeconds(
+        Math.max(0, Math.floor((Date.now() - refreshStartedAt) / 1000)),
+      )
+    }, 1000)
+    return () => window.clearInterval(interval)
+  }, [isManualRefreshing, refreshStartedAt])
+
+  useEffect(() => {
+    if (!isLoading && forceRefresh) {
+      setForceRefresh(false)
+    }
+  }, [isLoading, forceRefresh])
+
+  useEffect(() => {
+    if (!isManualRefreshing) return
+    const timeout = window.setTimeout(() => {
+      setIsManualRefreshing(false)
+      setRefreshTimedOut(true)
+      setForceRefresh(false)
+    }, ANALYSIS_REFRESH_TIMEOUT_MS)
+    return () => window.clearTimeout(timeout)
+  }, [isManualRefreshing])
+
+  useEffect(() => {
+    if (isManualRefreshing && !isLoading) {
+      setIsManualRefreshing(false)
+    }
+  }, [isManualRefreshing, isLoading])
 
   const generatedAt = useMemo(() => new Date(), [])
   const generatedLabel = generatedAt.toLocaleString()
 
-  const findings = data?.findings ?? []
+  const findings = displayData?.findings ?? []
 
   const categoryFilteredFindings = useMemo(() => {
     if (selectedCategory === "all") return findings
@@ -190,10 +298,11 @@ export function WasteAnalysisContent() {
   )
 
   const analysisPeriod = useMemo(() => {
-    if (!data?.analysis_timestamp) return "Current analysis window"
-    const asOf = new Date(data.analysis_timestamp).toLocaleDateString()
+    if (!displayData?.analysis_timestamp) return "Current analysis window"
+    const asOf = new Date(displayData.analysis_timestamp).toLocaleDateString()
     return `Up to ${asOf}`
-  }, [data?.analysis_timestamp])
+  }, [displayData?.analysis_timestamp])
+  const refreshProgress = getAnalysisRefreshProgress(refreshElapsedSeconds)
 
   const recommendedSteps = useMemo(
     () =>
@@ -257,12 +366,12 @@ export function WasteAnalysisContent() {
     }
 
     lines.push("Data used:")
-    ;(data?.data_freshness ?? []).forEach((source) => {
+    ;(displayData?.data_freshness ?? []).forEach((source) => {
       lines.push(
         `- ${source.dataset_name} (${source.rows_fetched.toLocaleString()} rows)`,
       )
     })
-    if (!data?.data_freshness?.length) {
+    if (!displayData?.data_freshness?.length) {
       lines.push("- Waste analysis API findings payload")
     }
     lines.push("")
@@ -273,7 +382,7 @@ export function WasteAnalysisContent() {
   }, [
     analysisPeriod,
     comparisonFindings,
-    data?.data_freshness,
+    displayData?.data_freshness,
     generatedLabel,
     hasRoleConflictSignal,
     primaryFinding,
@@ -288,7 +397,7 @@ export function WasteAnalysisContent() {
 
   const htmlReport = useMemo(() => {
     const sourceRows =
-      data?.data_freshness?.map(
+      displayData?.data_freshness?.map(
         (source) =>
           `<li>${source.dataset_name} (${source.rows_fetched.toLocaleString()} rows)</li>`,
       ) ?? []
@@ -339,7 +448,7 @@ export function WasteAnalysisContent() {
   }, [
     analysisPeriod,
     comparisonFindings,
-    data?.data_freshness,
+    displayData?.data_freshness,
     generatedLabel,
     primaryFinding,
     recommendedSteps,
@@ -384,8 +493,10 @@ export function WasteAnalysisContent() {
   }
 
   const handleRefresh = () => {
+    setAllowAutoFetch(true)
+    setRefreshTimedOut(false)
+    setIsManualRefreshing(true)
     setForceRefresh(true)
-    refetch().finally(() => setForceRefresh(false))
   }
 
   return (
@@ -397,13 +508,76 @@ export function WasteAnalysisContent() {
           variant="outline"
           size="sm"
           onClick={handleRefresh}
-          disabled={isLoading}
+          disabled={isManualRefreshing}
         >
-          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
-          {isLoading ? "Refreshing..." : "Refresh"}
+          <RefreshCw className={`w-4 h-4 mr-2 ${isManualRefreshing ? "animate-spin" : ""}`} />
+          {isManualRefreshing
+            ? `Refreshing (${refreshProgress.progressPct}% · ${refreshElapsedSeconds}s)`
+            : "Refresh"}
         </Button>
       }
     >
+      {isManualRefreshing ? (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm font-medium text-blue-900">{refreshProgress.step}</p>
+            <div className="mt-2 h-2 w-full rounded-full bg-blue-100 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-blue-500 transition-all duration-500 ease-out"
+                style={{ width: `${refreshProgress.progressPct}%` }}
+              />
+            </div>
+            <p className="text-xs text-blue-700 mt-1">
+              {refreshProgress.etaLabel} · Typical refresh run: 15-40s
+            </p>
+            {refreshProgress.isLongRunning ? (
+              <p className="text-xs text-blue-700 mt-1">
+                If this exceeds 90s, use Refresh again to re-request analysis.
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {!isManualRefreshing && refreshTimedOut ? (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm font-medium text-amber-800">
+              Refresh took too long and was stopped.
+            </p>
+            <p className="text-xs text-amber-700 mt-1">
+              Showing last saved snapshot. Try Refresh again when backend load is lower.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {!isManualRefreshing && displayData && !allowAutoFetch ? (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm font-medium text-gray-800">
+              Showing your last saved analysis snapshot.
+            </p>
+            <p className="text-xs text-gray-600 mt-1">
+              Click Refresh to run a new analysis.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {!isManualRefreshing && !displayData && !error ? (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm font-medium text-gray-800">
+              No saved analysis snapshot found yet.
+            </p>
+            <p className="text-xs text-gray-600 mt-1">
+              Click Refresh to run your first analysis.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {error ? (
         <Card>
           <CardHeader>

@@ -16,7 +16,8 @@ import {
  */
 export function useWasteAnalysis(
   category?: string,
-  forceRefresh?: boolean
+  forceRefresh?: boolean,
+  enabled: boolean = true
 ) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0()
 
@@ -26,7 +27,7 @@ export function useWasteAnalysis(
       const token = await getAccessTokenSilently()
       return getWasteAnalysis(token, category, forceRefresh)
     },
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && enabled,
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 1,
   })

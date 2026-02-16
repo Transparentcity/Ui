@@ -6,14 +6,14 @@ import { WasteSubcategoryGroup } from "./waste-subcategory-group"
 
 interface WasteFindingsListProps {
   findings: WasteFinding[]
-  onSeymourUsage?: (tokensUsed: number) => void
+  onAskSeymour?: (finding: WasteFinding) => void
 }
 
 const severityOrder = { critical: 0, high: 1, medium: 2 }
 
 export function WasteFindingsList({
   findings,
-  onSeymourUsage,
+  onAskSeymour,
 }: WasteFindingsListProps) {
   const [expandedFindingId, setExpandedFindingId] = useState<string | null>(null)
 
@@ -57,7 +57,7 @@ export function WasteFindingsList({
           findings={subFindings}
           expandedFindingId={expandedFindingId}
           onFindingToggle={handleFindingToggle}
-          onSeymourUsage={onSeymourUsage}
+          onAskSeymour={onAskSeymour}
         />
       ))}
     </div>
