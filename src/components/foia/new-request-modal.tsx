@@ -258,7 +258,6 @@ export function NewRequestModal({
         additional_department_ids: additionalDeptIds,
         title: generatedTitle || undefined,
         request_description: form.request_description || undefined,
-        fee_waiver: true,
       })
       setRequestBlock(res.block)
       setRequestBlockInfo(

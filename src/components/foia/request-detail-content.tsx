@@ -20,6 +20,7 @@ import {
   ChevronDown,
   Upload,
   Pencil,
+  Copy,
 } from "lucide-react"
 import { useAuth0 } from "@auth0/auth0-react"
 import {
@@ -608,6 +609,8 @@ function OverviewTab({
   autoOpenExternalModal: boolean
 }) {
   const [completing, setCompleting] = useState<number | null>(null)
+  const [regenerating, setRegenerating] = useState(false)
+  const [copiedLabel, setCopiedLabel] = useState<string | null>(null)
   const [showExternalModal, setShowExternalModal] = useState(false)
   const [externalId, setExternalId] = useState("")
   const [externalRequestUrl, setExternalRequestUrl] = useState("")
@@ -622,22 +625,31 @@ function OverviewTab({
     typeof latestSnap["requester_email_effective"] === "string"
       ? (latestSnap["requester_email_effective"] as string)
       : ""
-  const snapLetterBody = typeof latestSnap["letter_body"] === "string" ? (latestSnap["letter_body"] as string) : ""
+  const snapLetterBodyRaw = typeof latestSnap["letter_body"] === "string" ? (latestSnap["letter_body"] as string) : ""
   const snapCaseNumber =
     typeof latestSnap["case_or_cad_number"] === "string" ? (latestSnap["case_or_cad_number"] as string) : ""
   const snapPortalFields =
     latestSnap["portal_fields"] && typeof latestSnap["portal_fields"] === "object" ? latestSnap["portal_fields"] : null
   const externalConfirmationId = latestAttempt?.external_confirmation_id ?? ""
-  const normalizedTitle = (request.title || "").trim().toLowerCase()
-  const normalizedDescription = (request.request_description || "").trim().toLowerCase()
-  const showDescription = Boolean(request.request_description?.trim()) && normalizedDescription !== normalizedTitle
   const showRequestedFields = (request.requested_fields || []).length > 0
   const hasSubmissionDetails =
     Boolean(snapEmail) ||
     Boolean(snapCaseNumber) ||
     Boolean(snapPortalFields) ||
-    Boolean(snapLetterBody) ||
+    Boolean(snapLetterBodyRaw) ||
     Boolean(externalConfirmationId)
+
+  // Best available letter body: submission packet > latest outbound message > request description
+  const latestOutboundBody = [...messages]
+    .filter((m) => m.direction === "outbound" && m.body?.trim())
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]?.body ?? ""
+  const letterBody = snapLetterBodyRaw || latestOutboundBody || request.request_description || ""
+  const letterSource = snapLetterBodyRaw
+    ? "From submission packet"
+    : latestOutboundBody
+    ? "From latest outbound message"
+    : "From request description"
+  const isDraftStatus = request.status === "draft"
 
   useEffect(() => {
     if (autoOpenExternalModal) {
@@ -647,14 +659,32 @@ function OverviewTab({
   }, [autoOpenExternalModal, request.submission_url])
 
   async function copyText(label: string, text: string) {
-    if (!text.trim()) {
-      alert(`Nothing to copy for: ${label}`)
-      return
-    }
+    if (!text.trim()) return
     try {
       await navigator.clipboard.writeText(text)
     } catch {
-      alert(`Failed to copy: ${label}`)
+      const ta = document.createElement("textarea")
+      ta.value = text
+      ta.style.position = "fixed"
+      ta.style.opacity = "0"
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand("copy")
+      document.body.removeChild(ta)
+    }
+    setCopiedLabel(label)
+    setTimeout(() => setCopiedLabel(null), 1500)
+  }
+
+  async function handleRegenerateLetter() {
+    setRegenerating(true)
+    try {
+      await aiDraftFoiaRequest(request.id, "draft_request")
+      await onTaskComplete()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to regenerate letter")
+    } finally {
+      setRegenerating(false)
     }
   }
 
@@ -700,7 +730,7 @@ function OverviewTab({
       type: "initial" as const,
       direction: "outbound" as const,
       subject: request.title?.trim() || `Initial request - ${request.dataset_type_id}`,
-      body: request.request_description || "",
+      body: "",
       created_at: request.created_at,
       classification: "initial_request",
     },
@@ -739,15 +769,6 @@ function OverviewTab({
         saving={markingExternal}
       />
       <div className="grid gap-4 lg:grid-cols-2">
-      {showDescription && (
-        <div className="rounded-xl border border-gray-200 bg-white p-4 lg:col-span-2">
-          <h3 className="text-sm font-semibold text-gray-900">Request Description</h3>
-          <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-gray-600">
-            {request.request_description}
-          </p>
-        </div>
-      )}
-
       {showRequestedFields && (
       <div className="rounded-xl border border-gray-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-gray-900">Requested Fields</h3>
@@ -764,6 +785,111 @@ function OverviewTab({
       </div>
       )}
 
+      {/* Letter body — prominent for drafts, collapsed for submitted */}
+      {letterBody.trim() && isDraftStatus && (
+        <div className="rounded-xl border-2 border-purple-200 bg-white p-4 lg:col-span-2">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">Request Letter</h3>
+              <p className="mt-0.5 text-xs text-gray-400">{letterSource}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRegenerateLetter}
+                disabled={regenerating}
+                className="flex items-center gap-1.5 rounded-lg border border-purple-200 bg-white px-3 py-2 text-xs font-medium text-purple-700 hover:bg-purple-50 disabled:opacity-50"
+              >
+                {regenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                {regenerating ? "Regenerating..." : "Regenerate"}
+              </button>
+              <button
+                onClick={() => copyText("letter", letterBody)}
+                className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-700"
+              >
+                {copiedLabel === "letter" ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {copiedLabel === "letter" ? "Copied!" : "Copy Letter"}
+              </button>
+            </div>
+          </div>
+          <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm leading-relaxed text-gray-700">
+            {letterBody}
+          </pre>
+        </div>
+      )}
+
+      {/* Submission info — always visible for manual submission */}
+      <div className="rounded-xl border border-gray-200 bg-white p-4 lg:col-span-2">
+        <h3 className="text-sm font-semibold text-gray-900">Where to Submit</h3>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <div>
+            <p className="text-xs font-medium text-gray-500">Portal / Website</p>
+            {request.submission_url ? (
+              <div className="mt-1 flex items-center gap-2">
+                <a
+                  href={request.submission_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="truncate text-sm text-purple-600 hover:underline"
+                >
+                  {(() => { try { return new URL(request.submission_url).hostname } catch { return request.submission_url } })()}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => copyText("url", request.submission_url ?? "")}
+                  className="shrink-0 rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  {copiedLabel === "url" ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            ) : (
+              <p className="mt-1 text-sm text-gray-300">Not set — use Edit to add</p>
+            )}
+          </div>
+          <div>
+            <p className="text-xs font-medium text-gray-500">Submission Email</p>
+            {request.submission_email_address ? (
+              <div className="mt-1 flex items-center gap-2">
+                <span className="truncate text-sm text-gray-900" title="Request submission email">
+                  {request.submission_email_address}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => copyText("email", request.submission_email_address ?? "")}
+                  className="shrink-0 rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  {copiedLabel === "email" ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            ) : null}
+
+            {request.department?.contact_email && request.department.contact_email !== request.submission_email_address && (
+              <div className="mt-1 flex items-center gap-2">
+                <span className="truncate text-sm text-gray-500" title="Department contact email">
+                  {request.department.contact_email} <span className="text-xs text-gray-400">(Dept)</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => copyText("deptEmail", request.department?.contact_email ?? "")}
+                  className="shrink-0 rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  {copiedLabel === "deptEmail" ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            )}
+            
+            {!request.submission_email_address && !request.department?.contact_email && (
+              <p className="mt-1 text-sm text-gray-300">Not set — use Edit to add</p>
+            )}
+          </div>
+          <div>
+            <p className="text-xs font-medium text-gray-500">Department</p>
+            <p className="mt-1 text-sm text-gray-900">
+              {request.department?.name || <span className="text-gray-300">Not set</span>}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {latestAttempt && (
         <div className="rounded-xl border border-gray-200 bg-white p-4 lg:col-span-2">
           <h3 className="text-sm font-semibold text-gray-900">Submission Packet</h3>
@@ -778,14 +904,6 @@ function OverviewTab({
             >
               Copy packet JSON
             </button>
-            {snapLetterBody && (
-              <button
-                onClick={() => copyText("letter body", snapLetterBody)}
-                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Copy letter body
-              </button>
-            )}
             {snapEmail && (
               <button
                 onClick={() => copyText("requester email", snapEmail)}
@@ -875,23 +993,6 @@ function OverviewTab({
                   </pre>
                 </div>
               )}
-
-              {snapLetterBody && (
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 lg:col-span-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <h4 className="text-xs font-semibold text-gray-900">Letter body</h4>
-                    <button
-                      onClick={() => copyText("letter body", snapLetterBody)}
-                      className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                  <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-white p-3 text-[11px] leading-relaxed text-gray-700">
-                    {snapLetterBody}
-                  </pre>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -911,43 +1012,6 @@ function OverviewTab({
               <dd className="text-sm text-gray-900">{request.assigned_to}</dd>
             </div>
           )}
-          {request.submission_url && (
-            <div className="flex items-center justify-between">
-              <dt className="text-xs text-gray-500">Submitted via URL</dt>
-              <dd className="flex items-center gap-2 text-sm">
-                <a
-                  href={request.submission_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-purple-600 hover:underline"
-                >
-                  {new URL(request.submission_url).hostname}
-                </a>
-                <button
-                  type="button"
-                  onClick={() => copyText("submission URL", request.submission_url ?? "")}
-                  className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  Copy
-                </button>
-              </dd>
-            </div>
-          )}
-          {request.submission_email_address && (
-            <div className="flex items-center justify-between">
-              <dt className="text-xs text-gray-500">Submitted to email</dt>
-              <dd className="flex items-center gap-2 text-sm text-gray-900">
-                <span className="break-all">{request.submission_email_address}</span>
-                <button
-                  type="button"
-                  onClick={() => copyText("submission email", request.submission_email_address ?? "")}
-                  className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  Copy
-                </button>
-              </dd>
-            </div>
-          )}
         </dl>
       </div>
       <div className="rounded-xl border border-gray-200 bg-white p-4 lg:col-span-2">
@@ -958,14 +1022,15 @@ function OverviewTab({
         <p className="mt-1 text-xs text-gray-500">
           Full record of your original request, city responses, your follow-ups, and acknowledgments.
         </p>
-        <div className="mt-4 space-y-3">
+        <div className="mt-4 space-y-2">
           {timeline.map((item) => {
             const isInbound = item.direction === "inbound"
             const tone = isInbound
               ? "border-blue-200 bg-blue-50 text-blue-700"
               : "border-purple-200 bg-purple-50 text-purple-700"
+            const showBody = !isDraftStatus && item.body
             return (
-              <div key={item.key} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <div key={item.key} className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase ${tone}`}>
@@ -976,14 +1041,14 @@ function OverviewTab({
                         {item.classification.replace(/_/g, " ")}
                       </span>
                     )}
+                    <span className="text-sm font-medium text-gray-900">{item.subject}</span>
                   </div>
                   <span className="text-[11px] text-gray-500">
                     {format(new Date(item.created_at), "MMM d, yyyy 'at' h:mm a")}
                   </span>
                 </div>
-                <p className="mt-2 text-sm font-medium text-gray-900">{item.subject}</p>
-                {item.body && (
-                  <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-gray-700">{item.body}</p>
+                {showBody && (
+                  <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-gray-700">{item.body}</p>
                 )}
               </div>
             )

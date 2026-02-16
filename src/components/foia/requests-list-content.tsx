@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { Plus, Search, Filter, Loader2, AlertTriangle, Trash2, Pencil } from "lucide-react"
+import { Plus, Search, Filter, Loader2, AlertTriangle, Trash2, Pencil, Copy, ExternalLink, Mail } from "lucide-react"
 import { useAuth0 } from "@auth0/auth0-react"
 import { deleteFoiaRequest, listFoiaRequests } from "@/lib/foiaApiClient"
 import { RequestStatusBadge } from "@/components/foia/status-badge"
@@ -179,6 +179,9 @@ export function RequestsListContent() {
                   Status
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Submit to
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Coverage
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -186,9 +189,6 @@ export function RequestsListContent() {
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Deadline
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Owner
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Actions
@@ -210,6 +210,11 @@ export function RequestsListContent() {
                           {req.city?.name ?? "Unknown city"}
                         </p>
                         <p className="text-xs text-gray-500">{req.dataset_type_id}</p>
+                        {req.department?.name && (
+                          <p className="mt-0.5 text-xs text-gray-400">
+                            Dept: {req.department.name}
+                          </p>
+                        )}
                         {req.agency_request_number && (
                           <p className="mt-0.5 text-xs text-gray-400">
                             #{req.agency_request_number}
@@ -219,6 +224,9 @@ export function RequestsListContent() {
                     </td>
                     <td className="px-4 py-4">
                       <RequestStatusBadge status={req.status} />
+                    </td>
+                    <td className="px-4 py-4">
+                      <SubmitToCell request={req} />
                     </td>
                     <td className="px-4 py-4 text-sm text-gray-500">
                       {req.coverage_start} to {req.coverage_end}
@@ -232,9 +240,6 @@ export function RequestsListContent() {
                       ) : (
                         <span className="text-sm text-gray-300">-</span>
                       )}
-                    </td>
-                    <td className="px-4 py-4 text-sm text-gray-500">
-                      {req.assigned_to || <span className="text-gray-300">Unassigned</span>}
                     </td>
                     <td className="px-4 py-4 text-right">
                       <div className="inline-flex items-center gap-2">
@@ -279,6 +284,107 @@ export function RequestsListContent() {
       )}
 
       <NewRequestModal open={showNewRequest} onClose={() => setShowNewRequest(false)} />
+    </div>
+  )
+}
+
+function SubmitToCell({ request }: { request: FoiaRequest }) {
+  const [copied, setCopied] = useState<string | null>(null)
+
+  async function handleCopy(label: string, text: string) {
+    if (!text) return
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const ta = document.createElement("textarea")
+      ta.value = text
+      ta.style.position = "fixed"
+      ta.style.opacity = "0"
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand("copy")
+      document.body.removeChild(ta)
+    }
+    setCopied(label)
+    setTimeout(() => setCopied(null), 1500)
+  }
+
+  const email = request.submission_email_address
+  const url = request.submission_url
+  const deptEmail = request.department?.contact_email
+
+  if (!email && !url && !deptEmail) {
+    return <span className="text-xs text-gray-300">-</span>
+  }
+
+  let hostname = ""
+  if (url) {
+    try {
+      hostname = new URL(url).hostname
+    } catch {
+      hostname = url
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
+      {url && (
+        <div className="flex items-center gap-1.5">
+          <ExternalLink className="h-3 w-3 shrink-0 text-gray-400" />
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="truncate text-xs text-purple-600 hover:underline"
+            title={url}
+          >
+            {hostname}
+          </a>
+          <button
+            type="button"
+            onClick={() => handleCopy("url", url)}
+            className="shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            title="Copy URL"
+          >
+            <Copy className="h-3 w-3" />
+          </button>
+          {copied === "url" && <span className="text-[10px] text-emerald-600">Copied</span>}
+        </div>
+      )}
+      {email && (
+        <div className="flex items-center gap-1.5">
+          <Mail className="h-3 w-3 shrink-0 text-gray-400" />
+          <span className="truncate text-xs text-gray-600" title={email}>
+            {email}
+          </span>
+          <button
+            type="button"
+            onClick={() => handleCopy("email", email)}
+            className="shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            title="Copy email"
+          >
+            <Copy className="h-3 w-3" />
+          </button>
+          {copied === "email" && <span className="text-[10px] text-emerald-600">Copied</span>}
+        </div>
+      )}
+      {deptEmail && deptEmail !== email && (
+        <div className="flex items-center gap-1.5">
+          <Mail className="h-3 w-3 shrink-0 text-gray-400" />
+          <span className="truncate text-xs text-gray-500" title={`Dept: ${deptEmail}`}>
+            {deptEmail}
+          </span>
+          <button
+            type="button"
+            onClick={() => handleCopy("deptEmail", deptEmail)}
+            className="shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            title="Copy department email"
+          >
+            <Copy className="h-3 w-3" />
+          </button>
+          {copied === "deptEmail" && <span className="text-[10px] text-emerald-600">Copied</span>}
+        </div>
+      )}
     </div>
   )
 }

@@ -295,7 +295,6 @@ export function composeCityFoiaRequestBlock(
     coordination_note?: string
     title?: string
     request_description?: string
-    fee_waiver?: boolean
   }
 ): Promise<{ block: string; used_ai: boolean; warning: string | null }> {
   return apiFetch(`/api/foia/cities/${cityId}/compose-request-block`, {
