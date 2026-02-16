@@ -318,6 +318,38 @@ export default function Sidebar({
             <span>Feed</span>
           </button>
 
+          <Link
+            className={`${styles.navItem} ${styles.newChatBtn}`}
+            id="analysis-btn"
+            href="/analysis"
+            onClick={() => {
+              if (isNarrowScreen() && onClose) {
+                onClose();
+              }
+            }}
+          >
+            <span className={styles.navIcon}>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3 3v18h18"></path>
+                <path d="M7 14l3-3 3 2 4-5"></path>
+                <circle cx="7" cy="14" r="1"></circle>
+                <circle cx="10" cy="11" r="1"></circle>
+                <circle cx="13" cy="13" r="1"></circle>
+                <circle cx="17" cy="8" r="1"></circle>
+              </svg>
+            </span>
+            <span>Analysis</span>
+          </Link>
+
           {/* City Search */}
           {onCitySelect && (
             <SidebarCitySearch

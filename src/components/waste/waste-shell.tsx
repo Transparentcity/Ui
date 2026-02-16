@@ -9,19 +9,30 @@ import {
   DollarSign,
   Truck,
   Building2,
+  Scale,
   ArrowLeft,
   LogIn,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Loader from "@/components/Loader"
 
-const navigation = [
+type NavigationItem = {
+  key: string
+  name: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  description: string
+  mode?: "category" | "link"
+}
+
+const navigation: NavigationItem[] = [
   {
-    key: "payroll",
+    key: "overview",
     name: "Overview",
     href: "/waste",
     icon: ShieldAlert,
     description: "All anomalies",
+    mode: "category",
   },
   {
     key: "payroll",
@@ -29,6 +40,7 @@ const navigation = [
     href: "/waste#payroll",
     icon: DollarSign,
     description: "Compensation analysis",
+    mode: "category",
   },
   {
     key: "vendor",
@@ -36,6 +48,7 @@ const navigation = [
     href: "/waste#vendor",
     icon: Truck,
     description: "Procurement analysis",
+    mode: "category",
   },
   {
     key: "infrastructure",
@@ -43,6 +56,15 @@ const navigation = [
     href: "/waste#infrastructure",
     icon: Building2,
     description: "311 & services",
+    mode: "category",
+  },
+  {
+    key: "analysis",
+    name: "Analysis",
+    href: "/analysis",
+    icon: Scale,
+    description: "Auditor reports",
+    mode: "link",
   },
 ]
 
@@ -108,7 +130,7 @@ export function WasteShell({
             href="/dashboard"
             className="flex items-center gap-2.5 text-inherit no-underline flex-1"
           >
-            <div className="w-5 h-5 flex-shrink-0">
+            <div className="w-5 h-5 shrink-0">
               <svg
                 viewBox="0 0 100 100"
                 xmlns="http://www.w3.org/2000/svg"
@@ -149,16 +171,19 @@ export function WasteShell({
         <nav className="flex-1 py-2 overflow-y-auto">
           <ul className="list-none m-0 p-0">
             {navigation.map((item) => {
-              const isActive = activeCategory
-                ? item.key === activeCategory
-                : item.href === "/waste"
-                  ? pathname === "/waste"
-                  : pathname.startsWith(item.href.split("#")[0]) &&
-                    item.href !== "/waste"
+              const isLinkItem = item.mode === "link"
+              const isActive = isLinkItem
+                ? pathname === item.href || pathname.startsWith(`${item.href}/`)
+                : activeCategory
+                  ? item.key === activeCategory
+                  : item.href === "/waste"
+                    ? pathname === "/waste"
+                    : pathname.startsWith(item.href.split("#")[0]) &&
+                      item.href !== "/waste"
 
               return (
                 <li key={item.name}>
-                  {onCategoryChange ? (
+                  {onCategoryChange && !isLinkItem ? (
                     <button
                       type="button"
                       onClick={() => onCategoryChange(item.key)}

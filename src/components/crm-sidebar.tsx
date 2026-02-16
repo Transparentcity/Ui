@@ -15,6 +15,7 @@ import {
   Inbox,
   Sparkles,
   ArrowLeft,
+  Scale,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -29,6 +30,7 @@ const navigation = [
   { name: "Responses", href: "/responses", icon: Inbox },
   { name: "Follow-ups", href: "/followups", icon: CheckSquare },
   { name: "Anomalies", href: "/anomalies", icon: AlertTriangle },
+  { name: "Analysis", href: "/analysis", icon: Scale },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
 ]
 
