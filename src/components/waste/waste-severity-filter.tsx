@@ -18,9 +18,9 @@ export function WasteSeverityFilter({
 }: WasteSeverityFilterProps) {
   const counts = {
     all: findings.length,
-    critical: findings.filter((f) => f.severity === "critical").length,
-    high: findings.filter((f) => f.severity === "high").length,
-    medium: findings.filter((f) => f.severity === "medium").length,
+    critical: findings.filter((f) => f.severity?.toLowerCase() === "critical").length,
+    high: findings.filter((f) => f.severity?.toLowerCase() === "high").length,
+    medium: findings.filter((f) => f.severity?.toLowerCase() === "medium").length,
   }
 
   const pills: { key: SeverityFilter; label: string; color: string }[] = [

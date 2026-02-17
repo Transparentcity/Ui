@@ -137,8 +137,10 @@ export function WasteFindingCard({
   onToggle,
   onAskSeymour,
 }: WasteFindingCardProps) {
-  const sev = severityConfig[finding.severity]
-  const conf = confidenceConfig[finding.confidence ?? "medium"]
+  const sevKey = (finding.severity?.toLowerCase() ?? "medium") as keyof typeof severityConfig
+  const sev = severityConfig[sevKey] ?? severityConfig.medium
+  const confKey = ((finding.confidence ?? "medium").toLowerCase()) as keyof typeof confidenceConfig
+  const conf = confidenceConfig[confKey] ?? confidenceConfig.medium
   const ConfIcon = conf.icon
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isDetailsLoading, setIsDetailsLoading] = useState(false)

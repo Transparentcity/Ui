@@ -31,8 +31,8 @@ export function WasteSubcategoryGroup({
 }: WasteSubcategoryGroupProps) {
   const [isCollapsed, setIsCollapsed] = useState(true)
 
-  const critCount = findings.filter((f) => f.severity === "critical").length
-  const highCount = findings.filter((f) => f.severity === "high").length
+  const critCount = findings.filter((f) => f.severity?.toLowerCase() === "critical").length
+  const highCount = findings.filter((f) => f.severity?.toLowerCase() === "high").length
   const totalAmount = findings.reduce(
     (sum, f) => sum + (f.amount ?? 0),
     0

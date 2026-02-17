@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { Users, ShoppingCart, Wrench } from "lucide-react"
+import { Users, ShoppingCart, Wrench, Landmark } from "lucide-react"
 import type { WasteCategorySummary } from "@/lib/apiClient"
 
 function formatDollar(amount: number | null | undefined): string {
@@ -19,18 +19,22 @@ interface CategoryConfig {
 }
 
 function normalizeWasteCategory(category: string): string {
-  const key = category.toLowerCase().trim().replace(/[_\s-]+/g, "_")
-  if (key === "payroll" || key === "payroll_compensation") return "payroll"
-  if (key === "vendor" || key === "vendors" || key === "vendor_procurement") {
+  const key = category.toLowerCase().trim().replace(/[_\s&.,'-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")
+  if (key === "payroll" || key.includes("payroll") || key === "payroll_compensation") return "payroll"
+  if (key === "vendor" || key === "vendors" || key.includes("vendor") || key === "vendor_procurement") {
     return "vendor"
   }
   if (
     key === "infrastructure" ||
     key === "services" ||
     key === "service" ||
+    key.includes("infrastructure") ||
     key === "infrastructure_services"
   ) {
     return "infrastructure"
+  }
+  if (key === "influence" || key.includes("influence") || key.includes("lobby") || key.includes("pay_to_play")) {
+    return "influence"
   }
   return key
 }
@@ -39,6 +43,7 @@ const CATEGORIES: CategoryConfig[] = [
   { key: "payroll", label: "Payroll & Compensation", icon: <Users className="w-5 h-5" /> },
   { key: "vendor", label: "Vendor & Procurement", icon: <ShoppingCart className="w-5 h-5" /> },
   { key: "infrastructure", label: "Infrastructure & Services", icon: <Wrench className="w-5 h-5" /> },
+  { key: "influence", label: "Influence & Pay-to-Play", icon: <Landmark className="w-5 h-5" /> },
 ]
 
 interface WasteCategoryTabsProps {
@@ -56,7 +61,7 @@ export function WasteCategoryTabs({
     categorySummaries.find((c) => normalizeWasteCategory(c.category) === key)
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       {CATEGORIES.map((cat) => {
         const summary = getSummary(cat.key)
         const isActive = activeCategory === cat.key

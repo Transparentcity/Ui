@@ -31,8 +31,8 @@ export function WasteFindingsList({
 
     // Sort groups by worst severity
     return Object.entries(groups).sort(([, a], [, b]) => {
-      const worstA = Math.min(...a.map((f) => severityOrder[f.severity]))
-      const worstB = Math.min(...b.map((f) => severityOrder[f.severity]))
+      const worstA = Math.min(...a.map((f) => severityOrder[(f.severity?.toLowerCase() ?? "medium") as keyof typeof severityOrder] ?? 3))
+      const worstB = Math.min(...b.map((f) => severityOrder[(f.severity?.toLowerCase() ?? "medium") as keyof typeof severityOrder] ?? 3))
       return worstA - worstB
     })
   }, [findings])

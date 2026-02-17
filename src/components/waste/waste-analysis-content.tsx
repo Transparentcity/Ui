@@ -21,24 +21,28 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 
-type WasteCategory = "all" | "payroll" | "vendor" | "infrastructure"
+type WasteCategory = "all" | "payroll" | "vendor" | "infrastructure" | "influence"
 const ANALYSIS_REFRESH_ESTIMATED_SECONDS = 40
 const ANALYSIS_REFRESH_TIMEOUT_MS = 120_000
 const WASTE_ANALYSIS_CACHE_KEY = "waste:last-analysis:v1"
 
 function normalizeWasteCategory(category: string): WasteCategory {
-  const key = category.toLowerCase().trim().replace(/[_\s-]+/g, "_")
-  if (key === "payroll" || key === "payroll_compensation") return "payroll"
-  if (key === "vendor" || key === "vendors" || key === "vendor_procurement") {
+  const key = category.toLowerCase().trim().replace(/[_\s&.,'-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")
+  if (key === "payroll" || key.includes("payroll") || key === "payroll_compensation") return "payroll"
+  if (key === "vendor" || key === "vendors" || key.includes("vendor") || key === "vendor_procurement") {
     return "vendor"
   }
   if (
     key === "infrastructure" ||
     key === "services" ||
     key === "service" ||
+    key.includes("infrastructure") ||
     key === "infrastructure_services"
   ) {
     return "infrastructure"
+  }
+  if (key === "influence" || key.includes("influence") || key.includes("lobby") || key.includes("pay_to_play")) {
+    return "influence"
   }
   return "all"
 }
@@ -47,6 +51,7 @@ function formatCategoryLabel(category: WasteCategory): string {
   if (category === "all") return "All categories"
   if (category === "payroll") return "Payroll & Compensation"
   if (category === "vendor") return "Vendor & Procurement"
+  if (category === "influence") return "Influence & Pay-to-Play"
   return "Infrastructure & Services"
 }
 
@@ -609,6 +614,7 @@ export function WasteAnalysisContent() {
                 <option value="payroll">Payroll & Compensation</option>
                 <option value="vendor">Vendor & Procurement</option>
                 <option value="infrastructure">Infrastructure & Services</option>
+                <option value="influence">Influence & Pay-to-Play</option>
               </select>
             </label>
 

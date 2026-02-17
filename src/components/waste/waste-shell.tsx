@@ -9,6 +9,7 @@ import {
   DollarSign,
   Truck,
   Building2,
+  Landmark,
   Scale,
   ArrowLeft,
   LogIn,
@@ -56,6 +57,14 @@ const navigation: NavigationItem[] = [
     href: "/waste#infrastructure",
     icon: Building2,
     description: "311 & services",
+    mode: "category",
+  },
+  {
+    key: "influence",
+    name: "Influence",
+    href: "/waste#influence",
+    icon: Landmark,
+    description: "Lobbying & pay-to-play",
     mode: "category",
   },
   {

@@ -23,25 +23,29 @@ import {
 } from "./waste-seymour-panel"
 
 type SeverityFilter = "all" | "critical" | "high" | "medium"
-type WasteCategoryKey = "payroll" | "vendor" | "infrastructure"
+type WasteCategoryKey = "payroll" | "vendor" | "infrastructure" | "influence"
 
 const WASTE_ANALYSIS_ESTIMATED_SECONDS = 45
 const WASTE_REFRESH_TIMEOUT_MS = 120_000
 const WASTE_ANALYSIS_CACHE_KEY = "waste:last-analysis:v1"
 
 function normalizeWasteCategory(category: string): WasteCategoryKey {
-  const key = category.toLowerCase().trim().replace(/[_\s-]+/g, "_")
-  if (key === "payroll" || key === "payroll_compensation") return "payroll"
-  if (key === "vendor" || key === "vendors" || key === "vendor_procurement") {
+  const key = category.toLowerCase().trim().replace(/[_\s&.,'-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")
+  if (key === "payroll" || key.includes("payroll") || key === "payroll_compensation") return "payroll"
+  if (key === "vendor" || key === "vendors" || key.includes("vendor") || key === "vendor_procurement") {
     return "vendor"
   }
   if (
     key === "infrastructure" ||
     key === "services" ||
     key === "service" ||
+    key.includes("infrastructure") ||
     key === "infrastructure_services"
   ) {
     return "infrastructure"
+  }
+  if (key === "influence" || key.includes("influence") || key.includes("lobby") || key.includes("pay_to_play")) {
+    return "influence"
   }
   return "payroll"
 }
@@ -271,7 +275,7 @@ export function WastePageContent() {
   // Filter by severity
   const filteredFindings = useMemo(() => {
     if (severityFilter === "all") return categoryFindings
-    return categoryFindings.filter((f) => f.severity === severityFilter)
+    return categoryFindings.filter((f) => f.severity?.toLowerCase() === severityFilter)
   }, [categoryFindings, severityFilter])
 
   // Get infrastructure findings for cluster map
@@ -279,7 +283,7 @@ export function WastePageContent() {
     if (!displayData?.findings) return []
     return displayData.findings.filter(
       (f) =>
-        f.category === "infrastructure" &&
+        normalizeWasteCategory(f.category) === "infrastructure" &&
         (f.subcategory === "Infrastructure Cluster" ||
           f.subcategory === "Pavement/Sidewalk Failure Hotspot")
     )
