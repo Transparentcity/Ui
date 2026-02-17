@@ -183,7 +183,13 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
     
     // SSS Duplicates
     if (finding.subcategory === "Duplicate Payments" && finding.amount) {
-      return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`vendor = '${vendorName}'`)}&$order=vouchers_paid DESC&$limit=${DETAILS_LIMIT}`
+      let whereClause = `vendor = '${vendorName}'`
+      const amountMatch = finding.metricDetail?.match(/of \$([0-9,.]+) each/)
+      if (amountMatch) {
+          const amount = amountMatch[1].replace(/,/g, "")
+          whereClause += ` AND vouchers_paid = ${amount}`
+      }
+      return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(whereClause)}&$order=vouchers_paid DESC&$limit=${DETAILS_LIMIT}`
     }
 
     // Ghost Vendor
@@ -196,8 +202,23 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
         const poMatch = finding.entity.match(/PO\s+(.+)/)
         if (poMatch) {
             const po = escapeSoqlLike(poMatch[1])
-            return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`purchase_order = '${po}'`)}&$limit=${DETAILS_LIMIT}`
+            let whereClause = `purchase_order = '${po}'`
+
+            // Extract amount from "paid identical $90,000.00"
+            const amountMatch = finding.metricDetail?.match(/paid identical \$([0-9,.]+)/)
+            if (amountMatch) {
+                const amount = amountMatch[1].replace(/,/g, "")
+                whereClause += ` AND vouchers_paid = ${amount}`
+            }
+
+            return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(whereClause)}&$order=vouchers_paid DESC&$limit=${DETAILS_LIMIT}`
         }
+    }
+
+    // Benford/Statistical Anomaly (Entity is Department)
+    if (finding.subcategory === "Statistical Anomaly") {
+        const dept = escapeSoqlLike(finding.entity || "")
+        return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`department = '${dept}'`)}&$order=vouchers_paid DESC&$limit=${DETAILS_LIMIT}`
     }
 
     // Default vendor fallback

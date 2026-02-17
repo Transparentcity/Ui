@@ -187,6 +187,9 @@ function getMethodologyDescription(tool: string, subcategory: string): string {
   if (key.includes("pension")) {
     return "compared current year total compensation against a 3-year trailing average. Flagged employees with a >50% year-over-year increase driven primarily by 'Other Pay' or 'Special Pay' categories in their final years of service."
   }
+  if (key.includes("permit") || key.includes("fast tracking")) {
+    return "Analyzed building permit approval timelines against the cohort median (same permit type and neighborhood). Flagged applications processed significantly faster (<10th percentile) than standard operating procedures, which is a key indicator of preferential 'fast-tracking' or potential corruption."
+  }
   return `Automated anomaly detection using the ${tool} algorithm to identify statistical outliers and patterns deviating from standard ${subcategory} baselines.`
 }
 
@@ -524,14 +527,12 @@ export function WasteAnalysisContent() {
     methodologyDescription,
     primaryFinding,
     recommendedSteps,
-    sampleRows, // This was defined inside, need to be careful with dependency array or move logic
     selectedCategory,
     selectedClusterFindings.length,
     selectedSubcluster,
     severityCounts.critical,
     severityCounts.high,
     severityCounts.medium,
-    sourceRows, // Same here
   ])
 
   async function copyForGoogleDocs() {

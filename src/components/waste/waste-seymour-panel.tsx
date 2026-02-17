@@ -24,7 +24,7 @@ import {
   pickDefaultModelKey,
 } from "@/lib/modelDefaults"
 
-const SEYMOUR_ANALYSIS_TIMEOUT_MS = 60_000
+const SEYMOUR_ANALYSIS_TIMEOUT_MS = 300_000
 
 export interface WasteSeymourRequest {
   finding: WasteFinding
@@ -173,7 +173,7 @@ export function WasteSeymourPanel({
           token
         ),
         SEYMOUR_ANALYSIS_TIMEOUT_MS,
-        "Seymour analysis timed out after 60s. Please retry or open full chat."
+        "Seymour analysis timed out after 5 minutes. Please retry or open full chat."
       )
 
       setAnalysisResult(response.response || "No analysis returned.")
@@ -326,7 +326,7 @@ export function WasteSeymourPanel({
               </div>
               <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                Request in progress. Long analyses can take up to 60s.
+                Request in progress. Complex analyses may take up to 2-3 minutes.
               </p>
             </div>
           ) : null}
