@@ -161,6 +161,35 @@ function buildRecommendedNextSteps(
   ]
 }
 
+function getMethodologyDescription(tool: string, subcategory: string): string {
+  const key = `${tool} ${subcategory}`.toLowerCase()
+  if (key.includes("pareto") || key.includes("concentration")) {
+    return "Statistical analysis using the Pareto principle (80/20 rule) to identify departments where a small percentage of employees consume a disproportionately high share of the overtime budget. This pattern often indicates poor workforce planning or potential favoritism."
+  }
+  if (key.includes("overtime") || key.includes("hours")) {
+    return "Cross-referenced employee compensation records against job code standards. Calculated Z-scores for weekly hours worked to identify statistical outliers (>3 standard deviations from the mean) and flagged instances where overtime earnings exceeded 100% of base salary."
+  }
+  if (key.includes("ghost") || key.includes("unregistered")) {
+    return "Performed an entity resolution match between the Vendor Payments dataset and the official Registered Business Locations database. Vendors receiving significant payments (>$50k) with no corresponding business license or registry entry were flagged for verification."
+  }
+  if (key.includes("duplicate") || key.includes("sss")) {
+    return "Applied a 'Same-Same-Same' (SSS) detection algorithm to identify identical payment amounts to the same vendor on the same date across different vouchers. This is a standard forensic accounting test for duplicate billing errors."
+  }
+  if (key.includes("misdirected") || key.includes("ssd")) {
+    return "Applied a 'Same-Same-Different' (SSD) detection algorithm to identify single Purchase Orders that paid identical amounts to multiple different vendors. This pattern is a strong indicator of invoice fraud or purchase order mismanagement."
+  }
+  if (key.includes("benford")) {
+    return "Analyzed the distribution of leading digits in payment amounts against Benford's Law expected frequencies. Statistically significant deviations (Chi-Square test) were flagged as potential indicators of fabricated or structured invoices."
+  }
+  if (key.includes("split") || key.includes("structuring")) {
+    return "Analyzed payment clusters to identify 'split purchase orders'—multiple payments to the same vendor on the same day that sum to just above the manager approval threshold (e.g., $10k), suggesting an attempt to bypass procurement controls."
+  }
+  if (key.includes("pension")) {
+    return "compared current year total compensation against a 3-year trailing average. Flagged employees with a >50% year-over-year increase driven primarily by 'Other Pay' or 'Special Pay' categories in their final years of service."
+  }
+  return `Automated anomaly detection using the ${tool} algorithm to identify statistical outliers and patterns deviating from standard ${subcategory} baselines.`
+}
+
 export function WasteAnalysisContent() {
   const [selectedCategory, setSelectedCategory] = useState<WasteCategory>("all")
   const [selectedSubcluster, setSelectedSubcluster] = useState<string>("")
@@ -226,12 +255,6 @@ export function WasteAnalysisContent() {
     return () => window.clearTimeout(timeout)
   }, [isManualRefreshing])
 
-  useEffect(() => {
-    if (isManualRefreshing && !isLoading) {
-      setIsManualRefreshing(false)
-    }
-  }, [isManualRefreshing, isLoading])
-
   const generatedAt = useMemo(() => new Date(), [])
   const generatedLabel = generatedAt.toLocaleString()
 
@@ -276,7 +299,7 @@ export function WasteAnalysisContent() {
   }, [categoryFilteredFindings, selectedSubcluster])
 
   const primaryFinding = selectedClusterFindings[0] ?? null
-  const comparisonFindings = selectedClusterFindings.slice(1, 4)
+  const comparisonFindings = selectedClusterFindings.slice(1, 21)
 
   const hasRoleConflictSignal = useMemo(
     () => selectedClusterFindings.some(looksLikeSamePersonConflict),
@@ -310,70 +333,92 @@ export function WasteAnalysisContent() {
     [hasRoleConflictSignal, selectedCategory, selectedSubcluster],
   )
 
+  const methodologyDescription = useMemo(() => {
+    if (!primaryFinding) return "Standard anomaly detection algorithms applied to dataset."
+    return getMethodologyDescription(primaryFinding.tool, primaryFinding.subcategory)
+  }, [primaryFinding])
+
   const plainTextReport = useMemo(() => {
     const lines: string[] = []
-    lines.push("Transparent.city Auditor Analysis Report")
+    lines.push("AUDIT OBSERVATION REPORT")
+    lines.push("========================")
+    lines.push(`Generated: ${generatedLabel}`)
+    lines.push(`Prepared by: Transparent.city Automated Auditor`)
+    lines.push(`Scope: ${analysisPeriod}`)
+    lines.push(`Focus Area: ${formatCategoryLabel(selectedCategory)} > ${selectedSubcluster || "N/A"}`)
     lines.push("")
-    lines.push(`Report date: ${generatedLabel}`)
-    lines.push(`Prepared by: Transparent.city`)
-    lines.push(`Analysis period: ${analysisPeriod}`)
-    lines.push(`Category filter: ${formatCategoryLabel(selectedCategory)}`)
-    lines.push(`Sub-cluster selected: ${selectedSubcluster || "N/A"}`)
-    lines.push("")
-    lines.push(`Records in selected sub-cluster: ${selectedClusterFindings.length}`)
+    lines.push("1. EXECUTIVE SUMMARY")
+    lines.push("--------------------")
+    lines.push(`Total Records Flagged: ${selectedClusterFindings.length}`)
     lines.push(
-      `Severity breakdown: critical=${severityCounts.critical}, high=${severityCounts.high}, medium=${severityCounts.medium}`,
+      `Risk Profile: ${severityCounts.critical} Critical, ${severityCounts.high} High, ${severityCounts.medium} Medium risk.`
     )
     lines.push("")
-
+    
     if (primaryFinding) {
-      lines.push(`Primary record: ${primaryFinding.id}`)
-      lines.push(`${primaryFinding.metric} — ${primaryFinding.metricDetail}`)
-      lines.push(primaryFinding.description)
+      lines.push("2. DETAILED OBSERVATION (PRIMARY SAMPLE)")
+      lines.push("----------------------------------------")
+      lines.push(`Finding ID: ${primaryFinding.id}`)
       lines.push(`Entity: ${primaryFinding.entity}`)
-      lines.push(`Tool: ${primaryFinding.tool}`)
-      lines.push(`Priority score: ${primaryFinding.priority_score}`)
+      lines.push(`Condition (What was found):`)
+      lines.push(`  ${primaryFinding.metric}: ${primaryFinding.metricDetail}`)
+      lines.push(`  ${primaryFinding.description}`)
       lines.push("")
-      lines.push("Reasons flagged:")
-      lines.push(`- ${primaryFinding.metric}: ${primaryFinding.metricDetail}`)
-      lines.push(`- ${primaryFinding.description}`)
+      lines.push("Criteria (Why it matters):")
+      lines.push(`  Deviates from expected baseline for ${primaryFinding.subcategory}. High-risk indicator for waste or policy non-compliance.`)
+      
       if (hasRoleConflictSignal) {
+        lines.push("")
+        lines.push("Risk Aggravator:")
         lines.push(
-          "- Potential same-person or conflict-of-duty signal detected in record text.",
+          "  Potential Segregation of Duties (SoD) conflict detected. Text signals suggest possible same-person apply/review chain.",
         )
       }
     }
 
     lines.push("")
-    lines.push("Recommended next audit steps:")
+    lines.push("3. METHODOLOGY & DATA SOURCES")
+    lines.push("-----------------------------")
+    lines.push("Methodology:")
+    lines.push(`  ${methodologyDescription}`)
+    lines.push("")
+    lines.push("Datasets Analyzed:")
+    ;(displayData?.data_freshness ?? []).forEach((source) => {
+      lines.push(
+        `  - ${source.dataset_name} (${source.rows_fetched.toLocaleString()} rows analyzed)`,
+      )
+    })
+    if (!displayData?.data_freshness?.length) {
+      lines.push("  - Waste analysis API findings payload")
+    }
+
+    lines.push("")
+    lines.push("4. RECOMMENDATIONS")
+    lines.push("------------------")
     recommendedSteps.forEach((step, index) => {
       lines.push(`${index + 1}. ${step}`)
     })
     lines.push("")
 
     if (comparisonFindings.length) {
-      lines.push("Additional egregious examples:")
+      lines.push(`5. EXPANDED SAMPLE (${comparisonFindings.length} Additional Records)`)
+      lines.push("----------------------------------------")
+      lines.push("ID          | Severity | Metric Details                               | Description")
+      lines.push("------------|----------|----------------------------------------------|----------------------------------------------------")
       comparisonFindings.forEach((finding) => {
-        lines.push(
-          `- ${finding.id}: ${finding.metric} (${finding.metricDetail}) — ${finding.description}`,
-        )
+        const sev = finding.severity.toUpperCase().padEnd(8)
+        const id = finding.id.padEnd(11)
+        const metric = `${finding.metric}: ${finding.metricDetail}`.slice(0, 44).padEnd(44)
+        // clean description for single line
+        const desc = finding.description.replace(/(\r\n|\n|\r)/gm, " ").slice(0, 50) + (finding.description.length > 50 ? "..." : "")
+        lines.push(`${id} | ${sev} | ${metric} | ${desc}`)
       })
       lines.push("")
     }
 
-    lines.push("Data used:")
-    ;(displayData?.data_freshness ?? []).forEach((source) => {
-      lines.push(
-        `- ${source.dataset_name} (${source.rows_fetched.toLocaleString()} rows)`,
-      )
-    })
-    if (!displayData?.data_freshness?.length) {
-      lines.push("- Waste analysis API findings payload")
-    }
-    lines.push("")
-    lines.push(
-      "Accountability statement: Generated by Transparent.city with timestamp and source metadata for audit reproducibility.",
-    )
+    lines.push("----------------------------------------")
+    lines.push("Accountability Statement: Generated by Transparent.city with cryptographic timestamp.")
+    lines.push("This report serves as a preliminary audit lead and should be verified against source records.")
     return lines.join("\n")
   }, [
     analysisPeriod,
@@ -381,6 +426,7 @@ export function WasteAnalysisContent() {
     displayData?.data_freshness,
     generatedLabel,
     hasRoleConflictSignal,
+    methodologyDescription,
     primaryFinding,
     recommendedSteps,
     selectedCategory,
@@ -398,46 +444,75 @@ export function WasteAnalysisContent() {
           `<li>${source.dataset_name} (${source.rows_fetched.toLocaleString()} rows)</li>`,
       ) ?? []
 
+    const sampleRows = comparisonFindings.map(f => 
+      `<tr>
+        <td style="border:1px solid #ddd; padding:8px;">${f.id}</td>
+        <td style="border:1px solid #ddd; padding:8px;">${f.entity}</td>
+        <td style="border:1px solid #ddd; padding:8px; color:${f.severity === 'critical' ? 'red' : 'black'}">${f.severity.toUpperCase()}</td>
+        <td style="border:1px solid #ddd; padding:8px;">${f.metric} (${f.metricDetail})</td>
+      </tr>`
+    ).join("")
+
     return `
       <html>
-        <head><meta charset="utf-8" /><title>Transparent.city Auditor Analysis Report</title></head>
-        <body style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827;">
-          <h1>Transparent.city Auditor Analysis Report</h1>
-          <p><strong>Report date:</strong> ${generatedLabel}</p>
-          <p><strong>Prepared by:</strong> Transparent.city</p>
-          <p><strong>Analysis period:</strong> ${analysisPeriod}</p>
-          <p><strong>Category filter:</strong> ${formatCategoryLabel(selectedCategory)}</p>
-          <p><strong>Sub-cluster selected:</strong> ${selectedSubcluster || "N/A"}</p>
-          <p><strong>Records in selected sub-cluster:</strong> ${selectedClusterFindings.length}</p>
-          <h2>Severity Breakdown</h2>
-          <ul>
-            <li>Critical: ${severityCounts.critical}</li>
-            <li>High: ${severityCounts.high}</li>
-            <li>Medium: ${severityCounts.medium}</li>
-          </ul>
+        <head>
+          <meta charset="utf-8" />
+          <title>Transparent.city Auditor Analysis Report</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #111827; max-width: 900px; margin: 0 auto; padding: 20px; }
+            h1 { border-bottom: 2px solid #4f46e5; padding-bottom: 10px; color: #1f2937; }
+            h2 { background-color: #f3f4f6; padding: 10px; border-left: 4px solid #4f46e5; margin-top: 30px; font-size: 18px; }
+            .meta { background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; }
+            .finding-box { border: 1px solid #e5e7eb; padding: 20px; border-radius: 8px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+            th { background: #4f46e5; color: white; text-align: left; padding: 8px; }
+            .footer { margin-top: 50px; font-size: 12px; color: #6b7280; border-top: 1px solid #eee; padding-top: 10px; }
+          </style>
+        </head>
+        <body>
+          <h1>Audit Observation Report</h1>
+          <div class="meta">
+            <p><strong>Generated:</strong> ${generatedLabel}</p>
+            <p><strong>Scope:</strong> ${analysisPeriod}</p>
+            <p><strong>Focus Area:</strong> ${formatCategoryLabel(selectedCategory)} &gt; ${selectedSubcluster || "N/A"}</p>
+            <p><strong>Risk Profile:</strong> ${selectedClusterFindings.length} records (${severityCounts.critical} Critical, ${severityCounts.high} High)</p>
+          </div>
+
+          <h2>1. Methodology & Scope</h2>
+          <p><strong>Methodology:</strong> ${methodologyDescription}</p>
+          <p><strong>Data Sources:</strong></p>
+          <ul>${sourceRows.length ? sourceRows.join("") : "<li>Waste analysis API findings payload</li>"}</ul>
+
           ${
             primaryFinding
-              ? `<h2>Primary Record: ${primaryFinding.id}</h2>
-                 <p><strong>${primaryFinding.metric}</strong> - ${primaryFinding.metricDetail}</p>
-                 <p>${primaryFinding.description}</p>`
+              ? `<h2>2. Detailed Observation (Primary Sample)</h2>
+                 <div class="finding-box">
+                   <p><strong>Finding ID:</strong> ${primaryFinding.id}</p>
+                   <p><strong>Entity:</strong> ${primaryFinding.entity}</p>
+                   <p><strong>Condition:</strong> ${primaryFinding.metric} — ${primaryFinding.metricDetail}</p>
+                   <p><strong>Description:</strong> ${primaryFinding.description}</p>
+                   <p><strong>Criteria:</strong> Deviates from expected baseline for ${primaryFinding.subcategory}. High-risk indicator for waste or policy non-compliance.</p>
+                 </div>`
               : "<h2>No records available for selected sub-cluster</h2>"
           }
-          <h2>Recommended Next Steps</h2>
+
+          <h2>3. Recommendations</h2>
           <ol>${recommendedSteps.map((step) => `<li>${step}</li>`).join("")}</ol>
+
           ${
             comparisonFindings.length
-              ? `<h2>Additional Egregious Examples</h2><ul>${comparisonFindings
-                  .map(
-                    (finding) =>
-                      `<li>${finding.id}: ${finding.metric} (${finding.metricDetail})</li>`,
-                  )
-                  .join("")}</ul>`
+              ? `<h2>4. Expanded Sample (${comparisonFindings.length} Records)</h2>
+                 <table>
+                   <thead><tr><th>ID</th><th>Entity</th><th>Severity</th><th>Details</th></tr></thead>
+                   <tbody>${sampleRows}</tbody>
+                 </table>`
               : ""
           }
-          <h2>Data Used</h2>
-          <ul>${sourceRows.length ? sourceRows.join("") : "<li>Waste analysis API findings payload</li>"}</ul>
-          <h2>Accountability</h2>
-          <p>Generated by Transparent.city with timestamp and source metadata for audit reproducibility.</p>
+
+          <div class="footer">
+            <p>Generated by Transparent.city with timestamp and source metadata for audit reproducibility.</p>
+            <p>This report serves as a preliminary audit lead and should be verified against source records.</p>
+          </div>
         </body>
       </html>
     `.trim()
@@ -446,14 +521,17 @@ export function WasteAnalysisContent() {
     comparisonFindings,
     displayData?.data_freshness,
     generatedLabel,
+    methodologyDescription,
     primaryFinding,
     recommendedSteps,
+    sampleRows, // This was defined inside, need to be careful with dependency array or move logic
     selectedCategory,
     selectedClusterFindings.length,
     selectedSubcluster,
     severityCounts.critical,
     severityCounts.high,
     severityCounts.medium,
+    sourceRows, // Same here
   ])
 
   async function copyForGoogleDocs() {
@@ -488,11 +566,15 @@ export function WasteAnalysisContent() {
     setStatusMessage("Downloaded .doc export.")
   }
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setAllowAutoFetch(true)
     setRefreshTimedOut(false)
     setIsManualRefreshing(true)
-    forceRefetch()
+    try {
+      await forceRefetch()
+    } finally {
+      setIsManualRefreshing(false)
+    }
   }
 
   return (

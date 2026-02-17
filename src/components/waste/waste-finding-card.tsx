@@ -86,6 +86,7 @@ interface VendorDetailRow {
   voucher?: string
   purchase_order?: string
   check_date?: string
+  fiscal_year?: string
 }
 
 interface InfrastructureDetailRow {
@@ -177,7 +178,7 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
 
   // VENDOR
   if (cat.includes("vendor")) {
-    const select = "vendor,department,vouchers_paid,voucher,purchase_order,check_date"
+    const select = "vendor,department,vouchers_paid,voucher,purchase_order,fiscal_year"
     const vendorName = escapeSoqlLike(finding.entity || "")
     
     // SSS Duplicates
@@ -192,7 +193,7 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
     
     // Misdirected Payment (Entity is PO)
     if (finding.subcategory === "Misdirected Payment") {
-        const poMatch = finding.entity.match(/PO\s+(\S+)/)
+        const poMatch = finding.entity.match(/PO\s+(.+)/)
         if (poMatch) {
             const po = escapeSoqlLike(poMatch[1])
             return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`purchase_order = '${po}'`)}&$limit=${DETAILS_LIMIT}`
@@ -200,7 +201,7 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
     }
 
     // Default vendor fallback
-    return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`vendor = '${vendorName}'`)}&$order=check_date DESC&$limit=${DETAILS_LIMIT}`
+    return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`vendor = '${vendorName}'`)}&$order=fiscal_year DESC&$limit=${DETAILS_LIMIT}`
   }
 
   // INFRASTRUCTURE
@@ -300,7 +301,7 @@ export function WasteFindingCard({
                   <th className="px-3 py-2 text-left font-medium">Vendor</th>
                   <th className="px-3 py-2 text-left font-medium">Dept</th>
                   <th className="px-3 py-2 text-left font-medium">Amount</th>
-                  <th className="px-3 py-2 text-left font-medium">Date</th>
+                  <th className="px-3 py-2 text-left font-medium">Fiscal Year</th>
                   <th className="px-3 py-2 text-left font-medium">PO / Voucher</th>
                 </tr>
               </thead>
@@ -314,7 +315,7 @@ export function WasteFindingCard({
                       {row.department}
                     </td>
                     <td className="px-3 py-2 text-gray-600">{formatCurrency(row.vouchers_paid)}</td>
-                    <td className="px-3 py-2 text-gray-600">{formatDate(row.check_date)}</td>
+                    <td className="px-3 py-2 text-gray-600">{row.fiscal_year || "—"}</td>
                     <td className="px-3 py-2 text-gray-600">
                         {row.purchase_order || row.voucher || "—"}
                     </td>
@@ -378,6 +379,7 @@ export function WasteFindingCard({
               <th className="px-3 py-2 text-left font-medium">Job</th>
               <th className="px-3 py-2 text-left font-medium">Hours</th>
               <th className="px-3 py-2 text-left font-medium">Weekly Avg</th>
+              <th className="px-3 py-2 text-left font-medium">Base Salary</th>
               <th className="px-3 py-2 text-left font-medium">{amountHeader}</th>
             </tr>
           </thead>
@@ -391,6 +393,9 @@ export function WasteFindingCard({
                 <td className="px-3 py-2 text-gray-600">{row.job || "—"}</td>
                 <td className="px-3 py-2 text-gray-600">{formatHours(row.hours)}</td>
                 <td className="px-3 py-2 text-gray-600">{formatWeeklyHours(row.hours)}</td>
+                <td className="px-3 py-2 text-gray-600">
+                  {formatCurrency(row.salaries)}
+                </td>
                 <td className="px-3 py-2 text-gray-600">
                   {amountValue(row)}
                 </td>
