@@ -46,13 +46,18 @@ function formatDollar(amount: number | null | undefined): string {
 
 function buildAnalysisPrompt(finding: WasteFinding): string {
   return (
-    `Analyze this waste finding:\n\n` +
+    `Analyze this specific waste finding in detail:\n\n` +
     `Item: ${finding.entity} (${finding.subcategory})\n` +
     `Amount: ${finding.amount != null ? formatDollar(finding.amount) : "N/A"}\n` +
     `Issue: ${finding.metric} ${finding.metricDetail}\n` +
     `Context: ${finding.description}\n` +
     `Tool: ${finding.tool}\n\n` +
-    `Briefly explain what happened, if it's unusual, potential legitimate reasons, and recommended next steps.`
+    `Please provide a comprehensive analysis covering:\n` +
+    `1. Pattern Recognition: Does this match known fraud or waste schemes (e.g., shell companies, structuring, payroll padding)?\n` +
+    `2. Statistical Context: How significant is this anomaly compared to typical municipal data (Z-scores, Benford's Law)?\n` +
+    `3. Operational Reality: What are legitimate operational reasons that could explain this (e.g., emergency overtime, sole-source proprietary tech)?\n` +
+    `4. Investigation Plan: List 3-5 specific, actionable questions an auditor should ask to verify this finding.\n` +
+    `5. Risk Assessment: Rate the potential financial loss and reputational risk (Low/Med/High).`
   )
 }
 
