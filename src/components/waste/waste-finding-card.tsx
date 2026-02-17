@@ -76,6 +76,7 @@ interface PayrollDetailRow {
   overtime?: string
   other_salaries?: string
   total_salary?: string
+  year?: string
 }
 
 interface VendorDetailRow {
@@ -136,52 +137,51 @@ function getDepartmentFilter(finding: WasteFinding): string {
 }
 
 function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
+  const cat = finding.category.toLowerCase()
+
   // PAYROLL
-  if (finding.category === "payroll") {
+  if (cat.includes("payroll")) {
     const dept = getDepartmentFilter(finding)
     if (!dept) return null
 
     const select =
-      "employee_identifier,job,hours,salaries,overtime,other_salaries,total_salary"
+      "year,employee_identifier,job,hours,salaries,overtime,other_salaries,total_salary"
     const baseWhere = `upper(department) like upper('%${dept}%') and hours > 0`
 
     if (finding.subcategory === "Comp Time Manipulation") {
       const where = `${baseWhere} and salaries > 10000 and other_salaries > 0 and (other_salaries / salaries) > 0.30`
-      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent("other_salaries desc")}&$limit=${DETAILS_LIMIT}`
+      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent("year desc, other_salaries desc")}&$limit=${DETAILS_LIMIT}`
     }
 
     if (
       finding.subcategory === "Hours Feasibility" ||
       finding.subcategory === "Impossibility Check"
     ) {
-      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("hours desc")}&$limit=${DETAILS_LIMIT}`
+      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("year desc, hours desc")}&$limit=${DETAILS_LIMIT}`
     }
 
     if (
       finding.subcategory === "Overtime Abuse" ||
-      finding.subcategory === "Department OT Outlier"
+      finding.subcategory === "Department OT Outlier" ||
+      finding.subcategory === "Benford Anomaly" ||
+      finding.subcategory.includes("Overtime") ||
+      finding.tool.includes("Pareto")
     ) {
-      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("overtime desc")}&$limit=${DETAILS_LIMIT}`
+      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("year desc, overtime desc")}&$limit=${DETAILS_LIMIT}`
     }
 
     if (finding.subcategory.includes("Pension Spiking")) {
-      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("total_salary desc")}&$limit=${DETAILS_LIMIT}`
+      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("year desc, total_salary desc")}&$limit=${DETAILS_LIMIT}`
     }
   }
 
   // VENDOR
-  if (finding.category === "vendor") {
+  if (cat.includes("vendor")) {
     const select = "vendor,department,vouchers_paid,voucher,purchase_order,check_date"
     const vendorName = escapeSoqlLike(finding.entity || "")
     
     // SSS Duplicates
     if (finding.subcategory === "Duplicate Payments" && finding.amount) {
-      // Find payments with exact amount for this vendor
-      // Divide amount by number of payments implied? No, finding.amount is total.
-      // Actually D1 finding amount is total, but we want to show the rows.
-      // D1 description says "payments of $X each".
-      // We can just query by Vendor + Order by Amount for simplicity, or try to match amount if we can guess per-payment.
-      // Safest: Show recent payments for vendor.
       return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`vendor = '${vendorName}'`)}&$order=vouchers_paid DESC&$limit=${DETAILS_LIMIT}`
     }
 
@@ -192,7 +192,6 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
     
     // Misdirected Payment (Entity is PO)
     if (finding.subcategory === "Misdirected Payment") {
-        // Entity is "PO 12345"
         const poMatch = finding.entity.match(/PO\s+(\S+)/)
         if (poMatch) {
             const po = escapeSoqlLike(poMatch[1])
@@ -205,14 +204,12 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
   }
 
   // INFRASTRUCTURE
-  if (finding.category === "infrastructure") {
+  if (cat.includes("infrastructure")) {
     const select = "service_request_id,service_name,service_subtype,status_description,requested_datetime,closed_date,neighborhoods_sffind_boundaries"
     
     // Spatial Cluster (Entity is Neighborhood)
     if (finding.subcategory === "Infrastructure Cluster") {
        const neighborhood = escapeSoqlLike(finding.entity || "")
-       // Filter by neighborhood and infrastructure keywords roughly? Or just recent cases in that neighborhood.
-       // Let's just show recent open cases in that neighborhood.
        return `${SOCRATA_311}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`neighborhoods_sffind_boundaries = '${neighborhood}'`)}&$order=requested_datetime DESC&$limit=${DETAILS_LIMIT}`
     }
     
@@ -293,7 +290,9 @@ export function WasteFindingCard({
         return <p className="px-3 py-2 text-xs text-gray-500">No matching records found.</p>
     }
 
-    if (finding.category === "vendor") {
+    const cat = finding.category.toLowerCase()
+
+    if (cat.includes("vendor")) {
         return (
             <table className="min-w-full text-xs">
               <thead className="bg-gray-50 text-gray-600">
@@ -326,7 +325,7 @@ export function WasteFindingCard({
         )
     }
 
-    if (finding.category === "infrastructure") {
+    if (cat.includes("infrastructure")) {
         return (
             <table className="min-w-full text-xs">
               <thead className="bg-gray-50 text-gray-600">
@@ -356,20 +355,36 @@ export function WasteFindingCard({
     }
 
     // Default Payroll
+    let amountHeader = "Overtime"
+    let amountValue = (row: AnyDetailRow) => formatCurrency(row.overtime)
+
+    if (finding.subcategory === "Comp Time Manipulation") {
+        amountHeader = "Other Salaries"
+        amountValue = (row) => formatCurrency(row.other_salaries)
+    } else if (finding.subcategory.includes("Pension")) {
+        amountHeader = "Total Salary"
+        amountValue = (row) => formatCurrency(row.total_salary)
+    } else if (finding.subcategory === "Hours Feasibility" || finding.subcategory === "Impossibility Check") {
+        amountHeader = "Total Salary"
+        amountValue = (row) => formatCurrency(row.total_salary)
+    }
+
     return (
         <table className="min-w-full text-xs">
           <thead className="bg-gray-50 text-gray-600">
             <tr>
+              <th className="px-3 py-2 text-left font-medium">Year</th>
               <th className="px-3 py-2 text-left font-medium">Employee</th>
               <th className="px-3 py-2 text-left font-medium">Job</th>
               <th className="px-3 py-2 text-left font-medium">Hours</th>
               <th className="px-3 py-2 text-left font-medium">Weekly Avg</th>
-              <th className="px-3 py-2 text-left font-medium">Other Salaries</th>
+              <th className="px-3 py-2 text-left font-medium">{amountHeader}</th>
             </tr>
           </thead>
           <tbody>
             {detailsRows.map((row, idx) => (
               <tr key={`${row.employee_identifier ?? "employee"}-${idx}`} className="border-t border-gray-100">
+                <td className="px-3 py-2 text-gray-600">{row.year || "—"}</td>
                 <td className="px-3 py-2 text-gray-800">
                   {row.employee_identifier || "Unknown"}
                 </td>
@@ -377,7 +392,7 @@ export function WasteFindingCard({
                 <td className="px-3 py-2 text-gray-600">{formatHours(row.hours)}</td>
                 <td className="px-3 py-2 text-gray-600">{formatWeeklyHours(row.hours)}</td>
                 <td className="px-3 py-2 text-gray-600">
-                  {formatCurrency(row.other_salaries)}
+                  {amountValue(row)}
                 </td>
               </tr>
             ))}
