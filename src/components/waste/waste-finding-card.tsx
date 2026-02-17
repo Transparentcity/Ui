@@ -78,8 +78,31 @@ interface PayrollDetailRow {
   total_salary?: string
 }
 
+interface VendorDetailRow {
+  vendor?: string
+  department?: string
+  vouchers_paid?: string
+  voucher?: string
+  purchase_order?: string
+  check_date?: string
+}
+
+interface InfrastructureDetailRow {
+  service_request_id?: string
+  service_name?: string
+  service_subtype?: string
+  status_description?: string
+  requested_datetime?: string
+  closed_date?: string
+  neighborhoods_sffind_boundaries?: string
+}
+
+type AnyDetailRow = PayrollDetailRow & VendorDetailRow & InfrastructureDetailRow
+
 const DETAILS_LIMIT = 20
-const SOCRATA_BASE = "https://data.sfgov.org/resource/88g8-5mnd.json"
+const SOCRATA_PAYROLL = "https://data.sfgov.org/resource/88g8-5mnd.json"
+const SOCRATA_VENDOR = "https://data.sfgov.org/resource/n9pm-xkyq.json"
+const SOCRATA_311 = "https://data.sfgov.org/resource/vw6y-z8j6.json"
 
 function escapeSoqlLike(value: string): string {
   return value.replace(/'/g, "''")
@@ -103,29 +126,110 @@ function formatCurrency(raw: string | undefined): string {
   return `$${parsed.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
 }
 
+function formatDate(dateStr: string | undefined): string {
+  if (!dateStr) return "—"
+  return new Date(dateStr).toLocaleDateString()
+}
+
 function getDepartmentFilter(finding: WasteFinding): string {
   return escapeSoqlLike((finding.entity || "").split("(")[0].trim())
 }
 
 function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
-  if (finding.category !== "payroll") return null
-  const dept = getDepartmentFilter(finding)
-  if (!dept) return null
+  // PAYROLL
+  if (finding.category === "payroll") {
+    const dept = getDepartmentFilter(finding)
+    if (!dept) return null
 
-  const select =
-    "employee_identifier,job,hours,salaries,overtime,other_salaries,total_salary"
-  const baseWhere = `upper(department) like upper('%${dept}%') and hours > 0`
+    const select =
+      "employee_identifier,job,hours,salaries,overtime,other_salaries,total_salary"
+    const baseWhere = `upper(department) like upper('%${dept}%') and hours > 0`
 
-  if (finding.subcategory === "Comp Time Manipulation") {
-    const where = `${baseWhere} and salaries > 10000 and other_salaries > 0 and (other_salaries / salaries) > 0.30`
-    return `${SOCRATA_BASE}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent("other_salaries desc")}&$limit=${DETAILS_LIMIT}`
+    if (finding.subcategory === "Comp Time Manipulation") {
+      const where = `${baseWhere} and salaries > 10000 and other_salaries > 0 and (other_salaries / salaries) > 0.30`
+      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent("other_salaries desc")}&$limit=${DETAILS_LIMIT}`
+    }
+
+    if (
+      finding.subcategory === "Hours Feasibility" ||
+      finding.subcategory === "Impossibility Check"
+    ) {
+      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("hours desc")}&$limit=${DETAILS_LIMIT}`
+    }
+
+    if (
+      finding.subcategory === "Overtime Abuse" ||
+      finding.subcategory === "Department OT Outlier"
+    ) {
+      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("overtime desc")}&$limit=${DETAILS_LIMIT}`
+    }
+
+    if (finding.subcategory.includes("Pension Spiking")) {
+      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("total_salary desc")}&$limit=${DETAILS_LIMIT}`
+    }
   }
 
-  if (
-    finding.subcategory === "Hours Feasibility" ||
-    finding.subcategory === "Impossibility Check"
-  ) {
-    return `${SOCRATA_BASE}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("hours desc")}&$limit=${DETAILS_LIMIT}`
+  // VENDOR
+  if (finding.category === "vendor") {
+    const select = "vendor,department,vouchers_paid,voucher,purchase_order,check_date"
+    const vendorName = escapeSoqlLike(finding.entity || "")
+    
+    // SSS Duplicates
+    if (finding.subcategory === "Duplicate Payments" && finding.amount) {
+      // Find payments with exact amount for this vendor
+      // Divide amount by number of payments implied? No, finding.amount is total.
+      // Actually D1 finding amount is total, but we want to show the rows.
+      // D1 description says "payments of $X each".
+      // We can just query by Vendor + Order by Amount for simplicity, or try to match amount if we can guess per-payment.
+      // Safest: Show recent payments for vendor.
+      return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`vendor = '${vendorName}'`)}&$order=vouchers_paid DESC&$limit=${DETAILS_LIMIT}`
+    }
+
+    // Ghost Vendor
+    if (finding.subcategory === "Unregistered Vendor" || finding.subcategory === "Ghost Vendor") {
+       return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`vendor = '${vendorName}'`)}&$order=vouchers_paid DESC&$limit=${DETAILS_LIMIT}`
+    }
+    
+    // Misdirected Payment (Entity is PO)
+    if (finding.subcategory === "Misdirected Payment") {
+        // Entity is "PO 12345"
+        const poMatch = finding.entity.match(/PO\s+(\S+)/)
+        if (poMatch) {
+            const po = escapeSoqlLike(poMatch[1])
+            return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`purchase_order = '${po}'`)}&$limit=${DETAILS_LIMIT}`
+        }
+    }
+
+    // Default vendor fallback
+    return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`vendor = '${vendorName}'`)}&$order=check_date DESC&$limit=${DETAILS_LIMIT}`
+  }
+
+  // INFRASTRUCTURE
+  if (finding.category === "infrastructure") {
+    const select = "service_request_id,service_name,service_subtype,status_description,requested_datetime,closed_date,neighborhoods_sffind_boundaries"
+    
+    // Spatial Cluster (Entity is Neighborhood)
+    if (finding.subcategory === "Infrastructure Cluster") {
+       const neighborhood = escapeSoqlLike(finding.entity || "")
+       // Filter by neighborhood and infrastructure keywords roughly? Or just recent cases in that neighborhood.
+       // Let's just show recent open cases in that neighborhood.
+       return `${SOCRATA_311}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`neighborhoods_sffind_boundaries = '${neighborhood}'`)}&$order=requested_datetime DESC&$limit=${DETAILS_LIMIT}`
+    }
+    
+    // Response Time (Entity is Agency)
+    if (finding.subcategory === "Response Time Deterioration") {
+        const agency = escapeSoqlLike(finding.entity || "")
+        return `${SOCRATA_311}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`agency_responsible = '${agency}'`)}&$order=requested_datetime DESC&$limit=${DETAILS_LIMIT}`
+    }
+
+    // Equity Gap (Entity is "District X")
+    if (finding.subcategory === "District Equity Gap") {
+        const distMatch = finding.entity.match(/District\s+(\d+)/)
+        if (distMatch) {
+            const dist = distMatch[1]
+             return `${SOCRATA_311}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`supervisor_district = '${dist}'`)}&$order=requested_datetime DESC&$limit=${DETAILS_LIMIT}`
+        }
+    }
   }
 
   return null
@@ -145,7 +249,7 @@ export function WasteFindingCard({
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isDetailsLoading, setIsDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
-  const [detailsRows, setDetailsRows] = useState<PayrollDetailRow[] | null>(null)
+  const [detailsRows, setDetailsRows] = useState<AnyDetailRow[] | null>(null)
 
   const handleAskSeymour = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -164,11 +268,11 @@ export function WasteFindingCard({
       if (!response.ok) {
         throw new Error(`Failed to load details (${response.status})`)
       }
-      const rows = (await response.json()) as PayrollDetailRow[]
+      const rows = (await response.json()) as AnyDetailRow[]
       setDetailsRows(rows)
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Failed to load employee details."
+        error instanceof Error ? error.message : "Failed to load details."
       setDetailsError(message)
     } finally {
       setIsDetailsLoading(false)
@@ -182,6 +286,104 @@ export function WasteFindingCard({
     if (next && detailsRows == null && !isDetailsLoading) {
       await loadDetails()
     }
+  }
+
+  const renderDetailsTable = () => {
+    if (!detailsRows || detailsRows.length === 0) {
+        return <p className="px-3 py-2 text-xs text-gray-500">No matching records found.</p>
+    }
+
+    if (finding.category === "vendor") {
+        return (
+            <table className="min-w-full text-xs">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Vendor</th>
+                  <th className="px-3 py-2 text-left font-medium">Dept</th>
+                  <th className="px-3 py-2 text-left font-medium">Amount</th>
+                  <th className="px-3 py-2 text-left font-medium">Date</th>
+                  <th className="px-3 py-2 text-left font-medium">PO / Voucher</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detailsRows.map((row, idx) => (
+                  <tr key={idx} className="border-t border-gray-100">
+                    <td className="px-3 py-2 text-gray-800 truncate max-w-[150px]" title={row.vendor}>
+                      {row.vendor}
+                    </td>
+                    <td className="px-3 py-2 text-gray-600 truncate max-w-[100px]" title={row.department}>
+                      {row.department}
+                    </td>
+                    <td className="px-3 py-2 text-gray-600">{formatCurrency(row.vouchers_paid)}</td>
+                    <td className="px-3 py-2 text-gray-600">{formatDate(row.check_date)}</td>
+                    <td className="px-3 py-2 text-gray-600">
+                        {row.purchase_order || row.voucher || "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+        )
+    }
+
+    if (finding.category === "infrastructure") {
+        return (
+            <table className="min-w-full text-xs">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Request ID</th>
+                  <th className="px-3 py-2 text-left font-medium">Type</th>
+                  <th className="px-3 py-2 text-left font-medium">Status</th>
+                  <th className="px-3 py-2 text-left font-medium">Opened</th>
+                  <th className="px-3 py-2 text-left font-medium">Neighborhood</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detailsRows.map((row, idx) => (
+                  <tr key={idx} className="border-t border-gray-100">
+                     <td className="px-3 py-2 text-gray-800">{row.service_request_id}</td>
+                     <td className="px-3 py-2 text-gray-600 truncate max-w-[150px]" title={row.service_subtype || row.service_name}>
+                        {row.service_subtype || row.service_name}
+                     </td>
+                     <td className="px-3 py-2 text-gray-600">{row.status_description}</td>
+                     <td className="px-3 py-2 text-gray-600">{formatDate(row.requested_datetime)}</td>
+                     <td className="px-3 py-2 text-gray-600 truncate max-w-[100px]">{row.neighborhoods_sffind_boundaries || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+        )
+    }
+
+    // Default Payroll
+    return (
+        <table className="min-w-full text-xs">
+          <thead className="bg-gray-50 text-gray-600">
+            <tr>
+              <th className="px-3 py-2 text-left font-medium">Employee</th>
+              <th className="px-3 py-2 text-left font-medium">Job</th>
+              <th className="px-3 py-2 text-left font-medium">Hours</th>
+              <th className="px-3 py-2 text-left font-medium">Weekly Avg</th>
+              <th className="px-3 py-2 text-left font-medium">Other Salaries</th>
+            </tr>
+          </thead>
+          <tbody>
+            {detailsRows.map((row, idx) => (
+              <tr key={`${row.employee_identifier ?? "employee"}-${idx}`} className="border-t border-gray-100">
+                <td className="px-3 py-2 text-gray-800">
+                  {row.employee_identifier || "Unknown"}
+                </td>
+                <td className="px-3 py-2 text-gray-600">{row.job || "—"}</td>
+                <td className="px-3 py-2 text-gray-600">{formatHours(row.hours)}</td>
+                <td className="px-3 py-2 text-gray-600">{formatWeeklyHours(row.hours)}</td>
+                <td className="px-3 py-2 text-gray-600">
+                  {formatCurrency(row.other_salaries)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+    )
   }
 
   return (
@@ -271,43 +473,16 @@ export function WasteFindingCard({
                 onClick={handleToggleDetails}
                 className="text-xs font-medium text-violet-700 hover:text-violet-800 underline"
               >
-                {isDetailsOpen ? "Hide employee details" : "Show employee details"}
+                {isDetailsOpen ? "Hide details" : "Show details"}
               </button>
               {isDetailsOpen && (
                 <div className="mt-2 rounded-md border border-gray-200 bg-white overflow-x-auto">
                   {isDetailsLoading ? (
-                    <p className="px-3 py-2 text-xs text-gray-500">Loading employee rows...</p>
+                    <p className="px-3 py-2 text-xs text-gray-500">Loading details...</p>
                   ) : detailsError ? (
                     <p className="px-3 py-2 text-xs text-red-600">{detailsError}</p>
-                  ) : detailsRows && detailsRows.length > 0 ? (
-                    <table className="min-w-full text-xs">
-                      <thead className="bg-gray-50 text-gray-600">
-                        <tr>
-                          <th className="px-3 py-2 text-left font-medium">Employee</th>
-                          <th className="px-3 py-2 text-left font-medium">Job</th>
-                          <th className="px-3 py-2 text-left font-medium">Hours</th>
-                          <th className="px-3 py-2 text-left font-medium">Weekly Avg</th>
-                          <th className="px-3 py-2 text-left font-medium">Other Salaries</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {detailsRows.map((row, idx) => (
-                          <tr key={`${row.employee_identifier ?? "employee"}-${idx}`} className="border-t border-gray-100">
-                            <td className="px-3 py-2 text-gray-800">
-                              {row.employee_identifier || "Unknown"}
-                            </td>
-                            <td className="px-3 py-2 text-gray-600">{row.job || "—"}</td>
-                            <td className="px-3 py-2 text-gray-600">{formatHours(row.hours)}</td>
-                            <td className="px-3 py-2 text-gray-600">{formatWeeklyHours(row.hours)}</td>
-                            <td className="px-3 py-2 text-gray-600">
-                              {formatCurrency(row.other_salaries)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
                   ) : (
-                    <p className="px-3 py-2 text-xs text-gray-500">No matching rows found.</p>
+                    renderDetailsTable()
                   )}
                 </div>
               )}
