@@ -155,7 +155,6 @@ function DataFreshnessBanner({ freshness }: { freshness: WasteDataFreshness[] })
 export function WastePageContent() {
   const [activeCategory, setActiveCategory] = useState<WasteCategoryKey>("payroll")
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
-  const [forceRefresh, setForceRefresh] = useState(false)
   const [allowAutoFetch, setAllowAutoFetch] = useState(false)
   const [isManualRefreshing, setIsManualRefreshing] = useState(false)
   const [refreshTimedOut, setRefreshTimedOut] = useState(false)
@@ -184,9 +183,8 @@ export function WastePageContent() {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
   })
 
-  const { data, isLoading, error } = useWasteAnalysis(
+  const { data, isLoading, error, forceRefetch } = useWasteAnalysis(
     undefined,
-    forceRefresh,
     allowAutoFetch
   )
   const displayData = data ?? cachedData
@@ -223,17 +221,10 @@ export function WastePageContent() {
   }, [isManualRefreshing, analysisStartedAt])
 
   useEffect(() => {
-    if (!isLoading && forceRefresh) {
-      setForceRefresh(false)
-    }
-  }, [isLoading, forceRefresh])
-
-  useEffect(() => {
     if (!isManualRefreshing) return
     const timeout = window.setTimeout(() => {
       setIsManualRefreshing(false)
       setRefreshTimedOut(true)
-      setForceRefresh(false)
     }, WASTE_REFRESH_TIMEOUT_MS)
     return () => window.clearTimeout(timeout)
   }, [isManualRefreshing])
@@ -250,7 +241,7 @@ export function WastePageContent() {
     setAllowAutoFetch(true)
     setRefreshTimedOut(false)
     setIsManualRefreshing(true)
-    setForceRefresh(true)
+    forceRefetch()
   }
 
   // Keep category state in sync with hash navigation from the sidebar.
@@ -360,35 +351,75 @@ export function WastePageContent() {
       )}
 
       {!isManualRefreshing && refreshTimedOut ? (
-        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-          <p className="text-sm font-medium text-amber-800">
-            Refresh took too long and was stopped.
-          </p>
-          <p className="text-xs text-amber-700 mt-1">
-            Showing last saved snapshot. Try Refresh again when backend load is lower.
-          </p>
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-amber-800">
+              Refresh took too long and was stopped.
+            </p>
+            <p className="text-xs text-amber-700 mt-1">
+              Showing last saved snapshot. Try again when backend load is lower.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            className="shrink-0 border-amber-300 text-amber-800 hover:bg-amber-100"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Try Again
+          </Button>
         </div>
       ) : null}
 
-      {!isManualRefreshing && displayData && !allowAutoFetch && (
-        <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-          <p className="text-sm font-medium text-gray-800">
-            Showing your last saved analysis snapshot.
-          </p>
-          <p className="text-xs text-gray-600 mt-1">
-            Click Refresh to run a new analysis.
-          </p>
+      {!isManualRefreshing && displayData && !data && (
+        <div className="mb-6 p-5 bg-blue-50 border border-blue-200 rounded-lg flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-blue-900">
+              Showing your previous analysis
+              {displayData.analysis_timestamp && (
+                <span className="font-normal text-blue-700">
+                  {" "}from {new Date(displayData.analysis_timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                  {" "}({formatAge(displayData.analysis_timestamp)})
+                </span>
+              )}
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              {displayData.summary?.total_findings
+                ? `${displayData.summary.total_findings} findings across ${displayData.summary.categories?.length ?? 0} categories`
+                : "Run a fresh analysis to check for the latest anomalies"}
+              {displayData.cached ? " \u00b7 served from server cache" : ""}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            className="shrink-0 border-blue-300 text-blue-800 hover:bg-blue-100"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Run Fresh Analysis
+          </Button>
         </div>
       )}
 
       {!isManualRefreshing && !displayData && !error && (
-        <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-          <p className="text-sm font-medium text-gray-800">
-            No saved analysis snapshot found yet.
+        <div className="mb-6 p-6 bg-indigo-50 border border-indigo-200 rounded-lg text-center">
+          <p className="text-base font-semibold text-indigo-900">
+            Welcome to Waste Detection
           </p>
-          <p className="text-xs text-gray-600 mt-1">
-            Click Refresh to run your first analysis.
+          <p className="text-sm text-indigo-700 mt-1">
+            Run your first analysis to detect anomalies across payroll, vendor payments, and city services.
           </p>
+          <Button
+            variant="outline"
+            size="default"
+            onClick={handleRefresh}
+            className="mt-4 border-indigo-300 text-indigo-800 hover:bg-indigo-100"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Run Analysis
+          </Button>
         </div>
       )}
 

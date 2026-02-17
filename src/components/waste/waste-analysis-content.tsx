@@ -160,7 +160,6 @@ export function WasteAnalysisContent() {
   const [selectedCategory, setSelectedCategory] = useState<WasteCategory>("all")
   const [selectedSubcluster, setSelectedSubcluster] = useState<string>("")
   const [statusMessage, setStatusMessage] = useState("")
-  const [forceRefresh, setForceRefresh] = useState(false)
   const [allowAutoFetch, setAllowAutoFetch] = useState(false)
   const [isManualRefreshing, setIsManualRefreshing] = useState(false)
   const [refreshTimedOut, setRefreshTimedOut] = useState(false)
@@ -177,9 +176,8 @@ export function WasteAnalysisContent() {
   const [refreshStartedAt, setRefreshStartedAt] = useState<number | null>(null)
   const [refreshElapsedSeconds, setRefreshElapsedSeconds] = useState(0)
 
-  const { data, isLoading, error } = useWasteAnalysis(
+  const { data, isLoading, error, forceRefetch } = useWasteAnalysis(
     undefined,
-    forceRefresh,
     allowAutoFetch
   )
   const displayData = data ?? cachedData
@@ -215,17 +213,10 @@ export function WasteAnalysisContent() {
   }, [isManualRefreshing, refreshStartedAt])
 
   useEffect(() => {
-    if (!isLoading && forceRefresh) {
-      setForceRefresh(false)
-    }
-  }, [isLoading, forceRefresh])
-
-  useEffect(() => {
     if (!isManualRefreshing) return
     const timeout = window.setTimeout(() => {
       setIsManualRefreshing(false)
       setRefreshTimedOut(true)
-      setForceRefresh(false)
     }, ANALYSIS_REFRESH_TIMEOUT_MS)
     return () => window.clearTimeout(timeout)
   }, [isManualRefreshing])
@@ -496,7 +487,7 @@ export function WasteAnalysisContent() {
     setAllowAutoFetch(true)
     setRefreshTimedOut(false)
     setIsManualRefreshing(true)
-    setForceRefresh(true)
+    forceRefetch()
   }
 
   return (
