@@ -13,7 +13,8 @@ import {
 import {
   getAvailableModels,
   getSessionStats,
-  sendChatMessage,
+  createChatJob,
+  getJob,
   type SessionStats,
   type WasteFinding,
 } from "@/lib/apiClient"
@@ -151,45 +152,66 @@ export function WasteSeymourPanel({
     setAnalysisError(null)
     setAnalysisResult("")
     setUsageStats(null)
+    
+    let jobId: string | null = null
+
     try {
       const token = await withTimeout(
         getAccessTokenSilently(),
-        SEYMOUR_ANALYSIS_TIMEOUT_MS,
+        30000,
         "Auth timed out while preparing Seymour analysis. Please try again."
       )
       const models = await withTimeout(
         getAvailableModels(token),
-        SEYMOUR_ANALYSIS_TIMEOUT_MS,
+        30000,
         "Loading models timed out. Please try again."
       )
       const selectedModel = pickDefaultModelKey(models) ?? PREFERRED_DEFAULT_MODEL_KEY
 
-      const response = await withTimeout(
-        sendChatMessage(
-          {
-            message: promptToRun,
-            model_key: selectedModel,
-          },
-          token
-        ),
-        SEYMOUR_ANALYSIS_TIMEOUT_MS,
-        "Seymour analysis timed out after 5 minutes. Please retry or open full chat."
+      // 1. Create background job
+      const jobResponse = await createChatJob(
+        {
+          message: promptToRun,
+          model_key: selectedModel,
+        },
+        token
       )
+      jobId = jobResponse.job_id
 
-      setAnalysisResult(response.response || "No analysis returned.")
-      if (response.session_id) {
-        try {
-          const stats = await withTimeout(
-            getSessionStats(response.session_id, token),
-            15_000,
-            "Usage stats request timed out."
-          )
-          setUsageStats(stats)
-          onSeymourUsage?.(stats.total_tokens_used ?? 0)
-        } catch {
-          // Keep response even if stats request fails.
+      // 2. Poll for completion
+      const POLL_INTERVAL = 2000
+      const MAX_POLLS = 150 // 5 minutes max
+
+      for (let i = 0; i < MAX_POLLS; i++) {
+        // Wait before polling
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL))
+
+        const job = await getJob(jobId, token)
+
+        if (job.status === "completed") {
+          const result = job.result as { response?: string; session_id?: string }
+          setAnalysisResult(result?.response || "Analysis completed.")
+          
+          if (result?.session_id) {
+            try {
+              const stats = await getSessionStats(result.session_id, token)
+              setUsageStats(stats)
+              onSeymourUsage?.(stats.total_tokens_used ?? 0)
+            } catch {
+              // Ignore stats error
+            }
+          }
+          return // Success
         }
+
+        if (job.status === "failed" || job.status === "cancelled") {
+          throw new Error(job.error_message || `Analysis ${job.status}`)
+        }
+        // Continue polling if pending/running
       }
+
+      throw new Error("Analysis timed out waiting for completion.")
+
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to get Seymour analysis."

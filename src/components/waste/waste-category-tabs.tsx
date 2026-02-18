@@ -21,6 +21,10 @@ interface CategoryConfig {
 function normalizeWasteCategory(category: string): string {
   const key = category.toLowerCase().trim().replace(/[_\s&.,'-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")
   if (key === "payroll" || key.includes("payroll") || key === "payroll_compensation") return "payroll"
+  // Map integrity/personnel to payroll
+  if (key === "integrity" || key.includes("integrity") || key.includes("personnel") || key.includes("revolving") || key.includes("conflict")) {
+    return "payroll"
+  }
   if (key === "vendor" || key === "vendors" || key.includes("vendor") || key === "vendor_procurement") {
     return "vendor"
   }
@@ -36,9 +40,6 @@ function normalizeWasteCategory(category: string): string {
   if (key === "influence" || key.includes("influence") || key.includes("lobby") || key.includes("pay_to_play")) {
     return "influence"
   }
-  if (key === "integrity" || key.includes("integrity") || key.includes("personnel") || key.includes("revolving") || key.includes("conflict")) {
-    return "integrity"
-  }
   if (key === "confirmed" || key.includes("confirmed")) {
     return "confirmed"
   }
@@ -46,11 +47,10 @@ function normalizeWasteCategory(category: string): string {
 }
 
 const CATEGORIES: CategoryConfig[] = [
-  { key: "payroll", label: "Payroll & Compensation", icon: <Users className="w-5 h-5" /> },
+  { key: "payroll", label: "Payroll & Personnel", icon: <Users className="w-5 h-5" /> },
   { key: "vendor", label: "Vendor & Procurement", icon: <ShoppingCart className="w-5 h-5" /> },
   { key: "infrastructure", label: "Infrastructure & Services", icon: <Wrench className="w-5 h-5" /> },
   { key: "influence", label: "Influence & Pay-to-Play", icon: <Landmark className="w-5 h-5" /> },
-  { key: "integrity", label: "Personnel Integrity", icon: <ShieldAlert className="w-5 h-5" /> },
   { key: "confirmed", label: "Confirmed Cases", icon: <FileCheck className="w-5 h-5" /> },
 ]
 

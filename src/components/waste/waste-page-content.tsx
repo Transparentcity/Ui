@@ -23,7 +23,7 @@ import {
 } from "./waste-seymour-panel"
 
 type SeverityFilter = "all" | "critical" | "high" | "medium"
-type WasteCategoryKey = "payroll" | "vendor" | "infrastructure" | "influence" | "integrity" | "confirmed"
+type WasteCategoryKey = "payroll" | "vendor" | "infrastructure" | "influence" | "confirmed"
 
 const WASTE_ANALYSIS_ESTIMATED_SECONDS = 45
 const WASTE_REFRESH_TIMEOUT_MS = 120_000
@@ -32,6 +32,10 @@ const WASTE_ANALYSIS_CACHE_KEY = "waste:last-analysis:v1"
 function normalizeWasteCategory(category: string): WasteCategoryKey {
   const key = category.toLowerCase().trim().replace(/[_\s&.,'-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")
   if (key === "payroll" || key.includes("payroll") || key === "payroll_compensation") return "payroll"
+  // Map integrity/personnel to payroll
+  if (key === "integrity" || key.includes("integrity") || key.includes("personnel") || key.includes("revolving") || key.includes("conflict")) {
+    return "payroll"
+  }
   if (key === "vendor" || key === "vendors" || key.includes("vendor") || key === "vendor_procurement") {
     return "vendor"
   }
@@ -46,9 +50,6 @@ function normalizeWasteCategory(category: string): WasteCategoryKey {
   }
   if (key === "influence" || key.includes("influence") || key.includes("lobby") || key.includes("pay_to_play")) {
     return "influence"
-  }
-  if (key === "integrity" || key.includes("integrity") || key.includes("personnel") || key.includes("revolving") || key.includes("conflict")) {
-    return "integrity"
   }
   if (key === "confirmed" || key.includes("confirmed")) {
     return "confirmed"
@@ -239,19 +240,17 @@ export function WastePageContent() {
     return () => window.clearTimeout(timeout)
   }, [isManualRefreshing])
 
-  useEffect(() => {
-    if (isManualRefreshing && !isLoading) {
-      setIsManualRefreshing(false)
-    }
-  }, [isManualRefreshing, isLoading])
-
   const analysisProgress = getWasteAnalysisProgress(analysisElapsedSeconds)
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setAllowAutoFetch(true)
     setRefreshTimedOut(false)
     setIsManualRefreshing(true)
-    forceRefetch()
+    try {
+      await forceRefetch()
+    } finally {
+      setIsManualRefreshing(false)
+    }
   }
 
   // Keep category state in sync with hash navigation from the sidebar.
@@ -273,9 +272,18 @@ export function WastePageContent() {
   // Findings come pre-sorted by priority_score from the backend
   const categoryFindings = useMemo(() => {
     if (!displayData?.findings) return []
-    return displayData.findings.filter(
-      (f) => normalizeWasteCategory(f.category) === activeCategory
-    )
+    return displayData.findings
+      .filter((f) => normalizeWasteCategory(f.category) === activeCategory)
+      .map((f) => {
+        // Flag integrity/personnel findings as "New" when viewed under Payroll
+        const key = f.category.toLowerCase().trim().replace(/[_\s&.,'-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")
+        const isIntegrity = key === "integrity" || key.includes("integrity") || key.includes("personnel") || key.includes("revolving") || key.includes("conflict")
+        
+        if (isIntegrity && activeCategory === "payroll") {
+          return { ...f, is_new: true }
+        }
+        return f
+      })
   }, [displayData, activeCategory])
 
   // Filter by severity
