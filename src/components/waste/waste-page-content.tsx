@@ -28,6 +28,31 @@ type WasteCategoryKey = "payroll" | "vendor" | "infrastructure" | "influence" | 
 const WASTE_ANALYSIS_ESTIMATED_SECONDS = 45
 const WASTE_REFRESH_TIMEOUT_MS = 120_000
 const WASTE_ANALYSIS_CACHE_KEY = "waste:last-analysis:v1"
+function safeSetCache(key: string, data: WasteAnalyzeResponse): void {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(data))
+  } catch {
+    // localStorage full — try progressively smaller subsets
+    const limits = [500, 300, 150]
+    for (const limit of limits) {
+      try {
+        const trimmed: WasteAnalyzeResponse = {
+          ...data,
+          findings: data.findings?.slice(0, limit) ?? [],
+        }
+        window.localStorage.setItem(key, JSON.stringify(trimmed))
+        return
+      } catch {
+        continue
+      }
+    }
+    try {
+      window.localStorage.removeItem(key)
+    } catch {
+      // localStorage completely unavailable – silently give up
+    }
+  }
+}
 
 function normalizeWasteCategory(category: string): WasteCategoryKey {
   const key = category.toLowerCase().trim().replace(/[_\s&.,'-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")
@@ -175,8 +200,13 @@ export function WastePageContent() {
     try {
       const raw = window.localStorage.getItem(WASTE_ANALYSIS_CACHE_KEY)
       if (!raw) return null
+      if (raw.length > 4_000_000) {
+        window.localStorage.removeItem(WASTE_ANALYSIS_CACHE_KEY)
+        return null
+      }
       return JSON.parse(raw) as WasteAnalyzeResponse
     } catch {
+      try { window.localStorage.removeItem(WASTE_ANALYSIS_CACHE_KEY) } catch { /* noop */ }
       return null
     }
   })
@@ -205,7 +235,7 @@ export function WastePageContent() {
     if (!data) return
     setCachedData(data)
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(WASTE_ANALYSIS_CACHE_KEY, JSON.stringify(data))
+      safeSetCache(WASTE_ANALYSIS_CACHE_KEY, data)
     }
   }, [data])
 
