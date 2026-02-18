@@ -21,7 +21,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 
-type WasteCategory = "all" | "payroll" | "vendor" | "infrastructure" | "influence"
+type WasteCategory = "all" | "payroll" | "vendor" | "infrastructure" | "influence" | "integrity"
 const ANALYSIS_REFRESH_ESTIMATED_SECONDS = 40
 const ANALYSIS_REFRESH_TIMEOUT_MS = 120_000
 const WASTE_ANALYSIS_CACHE_KEY = "waste:last-analysis:v1"
@@ -44,6 +44,9 @@ function normalizeWasteCategory(category: string): WasteCategory {
   if (key === "influence" || key.includes("influence") || key.includes("lobby") || key.includes("pay_to_play")) {
     return "influence"
   }
+  if (key === "integrity" || key.includes("integrity") || key.includes("personnel") || key.includes("revolving") || key.includes("conflict")) {
+    return "integrity"
+  }
   return "all"
 }
 
@@ -52,6 +55,7 @@ function formatCategoryLabel(category: WasteCategory): string {
   if (category === "payroll") return "Payroll & Compensation"
   if (category === "vendor") return "Vendor & Procurement"
   if (category === "influence") return "Influence & Pay-to-Play"
+  if (category === "integrity") return "Personnel Integrity"
   return "Infrastructure & Services"
 }
 

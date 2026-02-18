@@ -449,6 +449,13 @@ export function WasteFindingCard({
           {sev.label}
         </span>
 
+        {/* NEW badge for Phase 6 detectors */}
+        {finding.is_new && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-100 text-violet-700 uppercase tracking-wide shrink-0">
+            New
+          </span>
+        )}
+
         {/* Metric headline */}
         <span className={cn("font-semibold text-sm whitespace-nowrap", sev.metricColor)}>
           {finding.metric}

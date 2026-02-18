@@ -4,12 +4,57 @@ import { useState, useMemo } from "react"
 import type { WasteFinding } from "@/lib/apiClient"
 import { WasteSubcategoryGroup } from "./waste-subcategory-group"
 
+export interface SubGroup {
+  label: string
+  findings: WasteFinding[]
+}
+
+export interface GroupedSubcategory {
+  label: string
+  findings: WasteFinding[]
+  subGroups?: SubGroup[]
+}
+
 interface WasteFindingsListProps {
   findings: WasteFinding[]
   onAskSeymour?: (finding: WasteFinding) => void
 }
 
 const severityOrder = { critical: 0, high: 1, medium: 2 }
+
+function worstSeverity(items: WasteFinding[]): number {
+  return Math.min(
+    ...items.map(
+      (f) =>
+        severityOrder[
+          (f.severity?.toLowerCase() ?? "medium") as keyof typeof severityOrder
+        ] ?? 3
+    )
+  )
+}
+
+/** Extract a date from the metric string, e.g. "(on Sep 18, 1985)" */
+function extractDate(metric: string | undefined): Date | null {
+  if (!metric) return null
+  const match = metric.match(/\(on\s+([A-Za-z]+\s+\d{1,2},\s+\d{4})\)/)
+  if (match) {
+    const d = new Date(match[1])
+    if (!isNaN(d.getTime())) return d
+  }
+  return null
+}
+
+/** Sort findings most-recent-first using date from metric, then priority_score */
+function sortByMostRecent(items: WasteFinding[]): WasteFinding[] {
+  return [...items].sort((a, b) => {
+    const dateA = extractDate(a.metric)
+    const dateB = extractDate(b.metric)
+    if (dateA && dateB) return dateB.getTime() - dateA.getTime()
+    if (dateA) return -1
+    if (dateB) return 1
+    return (b.priority_score ?? 0) - (a.priority_score ?? 0)
+  })
+}
 
 export function WasteFindingsList({
   findings,
@@ -21,20 +66,58 @@ export function WasteFindingsList({
     setExpandedFindingId((prev) => (prev === id ? null : id))
   }
 
-  // Group findings by subcategory, sorted by worst severity in group
+  // Group findings by subcategory, then merge subcategories that share a
+  // common "Parent - Child" prefix into a single parent group with nested
+  // sub-groups (e.g. "Permit Fast Tracking - Bayview" collapses under
+  // "Permit Fast Tracking").
   const grouped = useMemo(() => {
-    const groups: Record<string, WasteFinding[]> = {}
+    // Step 1: raw group by subcategory
+    const raw: Record<string, WasteFinding[]> = {}
     for (const f of findings) {
-      if (!groups[f.subcategory]) groups[f.subcategory] = []
-      groups[f.subcategory].push(f)
+      if (!raw[f.subcategory]) raw[f.subcategory] = []
+      raw[f.subcategory].push(f)
     }
 
-    // Sort groups by worst severity
-    return Object.entries(groups).sort(([, a], [, b]) => {
-      const worstA = Math.min(...a.map((f) => severityOrder[(f.severity?.toLowerCase() ?? "medium") as keyof typeof severityOrder] ?? 3))
-      const worstB = Math.min(...b.map((f) => severityOrder[(f.severity?.toLowerCase() ?? "medium") as keyof typeof severityOrder] ?? 3))
-      return worstA - worstB
-    })
+    // Step 2: detect parent prefixes with multiple children
+    const prefixChildren: Record<string, string[]> = {}
+    for (const sub of Object.keys(raw)) {
+      const dashIdx = sub.indexOf(" - ")
+      if (dashIdx > 0) {
+        const prefix = sub.slice(0, dashIdx)
+        if (!prefixChildren[prefix]) prefixChildren[prefix] = []
+        prefixChildren[prefix].push(sub)
+      }
+    }
+
+    // Step 3: build final grouped list
+    const merged: GroupedSubcategory[] = []
+    const consumed = new Set<string>()
+
+    for (const [prefix, children] of Object.entries(prefixChildren)) {
+      if (children.length < 2) continue // only merge when 2+ districts
+      const allFindings: WasteFinding[] = []
+      const subGroups: SubGroup[] = []
+      for (const child of children) {
+        const childLabel = child.slice(prefix.length + 3) // strip "Parent - "
+        subGroups.push({ label: childLabel, findings: sortByMostRecent(raw[child]) })
+        allFindings.push(...raw[child])
+        consumed.add(child)
+      }
+      // Sort sub-groups by worst severity
+      subGroups.sort((a, b) => worstSeverity(a.findings) - worstSeverity(b.findings))
+      merged.push({ label: prefix, findings: sortByMostRecent(allFindings), subGroups })
+    }
+
+    // Add remaining ungrouped subcategories
+    for (const [sub, subFindings] of Object.entries(raw)) {
+      if (!consumed.has(sub)) {
+        merged.push({ label: sub, findings: sortByMostRecent(subFindings) })
+      }
+    }
+
+    // Sort all top-level groups by worst severity
+    merged.sort((a, b) => worstSeverity(a.findings) - worstSeverity(b.findings))
+    return merged
   }, [findings])
 
   if (findings.length === 0) {
@@ -50,11 +133,12 @@ export function WasteFindingsList({
 
   return (
     <div className="space-y-2">
-      {grouped.map(([subcategory, subFindings]) => (
+      {grouped.map((group) => (
         <WasteSubcategoryGroup
-          key={subcategory}
-          subcategory={subcategory}
-          findings={subFindings}
+          key={group.label}
+          subcategory={group.label}
+          findings={group.findings}
+          subGroups={group.subGroups}
           expandedFindingId={expandedFindingId}
           onFindingToggle={handleFindingToggle}
           onAskSeymour={onAskSeymour}

@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { Users, ShoppingCart, Wrench, Landmark } from "lucide-react"
+import { Users, ShoppingCart, Wrench, Landmark, ShieldAlert } from "lucide-react"
 import type { WasteCategorySummary } from "@/lib/apiClient"
 
 function formatDollar(amount: number | null | undefined): string {
@@ -36,6 +36,9 @@ function normalizeWasteCategory(category: string): string {
   if (key === "influence" || key.includes("influence") || key.includes("lobby") || key.includes("pay_to_play")) {
     return "influence"
   }
+  if (key === "integrity" || key.includes("integrity") || key.includes("personnel") || key.includes("revolving") || key.includes("conflict")) {
+    return "integrity"
+  }
   return key
 }
 
@@ -44,6 +47,7 @@ const CATEGORIES: CategoryConfig[] = [
   { key: "vendor", label: "Vendor & Procurement", icon: <ShoppingCart className="w-5 h-5" /> },
   { key: "infrastructure", label: "Infrastructure & Services", icon: <Wrench className="w-5 h-5" /> },
   { key: "influence", label: "Influence & Pay-to-Play", icon: <Landmark className="w-5 h-5" /> },
+  { key: "integrity", label: "Personnel Integrity", icon: <ShieldAlert className="w-5 h-5" /> },
 ]
 
 interface WasteCategoryTabsProps {
@@ -61,7 +65,7 @@ export function WasteCategoryTabs({
     categorySummaries.find((c) => normalizeWasteCategory(c.category) === key)
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
       {CATEGORIES.map((cat) => {
         const summary = getSummary(cat.key)
         const isActive = activeCategory === cat.key
@@ -84,6 +88,11 @@ export function WasteCategoryTabs({
             <div className="flex items-center gap-2 text-gray-600">
               {cat.icon}
               <span className="text-sm font-medium">{cat.label}</span>
+              {cat.key === "integrity" && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-100 text-violet-700 uppercase tracking-wide">
+                  New
+                </span>
+              )}
             </div>
             <div className="flex items-baseline gap-3">
               <span className="text-3xl font-bold text-gray-900">
