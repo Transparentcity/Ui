@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion, AlertCircle, Sparkles } from "lucide-react"
+import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion, AlertCircle, Sparkles, Map } from "lucide-react"
 import { type WasteFinding } from "@/lib/apiClient"
 
 function formatDollar(amount: number | null | undefined): string {
@@ -100,6 +100,15 @@ interface InfrastructureDetailRow {
 }
 
 type AnyDetailRow = PayrollDetailRow & VendorDetailRow & InfrastructureDetailRow
+
+function isOnRoadmap(finding: WasteFinding): boolean {
+  const re = /\(On Roadmap\)/i
+  return re.test(finding.tool) || re.test(finding.subcategory)
+}
+
+function stripRoadmapLabel(text: string): string {
+  return text.replace(/\s*\(On Roadmap\)/gi, "").trim()
+}
 
 const DETAILS_LIMIT = 20
 const SOCRATA_PAYROLL = "https://data.sfgov.org/resource/88g8-5mnd.json"
@@ -456,6 +465,14 @@ export function WasteFindingCard({
           </span>
         )}
 
+        {/* On Roadmap badge for detectors not yet live */}
+        {isOnRoadmap(finding) && (
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide shrink-0">
+            <Map className="w-2.5 h-2.5" />
+            Roadmap
+          </span>
+        )}
+
         {/* Metric headline */}
         <span className={cn("font-semibold text-sm whitespace-nowrap", sev.metricColor)}>
           {finding.metric}
@@ -571,8 +588,14 @@ export function WasteFindingCard({
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 text-xs text-gray-400">
               <span className="bg-gray-50 px-2 py-0.5 rounded">
-                {finding.tool}
+                {stripRoadmapLabel(finding.tool)}
               </span>
+              {isOnRoadmap(finding) && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide">
+                  <Map className="w-2.5 h-2.5" />
+                  On Roadmap
+                </span>
+              )}
               <span>{finding.id}</span>
               <span className="text-gray-300">
                 Priority: {finding.priority_score ?? "—"}

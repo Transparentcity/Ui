@@ -21,9 +21,10 @@ import {
   WasteSeymourPanel,
   type WasteSeymourRequest,
 } from "./waste-seymour-panel"
+import { WasteDetectorsData } from "./waste-detectors-data"
 
 type SeverityFilter = "all" | "critical" | "high" | "medium"
-type WasteCategoryKey = "payroll" | "vendor" | "infrastructure" | "influence" | "confirmed"
+type WasteCategoryKey = "payroll" | "vendor" | "infrastructure" | "influence" | "confirmed" | "detectors"
 
 const WASTE_ANALYSIS_ESTIMATED_SECONDS = 45
 const WASTE_REFRESH_TIMEOUT_MS = 120_000
@@ -78,6 +79,9 @@ function normalizeWasteCategory(category: string): WasteCategoryKey {
   }
   if (key === "confirmed" || key.includes("confirmed")) {
     return "confirmed"
+  }
+  if (key === "detectors" || key === "detectors_data") {
+    return "detectors"
   }
   return "payroll"
 }
@@ -358,209 +362,223 @@ export function WastePageContent() {
     setSeymourRequest({ finding })
   }
 
+  const isDetectorsView = activeCategory === "detectors"
+
   return (
     <WasteShell
-      title="Waste Detection"
-      description="Anomaly detection across payroll, vendor payments, and city services"
+      title={isDetectorsView ? "Detectors & Data" : "Waste Detection"}
+      description={
+        isDetectorsView
+          ? "All anomaly-detection algorithms and public datasets used by the platform"
+          : "Anomaly detection across payroll, vendor payments, and city services"
+      }
       activeCategory={activeCategory}
       onCategoryChange={handleCategoryChange}
       actions={
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={isManualRefreshing}
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${isManualRefreshing ? "animate-spin" : ""}`} />
-          {isManualRefreshing
-            ? `Analyzing (${analysisProgress.progressPct}% · ${analysisElapsedSeconds}s)`
-            : "Refresh"}
-        </Button>
+        isDetectorsView ? undefined : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isManualRefreshing}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${isManualRefreshing ? "animate-spin" : ""}`} />
+            {isManualRefreshing
+              ? `Analyzing (${analysisProgress.progressPct}% · ${analysisElapsedSeconds}s)`
+              : "Refresh"}
+          </Button>
+        )
       }
     >
-      {isManualRefreshing && (
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm font-medium text-blue-900">{analysisProgress.step}</p>
-          <div className="mt-2 h-2 w-full rounded-full bg-blue-100 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-blue-500 transition-all duration-500 ease-out"
-              style={{ width: `${analysisProgress.progressPct}%` }}
-            />
-          </div>
-          <p className="text-xs text-blue-700 mt-1">
-            {analysisProgress.etaLabel} · Typical analysis run: 20-45s
-          </p>
-          {analysisProgress.isLongRunning ? (
-            <p className="text-xs text-blue-700 mt-1">
-              If this exceeds 90s, use Refresh again to re-request analysis.
-            </p>
-          ) : null}
-        </div>
-      )}
-
-      {!isManualRefreshing && refreshTimedOut ? (
-        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-amber-800">
-              Refresh took too long and was stopped.
-            </p>
-            <p className="text-xs text-amber-700 mt-1">
-              Showing last saved snapshot. Try again when backend load is lower.
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            className="shrink-0 border-amber-300 text-amber-800 hover:bg-amber-100"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Try Again
-          </Button>
-        </div>
-      ) : null}
-
-      {!isManualRefreshing && displayData && !data && (
-        <div className="mb-6 p-5 bg-blue-50 border border-blue-200 rounded-lg flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-blue-900">
-              Showing your previous analysis
-              {displayData.analysis_timestamp && (
-                <span className="font-normal text-blue-700">
-                  {" "}from {new Date(displayData.analysis_timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
-                  {" "}({formatAge(displayData.analysis_timestamp)})
-                </span>
-              )}
-            </p>
-            <p className="text-xs text-blue-600 mt-1">
-              {displayData.summary?.total_findings
-                ? `${displayData.summary.total_findings} findings across ${displayData.summary.categories?.length ?? 0} categories`
-                : "Run a fresh analysis to check for the latest anomalies"}
-              {displayData.cached ? " \u00b7 served from server cache" : ""}
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            className="shrink-0 border-blue-300 text-blue-800 hover:bg-blue-100"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Run Fresh Analysis
-          </Button>
-        </div>
-      )}
-
-      {!isManualRefreshing && !displayData && !error && (
-        <div className="mb-6 p-6 bg-indigo-50 border border-indigo-200 rounded-lg text-center">
-          <p className="text-base font-semibold text-indigo-900">
-            Welcome to Waste Detection
-          </p>
-          <p className="text-sm text-indigo-700 mt-1">
-            Run your first analysis to detect anomalies across payroll, vendor payments, and city services.
-          </p>
-          <Button
-            variant="outline"
-            size="default"
-            onClick={handleRefresh}
-            className="mt-4 border-indigo-300 text-indigo-800 hover:bg-indigo-100"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Run Analysis
-          </Button>
-        </div>
-      )}
-
-      {/* Error banner */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-medium text-red-800">Analysis Error</p>
-            <p className="text-sm text-red-600 mt-1">
-              {error instanceof Error ? error.message : "Failed to load waste analysis"}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Partial errors from analysis */}
-      {displayData?.errors && displayData.errors.length > 0 && (
-        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-          <p className="text-sm font-medium text-amber-800 mb-1">
-            Some detectors encountered issues:
-          </p>
-          {displayData.errors.map((err, i) => (
-            <p key={i} className="text-xs text-amber-600">{err}</p>
-          ))}
-        </div>
-      )}
-
-      {/* Data freshness / staleness banner */}
-      {displayData?.data_freshness && displayData.data_freshness.length > 0 && (
-        <DataFreshnessBanner freshness={displayData.data_freshness} />
-      )}
-
-      {/* Zoom 1: Global Stats */}
-      <WasteStatBar summary={displayData?.summary} isLoading={showLoadingState} />
-
-      {/* Zoom 2: Category Tabs */}
-      <WasteCategoryTabs
-        activeCategory={activeCategory}
-        onCategoryChange={handleCategoryChange}
-        categorySummaries={displayData?.summary?.categories ?? []}
-      />
-
-      {/* Filter row */}
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <WasteSeverityFilter
-          findings={categoryFindings}
-          activeFilter={severityFilter}
-          onFilterChange={setSeverityFilter}
-        />
-        <WasteExport category={activeCategory} />
-      </div>
-
-      {/* Cluster map for infrastructure tab */}
-      {activeCategory === "infrastructure" && infraFindings.length > 0 && (
-        <WasteClusterMap findings={infraFindings} />
-      )}
-
-      {/* Zoom 3 & 4: Findings List */}
-      {showLoadingState ? (
-        <div className="space-y-3">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-14 bg-gray-100 rounded-lg animate-pulse" />
-          ))}
-        </div>
+      {activeCategory === "detectors" ? (
+        <WasteDetectorsData />
       ) : (
-        <WasteFindingsList
-          findings={filteredFindings}
-          onAskSeymour={handleAskSeymour}
-        />
+        <>
+          {isManualRefreshing && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm font-medium text-blue-900">{analysisProgress.step}</p>
+              <div className="mt-2 h-2 w-full rounded-full bg-blue-100 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-blue-500 transition-all duration-500 ease-out"
+                  style={{ width: `${analysisProgress.progressPct}%` }}
+                />
+              </div>
+              <p className="text-xs text-blue-700 mt-1">
+                {analysisProgress.etaLabel} · Typical analysis run: 20-45s
+              </p>
+              {analysisProgress.isLongRunning ? (
+                <p className="text-xs text-blue-700 mt-1">
+                  If this exceeds 90s, use Refresh again to re-request analysis.
+                </p>
+              ) : null}
+            </div>
+          )}
+
+          {!isManualRefreshing && refreshTimedOut ? (
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-amber-800">
+                  Refresh took too long and was stopped.
+                </p>
+                <p className="text-xs text-amber-700 mt-1">
+                  Showing last saved snapshot. Try again when backend load is lower.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                className="shrink-0 border-amber-300 text-amber-800 hover:bg-amber-100"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Try Again
+              </Button>
+            </div>
+          ) : null}
+
+          {!isManualRefreshing && displayData && !data && (
+            <div className="mb-6 p-5 bg-blue-50 border border-blue-200 rounded-lg flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-blue-900">
+                  Showing your previous analysis
+                  {displayData.analysis_timestamp && (
+                    <span className="font-normal text-blue-700">
+                      {" "}from {new Date(displayData.analysis_timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                      {" "}({formatAge(displayData.analysis_timestamp)})
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  {displayData.summary?.total_findings
+                    ? `${displayData.summary.total_findings} findings across ${displayData.summary.categories?.length ?? 0} categories`
+                    : "Run a fresh analysis to check for the latest anomalies"}
+                  {displayData.cached ? " \u00b7 served from server cache" : ""}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                className="shrink-0 border-blue-300 text-blue-800 hover:bg-blue-100"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Run Fresh Analysis
+              </Button>
+            </div>
+          )}
+
+          {!isManualRefreshing && !displayData && !error && (
+            <div className="mb-6 p-6 bg-indigo-50 border border-indigo-200 rounded-lg text-center">
+              <p className="text-base font-semibold text-indigo-900">
+                Welcome to Waste Detection
+              </p>
+              <p className="text-sm text-indigo-700 mt-1">
+                Run your first analysis to detect anomalies across payroll, vendor payments, and city services.
+              </p>
+              <Button
+                variant="outline"
+                size="default"
+                onClick={handleRefresh}
+                className="mt-4 border-indigo-300 text-indigo-800 hover:bg-indigo-100"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Run Analysis
+              </Button>
+            </div>
+          )}
+
+          {/* Error banner */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-red-800">Analysis Error</p>
+                <p className="text-sm text-red-600 mt-1">
+                  {error instanceof Error ? error.message : "Failed to load waste analysis"}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Partial errors from analysis */}
+          {displayData?.errors && displayData.errors.length > 0 && (
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-sm font-medium text-amber-800 mb-1">
+                Some detectors encountered issues:
+              </p>
+              {displayData.errors.map((err, i) => (
+                <p key={i} className="text-xs text-amber-600">{err}</p>
+              ))}
+            </div>
+          )}
+
+          {/* Data freshness / staleness banner */}
+          {displayData?.data_freshness && displayData.data_freshness.length > 0 && (
+            <DataFreshnessBanner freshness={displayData.data_freshness} />
+          )}
+
+          {/* Zoom 1: Global Stats */}
+          <WasteStatBar summary={displayData?.summary} isLoading={showLoadingState} />
+
+          {/* Zoom 2: Category Tabs */}
+          <WasteCategoryTabs
+            activeCategory={activeCategory}
+            onCategoryChange={handleCategoryChange}
+            categorySummaries={displayData?.summary?.categories ?? []}
+          />
+
+          {/* Filter row */}
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <WasteSeverityFilter
+              findings={categoryFindings}
+              activeFilter={severityFilter}
+              onFilterChange={setSeverityFilter}
+            />
+            <WasteExport category={activeCategory} />
+          </div>
+
+          {/* Cluster map for infrastructure tab */}
+          {activeCategory === "infrastructure" && infraFindings.length > 0 && (
+            <WasteClusterMap findings={infraFindings} />
+          )}
+
+          {/* Zoom 3 & 4: Findings List */}
+          {showLoadingState ? (
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-14 bg-gray-100 rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <WasteFindingsList
+              findings={filteredFindings}
+              onAskSeymour={handleAskSeymour}
+            />
+          )}
+
+          {/* Footer */}
+          <div className="mt-8 pt-4 border-t border-gray-200">
+            <p className="text-xs text-gray-500 text-center mb-1">
+              Seymour tokens used today in Waste: {todaySeymourTokens.toLocaleString()}
+            </p>
+            <p className="text-xs text-gray-400 text-center">
+              Data: DataSF Open Data Portal &middot; Anomalies &ne; confirmed fraud &middot; Sorted by confidence &amp; priority
+            </p>
+            {displayData?.analysis_timestamp && (
+              <p className="text-xs text-gray-400 text-center mt-1">
+                Last analyzed: {new Date(displayData.analysis_timestamp).toLocaleString()}
+                {displayData.cached && " (cached)"}
+              </p>
+            )}
+          </div>
+
+          <WasteSeymourPanel
+            request={seymourRequest}
+            onClose={() => setSeymourRequest(null)}
+            onSeymourUsage={handleSeymourUsage}
+          />
+        </>
       )}
-
-      {/* Footer */}
-      <div className="mt-8 pt-4 border-t border-gray-200">
-        <p className="text-xs text-gray-500 text-center mb-1">
-          Seymour tokens used today in Waste: {todaySeymourTokens.toLocaleString()}
-        </p>
-        <p className="text-xs text-gray-400 text-center">
-          Data: DataSF Open Data Portal &middot; Anomalies &ne; confirmed fraud &middot; Sorted by confidence &amp; priority
-        </p>
-        {displayData?.analysis_timestamp && (
-          <p className="text-xs text-gray-400 text-center mt-1">
-            Last analyzed: {new Date(displayData.analysis_timestamp).toLocaleString()}
-            {displayData.cached && " (cached)"}
-          </p>
-        )}
-      </div>
-
-      <WasteSeymourPanel
-        request={seymourRequest}
-        onClose={() => setSeymourRequest(null)}
-        onSeymourUsage={handleSeymourUsage}
-      />
     </WasteShell>
   )
 }

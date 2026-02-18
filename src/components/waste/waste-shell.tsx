@@ -13,6 +13,7 @@ import {
   Scale,
   ArrowLeft,
   LogIn,
+  Database,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Loader from "@/components/Loader"
@@ -65,6 +66,14 @@ const navigation: NavigationItem[] = [
     href: "/waste#influence",
     icon: Landmark,
     description: "Lobbying & pay-to-play",
+    mode: "category",
+  },
+  {
+    key: "detectors",
+    name: "Detectors & Data",
+    href: "/waste#detectors",
+    icon: Database,
+    description: "Algorithms & datasets",
     mode: "category",
   },
   {

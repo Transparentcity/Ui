@@ -2,10 +2,18 @@
 
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { ChevronRight } from "lucide-react"
+import { ChevronRight, Map } from "lucide-react"
 import type { WasteFinding } from "@/lib/apiClient"
 import { WasteFindingCard } from "./waste-finding-card"
 import type { SubGroup } from "./waste-findings-list"
+
+function hasRoadmapLabel(text: string): boolean {
+  return /\(On Roadmap\)/i.test(text)
+}
+
+function stripRoadmapLabel(text: string): string {
+  return text.replace(/\s*\(On Roadmap\)/gi, "").trim()
+}
 
 function formatDollar(amount: number | null | undefined): string {
   if (amount == null) return ""
@@ -79,10 +87,16 @@ export function WasteSubcategoryGroup({
             !isCollapsed && "rotate-90"
           )}
         />
-        <span className="font-semibold text-sm text-gray-900">{subcategory}</span>
+        <span className="font-semibold text-sm text-gray-900">{stripRoadmapLabel(subcategory)}</span>
         {findings.some((f) => f.is_new) && (
           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 uppercase tracking-wide">
             New
+          </span>
+        )}
+        {hasRoadmapLabel(subcategory) && (
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide">
+            <Map className="w-2.5 h-2.5" />
+            Roadmap
           </span>
         )}
         <span className="text-xs text-gray-500">
