@@ -3708,7 +3708,7 @@ export function getDefaultExecuteStartDateByPeriod(periodType: string): string {
 
 export interface WasteFinding {
   id: string;
-  category: "payroll" | "vendor" | "infrastructure" | "integrity";
+  category: "payroll" | "vendor" | "infrastructure" | "integrity" | "influence" | "confirmed";
   subcategory: string;
   severity: "critical" | "high" | "medium";
   entity: string;

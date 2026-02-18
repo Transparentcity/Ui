@@ -23,7 +23,7 @@ import {
 } from "./waste-seymour-panel"
 
 type SeverityFilter = "all" | "critical" | "high" | "medium"
-type WasteCategoryKey = "payroll" | "vendor" | "infrastructure" | "influence" | "integrity"
+type WasteCategoryKey = "payroll" | "vendor" | "infrastructure" | "influence" | "integrity" | "confirmed"
 
 const WASTE_ANALYSIS_ESTIMATED_SECONDS = 45
 const WASTE_REFRESH_TIMEOUT_MS = 120_000
@@ -49,6 +49,9 @@ function normalizeWasteCategory(category: string): WasteCategoryKey {
   }
   if (key === "integrity" || key.includes("integrity") || key.includes("personnel") || key.includes("revolving") || key.includes("conflict")) {
     return "integrity"
+  }
+  if (key === "confirmed" || key.includes("confirmed")) {
+    return "confirmed"
   }
   return "payroll"
 }
