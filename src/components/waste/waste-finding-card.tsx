@@ -248,6 +248,20 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
         return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`department = '${dept}'`)}&$order=vouchers_paid DESC&$limit=${DETAILS_LIMIT}`
     }
 
+    // Threshold Avoidance (Entity is "Dept (Limit $X)")
+    if (finding.subcategory === "Threshold Avoidance") {
+        const dept = escapeSoqlLike((finding.entity || "").split(" (Limit")[0].trim())
+        if (!dept) return null
+        const rangeMatch = finding.metricDetail?.match(/Range \$([0-9,.]+)-\$([0-9,.]+)/)
+        if (rangeMatch) {
+            const low = rangeMatch[1].replace(/,/g, "")
+            const high = rangeMatch[2].replace(/,/g, "")
+            const where = `department = '${dept}' AND vouchers_paid >= ${low} AND vouchers_paid <= ${high}`
+            return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=vouchers_paid DESC&$limit=${DETAILS_LIMIT}`
+        }
+        return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`department = '${dept}'`)}&$order=vouchers_paid DESC&$limit=${DETAILS_LIMIT}`
+    }
+
     // Default vendor fallback
     return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`vendor = '${vendorName}'`)}&$order=fiscal_year DESC&$limit=${DETAILS_LIMIT}`
   }
