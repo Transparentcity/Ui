@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, Database, Cpu, Sparkles, Map, Circle, CheckCircle2 } from "lucide-react"
+import { ChevronDown, Database, Cpu, Sparkles, Map as MapIcon, Circle, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export interface RoadmapStep {
@@ -492,7 +492,7 @@ function CollapsibleItem({
         </span>
         {isOnRoadmap ? (
           <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide shrink-0">
-            <Map className="w-2.5 h-2.5" />
+            <MapIcon className="w-2.5 h-2.5" />
             On Roadmap
           </span>
         ) : isNew ? (
@@ -584,7 +584,7 @@ function CollapsibleGroup({
         <span className="text-xs text-gray-500">{count} detectors</span>
         {roadmapCount > 0 && (
           <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-            <Map className="w-2.5 h-2.5" />
+            <MapIcon className="w-2.5 h-2.5" />
             {roadmapCount} roadmap
           </span>
         )}
@@ -632,7 +632,7 @@ export function WasteDetectorsData() {
           </span>
           {totalRoadmap > 0 && (
             <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
-              <Map className="w-3 h-3" />
+              <MapIcon className="w-3 h-3" />
               {totalRoadmap} on roadmap
             </span>
           )}

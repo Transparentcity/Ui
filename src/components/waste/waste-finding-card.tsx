@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion, AlertCircle, Sparkles, Map } from "lucide-react"
+import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion, AlertCircle, Sparkles, Map as MapIcon } from "lucide-react"
 import { type WasteFinding } from "@/lib/apiClient"
 
 function formatDollar(amount: number | null | undefined): string {
@@ -129,6 +129,7 @@ function stripRoadmapLabel(text: string): string {
 }
 
 const DETAILS_LIMIT = 20
+const PAYROLL_FETCH_LIMIT = 60
 const SOCRATA_PAYROLL = "https://data.sfgov.org/resource/88g8-5mnd.json"
 const SOCRATA_VENDOR = "https://data.sfgov.org/resource/n9pm-xkyq.json"
 const SOCRATA_311 = "https://data.sfgov.org/resource/vw6y-z8j6.json"
@@ -160,6 +161,38 @@ function formatDate(dateStr: string | undefined): string {
   return new Date(dateStr).toLocaleDateString()
 }
 
+function aggregatePayrollRows(rows: AnyDetailRow[]): AnyDetailRow[] {
+  const grouped = new Map<string, AnyDetailRow & { _jobs: Set<string> }>()
+
+  for (const row of rows) {
+    const key = `${row.year ?? ""}|||${row.employee_identifier ?? ""}`
+    const existing = grouped.get(key)
+    if (existing) {
+      const addNum = (a: string | undefined, b: string | undefined) => {
+        const va = Number(a ?? "0") || 0
+        const vb = Number(b ?? "0") || 0
+        return String(va + vb)
+      }
+      existing.hours = addNum(existing.hours, row.hours)
+      existing.salaries = addNum(existing.salaries, row.salaries)
+      existing.overtime = addNum(existing.overtime, row.overtime)
+      existing.other_salaries = addNum(existing.other_salaries, row.other_salaries)
+      existing.total_salary = addNum(existing.total_salary, row.total_salary)
+      if (row.job) existing._jobs.add(row.job)
+    } else {
+      grouped.set(key, {
+        ...row,
+        _jobs: new Set(row.job ? [row.job] : []),
+      })
+    }
+  }
+
+  return Array.from(grouped.values()).map(({ _jobs, ...rest }) => ({
+    ...rest,
+    job: Array.from(_jobs).join(" / ") || rest.job,
+  }))
+}
+
 function getDepartmentFilter(finding: WasteFinding): string {
   return escapeSoqlLike((finding.entity || "").split("(")[0].trim())
 }
@@ -178,14 +211,14 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
 
     if (finding.subcategory === "Comp Time Manipulation") {
       const where = `${baseWhere} and salaries > 10000 and other_salaries > 0 and (other_salaries / salaries) > 0.30`
-      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent("year desc, other_salaries desc")}&$limit=${DETAILS_LIMIT}`
+      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent("year desc, other_salaries desc")}&$limit=${PAYROLL_FETCH_LIMIT}`
     }
 
     if (
       finding.subcategory === "Hours Feasibility" ||
       finding.subcategory === "Impossibility Check"
     ) {
-      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("year desc, hours desc")}&$limit=${DETAILS_LIMIT}`
+      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("year desc, hours desc")}&$limit=${PAYROLL_FETCH_LIMIT}`
     }
 
     if (
@@ -195,11 +228,11 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
       finding.subcategory.includes("Overtime") ||
       finding.tool.includes("Pareto")
     ) {
-      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("year desc, overtime desc")}&$limit=${DETAILS_LIMIT}`
+      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("year desc, overtime desc")}&$limit=${PAYROLL_FETCH_LIMIT}`
     }
 
     if (finding.subcategory.includes("Pension Spiking")) {
-      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("year desc, total_salary desc")}&$limit=${DETAILS_LIMIT}`
+      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("year desc, total_salary desc")}&$limit=${PAYROLL_FETCH_LIMIT}`
     }
   }
 
@@ -208,6 +241,8 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
     const select = "vendor,department,vouchers_paid,voucher,purchase_order,fiscal_year"
     const vendorName = escapeSoqlLike(finding.entity || "")
     
+    const vendorOrder = "fiscal_year DESC,vouchers_paid DESC"
+
     // SSS Duplicates
     if (finding.subcategory === "Duplicate Payments" && finding.amount) {
       let whereClause = `vendor = '${vendorName}'`
@@ -216,12 +251,12 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
           const amount = amountMatch[1].replace(/,/g, "")
           whereClause += ` AND vouchers_paid = ${amount}`
       }
-      return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(whereClause)}&$order=vouchers_paid DESC&$limit=${DETAILS_LIMIT}`
+      return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(whereClause)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
     }
 
     // Ghost Vendor
     if (finding.subcategory === "Unregistered Vendor" || finding.subcategory === "Ghost Vendor") {
-       return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`vendor = '${vendorName}'`)}&$order=vouchers_paid DESC&$limit=${DETAILS_LIMIT}`
+       return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`vendor = '${vendorName}'`)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
     }
     
     // Misdirected Payment (Entity is PO)
@@ -238,14 +273,14 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
                 whereClause += ` AND vouchers_paid = ${amount}`
             }
 
-            return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(whereClause)}&$order=vouchers_paid DESC&$limit=${DETAILS_LIMIT}`
+            return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(whereClause)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
         }
     }
 
     // Benford/Statistical Anomaly (Entity is Department)
     if (finding.subcategory === "Statistical Anomaly") {
         const dept = escapeSoqlLike(finding.entity || "")
-        return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`department = '${dept}'`)}&$order=vouchers_paid DESC&$limit=${DETAILS_LIMIT}`
+        return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`department = '${dept}'`)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
     }
 
     // Threshold Avoidance (Entity is "Dept (Limit $X)")
@@ -257,13 +292,13 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
             const low = rangeMatch[1].replace(/,/g, "")
             const high = rangeMatch[2].replace(/,/g, "")
             const where = `department = '${dept}' AND vouchers_paid >= ${low} AND vouchers_paid <= ${high}`
-            return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=vouchers_paid DESC&$limit=${DETAILS_LIMIT}`
+            return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
         }
-        return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`department = '${dept}'`)}&$order=vouchers_paid DESC&$limit=${DETAILS_LIMIT}`
+        return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`department = '${dept}'`)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
     }
 
     // Default vendor fallback
-    return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`vendor = '${vendorName}'`)}&$order=fiscal_year DESC&$limit=${DETAILS_LIMIT}`
+    return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`vendor = '${vendorName}'`)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
   }
 
   // INFRASTRUCTURE
@@ -328,7 +363,18 @@ export function WasteFindingCard({
       if (!response.ok) {
         throw new Error(`Failed to load details (${response.status})`)
       }
-      const rows = (await response.json()) as AnyDetailRow[]
+      let rows = (await response.json()) as AnyDetailRow[]
+      if (finding.category.toLowerCase().includes("payroll")) {
+        rows = aggregatePayrollRows(rows).slice(0, DETAILS_LIMIT)
+      }
+      rows.sort((a, b) => {
+        const fyA = Number(a.fiscal_year ?? a.year ?? "0") || 0
+        const fyB = Number(b.fiscal_year ?? b.year ?? "0") || 0
+        if (fyB !== fyA) return fyB - fyA
+        const amtA = Number(a.vouchers_paid ?? a.overtime ?? a.total_salary ?? "0") || 0
+        const amtB = Number(b.vouchers_paid ?? b.overtime ?? b.total_salary ?? "0") || 0
+        return amtB - amtA
+      })
       setDetailsRows(rows)
     } catch (error) {
       const message =
@@ -500,7 +546,7 @@ export function WasteFindingCard({
         {/* On Roadmap badge for detectors not yet live */}
         {isOnRoadmap(finding) && (
           <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide shrink-0">
-            <Map className="w-2.5 h-2.5" />
+            <MapIcon className="w-2.5 h-2.5" />
             Roadmap
           </span>
         )}
@@ -624,7 +670,7 @@ export function WasteFindingCard({
               </span>
               {isOnRoadmap(finding) && (
                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide">
-                  <Map className="w-2.5 h-2.5" />
+                  <MapIcon className="w-2.5 h-2.5" />
                   On Roadmap
                 </span>
               )}

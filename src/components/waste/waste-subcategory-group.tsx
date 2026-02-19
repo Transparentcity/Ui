@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { ChevronRight, Map } from "lucide-react"
+import { ChevronRight, Map as MapIcon } from "lucide-react"
 import type { WasteFinding } from "@/lib/apiClient"
 import { WasteFindingCard } from "./waste-finding-card"
 import type { SubGroup } from "./waste-findings-list"
@@ -103,7 +103,7 @@ export function WasteSubcategoryGroup({
         )}
         {hasRoadmapLabel(subcategory) && (
           <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide">
-            <Map className="w-2.5 h-2.5" />
+            <MapIcon className="w-2.5 h-2.5" />
             Roadmap
           </span>
         )}

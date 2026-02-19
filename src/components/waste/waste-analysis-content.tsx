@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/card"
 
 type WasteCategory = "all" | "payroll" | "vendor" | "infrastructure" | "influence" | "integrity"
-const ANALYSIS_REFRESH_ESTIMATED_SECONDS = 40
+const ANALYSIS_REFRESH_ESTIMATED_SECONDS = 120
 const ANALYSIS_REFRESH_TIMEOUT_MS = 120_000
 const WASTE_ANALYSIS_CACHE_KEY = "waste:last-analysis:v1"
 function safeSetCache(key: string, data: WasteAnalyzeResponse): void {
@@ -641,11 +641,11 @@ export function WasteAnalysisContent() {
               />
             </div>
             <p className="text-xs text-blue-700 mt-1">
-              {refreshProgress.etaLabel} · Typical refresh run: 15-40s
+              {refreshProgress.etaLabel} · Typical refresh run: 60-120s
             </p>
             {refreshProgress.isLongRunning ? (
               <p className="text-xs text-blue-700 mt-1">
-                If this exceeds 90s, use Refresh again to re-request analysis.
+                If this exceeds 150s, use Refresh again to re-request analysis.
               </p>
             ) : null}
           </CardContent>

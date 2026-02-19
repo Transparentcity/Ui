@@ -26,7 +26,7 @@ import { WasteDetectorsData } from "./waste-detectors-data"
 type SeverityFilter = "all" | "critical" | "high" | "medium"
 type WasteCategoryKey = "payroll" | "vendor" | "infrastructure" | "influence" | "confirmed" | "detectors"
 
-const WASTE_ANALYSIS_ESTIMATED_SECONDS = 45
+const WASTE_ANALYSIS_ESTIMATED_SECONDS = 120
 const WASTE_REFRESH_TIMEOUT_MS = 120_000
 const WASTE_ANALYSIS_CACHE_KEY = "waste:last-analysis:v1"
 function safeSetCache(key: string, data: WasteAnalyzeResponse): void {
@@ -404,11 +404,11 @@ export function WastePageContent() {
                 />
               </div>
               <p className="text-xs text-blue-700 mt-1">
-                {analysisProgress.etaLabel} · Typical analysis run: 20-45s
+                {analysisProgress.etaLabel} · Typical analysis run: 60-120s
               </p>
               {analysisProgress.isLongRunning ? (
                 <p className="text-xs text-blue-700 mt-1">
-                  If this exceeds 90s, use Refresh again to re-request analysis.
+                  If this exceeds 150s, use Refresh again to re-request analysis.
                 </p>
               ) : null}
             </div>
