@@ -7,8 +7,16 @@ import type { WasteFinding } from "@/lib/apiClient"
 import { WasteFindingCard } from "./waste-finding-card"
 import type { SubGroup } from "./waste-findings-list"
 
+const ROADMAP_DETECTOR_NAMES = [
+  "Address Clustering",
+  "Fiscal Sponsor Opacity",
+  "Entity Validation",
+]
+
 function hasRoadmapLabel(text: string): boolean {
-  return /\(On Roadmap\)/i.test(text)
+  if (/\(On Roadmap\)/i.test(text)) return true
+  const detectorPart = text.split(" - ").pop() ?? ""
+  return ROADMAP_DETECTOR_NAMES.some((p) => detectorPart.includes(p))
 }
 
 function stripRoadmapLabel(text: string): string {

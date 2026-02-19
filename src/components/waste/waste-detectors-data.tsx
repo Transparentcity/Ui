@@ -1,14 +1,21 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, Database, Cpu, Sparkles } from "lucide-react"
+import { ChevronDown, Database, Cpu, Sparkles, Map, Circle, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+
+export interface RoadmapStep {
+  label: string
+  done?: boolean
+}
 
 export interface DetectorInfo {
   id: string
   name: string
   description: string
   isNew?: boolean
+  isOnRoadmap?: boolean
+  roadmapSteps?: RoadmapStep[]
 }
 
 export interface DetectorGroup {
@@ -182,6 +189,22 @@ export const DETECTOR_GROUPS: DetectorGroup[] = [
           "Flags contracts awarded without competitive bidding that lack adequate justification.",
         isNew: true,
       },
+      {
+        id: "D15",
+        name: "Address Clustering",
+        description:
+          "Cross-references vendor, board-member, and employee addresses to detect overlapping shell entities sharing physical locations, bank accounts, or leadership — a classic related-party fraud signal.",
+        isNew: true,
+        isOnRoadmap: true,
+        roadmapSteps: [
+          { label: "Ingest Registered Business Locations dataset (g8m3-pdis) with full address fields", done: true },
+          { label: "Normalize and geocode vendor addresses to a canonical format" },
+          { label: "Obtain nonprofit board-member / officer data (CA Secretary of State API or IRS 990 bulk data)" },
+          { label: "Build entity-resolution graph linking vendors, officers, and addresses" },
+          { label: "Implement clustering algorithm to detect shared-address / shared-officer groups" },
+          { label: "Cross-reference clusters against vendor payment data to surface shell-entity patterns" },
+        ],
+      },
     ],
   },
   {
@@ -282,6 +305,29 @@ export const DETECTOR_GROUPS: DetectorGroup[] = [
         description:
           "Flags large payments routed through fiscal sponsors where the ultimate recipient organization is obscured.",
         isNew: true,
+        isOnRoadmap: true,
+        roadmapSteps: [
+          { label: "Identify fiscal-sponsor relationships from grant contract metadata and IRS 990 Schedule R" },
+          { label: "Obtain sub-grantee disbursement records (currently not in open data — requires city data-sharing agreement)" },
+          { label: "Build pass-through payment graph linking sponsor → sub-recipient → ultimate performer" },
+          { label: "Flag contracts where >50% of funds are re-granted with no public sub-recipient disclosure" },
+          { label: "Cross-reference sub-recipients against business registry and board-member overlap" },
+        ],
+      },
+      {
+        id: "NP4",
+        name: "AG Registry Validation",
+        description:
+          "Nightly cross-reference of nonprofit vendor payments against the CA Attorney General's Registry of Charitable Trusts (public API). Flags nonprofits whose registration has lapsed or been revoked while still receiving city funds.",
+        isNew: true,
+        isOnRoadmap: true,
+        roadmapSteps: [
+          { label: "Obtain access to the CA Attorney General's Registry of Charitable Trusts public dataset / API" },
+          { label: "Build name-matching pipeline between vendor payment payees and AG registry entities (fuzzy + normalized)" },
+          { label: "Implement nightly fetch of AG registry status (active, delinquent, revoked, suspended)" },
+          { label: "Cross-reference vendor payments against AG status — flag any payee in non-active state receiving >$10K" },
+          { label: "Add historical lookback to catch nonprofits that cycled in and out of compliance while receiving funds" },
+        ],
       },
     ],
   },
@@ -416,13 +462,20 @@ function CollapsibleItem({
   badge,
   description,
   isNew,
+  isOnRoadmap,
+  roadmapSteps,
 }: {
   label: string
   badge: string
   description: string
   isNew?: boolean
+  isOnRoadmap?: boolean
+  roadmapSteps?: RoadmapStep[]
 }) {
   const [open, setOpen] = useState(false)
+
+  const doneCount = roadmapSteps?.filter((s) => s.done).length ?? 0
+  const totalSteps = roadmapSteps?.length ?? 0
 
   return (
     <div className="border-b border-gray-100 last:border-b-0">
@@ -437,11 +490,16 @@ function CollapsibleItem({
         <span className="text-sm text-gray-800 font-medium flex-1">
           {label}
         </span>
-        {isNew && (
+        {isOnRoadmap ? (
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide shrink-0">
+            <Map className="w-2.5 h-2.5" />
+            On Roadmap
+          </span>
+        ) : isNew ? (
           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-100 text-violet-700 uppercase tracking-wide shrink-0">
             New
           </span>
-        )}
+        ) : null}
         <ChevronDown
           className={cn(
             "w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform",
@@ -452,6 +510,44 @@ function CollapsibleItem({
       {open && (
         <div className="px-3 pb-3 pl-[52px]">
           <p className="text-xs text-gray-500 leading-relaxed">{description}</p>
+
+          {isOnRoadmap && roadmapSteps && roadmapSteps.length > 0 && (
+            <div className="mt-3 p-3 bg-amber-50/60 border border-amber-200 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-semibold text-amber-800 uppercase tracking-wide">
+                  Steps to bring live
+                </p>
+                <span className="text-[10px] text-amber-600 font-medium">
+                  {doneCount}/{totalSteps} complete
+                </span>
+              </div>
+              <div className="w-full h-1.5 rounded-full bg-amber-200/60 overflow-hidden mb-2.5">
+                <div
+                  className="h-full rounded-full bg-amber-500 transition-all"
+                  style={{ width: `${totalSteps > 0 ? (doneCount / totalSteps) * 100 : 0}%` }}
+                />
+              </div>
+              <ol className="space-y-1.5">
+                {roadmapSteps.map((step, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    {step.done ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    ) : (
+                      <Circle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                    )}
+                    <span
+                      className={cn(
+                        "text-xs leading-relaxed",
+                        step.done ? "text-gray-400 line-through" : "text-gray-700"
+                      )}
+                    >
+                      {step.label}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -462,12 +558,14 @@ function CollapsibleGroup({
   title,
   count,
   newCount,
+  roadmapCount,
   children,
   defaultOpen,
 }: {
   title: string
   count: number
   newCount: number
+  roadmapCount: number
   children: React.ReactNode
   defaultOpen?: boolean
 }) {
@@ -484,6 +582,12 @@ function CollapsibleGroup({
           {title}
         </span>
         <span className="text-xs text-gray-500">{count} detectors</span>
+        {roadmapCount > 0 && (
+          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+            <Map className="w-2.5 h-2.5" />
+            {roadmapCount} roadmap
+          </span>
+        )}
         {newCount > 0 && (
           <span className="text-[10px] font-semibold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded">
             {newCount} new
@@ -507,7 +611,11 @@ export function WasteDetectorsData() {
     0
   )
   const totalNew = DETECTOR_GROUPS.reduce(
-    (sum, g) => sum + g.detectors.filter((d) => d.isNew).length,
+    (sum, g) => sum + g.detectors.filter((d) => d.isNew && !d.isOnRoadmap).length,
+    0
+  )
+  const totalRoadmap = DETECTOR_GROUPS.reduce(
+    (sum, g) => sum + g.detectors.filter((d) => d.isOnRoadmap).length,
     0
   )
   const totalNewDatasets = DATASETS.filter((d) => d.isNew).length
@@ -522,6 +630,12 @@ export function WasteDetectorsData() {
           <span className="text-xs text-gray-500">
             {totalDetectors} total
           </span>
+          {totalRoadmap > 0 && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+              <Map className="w-3 h-3" />
+              {totalRoadmap} on roadmap
+            </span>
+          )}
           {totalNew > 0 && (
             <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-violet-600 bg-violet-50 px-2 py-0.5 rounded">
               <Sparkles className="w-3 h-3" />
@@ -536,13 +650,15 @@ export function WasteDetectorsData() {
 
         <div className="space-y-3">
           {DETECTOR_GROUPS.map((group) => {
-            const newCount = group.detectors.filter((d) => d.isNew).length
+            const newCount = group.detectors.filter((d) => d.isNew && !d.isOnRoadmap).length
+            const roadmapCount = group.detectors.filter((d) => d.isOnRoadmap).length
             return (
               <CollapsibleGroup
                 key={group.category}
                 title={group.label}
                 count={group.detectors.length}
                 newCount={newCount}
+                roadmapCount={roadmapCount}
                 defaultOpen={false}
               >
                 {group.detectors.map((detector) => (
@@ -552,6 +668,8 @@ export function WasteDetectorsData() {
                     label={detector.name}
                     description={detector.description}
                     isNew={detector.isNew}
+                    isOnRoadmap={detector.isOnRoadmap}
+                    roadmapSteps={detector.roadmapSteps}
                   />
                 ))}
               </CollapsibleGroup>

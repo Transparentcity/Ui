@@ -101,9 +101,27 @@ interface InfrastructureDetailRow {
 
 type AnyDetailRow = PayrollDetailRow & VendorDetailRow & InfrastructureDetailRow
 
+const ROADMAP_DETECTOR_NAMES = [
+  "Address Clustering",
+  "Fiscal Sponsor Opacity",
+  "Entity Validation",
+]
+
 function isOnRoadmap(finding: WasteFinding): boolean {
   const re = /\(On Roadmap\)/i
-  return re.test(finding.tool) || re.test(finding.subcategory)
+  if (re.test(finding.tool) || re.test(finding.subcategory)) return true
+  if (/\bOn Roadmap:/i.test(finding.description)) return true
+
+  const isConfirmed =
+    finding.category?.toLowerCase() === "confirmed" ||
+    finding.category?.toLowerCase().includes("confirmed") ||
+    finding.id?.startsWith("CONF-")
+  if (isConfirmed) {
+    const detectorPart = finding.subcategory.split(" - ").pop() ?? ""
+    return ROADMAP_DETECTOR_NAMES.some((p) => detectorPart.includes(p))
+  }
+
+  return false
 }
 
 function stripRoadmapLabel(text: string): string {

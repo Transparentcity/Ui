@@ -14,7 +14,7 @@ import {
 // not updated, the count-test fails and reminds you to add it here too.
 // ---------------------------------------------------------------------------
 const EXPECTED_DETECTOR_GROUPS = 6;
-const EXPECTED_TOTAL_DETECTORS = 41;
+const EXPECTED_TOTAL_DETECTORS = 43;
 const EXPECTED_TOTAL_DATASETS = 12;
 
 // ---------------------------------------------------------------------------
@@ -140,6 +140,36 @@ describe("isNew flags", () => {
     const nonprofit = DETECTOR_GROUPS.find((g) => g.category === "nonprofit");
     expect(nonprofit).toBeDefined();
     for (const d of nonprofit!.detectors) {
+      expect(d.isNew).toBe(true);
+    }
+  });
+});
+
+// ===========================================================================
+// 2b. ROADMAP-FLAG CONSISTENCY
+// ===========================================================================
+describe("isOnRoadmap flags", () => {
+  it("at least one detector is flagged as on roadmap", () => {
+    const roadmapDetectors = DETECTOR_GROUPS.flatMap((g) =>
+      g.detectors.filter((d) => d.isOnRoadmap)
+    );
+    expect(roadmapDetectors.length).toBeGreaterThan(0);
+  });
+
+  it("roadmap detectors include Address Clustering, Fiscal Sponsor Opacity, and AG Registry Validation", () => {
+    const roadmapNames = DETECTOR_GROUPS.flatMap((g) =>
+      g.detectors.filter((d) => d.isOnRoadmap).map((d) => d.name)
+    );
+    expect(roadmapNames).toContain("Address Clustering");
+    expect(roadmapNames).toContain("Fiscal Sponsor Opacity");
+    expect(roadmapNames).toContain("AG Registry Validation");
+  });
+
+  it("roadmap detectors are also flagged as new", () => {
+    const roadmapDetectors = DETECTOR_GROUPS.flatMap((g) =>
+      g.detectors.filter((d) => d.isOnRoadmap)
+    );
+    for (const d of roadmapDetectors) {
       expect(d.isNew).toBe(true);
     }
   });
