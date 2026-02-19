@@ -13,9 +13,10 @@ import {
 /**
  * Fetch waste analysis findings with TanStack Query.
  *
- * The query is disabled by default (`enabled = false`) so the page can
- * display cached localStorage data first.  Call the returned
- * `forceRefetch()` to run a fresh analysis with `force_refresh=true`.
+ * The query is enabled by default (`enabled = true`) but callers can
+ * disable it to defer loading (e.g. display cached localStorage first).
+ * Call the returned `forceRefetch()` to run a fresh analysis with
+ * `force_refresh=true`.
  */
 export function useWasteAnalysis(
   category?: string,

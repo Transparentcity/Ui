@@ -254,7 +254,7 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
     
     // Misdirected Payment (Entity is PO)
     if (finding.subcategory === "Misdirected Payment") {
-        const poMatch = finding.entity.match(/PO\s+(.+)/)
+        const poMatch = (finding.entity ?? "").match(/PO\s+(.+)/)
         if (poMatch) {
             const po = escapeSoqlLike(poMatch[1])
             let whereClause = `purchase_order = '${po}'`
@@ -312,7 +312,7 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
 
     // Equity Gap (Entity is "District X")
     if (finding.subcategory === "District Equity Gap") {
-        const distMatch = finding.entity.match(/District\s+(\d+)/)
+        const distMatch = (finding.entity ?? "").match(/District\s+(\d+)/)
         if (distMatch) {
             const dist = distMatch[1]
              return `${SOCRATA_311}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`supervisor_district = '${dist}'`)}&$order=requested_datetime DESC&$limit=${DETAILS_LIMIT}`

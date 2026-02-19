@@ -228,7 +228,7 @@ export function WastePageContent() {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
   })
 
-  const { data, isLoading, error, forceRefetch } = useWasteAnalysis(
+  const { data, error, forceRefetch } = useWasteAnalysis(
     undefined,
     allowAutoFetch
   )

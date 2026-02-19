@@ -251,7 +251,7 @@ export function WasteAnalysisContent() {
   const [refreshStartedAt, setRefreshStartedAt] = useState<number | null>(null)
   const [refreshElapsedSeconds, setRefreshElapsedSeconds] = useState(0)
 
-  const { data, isLoading, error, forceRefetch } = useWasteAnalysis(undefined, allowAutoFetch)
+  const { data, error, forceRefetch } = useWasteAnalysis(undefined, allowAutoFetch)
   const displayData = data ?? cachedData
 
   useEffect(() => {
