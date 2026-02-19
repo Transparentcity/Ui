@@ -161,36 +161,29 @@ function formatDate(dateStr: string | undefined): string {
   return new Date(dateStr).toLocaleDateString()
 }
 
-function aggregatePayrollRows(rows: AnyDetailRow[]): AnyDetailRow[] {
-  const grouped = new Map<string, AnyDetailRow & { _jobs: Set<string> }>()
-
+function groupPayrollRows(rows: AnyDetailRow[]): AnyDetailRow[] {
+  const empTotals = new Map<string, number>()
   for (const row of rows) {
     const key = `${row.year ?? ""}|||${row.employee_identifier ?? ""}`
-    const existing = grouped.get(key)
-    if (existing) {
-      const addNum = (a: string | undefined, b: string | undefined) => {
-        const va = Number(a ?? "0") || 0
-        const vb = Number(b ?? "0") || 0
-        return String(va + vb)
-      }
-      existing.hours = addNum(existing.hours, row.hours)
-      existing.salaries = addNum(existing.salaries, row.salaries)
-      existing.overtime = addNum(existing.overtime, row.overtime)
-      existing.other_salaries = addNum(existing.other_salaries, row.other_salaries)
-      existing.total_salary = addNum(existing.total_salary, row.total_salary)
-      if (row.job) existing._jobs.add(row.job)
-    } else {
-      grouped.set(key, {
-        ...row,
-        _jobs: new Set(row.job ? [row.job] : []),
-      })
-    }
+    const amt = Number(row.overtime ?? row.total_salary ?? "0") || 0
+    empTotals.set(key, (empTotals.get(key) ?? 0) + amt)
   }
 
-  return Array.from(grouped.values()).map(({ _jobs, ...rest }) => ({
-    ...rest,
-    job: Array.from(_jobs).join(" / ") || rest.job,
-  }))
+  return [...rows].sort((a, b) => {
+    const yearA = Number(a.year ?? "0") || 0
+    const yearB = Number(b.year ?? "0") || 0
+    if (yearB !== yearA) return yearB - yearA
+
+    const keyA = `${a.year ?? ""}|||${a.employee_identifier ?? ""}`
+    const keyB = `${b.year ?? ""}|||${b.employee_identifier ?? ""}`
+    const totalA = empTotals.get(keyA) ?? 0
+    const totalB = empTotals.get(keyB) ?? 0
+    if (totalB !== totalA) return totalB - totalA
+
+    const amtA = Number(a.overtime ?? a.total_salary ?? "0") || 0
+    const amtB = Number(b.overtime ?? b.total_salary ?? "0") || 0
+    return amtB - amtA
+  })
 }
 
 function getDepartmentFilter(finding: WasteFinding): string {
@@ -365,16 +358,17 @@ export function WasteFindingCard({
       }
       let rows = (await response.json()) as AnyDetailRow[]
       if (finding.category.toLowerCase().includes("payroll")) {
-        rows = aggregatePayrollRows(rows).slice(0, DETAILS_LIMIT)
+        rows = groupPayrollRows(rows).slice(0, DETAILS_LIMIT)
+      } else {
+        rows.sort((a, b) => {
+          const fyA = Number(a.fiscal_year ?? a.year ?? "0") || 0
+          const fyB = Number(b.fiscal_year ?? b.year ?? "0") || 0
+          if (fyB !== fyA) return fyB - fyA
+          const amtA = Number(a.vouchers_paid ?? a.overtime ?? a.total_salary ?? "0") || 0
+          const amtB = Number(b.vouchers_paid ?? b.overtime ?? b.total_salary ?? "0") || 0
+          return amtB - amtA
+        })
       }
-      rows.sort((a, b) => {
-        const fyA = Number(a.fiscal_year ?? a.year ?? "0") || 0
-        const fyB = Number(b.fiscal_year ?? b.year ?? "0") || 0
-        if (fyB !== fyA) return fyB - fyA
-        const amtA = Number(a.vouchers_paid ?? a.overtime ?? a.total_salary ?? "0") || 0
-        const amtB = Number(b.vouchers_paid ?? b.overtime ?? b.total_salary ?? "0") || 0
-        return amtB - amtA
-      })
       setDetailsRows(rows)
     } catch (error) {
       const message =
@@ -492,23 +486,38 @@ export function WasteFindingCard({
             </tr>
           </thead>
           <tbody>
-            {detailsRows.map((row, idx) => (
-              <tr key={`${row.employee_identifier ?? "employee"}-${idx}`} className="border-t border-gray-100">
-                <td className="px-3 py-2 text-gray-600">{row.year || "—"}</td>
-                <td className="px-3 py-2 text-gray-800">
-                  {row.employee_identifier || "Unknown"}
-                </td>
-                <td className="px-3 py-2 text-gray-600">{row.job || "—"}</td>
-                <td className="px-3 py-2 text-gray-600">{formatHours(row.hours)}</td>
-                <td className="px-3 py-2 text-gray-600">{formatWeeklyHours(row.hours)}</td>
-                <td className="px-3 py-2 text-gray-600">
-                  {formatCurrency(row.salaries)}
-                </td>
-                <td className="px-3 py-2 text-gray-600">
-                  {amountValue(row)}
-                </td>
-              </tr>
-            ))}
+            {detailsRows.map((row, idx) => {
+              const prev = idx > 0 ? detailsRows[idx - 1] : null
+              const isFirstInGroup =
+                !prev ||
+                prev.year !== row.year ||
+                prev.employee_identifier !== row.employee_identifier
+              return (
+                <tr
+                  key={`${row.employee_identifier ?? "employee"}-${row.job ?? ""}-${idx}`}
+                  className={cn(
+                    "border-t",
+                    isFirstInGroup ? "border-gray-200" : "border-gray-50"
+                  )}
+                >
+                  <td className="px-3 py-2 text-gray-600">
+                    {isFirstInGroup ? (row.year || "—") : ""}
+                  </td>
+                  <td className={cn("px-3 py-2", isFirstInGroup ? "text-gray-800" : "text-gray-400")}>
+                    {isFirstInGroup ? (row.employee_identifier || "Unknown") : ""}
+                  </td>
+                  <td className="px-3 py-2 text-gray-600">{row.job || "—"}</td>
+                  <td className="px-3 py-2 text-gray-600">{formatHours(row.hours)}</td>
+                  <td className="px-3 py-2 text-gray-600">{formatWeeklyHours(row.hours)}</td>
+                  <td className="px-3 py-2 text-gray-600">
+                    {formatCurrency(row.salaries)}
+                  </td>
+                  <td className="px-3 py-2 text-gray-600">
+                    {amountValue(row)}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
     )
@@ -519,7 +528,7 @@ export function WasteFindingCard({
       className={cn(
         "border rounded-lg transition-all cursor-pointer",
         isExpanded ? "shadow-sm border-gray-300" : "border-gray-200 hover:border-gray-300",
-        finding.isPartialData && "border-l-2 border-l-amber-400"
+        finding.is_partial_data && "border-l-2 border-l-amber-400"
       )}
       onClick={onToggle}
     >
@@ -639,8 +648,8 @@ export function WasteFindingCard({
           )}>
             <ConfIcon className="w-3.5 h-3.5" />
             <span className="font-medium">{conf.label}</span>
-            {finding.confidenceReason && (
-              <span className="text-gray-500 ml-1">— {finding.confidenceReason}</span>
+            {finding.confidence_reason && (
+              <span className="text-gray-500 ml-1">— {finding.confidence_reason}</span>
             )}
           </div>
 
@@ -653,7 +662,7 @@ export function WasteFindingCard({
           )}
 
           {/* Partial data indicator */}
-          {finding.isPartialData && !finding.caveat?.includes("partial") && (
+          {finding.is_partial_data && !finding.caveat?.includes("partial") && (
             <div className="flex items-start gap-2 mb-3 p-2 bg-amber-50 border border-amber-100 rounded-md">
               <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
               <p className="text-xs text-amber-700">

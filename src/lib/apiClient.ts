@@ -3710,19 +3710,27 @@ export interface WasteFinding {
   id: string;
   category: "payroll" | "vendor" | "infrastructure" | "integrity" | "influence" | "confirmed";
   subcategory: string;
-  severity: "critical" | "high" | "medium";
+  severity: "critical" | "high" | "medium" | "low" | "info";
   entity: string;
   metric: string;
   metricDetail: string;
   amount: number | null;
   description: string;
   tool: string;
-  confidence: "high" | "medium" | "low";
-  confidenceReason: string | null;
+  confidence: "High" | "Medium" | "Low";
+  confidence_reason: string | null;
+  confidence_score: number;
+  estimated_dollar_impact: number | null;
+  corroboration_count: number;
+  data_completeness: number;
   priority_score: number;
-  isPartialData: boolean;
+  is_partial_data: boolean;
+  truncated_total: number | null;
   caveat: string | null;
+  narrative: string | null;
+  finding_report: string | null;
   is_new?: boolean;
+  fiscal_year?: number | null;
 }
 
 export interface WasteDataFreshness {
@@ -3784,7 +3792,7 @@ export function getWasteSummary(
 export async function exportWasteFindings(
   token: string,
   category: string,
-  format: "csv" | "json"
+  format: "csv" | "json" | "xlsx"
 ): Promise<Blob> {
   const url = `${API_BASE}/api/waste/export/${category}?format=${format}`;
   const res = await fetch(url, {
@@ -3796,6 +3804,24 @@ export async function exportWasteFindings(
   });
   if (!res.ok) {
     throw new Error(`Export failed: ${res.status}`);
+  }
+  return res.blob();
+}
+
+export async function exportAuditorReport(
+  token: string,
+  category: string = "all"
+): Promise<Blob> {
+  const url = `${API_BASE}/api/waste/export-report?category=${encodeURIComponent(category)}`;
+  const res = await fetch(url, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Auditor report export failed: ${res.status}`);
   }
   return res.blob();
 }
