@@ -3,7 +3,6 @@ import type { MetadataRoute } from "next";
 import {
   listPublicCitiesForSitemap,
   listPublicMapsForSitemap,
-  getPublicCityDetail,
 } from "@/lib/publicApiClient";
 import { getSiteOrigin } from "@/lib/siteUrl";
 
@@ -79,30 +78,11 @@ export async function GET(): Promise<Response> {
     priority: 0.5,
   }));
 
+  // NOTE: Avoid per-city detail fetches here. During `next build`, this route
+  // can be invoked for static generation and backend calls can easily exceed
+  // the 60s route build timeout (N+1 calls). We keep the sitemap useful
+  // without category pages; search engines can still discover them via links.
   const categoryEntries: SitemapEntry[] = [];
-  for (const city of cities) {
-    try {
-      const cityDetail = await getPublicCityDetail(city.id);
-      if (cityDetail?.metrics?.length) {
-        const categories = [
-          ...new Set(
-            cityDetail.metrics
-              .map((m) => m.category)
-              .filter((c): c is string => Boolean(c))
-          ),
-        ];
-        for (const cat of categories) {
-          categoryEntries.push({
-            loc: `${origin}/c/${city.slug}/category/${encodeURIComponent(cat)}?id=${city.id}`,
-            changefreq: "weekly",
-            priority: 0.5,
-          });
-        }
-      }
-    } catch {
-      // Skip this city's categories if detail fetch fails
-    }
-  }
 
   const entries: SitemapEntry[] = [
     { loc: `${origin}/`, changefreq: "weekly", priority: 1.0 },

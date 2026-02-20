@@ -157,6 +157,8 @@ export interface Anomaly {
   group_field?: string              // e.g., "priority_final"
   group_value?: string              // e.g., "C"
   period_type?: string              // e.g., "month"
+  period_date?: string | null       // Optional date for the period (backend-dependent)
+  comparison_window?: string | null // Optional window label/description (backend-dependent)
   pct_change?: number               // Percentage change
   is_anomaly?: boolean
   chart_payload?: {

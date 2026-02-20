@@ -20,8 +20,9 @@ import { CampaignDialog } from "./campaign-dialog"
 import { ThrottleSettings } from "./throttle-settings"
 import { deleteCampaign, updateCampaignStatus } from "@/app/actions/campaigns"
 import { queueCampaignMessages, regenerateCampaign } from "@/app/actions/send-queue"
-import { useAnomalies } from "@/lib/hooks/useAnomalies"
+import { useAnomaliesPublic } from "@/lib/hooks/useAnomaliesPublic"
 import { mapApiAnomaliesToCrm } from "@/lib/anomalyMapper"
+import { isAnomalyIgnored } from "./anomalies-manager"
 
 // San Francisco city_id - TODO: make this configurable
 const SF_CITY_ID = 57260
@@ -64,13 +65,22 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
   const [statusMessage, setStatusMessage] = useState<{ type: 'loading' | 'success' | 'error', text: string } | null>(null)
   
   // Fetch anomalies from Platform API for email generation
-  // High limit ensures 5+ anomalies per district plus citywide
-  const { data: anomalyData } = useAnomalies({
+  // API max limit is 200 - this should provide ~15+ anomalies per district plus citywide
+  // Using public hook (no Auth0 required) for CRM pages
+  const { data: anomalyData, isLoading: anomaliesLoading, error: anomaliesError } = useAnomaliesPublic({
     is_anomaly: true,
-    limit: 500,
+    limit: 200,
     city_id: SF_CITY_ID,
   })
   const anomalies = anomalyData?.results ? mapApiAnomaliesToCrm(anomalyData.results) : []
+  
+  // Debug logging for anomalies
+  console.log('[CampaignsManager] Anomalies status:', {
+    loading: anomaliesLoading,
+    error: anomaliesError ? String(anomaliesError) : undefined,
+    count: anomalies.length,
+    rawResultsCount: anomalyData?.results?.length ?? 0
+  })
 
   const filteredCampaigns = campaigns.filter(campaign =>
     campaign.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -112,11 +122,18 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
     }
 
     if (confirm(`Generate ${contactIds.length} AI-personalized messages with anomaly data for this campaign? This may take 30-60 seconds.`)) {
+      console.log('[CampaignsManager] Starting email generation with', anomalies.length, 'anomalies')
+      if (anomalies.length === 0) {
+        console.warn('[CampaignsManager] WARNING: No anomalies available! Check auth and API connection.')
+      }
+      // Serialize anomalies to plain objects for server action (Next.js requirement)
+      const serializedAnomalies = JSON.parse(JSON.stringify(anomalies))
+      console.log('[CampaignsManager] Serialized anomalies count:', serializedAnomalies.length)
       setGeneratingCampaignId(campaignId)
       setStatusMessage({ type: 'loading', text: `Generating ${contactIds.length} personalized emails with AI...` })
       startTransition(async () => {
         try {
-          await queueCampaignMessages(campaignId, templateId, contactIds, anomalies)
+          await queueCampaignMessages(campaignId, templateId, contactIds, serializedAnomalies)
           await updateCampaignStatus(campaignId, 'active')
           setStatusMessage({ type: 'success', text: `Successfully generated ${contactIds.length} emails! Check Message Review to approve them.` })
           setTimeout(() => setStatusMessage(null), 5000)
@@ -142,10 +159,76 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
       return
     }
 
+    // Check if anomalies are still loading
+    if (anomaliesLoading) {
+      alert('Anomaly data is still loading. Please wait a moment and try again.')
+      return
+    }
+    
+    // Check if there was an error loading anomalies
+    if (anomaliesError) {
+      alert(`Error loading anomaly data: ${String(anomaliesError)}. Please refresh the page and try again.`)
+      return
+    }
+    
+    // Warn if no anomalies available
+    if (anomalies.length === 0) {
+      const proceed = confirm(
+        'Warning: No anomaly data is available. This could mean:\n\n' +
+        '• You may not be logged in\n' +
+        '• The anomaly API may be unavailable\n' +
+        '• There may be no anomalies detected for San Francisco\n\n' +
+        'Emails will be generated without specific anomaly data. Continue anyway?'
+      )
+      if (!proceed) return
+    }
+
     if (confirm(`This will clear any pending/queued messages and generate ${contactIds.length} new AI-personalized messages. This may take 30-60 seconds. Continue?`)) {
+      console.log('[CampaignsManager] Starting regeneration with', anomalies.length, 'anomalies')
+      console.log('[CampaignsManager] Anomaly loading state:', { loading: anomaliesLoading, error: anomaliesError ? String(anomaliesError) : undefined })
+      
+      // Filter out ignored anomalies before creating slim versions
+      const activeAnomalies = anomalies.filter(a => !isAnomalyIgnored(a.id))
+      const ignoredCount = anomalies.length - activeAnomalies.length
+      if (ignoredCount > 0) {
+        console.log(`[CampaignsManager] Excluded ${ignoredCount} ignored anomalies`)
+      }
+      
+      // Create slim anomaly objects with only fields needed for email generation
+      // This avoids Next.js server action payload size limits (chart_payload can be huge)
+      const slimAnomalies = activeAnomalies.map(a => ({
+        id: a.id,
+        title: a.title,
+        description: a.description,
+        district: a.district,
+        district_label: a.district_label,
+        is_citywide: a.is_citywide,
+        metric_id: a.metric_id,
+        metric_name: (a as any).metric_name,
+        pct_change: a.pct_change,
+        severity: a.severity,
+        period_type: a.period_type,
+        period_date: (a as any).period_date,
+        group_field: a.group_field,
+        group_value: a.group_value,
+        recent_mean: (a as any).recent_mean,
+        comparison_mean: (a as any).comparison_mean,
+        comparison_window: (a as any).comparison_window,
+        metric_category: (a as any).metric_category,
+        is_anomaly: a.is_anomaly,
+        created_at: a.created_at,
+      }))
+      console.log('[CampaignsManager] Slim anomalies count:', slimAnomalies.length)
+      if (slimAnomalies.length > 0) {
+        console.log('[CampaignsManager] First slim anomaly:', slimAnomalies[0])
+      }
       setGeneratingCampaignId(campaignId)
       setStatusMessage({ type: 'loading', text: `Generating ${contactIds.length} personalized emails with AI...` })
 
+      // Capture anomalies in closure before startTransition
+      const anomaliesToSend = slimAnomalies
+      console.log('[CampaignsManager] About to call regenerateCampaign with', anomaliesToSend.length, 'anomalies')
+      
       startTransition(async () => {
         try {
           await regenerateCampaign(
@@ -153,7 +236,7 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
             templateId,
             contactIds,
             true, // clear existing queued/pending messages
-            anomalies // pass anomalies from Platform API
+            anomaliesToSend // pass serialized anomalies from Platform API
           )
           setStatusMessage({ type: 'success', text: `Successfully generated ${contactIds.length} emails! Check Message Review to approve them.` })
           setTimeout(() => setStatusMessage(null), 5000)

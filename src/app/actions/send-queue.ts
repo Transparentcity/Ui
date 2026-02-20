@@ -478,6 +478,17 @@ export async function rejectQueueItems(ids: string[]) {
 // Regenerate specific queue items with AI
 /** anomaliesFromApi: when provided, use these (from Platform API) instead of DB. from Platform API. */
 export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Anomaly[]) {
+  console.log("[v0] ========================================")
+  console.log("[v0] REGENERATE QUEUE ITEMS CALLED")
+  console.log("[v0] ========================================")
+  console.log("[v0] IDs to regenerate:", ids.length)
+  console.log("[v0] anomaliesFromApi provided:", anomaliesFromApi ? 'yes' : 'no')
+  console.log("[v0] anomaliesFromApi length:", anomaliesFromApi?.length ?? 0)
+  if (anomaliesFromApi && anomaliesFromApi.length > 0) {
+    const citywideIncoming = anomaliesFromApi.filter(a => a.is_citywide === true || a.district === 0).length
+    console.log("[v0] Citywide in incoming data:", citywideIncoming)
+  }
+  
   const db = createClient()
   
   // Fetch the items with their contacts
@@ -552,6 +563,20 @@ export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Ano
   // Generate new content for each item
   const { generateText } = await import("ai")
   
+  // Separate anomalies by district vs citywide for smarter selection
+  const citywidePool = anomalies.filter(a => 
+    a.is_citywide === true || a.district === 0 || a.district_label?.toLowerCase() === 'citywide'
+  )
+  const districtPools: Record<string, any[]> = {}
+  for (const a of anomalies) {
+    if (a.is_citywide || a.district === 0) continue
+    const distNum = (a.district_label || '').replace(/\D/g, '') || String(a.district)
+    if (!districtPools[distNum]) districtPools[distNum] = []
+    districtPools[distNum].push(a)
+  }
+  
+  console.log(`[v0] Anomaly pools: citywide=${citywidePool.length}, districts=${Object.keys(districtPools).join(',')}`)
+  
   for (const item of itemsArr) {
     const contact = item.prospect
     if (!contact) continue
@@ -559,37 +584,85 @@ export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Ano
     const template = item.campaign_id ? campaignTemplates[item.campaign_id] : null
     const firstName = contact.name?.split(" ")[0] || "there"
     
+    // Use random offset to ensure different anomalies each regeneration
+    const randomOffset = Math.floor(Math.random() * 100)
+    console.log(`[v0] Regenerating for ${contact.name} with random offset ${randomOffset}`)
+    
     // Find matching anomalies for this contact
-    const contactJurisdiction = contact.jurisdiction?.toLowerCase()?.trim() || ""
-    const matchedAnomalies = anomalies.filter(anomaly => {
-      if (!anomaly.district_label || !contactJurisdiction) return false
-      const anomalyDistrict = anomaly.district_label.toLowerCase().trim()
-      const contactNum = contactJurisdiction.replace(/\D/g, '')
-      const anomalyNum = anomalyDistrict.replace(/\D/g, '')
-      return contactNum === anomalyNum
-    }).slice(0, 3)
+    // Support both 'district' and 'jurisdiction' field names
+    const contactDistrict = (contact.district || contact.jurisdiction || "").toString().toLowerCase().trim()
+    const contactNum = contactDistrict.replace(/\D/g, '')
     
-    // Add citywide anomalies (check both is_citywide flag and district === 0)
-    const citywideAnomalies = anomalies.filter(a => {
-      if (matchedAnomalies.includes(a)) return false
-      // Check for citywide: is_citywide flag OR district === 0 OR district_label is "Citywide"
-      return a.is_citywide === true || 
-             a.district === 0 || 
-             a.district_label?.toLowerCase() === 'citywide'
-    }).slice(0, 2)
-    const allAnomalies = [...matchedAnomalies, ...citywideAnomalies].slice(0, 4)
+    // Get district anomalies for this contact
+    const contactDistrictPool = districtPools[contactNum] || []
     
-    // Debug logging
-    console.log(`[v0] Contact ${contact.name}: district matches=${matchedAnomalies.length}, citywide=${citywideAnomalies.length}, total=${allAnomalies.length}`)
+    // Use random offset to pick different anomalies each time
+    // This ensures regeneration always gives different results
+    const districtStartIdx = randomOffset % Math.max(1, contactDistrictPool.length)
+    const citywideStartIdx = randomOffset % Math.max(1, citywidePool.length)
+    
+    // Pick 2 district anomalies starting from random offset
+    const matchedAnomalies: any[] = []
+    for (let i = 0; i < Math.min(2, contactDistrictPool.length); i++) {
+      const idx = (districtStartIdx + i) % contactDistrictPool.length
+      matchedAnomalies.push(contactDistrictPool[idx])
+    }
+    
+    // Pick 2 citywide anomalies starting from random offset
+    const selectedCitywide: any[] = []
+    for (let i = 0; i < Math.min(2, citywidePool.length); i++) {
+      const idx = (citywideStartIdx + i) % citywidePool.length
+      // Don't pick same as district
+      if (!matchedAnomalies.some(m => m.id === citywidePool[idx].id)) {
+        selectedCitywide.push(citywidePool[idx])
+      }
+    }
+    
+    const allAnomalies = [...matchedAnomalies, ...selectedCitywide].slice(0, 4)
+    
+    // Log which specific anomalies were selected
+    console.log(`[v0] Contact ${contact.name}: district=${matchedAnomalies.length}, citywide=${selectedCitywide.length}, total=${allAnomalies.length}`)
+    console.log(`[v0]   District anomalies: ${matchedAnomalies.map(a => a.metric_name?.substring(0, 25)).join(', ') || 'none'}`)
+    console.log(`[v0]   Citywide anomalies: ${selectedCitywide.map(a => a.metric_name?.substring(0, 25)).join(', ') || 'none'}`)
     
     // Build prompt for regeneration - use metric_name and sanitize
-    const anomalyContext = allAnomalies.length > 0
-      ? allAnomalies.map(a => {
-          const name = sanitizeForJSON(a.metric_name || a.title) || 'Unknown'
-          const change = a.pct_change ? ` (${a.pct_change > 0 ? '+' : ''}${a.pct_change.toFixed(1)}% change)` : ''
-          return `- ${name}${change} - Severity: ${a.severity || 'medium'}`
-        }).join("\n")
-      : "No specific anomalies to mention"
+    // Separate district-specific from citywide for clearer prompting
+    const districtAnomaliesForPrompt = allAnomalies.filter(a => 
+      a.is_citywide !== true && a.district !== 0 && a.district_label?.toLowerCase() !== 'citywide'
+    )
+    const citywideAnomaliesForPrompt = allAnomalies.filter(a => 
+      a.is_citywide === true || a.district === 0 || a.district_label?.toLowerCase() === 'citywide'
+    )
+    
+    const formatAnomalyLine = (a: any) => {
+      const name = sanitizeForJSON(a.metric_name || a.title) || 'Unknown'
+      const change = a.pct_change ? ` (${a.pct_change > 0 ? '+' : ''}${a.pct_change.toFixed(1)}% change)` : ''
+      const recentVal = a.recent_mean ? `, Recent: ${a.recent_mean.toFixed(1)}` : ''
+      // Include comparison period context - use actual window size if available
+      const periodType = a.period_type || 'week'
+      const windowSize = a.comparison_window?.size || 12
+      const periodUnit = periodType === 'week' ? 'week' : periodType === 'month' ? 'month' : 'period'
+      const avgVal = a.comparison_mean ? `, ${windowSize}-${periodUnit} avg: ${a.comparison_mean.toFixed(1)}` : ''
+      // Include time period info
+      const periodDate = a.period_date ? new Date(a.period_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
+      const periodInfo = periodDate ? ` [${periodType}ly data ending ${periodDate}]` : ` [${periodType}ly]`
+      return `- ${name}${change}${recentVal}${avgVal} - Severity: ${a.severity || 'medium'}${periodInfo}`
+    }
+    
+    let anomalyContext = ""
+    if (districtAnomaliesForPrompt.length > 0) {
+      anomalyContext += `DISTRICT-SPECIFIC ANOMALIES (you MUST reference at least one):\n${districtAnomaliesForPrompt.map(formatAnomalyLine).join("\n")}`
+    }
+    if (citywideAnomaliesForPrompt.length > 0) {
+      if (anomalyContext) anomalyContext += "\n\n"
+      anomalyContext += `CITYWIDE CONTEXT (you MUST reference at least one for comparison):\n${citywideAnomaliesForPrompt.map(formatAnomalyLine).join("\n")}`
+    }
+    if (!anomalyContext) {
+      anomalyContext = "No specific anomalies to mention"
+    }
+    
+    // Log what we're sending to Claude
+    console.log(`[v0] Prompt for ${contact.name}: ${districtAnomaliesForPrompt.length} district + ${citywideAnomaliesForPrompt.length} citywide anomalies`)
     
     const systemPrompt = `You are an expert at writing professional government correspondence. Generate a unique, personalized email.
 
@@ -598,6 +671,79 @@ CRITICAL RULES:
 2. Write natural sentences with actual data from anomalies if provided
 3. Keep the tone professional but personable
 4. The email should be concise but informative
+5. This is a REGENERATION - create something notably DIFFERENT from typical emails
+
+FACTUAL ACCURACY (CRITICAL):
+- ONLY make claims that are DIRECTLY supported by the provided data
+- Do NOT extrapolate or generalize beyond what the data shows
+- BAD: "citywide increases in traffic enforcement" (when you only have data for specific neighborhoods)
+- GOOD: "traffic enforcement is up significantly in Russian Hill and Seacliff"  
+- Never invent trends, patterns, or conclusions not explicitly in the data
+
+CITYWIDE vs DISTRICT - BE PRECISE:
+- ONLY call something "citywide" if the anomaly is explicitly labeled as citywide (district = 0 or is_citywide = true)
+- If an anomaly is from District 11, do NOT describe it as "citywide" - it's a District 11 finding
+- Check the district/location field in each anomaly and describe it accurately
+- BAD: "here's a citywide trend: traffic stops surged..." (if this is District 11 data)
+- GOOD: "also in District 11, traffic stops surged..." (if this is District 11 data)
+
+TIME PERIOD CLARITY (REQUIRED):
+- Always specify the time period and approximate date for the data
+- GOOD: "In the week ending February 3rd, drug incidents jumped to 21..."
+- GOOD: "This past week, homeless calls spiked to 20..."
+- BAD: "this period" or "recently" without specifying when
+
+AVERAGE/COMPARISON PERIOD CLARITY (REQUIRED):
+- When mentioning the average or "usual" number, specify what time period it's based on
+- The comparison is typically against a 12-period rolling average (12 weeks or 12 months)
+- GOOD: "jumped to 264 from the 12-week average of 133"
+- GOOD: "up from the typical 133 (average over prior 12 weeks)"
+- BAD: "from the usual 133" (usual over what period?)
+- The reader should understand both the current value AND what the comparison baseline represents
+
+STAY CLOSE TO TEMPLATE - DO NOT ADD:
+- Do NOT add interpretive "what this means" or "summary" paragraphs - just report the data
+- Do NOT invent organization names - sign off with just the sender's name (e.g., "Best, Adam")
+- Do NOT speculate about causes, resource allocation, or policy implications
+- Keep it factual and brief - report the numbers, add the small-numbers caveat if needed, offer to discuss, done
+
+MANDATORY ANOMALY INCLUSION:
+- You MUST include at least ONE district-specific anomaly (if provided)
+- You MUST include at least ONE citywide anomaly (if provided)
+- ONLY connect district and citywide if they are the SAME or CLOSELY RELATED metric
+- GOOD: "In District 3, homeless calls increased 25%. Citywide, they only increased 8%—making your district an outlier." (same metric - connection makes sense)
+
+When citywide data is UNRELATED to district data:
+- GOOD: "Zooming out, here's an interesting citywide trend: [fact]"
+- GOOD: "On a separate note, citywide we noticed [fact]"
+- GOOD: "Here's another notable finding from our citywide data: [fact]"
+- BAD: "For broader context..." (implies connection when there isn't one)
+- BAD: "...which makes X particularly noteworthy" (forces false narrative)
+
+SMALL NUMBERS CAVEAT (REQUIRED - DO NOT SKIP):
+- You MUST add a brief caveat when an anomaly involves small absolute numbers
+- Small numbers = when EITHER the Recent value OR Average is under 15
+- Example: If evictions went from 1.7 to 5 (194% increase), MUST write: "eviction notices tripled from about 2 to 5 cases—though with numbers this small, we'll watch to see if the trend continues."
+- Example: If incidents went from 3 to 6 (100% increase), MUST write: "incidents doubled to 6, though we'll keep an eye on this given the small sample size."
+- ALWAYS include this caveat - a dramatic percentage from small numbers needs context
+- Keep it BRIEF: one clause like "—though with numbers this small, we'll keep watching"
+
+EXTREME/QUESTIONABLE DATA (when change is 500%+ or seems implausible):
+- If an anomaly shows an extreme change (500%+) that seems too dramatic to be real, acknowledge it may need verification
+- ALWAYS include the actual numbers so the reader can see what we're talking about
+- Example: "911 calls categorized as 'other' jumped from 50 to 847—a 1,594% increase. Numbers this extreme suggest a possible data anomaly we're looking into, but wanted to flag it for you."
+- Example: "Traffic stops went from 12 to 189 (1,475% increase)—we're verifying this data, but it caught our attention."
+- Don't hide questionable data - share it and acknowledge when something looks off
+- This builds trust by showing we're careful with the data
+
+CLOSING (REQUIRED - vary each time):
+- Always end the email with an offer to provide more details or explore specific topics
+- Vary the wording each time. Examples:
+  "Let me know if you'd like more details on any of these findings."
+  "Happy to dig deeper into any of these trends if you're interested."
+  "If there's something specific you'd like to explore, just let me know."
+  "Feel free to reach out if you want to discuss any of this further."
+  "I'm happy to provide more context on anything that catches your attention."
 
 Return a JSON object with "subject" and "body" fields only.`
 
@@ -606,7 +752,7 @@ Return a JSON object with "subject" and "body" fields only.`
     const cleanFirstName = sanitizeForJSON(firstName)
     const cleanTitle = sanitizeForJSON(contact.title) || 'N/A'
     const cleanOrg = sanitizeForJSON(contact.organization) || 'N/A'
-    const cleanJurisdiction = sanitizeForJSON(contact.jurisdiction) || 'N/A'
+    const cleanJurisdiction = sanitizeForJSON(contact.district || contact.jurisdiction) || 'N/A'
     const cleanTemplateSubject = template ? sanitizeForJSON(template.subject) || 'Update from Transparent City' : ''
     
     const userPrompt = `Generate a new email for:
@@ -732,6 +878,8 @@ export async function regenerateCampaign(
     console.log("[v0] Template:", templateId)
     console.log("[v0] Contacts:", contactIds.length)
     console.log("[v0] Clear existing:", clearExisting)
+    console.log("[v0] anomaliesFromApi received:", anomaliesFromApi ? anomaliesFromApi.length : "undefined/null")
+    console.log("[v0] anomaliesFromApi type:", typeof anomaliesFromApi, Array.isArray(anomaliesFromApi))
     
     const db = createClient()
     
@@ -860,57 +1008,165 @@ async function generateEmailsWithAI(
     console.log("[v0] Sample anomaly:", JSON.stringify({
       id: anomalies[0].id,
       metric_name: anomalies[0].metric_name,
+      district: anomalies[0].district,
       district_label: anomalies[0].district_label,
       is_citywide: anomalies[0].is_citywide,
       pct_change: anomalies[0].pct_change
     }))
+    // Log all unique district_labels
+    const uniqueDistricts = [...new Set(anomalies.map((a: any) => a.district_label))]
+    console.log("[v0] Unique district_labels in anomalies:", uniqueDistricts)
+    // Count citywide
+    const citywideCount = anomalies.filter((a: any) => a.is_citywide || a.district === 0).length
+    console.log("[v0] Citywide anomalies count:", citywideCount)
+  } else {
+    console.log("[v0] WARNING: No anomalies received from client!")
   }
 
-  // Match anomalies to contacts by: 1) District, 2) Keywords, 3) Citywide
+  // ========================================
+  // SMART ANOMALY DISTRIBUTION
+  // ========================================
+  // Goals:
+  // 1. Contacts in the same district get DIFFERENT anomalies (round-robin)
+  // 2. Each email includes 1-2 district anomalies + 1-2 citywide for context
+  // 3. When district anomalies run out, use more citywide ones
+  // 4. Track usage to avoid repeating the same anomalies to same-district contacts
+  
+  // Separate anomalies by district
+  const anomaliesByDistrict: Record<string, any[]> = {}
+  const citywideAnomalies: any[] = []
+  
+  for (const anomaly of anomalies) {
+    const isCitywide = anomaly.is_citywide === true || 
+                       anomaly.district === 0 || 
+                       anomaly.district_label?.toLowerCase() === 'citywide'
+    
+    if (isCitywide) {
+      citywideAnomalies.push(anomaly)
+    } else {
+      // Extract district number from label (e.g., "District 6" -> "6")
+      const districtNum = (anomaly.district_label || '').replace(/\D/g, '')
+      if (districtNum) {
+        if (!anomaliesByDistrict[districtNum]) {
+          anomaliesByDistrict[districtNum] = []
+        }
+        anomaliesByDistrict[districtNum].push(anomaly)
+      }
+    }
+  }
+  
+  // Sort anomalies by severity/magnitude for better selection
+  const sortBySeverity = (a: any, b: any) => {
+    const severityOrder: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 }
+    const aSev = severityOrder[a.severity] || 2
+    const bSev = severityOrder[b.severity] || 2
+    if (aSev !== bSev) return bSev - aSev
+    // Secondary sort by magnitude of change
+    return Math.abs(b.pct_change || 0) - Math.abs(a.pct_change || 0)
+  }
+  
+  for (const districtNum of Object.keys(anomaliesByDistrict)) {
+    anomaliesByDistrict[districtNum].sort(sortBySeverity)
+  }
+  citywideAnomalies.sort(sortBySeverity)
+  
+  console.log(`[v0] Anomaly distribution:`)
+  console.log(`[v0]   - Citywide anomalies: ${citywideAnomalies.length}`)
+  for (const [dist, arr] of Object.entries(anomaliesByDistrict)) {
+    console.log(`[v0]   - District ${dist}: ${arr.length} anomalies`)
+  }
+  
+  // Track usage indices per district (for round-robin distribution)
+  const districtUsageIndex: Record<string, number> = {}
+  const citywideUsageIndex = { value: 0 }
+  
+  // Count contacts per district for smarter distribution
+  const contactsPerDistrict: Record<string, number> = {}
+  for (const contact of contactsArr as any[]) {
+    const contactDistrict = (contact.district || contact.jurisdiction || "").toString().replace(/\D/g, '')
+    if (contactDistrict) {
+      contactsPerDistrict[contactDistrict] = (contactsPerDistrict[contactDistrict] || 0) + 1
+    }
+  }
+  
+  console.log(`[v0] Contacts per district:`, contactsPerDistrict)
+  
   const contactAnomalyMap: Record<string, any[]> = {}
   
   for (let contactIdx = 0; contactIdx < contactsArr.length; contactIdx++) {
     const contact = contactsArr[contactIdx] as any
-    const contactJurisdiction = contact.jurisdiction?.toLowerCase()?.trim() || ""
+    // Support both 'district' and 'jurisdiction' field names
+    const contactDistrict = (contact.district || contact.jurisdiction || "").toString().replace(/\D/g, '')
     const contactKwIds = contactKeywordMap[contact.id] || []
     
-    // 1. District matches (highest priority)
-    // Contact has "1", anomaly has "D1" - extract just numbers to compare
-    const districtMatches = anomalies.filter(anomaly => {
-      if (!anomaly.district_label || !contactJurisdiction) return false
-      const anomalyDistrict = anomaly.district_label.toLowerCase().trim()
-      const contactNum = contactJurisdiction.replace(/\D/g, '')
-      const anomalyNum = anomalyDistrict.replace(/\D/g, '')
-      return contactNum === anomalyNum
-    })
+    const selectedAnomalies: any[] = []
+    const selectedIds = new Set<number | string>()
     
-    // 2. Keyword matches (if contact has keywords)
-    const keywordMatches = anomalies.filter(anomaly => {
-      if (districtMatches.includes(anomaly)) return false
+    // Initialize usage index for this district if needed
+    if (contactDistrict && !districtUsageIndex.hasOwnProperty(contactDistrict)) {
+      districtUsageIndex[contactDistrict] = 0
+    }
+    
+    // STRATEGY: Select 2 district anomalies + 2 citywide for context
+    // Round-robin through available anomalies per district
+    const districtPool = contactDistrict ? (anomaliesByDistrict[contactDistrict] || []) : []
+    const numContactsInDistrict = contactsPerDistrict[contactDistrict] || 1
+    const anomaliesPerContact = Math.max(2, Math.ceil(districtPool.length / numContactsInDistrict))
+    
+    // 1. Get district-specific anomalies (round-robin)
+    if (districtPool.length > 0 && contactDistrict) {
+      const startIdx = districtUsageIndex[contactDistrict]
+      for (let i = 0; i < Math.min(2, anomaliesPerContact); i++) {
+        const idx = (startIdx + i) % districtPool.length
+        const anomaly = districtPool[idx]
+        if (!selectedIds.has(anomaly.id)) {
+          selectedAnomalies.push(anomaly)
+          selectedIds.add(anomaly.id)
+        }
+      }
+      // Advance the usage index for next contact in this district
+      districtUsageIndex[contactDistrict] = (startIdx + selectedAnomalies.length) % districtPool.length
+    }
+    
+    // 2. Get keyword-matched anomalies (from any district, but not already selected)
+    for (const anomaly of anomalies) {
+      if (selectedIds.has(anomaly.id)) continue
+      if (selectedAnomalies.length >= 3) break
       const anomalyKwIds = anomalyKeywordMap[anomaly.id] || []
-      return anomalyKwIds.some(kwId => contactKwIds.includes(kwId))
-    })
+      if (anomalyKwIds.some(kwId => contactKwIds.includes(kwId))) {
+        selectedAnomalies.push(anomaly)
+        selectedIds.add(anomaly.id)
+      }
+    }
     
-    // 3. Citywide anomalies (fallback) - check is_citywide flag OR district === 0 OR district_label is "Citywide"
-    const citywideMatches = anomalies.filter(anomaly => {
-      if (districtMatches.includes(anomaly) || keywordMatches.includes(anomaly)) return false
-      return anomaly.is_citywide === true || 
-             anomaly.district === 0 || 
-             anomaly.district_label?.toLowerCase() === 'citywide'
-    })
+    // 3. Add citywide anomalies for context (round-robin through citywide pool)
+    // Try to match 1-2 citywide that complement the district anomalies
+    if (citywideAnomalies.length > 0) {
+      const startIdx = citywideUsageIndex.value
+      const targetCitywide = Math.max(1, 4 - selectedAnomalies.length) // Fill up to 4 total
+      for (let i = 0; i < citywideAnomalies.length && selectedAnomalies.length < 4; i++) {
+        const idx = (startIdx + i) % citywideAnomalies.length
+        const anomaly = citywideAnomalies[idx]
+        if (!selectedIds.has(anomaly.id)) {
+          selectedAnomalies.push(anomaly)
+          selectedIds.add(anomaly.id)
+        }
+      }
+      // Advance citywide index
+      citywideUsageIndex.value = (startIdx + Math.min(targetCitywide, citywideAnomalies.length)) % Math.max(1, citywideAnomalies.length)
+    }
     
-    // Combine: district first, then keywords, then citywide - max 4 total
-    const combined = [...districtMatches, ...keywordMatches, ...citywideMatches]
-    contactAnomalyMap[contact.id] = combined.slice(0, 4)
+    contactAnomalyMap[contact.id] = selectedAnomalies
     
     // Log first few contacts with details
-    if (contactIdx < 3) {
-      console.log(`[v0] Contact "${contact.name}" (jurisdiction: "${contact.jurisdiction}"):`)
-      console.log(`[v0]   - District matches: ${districtMatches.length}`)
-      console.log(`[v0]   - Keyword matches: ${keywordMatches.length}`)
-      console.log(`[v0]   - Citywide matches: ${citywideMatches.length}`)
-      if (combined.length > 0) {
-        console.log(`[v0]   - First anomaly: ${combined[0].metric_name} (${combined[0].pct_change?.toFixed(1)}% change)`)
+    if (contactIdx < 5) {
+      const districtCount = selectedAnomalies.filter(a => !a.is_citywide && a.district !== 0).length
+      const citywideCount = selectedAnomalies.filter(a => a.is_citywide || a.district === 0).length
+      console.log(`[v0] Contact "${contact.name}" (district: ${contactDistrict || 'none'}):`)
+      console.log(`[v0]   - District anomalies: ${districtCount}`)
+      console.log(`[v0]   - Citywide anomalies: ${citywideCount}`)
+      if (selectedAnomalies.length > 0) {
+        console.log(`[v0]   - Anomalies: ${selectedAnomalies.map(a => `${a.metric_name} (${a.district_label || 'Citywide'})`).join(', ')}`)
       }
     }
   }
@@ -948,13 +1204,23 @@ async function generateEmailsWithAI(
     const groupContext = groupValue ? ` (${groupValue})` : ''
     const category = sanitizeForJSON(anomaly.metric_category) || 'general'
     
+    // Include time period info
+    const periodType = anomaly.period_type || 'week'
+    const periodDate = anomaly.period_date ? new Date(anomaly.period_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'recent'
+    const periodLabel = `${periodType}ly data ending ${periodDate}`
+    // Comparison period context - use actual window size if available
+    const windowSize = anomaly.comparison_window?.size || 12
+    const periodUnit = periodType === 'week' ? 'weeks' : periodType === 'month' ? 'months' : 'periods'
+    const comparisonPeriod = `${windowSize} ${periodUnit}`
+
     return `
   - ANOMALY: "${metricName}${groupContext}"
     - Location: ${location}
+    - Time Period: ${periodLabel}
     - Severity: ${anomaly.severity || 'medium'}
     - Change: ${direction} by ${magnitude}%
     - Recent Value: ${anomaly.recent_mean?.toFixed(1) || 'N/A'}
-    - Previous Average: ${anomaly.comparison_mean?.toFixed(1) || 'N/A'}
+    - Comparison Average: ${anomaly.comparison_mean?.toFixed(1) || 'N/A'} (rolling average over prior ${comparisonPeriod})
     - Category: ${category}
     - ID: ${anomaly.id}`
   }
@@ -964,13 +1230,24 @@ async function generateEmailsWithAI(
     const firstName = getFirstName(contactName)
     const matchedAnomalies = contactAnomalyMap[contact.id] || []
     
-    const districtAnomalies = matchedAnomalies.filter((a: any) => !a.is_citywide)
-    const citywideAnomalies = matchedAnomalies.filter((a: any) => a.is_citywide)
+    // Separate district-specific from citywide anomalies
+    const districtAnomalies = matchedAnomalies.filter((a: any) => 
+      a.is_citywide !== true && a.district !== 0 && a.district_label?.toLowerCase() !== 'citywide'
+    )
+    const citywideAnomalies = matchedAnomalies.filter((a: any) => 
+      a.is_citywide === true || a.district === 0 || a.district_label?.toLowerCase() === 'citywide'
+    )
 
-    const anomalyDescriptions = [
-      ...districtAnomalies.map((a: any) => formatAnomalyForPrompt(a, false)),
-      ...citywideAnomalies.map((a: any) => formatAnomalyForPrompt(a, true)),
-    ].join("\n")
+    // Format anomalies with clear labels
+    let anomalySection = ""
+    if (districtAnomalies.length > 0) {
+      anomalySection += `\nDISTRICT-SPECIFIC ANOMALIES (primary focus for this contact):`
+      anomalySection += districtAnomalies.map((a: any) => formatAnomalyForPrompt(a, false)).join("")
+    }
+    if (citywideAnomalies.length > 0) {
+      anomalySection += `\n\nCITYWIDE CONTEXT (use to connect district trends to broader city patterns):`
+      anomalySection += citywideAnomalies.map((a: any) => formatAnomalyForPrompt(a, true)).join("")
+    }
 
     return `
 === CONTACT ===
@@ -979,11 +1256,10 @@ FIRST NAME TO USE: ${firstName}
 Title: ${sanitizeForJSON(contact.title) || "N/A"}
 Organization: ${sanitizeForJSON(contact.organization) || "N/A"}
 Department: ${sanitizeForJSON(contact.department) || "N/A"}
-Jurisdiction/District: ${sanitizeForJSON(contact.jurisdiction) || "N/A"}
+Jurisdiction/District: ${sanitizeForJSON(contact.district || contact.jurisdiction) || "N/A"}
 Contact ID: ${contact.id}
 
-${matchedAnomalies.length > 0 ? `ANOMALIES TO INCLUDE:
-${anomalyDescriptions}
+${matchedAnomalies.length > 0 ? `ANOMALIES TO INCLUDE:${anomalySection}
 
 Anomaly IDs: ${matchedAnomalies.map((a: any) => a.id).join(", ")}` : "No matching anomalies for this contact"}
 `
@@ -994,7 +1270,8 @@ Anomaly IDs: ${matchedAnomalies.map((a: any) => a.id).join(", ")}` : "No matchin
 UNDERSTANDING THE DATA:
 - Each anomaly has a "Recent Value" and "Previous Average" showing what changed
 - The "Change" percentage shows the magnitude (e.g., "increased by 33.3%" means recent is 33% higher than the historical average)
-- Location tells you if it's district-specific or citywide
+- DISTRICT-SPECIFIC anomalies are findings unique to that contact's district
+- CITYWIDE CONTEXT anomalies show broader trends across the entire city
 - Use the metric name (like "Narcotics Convictions" or "Business Location Openings") to write about the topic naturally
 
 CRITICAL RULES:
@@ -1004,6 +1281,84 @@ CRITICAL RULES:
 4. Each email MUST be unique - vary structure, word choice, and phrasing.
 5. NEVER use placeholders like [ANOMALY], [FIRST NAME], {{name}}, [Recent Value], etc. Use the ACTUAL values provided.
 6. If a contact has no anomalies, write a general update email without specific data points.
+
+FACTUAL ACCURACY (CRITICAL):
+- ONLY make claims that are DIRECTLY supported by the provided data
+- Do NOT extrapolate or generalize beyond what the data shows
+- BAD: "citywide increases in traffic enforcement" (when you only have data for 2 neighborhoods)
+- GOOD: "traffic enforcement is up significantly in Russian Hill and Seacliff"
+- Never invent trends, patterns, or conclusions not explicitly in the data
+
+CITYWIDE vs DISTRICT - BE PRECISE:
+- ONLY call something "citywide" if the anomaly is explicitly labeled as citywide (district = 0 or is_citywide = true)
+- If an anomaly is from District 11, do NOT describe it as "citywide" - it's a District 11 finding
+- The anomaly data tells you exactly which district it's from - use that information accurately
+- BAD: "here's an interesting citywide trend: traffic stops surged to 17..." (if this is District 11 data)
+- GOOD: "also in District 11, traffic stops surged to 17..." (if this is District 11 data)
+- GOOD: "citywide, traffic stops surged to 17..." (ONLY if district = 0 / is_citywide = true)
+
+TIME PERIOD CLARITY (REQUIRED):
+- Always specify the time period and approximate date for the data
+- Use the period_type (weekly/monthly) and period_date from the anomaly data
+- GOOD: "In the week ending February 3rd, drug crime incidents jumped to 21..."
+- GOOD: "This past week, we saw homeless calls spike to 20..."
+- BAD: "this period" or "recently" without specifying when
+
+AVERAGE/COMPARISON PERIOD CLARITY (REQUIRED):
+- When mentioning the average or "usual" number, specify what time period it's based on
+- The comparison is typically against a 12-period rolling average (12 weeks or 12 months)
+- GOOD: "jumped to 264 from the 12-week average of 133"
+- GOOD: "up from the typical 133 we see on average over a 3-month period"
+- GOOD: "compared to the historical average of 133 (based on the prior 12 weeks)"
+- BAD: "from the usual 133" (usual over what period?)
+- BAD: "compared to 133" (what does 133 represent?)
+- The reader should understand both the current period AND what the comparison baseline represents
+
+STAY CLOSE TO TEMPLATE - DO NOT ADD:
+- Do NOT add interpretive "what this means" or "summary" paragraphs - stick to reporting the data
+- Do NOT invent organization names like "Department of Data Analysis" - sign as just the sender's name (e.g., "Adam")
+- Do NOT speculate about causes, resource allocation, or policy implications
+- Keep it factual and brief - report the numbers, add context where relevant, done
+- The closing should just be the sender's first name, not a made-up department
+
+CONNECTING DISTRICT TO CITYWIDE:
+- ONLY connect district and citywide data if they are the SAME or CLOSELY RELATED metric
+- GOOD connection: District homeless calls vs citywide homeless calls (same metric)
+- GOOD connection: District evictions vs citywide evictions (same metric)
+- BAD connection: District homeless calls vs citywide property crime (unrelated metrics - don't connect these!)
+
+When citywide data is UNRELATED to district data, use transitional language that does NOT imply connection:
+- GOOD: "Zooming out, here's an interesting citywide trend: property crime is down 31%."
+- GOOD: "On a separate note, citywide we're seeing..."
+- GOOD: "Here's another notable finding from our citywide data that you might find interesting..."
+- BAD: "For broader context, citywide..." (implies the facts are connected when they're not)
+- BAD: "...which makes the district trend particularly noteworthy" (forces false connection)
+
+SMALL NUMBERS CAVEAT (REQUIRED - DO NOT SKIP):
+- You MUST add a brief caveat when an anomaly involves small absolute numbers
+- Small numbers = when EITHER the Recent value OR Average is under 15
+- Example: If evictions went from 1.7 to 5 (194% increase), MUST write: "eviction notices tripled from about 2 to 5 cases—though with numbers this small, we'll watch to see if the trend continues."
+- Example: If incidents went from 3 to 6 (100% increase), MUST write: "incidents doubled to 6, though we'll keep an eye on this given the small sample size."
+- ALWAYS include this caveat - a dramatic percentage from small numbers needs context
+- Keep it BRIEF: one clause like "—though with numbers this small, we'll keep watching"
+
+EXTREME/QUESTIONABLE DATA (when change is 500%+ or seems implausible):
+- If an anomaly shows an extreme change (500%+) that seems too dramatic to be real, acknowledge it may need verification
+- ALWAYS include the actual numbers so the reader can see what we're talking about
+- Example: "911 calls categorized as 'other' jumped from 50 to 847—a 1,594% increase. Numbers this extreme suggest a possible data anomaly we're looking into, but wanted to flag it for you."
+- Example: "Traffic stops went from 12 to 189 (1,475% increase)—we're verifying this data, but it caught our attention."
+- Don't hide questionable data - share it and acknowledge when something looks off
+- This builds trust by showing we're careful with the data
+
+CLOSING (REQUIRED - vary each time):
+- Always end each email with an offer to provide more details or explore specific topics
+- Vary the wording for each email. Examples:
+  "Let me know if you'd like more details on any of these findings."
+  "Happy to dig deeper into any of these trends if you're interested."
+  "If there's something specific you'd like to explore, just let me know."
+  "Feel free to reach out if you want to discuss any of this further."
+  "I'm happy to provide more context on anything that catches your attention."
+  "Want to dive deeper into any of these numbers? Just say the word."
 
 Return valid JSON with this structure:
 {
