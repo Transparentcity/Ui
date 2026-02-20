@@ -1048,6 +1048,26 @@ export function getAdminMetricCityStructure(metricId: number, token: string): Pr
 // Comparison types and interfaces
 export type ComparisonType = "ytd" | "mtd" | "mtd_prior_year";
 
+/** For derived metrics: A/B=C breakdown for transparency */
+export interface CalculationBreakdown {
+  formula: string;
+  display_unit: string;
+  numerator_metric_id: number;
+  denominator_metric_id: number;
+  numerator_name: string;
+  denominator_name: string;
+  current_period: {
+    numerator_value: number | null;
+    denominator_value: number | null;
+    result: number | null;
+  };
+  comparison_period: {
+    numerator_value: number | null;
+    denominator_value: number | null;
+    result: number | null;
+  };
+}
+
 export interface ComparisonResponse {
   metric_id: number;
   district: number | null;
@@ -1061,6 +1081,7 @@ export interface ComparisonResponse {
   period_type: string;
   computed_at: string;
   is_precomputed: boolean;
+  calculation_breakdown?: CalculationBreakdown | null;
 }
 
 export interface ComparisonsResponse {
@@ -1321,6 +1342,38 @@ export function getCityMetrics(
       }));
     })
     .catch(() => []); // Return empty array on error
+}
+
+/** Metric item with show_on_dash for customize-metrics UI (all_metrics=true). */
+export interface CityMetricForCustomize {
+  id: number;
+  metric_name: string;
+  metric_key: string;
+  category: string;
+  subcategory?: string | null;
+  show_on_dash: boolean;
+}
+
+// Get all metrics for a city with show_on_dash (for customize metrics dialog)
+export function getCityMetricsForCustomize(
+  cityId: number,
+  token: string
+): Promise<CityMetricForCustomize[]> {
+  return request<CityMetricForCustomize[]>(
+    `/api/cities/${cityId}/metrics?is_active=true&limit=500&all_metrics=true`,
+    "GET",
+    undefined,
+    token
+  ).then((metrics) =>
+    (metrics || []).map((m) => ({
+      id: m.id,
+      metric_name: m.metric_name,
+      metric_key: m.metric_key,
+      category: m.category,
+      subcategory: m.subcategory ?? null,
+      show_on_dash: m.show_on_dash === true,
+    }))
+  );
 }
 
 // Chat API
@@ -3611,6 +3664,48 @@ export function resetCityMetricOrdering(
 ): Promise<{ success: boolean; message: string; deleted_count: number }> {
   return request<{ success: boolean; message: string; deleted_count: number }>(
     `/api/cities/${cityId}/metric-ordering`,
+    "DELETE",
+    undefined,
+    token
+  );
+}
+
+// ============================================================================
+// USER METRIC ORDERING (per-user dashboard order)
+// ============================================================================
+
+// Same shape as MetricOrderingResponse; GET /api/admin/me/metric-ordering/{city_id}
+export function getUserMetricOrdering(
+  cityId: number,
+  token: string
+): Promise<MetricOrderingResponse> {
+  return request<MetricOrderingResponse>(
+    `/api/admin/me/metric-ordering/${cityId}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function saveUserMetricOrdering(
+  cityId: number,
+  orderings: MetricOrderingItem[],
+  token: string
+): Promise<{ success: boolean; message: string; count: number }> {
+  return request<{ success: boolean; message: string; count: number }>(
+    `/api/admin/me/metric-ordering/${cityId}`,
+    "PUT",
+    { orderings },
+    token
+  );
+}
+
+export function resetUserMetricOrdering(
+  cityId: number,
+  token: string
+): Promise<{ success: boolean; message: string; deleted_count: number }> {
+  return request<{ success: boolean; message: string; deleted_count: number }>(
+    `/api/admin/me/metric-ordering/${cityId}`,
     "DELETE",
     undefined,
     token

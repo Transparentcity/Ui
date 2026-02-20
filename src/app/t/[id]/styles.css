@@ -349,28 +349,11 @@
   color: var(--brand-primary-hover, #8b2dd9);
 }
 
-.embedded-chart {
+.embedded-chart-wrapper {
   flex: 1;
   min-height: 0;
-  border-radius: 0;
-  border: none;
   padding: 0.25rem 0.5rem 0.5rem;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.embedded-chart > div {
-  flex: 1;
-  min-height: 0;
-  height: 100% !important;
-}
-
-/* Force Plotly to fill container in embedded mode */
-.time-series-page.embedded .js-plotly-plot,
-.time-series-page.embedded .plot-container,
-.time-series-page.embedded .plotly {
-  height: 100% !important;
+  overflow-y: auto;
 }
 
 /* Responsive */

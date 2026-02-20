@@ -96,107 +96,114 @@ function getDaysInMonth(year: number, month: number): number {
 }
 
 /**
+ * Compute the period key for today so we can reliably identify in-progress periods.
+ */
+function getCurrentPeriodKey(periodType: PeriodType): string | null {
+  const now = new Date();
+  if (periodType === "week") {
+    const { isoYear, isoWeek } = getISOYearAndWeek(now);
+    return `${isoYear}-W${isoWeek.toString().padStart(2, "0")}`;
+  }
+  if (periodType === "month") {
+    return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, "0")}`;
+  }
+  if (periodType === "year") {
+    return now.getFullYear().toString();
+  }
+  return null;
+}
+
+/**
  * Identifies and filters out partial periods from the start and end of aggregated data.
  * Returns the filtered data and info about what was excluded.
+ *
+ * Uses two complementary checks:
+ *   1. Calendar check – the current in-progress period is always partial.
+ *   2. Data-boundary check – the first/last raw-data date may sit inside a
+ *      period boundary (e.g. data starts mid-week).
  */
 function filterPartialPeriods(
   aggregatedByGroup: Map<string, TimeSeriesDataPoint[]>,
   periodType: PeriodType,
   originalData: TimeSeriesDataPoint[]
 ): { filtered: Map<string, TimeSeriesDataPoint[]>; partialInfo: PartialPeriodInfo | null } {
-  // Day and YTD don't need partial filtering
   if (periodType === "day" || periodType === "ytd") {
     return { filtered: aggregatedByGroup, partialInfo: null };
   }
-
-  // Parse original data to get the actual date range
-  const dates = originalData
-    .map((p) => {
-      const date = new Date(p.time_period);
-      return isNaN(date.getTime()) ? null : date;
-    })
-    .filter((d): d is Date => d !== null)
-    .sort((a, b) => a.getTime() - b.getTime());
-
-  if (dates.length === 0) {
-    return { filtered: aggregatedByGroup, partialInfo: null };
-  }
-
-  const firstDate = dates[0];
-  const lastDate = dates[dates.length - 1];
 
   let excludedStart: string | undefined;
   let excludedEnd: string | undefined;
   let startPeriodToExclude: string | undefined;
   let endPeriodToExclude: string | undefined;
 
-  if (periodType === "week") {
-    // Check if first week is partial (doesn't start on Monday)
-    const firstDayOfWeek = firstDate.getDay();
-    const isFirstWeekPartial = firstDayOfWeek !== 1; // 1 = Monday
-    
-    // Check if last week is partial (doesn't end on Sunday)
-    const lastDayOfWeek = lastDate.getDay();
-    const isLastWeekPartial = lastDayOfWeek !== 0; // 0 = Sunday
-
-    if (isFirstWeekPartial) {
-      const { isoYear, isoWeek } = getISOYearAndWeek(firstDate);
-      startPeriodToExclude = `${isoYear}-W${isoWeek.toString().padStart(2, "0")}`;
-      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      excludedStart = `Partial week starting ${dayNames[firstDayOfWeek]} ${firstDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+  // --- Calendar check: always exclude the current in-progress period at the end ---
+  const currentPeriodKey = getCurrentPeriodKey(periodType);
+  if (currentPeriodKey) {
+    let hasCurrentPeriod = false;
+    for (const points of aggregatedByGroup.values()) {
+      if (points.some((p) => p.time_period === currentPeriodKey)) {
+        hasCurrentPeriod = true;
+        break;
+      }
     }
-
-    if (isLastWeekPartial) {
-      const { isoYear, isoWeek } = getISOYearAndWeek(lastDate);
-      endPeriodToExclude = `${isoYear}-W${isoWeek.toString().padStart(2, "0")}`;
-      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      excludedEnd = `Partial week ending ${dayNames[lastDayOfWeek]} ${lastDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
-    }
-  } else if (periodType === "month") {
-    // Check if first month is partial (doesn't start on day 1)
-    const isFirstMonthPartial = firstDate.getDate() !== 1;
-    
-    // Check if last month is partial (doesn't end on last day of month)
-    const lastDayOfMonth = getDaysInMonth(lastDate.getFullYear(), lastDate.getMonth());
-    const isLastMonthPartial = lastDate.getDate() !== lastDayOfMonth;
-
-    if (isFirstMonthPartial) {
-      const year = firstDate.getFullYear();
-      const month = firstDate.getMonth() + 1;
-      startPeriodToExclude = `${year}-${month.toString().padStart(2, "0")}`;
-      excludedStart = `Partial ${firstDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })} (starts day ${firstDate.getDate()})`;
-    }
-
-    if (isLastMonthPartial) {
-      const year = lastDate.getFullYear();
-      const month = lastDate.getMonth() + 1;
-      endPeriodToExclude = `${year}-${month.toString().padStart(2, "0")}`;
-      excludedEnd = `Partial ${lastDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })} (ends day ${lastDate.getDate()})`;
-    }
-  } else if (periodType === "year") {
-    // Check if first year is partial (doesn't start on Jan 1)
-    const isFirstYearPartial = firstDate.getMonth() !== 0 || firstDate.getDate() !== 1;
-    
-    // Check if last year is partial (doesn't end on Dec 31)
-    const isLastYearPartial = lastDate.getMonth() !== 11 || lastDate.getDate() !== 31;
-
-    if (isFirstYearPartial) {
-      startPeriodToExclude = firstDate.getFullYear().toString();
-      excludedStart = `Partial ${firstDate.getFullYear()} (starts ${firstDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })})`;
-    }
-
-    if (isLastYearPartial) {
-      endPeriodToExclude = lastDate.getFullYear().toString();
-      excludedEnd = `Partial ${lastDate.getFullYear()} (ends ${lastDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })})`;
+    if (hasCurrentPeriod) {
+      endPeriodToExclude = currentPeriodKey;
+      const now = new Date();
+      if (periodType === "week") {
+        const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        excludedEnd = `Current week in progress (through ${dayNames[now.getDay()]} ${now.toLocaleDateString("en-US", { month: "short", day: "numeric" })})`;
+      } else if (periodType === "month") {
+        excludedEnd = `Current month in progress (${now.toLocaleDateString("en-US", { month: "long", year: "numeric" })})`;
+      } else if (periodType === "year") {
+        excludedEnd = `Current year in progress (${now.getFullYear()})`;
+      }
     }
   }
 
-  // If nothing to exclude, return original
+  // --- Data-boundary check: first period may be partial if data starts mid-period ---
+  const dates = originalData
+    .map((p) => {
+      // Parse as local date parts to avoid UTC timezone shift
+      const match = p.time_period.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (match) {
+        return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
+      }
+      const d = new Date(p.time_period);
+      return isNaN(d.getTime()) ? null : d;
+    })
+    .filter((d): d is Date => d !== null)
+    .sort((a, b) => a.getTime() - b.getTime());
+
+  if (dates.length > 0) {
+    const firstDate = dates[0];
+
+    if (periodType === "week") {
+      const firstDayOfWeek = firstDate.getDay();
+      if (firstDayOfWeek !== 1) { // 1 = Monday
+        const { isoYear, isoWeek } = getISOYearAndWeek(firstDate);
+        startPeriodToExclude = `${isoYear}-W${isoWeek.toString().padStart(2, "0")}`;
+        const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        excludedStart = `Partial week starting ${dayNames[firstDayOfWeek]} ${firstDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+      }
+    } else if (periodType === "month") {
+      if (firstDate.getDate() !== 1) {
+        const year = firstDate.getFullYear();
+        const month = firstDate.getMonth() + 1;
+        startPeriodToExclude = `${year}-${month.toString().padStart(2, "0")}`;
+        excludedStart = `Partial ${firstDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })} (starts day ${firstDate.getDate()})`;
+      }
+    } else if (periodType === "year") {
+      if (firstDate.getMonth() !== 0 || firstDate.getDate() !== 1) {
+        startPeriodToExclude = firstDate.getFullYear().toString();
+        excludedStart = `Partial ${firstDate.getFullYear()} (starts ${firstDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })})`;
+      }
+    }
+  }
+
   if (!startPeriodToExclude && !endPeriodToExclude) {
     return { filtered: aggregatedByGroup, partialInfo: null };
   }
 
-  // Filter out partial periods from all groups
   const filtered = new Map<string, TimeSeriesDataPoint[]>();
 
   for (const [groupValue, points] of aggregatedByGroup.entries()) {
@@ -233,15 +240,15 @@ function aggregateDataByGroup(
   data: TimeSeriesDataPoint[],
   periodType: PeriodType
 ): Map<string, TimeSeriesDataPoint[]> {
-  // Parse dates and create Date objects
+  // Parse dates as LOCAL dates to avoid UTC timezone shift
+  // (new Date("2026-02-16") is UTC midnight which displays as Feb 15 in US timezones)
   const dataWithDates = data
     .map((point) => {
-      // Try parsing the date - handle ISO strings and other formats
       let date: Date;
       if (typeof point.time_period === 'string') {
-        // Handle ISO date strings (YYYY-MM-DD)
-        if (point.time_period.match(/^\d{4}-\d{2}-\d{2}/)) {
-          date = new Date(point.time_period);
+        const ymd = point.time_period.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (ymd) {
+          date = new Date(parseInt(ymd[1]), parseInt(ymd[2]) - 1, parseInt(ymd[3]));
         } else {
           date = new Date(point.time_period);
         }

@@ -157,6 +157,7 @@ export type PublicCityMetricItem = {
   metric_key: string;
   category: string;
   subcategory?: string | null;
+  show_on_dash?: boolean;
 };
 
 export type PublicCityDetail = {
@@ -308,6 +309,26 @@ export type PublicMetricDetail = {
   city_name?: string | null;
 };
 
+/** For derived metrics: shows A/B=C formula with component values for transparency */
+export type CalculationBreakdown = {
+  formula: string;
+  display_unit: string;
+  numerator_metric_id: number;
+  denominator_metric_id: number;
+  numerator_name: string;
+  denominator_name: string;
+  current_period: {
+    numerator_value: number | null;
+    denominator_value: number | null;
+    result: number | null;
+  };
+  comparison_period: {
+    numerator_value: number | null;
+    denominator_value: number | null;
+    result: number | null;
+  };
+};
+
 export type PublicMetricComparison = {
   metric_id: number;
   district: number | null;
@@ -321,6 +342,8 @@ export type PublicMetricComparison = {
   period_type: string;
   computed_at: string | null;
   is_precomputed: boolean;
+  /** For derived metrics: A/B=C breakdown so users see exactly how the rate was calculated */
+  calculation_breakdown?: CalculationBreakdown | null;
 };
 
 export type PublicMetricComparisons = {

@@ -16,7 +16,8 @@ import UserManagement from "@/components/UserManagement";
 import JobLogsViewer from "@/components/JobLogsViewer";
 import FeedView from "@/components/FeedView";
 import { useTheme } from "@/contexts/ThemeContext";
-import { getMyPermissions, getSavedCities, getUserPreferences, updateUserPreferences, getCity } from "@/lib/apiClient";
+import { getMyPermissions, getSavedCities, getUserPreferences, updateUserPreferences, getCity, saveUserMetricOrdering } from "@/lib/apiClient";
+import { PENDING_ORDER_STORAGE_KEY_PREFIX } from "@/components/MetricOrderEditor";
 import Loader from "@/components/Loader";
 import WelcomeModal from "@/components/WelcomeModal";
 import RedisStatusIndicator from "@/components/RedisStatusIndicator";
@@ -141,6 +142,34 @@ export default function DashboardPage() {
       trackLogin(user.sub);
     }
   }, [isAuthenticated, isLoading, user]);
+
+  // Migrate pending metric order from localStorage to user account when user signs in
+  useEffect(() => {
+    if (!isAuthenticated || isLoading || typeof window === "undefined") return;
+
+    const migratePendingMetricOrder = async () => {
+      const prefix = PENDING_ORDER_STORAGE_KEY_PREFIX;
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i);
+        if (!key?.startsWith(prefix)) continue;
+        try {
+          const raw = window.localStorage.getItem(key);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw) as { city_id: number; orderings: Array<{ category_name: string; category_order: number; subcategory_name?: string | null; metric_id: number; metric_order: number }> };
+          if (parsed?.city_id == null || !Array.isArray(parsed.orderings)) continue;
+          const token = await getAccessTokenSilently();
+          await saveUserMetricOrdering(parsed.city_id, parsed.orderings, token);
+          keysToRemove.push(key);
+        } catch {
+          // Skip this key on error
+        }
+      }
+      keysToRemove.forEach((k) => window.localStorage.removeItem(k));
+    };
+
+    migratePendingMetricOrder();
+  }, [isAuthenticated, isLoading]);
 
   // Reload preferences when settings view becomes active
   useEffect(() => {

@@ -21,6 +21,8 @@ interface CityHeaderProps {
   selectedAnomaly?: AnomalyResult | null; // Currently selected anomaly
   onAnomalySelect?: (anomaly: AnomalyResult | null) => void; // Callback when anomaly is selected/cleared
   mapOnly?: boolean; // When true, only show anomalies for metrics with map_query enabled
+  /** Show "Customize metrics" button; when clicked calls this (opens user metric order dialog) */
+  onCustomizeMetricsClick?: () => void;
 }
 
 export default function CityHeader({
@@ -39,6 +41,7 @@ export default function CityHeader({
   selectedAnomaly,
   onAnomalySelect,
   mapOnly = false,
+  onCustomizeMetricsClick,
 }: CityHeaderProps) {
   const className = variant === "overlay" 
     ? `city-header-overlay ${visible ? "visible" : "hidden"}`
@@ -57,6 +60,27 @@ export default function CityHeader({
         ) : null}
       </div>
       <div className="city-header-right">
+        {onCustomizeMetricsClick && (
+          <button
+            type="button"
+            onClick={onCustomizeMetricsClick}
+            title="Customize metric order"
+            style={{
+              marginRight: 8,
+              padding: "8px 14px",
+              fontSize: 14,
+              fontWeight: 500,
+              color: "var(--brand-primary, #ad35fa)",
+              background: "transparent",
+              border: "1px solid var(--brand-primary, #ad35fa)",
+              borderRadius: 8,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Customize metrics
+          </button>
+        )}
         {/* Anomaly Alert Icon */}
         {cityId && (
           <AnomaliesAlertIcon

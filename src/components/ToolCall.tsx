@@ -1,9 +1,12 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 
 import styles from "./ToolCall.module.css";
+import { API_BASE } from "@/lib/apiBase";
+import TimeSeriesChart from "./TimeSeriesChart";
+import Loader from "./Loader";
 
 interface ToolCallProps {
   toolCall: {
@@ -216,23 +219,56 @@ function EmbeddedAnomalyCard({ data }: { data: any }) {
   );
 }
 
-// Render an embedded time series chart with iframe
 function EmbeddedTimeSeriesCard({ data }: { data: any }) {
   const [showEmbed, setShowEmbed] = useState(true);
+  const [chartData, setChartData] = useState<{ data: any[]; metadata?: any } | null>(null);
+  const [loading, setLoading] = useState(true);
+
   const timeSeriesData = getTimeSeriesData(data);
   const chartId = timeSeriesData.chart_id;
   const metricName = timeSeriesData.metric_name || "Time Series";
   const periodType = timeSeriesData.period_type || "N/A";
   const dataPointCount = timeSeriesData.data_point_count || 0;
   const viewUrl = timeSeriesData.view_url || `/t/${chartId}`;
-  const embedUrl = timeSeriesData.embed_url || `${viewUrl}?embedded=true`;
-  
-  // Build title
+
   const title = `${metricName} (${periodType})`;
-  
+
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    fetch(`${API_BASE}/api/time-series/public/${chartId}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load time series");
+        return res.json();
+      })
+      .then((res) => {
+        if (mounted) setChartData(res);
+      })
+      .catch(() => {
+        if (mounted) setChartData(null);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => { mounted = false; };
+  }, [chartId]);
+
+  const aggregated = useMemo(() => {
+    if (!chartData?.data) return [];
+    const map = new Map<string, { sum: number; count: number }>();
+    chartData.data.forEach((point: any) => {
+      const key = `${point.time_period}|${point.group_value || ""}`;
+      const existing = map.get(key) || { sum: 0, count: 0 };
+      map.set(key, { sum: existing.sum + (point.numeric_value || 0), count: existing.count + 1 });
+    });
+    return Array.from(map.entries()).map(([key, { sum }]) => {
+      const [time_period, group_value] = key.split("|");
+      return { time_period, numeric_value: sum, group_value: group_value || null };
+    });
+  }, [chartData]);
+
   return (
     <div className={styles.mapEmbed}>
-      {/* Header bar */}
       <div className={styles.mapEmbedHeader}>
         <div className={styles.mapEmbedInfo}>
           <span className={styles.mapEmbedIcon}>📈</span>
@@ -266,17 +302,29 @@ function EmbeddedTimeSeriesCard({ data }: { data: any }) {
           </Link>
         </div>
       </div>
-      
-      {/* Embedded time series chart iframe */}
+
       {showEmbed && (
-        <div className={styles.mapEmbedContainer}>
-          <iframe
-            src={embedUrl}
-            className={styles.mapEmbedIframe}
-            title={title}
-            loading="lazy"
-            allowFullScreen
-          />
+        <div className={styles.timeSeriesChartContainer}>
+          {loading ? (
+            <div className={styles.timeSeriesLoading}>
+              <Loader size="md" color="dark" />
+              <span>Loading chart...</span>
+            </div>
+          ) : aggregated.length > 0 ? (
+            <TimeSeriesChart
+              data={aggregated}
+              metadata={chartData?.metadata}
+              height={320}
+              defaultPeriod="week"
+              fullBleed={true}
+              hidePeriodSelector={false}
+              showExternalTitle={false}
+            />
+          ) : (
+            <div className={styles.timeSeriesLoading}>
+              No chart data available.
+            </div>
+          )}
         </div>
       )}
     </div>

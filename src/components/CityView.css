@@ -55,13 +55,15 @@
   position: relative;
 }
 
-/* Header in dashboard/admin tabs - fixed at top like map view */
+/* Header in dashboard/admin tabs - fixed at top like map view.
+   Use 100% not 100vw: when inside mainContent (contain: layout), 100vw would extend
+   past the viewport and push the right side offscreen */
 .city-view .tab-content-wrapper .city-header-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  width: 100vw;
+  width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -75,13 +77,15 @@
   transition: none;
 }
 
-/* Tabs in dashboard/admin tabs - fixed below header */
+/* Tabs in dashboard/admin tabs - fixed below header.
+   Use 100% not 100vw: when inside mainContent (contain: layout), 100vw would extend
+   past the viewport and push the right side offscreen */
 .city-view .tab-content-wrapper .tabs-container-overlay {
   position: fixed;
   top: 56px; /* Below fixed header */
   left: 0;
   right: 0;
-  width: 100vw;
+  width: 100%;
   display: flex;
   gap: 8px;
   padding: 0 24px;
@@ -1374,6 +1378,49 @@
   min-height: 56px; /* Ensure consistent height with metadata */
   text-decoration: none; /* Remove link underline */
   color: inherit; /* Inherit text color */
+  position: relative; /* For hover tooltip positioning */
+}
+
+/* Hover tooltip for derived metrics - desktop only, shows calc for the column you're over */
+@media (hover: hover) {
+  .metric-col-hoverable {
+    position: relative;
+  }
+
+  .metric-col-tooltip {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(100% + 6px);
+    z-index: 100;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+  }
+
+  .metric-col-hoverable:hover .metric-col-tooltip {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .metric-col-tooltip-inner {
+    padding: 8px 12px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+}
+
+@media (hover: none) {
+  .metric-col-tooltip {
+    display: none;
+  }
 }
 
 /* Ensure link elements maintain grid layout */
@@ -1413,7 +1460,7 @@ button.metrics-table-row {
 /* Change column - same top spacing as YTD value columns (date-label height + row padding)
    so the change value aligns with the numeric values in the YTD columns. */
 .metrics-table-row .metric-col-change {
-  padding-top: 19px; /* ~4px row padding + ~15px (one line of .metric-date-label) */
+  padding-top: 9px; /* Align with YTD value columns; reduced from 19px for tighter rows */
   padding-right: 8px;
 }
 
@@ -1651,7 +1698,8 @@ button.metrics-table-row {
   
   /* Change column: same as desktop - align with YTD values (date-label equivalent space) */
   .metrics-table-row .metric-col-change {
-    padding-top: 19px;
+    align-self: start;
+    padding-top: 5px;
     padding-right: 8px;
   }
   

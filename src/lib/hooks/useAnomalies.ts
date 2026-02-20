@@ -143,6 +143,7 @@ export function useAnomalyDetail(resultId: number | null) {
  *   - is_anomaly: Filter by flagged anomalies (true) or all (null)
  *   - limit: Maximum number of results to return
  *   - period_date: Filter by specific period date (e.g., "2025-01-13")
+ *   - metric_id: Filter by metric ID
  */
 export function useCityAnomalies(
   cityId: number | null,
@@ -152,6 +153,7 @@ export function useCityAnomalies(
     is_anomaly?: boolean | null;
     limit?: number;
     period_date?: string | null;
+    metric_id?: number | null;
   }
 ) {
   const { getAccessTokenSilently } = useAuth0();
@@ -168,6 +170,7 @@ export function useCityAnomalies(
         is_anomaly: options?.is_anomaly ?? true,
         limit: options?.limit ?? 200, // Backend max limit is 200
         period_date: options?.period_date ?? undefined,
+        metric_id: options?.metric_id ?? undefined,
       });
     },
     staleTime: 2 * 60 * 1000, // 2 minutes

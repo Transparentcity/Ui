@@ -23,9 +23,14 @@ import {
   getCityMetricOrdering,
   saveCityMetricOrdering,
   resetCityMetricOrdering,
+  getUserMetricOrdering,
+  saveUserMetricOrdering,
+  resetUserMetricOrdering,
+  getCityMetricsForCustomize,
   batchExecuteMetrics,
   structureCityMetrics,
   type CityAdminData,
+  type CityMetricForCustomize,
   type CityStatsResponse,
   type CityStructureData,
   type UpdateCityRequest,
@@ -54,6 +59,12 @@ export const cityAdminKeys = {
   structure: (id: number) => [...cityAdminKeys.all, "structure", id] as const,
   models: () => [...cityAdminKeys.all, "models"] as const,
   metricOrdering: (id: number) => [...cityAdminKeys.all, "metricOrdering", id] as const,
+};
+
+/** Query keys for per-user metric ordering (dashboard personalization). */
+export const userMetricOrderingKeys = {
+  all: ["user", "metricOrdering"] as const,
+  forCity: (cityId: number) => [...userMetricOrderingKeys.all, cityId] as const,
 };
 
 /**
@@ -546,6 +557,92 @@ export function useResetCityMetricOrdering() {
       // Also invalidate city metrics queries
       queryClient.invalidateQueries({ queryKey: ["cities", "metrics", cityId] });
     },
+  });
+}
+
+// ============================================================================
+// USER METRIC ORDERING HOOKS (per-user dashboard order)
+// ============================================================================
+
+/**
+ * Fetches metric ordering for the current user and city (user override or city-level fallback).
+ * Use for signed-in dashboard personalization.
+ */
+export function useUserMetricOrdering(cityId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: userMetricOrderingKeys.forCity(cityId!),
+    queryFn: async () => {
+      if (!cityId) throw new Error("City ID is required");
+      const token = await getAccessTokenSilently();
+      return getUserMetricOrdering(cityId, token);
+    },
+    enabled: !!cityId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useSaveUserMetricOrdering() {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      cityId,
+      orderings,
+    }: {
+      cityId: number;
+      orderings: MetricOrderingItem[];
+    }) => {
+      const token = await getAccessTokenSilently();
+      return saveUserMetricOrdering(cityId, orderings, token);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: userMetricOrderingKeys.forCity(variables.cityId),
+      });
+      queryClient.invalidateQueries({ queryKey: ["cities", "metrics", variables.cityId] });
+    },
+  });
+}
+
+export function useResetUserMetricOrdering() {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (cityId: number) => {
+      const token = await getAccessTokenSilently();
+      return resetUserMetricOrdering(cityId, token);
+    },
+    onSuccess: (_, cityId) => {
+      queryClient.invalidateQueries({ queryKey: userMetricOrderingKeys.forCity(cityId) });
+      queryClient.invalidateQueries({ queryKey: ["cities", "metrics", cityId] });
+    },
+  });
+}
+
+/** Query key for all city metrics with show_on_dash (customize UI). */
+export const cityMetricsForCustomizeKey = (cityId: number) =>
+  ["cityMetricsForCustomize", cityId] as const;
+
+/**
+ * Fetch all metrics for a city with show_on_dash (for customize-metrics dialog).
+ * Use when authenticated to allow adding/removing metrics from dashboard.
+ */
+export function useCityMetricsForCustomize(cityId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: cityMetricsForCustomizeKey(cityId!),
+    queryFn: async () => {
+      if (!cityId) throw new Error("City ID is required");
+      const token = await getAccessTokenSilently();
+      return getCityMetricsForCustomize(cityId, token);
+    },
+    enabled: !!cityId,
+    staleTime: 2 * 60 * 1000,
   });
 }
 
