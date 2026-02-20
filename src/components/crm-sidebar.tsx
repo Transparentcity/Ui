@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils"
 
 const navigation = [
   { name: "AI Compose", href: "/compose", icon: Sparkles, highlight: true },
+  { name: "City Readiness", href: "/cityreadiness", icon: BarChart3 },
   { name: "Contacts", href: "/contacts", icon: Users },
   { name: "Keywords", href: "/keywords", icon: Tags },
   { name: "Templates", href: "/templates", icon: FileText },

@@ -2,35 +2,18 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { ArrowLeft, LayoutDashboard } from "lucide-react"
 import { cn } from "@/lib/utils"
-import {
-  LayoutDashboard,
-  FileText,
-  MessageSquareMore,
-  Database,
-  Building2,
-  FileStack,
-  CheckSquare,
-  BarChart3,
-  ArrowLeft,
-} from "lucide-react"
 
 const navItems = [
-  { label: "Dashboard", href: "/foia", icon: LayoutDashboard },
-  { label: "Readiness", href: "/foia/readiness", icon: BarChart3 },
-  { label: "Requests", href: "/foia/requests", icon: FileText },
-  { label: "Follow Ups", href: "/foia/messages", icon: MessageSquareMore },
-  { label: "Data Review", href: "/foia/data-review", icon: Database },
-  { label: "Tasks", href: "/foia/tasks", icon: CheckSquare },
-  { label: "City Profiles", href: "/foia/cities", icon: Building2 },
-  { label: "Templates", href: "/foia/templates", icon: FileStack },
+  { label: "Dashboard", href: "/cityreadiness", icon: LayoutDashboard },
 ]
 
-export function FoiaSidebar() {
+export function CityReadinessSidebar() {
   const pathname = usePathname()
 
   function isActive(href: string) {
-    if (href === "/foia") return pathname === "/foia"
+    if (href === "/cityreadiness") return pathname === "/cityreadiness"
     return pathname.startsWith(href)
   }
 
@@ -38,10 +21,7 @@ export function FoiaSidebar() {
     <aside className="w-[280px] min-w-[280px] h-screen bg-white border-r border-gray-200 flex flex-col sticky top-0 left-0 z-50">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 min-h-16">
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-2.5 text-inherit no-underline flex-1"
-        >
+        <Link href="/dashboard" className="flex items-center gap-2.5 text-inherit no-underline flex-1">
           <div className="w-5 h-5 shrink-0">
             <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className="overflow-visible w-full h-full">
               <path
@@ -63,9 +43,7 @@ export function FoiaSidebar() {
 
       {/* Module Label */}
       <div className="px-4 pt-3 pb-2 flex items-center justify-between">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-          FOIA / Public Records
-        </span>
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">City Readiness</span>
         <Link
           href="/dashboard"
           className="flex items-center gap-1 text-xs text-gray-400 no-underline hover:text-purple-600 transition-colors"
@@ -102,9 +80,7 @@ export function FoiaSidebar() {
 
       {/* Footer */}
       <div className="px-4 py-3 border-t border-gray-200 bg-white">
-        <p className="text-xs text-gray-400 m-0">
-          FOIA / Public Records
-        </p>
+        <p className="text-xs text-gray-400 m-0">Data coverage & FOIA targeting</p>
       </div>
     </aside>
   )

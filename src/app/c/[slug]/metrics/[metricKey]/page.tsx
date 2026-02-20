@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import {
   getPublicMetricByKey,
   getPublicMetricComparisons,
@@ -10,6 +11,10 @@ import {
 } from "@/lib/publicApiClient";
 import MetricDetailClient from "./MetricDetailClient";
 import MetricLoadErrorClient from "./MetricLoadErrorClient";
+
+const getCachedMetricByKey = cache(async (metricKey: string) => {
+  return getPublicMetricByKey(metricKey);
+});
 
 type PageProps = {
   params: Promise<{ slug: string; metricKey: string }>;
@@ -36,7 +41,7 @@ export async function generateMetadata({
     districtNum && districtNum > 0 ? `District ${districtNum}` : "Citywide";
 
   try {
-    const metric = await getPublicMetricByKey(metricKey);
+    const metric = await getCachedMetricByKey(metricKey);
     let cityName: string = metric.city_name ?? titleCaseSlug(slug);
     try {
       const cities = await listPublicCitiesForSitemap();
@@ -105,7 +110,7 @@ export default async function MetricDetailPage({ params, searchParams }: PagePro
 
   let metric;
   try {
-    metric = await getPublicMetricByKey(metricKey);
+    metric = await getCachedMetricByKey(metricKey);
   } catch (error) {
     console.error("Failed to load metric:", error);
     if (isApi404(error)) {
