@@ -229,8 +229,8 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
     }
   }
 
-  // VENDOR
-  if (cat.includes("vendor")) {
+  // CONTRACTS (vendor/procurement)
+  if (cat.includes("contract") || cat.includes("vendor")) {
     const select = "vendor,department,vouchers_paid,voucher,purchase_order,fiscal_year"
     const vendorName = escapeSoqlLike(finding.entity || "")
     
@@ -395,7 +395,7 @@ export function WasteFindingCard({
 
     const cat = finding.category.toLowerCase()
 
-    if (cat.includes("vendor")) {
+    if (cat.includes("contract") || cat.includes("vendor")) {
         return (
             <table className="min-w-full text-xs">
               <thead className="bg-gray-50 text-gray-600">

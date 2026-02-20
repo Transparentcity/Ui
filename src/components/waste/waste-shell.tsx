@@ -9,11 +9,12 @@ import {
   DollarSign,
   Truck,
   Building2,
-  Landmark,
   Scale,
   ArrowLeft,
   LogIn,
   Database,
+  ClipboardCheck,
+  Gauge,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Loader from "@/components/Loader"
@@ -45,9 +46,9 @@ const navigation: NavigationItem[] = [
     mode: "category",
   },
   {
-    key: "vendor",
-    name: "Vendors",
-    href: "/waste#vendor",
+    key: "contracts",
+    name: "Contracts",
+    href: "/waste#contracts",
     icon: Truck,
     description: "Procurement analysis",
     mode: "category",
@@ -61,19 +62,27 @@ const navigation: NavigationItem[] = [
     mode: "category",
   },
   {
-    key: "influence",
-    name: "Influence",
-    href: "/waste#influence",
-    icon: Landmark,
-    description: "Lobbying & pay-to-play",
-    mode: "category",
-  },
-  {
     key: "detectors",
     name: "Detectors & Data",
     href: "/waste#detectors",
     icon: Database,
     description: "Algorithms & datasets",
+    mode: "category",
+  },
+  {
+    key: "review",
+    name: "Review Queue",
+    href: "/waste#review",
+    icon: ClipboardCheck,
+    description: "Auditor workflow",
+    mode: "category",
+  },
+  {
+    key: "accuracy",
+    name: "Detector Accuracy",
+    href: "/waste#accuracy",
+    icon: Gauge,
+    description: "Precision feedback",
     mode: "category",
   },
   {

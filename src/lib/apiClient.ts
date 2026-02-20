@@ -3803,7 +3803,7 @@ export function getDefaultExecuteStartDateByPeriod(periodType: string): string {
 
 export interface WasteFinding {
   id: string;
-  category: "payroll" | "vendor" | "infrastructure" | "integrity" | "influence" | "confirmed";
+  category: "payroll" | "contracts" | "infrastructure" | "integrity" | "influence" | "confirmed";
   subcategory: string;
   severity: "critical" | "high" | "medium" | "low" | "info";
   entity: string;
@@ -3865,6 +3865,120 @@ export interface WasteAnalyzeResponse {
   data_freshness: WasteDataFreshness[];
 }
 
+export type WasteDispositionType =
+  | "confirmed_fraud"
+  | "confirmed_waste"
+  | "policy_violation"
+  | "data_error"
+  | "false_positive"
+  | "under_investigation"
+  | "inconclusive";
+
+export interface WasteDisposition {
+  id: string;
+  finding_id: number;
+  entity_id: string | null;
+  city_id: number;
+  disposition: WasteDispositionType;
+  auditor_id: string;
+  notes: string | null;
+  evidence_links: string[];
+  created_at: string | null;
+}
+
+export interface WasteDetectorAccuracy {
+  id: string;
+  detector_key: string;
+  city_id: number;
+  total_findings: number;
+  confirmed_count: number;
+  false_positive_count: number;
+  precision_rate: number;
+  updated_at: string | null;
+}
+
+export interface WasteReviewQueueItem {
+  id: string;
+  finding_id: number;
+  city_id: number;
+  status: "pending" | "assigned" | "disposed";
+  priority: "low" | "medium" | "high" | "critical";
+  assigned_to: string | null;
+  finding_detector_key: string | null;
+  finding_category: string | null;
+  finding_subcategory: string | null;
+  finding_entity_name: string | null;
+  finding_severity: string | null;
+  finding_description: string | null;
+  finding_created_at: string | null;
+  composite_score: number | null;
+  severity_tier: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface WasteReviewQueuePage {
+  items: WasteReviewQueueItem[];
+  page: number;
+  per_page: number;
+  total: number;
+}
+
+export interface CreateWasteDispositionRequest {
+  city_id: number;
+  disposition: WasteDispositionType;
+  notes?: string;
+  evidence_links?: string[];
+}
+
+export interface AssignWasteQueueItemRequest {
+  assigned_to: string;
+}
+
+export interface BulkDisposeWasteFindingsRequest {
+  city_id: number;
+  finding_ids: number[];
+  disposition: WasteDispositionType;
+  notes?: string;
+}
+
+export interface RunWasteAnalysisRequest {
+  city_id: number;
+  category?: string;
+  force_refresh?: boolean;
+  persist?: boolean;
+}
+
+export interface WasteRun {
+  id: number;
+  city_id: number;
+  category: string | null;
+  status: string;
+  is_active: boolean;
+  analysis_timestamp: string | null;
+  job_id: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  run_config: Record<string, unknown>;
+  errors: string[];
+}
+
+export interface SyncWasteReviewQueueRequest {
+  city_id: number;
+  run_id?: number;
+}
+
+export interface SyncWasteReviewQueueResponse {
+  city_id: number;
+  run_id: number | null;
+  processed: number;
+  inserted: number;
+  updated: number;
+  reopened: number;
+}
+
 export function getWasteAnalysis(
   token: string,
   category?: string,
@@ -3878,10 +3992,142 @@ export function getWasteAnalysis(
   return request<WasteAnalyzeResponse>(path, "GET", undefined, token);
 }
 
+export function runWasteAnalysis(
+  token: string,
+  payload: RunWasteAnalysisRequest
+): Promise<WasteAnalyzeResponse> {
+  return request<WasteAnalyzeResponse>("/api/waste/run", "POST", payload, token);
+}
+
 export function getWasteSummary(
   token: string
 ): Promise<WasteSummaryResponse> {
   return request<WasteSummaryResponse>("/api/waste/summary", "GET", undefined, token);
+}
+
+export function listWasteRuns(
+  token: string,
+  cityId: number,
+  category?: string,
+  limit: number = 1
+): Promise<WasteRun[]> {
+  const query = new URLSearchParams();
+  query.set("city_id", String(cityId));
+  query.set("limit", String(limit));
+  if (category) query.set("category", category);
+  return request<WasteRun[]>(
+    `/api/waste/runs?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getWasteReviewQueue(
+  token: string,
+  params: {
+    city_id: number;
+    status?: string;
+    priority?: string;
+    assigned_to?: string;
+    page?: number;
+    per_page?: number;
+  }
+): Promise<WasteReviewQueuePage> {
+  const query = new URLSearchParams();
+  query.set("city_id", String(params.city_id));
+  if (params.status) query.set("status", params.status);
+  if (params.priority) query.set("priority", params.priority);
+  if (params.assigned_to) query.set("assigned_to", params.assigned_to);
+  if (params.page) query.set("page", String(params.page));
+  if (params.per_page) query.set("per_page", String(params.per_page));
+  return request<WasteReviewQueuePage>(
+    `/api/waste/queue?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function assignWasteQueueItem(
+  token: string,
+  itemId: string,
+  cityId: number,
+  payload: AssignWasteQueueItemRequest
+): Promise<WasteReviewQueueItem> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  return request<WasteReviewQueueItem>(
+    `/api/waste/queue/${itemId}/assign?${query.toString()}`,
+    "PUT",
+    payload,
+    token
+  );
+}
+
+export function createWasteDisposition(
+  token: string,
+  findingId: number,
+  payload: CreateWasteDispositionRequest
+): Promise<WasteDisposition> {
+  return request<WasteDisposition>(
+    `/api/waste/findings/${findingId}/dispositions`,
+    "POST",
+    payload,
+    token
+  );
+}
+
+export function getWasteDispositions(
+  token: string,
+  findingId: number,
+  cityId: number
+): Promise<WasteDisposition[]> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  return request<WasteDisposition[]>(
+    `/api/waste/findings/${findingId}/dispositions?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getWasteDetectorAccuracy(
+  token: string,
+  cityId: number,
+  detectorKey?: string
+): Promise<WasteDetectorAccuracy[]> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  if (detectorKey) query.set("detector_key", detectorKey);
+  return request<WasteDetectorAccuracy[]>(
+    `/api/waste/accuracy?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function bulkDisposeWasteFindings(
+  token: string,
+  payload: BulkDisposeWasteFindingsRequest
+): Promise<WasteDisposition[]> {
+  return request<WasteDisposition[]>(
+    "/api/waste/queue/bulk-dispose",
+    "POST",
+    payload,
+    token
+  );
+}
+
+export function syncWasteReviewQueue(
+  token: string,
+  payload: SyncWasteReviewQueueRequest
+): Promise<SyncWasteReviewQueueResponse> {
+  return request<SyncWasteReviewQueueResponse>(
+    "/api/waste/queue/sync",
+    "POST",
+    payload,
+    token
+  );
 }
 
 export async function exportWasteFindings(

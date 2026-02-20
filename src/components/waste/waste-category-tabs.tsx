@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { Users, ShoppingCart, Wrench, Landmark, ShieldAlert, FileCheck } from "lucide-react"
+import { Users, ShoppingCart, Wrench, FileCheck } from "lucide-react"
 import type { WasteCategorySummary } from "@/lib/apiClient"
 
 function formatDollar(amount: number | null | undefined): string {
@@ -25,8 +25,8 @@ function normalizeWasteCategory(category: string): string {
   if (key === "integrity" || key.includes("integrity") || key.includes("personnel") || key.includes("revolving") || key.includes("conflict")) {
     return "payroll"
   }
-  if (key === "vendor" || key === "vendors" || key.includes("vendor") || key === "vendor_procurement") {
-    return "vendor"
+  if (key === "contracts" || key === "vendor" || key === "vendors" || key.includes("vendor") || key === "vendor_procurement" || key.includes("contract") || key === "contracts_procurement") {
+    return "contracts"
   }
   if (
     key === "infrastructure" ||
@@ -38,7 +38,7 @@ function normalizeWasteCategory(category: string): string {
     return "infrastructure"
   }
   if (key === "influence" || key.includes("influence") || key.includes("lobby") || key.includes("pay_to_play")) {
-    return "influence"
+    return "vendor"
   }
   if (key === "confirmed" || key.includes("confirmed")) {
     return "confirmed"
@@ -48,9 +48,8 @@ function normalizeWasteCategory(category: string): string {
 
 const CATEGORIES: CategoryConfig[] = [
   { key: "payroll", label: "Payroll & Personnel", icon: <Users className="w-5 h-5" /> },
-  { key: "vendor", label: "Vendor & Procurement", icon: <ShoppingCart className="w-5 h-5" /> },
+  { key: "contracts", label: "Contracts & Procurement", icon: <ShoppingCart className="w-5 h-5" /> },
   { key: "infrastructure", label: "Infrastructure & Services", icon: <Wrench className="w-5 h-5" /> },
-  { key: "influence", label: "Influence & Pay-to-Play", icon: <Landmark className="w-5 h-5" /> },
   { key: "confirmed", label: "Confirmed Cases", icon: <FileCheck className="w-5 h-5" /> },
 ]
 

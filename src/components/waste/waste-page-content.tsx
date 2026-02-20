@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react"
 import { useWasteAnalysis } from "@/lib/hooks/useWaste"
+import { useCities } from "@/lib/hooks/useCities"
 import { WasteShell } from "./waste-shell"
 import { Button } from "@/components/ui/button"
 import { RefreshCw, AlertTriangle, Clock, Database } from "lucide-react"
@@ -22,9 +23,18 @@ import {
   type WasteSeymourRequest,
 } from "./waste-seymour-panel"
 import { WasteDetectorsData } from "./waste-detectors-data"
+import { WasteReviewQueue } from "./waste-review-queue"
+import { WasteDetectorAccuracy } from "./waste-detector-accuracy"
 
 type SeverityFilter = "all" | "critical" | "high" | "medium"
-type WasteCategoryKey = "payroll" | "vendor" | "infrastructure" | "influence" | "confirmed" | "detectors"
+type WasteCategoryKey =
+  | "payroll"
+  | "contracts"
+  | "infrastructure"
+  | "confirmed"
+  | "detectors"
+  | "review"
+  | "accuracy"
 
 const WASTE_ANALYSIS_ESTIMATED_SECONDS = 120
 const WASTE_REFRESH_TIMEOUT_MS = 120_000
@@ -62,8 +72,8 @@ function normalizeWasteCategory(category: string): WasteCategoryKey {
   if (key === "integrity" || key.includes("integrity") || key.includes("personnel") || key.includes("revolving") || key.includes("conflict")) {
     return "payroll"
   }
-  if (key === "vendor" || key === "vendors" || key.includes("vendor") || key === "vendor_procurement") {
-    return "vendor"
+  if (key === "contracts" || key === "vendor" || key === "vendors" || key.includes("vendor") || key.includes("contract") || key === "vendor_procurement" || key === "contracts_procurement") {
+    return "contracts"
   }
   if (
     key === "infrastructure" ||
@@ -75,13 +85,19 @@ function normalizeWasteCategory(category: string): WasteCategoryKey {
     return "infrastructure"
   }
   if (key === "influence" || key.includes("influence") || key.includes("lobby") || key.includes("pay_to_play")) {
-    return "influence"
+    return "vendor"
   }
   if (key === "confirmed" || key.includes("confirmed")) {
     return "confirmed"
   }
   if (key === "detectors" || key === "detectors_data") {
     return "detectors"
+  }
+  if (key === "review" || key.includes("queue")) {
+    return "review"
+  }
+  if (key === "accuracy" || key.includes("precision")) {
+    return "accuracy"
   }
   return "payroll"
 }
@@ -106,7 +122,7 @@ function getWasteAnalysisProgress(elapsedSeconds: number): {
 } {
   let step = "Fetching latest records from city datasets"
   if (elapsedSeconds > 8) {
-    step = "Detecting anomalous patterns across payroll, vendor, and infrastructure"
+    step = "Detecting anomalous patterns across payroll, contracts, and infrastructure"
   }
   if (elapsedSeconds > 20) {
     step = "Scoring findings for confidence and priority"
@@ -228,10 +244,25 @@ export function WastePageContent() {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
   })
 
+  const citiesQuery = useCities({ includeInactive: false })
+  const wasteEligibleCities = useMemo(
+    () => (citiesQuery.data ?? []).filter((city) => (city.datasets_count ?? 0) > 0),
+    [citiesQuery.data]
+  )
+  const selectedCityId = useMemo(() => {
+    if (wasteEligibleCities.length > 0) {
+      return Number(wasteEligibleCities[0].city_id)
+    }
+    return null
+  }, [wasteEligibleCities])
+
   const { data, error, forceRefetch } = useWasteAnalysis(
     undefined,
-    allowAutoFetch
+    allowAutoFetch,
+    selectedCityId,
+    true
   )
+
   const displayData = data ?? cachedData
   const showLoadingState = isManualRefreshing && !displayData
 
@@ -268,7 +299,6 @@ export function WastePageContent() {
   useEffect(() => {
     if (!isManualRefreshing) return
     const timeout = window.setTimeout(() => {
-      setIsManualRefreshing(false)
       setRefreshTimedOut(true)
     }, WASTE_REFRESH_TIMEOUT_MS)
     return () => window.clearTimeout(timeout)
@@ -281,7 +311,10 @@ export function WastePageContent() {
     setRefreshTimedOut(false)
     setIsManualRefreshing(true)
     try {
-      await forceRefetch()
+      const result = await forceRefetch()
+      if (!result.error) {
+        setRefreshTimedOut(false)
+      }
     } finally {
       setIsManualRefreshing(false)
     }
@@ -363,19 +396,34 @@ export function WastePageContent() {
   }
 
   const isDetectorsView = activeCategory === "detectors"
+  const isReviewView = activeCategory === "review"
+  const isAccuracyView = activeCategory === "accuracy"
+  const isAnalysisView = !isDetectorsView && !isReviewView && !isAccuracyView
 
   return (
     <WasteShell
-      title={isDetectorsView ? "Detectors & Data" : "Waste Detection"}
+      title={
+        isDetectorsView
+          ? "Detectors & Data"
+          : isReviewView
+            ? "Review Queue"
+            : isAccuracyView
+              ? "Detector Accuracy"
+              : "Waste Detection"
+      }
       description={
         isDetectorsView
           ? "All anomaly-detection algorithms and public datasets used by the platform"
-          : "Anomaly detection across payroll, vendor payments, and city services"
+          : isReviewView
+            ? "Disposition workflow for auditor triage and assignment."
+            : isAccuracyView
+              ? "Precision tracking from auditor feedback."
+              : "Anomaly detection across payroll, contracts, and city services"
       }
       activeCategory={activeCategory}
       onCategoryChange={handleCategoryChange}
       actions={
-        isDetectorsView ? undefined : (
+        isAnalysisView ? (
           <Button
             variant="outline"
             size="sm"
@@ -387,11 +435,15 @@ export function WastePageContent() {
               ? `Analyzing (${analysisProgress.progressPct}% · ${analysisElapsedSeconds}s)`
               : "Refresh"}
           </Button>
-        )
+        ) : undefined
       }
     >
       {activeCategory === "detectors" ? (
         <WasteDetectorsData />
+      ) : activeCategory === "review" ? (
+        <WasteReviewQueue cityId={selectedCityId} />
+      ) : activeCategory === "accuracy" ? (
+        <WasteDetectorAccuracy cityId={selectedCityId} />
       ) : (
         <>
           {isManualRefreshing && (
@@ -411,6 +463,11 @@ export function WastePageContent() {
                   If this exceeds 150s, use Refresh again to re-request analysis.
                 </p>
               ) : null}
+              {refreshTimedOut ? (
+                <p className="text-xs text-amber-700 mt-2">
+                  This run is taking longer than expected. We are still waiting for the backend response.
+                </p>
+              ) : null}
             </div>
           )}
 
@@ -418,10 +475,10 @@ export function WastePageContent() {
             <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm font-medium text-amber-800">
-                  Refresh took too long and was stopped.
+                  Last refresh took longer than expected.
                 </p>
                 <p className="text-xs text-amber-700 mt-1">
-                  Showing last saved snapshot. Try again when backend load is lower.
+                  Showing your most recent snapshot. You can retry now.
                 </p>
               </div>
               <Button
@@ -473,7 +530,7 @@ export function WastePageContent() {
                 Welcome to Waste Detection
               </p>
               <p className="text-sm text-indigo-700 mt-1">
-                Run your first analysis to detect anomalies across payroll, vendor payments, and city services.
+                Run your first analysis to detect anomalies across payroll, contracts, and city services.
               </p>
               <Button
                 variant="outline"

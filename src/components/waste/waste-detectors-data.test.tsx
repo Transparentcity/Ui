@@ -13,7 +13,7 @@ import {
 // These act as a tripwire: if a backend detector is added but this file is
 // not updated, the count-test fails and reminds you to add it here too.
 // ---------------------------------------------------------------------------
-const EXPECTED_DETECTOR_GROUPS = 6;
+const EXPECTED_DETECTOR_GROUPS = 5;
 const EXPECTED_TOTAL_DETECTORS = 43;
 const EXPECTED_TOTAL_DATASETS = 12;
 

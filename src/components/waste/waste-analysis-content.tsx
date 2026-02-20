@@ -29,7 +29,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 
-type WasteCategory = "all" | "payroll" | "vendor" | "infrastructure" | "influence" | "integrity"
+type WasteCategory = "all" | "payroll" | "contracts" | "infrastructure" | "integrity"
 const ANALYSIS_REFRESH_ESTIMATED_SECONDS = 120
 const ANALYSIS_REFRESH_TIMEOUT_MS = 120_000
 const WASTE_ANALYSIS_CACHE_KEY = "waste:last-analysis:v1"
@@ -62,9 +62,9 @@ function safeSetCache(key: string, data: WasteAnalyzeResponse): void {
 function normalizeWasteCategory(category: string): WasteCategory {
   const key = category.toLowerCase().trim().replace(/[_\s&.,'-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")
   if (key === "payroll" || key.includes("payroll") || key === "payroll_compensation") return "payroll"
-  if (key === "vendor" || key === "vendors" || key.includes("vendor") || key === "vendor_procurement") return "vendor"
+  if (key === "contracts" || key === "vendor" || key === "vendors" || key.includes("vendor") || key.includes("contract") || key === "vendor_procurement" || key === "contracts_procurement") return "contracts"
   if (key === "infrastructure" || key === "services" || key === "service" || key.includes("infrastructure") || key === "infrastructure_services") return "infrastructure"
-  if (key === "influence" || key.includes("influence") || key.includes("lobby") || key.includes("pay_to_play")) return "influence"
+  if (key === "influence" || key.includes("influence") || key.includes("lobby") || key.includes("pay_to_play")) return "vendor"
   if (key === "integrity" || key.includes("integrity") || key.includes("personnel") || key.includes("revolving") || key.includes("conflict")) return "integrity"
   return "all"
 }
@@ -72,8 +72,7 @@ function normalizeWasteCategory(category: string): WasteCategory {
 function formatCategoryLabel(category: WasteCategory): string {
   if (category === "all") return "All Categories"
   if (category === "payroll") return "Payroll & Compensation"
-  if (category === "vendor") return "Vendor & Procurement"
-  if (category === "influence") return "Influence & Pay-to-Play"
+  if (category === "contracts") return "Contracts & Procurement"
   if (category === "integrity") return "Personnel Integrity"
   return "Infrastructure & Services"
 }
@@ -138,7 +137,7 @@ function buildRecommendedNextSteps(
   if (category === "payroll") {
     return [...common, "Compare overtime approval timing against shift rosters and emergency declarations.", "Reconcile payroll changes against HR role-change records for the same period.", "Verify hours feasibility against physical presence logs (badge swipes, GPS)."]
   }
-  if (category === "vendor") {
+  if (category === "contracts") {
     return [...common, "Check procurement threshold splits and repeat-award patterns by vendor and approver.", "Review bid waiver rationale and supporting attachments for completeness.", "Verify vendor registration and business license status against city records."]
   }
   if (category === "infrastructure") {
@@ -281,7 +280,6 @@ export function WasteAnalysisContent() {
   useEffect(() => {
     if (!isManualRefreshing) return
     const timeout = window.setTimeout(() => {
-      setIsManualRefreshing(false)
       setRefreshTimedOut(true)
     }, ANALYSIS_REFRESH_TIMEOUT_MS)
     return () => window.clearTimeout(timeout)
@@ -797,7 +795,10 @@ export function WasteAnalysisContent() {
     setRefreshTimedOut(false)
     setIsManualRefreshing(true)
     try {
-      await forceRefetch()
+      const result = await forceRefetch()
+      if (!result.error) {
+        setRefreshTimedOut(false)
+      }
     } finally {
       setIsManualRefreshing(false)
     }
@@ -835,14 +836,19 @@ export function WasteAnalysisContent() {
             </div>
             <p className="text-xs text-blue-700 mt-1">{refreshProgress.etaLabel} · Typical refresh run: 60-120s</p>
             {refreshProgress.isLongRunning ? <p className="text-xs text-blue-700 mt-1">If this exceeds 150s, use Refresh again to re-request analysis.</p> : null}
+            {refreshTimedOut ? (
+              <p className="text-xs text-amber-700 mt-2">
+                This run is taking longer than expected. We are still waiting for the backend response.
+              </p>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
 
       {!isManualRefreshing && refreshTimedOut ? (
         <Card><CardContent className="pt-6">
-          <p className="text-sm font-medium text-amber-800">Refresh took too long and was stopped.</p>
-          <p className="text-xs text-amber-700 mt-1">Showing last saved snapshot. Try Refresh again when backend load is lower.</p>
+          <p className="text-sm font-medium text-amber-800">Last refresh took longer than expected.</p>
+          <p className="text-xs text-amber-700 mt-1">Showing your most recent snapshot. You can retry now.</p>
         </CardContent></Card>
       ) : null}
 
@@ -886,9 +892,8 @@ export function WasteAnalysisContent() {
               <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value as WasteCategory)} className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm">
                 <option value="all">All categories</option>
                 <option value="payroll">Payroll & Compensation</option>
-                <option value="vendor">Vendor & Procurement</option>
+                <option value="contracts">Contracts & Procurement</option>
                 <option value="infrastructure">Infrastructure & Services</option>
-                <option value="influence">Influence & Pay-to-Play</option>
                 <option value="integrity">Personnel Integrity</option>
               </select>
             </label>

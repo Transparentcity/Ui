@@ -82,8 +82,8 @@ export const DETECTOR_GROUPS: DetectorGroup[] = [
     ],
   },
   {
-    category: "vendor",
-    label: "Vendor & Procurement",
+    category: "contracts",
+    label: "Contracts & Procurement",
     detectors: [
       {
         id: "D1",
@@ -205,6 +205,20 @@ export const DETECTOR_GROUPS: DetectorGroup[] = [
           { label: "Cross-reference clusters against vendor payment data to surface shell-entity patterns" },
         ],
       },
+      {
+        id: "D17",
+        name: "Lobbyist Influence",
+        description:
+          "Analyzes lobbyist meeting timelines against subsequent contract awards to detect potential quid-pro-quo influence patterns.",
+        isNew: true,
+      },
+      {
+        id: "D18",
+        name: "Pay-to-Play",
+        description:
+          "Cross-references campaign finance contributions against contract awards to detect potential pay-to-play arrangements.",
+        isNew: true,
+      },
     ],
   },
   {
@@ -258,26 +272,6 @@ export const DETECTOR_GROUPS: DetectorGroup[] = [
         name: "Failure-Risk Hotspots",
         description:
           "Identifies pavement and sidewalk failure hotspots by analyzing repeat 311 complaint clusters in the same location.",
-      },
-    ],
-  },
-  {
-    category: "influence",
-    label: "Influence & Pay-to-Play",
-    detectors: [
-      {
-        id: "D17",
-        name: "Lobbyist Influence",
-        description:
-          "Analyzes lobbyist meeting timelines against subsequent contract awards to detect potential quid-pro-quo influence patterns.",
-        isNew: true,
-      },
-      {
-        id: "D18",
-        name: "Pay-to-Play",
-        description:
-          "Cross-references campaign finance contributions against contract awards to detect potential pay-to-play arrangements.",
-        isNew: true,
       },
     ],
   },
