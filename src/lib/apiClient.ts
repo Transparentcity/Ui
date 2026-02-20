@@ -1359,6 +1359,9 @@ export interface SessionDetail {
   intermediate_steps: any[];
   total_execution_time_ms: number;
   total_tokens_used: number;
+  total_prompt_tokens?: number;
+  total_completion_tokens?: number;
+  estimated_cost_usd?: number;
   llm_call_count: number;
   message_count: number;
   created_at: string;
@@ -1368,6 +1371,8 @@ export interface SessionDetail {
 export interface SessionStats {
   session_id: string;
   total_tokens_used: number;
+  total_prompt_tokens?: number;
+  total_completion_tokens?: number;
   llm_call_count: number;
   total_execution_time_ms: number;
   model_key: string;
@@ -1497,11 +1502,14 @@ export function getSessionStats(
   return getSession(sessionId, token).then((session) => ({
     session_id: session.session_id,
     total_tokens_used: session.total_tokens_used,
+    total_prompt_tokens: session.total_prompt_tokens ?? 0,
+    total_completion_tokens: session.total_completion_tokens ?? 0,
     llm_call_count: session.llm_call_count,
     total_execution_time_ms: session.total_execution_time_ms,
     model_key: session.model_key || "",
     last_message_at: session.last_message_at || null,
     created_at: session.created_at,
+    estimated_cost_usd: session.estimated_cost_usd ?? 0,
   }));
 }
 
@@ -3694,5 +3702,148 @@ export function getDefaultExecuteStartDateByPeriod(periodType: string): string {
   return `${startYear}-01-01`;
 }
 
+// ============================================================================
+// WASTE DETECTION
+// ============================================================================
+
+export interface WasteFinding {
+  id: string;
+  category: "payroll" | "vendor" | "infrastructure" | "integrity" | "influence" | "confirmed";
+  subcategory: string;
+  severity: "critical" | "high" | "medium" | "low" | "info";
+  entity: string;
+  metric: string;
+  metricDetail: string;
+  amount: number | null;
+  description: string;
+  tool: string;
+  confidence: "High" | "Medium" | "Low";
+  confidence_reason: string | null;
+  confidence_score: number;
+  estimated_dollar_impact: number | null;
+  corroboration_count: number;
+  data_completeness: number;
+  priority_score: number;
+  is_partial_data: boolean;
+  truncated_total: number | null;
+  caveat: string | null;
+  narrative: string | null;
+  finding_report: string | null;
+  is_new?: boolean;
+  fiscal_year?: number | null;
+}
+
+export interface WasteDataFreshness {
+  dataset_name: string;
+  data_as_of: string | null;
+  data_loaded_at: string | null;
+  rows_fetched: number;
+  is_partial_year: boolean;
+  stale: boolean;
+  stale_reason: string | null;
+}
+
+export interface WasteCategorySummary {
+  category: string;
+  finding_count: number;
+  critical_count: number;
+  high_count: number;
+  medium_count: number;
+  total_amount: number | null;
+  records_analyzed: number;
+}
+
+export interface WasteSummaryResponse {
+  total_findings: number;
+  critical_count: number;
+  estimated_exposure: number | null;
+  departments_affected: number;
+  categories: WasteCategorySummary[];
+}
+
+export interface WasteAnalyzeResponse {
+  findings: WasteFinding[];
+  summary: WasteSummaryResponse;
+  cached: boolean;
+  analysis_timestamp: string | null;
+  errors: string[];
+  data_freshness: WasteDataFreshness[];
+}
+
+export function getWasteAnalysis(
+  token: string,
+  category?: string,
+  forceRefresh?: boolean
+): Promise<WasteAnalyzeResponse> {
+  const params = new URLSearchParams();
+  if (category) params.append("category", category);
+  if (forceRefresh) params.append("force_refresh", "true");
+  const query = params.toString();
+  const path = `/api/waste/analyze${query ? `?${query}` : ""}`;
+  return request<WasteAnalyzeResponse>(path, "GET", undefined, token);
+}
+
+export function getWasteSummary(
+  token: string
+): Promise<WasteSummaryResponse> {
+  return request<WasteSummaryResponse>("/api/waste/summary", "GET", undefined, token);
+}
+
+export async function exportWasteFindings(
+  token: string,
+  category: string,
+  format: "csv" | "json" | "xlsx"
+): Promise<Blob> {
+  const url = `${API_BASE}/api/waste/export/${category}?format=${format}`;
+  const res = await fetch(url, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Export failed: ${res.status}`);
+  }
+  return res.blob();
+}
+
+export async function exportAuditorReport(
+  token: string,
+  category: string = "all"
+): Promise<Blob> {
+  const url = `${API_BASE}/api/waste/export-report?category=${encodeURIComponent(category)}`;
+  const res = await fetch(url, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Auditor report export failed: ${res.status}`);
+  }
+  return res.blob();
+}
+
 // Force rebuild - all exports are defined above
+
+// ============================================================================
+// CHAT JOBS API
+// ============================================================================
+
+export interface ChatJobResponse {
+  job_id: string;
+  status: string;
+  message: string;
+  session_id: string;
+}
+
+export function createChatJob(
+  payload: ChatMessageRequest,
+  token: string
+): Promise<ChatJobResponse> {
+  return request<ChatJobResponse>("/api/chat/jobs", "POST", payload, token);
+}
+
 

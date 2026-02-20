@@ -37,13 +37,19 @@ export default function Error({ error, reset }: ErrorProps) {
     window.location.href = "/";
   };
 
+  const isStorageError = error.message?.includes("setItem") || error.message?.includes("Storage") || error.message?.includes("quota");
+
   const handleRetry = () => {
-    // Clear stale state before retrying
     if (typeof window !== "undefined") {
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && (key.startsWith("a0.spajs.txs") || key.startsWith("@@auth0spajs@@"))) {
+        if (
+          key &&
+          (key.startsWith("a0.spajs.txs") ||
+            key.startsWith("@@auth0spajs@@") ||
+            key.startsWith("waste:"))
+        ) {
           keysToRemove.push(key);
         }
       }

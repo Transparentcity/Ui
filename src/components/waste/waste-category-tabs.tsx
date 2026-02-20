@@ -1,0 +1,121 @@
+"use client"
+
+import { cn } from "@/lib/utils"
+import { Users, ShoppingCart, Wrench, Landmark, ShieldAlert, FileCheck } from "lucide-react"
+import type { WasteCategorySummary } from "@/lib/apiClient"
+
+function formatDollar(amount: number | null | undefined): string {
+  if (amount == null) return ""
+  const abs = Math.abs(amount)
+  if (abs >= 1_000_000) return `$${(abs / 1_000_000).toFixed(1)}M`
+  if (abs >= 1_000) return `$${(abs / 1_000).toFixed(0)}K`
+  return `$${abs.toLocaleString()}`
+}
+
+interface CategoryConfig {
+  key: string
+  label: string
+  icon: React.ReactNode
+}
+
+function normalizeWasteCategory(category: string): string {
+  const key = category.toLowerCase().trim().replace(/[_\s&.,'-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")
+  if (key === "payroll" || key.includes("payroll") || key === "payroll_compensation") return "payroll"
+  // Map integrity/personnel to payroll
+  if (key === "integrity" || key.includes("integrity") || key.includes("personnel") || key.includes("revolving") || key.includes("conflict")) {
+    return "payroll"
+  }
+  if (key === "vendor" || key === "vendors" || key.includes("vendor") || key === "vendor_procurement") {
+    return "vendor"
+  }
+  if (
+    key === "infrastructure" ||
+    key === "services" ||
+    key === "service" ||
+    key.includes("infrastructure") ||
+    key === "infrastructure_services"
+  ) {
+    return "infrastructure"
+  }
+  if (key === "influence" || key.includes("influence") || key.includes("lobby") || key.includes("pay_to_play")) {
+    return "influence"
+  }
+  if (key === "confirmed" || key.includes("confirmed")) {
+    return "confirmed"
+  }
+  return key
+}
+
+const CATEGORIES: CategoryConfig[] = [
+  { key: "payroll", label: "Payroll & Personnel", icon: <Users className="w-5 h-5" /> },
+  { key: "vendor", label: "Vendor & Procurement", icon: <ShoppingCart className="w-5 h-5" /> },
+  { key: "infrastructure", label: "Infrastructure & Services", icon: <Wrench className="w-5 h-5" /> },
+  { key: "influence", label: "Influence & Pay-to-Play", icon: <Landmark className="w-5 h-5" /> },
+  { key: "confirmed", label: "Confirmed Cases", icon: <FileCheck className="w-5 h-5" /> },
+]
+
+interface WasteCategoryTabsProps {
+  activeCategory: string
+  onCategoryChange: (category: string) => void
+  categorySummaries: WasteCategorySummary[]
+}
+
+export function WasteCategoryTabs({
+  activeCategory,
+  onCategoryChange,
+  categorySummaries,
+}: WasteCategoryTabsProps) {
+  const getSummary = (key: string) =>
+    categorySummaries.find((c) => normalizeWasteCategory(c.category) === key)
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+      {CATEGORIES.map((cat) => {
+        const summary = getSummary(cat.key)
+        const isActive = activeCategory === cat.key
+        const findingCount = summary?.finding_count ?? 0
+        const criticalCount = summary?.critical_count ?? 0
+        const totalAmount = summary?.total_amount
+
+        return (
+          <button
+            key={cat.key}
+            onClick={() => onCategoryChange(cat.key)}
+            className={cn(
+              "flex flex-col items-start gap-2 p-5 rounded-lg border-2 text-left transition-all",
+              "hover:shadow-md cursor-pointer bg-white",
+              isActive
+                ? "border-purple-600 shadow-md"
+                : "border-gray-200 hover:border-gray-300"
+            )}
+          >
+            <div className="flex items-center gap-2 text-gray-600">
+              {cat.icon}
+              <span className="text-sm font-medium">{cat.label}</span>
+              {(cat.key === "integrity" || cat.key === "confirmed") && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-100 text-violet-700 uppercase tracking-wide">
+                  New
+                </span>
+              )}
+            </div>
+            <div className="flex items-baseline gap-3">
+              <span className="text-3xl font-bold text-gray-900">
+                {findingCount}
+              </span>
+              {criticalCount > 0 && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                  {criticalCount} crit
+                </span>
+              )}
+            </div>
+            {totalAmount != null && totalAmount > 0 && (
+              <span className="text-sm text-gray-500">
+                {formatDollar(totalAmount)} exposure
+              </span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
