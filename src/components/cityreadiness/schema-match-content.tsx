@@ -348,8 +348,8 @@ function cityLabel(c: CityReadinessResult) {
                                     <span className="text-gray-400 text-[10px]">Score: {cand.score}</span>
                                     {/* Action to manually ADD (Force Match) this candidate */}
                                     <button
-                                        onClick={() => onForceMatch(cityId, row.key, cand.dataset_id)}
-                                        disabled={isForcing || isRefiningMatch}
+                                        onClick={() => cand.dataset_id && onForceMatch(cityId, row.key, cand.dataset_id)}
+                                        disabled={isForcing || isRefiningMatch || !cand.dataset_id}
                                         className="px-2 py-1 rounded text-[10px] font-semibold border border-purple-200 bg-white text-purple-700 hover:bg-purple-50 transition-colors disabled:opacity-50"
                                     >
                                         {isForcing ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add This"}
@@ -378,7 +378,7 @@ function cityLabel(c: CityReadinessResult) {
           {/* Only show verify button if we have a dataset */}
           {!isMissing && row.dataset && (
               <button
-                onClick={() => runProbe(cityId, row.key, row.label, row.group, row.dataset)}
+                onClick={() => runProbe(cityId, row.key, row.label, row.group, row.dataset!)}
                 disabled={pr.status === "loading"}
                 className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60 shadow-sm"
               >
@@ -674,7 +674,7 @@ export function SchemaMatchContent() {
     }
   }
 
-  function toggleReview(cityId: number, metricKey: string, datasetId: string) {
+  function toggleReview(cityId: number, metricKey: string, datasetId: string | undefined) {
     const k = `${cityId}:${metricKey}:${datasetId}`
     setSelectedForReview((prev) => ({ ...prev, [k]: !prev[k] }))
   }

@@ -1,0 +1,141 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+}
+
+.dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90%;
+  max-width: 720px;
+  max-height: 90vh;
+  background: var(--bg-primary, #fff);
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  z-index: 1001;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  flex-shrink: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary, #222);
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.closeBtn:hover {
+  background: var(--bg-secondary, #f3f4f6);
+  color: var(--text-primary, #222);
+}
+
+.body {
+  padding: 16px 20px 20px;
+  overflow: auto;
+  flex: 1;
+}
+
+.subtitle {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.signInHint {
+  font-style: italic;
+}
+
+/* Signup prompt modal (nested) */
+.signupModal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90%;
+  max-width: 400px;
+  padding: 24px;
+  background: var(--bg-primary, #fff);
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  z-index: 1002;
+}
+
+.signupTitle {
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary, #222);
+}
+
+.signupText {
+  margin: 0 0 20px;
+  font-size: 14px;
+  color: var(--text-secondary, #6b7280);
+  line-height: 1.5;
+}
+
+.signupActions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.signupPrimary {
+  display: inline-block;
+  padding: 10px 18px;
+  background: var(--brand-primary, #ad35fa);
+  color: #fff;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+
+.signupPrimary:hover {
+  opacity: 0.9;
+  color: #fff;
+}
+
+.signupSecondary {
+  padding: 10px 18px;
+  background: var(--bg-secondary, #f3f4f6);
+  color: var(--text-primary, #222);
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.signupSecondary:hover {
+  background: var(--border-primary, #e5e7eb);
+}

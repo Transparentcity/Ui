@@ -355,8 +355,8 @@ export function WasteSeymourPanel({
           {usageStats && !isAnalyzing ? (
             <div className="mt-3 border-t border-gray-200 pt-2 text-xs text-gray-700 grid grid-cols-2 gap-2">
               <div>Tokens: {formatTokens(usageStats.total_tokens_used)}</div>
-              <div>Prompt: {formatTokens(usageStats.total_prompt_tokens)}</div>
-              <div>Completion: {formatTokens(usageStats.total_completion_tokens)}</div>
+              <div>Prompt: {formatTokens(usageStats.total_prompt_tokens ?? 0)}</div>
+              <div>Completion: {formatTokens(usageStats.total_completion_tokens ?? 0)}</div>
               <div>Cost: {formatCost(usageStats.estimated_cost_usd ?? 0)}</div>
             </div>
           ) : null}

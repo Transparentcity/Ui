@@ -133,7 +133,7 @@ export default function ChatView({
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasShownWelcome = useRef(false);
   const lastAutoPromptRef = useRef<string | null>(null);
-  const sendMessageRef = useRef<(overrideMessage?: string) => Promise<void>>();
+  const sendMessageRef = useRef<((overrideMessage?: string) => Promise<void>) | undefined>(undefined);
   const hasPendingSendRef = useRef(false);
   const pendingSessionIdRef = useRef<string | null>(null);
   const statsSetFromSessionLoadRef = useRef<string | null>(null); // Track which session had stats set from handleSessionLoaded
@@ -1293,7 +1293,7 @@ export default function ChatView({
                 <button
                   id="send-btn"
                   className={styles.welcomeSendButton}
-                  onClick={handleSend}
+                  onClick={() => handleSend()}
                   disabled={!message.trim() || isTyping}
                 >
                   <span className={styles.welcomeSendIcon}>→</span>
@@ -1519,7 +1519,7 @@ export default function ChatView({
               <button
                 id="send-btn"
                 className={styles.sendIconButton}
-                onClick={handleSend}
+                onClick={() => handleSend()}
                 disabled={!message.trim() || isTyping}
                 type="button"
                 aria-label="Send message"

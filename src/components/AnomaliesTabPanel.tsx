@@ -242,7 +242,7 @@ const PERIOD_TYPE_OPTIONS = [
   { value: "year", label: "Yearly" },
 ];
 
-const MIN_SIGMA_OPTIONS: { value: ""; label: string } | { value: number; label: string }[] = [
+const MIN_SIGMA_OPTIONS: ({ value: ""; label: string } | { value: number; label: string })[] = [
   { value: "", label: "All" },
   { value: 2, label: "≥ 2σ" },
   { value: 2.5, label: "≥ 2.5σ" },

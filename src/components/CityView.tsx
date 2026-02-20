@@ -1990,8 +1990,8 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             id: m.id,
             metric_name: m.metric_name,
             category: m.category ?? undefined,
-            subcategory: m.subcategory ?? m.sub_category ?? null,
-            sub_category: m.sub_category ?? m.subcategory ?? null,
+            subcategory: m.subcategory ?? null,
+            sub_category: m.subcategory ?? null,
           }))}
           open={userOrderDialogOpen}
           onClose={() => setUserOrderDialogOpen(false)}

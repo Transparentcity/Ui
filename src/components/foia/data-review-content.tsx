@@ -21,7 +21,7 @@ import {
 } from "@/lib/foiaApiClient"
 import { uploadFoiaFile, rewriteFoiaRequest } from "@/app/actions/foia"
 import { API_BASE } from "@/lib/apiBase"
-import type { DatasetInstance, FoiaRequest } from "@/lib/foia/types"
+import type { DatasetInstance, DatasetInstanceStatus, FoiaRequest } from "@/lib/foia/types"
 
 const statusConfig: Record<string, { label: string; color: string }> = {
   pending_review: { label: "Pending Review", color: "bg-amber-100 text-amber-700" },
@@ -92,7 +92,7 @@ export function DataReviewContent() {
       await updateDatasetInstance(
         instanceId,
         {
-          status: newStatus,
+          status: newStatus as DatasetInstanceStatus,
           ...(reviewNotes && { review_notes: reviewNotes }),
         },
         token
@@ -225,8 +225,9 @@ export function DataReviewContent() {
                   rewriteFoiaRequest(inst.request_id, {
                     incomplete_reason: inst.review_notes || "Data delivery incomplete",
                   })
-                    .then((res: { id?: number }) => {
-                      if (res?.id) router.push(`/foia/requests/${res.id}`)
+                    .then((res) => {
+                      const data = res as { id?: number } | undefined
+                      if (data?.id) router.push(`/foia/requests/${data.id}`)
                       else load()
                     })
                     .catch((err) =>
