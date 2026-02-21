@@ -3852,6 +3852,8 @@ export interface WasteSummaryResponse {
   total_findings: number;
   critical_count: number;
   estimated_exposure: number | null;
+  gross_exposure: number | null;
+  net_exposure: number | null;
   departments_affected: number;
   categories: WasteCategorySummary[];
 }

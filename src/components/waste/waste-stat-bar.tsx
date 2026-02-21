@@ -86,8 +86,12 @@ export function WasteStatBar({ summary, isLoading }: WasteStatBarProps) {
       />
       <StatItem
         label="Estimated Exposure"
-        value={formatDollar(summary?.estimated_exposure)}
-        subtext="in questionable patterns"
+        value={formatDollar(summary?.net_exposure ?? summary?.estimated_exposure)}
+        subtext={
+          summary?.gross_exposure != null && summary?.net_exposure != null
+            ? `de-duplicated from ${formatDollar(summary.gross_exposure)} gross`
+            : "in questionable patterns"
+        }
         icon={<DollarSign className="w-5 h-5 text-amber-500" />}
         accentColor="#f59e0b"
       />
