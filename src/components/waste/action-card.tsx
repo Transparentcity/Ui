@@ -80,7 +80,7 @@ export function ActionCard({ action, className }: ActionCardProps) {
           </p>
         )}
         <div className="mt-2 flex items-center gap-3 text-[11px] text-gray-400">
-          {action.assignee && <span>Assigned to {action.assignee}</span>}
+          {action.assigned_to && <span>Assigned to {action.assigned_to}</span>}
           {action.due_date && (
             <span className={isOverdue ? "text-red-600 font-medium" : ""}>
               Due {new Date(action.due_date).toLocaleDateString()}

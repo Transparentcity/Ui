@@ -75,10 +75,10 @@ const navigation: NavigationItem[] = [
   },
   {
     key: "review",
-    name: "Review Queue",
+    name: "Queue Overview",
     href: "/waste#review",
     icon: ClipboardCheck,
-    description: "Auditor workflow",
+    description: "Quick triage view",
     mode: "category",
   },
   {
@@ -99,7 +99,7 @@ const navigation: NavigationItem[] = [
   },
   {
     key: "queue-page",
-    name: "Review Queue",
+    name: "Review Workbench",
     href: "/waste/queue",
     icon: ListChecks,
     description: "Full auditor workbench",

@@ -13,9 +13,12 @@ function makeAction(
     title: "Test Action",
     description: "A test action description",
     status: "pending",
-    assignee: null,
+    assigned_to: null,
+    target_department: null,
     due_date: null,
     completed_at: null,
+    response_notes: null,
+    attachments: [],
     created_at: "2026-01-15T00:00:00Z",
     created_by: "auditor@city.gov",
     ...overrides,
@@ -49,13 +52,13 @@ describe("ActionCard", () => {
 
   it("renders assignee when present", () => {
     render(
-      <ActionCard action={makeAction({ assignee: "Jane Doe" })} />
+      <ActionCard action={makeAction({ assigned_to: "Jane Doe" })} />
     );
     expect(screen.getByText("Assigned to Jane Doe")).toBeInTheDocument();
   });
 
   it("does not render assignee when null", () => {
-    render(<ActionCard action={makeAction({ assignee: null })} />);
+    render(<ActionCard action={makeAction({ assigned_to: null })} />);
     expect(screen.queryByText(/Assigned to/)).not.toBeInTheDocument();
   });
 

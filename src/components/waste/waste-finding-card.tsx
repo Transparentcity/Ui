@@ -134,6 +134,39 @@ const SOCRATA_PAYROLL = "https://data.sfgov.org/resource/88g8-5mnd.json"
 const SOCRATA_VENDOR = "https://data.sfgov.org/resource/n9pm-xkyq.json"
 const SOCRATA_311 = "https://data.sfgov.org/resource/vw6y-z8j6.json"
 
+// Keywords used by D4 Infrastructure Cluster detector (must stay in sync with infrastructure.py)
+const INFRA_KEYWORDS_311 = ["sewer", "water", "flood", "leak", "pressure", "ponding", "sinkhole", "puc"]
+
+function extractCoordsFromDescription(description: string): [number, number] | null {
+  const match =
+    typeof description === "string"
+      ? description.match(/near\s+\((-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\)/i) ??
+        description.match(/\((-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\)/)
+      : null
+  if (!match) return null
+  const a = parseFloat(match[1])
+  const b = parseFloat(match[2])
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null
+  // Assume (lat, lon) if both in valid ranges
+  if (Math.abs(a) <= 90 && Math.abs(b) <= 180) return [a, b]
+  if (Math.abs(b) <= 90 && Math.abs(a) <= 180) return [b, a]
+  return null
+}
+
+function buildInfraKeywordFilter(): string {
+  const parts: string[] = []
+  for (const kw of INFRA_KEYWORDS_311) {
+    const escaped = escapeSoqlLike(kw)
+    parts.push(
+      `lower(service_name) like '%${escaped}%'`,
+      `lower(service_subtype) like '%${escaped}%'`,
+      `lower(agency_responsible) like '%${escaped}%'`,
+      `lower(service_details) like '%${escaped}%'`
+    )
+  }
+  return `(${parts.join(" or ")})`
+}
+
 function escapeSoqlLike(value: string): string {
   return value.replace(/'/g, "''")
 }
@@ -298,10 +331,23 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
   if (cat.includes("infrastructure")) {
     const select = "service_request_id,service_name,service_subtype,status_description,requested_datetime,closed_date,neighborhoods_sffind_boundaries"
     
-    // Spatial Cluster (Entity is Neighborhood)
+    // Spatial Cluster (D4): only water/sewer/infrastructure complaints that matched the detector
     if (finding.subcategory === "Infrastructure Cluster") {
-       const neighborhood = escapeSoqlLike(finding.entity || "")
-       return `${SOCRATA_311}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`neighborhoods_sffind_boundaries = '${neighborhood}'`)}&$order=requested_datetime DESC&$limit=${DETAILS_LIMIT}`
+      const keywordFilter = buildInfraKeywordFilter()
+      const cutoff = new Date()
+      cutoff.setDate(cutoff.getDate() - 90)
+      const cutoffIso = cutoff.toISOString().split("T")[0]
+      const dateFilter = `requested_datetime >= '${cutoffIso}T00:00:00.000'`
+
+      const coords = extractCoordsFromDescription(finding.description ?? "")
+      if (coords) {
+        const [lat, lon] = coords
+        const where = `within_circle(point, ${lat}, ${lon}, 500) and ${keywordFilter} and ${dateFilter}`
+        return `${SOCRATA_311}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=requested_datetime DESC&$limit=${DETAILS_LIMIT}`
+      }
+      const neighborhood = escapeSoqlLike(finding.entity || "")
+      const where = `neighborhoods_sffind_boundaries = '${neighborhood}' and ${keywordFilter} and ${dateFilter}`
+      return `${SOCRATA_311}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=requested_datetime DESC&$limit=${DETAILS_LIMIT}`
     }
     
     // Response Time (Entity is Agency)

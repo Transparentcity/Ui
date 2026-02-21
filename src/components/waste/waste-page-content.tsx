@@ -410,7 +410,7 @@ export function WastePageContent() {
         isDetectorsView
           ? "Detectors & Data"
           : isReviewView
-            ? "Review Queue"
+            ? "Queue Overview"
             : isAccuracyView
               ? "Detector Accuracy"
               : "Waste Detection"
