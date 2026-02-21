@@ -4176,25 +4176,32 @@ export async function exportAuditorReport(
 export interface WasteEntityScoreSignal {
   detector_key: string;
   weight: number;
-  raw_score: number;
-  weighted_score: number;
+  confidence_score: number;
+  contribution: number;
   finding_id: number | null;
+  severity: string;
+  decay_multiplier: number;
+  watchlist_multiplier: number;
+  run_id: number | null;
 }
 
 export interface WasteEntityScore {
   id: string;
-  entity_id: string;
   entity_name: string;
+  entity_match_name: string;
   entity_type: string;
   city_id: number;
   composite_score: number;
   severity_tier: "critical" | "high" | "medium" | "low" | "info";
   signal_count: number;
   top_detector: string | null;
+  top_finding_id: number | null;
   signals: WasteEntityScoreSignal[];
-  scored_at: string | null;
-  findings: WasteFinding[];
-  dispositions: WasteDisposition[];
+  last_scored_at: string | null;
+  decay_factor: number;
+  score_delta: number | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 export interface WasteEntityScoresPage {
@@ -4202,6 +4209,7 @@ export interface WasteEntityScoresPage {
   page: number;
   per_page: number;
   total: number;
+  has_next: boolean;
 }
 
 export function getWasteEntityScores(
@@ -4243,9 +4251,12 @@ export interface WasteInvestigationAction {
   title: string;
   description: string;
   status: "pending" | "in_progress" | "completed" | "cancelled";
-  assignee: string | null;
+  assigned_to: string | null;
+  target_department: string | null;
   due_date: string | null;
   completed_at: string | null;
+  response_notes: string | null;
+  attachments: string[];
   created_at: string | null;
   created_by: string | null;
 }
@@ -4255,12 +4266,13 @@ export interface WasteInvestigation {
   city_id: number;
   title: string;
   status: "open" | "in_progress" | "pending_response" | "closed";
-  lead_auditor: string | null;
+  lead_auditor_id: string | null;
   finding_id: number | null;
-  finding: WasteFinding | null;
-  entity_score: WasteEntityScore | null;
+  finding: Record<string, unknown> | null;
+  entity_score: Record<string, unknown> | null;
   final_disposition: WasteDispositionType | null;
   actions: WasteInvestigationAction[];
+  dispositions: Record<string, unknown>[];
   opened_at: string | null;
   closed_at: string | null;
   created_at: string | null;
@@ -4272,13 +4284,15 @@ export interface WasteInvestigationsPage {
   page: number;
   per_page: number;
   total: number;
+  has_next: boolean;
 }
 
 export interface CreateInvestigationActionRequest {
   action_type: WasteInvestigationAction["action_type"];
   title: string;
   description: string;
-  assignee?: string;
+  assigned_to?: string;
+  target_department?: string;
   due_date?: string;
 }
 

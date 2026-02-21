@@ -581,8 +581,8 @@ export function WastePageContent() {
           {/* Zoom 1: Global Stats */}
           <WasteStatBar summary={displayData?.summary} isLoading={showLoadingState} />
 
-          {/* Dashboard Widgets (shown on default/overview view) */}
-          {activeCategory === "payroll" ? (
+          {/* Dashboard Widgets (shown on all analysis categories) */}
+          {isAnalysisView ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <SeverityDonut cityId={selectedCityId} />
               <QueueStatus cityId={selectedCityId} />

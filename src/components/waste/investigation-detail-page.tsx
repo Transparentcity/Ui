@@ -95,7 +95,7 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
           action_type: actionType,
           title: actionTitle.trim(),
           description: actionDesc.trim(),
-          assignee: actionAssignee.trim() || undefined,
+          assigned_to: actionAssignee.trim() || undefined,
           due_date: actionDue || undefined,
         },
       },
@@ -209,9 +209,9 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
           >
             {investigation.status.replace("_", " ")}
           </span>
-          {investigation.lead_auditor && (
+          {investigation.lead_auditor_id && (
             <span className="text-sm text-gray-600">
-              Lead: <strong>{investigation.lead_auditor}</strong>
+              Lead: <strong>{investigation.lead_auditor_id}</strong>
             </span>
           )}
           {investigation.opened_at && (
@@ -230,20 +230,20 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
         {investigation.finding && (
           <div className="p-4 rounded-lg border border-gray-100 bg-gray-50">
             <div className="flex items-center gap-2 mb-1">
-              <SeverityBadge severity={investigation.finding.severity} />
+              <SeverityBadge severity={String(investigation.finding.severity ?? "info")} />
               <span className="text-sm font-medium text-gray-800">
-                {investigation.finding.entity}
+                {String(investigation.finding.entity_name ?? "")}
               </span>
               <span className="text-xs text-gray-500">
-                {investigation.finding.subcategory}
+                {String(investigation.finding.subcategory ?? "")}
               </span>
             </div>
             <p className="text-xs text-gray-500 mt-1 line-clamp-3">
-              {investigation.finding.description}
+              {String(investigation.finding.description ?? investigation.finding.finding_description ?? "")}
             </p>
             {investigation.entity_score && (
               <div className="mt-3 w-48">
-                <ScoreBar score={investigation.entity_score.composite_score} />
+                <ScoreBar score={Number(investigation.entity_score.composite_score ?? 0)} />
               </div>
             )}
           </div>

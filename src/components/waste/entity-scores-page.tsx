@@ -221,8 +221,8 @@ export function EntityScoresPage() {
                     {entity.top_detector?.replace(/_/g, " ") ?? "—"}
                   </TableCell>
                   <TableCell className="text-gray-400 text-xs">
-                    {entity.scored_at
-                      ? new Date(entity.scored_at).toLocaleDateString()
+                    {entity.last_scored_at
+                      ? new Date(entity.last_scored_at).toLocaleDateString()
                       : "—"}
                   </TableCell>
                 </TableRow>
@@ -284,7 +284,7 @@ export function EntityScoresPage() {
                 ) : (
                   <div className="space-y-2">
                     {selectedEntity.signals
-                      .sort((a, b) => b.weighted_score - a.weighted_score)
+                      .sort((a, b) => b.contribution - a.contribution)
                       .map((sig, i) => (
                         <div key={i} className="flex items-center gap-2">
                           <span className="text-xs text-gray-600 w-32 truncate">
@@ -294,12 +294,12 @@ export function EntityScoresPage() {
                             <div
                               className="h-full bg-purple-500 rounded-full"
                               style={{
-                                width: `${Math.min(100, (sig.weighted_score / selectedEntity.composite_score) * 100)}%`,
+                                width: `${Math.min(100, (sig.contribution / selectedEntity.composite_score) * 100)}%`,
                               }}
                             />
                           </div>
                           <span className="text-xs text-gray-500 tabular-nums w-10 text-right">
-                            {sig.weighted_score.toFixed(1)}
+                            {sig.contribution.toFixed(1)}
                           </span>
                         </div>
                       ))}
@@ -307,48 +307,12 @@ export function EntityScoresPage() {
                 )}
               </div>
 
-              {/* Linked findings */}
-              {selectedEntity.findings.length > 0 && (
-                <div className="mt-6">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-2">
-                    Linked Findings ({selectedEntity.findings.length})
-                  </h4>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {selectedEntity.findings.map((f) => (
-                      <div key={f.id} className="p-2 rounded border border-gray-100 text-xs">
-                        <div className="flex items-center gap-2">
-                          <SeverityBadge severity={f.severity} />
-                          <span className="font-medium text-gray-800 truncate">
-                            {f.subcategory}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-gray-500 line-clamp-2">
-                          {f.description}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Disposition history */}
-              {selectedEntity.dispositions.length > 0 && (
-                <div className="mt-6">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-2">
-                    Disposition History
-                  </h4>
-                  <div className="space-y-1">
-                    {selectedEntity.dispositions.map((d) => (
-                      <div key={d.id} className="flex items-center justify-between text-xs py-1">
-                        <span className="capitalize text-gray-700">
-                          {d.disposition.replace(/_/g, " ")}
-                        </span>
-                        <span className="text-gray-400">
-                          {d.created_at ? new Date(d.created_at).toLocaleDateString() : ""}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+              {/* Score metadata */}
+              {selectedEntity.score_delta != null && selectedEntity.score_delta !== 0 && (
+                <div className="mt-6 text-xs text-gray-500">
+                  Score delta: <span className={selectedEntity.score_delta > 0 ? "text-red-600" : "text-green-600"}>
+                    {selectedEntity.score_delta > 0 ? "+" : ""}{selectedEntity.score_delta.toFixed(1)}
+                  </span>
                 </div>
               )}
 
