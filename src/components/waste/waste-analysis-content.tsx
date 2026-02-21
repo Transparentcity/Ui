@@ -64,7 +64,7 @@ function normalizeWasteCategory(category: string): WasteCategory {
   if (key === "payroll" || key.includes("payroll") || key === "payroll_compensation") return "payroll"
   if (key === "contracts" || key === "vendor" || key === "vendors" || key.includes("vendor") || key.includes("contract") || key === "vendor_procurement" || key === "contracts_procurement") return "contracts"
   if (key === "infrastructure" || key === "services" || key === "service" || key.includes("infrastructure") || key === "infrastructure_services") return "infrastructure"
-  if (key === "influence" || key.includes("influence") || key.includes("lobby") || key.includes("pay_to_play")) return "vendor"
+  if (key === "influence" || key.includes("influence") || key.includes("lobby") || key.includes("pay_to_play")) return "contracts"
   if (key === "integrity" || key.includes("integrity") || key.includes("personnel") || key.includes("revolving") || key.includes("conflict")) return "integrity"
   return "all"
 }

@@ -6,25 +6,39 @@ import { useAuth0 } from "@auth0/auth0-react"
 import {
   assignWasteQueueItem,
   bulkDisposeWasteFindings,
+  closeInvestigation,
+  createInvestigationAction,
   createWasteDisposition,
   getWasteDetectorAccuracy,
   getWasteDispositions,
   getWasteAnalysis,
+  getWasteEntityScores,
+  getWasteInvestigation,
+  getWasteInvestigations,
   getWasteReviewQueue,
   getWasteSummary,
+  getWasteThresholds,
   listWasteRuns,
   runWasteAnalysis,
   syncWasteReviewQueue,
+  updateWasteThresholds,
   type BulkDisposeWasteFindingsRequest,
+  type CloseInvestigationRequest,
+  type CreateInvestigationActionRequest,
   type CreateWasteDispositionRequest,
   type RunWasteAnalysisRequest,
   type SyncWasteReviewQueueRequest,
+  type UpdateThresholdRequest,
   type WasteDetectorAccuracy,
   type WasteDisposition,
+  type WasteEntityScoresPage,
+  type WasteInvestigation,
+  type WasteInvestigationsPage,
   type WasteReviewQueuePage,
   type WasteAnalyzeResponse,
   type WasteRun,
   type WasteSummaryResponse,
+  type WasteThreshold,
 } from "@/lib/apiClient"
 
 /**
@@ -287,6 +301,191 @@ export function useRunWasteAnalysis() {
       queryClient.invalidateQueries({ queryKey: ["waste", "analysis"] })
       queryClient.invalidateQueries({ queryKey: ["waste", "summary"] })
       queryClient.invalidateQueries({ queryKey: ["waste", "queue"] })
+    },
+  })
+}
+
+// ── Entity Scores ──────────────────────────────────────────────────────────
+
+export function useWasteEntityScores(params: {
+  cityId: number | null
+  page?: number
+  perPage?: number
+  severityTier?: string
+  entityType?: string
+  sortBy?: string
+  sortDir?: "asc" | "desc"
+  enabled?: boolean
+}) {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
+  const enabled =
+    isAuthenticated && !!params.cityId && (params.enabled ?? true)
+
+  return useQuery<WasteEntityScoresPage>({
+    queryKey: [
+      "waste",
+      "scores",
+      params.cityId,
+      params.page ?? 1,
+      params.perPage ?? 25,
+      params.severityTier ?? "",
+      params.entityType ?? "",
+      params.sortBy ?? "",
+      params.sortDir ?? "",
+    ],
+    queryFn: async () => {
+      if (!params.cityId) throw new Error("City ID required")
+      const token = await getAccessTokenSilently()
+      return getWasteEntityScores(token, {
+        city_id: params.cityId,
+        page: params.page ?? 1,
+        per_page: params.perPage ?? 25,
+        severity_tier: params.severityTier,
+        entity_type: params.entityType,
+        sort_by: params.sortBy,
+        sort_dir: params.sortDir,
+      })
+    },
+    enabled,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  })
+}
+
+// ── Investigations ─────────────────────────────────────────────────────────
+
+export function useWasteInvestigations(params: {
+  cityId: number | null
+  status?: string
+  page?: number
+  perPage?: number
+  enabled?: boolean
+}) {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
+  const enabled =
+    isAuthenticated && !!params.cityId && (params.enabled ?? true)
+
+  return useQuery<WasteInvestigationsPage>({
+    queryKey: [
+      "waste",
+      "investigations",
+      params.cityId,
+      params.status ?? "",
+      params.page ?? 1,
+      params.perPage ?? 25,
+    ],
+    queryFn: async () => {
+      if (!params.cityId) throw new Error("City ID required")
+      const token = await getAccessTokenSilently()
+      return getWasteInvestigations(token, {
+        city_id: params.cityId,
+        status: params.status,
+        page: params.page,
+        per_page: params.perPage,
+      })
+    },
+    enabled,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useWasteInvestigation(investigationId: string | null) {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
+
+  return useQuery<WasteInvestigation>({
+    queryKey: ["waste", "investigation", investigationId],
+    queryFn: async () => {
+      if (!investigationId) throw new Error("Investigation ID required")
+      const token = await getAccessTokenSilently()
+      return getWasteInvestigation(token, investigationId)
+    },
+    enabled: isAuthenticated && !!investigationId,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useCreateInvestigationAction() {
+  const { getAccessTokenSilently } = useAuth0()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: {
+      investigationId: string
+      data: CreateInvestigationActionRequest
+    }) => {
+      const token = await getAccessTokenSilently()
+      return createInvestigationAction(
+        token,
+        payload.investigationId,
+        payload.data
+      )
+    },
+    onSuccess: (_res, payload) => {
+      queryClient.invalidateQueries({
+        queryKey: ["waste", "investigation", payload.investigationId],
+      })
+      queryClient.invalidateQueries({ queryKey: ["waste", "investigations"] })
+    },
+  })
+}
+
+export function useCloseInvestigation() {
+  const { getAccessTokenSilently } = useAuth0()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: {
+      investigationId: string
+      data: CloseInvestigationRequest
+    }) => {
+      const token = await getAccessTokenSilently()
+      return closeInvestigation(token, payload.investigationId, payload.data)
+    },
+    onSuccess: (_res, payload) => {
+      queryClient.invalidateQueries({
+        queryKey: ["waste", "investigation", payload.investigationId],
+      })
+      queryClient.invalidateQueries({ queryKey: ["waste", "investigations"] })
+    },
+  })
+}
+
+// ── Thresholds ─────────────────────────────────────────────────────────────
+
+export function useWasteThresholds(cityId: number | null) {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
+
+  return useQuery<WasteThreshold[]>({
+    queryKey: ["waste", "thresholds", cityId],
+    queryFn: async () => {
+      if (!cityId) throw new Error("City ID required")
+      const token = await getAccessTokenSilently()
+      return getWasteThresholds(token, cityId)
+    },
+    enabled: isAuthenticated && !!cityId,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useUpdateWasteThresholds() {
+  const { getAccessTokenSilently } = useAuth0()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: {
+      cityId: number
+      updates: UpdateThresholdRequest[]
+    }) => {
+      const token = await getAccessTokenSilently()
+      return updateWasteThresholds(token, payload.cityId, payload.updates)
+    },
+    onSuccess: (_res, payload) => {
+      queryClient.invalidateQueries({
+        queryKey: ["waste", "thresholds", payload.cityId],
+      })
     },
   })
 }

@@ -25,6 +25,10 @@ import {
 import { WasteDetectorsData } from "./waste-detectors-data"
 import { WasteReviewQueue } from "./waste-review-queue"
 import { WasteDetectorAccuracy } from "./waste-detector-accuracy"
+import { SeverityDonut } from "./widgets/severity-donut"
+import { QueueStatus } from "./widgets/queue-status"
+import { AccuracyBars } from "./widgets/accuracy-bars"
+import { InvestigationSummary } from "./widgets/investigation-summary"
 
 type SeverityFilter = "all" | "critical" | "high" | "medium"
 type WasteCategoryKey =
@@ -85,7 +89,7 @@ function normalizeWasteCategory(category: string): WasteCategoryKey {
     return "infrastructure"
   }
   if (key === "influence" || key.includes("influence") || key.includes("lobby") || key.includes("pay_to_play")) {
-    return "vendor"
+    return "contracts"
   }
   if (key === "confirmed" || key.includes("confirmed")) {
     return "confirmed"
@@ -576,6 +580,16 @@ export function WastePageContent() {
 
           {/* Zoom 1: Global Stats */}
           <WasteStatBar summary={displayData?.summary} isLoading={showLoadingState} />
+
+          {/* Dashboard Widgets (shown on default/overview view) */}
+          {activeCategory === "payroll" ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <SeverityDonut cityId={selectedCityId} />
+              <QueueStatus cityId={selectedCityId} />
+              <AccuracyBars cityId={selectedCityId} />
+              <InvestigationSummary cityId={selectedCityId} />
+            </div>
+          ) : null}
 
           {/* Zoom 2: Category Tabs */}
           <WasteCategoryTabs

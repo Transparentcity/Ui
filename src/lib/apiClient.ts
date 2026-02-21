@@ -4170,6 +4170,248 @@ export async function exportAuditorReport(
 // Force rebuild - all exports are defined above
 
 // ============================================================================
+// WASTE ENTITY SCORES
+// ============================================================================
+
+export interface WasteEntityScoreSignal {
+  detector_key: string;
+  weight: number;
+  raw_score: number;
+  weighted_score: number;
+  finding_id: number | null;
+}
+
+export interface WasteEntityScore {
+  id: string;
+  entity_id: string;
+  entity_name: string;
+  entity_type: string;
+  city_id: number;
+  composite_score: number;
+  severity_tier: "critical" | "high" | "medium" | "low" | "info";
+  signal_count: number;
+  top_detector: string | null;
+  signals: WasteEntityScoreSignal[];
+  scored_at: string | null;
+  findings: WasteFinding[];
+  dispositions: WasteDisposition[];
+}
+
+export interface WasteEntityScoresPage {
+  items: WasteEntityScore[];
+  page: number;
+  per_page: number;
+  total: number;
+}
+
+export function getWasteEntityScores(
+  token: string,
+  params: {
+    city_id: number;
+    page?: number;
+    per_page?: number;
+    severity_tier?: string;
+    entity_type?: string;
+    sort_by?: string;
+    sort_dir?: "asc" | "desc";
+  }
+): Promise<WasteEntityScoresPage> {
+  const query = new URLSearchParams();
+  query.set("city_id", String(params.city_id));
+  if (params.page) query.set("page", String(params.page));
+  if (params.per_page) query.set("per_page", String(params.per_page));
+  if (params.severity_tier) query.set("severity_tier", params.severity_tier);
+  if (params.entity_type) query.set("entity_type", params.entity_type);
+  if (params.sort_by) query.set("sort_by", params.sort_by);
+  if (params.sort_dir) query.set("sort_dir", params.sort_dir);
+  return request<WasteEntityScoresPage>(
+    `/api/waste/scores?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+// ============================================================================
+// WASTE INVESTIGATIONS
+// ============================================================================
+
+export interface WasteInvestigationAction {
+  id: string;
+  investigation_id: string;
+  action_type: "document_request" | "interview" | "site_visit" | "subpoena" | "referral" | "note" | "evidence_collected";
+  title: string;
+  description: string;
+  status: "pending" | "in_progress" | "completed" | "cancelled";
+  assignee: string | null;
+  due_date: string | null;
+  completed_at: string | null;
+  created_at: string | null;
+  created_by: string | null;
+}
+
+export interface WasteInvestigation {
+  id: string;
+  city_id: number;
+  title: string;
+  status: "open" | "in_progress" | "pending_response" | "closed";
+  lead_auditor: string | null;
+  finding_id: number | null;
+  finding: WasteFinding | null;
+  entity_score: WasteEntityScore | null;
+  final_disposition: WasteDispositionType | null;
+  actions: WasteInvestigationAction[];
+  opened_at: string | null;
+  closed_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface WasteInvestigationsPage {
+  items: WasteInvestigation[];
+  page: number;
+  per_page: number;
+  total: number;
+}
+
+export interface CreateInvestigationActionRequest {
+  action_type: WasteInvestigationAction["action_type"];
+  title: string;
+  description: string;
+  assignee?: string;
+  due_date?: string;
+}
+
+export interface CloseInvestigationRequest {
+  final_disposition: WasteDispositionType;
+  notes?: string;
+}
+
+export function getWasteInvestigations(
+  token: string,
+  params: {
+    city_id: number;
+    status?: string;
+    page?: number;
+    per_page?: number;
+  }
+): Promise<WasteInvestigationsPage> {
+  const query = new URLSearchParams();
+  query.set("city_id", String(params.city_id));
+  if (params.status) query.set("status", params.status);
+  if (params.page) query.set("page", String(params.page));
+  if (params.per_page) query.set("per_page", String(params.per_page));
+  return request<WasteInvestigationsPage>(
+    `/api/waste/investigations?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getWasteInvestigation(
+  token: string,
+  investigationId: string
+): Promise<WasteInvestigation> {
+  return request<WasteInvestigation>(
+    `/api/waste/investigations/${investigationId}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function createInvestigationAction(
+  token: string,
+  investigationId: string,
+  payload: CreateInvestigationActionRequest
+): Promise<WasteInvestigationAction> {
+  return request<WasteInvestigationAction>(
+    `/api/waste/investigations/${investigationId}/actions`,
+    "POST",
+    payload,
+    token
+  );
+}
+
+export function closeInvestigation(
+  token: string,
+  investigationId: string,
+  payload: CloseInvestigationRequest
+): Promise<WasteInvestigation> {
+  return request<WasteInvestigation>(
+    `/api/waste/investigations/${investigationId}/close`,
+    "POST",
+    payload,
+    token
+  );
+}
+
+export function exportInvestigationEvidence(
+  token: string,
+  investigationId: string
+): Promise<Blob> {
+  const url = `${API_BASE}/api/waste/investigations/${investigationId}/export`;
+  return fetch(url, {
+    method: "GET",
+    credentials: "include",
+    headers: { Authorization: `Bearer ${token}` },
+  }).then((res) => {
+    if (!res.ok) throw new Error(`Evidence export failed: ${res.status}`);
+    return res.blob();
+  });
+}
+
+// ============================================================================
+// WASTE THRESHOLDS
+// ============================================================================
+
+export interface WasteThreshold {
+  id: string;
+  detector_key: string;
+  detector_name: string;
+  category: "vendor" | "payroll" | "infrastructure" | "nonprofit";
+  city_id: number;
+  field_label: string;
+  current_value: number;
+  default_value: number;
+  min_value: number;
+  max_value: number;
+  updated_at: string | null;
+}
+
+export interface UpdateThresholdRequest {
+  detector_key: string;
+  value: number;
+}
+
+export function getWasteThresholds(
+  token: string,
+  cityId: number
+): Promise<WasteThreshold[]> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  return request<WasteThreshold[]>(
+    `/api/waste/thresholds?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function updateWasteThresholds(
+  token: string,
+  cityId: number,
+  updates: UpdateThresholdRequest[]
+): Promise<WasteThreshold[]> {
+  return request<WasteThreshold[]>(
+    "/api/waste/thresholds",
+    "PUT",
+    { city_id: cityId, updates },
+    token
+  );
+}
+
+// ============================================================================
 // CHAT JOBS API
 // ============================================================================
 

@@ -15,6 +15,10 @@ import {
   Database,
   ClipboardCheck,
   Gauge,
+  Target,
+  ListChecks,
+  Search,
+  SlidersHorizontal,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Loader from "@/components/Loader"
@@ -84,6 +88,38 @@ const navigation: NavigationItem[] = [
     icon: Gauge,
     description: "Precision feedback",
     mode: "category",
+  },
+  {
+    key: "scores",
+    name: "Entity Scores",
+    href: "/waste/scores",
+    icon: Target,
+    description: "Risk score rankings",
+    mode: "link",
+  },
+  {
+    key: "queue-page",
+    name: "Review Queue",
+    href: "/waste/queue",
+    icon: ListChecks,
+    description: "Full auditor workbench",
+    mode: "link",
+  },
+  {
+    key: "investigations",
+    name: "Investigations",
+    href: "/waste/investigations",
+    icon: Search,
+    description: "Active investigations",
+    mode: "link",
+  },
+  {
+    key: "thresholds",
+    name: "Thresholds",
+    href: "/waste/settings/thresholds",
+    icon: SlidersHorizontal,
+    description: "Detector sensitivity",
+    mode: "link",
   },
   {
     key: "analysis",
