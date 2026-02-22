@@ -14,6 +14,7 @@ interface Session {
   last_message_at?: string;
   created_at: string;
   is_active: boolean;
+  job_id?: string | null;
 }
 
 // Helper function to check if a session is a synthesis session

@@ -100,6 +100,12 @@ function getDaysInMonth(year: number, month: number): number {
  */
 function getCurrentPeriodKey(periodType: PeriodType): string | null {
   const now = new Date();
+  if (periodType === "day") {
+    const y = now.getFullYear();
+    const m = (now.getMonth() + 1).toString().padStart(2, "0");
+    const d = now.getDate().toString().padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
   if (periodType === "week") {
     const { isoYear, isoWeek } = getISOYearAndWeek(now);
     return `${isoYear}-W${isoWeek.toString().padStart(2, "0")}`;
@@ -127,7 +133,7 @@ function filterPartialPeriods(
   periodType: PeriodType,
   originalData: TimeSeriesDataPoint[]
 ): { filtered: Map<string, TimeSeriesDataPoint[]>; partialInfo: PartialPeriodInfo | null } {
-  if (periodType === "day" || periodType === "ytd") {
+  if (periodType === "ytd") {
     return { filtered: aggregatedByGroup, partialInfo: null };
   }
 
@@ -149,7 +155,9 @@ function filterPartialPeriods(
     if (hasCurrentPeriod) {
       endPeriodToExclude = currentPeriodKey;
       const now = new Date();
-      if (periodType === "week") {
+      if (periodType === "day") {
+        excludedEnd = `Today in progress (${now.toLocaleDateString("en-US", { month: "short", day: "numeric" })})`;
+      } else if (periodType === "week") {
         const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
         excludedEnd = `Current week in progress (through ${dayNames[now.getDay()]} ${now.toLocaleDateString("en-US", { month: "short", day: "numeric" })})`;
       } else if (periodType === "month") {

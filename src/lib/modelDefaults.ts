@@ -1,4 +1,4 @@
-export const PREFERRED_DEFAULT_MODEL_KEY = "claude-sonnet-4.5";
+export const PREFERRED_DEFAULT_MODEL_KEY = "claude-sonnet-4.6";
 
 export interface ModelInfoLike {
   key: string;
@@ -42,10 +42,6 @@ export function pickDefaultModelKey(
 
   return allModels.length > 0 ? allModels[0].key : null;
 }
-
-
-
-
 
 
 

@@ -23,7 +23,7 @@ export default function NewResearchPage() {
   const [cityId, setCityId] = useState<number | null>(null);
   const [maxIterations, setMaxIterations] = useState(2);
   const [maxSubquestions, setMaxSubquestions] = useState(3);
-  const [modelKey, setModelKey] = useState("claude-3-5-sonnet-20241022");
+  const [modelKey, setModelKey] = useState("claude-sonnet-4.6");
   const [requireAgendaApproval, setRequireAgendaApproval] = useState(false);
   const [availableModels, setAvailableModels] = useState<ModelGroupInfo[]>([]);
   

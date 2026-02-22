@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useCityAnomalies, useAvailablePeriods, type AnomalyResult } from "@/lib/hooks/useAnomalies";
 import AnomalySparkline from "./AnomalySparkline";
@@ -251,6 +251,9 @@ const MIN_SIGMA_OPTIONS: ({ value: ""; label: string } | { value: number; label:
   { value: 4, label: "≥ 4σ" },
 ];
 
+// districtFilter values: "all" | "citywide" | "any_district" | "<number>"
+type DistrictFilterValue = string;
+
 /** Single anomaly card: links to full details page /a/[id]. Metric name click opens metric modal (stops propagation). */
 function AnomalyCard({
   anomaly,
@@ -389,6 +392,7 @@ export default function AnomaliesTabPanel({
   const [periodDate, setPeriodDate] = useState("");
   const [metricId, setMetricId] = useState<number | "">("");
   const [minSigma, setMinSigma] = useState<string | number>("");
+  const [districtFilter, setDistrictFilter] = useState<DistrictFilterValue>("all");
 
   const toggleMetricExpanded = useCallback((mid: number) => {
     setExpandedMetricIds((prev) => {
@@ -408,6 +412,14 @@ export default function AnomaliesTabPanel({
   );
   const availablePeriods = periodType ? periodsData?.periods ?? [] : [];
 
+  // Determine district parameter to send to backend
+  const apiDistrict: number | undefined =
+    districtFilter === "all" || districtFilter === "any_district"
+      ? undefined
+      : districtFilter === "citywide"
+      ? 0
+      : parseInt(districtFilter, 10);
+
   // Fetch anomalies with backend filters
   const { data: anomaliesData, isLoading, error } = useCityAnomalies(cityId, {
     is_anomaly: true,
@@ -415,16 +427,41 @@ export default function AnomaliesTabPanel({
     period_type: periodType || undefined,
     period_date: periodDate || undefined,
     metric_id: metricId === "" ? undefined : (metricId as number),
+    district: Number.isNaN(apiDistrict) ? undefined : apiDistrict,
   });
 
-  // Client-side filter by minimum sigma
+  // Extract unique districts from data to populate the dropdown.
+  // Cache them in a ref so they persist when the user selects a specific district
+  // (which would otherwise narrow the data and lose the other options).
+  const districtsCacheRef = useRef<number[]>([]);
+  const rawDistricts = useMemo(() => {
+    const results = anomaliesData?.results ?? [];
+    const set = new Set<number>();
+    for (const r of results) {
+      if (r.district != null) set.add(r.district);
+    }
+    return Array.from(set).sort((a, b) => a - b);
+  }, [anomaliesData?.results]);
+
+  if (districtFilter === "all" && rawDistricts.length > 0) {
+    districtsCacheRef.current = rawDistricts;
+  }
+  const knownDistricts =
+    districtFilter === "all" ? rawDistricts : districtsCacheRef.current;
+  const specificDistricts = knownDistricts.filter((d) => d !== 0);
+
+  // Client-side filters: minimum sigma + "any district" (excludes citywide)
   const filteredAnomalies = useMemo(() => {
-    const list = anomaliesData?.results ?? [];
-    if (minSigma === "" || minSigma === undefined) return list;
-    const threshold = typeof minSigma === "string" ? parseFloat(minSigma) : minSigma;
-    if (Number.isNaN(threshold)) return list;
-    return list.filter((a) => getSigma(a) >= threshold);
-  }, [anomaliesData?.results, minSigma]);
+    let list = anomaliesData?.results ?? [];
+    if (districtFilter === "any_district") {
+      list = list.filter((a) => a.district != null && a.district !== 0);
+    }
+    if (minSigma !== "" && minSigma !== undefined) {
+      const threshold = typeof minSigma === "string" ? parseFloat(minSigma) : minSigma;
+      if (!Number.isNaN(threshold)) list = list.filter((a) => getSigma(a) >= threshold);
+    }
+    return list;
+  }, [anomaliesData?.results, minSigma, districtFilter]);
 
   // Group by metric_id; each group keeps API order (first = top rated)
   const anomaliesByMetric = useMemo(() => {
@@ -487,6 +524,29 @@ export default function AnomaliesTabPanel({
             {availablePeriods.map((p) => (
               <option key={p.period_date} value={p.period_date}>
                 {p.period_label} ({p.anomaly_count})
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className={styles.filterGroup}>
+          <label className={styles.filterLabel} htmlFor="anomaly-district">
+            District
+          </label>
+          <select
+            id="anomaly-district"
+            className={styles.filterSelect}
+            value={districtFilter}
+            onChange={(e) => setDistrictFilter(e.target.value)}
+            aria-label="Filter by district"
+          >
+            <option value="all">All</option>
+            <option value="citywide">Citywide</option>
+            {specificDistricts.length > 0 && (
+              <option value="any_district">Any district</option>
+            )}
+            {specificDistricts.map((d) => (
+              <option key={d} value={String(d)}>
+                District {d}
               </option>
             ))}
           </select>

@@ -407,6 +407,57 @@ export function structureCityMetrics(
   );
 }
 
+/** Template instantiation status for one template in a city */
+export interface TemplateInstantiationStatusItem {
+  template_id: number;
+  template_name: string;
+  status: "instantiated" | "not_instantiated";
+  metric_id?: number | null;
+}
+
+/** Response for GET template-instantiation-status */
+export interface TemplateInstantiationStatusResponse {
+  city_id: number;
+  templates: TemplateInstantiationStatusItem[];
+}
+
+export function getTemplateInstantiationStatus(
+  cityId: number,
+  token: string
+): Promise<TemplateInstantiationStatusResponse> {
+  return request<TemplateInstantiationStatusResponse>(
+    `/api/admin/cities/${cityId}/template-instantiation-status`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function instantiateSingleTemplate(
+  cityId: number,
+  templateId: number,
+  token: string
+): Promise<JobResponse> {
+  return request<JobResponse>(
+    `/api/admin/cities/${cityId}/instantiate-template/${templateId}`,
+    "POST",
+    undefined,
+    token
+  );
+}
+
+export function instantiateAllTemplates(
+  cityId: number,
+  token: string
+): Promise<JobResponse> {
+  return request<JobResponse>(
+    `/api/admin/cities/${cityId}/instantiate-all-templates`,
+    "POST",
+    undefined,
+    token
+  );
+}
+
 export function updateCityStructure(
   cityId: number,
   data: UpdateCityStructureRequest,
@@ -1495,7 +1546,7 @@ export function sendChatMessage(
 }
 
 export function createNewSession(
-  model_key: string = "claude-sonnet-4.5",
+  model_key: string = "claude-sonnet-4.6",
   tool_groups?: string[],
   token?: string
 ): Promise<SessionSummary> {
@@ -2363,8 +2414,7 @@ export function getCityShapefiles(cityId: number, token: string): Promise<CitySh
     })
     .catch((err) => {
       console.error("Error fetching shapefiles:", err);
-      console.error("Error details:", err.message, err.stack);
-      return []; // Return empty array if endpoint fails
+      return [];
     });
 }
 
@@ -2582,6 +2632,43 @@ export function setUserCityLeads(
   );
 }
 
+export interface NewsletterSubscription {
+  city_id: number;
+  district: string;
+  frequency: string;
+}
+
+export function getUserNewsletterSubscriptions(
+  userId: number,
+  token: string
+): Promise<{ user_id: number; subscriptions: NewsletterSubscription[] }> {
+  return request<{ user_id: number; subscriptions: NewsletterSubscription[] }>(
+    `/api/admin/users/${userId}/newsletter-subscriptions`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function setUserNewsletterSubscriptions(
+  userId: number,
+  subscriptions: NewsletterSubscription[],
+  token: string
+): Promise<{
+  status: string;
+  user_id: number;
+  subscriptions: NewsletterSubscription[];
+  added: number;
+  removed: number;
+}> {
+  return request(
+    `/api/admin/users/${userId}/newsletter-subscriptions`,
+    "PUT",
+    { subscriptions },
+    token
+  );
+}
+
 export function getUser(userId: number, token: string): Promise<User> {
   return request<User>(`/api/admin/users/${userId}`, "GET", undefined, token);
 }
@@ -2784,6 +2871,8 @@ export interface FeedStory {
   id: number;
   story_type: string;
   city_id: number;
+  city_name?: string | null;
+  city_emoji?: string | null;
   district: number;
   research_report_id: number;
   newsletter_frequency?: string | null;

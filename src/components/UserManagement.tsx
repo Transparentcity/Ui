@@ -11,11 +11,14 @@ import {
   listCities,
   getUserCityLeads,
   setUserCityLeads,
+  getUserNewsletterSubscriptions,
+  setUserNewsletterSubscriptions,
   type User,
   type UserUpdateRequest,
   type UserStats,
   type CityListItem,
   type DatabaseSizeResponse,
+  type NewsletterSubscription,
 } from "@/lib/apiClient";
 import Loader from "./Loader";
 import styles from "./UserManagement.module.css";
@@ -44,6 +47,16 @@ export default function UserManagement() {
   const [editCityLeadLoading, setEditCityLeadLoading] = useState(false);
   const [editCityLeadDirty, setEditCityLeadDirty] = useState(false);
   const [addCityLeadCityId, setAddCityLeadCityId] = useState<number | "">("");
+
+  // Newsletter subscription state
+  const [editNewsletterSubs, setEditNewsletterSubs] = useState<NewsletterSubscription[]>([]);
+  const [editNewsletterLoading, setEditNewsletterLoading] = useState(false);
+  const [editNewsletterDirty, setEditNewsletterDirty] = useState(false);
+  const [addSubCityId, setAddSubCityId] = useState<number | "">("");
+  const [addSubCityQuery, setAddSubCityQuery] = useState("");
+  const [addSubCityOpen, setAddSubCityOpen] = useState(false);
+  const [addSubDistrict, setAddSubDistrict] = useState("0");
+  const [addSubFrequency, setAddSubFrequency] = useState<"weekly" | "monthly">("weekly");
 
   // Load initial data
   const loadData = useCallback(async () => {
@@ -145,6 +158,13 @@ export default function UserManagement() {
     setEditCityLeadCityIds(user.city_lead_city_ids || []);
     setEditCityLeadDirty(false);
     setAddCityLeadCityId("");
+    setEditNewsletterSubs([]);
+    setEditNewsletterDirty(false);
+    setAddSubCityId("");
+    setAddSubCityQuery("");
+    setAddSubCityOpen(false);
+    setAddSubDistrict("0");
+    setAddSubFrequency("weekly");
   };
 
   const handleCloseEdit = () => {
@@ -154,6 +174,14 @@ export default function UserManagement() {
     setEditCityLeadDirty(false);
     setEditCityLeadLoading(false);
     setAddCityLeadCityId("");
+    setEditNewsletterSubs([]);
+    setEditNewsletterDirty(false);
+    setEditNewsletterLoading(false);
+    setAddSubCityId("");
+    setAddSubCityQuery("");
+    setAddSubCityOpen(false);
+    setAddSubDistrict("0");
+    setAddSubFrequency("weekly");
   };
 
   // Load city lead assignments fresh when modal opens (source of truth is backend)
@@ -176,6 +204,25 @@ export default function UserManagement() {
     loadCityLeads();
   }, [editingUser, getAccessTokenSilently]);
 
+  // Load newsletter subscriptions when modal opens
+  useEffect(() => {
+    const loadNewsletterSubs = async () => {
+      if (!editingUser) return;
+      try {
+        setEditNewsletterLoading(true);
+        const token = await getAccessTokenSilently();
+        const res = await getUserNewsletterSubscriptions(editingUser.id, token);
+        setEditNewsletterSubs(res.subscriptions || []);
+        setEditNewsletterDirty(false);
+      } catch (err) {
+        console.warn("Failed to load newsletter subscriptions:", err);
+      } finally {
+        setEditNewsletterLoading(false);
+      }
+    };
+    loadNewsletterSubs();
+  }, [editingUser, getAccessTokenSilently]);
+
   const handleSaveEdit = async () => {
     if (!editingUser) return;
 
@@ -186,6 +233,10 @@ export default function UserManagement() {
 
       if (editCityLeadDirty) {
         await setUserCityLeads(editingUser.id, editCityLeadCityIds, token);
+      }
+
+      if (editNewsletterDirty) {
+        await setUserNewsletterSubscriptions(editingUser.id, editNewsletterSubs, token);
       }
 
       await loadUsers();
@@ -212,6 +263,55 @@ export default function UserManagement() {
       console.error("Error making user admin:", err);
       setError(err instanceof Error ? err.message : "Failed to make user admin");
     }
+  };
+
+  const formatSubLabel = (sub: NewsletterSubscription): string => {
+    const city = getCityName(sub.city_id);
+    const dist = sub.district === "0" || !sub.district ? "Citywide" : `District ${sub.district}`;
+    return `${city} — ${dist} (${sub.frequency})`;
+  };
+
+  const subKey = (sub: NewsletterSubscription): string =>
+    `${sub.city_id}:${sub.district || "0"}:${sub.frequency}`;
+
+  const filteredSubCities = cities.filter((c) => {
+    if (!addSubCityQuery.trim()) return true;
+    const q = addSubCityQuery.toLowerCase();
+    return formatCityDisplayName(c).toLowerCase().includes(q);
+  }).slice(0, 50);
+
+  const handleSelectSubCity = (city: CityListItem) => {
+    setAddSubCityId(city.city_id);
+    setAddSubCityQuery(formatCityDisplayName(city));
+    setAddSubCityOpen(false);
+  };
+
+  const handleAddSubscription = () => {
+    if (addSubCityId === "") return;
+    const newSub: NewsletterSubscription = {
+      city_id: Number(addSubCityId),
+      district: addSubDistrict,
+      frequency: addSubFrequency,
+    };
+    const key = subKey(newSub);
+    if (editNewsletterSubs.some((s) => subKey(s) === key)) return;
+    setEditNewsletterSubs((prev) =>
+      [...prev, newSub].sort(
+        (a, b) => a.city_id - b.city_id || a.district.localeCompare(b.district) || a.frequency.localeCompare(b.frequency)
+      )
+    );
+    setEditNewsletterDirty(true);
+    setAddSubCityId("");
+    setAddSubCityQuery("");
+    setAddSubCityOpen(false);
+    setAddSubDistrict("0");
+    setAddSubFrequency("weekly");
+  };
+
+  const handleRemoveSubscription = (sub: NewsletterSubscription) => {
+    const key = subKey(sub);
+    setEditNewsletterSubs((prev) => prev.filter((s) => subKey(s) !== key));
+    setEditNewsletterDirty(true);
   };
 
   const formatDate = (dateString: string | null) => {
@@ -829,6 +929,111 @@ export default function UserManagement() {
                   </>
                 )}
               </div>
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Newsletter Subscriptions</label>
+                {editNewsletterLoading ? (
+                  <div className={styles.loadingText}>Loading subscriptions…</div>
+                ) : (
+                  <>
+                    <div className={styles.newsletterAddRow}>
+                      <div className={styles.autocompleteWrapper} style={{ flex: 2 }}>
+                        <input
+                          type="text"
+                          value={addSubCityQuery}
+                          onChange={(e) => {
+                            setAddSubCityQuery(e.target.value);
+                            setAddSubCityId("");
+                            setAddSubCityOpen(true);
+                          }}
+                          onFocus={() => setAddSubCityOpen(true)}
+                          onBlur={() => {
+                            // Delay so click on option registers first
+                            setTimeout(() => setAddSubCityOpen(false), 200);
+                          }}
+                          placeholder="Search city…"
+                          className={styles.formInput}
+                          autoComplete="off"
+                        />
+                        {addSubCityOpen && filteredSubCities.length > 0 && (
+                          <ul className={styles.autocompleteDropdown}>
+                            {filteredSubCities.map((c) => (
+                              <li
+                                key={c.city_id}
+                                className={styles.autocompleteOption}
+                                onMouseDown={() => handleSelectSubCity(c)}
+                              >
+                                {formatCityDisplayName(c)}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        value={addSubDistrict}
+                        onChange={(e) => setAddSubDistrict(e.target.value)}
+                        placeholder="District"
+                        className={styles.formInput}
+                        style={{ flex: 1, minWidth: "70px" }}
+                        title={'0 = citywide, or a district number'}
+                      />
+                      <select
+                        value={addSubFrequency}
+                        onChange={(e) => setAddSubFrequency(e.target.value as "weekly" | "monthly")}
+                        className={styles.formSelect}
+                        style={{ flex: 1 }}
+                      >
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                      </select>
+                      <button
+                        type="button"
+                        className={styles.addCityBtn}
+                        disabled={addSubCityId === ""}
+                        onClick={handleAddSubscription}
+                      >
+                        Add
+                      </button>
+                    </div>
+
+                    {editNewsletterSubs.length > 0 ? (
+                      <div className={styles.newsletterSubsList}>
+                        {editNewsletterSubs.map((sub) => (
+                          <span key={subKey(sub)} className={styles.newsletterSubPill}>
+                            <span className={styles.newsletterSubLabel}>
+                              {formatSubLabel(sub)}
+                            </span>
+                            <button
+                              type="button"
+                              className={styles.removeCityBtn}
+                              title="Remove subscription"
+                              onClick={() => handleRemoveSubscription(sub)}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className={styles.helpText}>No newsletter subscriptions.</div>
+                    )}
+
+                    {editNewsletterSubs.length > 0 && (
+                      <button
+                        type="button"
+                        className={styles.clearCitiesBtn}
+                        onClick={() => {
+                          setEditNewsletterSubs([]);
+                          setEditNewsletterDirty(true);
+                        }}
+                      >
+                        Clear all subscriptions
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>
                   <input
