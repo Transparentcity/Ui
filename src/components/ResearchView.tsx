@@ -133,18 +133,14 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
     // Once agenda_ready or running, WebSocket takes over
     const shouldPoll = research.status === "draft";
     if (!shouldPoll) {
-      console.log(`✅ ResearchView: Research ${reportId} is ${research.status}, using WebSocket (no polling)`);
       return;
     }
     
-    console.log(`🔄 ResearchView: Starting polling for research ${reportId} (status: ${research.status}, waiting for agenda)`);
     const pollInterval = setInterval(() => {
-      console.log(`🔄 ResearchView: Polling for agenda updates (current status: ${research?.status})`);
       void loadAll(true); // Skip loading state
     }, 3000); // Poll every 3 seconds when waiting for agenda
     
     return () => {
-      console.log(`🔄 ResearchView: Stopping polling for research ${reportId}`);
       clearInterval(pollInterval);
     };
   }, [research?.status, reportId, loadAll, research]);
@@ -171,7 +167,6 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
       // Reload if this job matches our research's job_id (check ref for current value)
       const currentJobId = currentJobIdRef.current;
       if (currentJobId && jobId === currentJobId) {
-        console.log(`🔄 ResearchView: Job update for current job ${jobId}, reloading...`);
         shouldReload = true;
       }
       
@@ -179,7 +174,6 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
       if (!shouldReload && jobId.startsWith("research_")) {
         const reportIdFromJob = parseInt(jobId.replace("research_", ""));
         if (reportId === reportIdFromJob) {
-          console.log(`🔄 ResearchView: Job update for research ${reportId}, reloading...`);
           shouldReload = true;
         }
       }
@@ -187,7 +181,6 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
       // Check for research_progress or research_item_update message types
       if (!shouldReload && data && (data.type === "research_progress" || data.type === "research_item_update")) {
         if (data.report_id === reportId) {
-          console.log(`🔄 ResearchView: Research progress update for ${reportId}, reloading...`);
           shouldReload = true;
         }
       }
@@ -196,7 +189,6 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
       if (!shouldReload && data?.description) {
         const desc = data.description.toLowerCase();
         if (desc.includes(`research ${reportId}`) || desc.includes(`research_${reportId}`)) {
-          console.log(`🔄 ResearchView: Job description mentions research ${reportId}, reloading...`);
           shouldReload = true;
         }
       }
@@ -211,19 +203,16 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
           }
           debounceTimeoutRef.current = setTimeout(() => {
             lastUpdateRef.current = Date.now();
-            console.log(`🔄 ResearchView: Debounced reload triggered`);
             void loadAll(true); // Skip loading state to avoid flicker
           }, 500);
         } else {
           lastUpdateRef.current = now;
-          console.log(`🔄 ResearchView: Immediate reload triggered`);
           void loadAll(true); // Skip loading state to avoid flicker
         }
       }
     };
     if (typeof window !== "undefined") {
       window.addEventListener("job:update", handler);
-      console.log(`👂 ResearchView: Listening for job updates (reportId: ${reportId})`);
     }
     return () => {
       if (typeof window !== "undefined") {
@@ -251,7 +240,6 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
       });
       
       const resp = await runResearchFromAgenda(reportId, token);
-      console.log(`🚀 ResearchView: Started research run, job_id: ${resp.job_id}`);
       
       // Ensure job badge starts tracking immediately
       if (typeof window !== "undefined") {
@@ -271,7 +259,6 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
       // WebSocket will handle subsequent updates automatically
       // Only do a delayed reload to catch any immediate server-side updates
       setTimeout(() => {
-        console.log(`🔄 ResearchView: Delayed reload after start (skip loading state)`);
         void loadAll(true); // Skip loading state to avoid flicker
       }, 1000);
     } catch (err: any) {
@@ -322,7 +309,7 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
     setIsRegenerating(true);
     try {
       const token = await getAccessTokenSilently();
-      const modelKey = selectedModel || research.model_key || "claude-3-5-sonnet-20241022";
+      const modelKey = selectedModel || research.model_key || "claude-sonnet-4.6";
       
       const response = await regenerateResearch(reportId, { model_key: modelKey }, token);
       
@@ -351,7 +338,7 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
     setIsResynthesizing(true);
     try {
       const token = await getAccessTokenSilently();
-      const modelKey = selectedModel || research.model_key || "claude-3-5-sonnet-20241022";
+      const modelKey = selectedModel || research.model_key || "claude-sonnet-4.6";
       
       const response = await resynthesizeResearch(reportId, { model_key: modelKey }, token);
       

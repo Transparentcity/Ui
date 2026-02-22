@@ -128,7 +128,7 @@ Using the actual data above, provide exactly three paragraphs:
 Be concise, factual, and skeptical. Reference specific numbers from the time series to support your points. Do not speculate beyond what the data supports.`
 
     const { text } = await generateText({
-      model: anthropic("claude-sonnet-4-20250514"),
+      model: anthropic("claude-sonnet-4-6"),
       prompt,
       maxOutputTokens: 1500,
     })

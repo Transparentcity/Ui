@@ -135,8 +135,6 @@ export async function addToQueue(
   try {
     const db = createClient()
     
-    console.log("[v0] addToQueue: Fetching template:", templateId)
-    
     // Fetch template (simple query without complex joins)
     const { data: template, error: templateError } = await db
       .from("templates")
@@ -148,8 +146,6 @@ export async function addToQueue(
       console.error("[v0] Error fetching template:", templateError)
       throw new Error("Failed to fetch template: " + (templateError?.message || "not found"))
     }
-    
-    console.log("[v0] addToQueue: Template found:", template.name)
     
     // Fetch subject variations separately
     const { data: subjectVariations } = await db
@@ -172,8 +168,6 @@ export async function addToQueue(
       variation_enabled: true,
     }
     
-    console.log("[v0] addToQueue: Fetching contacts:", contactIds.length)
-    
     // Fetch contacts
     const { data: contacts, error: contactsError } = await db
       .from("prospects")
@@ -190,8 +184,6 @@ export async function addToQueue(
       throw new Error("No contacts found")
     }
     
-    console.log("[v0] addToQueue: Found contacts:", contactsArray.length)
-    
     // Use anomaly from caller (Platform API). from Platform API fetch.
     const anomalyResolved: Anomaly | null = anomalyId && anomaly ? anomaly : null
     
@@ -204,8 +196,6 @@ export async function addToQueue(
     
     const throttleSettings = Array.isArray(throttleSettingsArray) ? throttleSettingsArray[0] : null
     
-    console.log("[v0] addToQueue: Preparing queue items...")
-    
     // Prepare queue items with variations
     const queueItems = prepareQueueItems({
       campaignId,
@@ -214,8 +204,6 @@ export async function addToQueue(
       anomaly: anomalyResolved,
       settings: throttleSettings || DEFAULT_THROTTLE_SETTINGS,
     })
-    
-    console.log("[v0] addToQueue: Prepared items:", queueItems.length)
     
     // Insert into queue
     const { error } = await db
@@ -226,8 +214,6 @@ export async function addToQueue(
       console.error("[v0] Error adding to queue:", error)
       throw new Error("Failed to add to queue: " + error.message)
     }
-    
-    console.log("[v0] addToQueue: Successfully added to queue")
     
     revalidatePath("/send-queue")
     revalidatePath("/campaigns")
@@ -478,17 +464,6 @@ export async function rejectQueueItems(ids: string[]) {
 // Regenerate specific queue items with AI
 /** anomaliesFromApi: when provided, use these (from Platform API) instead of DB. from Platform API. */
 export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Anomaly[]) {
-  console.log("[v0] ========================================")
-  console.log("[v0] REGENERATE QUEUE ITEMS CALLED")
-  console.log("[v0] ========================================")
-  console.log("[v0] IDs to regenerate:", ids.length)
-  console.log("[v0] anomaliesFromApi provided:", anomaliesFromApi ? 'yes' : 'no')
-  console.log("[v0] anomaliesFromApi length:", anomaliesFromApi?.length ?? 0)
-  if (anomaliesFromApi && anomaliesFromApi.length > 0) {
-    const citywideIncoming = anomaliesFromApi.filter(a => a.is_citywide === true || a.district === 0).length
-    console.log("[v0] Citywide in incoming data:", citywideIncoming)
-  }
-  
   const db = createClient()
   
   // Fetch the items with their contacts
@@ -506,8 +481,6 @@ export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Ano
     console.error("[v0] Error fetching queue items for regeneration:", fetchError)
     throw new Error("Failed to fetch messages to regenerate")
   }
-  
-  console.log("[v0] Regenerating", itemsArr.length, "queue items with AI")
   
   // Group items by campaign to use appropriate template
   const campaignIds = [...new Set(itemsArr.map((i: any) => i.campaign_id).filter(Boolean))]
@@ -542,23 +515,6 @@ export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Ano
   
   // Use anomalies from caller (Platform API). from Platform API.
   const anomalies: any[] = anomaliesFromApi ?? []
-  if (anomalies.length > 0) {
-    console.log("[v0] Using", anomalies.length, "anomalies for regeneration (from API)")
-    // Count citywide anomalies
-    const citywideCount = anomalies.filter(a => 
-      a.is_citywide === true || a.district === 0 || a.district_label?.toLowerCase() === 'citywide'
-    ).length
-    console.log("[v0] Citywide anomalies available:", citywideCount)
-    // Show sample
-    if (anomalies[0]) {
-      console.log("[v0] Sample anomaly:", JSON.stringify({
-        district: anomalies[0].district,
-        district_label: anomalies[0].district_label,
-        is_citywide: anomalies[0].is_citywide,
-        metric_name: anomalies[0].metric_name?.substring(0, 30)
-      }))
-    }
-  }
   
   // Generate new content for each item
   const { generateText } = await import("ai")
@@ -575,8 +531,6 @@ export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Ano
     districtPools[distNum].push(a)
   }
   
-  console.log(`[v0] Anomaly pools: citywide=${citywidePool.length}, districts=${Object.keys(districtPools).join(',')}`)
-  
   for (const item of itemsArr) {
     const contact = item.prospect
     if (!contact) continue
@@ -586,7 +540,6 @@ export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Ano
     
     // Use random offset to ensure different anomalies each regeneration
     const randomOffset = Math.floor(Math.random() * 100)
-    console.log(`[v0] Regenerating for ${contact.name} with random offset ${randomOffset}`)
     
     // Find matching anomalies for this contact
     // Support both 'district' and 'jurisdiction' field names
@@ -619,11 +572,6 @@ export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Ano
     }
     
     const allAnomalies = [...matchedAnomalies, ...selectedCitywide].slice(0, 4)
-    
-    // Log which specific anomalies were selected
-    console.log(`[v0] Contact ${contact.name}: district=${matchedAnomalies.length}, citywide=${selectedCitywide.length}, total=${allAnomalies.length}`)
-    console.log(`[v0]   District anomalies: ${matchedAnomalies.map(a => a.metric_name?.substring(0, 25)).join(', ') || 'none'}`)
-    console.log(`[v0]   Citywide anomalies: ${selectedCitywide.map(a => a.metric_name?.substring(0, 25)).join(', ') || 'none'}`)
     
     // Build prompt for regeneration - use metric_name and sanitize
     // Separate district-specific from citywide for clearer prompting
@@ -660,9 +608,6 @@ export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Ano
     if (!anomalyContext) {
       anomalyContext = "No specific anomalies to mention"
     }
-    
-    // Log what we're sending to Claude
-    console.log(`[v0] Prompt for ${contact.name}: ${districtAnomaliesForPrompt.length} district + ${citywideAnomaliesForPrompt.length} citywide anomalies`)
     
     const systemPrompt = `You are an expert at writing professional government correspondence. Generate a unique, personalized email.
 
@@ -775,7 +720,7 @@ Generate a unique email as JSON with "subject" and "body".`
       })
       
       const result = await generateText({
-        model: anthropic("claude-sonnet-4-20250514"),
+        model: anthropic("claude-sonnet-4-6"),
         system: systemPrompt,
         prompt: userPrompt,
         maxTokens: 2000,
@@ -796,8 +741,6 @@ Generate a unique email as JSON with "subject" and "body".`
             variation_seed: Math.floor(Math.random() * 1000000),
           })
           .eq("id", item.id)
-        
-        console.log("[v0] Regenerated message for:", contact.name)
       }
     } catch (genError) {
       console.error("[v0] Error generating content for:", contact.name, genError)
@@ -871,21 +814,10 @@ export async function regenerateCampaign(
   anomaliesFromApi?: Anomaly[]
 ) {
   try {
-    console.log("========================================")
-    console.log("[v0] REGENERATE CAMPAIGN WITH AI STARTED")
-    console.log("========================================")
-    console.log("[v0] Campaign:", campaignId)
-    console.log("[v0] Template:", templateId)
-    console.log("[v0] Contacts:", contactIds.length)
-    console.log("[v0] Clear existing:", clearExisting)
-    console.log("[v0] anomaliesFromApi received:", anomaliesFromApi ? anomaliesFromApi.length : "undefined/null")
-    console.log("[v0] anomaliesFromApi type:", typeof anomaliesFromApi, Array.isArray(anomaliesFromApi))
-    
     const db = createClient()
     
     // Optionally clear existing queued and pending_review messages for this campaign
     if (clearExisting) {
-      console.log("[v0] Clearing existing queue items for campaign:", campaignId)
       const { error: deleteError } = await db
         .from("send_queue")
         .delete()
@@ -896,7 +828,6 @@ export async function regenerateCampaign(
         console.error("[v0] Error clearing existing queue items:", deleteError)
         throw new Error("Failed to clear existing messages: " + deleteError.message)
       }
-      console.log("[v0] Successfully cleared existing queue items")
     }
     
     // Fetch the template to use as sample email
@@ -912,7 +843,6 @@ export async function regenerateCampaign(
     }
     
     // Generate emails using AI
-    console.log("[v0] Generating emails with AI...")
     const result = await generateEmailsWithAI(
       campaignId,
       template.body,
@@ -921,8 +851,6 @@ export async function regenerateCampaign(
       true, // include anomalies
       anomaliesFromApi
     )
-    
-    console.log("[v0] Successfully generated and queued emails:", result)
     
     revalidatePath("/send-queue")
     revalidatePath("/campaigns")
@@ -997,31 +925,6 @@ async function generateEmailsWithAI(
   // Use anomalies from caller (Platform API). from Platform API.
   const anomalies: any[] = includeAnomalies && anomaliesFromApi ? anomaliesFromApi : []
   const anomalyKeywordMap: Record<string, string[]> = {} // Platform has no anomaly_keywords
-  
-  console.log("[v0] ========================================")
-  console.log("[v0] MATCHING ANOMALIES TO CONTACTS")
-  console.log("[v0] ========================================")
-  console.log("[v0] Total contacts:", contactsArr.length)
-  console.log("[v0] Total anomalies (from API):", anomalies.length)
-  
-  if (anomalies.length > 0) {
-    console.log("[v0] Sample anomaly:", JSON.stringify({
-      id: anomalies[0].id,
-      metric_name: anomalies[0].metric_name,
-      district: anomalies[0].district,
-      district_label: anomalies[0].district_label,
-      is_citywide: anomalies[0].is_citywide,
-      pct_change: anomalies[0].pct_change
-    }))
-    // Log all unique district_labels
-    const uniqueDistricts = [...new Set(anomalies.map((a: any) => a.district_label))]
-    console.log("[v0] Unique district_labels in anomalies:", uniqueDistricts)
-    // Count citywide
-    const citywideCount = anomalies.filter((a: any) => a.is_citywide || a.district === 0).length
-    console.log("[v0] Citywide anomalies count:", citywideCount)
-  } else {
-    console.log("[v0] WARNING: No anomalies received from client!")
-  }
 
   // ========================================
   // SMART ANOMALY DISTRIBUTION
@@ -1070,12 +973,6 @@ async function generateEmailsWithAI(
   }
   citywideAnomalies.sort(sortBySeverity)
   
-  console.log(`[v0] Anomaly distribution:`)
-  console.log(`[v0]   - Citywide anomalies: ${citywideAnomalies.length}`)
-  for (const [dist, arr] of Object.entries(anomaliesByDistrict)) {
-    console.log(`[v0]   - District ${dist}: ${arr.length} anomalies`)
-  }
-  
   // Track usage indices per district (for round-robin distribution)
   const districtUsageIndex: Record<string, number> = {}
   const citywideUsageIndex = { value: 0 }
@@ -1088,8 +985,6 @@ async function generateEmailsWithAI(
       contactsPerDistrict[contactDistrict] = (contactsPerDistrict[contactDistrict] || 0) + 1
     }
   }
-  
-  console.log(`[v0] Contacts per district:`, contactsPerDistrict)
   
   const contactAnomalyMap: Record<string, any[]> = {}
   
@@ -1157,23 +1052,7 @@ async function generateEmailsWithAI(
     }
     
     contactAnomalyMap[contact.id] = selectedAnomalies
-    
-    // Log first few contacts with details
-    if (contactIdx < 5) {
-      const districtCount = selectedAnomalies.filter(a => !a.is_citywide && a.district !== 0).length
-      const citywideCount = selectedAnomalies.filter(a => a.is_citywide || a.district === 0).length
-      console.log(`[v0] Contact "${contact.name}" (district: ${contactDistrict || 'none'}):`)
-      console.log(`[v0]   - District anomalies: ${districtCount}`)
-      console.log(`[v0]   - Citywide anomalies: ${citywideCount}`)
-      if (selectedAnomalies.length > 0) {
-        console.log(`[v0]   - Anomalies: ${selectedAnomalies.map(a => `${a.metric_name} (${a.district_label || 'Citywide'})`).join(', ')}`)
-      }
-    }
   }
-  
-  // Summary
-  const contactsWithAnomalies = Object.values(contactAnomalyMap).filter(a => a.length > 0).length
-  console.log(`[v0] Summary: ${contactsWithAnomalies}/${contactsArr.length} contacts have matched anomalies`)
 
   // Build prompt for Claude
   const getFirstName = (fullName: string): string => {
@@ -1395,58 +1274,29 @@ Generate ${contactsArr.length} unique emails as JSON.`
   const { generateText } = await import("ai")
   const { createAnthropic } = await import("@ai-sdk/anthropic")
   
-  console.log("[v0] ========================================")
-  console.log("[v0] CALLING CLAUDE API")
-  console.log("[v0] ========================================")
-  console.log("[v0] ANTHROPIC_API_KEY set:", !!process.env.ANTHROPIC_API_KEY)
-  console.log("[v0] API key prefix:", process.env.ANTHROPIC_API_KEY?.substring(0, 10) + "...")
-  
   const anthropic = createAnthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
   })
   
-  console.log("[v0] Prompt length:", userPrompt.length, "chars")
-  console.log("[v0] Contacts in prompt:", contactsArr.length)
-  
   const result = await generateText({
-    model: anthropic("claude-sonnet-4-20250514"),
+    model: anthropic("claude-sonnet-4-6"),
     system: systemPrompt,
     prompt: userPrompt,
     maxTokens: 8000,
   } as any)
-  
-  console.log("[v0] ========================================")
-  console.log("[v0] CLAUDE RESPONSE RECEIVED")
-  console.log("[v0] ========================================")
-  console.log("[v0] Response length:", result.text?.length || 0, "chars")
-  console.log("[v0] First 500 chars:", result.text?.substring(0, 500))
 
   // Parse the response
   let generatedEmails: any[] = []
   try {
     // Extract JSON from the response
     const text = result.text
-    console.log("[v0] Looking for JSON in response...")
     const jsonMatch = text.match(/\{[\s\S]*"emails"[\s\S]*\}/)
     if (jsonMatch) {
-      console.log("[v0] Found JSON, parsing...")
       const parsed = JSON.parse(jsonMatch[0])
       generatedEmails = parsed.emails || []
-      console.log("[v0] Parsed", generatedEmails.length, "emails from response")
-      if (generatedEmails.length > 0) {
-        console.log("[v0] Sample email:", JSON.stringify({
-          subject: generatedEmails[0].subject?.substring(0, 50),
-          bodyPreview: generatedEmails[0].body?.substring(0, 100),
-          contactId: generatedEmails[0].contactId,
-          anomalyIds: generatedEmails[0].anomalyIds
-        }))
-      }
-    } else {
-      console.log("[v0] No JSON found in response! Raw text:", text.substring(0, 1000))
     }
   } catch (parseError) {
     console.error("[v0] Error parsing AI response:", parseError)
-    console.log("[v0] Raw response:", result.text?.substring(0, 2000))
     throw new Error("Failed to parse AI-generated emails")
   }
 
@@ -1454,10 +1304,6 @@ Generate ${contactsArr.length} unique emails as JSON.`
     console.error("[v0] No emails were generated! Full response:", result.text)
     throw new Error("No emails were generated")
   }
-  
-  console.log("[v0] ========================================")
-  console.log("[v0] QUEUING", generatedEmails.length, "EMAILS")
-  console.log("[v0] ========================================")
 
   // Queue the generated emails
   const queueItems = generatedEmails.map((email: any) => ({

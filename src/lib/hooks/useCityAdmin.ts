@@ -29,6 +29,9 @@ import {
   getCityMetricsForCustomize,
   batchExecuteMetrics,
   structureCityMetrics,
+  getTemplateInstantiationStatus,
+  instantiateSingleTemplate,
+  instantiateAllTemplates,
   type CityAdminData,
   type CityMetricForCustomize,
   type CityStatsResponse,
@@ -48,6 +51,7 @@ import {
   type BatchExecuteMetricsResponse,
   type StructureCityMetricsRequest,
   type StructureCityMetricsResult,
+  type TemplateInstantiationStatusResponse,
 } from "@/lib/apiClient";
 
 // Query keys factory for city admin
@@ -59,6 +63,8 @@ export const cityAdminKeys = {
   structure: (id: number) => [...cityAdminKeys.all, "structure", id] as const,
   models: () => [...cityAdminKeys.all, "models"] as const,
   metricOrdering: (id: number) => [...cityAdminKeys.all, "metricOrdering", id] as const,
+  templateInstantiationStatus: (id: number) =>
+    [...cityAdminKeys.all, "templateInstantiationStatus", id] as const,
 };
 
 /** Query keys for per-user metric ordering (dashboard personalization). */
@@ -325,6 +331,68 @@ export function useStructureCityMetrics() {
         queryClient.invalidateQueries({ queryKey: cityAdminKeys.structure(variables.cityId) });
         queryClient.invalidateQueries({ queryKey: ["cities", "metrics", variables.cityId] });
       }, 2000);
+    },
+  });
+}
+
+/**
+ * Hook to fetch template instantiation status for a city (which templates are instantiated).
+ */
+export function useTemplateInstantiationStatus(cityId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: cityAdminKeys.templateInstantiationStatus(cityId!),
+    queryFn: async () => {
+      const token = await getAccessTokenSilently();
+      return getTemplateInstantiationStatus(cityId!, token);
+    },
+    enabled: !!cityId,
+  });
+}
+
+/**
+ * Hook to start a job that instantiates a single template metric for a city.
+ * Returns job_id for WebSocket tracking. Invalidates city admin and template status on success.
+ */
+export function useInstantiateSingleTemplate() {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ cityId, templateId }: { cityId: number; templateId: number }) => {
+      const token = await getAccessTokenSilently();
+      return instantiateSingleTemplate(cityId, templateId, token);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: cityAdminKeys.detail(variables.cityId) });
+      queryClient.invalidateQueries({
+        queryKey: cityAdminKeys.templateInstantiationStatus(variables.cityId),
+      });
+      queryClient.invalidateQueries({ queryKey: ["cities", "metrics", variables.cityId] });
+    },
+  });
+}
+
+/**
+ * Hook to start a job that instantiates all template metrics for a city sequentially.
+ * Returns job_id for WebSocket tracking. Invalidates city admin and template status on success.
+ */
+export function useInstantiateAllTemplates() {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (cityId: number) => {
+      const token = await getAccessTokenSilently();
+      return instantiateAllTemplates(cityId, token);
+    },
+    onSuccess: (_, cityId) => {
+      queryClient.invalidateQueries({ queryKey: cityAdminKeys.detail(cityId) });
+      queryClient.invalidateQueries({
+        queryKey: cityAdminKeys.templateInstantiationStatus(cityId),
+      });
+      queryClient.invalidateQueries({ queryKey: ["cities", "metrics", cityId] });
     },
   });
 }

@@ -29,11 +29,15 @@ import {
   useDeleteCityLeader,
   useCityMetricOrdering,
   useStructureCityMetrics,
+  useTemplateInstantiationStatus,
+  useInstantiateSingleTemplate,
+  useInstantiateAllTemplates,
   cityAdminKeys,
 } from "@/lib/hooks/useCityAdmin";
 import { useQueryClient } from "@tanstack/react-query";
 import { pickDefaultModelKey } from "@/lib/modelDefaults";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
+import { useJobWebSocketContext } from "@/contexts/JobWebSocketContext";
 import DatasetsList from "@/components/DatasetsList";
 import Loader from "./Loader";
 import MetricActions from "./MetricActions";
@@ -435,6 +439,12 @@ export default function CityDataAdmin({
   const updateCityLeaderMutation = useUpdateCityLeader();
   const deleteCityLeaderMutation = useDeleteCityLeader();
   const structureCityMetricsMutation = useStructureCityMetrics();
+  const templateStatusQuery = useTemplateInstantiationStatus(cityId);
+  const instantiateSingleMutation = useInstantiateSingleTemplate();
+  const instantiateAllMutation = useInstantiateAllTemplates();
+  const { jobs } = useJobWebSocketContext();
+  const [runningSingleJobByTemplateId, setRunningSingleJobByTemplateId] = useState<Record<number, string>>({});
+  const [runningAllJobId, setRunningAllJobId] = useState<string | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -484,6 +494,28 @@ export default function CityDataAdmin({
   const [anomaliesOpen, setAnomaliesOpen] = useState(false);
   const [runAllMetricsOpen, setRunAllMetricsOpen] = useState(false);
   const [anomaliesMetricId, setAnomaliesMetricId] = useState<number | null>(null);
+
+  // Clear running template job state when job completes/fails (so refetched status shows and Run is enabled again)
+  useEffect(() => {
+    const terminal = new Set(["completed", "failed", "cancelled"]);
+    if (runningAllJobId && jobs?.some((j) => j.job_id === runningAllJobId && terminal.has(j.status))) {
+      setRunningAllJobId(null);
+      templateStatusQuery.refetch();
+    }
+    const stillRunning = { ...runningSingleJobByTemplateId };
+    let changed = false;
+    Object.entries(stillRunning).forEach(([templateIdStr, jid]) => {
+      const j = jobs?.find((x) => x.job_id === jid);
+      if (j && terminal.has(j.status)) {
+        delete stillRunning[Number(templateIdStr)];
+        changed = true;
+      }
+    });
+    if (changed) {
+      setRunningSingleJobByTemplateId(stillRunning);
+      templateStatusQuery.refetch();
+    }
+  }, [jobs, runningAllJobId, runningSingleJobByTemplateId, templateStatusQuery]);
   const [anomalyPeriodFilter, setAnomalyPeriodFilter] = useState<string>("all");
   const [anomalyYesNoFilter, setAnomalyYesNoFilter] = useState<"yes" | "no" | "all">("yes");
   const [selectedAnomalyPeriodDate, setSelectedAnomalyPeriodDate] = useState<string | null>(null);
@@ -3434,25 +3466,6 @@ export default function CityDataAdmin({
                 {loadingRecordCounts ? "⏳ Loading..." : recordCounts ? "✓ Record Counts Loaded" : "📊 Load Record Counts"}
               </button>
               <button
-                onClick={handleStructureMetrics}
-                disabled={structureCityMetricsMutation.isPending}
-                style={{
-                  padding: "8px 16px",
-                  background: structureCityMetricsMutation.isPending
-                    ? "var(--text-secondary, #666)"
-                    : "var(--brand-secondary, #00a86b)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  fontSize: "13px",
-                  fontWeight: 500,
-                  cursor: structureCityMetricsMutation.isPending ? "wait" : "pointer",
-                  opacity: structureCityMetricsMutation.isPending ? 0.7 : 1,
-                }}
-              >
-                {structureCityMetricsMutation.isPending ? "⏳ Instantiating..." : "🔧 Instantiate Template Metrics"}
-              </button>
-              <button
                 onClick={() => setRunAllMetricsOpen(true)}
                 style={{
                   padding: "8px 16px",
@@ -3470,7 +3483,144 @@ export default function CityDataAdmin({
               </button>
             </div>
           </div>
-          
+
+          {/* Template metrics: same table as metrics list, greyed out, with Run / Run all */}
+          {templateStatusQuery.data?.templates && templateStatusQuery.data.templates.length > 0 && (
+            <div style={{ marginBottom: "32px" }}>
+              <h4 style={{
+                margin: "0 0 12px 0",
+                padding: "8px 0",
+                borderBottom: "2px solid var(--brand-primary)",
+                color: "var(--text-primary)",
+                fontSize: "14px",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.03em",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: "8px",
+              }}>
+                <span>Template metrics</span>
+                <button
+                  onClick={async () => {
+                    try {
+                      const result = await instantiateAllMutation.mutateAsync(cityId);
+                      setRunningAllJobId(result.job_id);
+                      notifyJobCreated(result.job_id);
+                    } catch (err: unknown) {
+                      alert("Failed to start: " + (err instanceof Error ? err.message : String(err)));
+                    }
+                  }}
+                  disabled={instantiateAllMutation.isPending || !!runningAllJobId}
+                  style={{
+                    padding: "6px 12px",
+                    background: runningAllJobId || instantiateAllMutation.isPending ? "var(--text-secondary, #666)" : "var(--brand-secondary, #00a86b)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    cursor: runningAllJobId || instantiateAllMutation.isPending ? "wait" : "pointer",
+                  }}
+                >
+                  {runningAllJobId ? "Running all…" : instantiateAllMutation.isPending ? "Starting…" : "Run all templates"}
+                </button>
+              </h4>
+              <div className={styles.metricsTableContainer}>
+                <table className={styles.metricsTable}>
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>Most Recent Data</th>
+                      <th>Active</th>
+                      <th>Inactive</th>
+                      <th>Last Execution</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {templateStatusQuery.data.templates.map((t) => {
+                      const jobId = runningSingleJobByTemplateId[t.template_id];
+                      const job = jobId ? jobs?.find((j) => j.job_id === jobId) : null;
+                      const isRunning = !!jobId && job && (job.status === "pending" || job.status === "running");
+                      const isInstantiated = t.status === "instantiated";
+                      return (
+                        <tr
+                          key={t.template_id}
+                          className={styles.metricTableRow}
+                          style={{
+                            opacity: isInstantiated ? 0.9 : 0.7,
+                            backgroundColor: isRunning ? "rgba(99, 102, 241, 0.05)" : "transparent",
+                          }}
+                        >
+                          <td className={styles.metricNameCell}>
+                            <div className={styles.metricNameContent}>
+                              <div style={{ fontWeight: 500, color: isInstantiated ? "var(--text-primary)" : "var(--text-secondary)" }}>
+                                {t.template_name}
+                                <span className={styles.metricIdInline}> (template {t.template_id})</span>
+                                {isInstantiated && t.metric_id != null && (
+                                  <span style={{ marginLeft: "6px", fontSize: "12px", color: "var(--color-success, #22c55e)" }}>
+                                    → metric #{t.metric_id}
+                                  </span>
+                                )}
+                              </div>
+                              <div className={styles.metricActionsWrapper} style={{ opacity: 1, visibility: "visible" }}>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const result = await instantiateSingleMutation.mutateAsync({
+                                        cityId,
+                                        templateId: t.template_id,
+                                      });
+                                      setRunningSingleJobByTemplateId((prev) => ({ ...prev, [t.template_id]: result.job_id }));
+                                      notifyJobCreated(result.job_id);
+                                    } catch (err: unknown) {
+                                      alert("Failed to start: " + (err instanceof Error ? err.message : String(err)));
+                                    }
+                                  }}
+                                  disabled={isRunning || instantiateSingleMutation.isPending}
+                                  style={{
+                                    padding: "6px 12px",
+                                    background: isRunning || instantiateSingleMutation.isPending ? "var(--text-secondary, #999)" : "var(--brand-accent, #6366f1)",
+                                    color: "white",
+                                    border: "none",
+                                    borderRadius: "4px",
+                                    fontSize: "12px",
+                                    fontWeight: 500,
+                                    cursor: isRunning || instantiateSingleMutation.isPending ? "wait" : "pointer",
+                                  }}
+                                >
+                                  {isRunning ? "Running…" : isInstantiated ? "Re-run" : "Run"}
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                          <td className={styles.metricDateCell}>
+                            <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
+                          </td>
+                          <td className={styles.metricDateCell}>
+                            <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
+                          </td>
+                          <td className={styles.metricDateCell}>
+                            <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
+                          </td>
+                          <td className={styles.metricExecutionCell}>
+                            {isRunning && job?.status_message ? (
+                              <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>{job.status_message}</span>
+                            ) : (
+                              <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* Metric Order Editor */}
           {cityDataTyped.metrics && cityDataTyped.metrics.length > 0 && (
             <MetricOrderEditor

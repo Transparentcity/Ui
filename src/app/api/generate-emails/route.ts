@@ -53,24 +53,6 @@ export async function POST(req: Request) {
     const anomalies: any[] = includeAnomalies && Array.isArray(anomaliesFromClient)
       ? anomaliesFromClient
       : []
-    if (includeAnomalies && anomalies.length > 0) {
-      console.log("[v0] Using", anomalies.length, "anomalies from client (Platform API)")
-      // Debug: show distribution of anomalies
-      const citywideCount = anomalies.filter(a => a.is_citywide === true).length
-      const districts = [...new Set(anomalies.map(a => a.district_label))].slice(0, 5)
-      console.log("[v0] Citywide anomalies:", citywideCount, "| Sample districts:", districts)
-      // Debug: show first anomaly structure
-      if (anomalies[0]) {
-        console.log("[v0] Sample anomaly:", JSON.stringify({
-          id: anomalies[0].id,
-          district: anomalies[0].district,
-          district_label: anomalies[0].district_label,
-          is_citywide: anomalies[0].is_citywide,
-          metric_name: anomalies[0].metric_name?.substring(0, 30)
-        }))
-      }
-    }
-
     // Match anomalies to contacts - PRIORITY: 1) District, 2) Keywords, 3) Citywide
     // Uses district_label (TEXT) for CRM matching, not district (INTEGER)
     const contactAnomalyMap: Record<string, typeof anomalies> = {}
@@ -113,9 +95,6 @@ export async function POST(req: Request) {
       // Combine: district first, then keywords, then citywide - max 4 total
       const combined = [...districtMatches, ...keywordMatches, ...citywideMatches]
       contactAnomalyMap[contact.id] = combined.slice(0, 4)
-      
-      // Debug matching
-      console.log(`[v0] Contact ${contact.name} (jurisdiction="${contactJurisdiction}"): district=${districtMatches.length}, keyword=${keywordMatches.length}, citywide=${citywideMatches.length}, total=${combined.length}`)
     }
 
     // Helper to sanitize strings for JSON - removes invalid Unicode surrogates
@@ -295,16 +274,12 @@ Generate ${contactsArr.length} unique emails, one per contact. Return valid JSON
 }`
 
     // Call Claude via AI SDK
-    console.log("[v0] Calling Claude API for", contactsArr.length, "contacts")
-    
     const result = await generateText({
-      model: anthropic("claude-sonnet-4-20250514"),
+      model: anthropic("claude-sonnet-4-6"),
       system: systemPrompt,
       prompt: userPrompt,
       maxTokens: 8000,
     } as any)
-
-    console.log("[v0] Claude response length:", result.text?.length)
 
     // Parse JSON from the response
     let generatedEmails: any[] = []
@@ -317,7 +292,6 @@ Generate ${contactsArr.length} unique emails, one per contact. Return valid JSON
       }
     } catch (parseError) {
       console.error("[v0] Error parsing AI response:", parseError)
-      console.log("[v0] Raw response:", result.text?.substring(0, 500))
       throw new Error("Failed to parse AI-generated emails")
     }
 

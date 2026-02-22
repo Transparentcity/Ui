@@ -1818,7 +1818,6 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             selectedAnomaly={selectedAnomaly}
             onAnomalySelect={handleAnomalySelect}
             mapOnly={true}
-            onCustomizeMetricsClick={() => setUserOrderDialogOpen(true)}
           />
 
           {/* Tabs Overlay */}
@@ -1902,7 +1901,6 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             selectedDistrict={selectedDistrict}
             selectedAnomaly={selectedAnomaly}
             onAnomalySelect={handleAnomalySelect}
-            onCustomizeMetricsClick={() => setUserOrderDialogOpen(true)}
           />
 
           {/* Tabs - Below header */}
