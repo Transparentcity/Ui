@@ -4,7 +4,6 @@ import { useState, useMemo } from "react"
 import { useWasteInvestigations } from "@/lib/hooks/useWaste"
 import { useCities } from "@/lib/hooks/useCities"
 import { WasteShell } from "./waste-shell"
-import { SeverityBadge } from "./severity-badge"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -92,7 +91,7 @@ export function InvestigationsListPage() {
               <TableHead>Title</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Lead Auditor</TableHead>
-              <TableHead>Finding</TableHead>
+              <TableHead>Finding ID</TableHead>
               <TableHead>Opened</TableHead>
               <TableHead className="w-10" />
             </TableRow>
@@ -135,18 +134,9 @@ export function InvestigationsListPage() {
                       {inv.status.replace("_", " ")}
                     </span>
                   </TableCell>
-                  <TableCell className="text-gray-600">{inv.lead_auditor ?? "—"}</TableCell>
-                  <TableCell>
-                    {inv.finding ? (
-                      <div className="flex items-center gap-1">
-                        <SeverityBadge severity={inv.finding.severity} />
-                        <span className="text-xs text-gray-500 truncate max-w-[120px]">
-                          {inv.finding.entity}
-                        </span>
-                      </div>
-                    ) : (
-                      "—"
-                    )}
+                  <TableCell className="text-gray-600">{inv.lead_auditor_id ?? "—"}</TableCell>
+                  <TableCell className="text-xs text-gray-500">
+                    #{inv.finding_id}
                   </TableCell>
                   <TableCell className="text-xs text-gray-400">
                     {inv.opened_at ? new Date(inv.opened_at).toLocaleDateString() : "—"}
