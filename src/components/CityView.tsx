@@ -9,7 +9,7 @@ import DistrictNavigation from "@/components/DistrictNavigation";
 import AnomaliesTabPanel from "@/components/AnomaliesTabPanel";
 import { useCity, useSavedCities, useSaveCity, useUnsaveCity, useCityLeaders, useRepresentativeFollowerCounts } from "@/lib/hooks/useCities";
 import type { CityLeader } from "@/lib/apiClient";
-import { useCityMetricOrdering } from "@/lib/hooks/useCityAdmin";
+import { useUserMetricOrdering } from "@/lib/hooks/useCityAdmin";
 import { emitSavedCitiesChanged, SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEvents";
 import { getPresetMetricDateRange, getDefaultDateRangeFromMetrics, type MetricDateRange } from "@/lib/dateRange";
 import type { AnomalyResult } from "@/lib/hooks/useAnomalies";
@@ -19,6 +19,7 @@ import { useMetricComparisons, useBatchComparisons } from "@/lib/hooks/useMetric
 import Loader from "@/components/Loader";
 import { MetricLink } from "@/components/MetricLink";
 import MetricDetailModal from "@/components/MetricDetailModal";
+import UserMetricOrderDialog from "@/components/UserMetricOrderDialog";
 import { slugify } from "@/lib/utils";
 import "./CityView.css";
 
@@ -58,6 +59,8 @@ interface MetricWithYTD {
   stale?: boolean;
   /** When stale: actual end date of comparison data (ISO); if before aligned period end, show as cut-off. */
   staleComparisonDataEnd?: string;
+  /** For derived metrics: A/B=C breakdown for tooltip (hover shows formula) */
+  calculationBreakdown?: import("@/lib/apiClient").CalculationBreakdown | null;
 }
 
 /**
@@ -112,6 +115,7 @@ interface DashboardMetricsSectionProps {
   onMetricClick?: (metricId: number, district?: number | null) => void; // Callback when metric is clicked (for modal)
   leaderFollowerCounts?: Record<string, number>; // Follower counts per district ("0"=mayor) for Official Selector
   newsletterQueriesEnabled?: boolean; // When false, defers newsletter/follow API calls (slow-connection UX)
+  onCustomizeMetricsClick?: () => void; // Opens user metric order dialog
 }
 
 // Time series data point for sparkline
@@ -472,7 +476,7 @@ const YTDSparkline = React.memo(function YTDSparkline({
   );
 });
 
-function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts, newsletterQueriesEnabled }: DashboardMetricsSectionProps) {
+function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts, newsletterQueriesEnabled, onCustomizeMetricsClick }: DashboardMetricsSectionProps) {
   const { getAccessTokenSilently } = useAuth0();
   
   // New state for explicit period selection
@@ -513,6 +517,8 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
   stale?: boolean;
   /** When stale: actual end date of comparison data (ISO); if before aligned period end, show as cut-off. */
   staleComparisonDataEnd?: string;
+  /** For derived metrics: A/B=C breakdown for tooltip transparency */
+  calculationBreakdown?: import("@/lib/apiClient").CalculationBreakdown | null;
   }>>({});
   const [loadingMetrics, setLoadingMetrics] = useState<Set<number>>(new Set());
   
@@ -525,8 +531,8 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
   // Use selectedDistrict, defaulting to 0 (citywide) if not provided
   const district = selectedDistrict ?? 0;
   
-  // Fetch metric ordering for this city
-  const { data: orderingData } = useCityMetricOrdering(cityId);
+  // Fetch metric ordering (user override or city-level fallback)
+  const { data: orderingData } = useUserMetricOrdering(cityId);
 
   // Build ordering map from saved ordering data (includes subcategory for display when set)
   const orderingMap = useMemo(() => {
@@ -546,11 +552,18 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     return map;
   }, [orderingData]);
 
+  // When user has custom ordering, only show metrics that are in the ordering
+  const metricsToShow = useMemo(() => {
+    if (!orderingData?.orderings?.length) return metrics;
+    const ids = new Set(orderingData.orderings.map((o) => o.metric_id).filter(Boolean));
+    return metrics.filter((m) => ids.has(m.id));
+  }, [metrics, orderingData]);
+
   // Group and sort metrics by category using saved ordering
   const groupedMetrics = useMemo(() => {
     const grouped: Record<string, { metrics: MetricWithYTD[]; categoryOrder: number }> = {};
     
-    metrics.forEach((metric) => {
+    metricsToShow.forEach((metric) => {
       const ordering = orderingMap.get(metric.id);
       const category = ordering?.categoryName || metric.category || "Uncategorized";
       const categoryOrder = ordering?.categoryOrder ?? 1000;
@@ -591,6 +604,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
         display_unit: (metric as any).display_unit || null, // "percentage", "currency", etc.
         stale: ytdData[metric.id]?.stale ?? false,
         staleComparisonDataEnd: ytdData[metric.id]?.staleComparisonDataEnd,
+        calculationBreakdown: ytdData[metric.id]?.calculationBreakdown,
         metricOrder, // Store for sorting
       } as MetricWithYTD & { metricOrder: number });
     });
@@ -615,12 +629,12 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     });
 
     return { grouped: result, sortedCategories };
-  }, [metrics, ytdData, orderingMap]);
+  }, [metricsToShow, ytdData, orderingMap]);
 
   // Fetch precomputed comparisons for all metrics using batch endpoint
   const metricIds = useMemo(() => 
-    metrics.map((m) => m.id).filter((id): id is number => !!id),
-    [metrics]
+    metricsToShow.map((m) => m.id).filter((id): id is number => !!id),
+    [metricsToShow]
   );
   
   const { 
@@ -1061,6 +1075,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
             stale: true,
             staleComparisonDataEnd: comparison.current_period_end ?? undefined,
             sparklineData: ytdData[metricId]?.sparklineData || [],
+            calculationBreakdown: comparison.calculation_breakdown ?? undefined,
           };
         } else {
           updates[metricId] = {
@@ -1076,6 +1091,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
             computedAt: comparison.computed_at,
             maxDataDate: comparison.current_period_end,
             sparklineData: ytdData[metricId]?.sparklineData || [],
+            calculationBreakdown: comparison.calculation_breakdown ?? undefined,
           };
         }
       }
@@ -1256,26 +1272,46 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
 
   return (
     <div className="dashboard-section">
-      {/* Official Selector Header - Using DistrictNavigation Component */}
-      <div className="dashboard-header">
-        {leaders && leaders.length > 0 && onDistrictChange ? (
-          <div className="dashboard-district-navigation">
-            <DistrictNavigation
-              selectedDistrict={district}
-              leaders={leaders}
-              shapefiles={shapefiles}
-              onDistrictSelect={(newDistrict) => {
-                onDistrictChange(newDistrict);
-              }}
-              onGPSLocation={onGPSLocation}
-              leaderFollowerCounts={leaderFollowerCounts}
-              cityId={cityId}
-              publicPagePath={cityName ? `/c/${slugify(cityName)}` : undefined}
-              newsletterQueriesEnabled={newsletterQueriesEnabled}
-            />
-          </div>
-        ) : (
-          <h2 className="dashboard-title">{dashboardTitle}</h2>
+      {/* Dashboard title / district nav (left) and Customize metrics (right) */}
+      <div className="dashboard-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          {leaders && leaders.length > 0 && onDistrictChange ? (
+            <div className="dashboard-district-navigation">
+              <DistrictNavigation
+                selectedDistrict={district}
+                leaders={leaders}
+                shapefiles={shapefiles}
+                onDistrictSelect={(newDistrict) => {
+                  onDistrictChange(newDistrict);
+                }}
+                onGPSLocation={onGPSLocation}
+                leaderFollowerCounts={leaderFollowerCounts}
+                cityId={cityId}
+                publicPagePath={cityName ? `/c/${slugify(cityName)}` : undefined}
+                newsletterQueriesEnabled={newsletterQueriesEnabled}
+              />
+            </div>
+          ) : (
+            <h2 className="dashboard-title">{dashboardTitle}</h2>
+          )}
+        </div>
+        {onCustomizeMetricsClick && (
+          <button
+            type="button"
+            onClick={onCustomizeMetricsClick}
+            style={{
+              padding: "6px 12px",
+              fontSize: 13,
+              fontWeight: 500,
+              color: "var(--brand-primary, #ad35fa)",
+              background: "transparent",
+              border: "1px solid var(--brand-primary, #ad35fa)",
+              borderRadius: 6,
+              cursor: "pointer",
+            }}
+          >
+            Customize metrics
+          </button>
         )}
       </div>
 
@@ -1432,6 +1468,11 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                       const maxDataDateFormatted = formatMetadataDate(metric.maxDataDate);
                       const citySlug = cityName ? slugify(cityName) : `city-${cityId}`;
 
+                      const b = metric.calculationBreakdown;
+                      const fmt = (n: number | null) => n != null ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "—";
+                      const isPct = b?.display_unit === "percentage";
+                      const fmtResult = (r: number | null) => r != null ? (isPct ? r.toFixed(1) + "%" : fmt(r)) : "—";
+
                       return (
                         <MetricLink
                           key={metric.id}
@@ -1460,7 +1501,15 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                           </div>
                           
                           {/* Comparison column: apples-to-apples period (e.g. Jan 1 - Jan 5 2025); cut-off styling when data ends mid-window */}
-                          <div className="metric-col metric-col-value">
+                          <div className="metric-col metric-col-value metric-col-hoverable">
+                            {b && (
+                              <div className="metric-col-tooltip" aria-hidden>
+                                <div className="metric-col-tooltip-inner">
+                                  {b.numerator_name} ({fmt(b.comparison_period.numerator_value)}) ÷ {b.denominator_name} ({fmt(b.comparison_period.denominator_value)})
+                                  {isPct && " × 100"} = <strong>{fmtResult(b.comparison_period.result)}</strong>
+                                </div>
+                              </div>
+                            )}
                             {metric.ytdLoading ? (
                               <Loader size="sm" color="dark" />
                             ) : (
@@ -1487,7 +1536,15 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                           </div>
                           
                           {/* Current year value column: apples-to-apples (e.g. Jan 1 - Jan 5 2026) or "No data" when stale */}
-                          <div className="metric-col metric-col-value">
+                          <div className="metric-col metric-col-value metric-col-hoverable">
+                            {b && (
+                              <div className="metric-col-tooltip" aria-hidden>
+                                <div className="metric-col-tooltip-inner">
+                                  {b.numerator_name} ({fmt(b.current_period.numerator_value)}) ÷ {b.denominator_name} ({fmt(b.current_period.denominator_value)})
+                                  {isPct && " × 100"} = <strong>{fmtResult(b.current_period.result)}</strong>
+                                </div>
+                              </div>
+                            )}
                             {metric.ytdLoading ? (
                               <Loader size="sm" color="dark" />
                             ) : (
@@ -1565,6 +1622,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
   const [selectedAnomaly, setSelectedAnomaly] = useState<AnomalyResult | null>(null);
   const [selectedMetricId, setSelectedMetricId] = useState<number | null>(null);
   const [selectedMetricDistrict, setSelectedMetricDistrict] = useState<number | null>(null);
+  const [userOrderDialogOpen, setUserOrderDialogOpen] = useState(false);
   const mapTabRef = useRef<HTMLDivElement | null>(null);
   const [isCityDataReady, setIsCityDataReady] = useState(false);
   const previousCityIdRef = useRef<number | null>(null);
@@ -1760,6 +1818,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             selectedAnomaly={selectedAnomaly}
             onAnomalySelect={handleAnomalySelect}
             mapOnly={true}
+            onCustomizeMetricsClick={() => setUserOrderDialogOpen(true)}
           />
 
           {/* Tabs Overlay */}
@@ -1843,6 +1902,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             selectedDistrict={selectedDistrict}
             selectedAnomaly={selectedAnomaly}
             onAnomalySelect={handleAnomalySelect}
+            onCustomizeMetricsClick={() => setUserOrderDialogOpen(true)}
           />
 
           {/* Tabs - Below header */}
@@ -1893,6 +1953,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
                 }}
                 leaderFollowerCounts={leaderFollowerCounts}
                 newsletterQueriesEnabled={cityLoaded}
+                onCustomizeMetricsClick={() => setUserOrderDialogOpen(true)}
               />
             )}
 
@@ -1901,6 +1962,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
                 <AnomaliesTabPanel
                   cityId={cityId}
                   cityName={cityData.name}
+                  metrics={cityData.metrics || []}
                   initialDistrict={selectedDistrict}
                   onMetricClick={(metricId, district) => {
                   setSelectedMetricId(metricId);
@@ -1917,6 +1979,23 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             )}
           </div>
         </div>
+      )}
+
+      {/* User metric order dialog (customize dashboard order) */}
+      {cityData && (
+        <UserMetricOrderDialog
+          cityId={cityId}
+          cityName={cityData.name}
+          metrics={(cityData.metrics || []).map((m) => ({
+            id: m.id,
+            metric_name: m.metric_name,
+            category: m.category ?? undefined,
+            subcategory: m.subcategory ?? null,
+            sub_category: m.subcategory ?? null,
+          }))}
+          open={userOrderDialogOpen}
+          onClose={() => setUserOrderDialogOpen(false)}
+        />
       )}
 
       {/* Metric Detail Modal */}

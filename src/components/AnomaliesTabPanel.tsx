@@ -1,17 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import { useCityAnomalies, type AnomalyResult } from "@/lib/hooks/useAnomalies";
+import { useState, useMemo, useCallback } from "react";
+import Link from "next/link";
+import { useCityAnomalies, useAvailablePeriods, type AnomalyResult } from "@/lib/hooks/useAnomalies";
 import AnomalySparkline from "./AnomalySparkline";
-import AnomalyChartModal from "./AnomalyChartModal";
 import Loader from "./Loader";
 import { MetricLink } from "./MetricLink";
 import { slugify } from "@/lib/utils";
 import styles from "./AnomaliesTabPanel.module.css";
 
+export interface AnomalyPanelMetric {
+  id: number;
+  metric_name: string;
+}
+
 interface AnomaliesTabPanelProps {
   cityId: number;
   cityName?: string;
+  metrics?: AnomalyPanelMetric[];
   initialDistrict?: number | null;
   onMetricClick?: (metricId: number, district?: number | null) => void;
 }
@@ -228,24 +234,213 @@ function getAnomalyDisplayInfo(anomaly: AnomalyResult) {
   };
 }
 
-export default function AnomaliesTabPanel({
-  cityId,
+const PERIOD_TYPE_OPTIONS = [
+  { value: "", label: "All periods" },
+  { value: "week", label: "Weekly" },
+  { value: "month", label: "Monthly" },
+  { value: "day", label: "Daily" },
+  { value: "year", label: "Yearly" },
+];
+
+const MIN_SIGMA_OPTIONS: ({ value: ""; label: string } | { value: number; label: string })[] = [
+  { value: "", label: "All" },
+  { value: 2, label: "≥ 2σ" },
+  { value: 2.5, label: "≥ 2.5σ" },
+  { value: 3, label: "≥ 3σ" },
+  { value: 3.5, label: "≥ 3.5σ" },
+  { value: 4, label: "≥ 4σ" },
+];
+
+/** Single anomaly card: links to full details page /a/[id]. Metric name click opens metric modal (stops propagation). */
+function AnomalyCard({
+  anomaly,
   cityName,
   initialDistrict,
   onMetricClick,
-}: AnomaliesTabPanelProps) {
-  const [selectedAnomalyId, setSelectedAnomalyId] = useState<number | null>(null);
+  slugify: slugifyFn,
+  getAnomalyDisplayInfo: getInfo,
+  formatPeriodTypeLabel: formatPeriodLabel,
+}: {
+  anomaly: AnomalyResult;
+  cityName?: string;
+  initialDistrict?: number | null;
+  onMetricClick?: (metricId: number, district?: number | null) => void;
+  slugify: (s: string) => string;
+  getAnomalyDisplayInfo: (a: AnomalyResult) => ReturnType<typeof getAnomalyDisplayInfo>;
+  formatPeriodTypeLabel: (s: string) => string;
+}) {
+  const info = getInfo(anomaly);
+  const href = anomaly.id != null ? `/a/${anomaly.id}` : "#";
 
-  // Fetch anomalies - display in API order (relevance-ranked)
+  return (
+    <Link
+      href={href}
+      className={styles.anomalyCard}
+      data-is-bad={info.isBad}
+      aria-label={`View anomaly details: ${info.metricName}, ${info.districtDisplay}`}
+    >
+      {anomaly.chart_payload && (
+        <div className={styles.sparklineContainer}>
+          <AnomalySparkline
+            chartData={{
+              dates: anomaly.chart_payload.dates || [],
+              values: anomaly.chart_payload.values || [],
+              periods: anomaly.chart_payload.periods || [],
+            }}
+            height={70}
+            width={120}
+            showAverage={true}
+            showAnnotations={true}
+          />
+        </div>
+      )}
+      <div className={styles.anomalyInfo}>
+        <div className={styles.headerRow}>
+          <div className={styles.titleBlock} onClick={(e) => e.stopPropagation()} role="presentation">
+            {info.groupValue ? (
+              <>
+                <span className={styles.metricNameSmall}>
+                  {cityName ? (
+                    <MetricLink
+                      metricId={anomaly.metric_id}
+                      citySlug={slugifyFn(cityName)}
+                      mode="modal"
+                      district={initialDistrict ?? undefined}
+                      onModalOpen={onMetricClick}
+                      className="metric-link-inline"
+                    >
+                      {info.metricName}
+                    </MetricLink>
+                  ) : (
+                    info.metricName
+                  )}
+                </span>
+                <span className={styles.groupValueLarge}>
+                  {info.groupField && <span className={styles.groupFieldLabel}>{info.groupField}: </span>}
+                  {info.groupValue}
+                </span>
+              </>
+            ) : (
+              <span className={styles.metricNameLarge}>
+                {cityName ? (
+                  <MetricLink
+                    metricId={anomaly.metric_id}
+                    citySlug={slugifyFn(cityName)}
+                    mode="modal"
+                    district={initialDistrict ?? undefined}
+                    onModalOpen={onMetricClick}
+                    className="metric-link-inline"
+                  >
+                    {info.metricName}
+                  </MetricLink>
+                ) : (
+                  info.metricName
+                )}
+              </span>
+            )}
+          </div>
+          <span className={styles.districtBadge}>{info.districtDisplay}</span>
+        </div>
+        <div className={styles.changeRow}>
+          <span className={styles.changeAmount} data-is-bad={info.isBad}>
+            <i className={`fas fa-arrow-${info.isUp ? "up" : "down"}`} />
+            {info.isUp ? "+" : "−"}{Math.round(info.absDiff).toLocaleString()} {info.displayNoun}
+          </span>
+          <span className={styles.changeStats}>
+            ({info.isUp ? "+" : ""}{info.pctChange.toFixed(0)}%, {info.sigma.toFixed(1)}σ)
+          </span>
+        </div>
+        <div className={styles.dateRow}>
+          <span className={styles.periodBadge}>{formatPeriodLabel(anomaly.period_type)}</span>
+          <span className={styles.dateInfo}>
+            <strong>Recent:</strong> {info.recentDisplay || "—"}
+            {info.comparisonDisplay && (
+              <> vs <strong>Avg of {info.comparisonCount}:</strong> {info.comparisonDisplay}</>
+            )}
+          </span>
+        </div>
+        <div className={styles.statsRow}>
+          <span className={styles.statItem}>
+            <span className={styles.statLabel}>Historic avg:</span>
+            <span className={styles.statValue}>{Math.round(info.comparisonMean).toLocaleString()}</span>
+          </span>
+          <span className={styles.statArrow}>→</span>
+          <span className={styles.statItem}>
+            <span className={styles.statLabel}>Recent:</span>
+            <span className={styles.statValue} data-is-bad={info.isBad}>
+              {Math.round(info.recentMean).toLocaleString()}
+            </span>
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+export default function AnomaliesTabPanel({
+  cityId,
+  cityName,
+  metrics = [],
+  initialDistrict,
+  onMetricClick,
+}: AnomaliesTabPanelProps) {
+  const [expandedMetricIds, setExpandedMetricIds] = useState<Set<number>>(new Set());
+  const [periodType, setPeriodType] = useState("");
+  const [periodDate, setPeriodDate] = useState("");
+  const [metricId, setMetricId] = useState<number | "">("");
+  const [minSigma, setMinSigma] = useState<string | number>("");
+
+  const toggleMetricExpanded = useCallback((mid: number) => {
+    setExpandedMetricIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(mid)) next.delete(mid);
+      else next.add(mid);
+      return next;
+    });
+  }, []);
+
+  // Available period dates for the selected period type (only when a type is selected)
+  const { data: periodsData } = useAvailablePeriods(
+    periodType,
+    cityId,
+    initialDistrict ?? undefined,
+    30
+  );
+  const availablePeriods = periodType ? periodsData?.periods ?? [] : [];
+
+  // Fetch anomalies with backend filters
   const { data: anomaliesData, isLoading, error } = useCityAnomalies(cityId, {
     is_anomaly: true,
-    limit: 100,
+    limit: 200,
+    period_type: periodType || undefined,
+    period_date: periodDate || undefined,
+    metric_id: metricId === "" ? undefined : (metricId as number),
   });
 
-  const anomalies = anomaliesData?.results ?? [];
+  // Client-side filter by minimum sigma
+  const filteredAnomalies = useMemo(() => {
+    const list = anomaliesData?.results ?? [];
+    if (minSigma === "" || minSigma === undefined) return list;
+    const threshold = typeof minSigma === "string" ? parseFloat(minSigma) : minSigma;
+    if (Number.isNaN(threshold)) return list;
+    return list.filter((a) => getSigma(a) >= threshold);
+  }, [anomaliesData?.results, minSigma]);
 
-  const handleAnomalyClick = (anomaly: AnomalyResult) => {
-    if (anomaly.id) setSelectedAnomalyId(anomaly.id);
+  // Group by metric_id; each group keeps API order (first = top rated)
+  const anomaliesByMetric = useMemo(() => {
+    const map = new Map<number, AnomalyResult[]>();
+    for (const a of filteredAnomalies) {
+      const mid = a.metric_id;
+      if (!map.has(mid)) map.set(mid, []);
+      map.get(mid)!.push(a);
+    }
+    return Array.from(map.entries()).map(([metricId, list]) => ({ metricId, anomalies: list }));
+  }, [filteredAnomalies]);
+
+  // When period type changes, clear period date so we don't keep an invalid date
+  const handlePeriodTypeChange = (value: string) => {
+    setPeriodType(value);
+    setPeriodDate("");
   };
 
   return (
@@ -255,6 +450,86 @@ export default function AnomaliesTabPanel({
           <i className="fas fa-bell" style={{ marginRight: "8px" }} />
           Anomaly Alerts
         </h2>
+      </div>
+
+      <div className={styles.filtersBar}>
+        <div className={styles.filterGroup}>
+          <label className={styles.filterLabel} htmlFor="anomaly-period-type">
+            Period type
+          </label>
+          <select
+            id="anomaly-period-type"
+            className={styles.filterSelect}
+            value={periodType}
+            onChange={(e) => handlePeriodTypeChange(e.target.value)}
+            aria-label="Filter by period type"
+          >
+            {PERIOD_TYPE_OPTIONS.map((opt) => (
+              <option key={opt.value || "all"} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className={styles.filterGroup}>
+          <label className={styles.filterLabel} htmlFor="anomaly-period-date">
+            Period date
+          </label>
+          <select
+            id="anomaly-period-date"
+            className={styles.filterSelect}
+            value={periodDate}
+            onChange={(e) => setPeriodDate(e.target.value)}
+            disabled={!periodType}
+            aria-label="Filter by period date"
+          >
+            <option value="">All</option>
+            {availablePeriods.map((p) => (
+              <option key={p.period_date} value={p.period_date}>
+                {p.period_label} ({p.anomaly_count})
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className={styles.filterGroup}>
+          <label className={styles.filterLabel} htmlFor="anomaly-metric">
+            Metric
+          </label>
+          <select
+            id="anomaly-metric"
+            className={styles.filterSelect}
+            value={metricId === "" ? "" : metricId}
+            onChange={(e) => setMetricId(e.target.value === "" ? "" : Number(e.target.value))}
+            aria-label="Filter by metric"
+          >
+            <option value="">All metrics</option>
+            {metrics.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.metric_name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className={styles.filterGroup}>
+          <label className={styles.filterLabel} htmlFor="anomaly-min-sigma">
+            Min sigma
+          </label>
+          <select
+            id="anomaly-min-sigma"
+            className={styles.filterSelect}
+            value={minSigma === "" ? "" : String(minSigma)}
+            onChange={(e) =>
+              setMinSigma(e.target.value === "" ? "" : parseFloat(e.target.value))
+            }
+            aria-label="Filter by minimum sigma"
+          >
+            {MIN_SIGMA_OPTIONS.map((opt) => (
+              <option key={opt.value === "" ? "all" : opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className={styles.content}>
@@ -275,7 +550,7 @@ export default function AnomaliesTabPanel({
           </div>
         )}
 
-        {!isLoading && !error && anomalies.length === 0 && (
+        {!isLoading && !error && filteredAnomalies.length === 0 && (
           <div className={styles.emptyContainer}>
             <i className="fas fa-check-circle" />
             <span>No significant anomalies detected</span>
@@ -285,142 +560,67 @@ export default function AnomaliesTabPanel({
           </div>
         )}
 
-        {!isLoading && !error && anomalies.length > 0 && (
+        {!isLoading && !error && anomaliesByMetric.length > 0 && (
           <div className={styles.anomaliesList}>
-            {anomalies.map((anomaly, idx) => {
-              const info = getAnomalyDisplayInfo(anomaly);
+            {anomaliesByMetric.map(({ metricId: mid, anomalies: groupAnomalies }) => {
+              const [top, ...rest] = groupAnomalies;
+              const isExpanded = expandedMetricIds.has(mid);
+              const hasMore = rest.length > 0;
 
               return (
-                <button
-                  key={`${anomaly.id}-${idx}`}
-                  type="button"
-                  className={styles.anomalyCard}
-                  onClick={() => handleAnomalyClick(anomaly)}
-                  data-is-bad={info.isBad}
-                >
-                  {/* Sparkline */}
-                  {anomaly.chart_payload && (
-                    <div className={styles.sparklineContainer}>
-                      <AnomalySparkline
-                        chartData={{
-                          dates: anomaly.chart_payload.dates || [],
-                          values: anomaly.chart_payload.values || [],
-                          periods: anomaly.chart_payload.periods || [],
-                        }}
-                        height={70}
-                        width={120}
-                        showAverage={true}
-                        showAnnotations={true}
-                      />
+                <div key={mid} className={styles.anomalyGroup}>
+                  {/* Top (highest-rated) anomaly for this metric — links to full details */}
+                  {top.id != null && (
+                    <AnomalyCard
+                      anomaly={top}
+                      cityName={cityName}
+                      initialDistrict={initialDistrict}
+                      onMetricClick={onMetricClick}
+                      slugify={slugify}
+                      getAnomalyDisplayInfo={getAnomalyDisplayInfo}
+                      formatPeriodTypeLabel={formatPeriodTypeLabel}
+                    />
+                  )}
+                  {/* Expand/collapse toggle for more alerts in this metric */}
+                  {hasMore && (
+                    <button
+                      type="button"
+                      className={styles.expandToggle}
+                      onClick={() => toggleMetricExpanded(mid)}
+                      aria-expanded={isExpanded}
+                      aria-label={isExpanded ? `Collapse ${rest.length} more alerts` : `Show ${rest.length} more alerts`}
+                    >
+                      <i className={`fas fa-chevron-${isExpanded ? "up" : "down"}`} />
+                      <span>
+                        {isExpanded ? "Collapse" : "Show"} {rest.length} more alert{rest.length !== 1 ? "s" : ""}
+                      </span>
+                    </button>
+                  )}
+                  {/* Rest of anomalies for this metric (when expanded) */}
+                  {hasMore && isExpanded && (
+                    <div className={styles.anomalyGroupMore}>
+                      {rest.map((anomaly, idx) =>
+                        anomaly.id != null ? (
+                          <AnomalyCard
+                            key={`${anomaly.id}-${idx}`}
+                            anomaly={anomaly}
+                            cityName={cityName}
+                            initialDistrict={initialDistrict}
+                            onMetricClick={onMetricClick}
+                            slugify={slugify}
+                            getAnomalyDisplayInfo={getAnomalyDisplayInfo}
+                            formatPeriodTypeLabel={formatPeriodTypeLabel}
+                          />
+                        ) : null
+                      )}
                     </div>
                   )}
-
-                  {/* Info */}
-                  <div className={styles.anomalyInfo}>
-                    {/* Header: Metric name (+ group if present) + district badge */}
-                    <div className={styles.headerRow}>
-                      <div className={styles.titleBlock}>
-                        {info.groupValue ? (
-                          <>
-                            {/* Has group: metric name small, group value prominent */}
-                            <span className={styles.metricNameSmall}>
-                              {cityName ? (
-                                <MetricLink
-                                  metricId={anomaly.metric_id}
-                                  citySlug={slugify(cityName)}
-                                  mode="modal"
-                                  district={initialDistrict ?? undefined}
-                                  onModalOpen={onMetricClick}
-                                  className="metric-link-inline"
-                                >
-                                  {info.metricName}
-                                </MetricLink>
-                              ) : (
-                                info.metricName
-                              )}
-                            </span>
-                            <span className={styles.groupValueLarge}>
-                              {info.groupField && <span className={styles.groupFieldLabel}>{info.groupField}: </span>}
-                              {info.groupValue}
-                            </span>
-                          </>
-                        ) : (
-                          /* No group: metric name prominent */
-                          <span className={styles.metricNameLarge}>
-                            {cityName ? (
-                              <MetricLink
-                                metricId={anomaly.metric_id}
-                                citySlug={slugify(cityName)}
-                                mode="modal"
-                                district={initialDistrict ?? undefined}
-                                onModalOpen={onMetricClick}
-                                className="metric-link-inline"
-                              >
-                                {info.metricName}
-                              </MetricLink>
-                            ) : (
-                              info.metricName
-                            )}
-                          </span>
-                        )}
-                      </div>
-                      <span className={styles.districtBadge}>{info.districtDisplay}</span>
-                    </div>
-                    
-                    {/* Row 2: Change summary with sigma */}
-                    <div className={styles.changeRow}>
-                      <span className={styles.changeAmount} data-is-bad={info.isBad}>
-                        <i className={`fas fa-arrow-${info.isUp ? "up" : "down"}`} />
-                        {info.isUp ? "+" : "−"}{Math.round(info.absDiff).toLocaleString()} {info.displayNoun}
-                      </span>
-                      <span className={styles.changeStats}>
-                        ({info.isUp ? "+" : ""}{info.pctChange.toFixed(0)}%, {info.sigma.toFixed(1)}σ)
-                      </span>
-                    </div>
-
-                    {/* Row 3: Period and date ranges */}
-                    <div className={styles.dateRow}>
-                      <span className={styles.periodBadge}>
-                        {formatPeriodTypeLabel(anomaly.period_type)}
-                      </span>
-                      <span className={styles.dateInfo}>
-                        <strong>Recent:</strong> {info.recentDisplay || "—"}
-                        {info.comparisonDisplay && (
-                          <>
-                            {" "}vs <strong>Avg of {info.comparisonCount}:</strong> {info.comparisonDisplay}
-                          </>
-                        )}
-                      </span>
-                    </div>
-
-                    {/* Row 4: Numeric comparison */}
-                    <div className={styles.statsRow}>
-                      <span className={styles.statItem}>
-                        <span className={styles.statLabel}>Historic avg:</span>
-                        <span className={styles.statValue}>{Math.round(info.comparisonMean).toLocaleString()}</span>
-                      </span>
-                      <span className={styles.statArrow}>→</span>
-                      <span className={styles.statItem}>
-                        <span className={styles.statLabel}>Recent:</span>
-                        <span className={styles.statValue} data-is-bad={info.isBad}>
-                          {Math.round(info.recentMean).toLocaleString()}
-                        </span>
-                      </span>
-                    </div>
-                  </div>
-                </button>
+                </div>
               );
             })}
           </div>
         )}
       </div>
-
-      <AnomalyChartModal
-        anomalyId={selectedAnomalyId}
-        isOpen={selectedAnomalyId !== null}
-        onClose={() => setSelectedAnomalyId(null)}
-        citySlug={cityName ? slugify(cityName) : undefined}
-      />
     </div>
   );
 }

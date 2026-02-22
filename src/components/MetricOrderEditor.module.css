@@ -69,43 +69,11 @@
   transition: all 0.15s ease;
 }
 
-.categoryItem.dragging {
-  opacity: 0.5;
-  border-style: dashed;
-  border-color: var(--brand-primary, #ad35fa);
-}
-
-.categoryItem.dragOver {
-  border-color: var(--brand-primary, #ad35fa);
-  box-shadow: 0 0 0 3px rgba(173, 53, 250, 0.15);
-}
-
 .categoryHeader {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  cursor: grab;
-}
-
-.categoryHeader:active {
-  cursor: grabbing;
-}
-
-.dragHandle {
-  color: var(--text-tertiary, #9ca3af);
-  font-size: 12px;
-  cursor: grab;
-  user-select: none;
-  transition: color 0.15s ease;
-}
-
-.dragHandle:hover {
-  color: var(--brand-primary, #ad35fa);
-}
-
-.dragHandle:active {
-  cursor: grabbing;
 }
 
 .expandToggle {
@@ -158,32 +126,6 @@
   margin-top: 0;
 }
 
-.subcategoryHeader.draggableSubcategory {
-  cursor: grab;
-  background: transparent;
-  border: 1px solid transparent;
-}
-
-.subcategoryHeader.draggableSubcategory:hover {
-  background: rgba(173, 53, 250, 0.04);
-  border-color: rgba(173, 53, 250, 0.1);
-}
-
-.subcategoryHeader.draggableSubcategory:active {
-  cursor: grabbing;
-}
-
-.subcategoryHeader.dragging {
-  opacity: 0.5;
-  border-style: dashed;
-  border-color: var(--brand-primary, #ad35fa);
-}
-
-.subcategoryHeader.dragOver {
-  border-color: var(--brand-primary, #ad35fa);
-  background: rgba(173, 53, 250, 0.08);
-}
-
 .subcategoryName {
   font-size: 12px;
   font-weight: 600;
@@ -201,11 +143,10 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
+  padding: 8px 14px;
   background: var(--bg-secondary, #f8f9fa);
   border: 1px solid transparent;
   border-radius: 8px;
-  cursor: grab;
   transition: all 0.15s ease;
 }
 
@@ -214,41 +155,58 @@
   border-color: rgba(173, 53, 250, 0.1);
 }
 
-.metricItem:active {
-  cursor: grabbing;
+.metricItem.metricItemHidden {
+  opacity: 0.6;
 }
 
-.metricItem.dragging {
-  opacity: 0.5;
-  border-style: dashed;
-  border-color: var(--brand-primary, #ad35fa);
+.metricCheckbox {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
-.metricItem.dragOver {
-  border-color: var(--brand-primary, #ad35fa);
-  background: rgba(173, 53, 250, 0.08);
+.metricCheckbox input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--brand-primary, #ad35fa);
 }
 
-.dropZone {
+.moveButtons {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.moveBtn {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px 14px;
-  margin-top: 4px;
-  background: rgba(173, 53, 250, 0.03);
-  border: 2px dashed rgba(173, 53, 250, 0.2);
-  border-radius: 8px;
-  font-size: 12px;
-  color: var(--text-tertiary, #9ca3af);
-  transition: all 0.15s ease;
-  /* Ensure drop zone doesn't block other elements when not being dragged over */
-  pointer-events: auto;
+  width: 20px;
+  height: 14px;
+  padding: 0;
+  margin: 0;
+  font-size: 8px;
+  line-height: 1;
+  background: var(--bg-tertiary, #f3f4f6);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--text-secondary, #6b7280);
+  transition: all 0.1s ease;
 }
 
-.dropZoneActive {
-  background: rgba(173, 53, 250, 0.08);
+.moveBtn:hover:not(:disabled) {
+  background: rgba(173, 53, 250, 0.1);
   border-color: var(--brand-primary, #ad35fa);
   color: var(--brand-primary, #ad35fa);
+}
+
+.moveBtn:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 .metricName {

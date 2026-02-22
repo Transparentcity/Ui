@@ -27,6 +27,56 @@
   align-items: center;
 }
 
+/* Filters bar */
+.filtersBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 20px;
+  padding: 12px 20px;
+  background: var(--bg-primary, #fff);
+  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  flex-shrink: 0;
+}
+
+.filterGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.filterLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary, #666);
+}
+
+.filterSelect {
+  font-size: 13px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #222);
+  min-width: 120px;
+  max-width: 200px;
+}
+
+.filterSelect:disabled {
+  background: var(--bg-secondary, #f3f4f6);
+  color: var(--text-tertiary, #999);
+  cursor: not-allowed;
+}
+
+.filterSelect:focus {
+  outline: none;
+  border-color: var(--focus-ring, #6366f1);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
 /* Content */
 .content {
   flex: 1;
@@ -77,7 +127,46 @@
   gap: 12px;
 }
 
-/* Anomaly Card */
+/* Group by metric */
+.anomalyGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.anomalyGroupMore {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border-secondary, #e5e7eb);
+}
+
+.expandToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+  background: var(--bg-secondary, #f9fafb);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.expandToggle:hover {
+  background: var(--bg-hover, #f3f4f6);
+  color: var(--text-primary, #444);
+}
+
+.expandToggle i {
+  font-size: 11px;
+}
+
+/* Anomaly Card (link to full details page) */
 .anomalyCard {
   display: flex;
   align-items: flex-start;
@@ -90,6 +179,8 @@
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
   text-align: left;
+  text-decoration: none;
+  color: inherit;
   transition: background-color 0.15s, box-shadow 0.15s;
 }
 
@@ -301,6 +392,16 @@
 
   .title {
     font-size: 16px;
+  }
+
+  .filtersBar {
+    padding: 10px 16px;
+    gap: 10px 12px;
+  }
+
+  .filterSelect {
+    min-width: 100px;
+    max-width: 160px;
   }
 
   .content {

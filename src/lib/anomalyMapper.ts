@@ -3,8 +3,37 @@
  * Used when the UI fetches anomalies from the Platform API instead of direct DB.
  */
 
-import type { AnomalyResult } from "@/lib/apiClient"
 import type { Anomaly } from "@/lib/types"
+
+/**
+ * Permissive input type that accepts anomaly data from any API source
+ * (authenticated or public endpoints).
+ */
+export interface AnomalyInput {
+  id?: number | null;
+  run_id?: number | null;
+  metric_id: number;
+  object_id?: string | null;
+  object_name?: string | null;
+  metric_name?: string | null;
+  period_type: string;
+  period_date?: string | null;
+  group_field?: string | null;
+  group_value?: string | null;
+  district?: number | null;
+  recent_mean?: number | null;
+  comparison_mean?: number | null;
+  stddev?: number | null;
+  difference?: number | null;
+  pct_change?: number | null;
+  is_anomaly: boolean;
+  chart_payload?: Record<string, any> | null;
+  item_noun?: string | null;
+  city_name?: string | null;
+  greendirection?: string | null;
+  created_at?: string | null;
+  comparison_window?: { label?: string; size?: number; match_weekday?: boolean } | null;
+}
 
 /**
  * Derive district_label and is_citywide from Platform's district number.
@@ -64,28 +93,58 @@ function getRecentPeriodDate(chartPayload: any): string | undefined {
 
 /**
  * Build a description string showing Recent vs Avg comparison.
+ * Format: "This week: 264 requests vs 12-week avg of 133"
  */
 function buildDescription(
   recentMean: number | null | undefined,
   comparisonMean: number | null | undefined,
   pctChange: number | null | undefined,
   periodType: string | undefined,
-  itemNoun: string | null | undefined
+  itemNoun: string | null | undefined,
+  comparisonWindow?: { size?: number } | null
 ): string {
-  const periodLabel = getPeriodLabel(periodType)
-  const unit = itemNoun ?? "units"
+  const unit = itemNoun ?? ""
+  
+  // Build readable period labels
+  const windowSize = comparisonWindow?.size || 12
+  const periodUnit = periodType === 'month' ? 'month' : 'week'
+  const thisPeriod = periodType === 'month' ? 'This month' : 'This week'
   
   if (recentMean != null && comparisonMean != null) {
-    const changeDir = (pctChange ?? 0) > 0 ? "↑" : "↓"
-    const pctStr = pctChange != null ? `${pctChange > 0 ? "+" : ""}${pctChange.toFixed(1)}%` : ""
-    return `${periodLabel}: Recent: ${formatNumber(recentMean)} vs Avg of 12: ${formatNumber(comparisonMean)} ${unit} (${changeDir} ${pctStr})`
+    const unitStr = unit ? ` ${unit}` : ''
+    return `${thisPeriod}: ${formatNumber(recentMean)}${unitStr} vs ${windowSize}-${periodUnit} avg of ${formatNumber(comparisonMean)}`
   }
   
   if (pctChange != null) {
+    const periodLabel = getPeriodLabel(periodType)
     return `${periodLabel}: ${pctChange > 0 ? "+" : ""}${pctChange.toFixed(1)}% change`
   }
   
+  const periodLabel = getPeriodLabel(periodType)
   return `${periodLabel} anomaly detected`
+}
+
+/**
+ * Build a stable, unique fingerprint for an anomaly.
+ *
+ * The API `id` field is NOT unique across anomalies (multiple anomalies can
+ * share the same metric_id/run_id). We combine all identifying fields so
+ * each anomaly gets a distinct key for React keys, ignore-lists, etc.
+ *
+ * FORMAT (v2): metric_id|period_type|district|group_field|group_value|period_date
+ *
+ * Do NOT change this format without also bumping the localStorage version
+ * in anomalies-manager.tsx (IGNORED_ANOMALIES_VERSION).
+ */
+function anomalyFingerprint(api: AnomalyInput): string {
+  return [
+    api.metric_id,
+    api.period_type ?? "",
+    api.district ?? 0,
+    api.group_field ?? "",
+    api.group_value ?? "",
+    api.period_date ?? "",
+  ].join("|")
 }
 
 /**
@@ -94,8 +153,10 @@ function buildDescription(
  * 
  * NOTE: This creates CRM metadata structure but doesn't persist it to DB.
  * The crm_anomaly_metadata table should be populated separately via CRM actions.
+ * 
+ * Accepts both authenticated (AnomalyResult) and public (PublicAnomalyResult) API responses.
  */
-export function mapApiAnomalyToCrm(api: AnomalyResult): Anomaly & {
+export function mapApiAnomalyToCrm(api: AnomalyInput, uniqueId: string): Anomaly & {
   recent_mean?: number | null
   comparison_mean?: number | null
   metric_category?: string
@@ -111,7 +172,7 @@ export function mapApiAnomalyToCrm(api: AnomalyResult): Anomaly & {
   const titleParts: string[] = []
   if (metricName) titleParts.push(metricName)
   if (api.group_value) titleParts.push(`(${api.group_value})`)
-  const title = titleParts.length > 0 ? titleParts.join(" ") : `Anomaly #${api.id}`
+  const title = titleParts.length > 0 ? titleParts.join(" ") : `Anomaly ${api.metric_id}`
   
   // Build description with comparison stats
   const description = buildDescription(
@@ -119,7 +180,8 @@ export function mapApiAnomalyToCrm(api: AnomalyResult): Anomaly & {
     api.comparison_mean,
     api.pct_change,
     api.period_type,
-    api.item_noun
+    api.item_noun,
+    api.comparison_window
   )
   
   // Build CRM metadata object (not yet persisted to DB)
@@ -136,7 +198,7 @@ export function mapApiAnomalyToCrm(api: AnomalyResult): Anomaly & {
   }
   
   return {
-    id: api.id ?? 0,
+    id: uniqueId,
     title,
     description,
     district: api.district ?? null,
@@ -163,12 +225,30 @@ export function mapApiAnomalyToCrm(api: AnomalyResult): Anomaly & {
     metric_category: api.greendirection === "down" ? "negative" : api.greendirection === "up" ? "positive" : "general",
     metric_name: metricName,
     data_source: api.city_name ?? undefined,
+    // Time period fields for emails
+    period_date: (api as any).period_date ?? undefined,
+    comparison_window: (api as any).comparison_window ?? undefined,
   }
 }
 
 /**
  * Map list of Platform API results to CRM Anomaly array.
+ * Accepts both authenticated and public API responses.
+ *
+ * DEDUPLICATES: If the API returns two rows with the same fingerprint
+ * we keep only the first one. This prevents duplicate React keys and
+ * double-counted ignore toggles.
  */
-export function mapApiAnomaliesToCrm(apiList: AnomalyResult[]): Anomaly[] {
-  return apiList.map(mapApiAnomalyToCrm)
+export function mapApiAnomaliesToCrm(apiList: AnomalyInput[]): Anomaly[] {
+  const seen = new Set<string>()
+  const results: Anomaly[] = []
+
+  for (const api of apiList) {
+    const fp = anomalyFingerprint(api)
+    if (seen.has(fp)) continue   // skip true duplicates
+    seen.add(fp)
+    results.push(mapApiAnomalyToCrm(api, fp))
+  }
+
+  return results
 }

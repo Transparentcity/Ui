@@ -14,6 +14,7 @@ import {
 import NewsletterSignup from "@/components/NewsletterSignup";
 import CitySignupButton from "../../CitySignupButton";
 import CityViewTracker from "../../CityViewTracker";
+import CustomizeMetricsTrigger from "../../CustomizeMetricsTrigger";
 import CategoryDashboardSection from "./CategoryDashboardSection";
 
 export const revalidate = 3600;
@@ -255,8 +256,9 @@ export default async function CityCategoryPage({
                       .filter((c): c is string => Boolean(c))
                   )
                 ).sort((a, b) => a.localeCompare(b));
+                const hasMetrics = (cityDetail?.metrics?.length ?? 0) > 0;
                 return (
-                  uniqueCategories.length > 0 && (
+                  (uniqueCategories.length > 0 || hasMetrics) && (
                     <div className="hero-category-links">
                       {uniqueCategories.map((cat) => (
                         <Link
@@ -267,6 +269,19 @@ export default async function CityCategoryPage({
                           {cat}
                         </Link>
                       ))}
+                      {hasMetrics && cityDetail && (
+                        <CustomizeMetricsTrigger
+                          cityId={city.id}
+                          cityName={cityDisplayName}
+                          metrics={cityDetail.metrics.map((m) => ({
+                            id: m.id,
+                            metric_name: m.metric_name,
+                            category: m.category,
+                            subcategory: m.subcategory ?? null,
+                            sub_category: m.subcategory ?? null,
+                          }))}
+                        />
+                      )}
                     </div>
                   )
                 );

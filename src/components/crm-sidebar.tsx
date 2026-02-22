@@ -4,7 +4,6 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { 
   Users, 
-  LayoutDashboard, 
   Send, 
   FileText,
   BarChart3,
@@ -20,6 +19,7 @@ import { cn } from "@/lib/utils"
 
 const navigation = [
   { name: "AI Compose", href: "/compose", icon: Sparkles, highlight: true },
+  { name: "City Readiness", href: "/cityreadiness", icon: BarChart3 },
   { name: "Contacts", href: "/contacts", icon: Users },
   { name: "Keywords", href: "/keywords", icon: Tags },
   { name: "Templates", href: "/templates", icon: FileText },
@@ -44,7 +44,7 @@ export function CRMSidebar() {
           className="flex items-center gap-2.5 text-inherit no-underline flex-1"
         >
           {/* Logo */}
-          <div className="w-5 h-5 flex-shrink-0">
+          <div className="w-5 h-5 shrink-0">
             <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className="overflow-visible w-full h-full">
               <path
                 d="M 0 45 Q 0 0, 45 0 L 50 0 L 50 8.333 L 45 8.333 Q 8.333 8.333, 8.333 45 L 8.333 50 L 0 50 Z"

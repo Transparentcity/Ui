@@ -7,7 +7,7 @@ import "../../../../landing.css";
 import {
   listPublicCitiesForSitemap,
   getPublicCityDetail,
-  getPublicMetricComparisons,
+  getPublicMetricComparisonsBatch,
   getPublicMetricDistrictComparisons,
 } from "@/lib/publicApiClient";
 import CitySignupButton from "../../CitySignupButton";
@@ -87,7 +87,10 @@ export default async function DistrictPage({ params }: PageProps) {
   if (!city?.id) notFound();
 
   let cityDetail: Awaited<ReturnType<typeof getPublicCityDetail>> | null = null;
-  const comparisonsMap: Record<number, Awaited<ReturnType<typeof getPublicMetricComparisons>>> = {};
+  const comparisonsMap: Record<
+    number,
+    Awaited<ReturnType<typeof getPublicMetricComparisonsBatch>>[number]
+  > = {};
   let districtValid = false;
 
   try {
@@ -99,12 +102,12 @@ export default async function DistrictPage({ params }: PageProps) {
         districtValid = dc.districts.some((x) => x.district === d);
       }
       const toFetch = metrics.slice(0, 8);
-      const comps = await Promise.all(
-        toFetch.map((m) => getPublicMetricComparisons(m.id, d, "ytd").catch(() => null))
-      );
-      toFetch.forEach((m, i) => {
-        if (comps[i]) comparisonsMap[m.id] = comps[i];
-      });
+      const batch = await getPublicMetricComparisonsBatch({
+        metric_ids: toFetch.map((m) => m.id),
+        district: d,
+        comparison_types: ["ytd"],
+      }).catch(() => ({}));
+      Object.assign(comparisonsMap, batch);
     }
   } catch {
     // leave districtValid false, comparisonsMap empty

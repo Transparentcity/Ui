@@ -5,9 +5,15 @@ import {
   useCityMetricOrdering,
   useSaveCityMetricOrdering,
   useResetCityMetricOrdering,
+  useUserMetricOrdering,
+  useSaveUserMetricOrdering,
+  useResetUserMetricOrdering,
 } from "@/lib/hooks/useCityAdmin";
-import type { MetricOrderingItem } from "@/lib/apiClient";
+import type { MetricOrderingItem, MetricOrderingResponse } from "@/lib/apiClient";
 import styles from "./MetricOrderEditor.module.css";
+
+/** localStorage key prefix for pending metric order (signed-out users). Export for migration on login. */
+export const PENDING_ORDER_STORAGE_KEY_PREFIX = "pending_metric_order_";
 
 interface Metric {
   id: number;
@@ -16,12 +22,22 @@ interface Metric {
   /** From metrics table: subcategory. API may return as subcategory or sub_category. */
   subcategory?: string | null;
   sub_category?: string | null;
+  /** When true (or undefined), metric is shown on dashboard by default; used for checkbox initial state. */
+  show_on_dash?: boolean;
 }
 
 interface MetricOrderEditorProps {
   cityId: number;
   metrics: Metric[];
   onOrderChange?: () => void;
+  /** "admin" = city-level (admin/analyst); "user" = per-user dashboard order */
+  variant?: "admin" | "user";
+  /** When variant="user", pass auth state so we use API vs localStorage */
+  isAuthenticated?: boolean;
+  /** When variant="user" and user saves while signed out, call this (e.g. show signup modal) */
+  onSaveWhenSignedOut?: () => void;
+  /** When true (e.g. in a modal), start with content expanded */
+  defaultExpanded?: boolean;
 }
 
 interface SubcategoryGroup {
@@ -40,52 +56,89 @@ interface CategoryGroup {
 }
 
 /**
- * MetricOrderEditor - Drag and drop editor for category and metric ordering
- * 
- * Features:
- * - Drag categories to reorder them
- * - Drag metrics within categories to reorder
- * - Save ordering to database
- * - Reset to default ordering
+ * MetricOrderEditor - Editor for category and metric ordering with visibility controls
  */
 export default function MetricOrderEditor({
   cityId,
   metrics,
   onOrderChange,
+  variant = "admin",
+  isAuthenticated = false,
+  onSaveWhenSignedOut,
+  defaultExpanded = false,
 }: MetricOrderEditorProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
-  const [draggedCategoryIndex, setDraggedCategoryIndex] = useState<number | null>(null);
-  const [dragOverCategoryIndex, setDragOverCategoryIndex] = useState<number | null>(null);
-  const [draggedSubcategoryInfo, setDraggedSubcategoryInfo] = useState<{
-    categoryIndex: number;
-    subcategoryIndex: number;
-  } | null>(null);
-  const [dragOverSubcategoryInfo, setDragOverSubcategoryInfo] = useState<{
-    categoryIndex: number;
-    subcategoryIndex: number;
-  } | null>(null);
-  const [draggedMetricInfo, setDraggedMetricInfo] = useState<{
-    categoryIndex: number;
-    subcategoryIndex: number;
-    metricIndex: number;
-  } | null>(null);
-  const [dragOverMetricInfo, setDragOverMetricInfo] = useState<{
-    categoryIndex: number;
-    subcategoryIndex: number;
-    metricIndex: number;
-  } | null>(null);
+  const [localStorageOrdering, setLocalStorageOrdering] = useState<MetricOrderingResponse | null>(null);
+  /** Metric IDs to show on dashboard (user can toggle). When empty, fall back to show_on_dash. */
+  const [visibleMetricIds, setVisibleMetricIds] = useState<Set<number>>(new Set());
 
-  // Fetch current ordering from database
-  const { data: orderingData, isLoading: isLoadingOrdering } = useCityMetricOrdering(cityId);
-  const saveMutation = useSaveCityMetricOrdering();
-  const resetMutation = useResetCityMetricOrdering();
+  const isUserMode = variant === "user";
+  const useCityOrdering = !isUserMode;
+  const useUserOrdering = isUserMode && isAuthenticated;
+  const useLocalStorageOrdering = isUserMode && !isAuthenticated;
+
+  const { data: cityOrderingData, isLoading: cityOrderingLoading } = useCityMetricOrdering(useCityOrdering ? cityId : null);
+  const { data: userOrderingData, isLoading: userOrderingLoading } = useUserMetricOrdering(useUserOrdering ? cityId : null);
+  const saveCityMutation = useSaveCityMetricOrdering();
+  const resetCityMutation = useResetCityMetricOrdering();
+  const saveUserMutation = useSaveUserMetricOrdering();
+  const resetUserMutation = useResetUserMetricOrdering();
+
+  const orderingData = useCityOrdering
+    ? cityOrderingData
+    : useUserOrdering
+      ? userOrderingData
+      : localStorageOrdering;
+  const isLoadingOrdering = useCityOrdering
+    ? cityOrderingLoading
+    : useUserOrdering
+      ? userOrderingLoading
+      : false;
+
+  const activeSaveMutation = useUserOrdering
+    ? saveUserMutation
+    : useLocalStorageOrdering
+      ? null
+      : saveCityMutation;
+  const activeResetMutation = useUserOrdering
+    ? resetUserMutation
+    : useLocalStorageOrdering
+      ? null
+      : resetCityMutation;
+
+  // When variant="user" and not authenticated, init from localStorage
+  useEffect(() => {
+    if (!useLocalStorageOrdering || !cityId) return;
+    try {
+      const key = `${PENDING_ORDER_STORAGE_KEY_PREFIX}${cityId}`;
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem(key) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw) as MetricOrderingResponse;
+        if (parsed?.city_id === cityId && Array.isArray(parsed.orderings)) {
+          setLocalStorageOrdering(parsed);
+          return;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    setLocalStorageOrdering(null);
+  }, [useLocalStorageOrdering, cityId]);
 
   // Build initial category groups from metrics and saved ordering
   // Uses the same ordering logic as the dashboard (CityView.tsx)
   useEffect(() => {
     if (!metrics || metrics.length === 0) return;
+
+    // Initial "visible on dashboard" set: from saved ordering if present, else from show_on_dash
+    const orderingIds = (orderingData?.orderings?.map((o) => o.metric_id).filter(Boolean) ?? []) as number[];
+    const initialVisible =
+      orderingIds.length > 0
+        ? new Set(orderingIds)
+        : new Set(metrics.filter((m) => m.show_on_dash !== false).map((m) => m.id));
+    setVisibleMetricIds(initialVisible);
 
     // Create a map of saved ordering - same structure as dashboard
     const orderingMap = new Map<number, { 
@@ -180,13 +233,23 @@ export default function MetricOrderEditor({
         name: categoryName,
         order: categoryOrder,
         subcategories,
-        isExpanded: false,
+        isExpanded: defaultExpanded,
       };
     });
 
     setCategoryGroups(groups);
     setHasChanges(false);
   }, [metrics, orderingData]);
+
+  const toggleMetricVisible = useCallback((metricId: number) => {
+    setVisibleMetricIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(metricId)) next.delete(metricId);
+      else next.add(metricId);
+      return next;
+    });
+    setHasChanges(true);
+  }, []);
 
   // Toggle category expansion
   const toggleCategory = useCallback((index: number) => {
@@ -197,255 +260,54 @@ export default function MetricOrderEditor({
     );
   }, []);
 
-  // Category drag handlers
-  const handleCategoryDragStart = useCallback((index: number) => {
-    setDraggedCategoryIndex(index);
-  }, []);
-
-  const handleCategoryDragOver = useCallback((e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedCategoryIndex !== null && draggedCategoryIndex !== index) {
-      setDragOverCategoryIndex(index);
-    }
-  }, [draggedCategoryIndex]);
-
-  const handleCategoryDragLeave = useCallback(() => {
-    setDragOverCategoryIndex(null);
-  }, []);
-
-  const handleCategoryDrop = useCallback((e: React.DragEvent, dropIndex: number) => {
-    e.preventDefault();
-    if (draggedCategoryIndex === null || draggedCategoryIndex === dropIndex) {
-      setDraggedCategoryIndex(null);
-      setDragOverCategoryIndex(null);
-      return;
-    }
-
+  // Move metric up/down within its subcategory (reliable alternative to drag)
+  const moveMetric = useCallback((catIndex: number, subIndex: number, metricIndex: number, direction: -1 | 1) => {
+    const newIndex = metricIndex + direction;
     setCategoryGroups((prev) => {
-      const newGroups = [...prev];
-      const [draggedCategory] = newGroups.splice(draggedCategoryIndex, 1);
-      const insertIndex = draggedCategoryIndex < dropIndex ? dropIndex - 1 : dropIndex;
-      newGroups.splice(insertIndex, 0, draggedCategory);
-
-      // Update order values
-      return newGroups.map((cat, i) => ({
+      const newGroups = prev.map((cat) => ({
         ...cat,
-        order: (i + 1) * 100,
+        subcategories: cat.subcategories.map((sub) => ({
+          ...sub,
+          metrics: [...sub.metrics],
+        })),
       }));
-    });
-
-    setHasChanges(true);
-    setDraggedCategoryIndex(null);
-    setDragOverCategoryIndex(null);
-  }, [draggedCategoryIndex]);
-
-  const handleCategoryDragEnd = useCallback(() => {
-    setDraggedCategoryIndex(null);
-    setDragOverCategoryIndex(null);
-  }, []);
-
-  // Subcategory drag handlers
-  const handleSubcategoryDragStart = useCallback((e: React.DragEvent, categoryIndex: number, subcategoryIndex: number) => {
-    e.stopPropagation();
-    setDraggedSubcategoryInfo({ categoryIndex, subcategoryIndex });
-  }, []);
-
-  const handleSubcategoryDragOver = useCallback((e: React.DragEvent, categoryIndex: number, subcategoryIndex: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (
-      draggedSubcategoryInfo !== null &&
-      draggedSubcategoryInfo.categoryIndex === categoryIndex &&
-      draggedSubcategoryInfo.subcategoryIndex !== subcategoryIndex
-    ) {
-      setDragOverSubcategoryInfo({ categoryIndex, subcategoryIndex });
-    }
-  }, [draggedSubcategoryInfo]);
-
-  const handleSubcategoryDragLeave = useCallback(() => {
-    setDragOverSubcategoryInfo(null);
-  }, []);
-
-  const handleSubcategoryDrop = useCallback((e: React.DragEvent, dropCategoryIndex: number, dropSubcategoryIndex: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (
-      draggedSubcategoryInfo === null ||
-      draggedSubcategoryInfo.categoryIndex !== dropCategoryIndex ||
-      draggedSubcategoryInfo.subcategoryIndex === dropSubcategoryIndex
-    ) {
-      setDraggedSubcategoryInfo(null);
-      setDragOverSubcategoryInfo(null);
-      return;
-    }
-
-    setCategoryGroups((prev) => {
-      const newGroups = [...prev];
-      const category = { ...newGroups[dropCategoryIndex] };
-      const newSubcategories = [...category.subcategories];
-
-      const [draggedSubcategory] = newSubcategories.splice(draggedSubcategoryInfo.subcategoryIndex, 1);
-      const insertIndex =
-        draggedSubcategoryInfo.subcategoryIndex < dropSubcategoryIndex
-          ? dropSubcategoryIndex - 1
-          : dropSubcategoryIndex;
-      newSubcategories.splice(insertIndex, 0, draggedSubcategory);
-
-      category.subcategories = newSubcategories;
-      newGroups[dropCategoryIndex] = category;
+      const metrics = newGroups[catIndex].subcategories[subIndex].metrics;
+      if (newIndex < 0 || newIndex >= metrics.length) return prev;
+      [metrics[metricIndex], metrics[newIndex]] = [metrics[newIndex], metrics[metricIndex]];
+      metrics.forEach((m, i) => { m.order = (i + 1) * 10; });
       return newGroups;
     });
-
     setHasChanges(true);
-    setDraggedSubcategoryInfo(null);
-    setDragOverSubcategoryInfo(null);
-  }, [draggedSubcategoryInfo]);
-
-  const handleSubcategoryDragEnd = useCallback(() => {
-    setDraggedSubcategoryInfo(null);
-    setDragOverSubcategoryInfo(null);
   }, []);
 
-  // Metric drag handlers
-  const handleMetricDragStart = useCallback((e: React.DragEvent, categoryIndex: number, subcategoryIndex: number, metricIndex: number) => {
-    // Clear any stale state from previous incomplete drags
-    setDragOverMetricInfo(null);
-    setDraggedMetricInfo({ categoryIndex, subcategoryIndex, metricIndex });
-    // Required for Firefox to allow dragging
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', `metric-${categoryIndex}-${subcategoryIndex}-${metricIndex}`);
-  }, []);
-
-  const handleMetricDragOver = useCallback((e: React.DragEvent, categoryIndex: number, subcategoryIndex: number, metricIndex: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (
-      draggedMetricInfo !== null &&
-      (draggedMetricInfo.categoryIndex !== categoryIndex || 
-       draggedMetricInfo.subcategoryIndex !== subcategoryIndex ||
-       draggedMetricInfo.metricIndex !== metricIndex)
-    ) {
-      setDragOverMetricInfo({ categoryIndex, subcategoryIndex, metricIndex });
-    }
-  }, [draggedMetricInfo]);
-
-  const handleMetricDragLeave = useCallback(() => {
-    setDragOverMetricInfo(null);
-  }, []);
-
-  const handleMetricDrop = useCallback((e: React.DragEvent, dropCategoryIndex: number, dropSubcategoryIndex: number, dropMetricIndex: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (
-      draggedMetricInfo === null ||
-      (draggedMetricInfo.categoryIndex === dropCategoryIndex &&
-        draggedMetricInfo.subcategoryIndex === dropSubcategoryIndex &&
-        draggedMetricInfo.metricIndex === dropMetricIndex)
-    ) {
-      setDraggedMetricInfo(null);
-      setDragOverMetricInfo(null);
-      return;
-    }
-
+  // Move category up/down
+  const moveCategory = useCallback((catIndex: number, direction: -1 | 1) => {
+    const newIndex = catIndex + direction;
     setCategoryGroups((prev) => {
+      if (newIndex < 0 || newIndex >= prev.length) return prev;
       const newGroups = [...prev];
-      
-      // Get source info
-      const sourceCategory = { ...newGroups[draggedMetricInfo.categoryIndex] };
-      const sourceSubcategories = [...sourceCategory.subcategories];
-      const sourceSubcategory = { ...sourceSubcategories[draggedMetricInfo.subcategoryIndex] };
-      const sourceMetrics = [...sourceSubcategory.metrics];
-      
-      // Remove from source
-      const [draggedMetric] = sourceMetrics.splice(draggedMetricInfo.metricIndex, 1);
-      
-      // Check if moving to a different category or subcategory
-      const isCrossCategory = draggedMetricInfo.categoryIndex !== dropCategoryIndex;
-      const isCrossSubcategory = draggedMetricInfo.subcategoryIndex !== dropSubcategoryIndex;
-      
-      if (isCrossCategory || isCrossSubcategory) {
-        // Moving to different category/subcategory - update metric's category/subcategory
-        const targetCategoryName = newGroups[dropCategoryIndex].name;
-        const targetSubcategoryName = newGroups[dropCategoryIndex].subcategories[dropSubcategoryIndex]?.name || null;
-        
-        // Update the metric object with new category/subcategory
-        draggedMetric.metric = {
-          ...draggedMetric.metric,
-          category: targetCategoryName,
-          subcategory: targetSubcategoryName,
-        };
-      }
-      
-      // Update source subcategory
-      sourceSubcategory.metrics = sourceMetrics.map((m, i) => ({
-        ...m,
-        order: (i + 1) * 10,
-      }));
-      sourceSubcategories[draggedMetricInfo.subcategoryIndex] = sourceSubcategory;
-      sourceCategory.subcategories = sourceSubcategories;
-      newGroups[draggedMetricInfo.categoryIndex] = sourceCategory;
-      
-      // Get target info (re-fetch since we may have modified source which could be same as target)
-      const targetCategory = { ...newGroups[dropCategoryIndex] };
-      const targetSubcategories = [...targetCategory.subcategories];
-      const targetSubcategory = { ...targetSubcategories[dropSubcategoryIndex] };
-      const targetMetrics = [...targetSubcategory.metrics];
-      
-      // Calculate insert index
-      let insertIndex = dropMetricIndex;
-      // If moving within the same subcategory and from before the drop point, adjust index
-      if (
-        draggedMetricInfo.categoryIndex === dropCategoryIndex &&
-        draggedMetricInfo.subcategoryIndex === dropSubcategoryIndex &&
-        draggedMetricInfo.metricIndex < dropMetricIndex
-      ) {
-        insertIndex = dropMetricIndex - 1;
-      }
-      
-      // Insert at target
-      targetMetrics.splice(insertIndex, 0, draggedMetric);
-      
-      // Update order values for target
-      targetSubcategory.metrics = targetMetrics.map((m, i) => ({
-        ...m,
-        order: (i + 1) * 10,
-      }));
-      
-      targetSubcategories[dropSubcategoryIndex] = targetSubcategory;
-      targetCategory.subcategories = targetSubcategories;
-      newGroups[dropCategoryIndex] = targetCategory;
-      
-      return newGroups;
+      [newGroups[catIndex], newGroups[newIndex]] = [newGroups[newIndex], newGroups[catIndex]];
+      return newGroups.map((cat, i) => ({ ...cat, order: (i + 1) * 100 }));
     });
-
     setHasChanges(true);
-    setDraggedMetricInfo(null);
-    setDragOverMetricInfo(null);
-  }, [draggedMetricInfo]);
-
-  const handleMetricDragEnd = useCallback(() => {
-    setDraggedMetricInfo(null);
-    setDragOverMetricInfo(null);
   }, []);
 
-  // Save ordering to database
+
+  // Save ordering to database or localStorage (only visible metrics are included)
   const handleSave = useCallback(async () => {
     const orderings: MetricOrderingItem[] = [];
 
     categoryGroups.forEach((category, catIndex) => {
       const categoryOrder = (catIndex + 1) * 100;
       let metricOrderCounter = 0;
-      
-      // Iterate through subcategories to maintain proper metric ordering
       category.subcategories.forEach((subcategory) => {
         subcategory.metrics.forEach((metricItem) => {
+          if (!visibleMetricIds.has(metricItem.metric.id)) return;
           metricOrderCounter++;
           orderings.push({
             category_name: category.name,
             category_order: categoryOrder,
-            subcategory_name: subcategory.name,  // Include subcategory for cross-subcategory moves
+            subcategory_name: subcategory.name,
             metric_id: metricItem.metric.id,
             metric_order: metricOrderCounter * 10,
           });
@@ -453,29 +315,93 @@ export default function MetricOrderEditor({
       });
     });
 
+    if (useUserOrdering) {
+      try {
+        await saveUserMutation.mutateAsync({ cityId, orderings });
+        setHasChanges(false);
+        onOrderChange?.();
+      } catch (err) {
+        console.error("Failed to save user ordering:", err);
+      }
+      return;
+    }
+    if (useLocalStorageOrdering) {
+      const payload: MetricOrderingResponse = { city_id: cityId, orderings };
+      try {
+        const key = `${PENDING_ORDER_STORAGE_KEY_PREFIX}${cityId}`;
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(key, JSON.stringify(payload));
+        }
+        setLocalStorageOrdering(payload);
+        setHasChanges(false);
+        onSaveWhenSignedOut?.();
+      } catch (err) {
+        console.error("Failed to save to localStorage:", err);
+      }
+      return;
+    }
     try {
-      await saveMutation.mutateAsync({ cityId, orderings });
+      await saveCityMutation.mutateAsync({ cityId, orderings });
       setHasChanges(false);
       onOrderChange?.();
     } catch (err) {
       console.error("Failed to save ordering:", err);
     }
-  }, [cityId, categoryGroups, saveMutation, onOrderChange]);
+  }, [
+    cityId,
+    categoryGroups,
+    visibleMetricIds,
+    useUserOrdering,
+    useLocalStorageOrdering,
+    saveCityMutation,
+    saveUserMutation,
+    onOrderChange,
+    onSaveWhenSignedOut,
+  ]);
 
   // Reset to default ordering
   const handleReset = useCallback(async () => {
     if (!confirm("Are you sure you want to reset to default ordering?")) {
       return;
     }
-
+    if (useUserOrdering) {
+      try {
+        await resetUserMutation.mutateAsync(cityId);
+        setHasChanges(false);
+        onOrderChange?.();
+      } catch (err) {
+        console.error("Failed to reset user ordering:", err);
+      }
+      return;
+    }
+    if (useLocalStorageOrdering) {
+      try {
+        const key = `${PENDING_ORDER_STORAGE_KEY_PREFIX}${cityId}`;
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem(key);
+        }
+        setLocalStorageOrdering(null);
+        setHasChanges(false);
+      } catch (err) {
+        console.error("Failed to clear localStorage:", err);
+      }
+      return;
+    }
     try {
-      await resetMutation.mutateAsync(cityId);
+      await resetCityMutation.mutateAsync(cityId);
       setHasChanges(false);
       onOrderChange?.();
     } catch (err) {
       console.error("Failed to reset ordering:", err);
     }
-  }, [cityId, resetMutation, onOrderChange]);
+  }, [
+    cityId,
+    useUserOrdering,
+    useLocalStorageOrdering,
+    resetCityMutation,
+    resetUserMutation,
+    onOrderChange,
+  ]);
 
   if (isLoadingOrdering) {
     return <div className={styles.loading}>Loading ordering...</div>;
@@ -492,8 +418,7 @@ export default function MetricOrderEditor({
       {isExpanded && (
         <div className={styles.content}>
           <div className={styles.instructions}>
-            Drag categories to reorder them. Expand a category to see subcategories and reorder metrics. 
-            <strong> You can drag metrics between categories or subcategories</strong> — they will be updated to the new category and subcategory when you save.
+            Use the checkboxes to add or remove metrics. Use the ▲▼ arrows to reorder categories and metrics.
           </div>
 
           <div className={styles.categoryList}>
@@ -506,30 +431,30 @@ export default function MetricOrderEditor({
                 (sum, sub) => sum + sub.metrics.length, 0
               );
               
-              // Always show subcategory level so users can drag metrics between subcategories
-              const showSubcategoryHeaders = true;
+              const showSubcategoryHeaders = subcategories.length > 1;
               
               return (
                 <div
                   key={category.name}
-                  className={`${styles.categoryItem} ${
-                    draggedCategoryIndex === catIndex ? styles.dragging : ""
-                  } ${dragOverCategoryIndex === catIndex ? styles.dragOver : ""}`}
-                  onDragOver={(e) => handleCategoryDragOver(e, catIndex)}
-                  onDragLeave={handleCategoryDragLeave}
-                  onDrop={(e) => handleCategoryDrop(e, catIndex)}
+                  className={styles.categoryItem}
                 >
-                  <div 
-                    className={styles.categoryHeader}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.effectAllowed = 'move';
-                      e.dataTransfer.setData('text/plain', `category-${catIndex}`);
-                      handleCategoryDragStart(catIndex);
-                    }}
-                    onDragEnd={handleCategoryDragEnd}
-                  >
-                    <span className={styles.dragHandle}>⋮⋮</span>
+                  <div className={styles.categoryHeader}>
+                    <span className={styles.moveButtons}>
+                      <button
+                        type="button"
+                        className={styles.moveBtn}
+                        disabled={catIndex === 0}
+                        onClick={(e) => { e.stopPropagation(); moveCategory(catIndex, -1); }}
+                        title="Move category up"
+                      >▲</button>
+                      <button
+                        type="button"
+                        className={styles.moveBtn}
+                        disabled={catIndex === categoryGroups.length - 1}
+                        onClick={(e) => { e.stopPropagation(); moveCategory(catIndex, 1); }}
+                        title="Move category down"
+                      >▼</button>
+                    </span>
                     <span
                       className={styles.expandToggle}
                       onClick={(e) => {
@@ -549,32 +474,9 @@ export default function MetricOrderEditor({
                     <div className={styles.metricList}>
                       {subcategories.map((subcategory, subIndex) => (
                         <div key={subcategory.name ?? 'uncategorized'}>
-                          {/* Subcategory header - draggable if we have multiple subcategories */}
+                          {/* Subcategory header */}
                           {showSubcategoryHeaders && (
-                            <div 
-                              className={`${styles.subcategoryHeader} ${
-                                subcategories.length > 1 ? styles.draggableSubcategory : ''
-                              } ${
-                                draggedSubcategoryInfo?.categoryIndex === catIndex &&
-                                draggedSubcategoryInfo?.subcategoryIndex === subIndex
-                                  ? styles.dragging
-                                  : ""
-                              } ${
-                                dragOverSubcategoryInfo?.categoryIndex === catIndex &&
-                                dragOverSubcategoryInfo?.subcategoryIndex === subIndex
-                                  ? styles.dragOver
-                                  : ""
-                              }`}
-                              draggable={subcategories.length > 1}
-                              onDragStart={(e) => handleSubcategoryDragStart(e, catIndex, subIndex)}
-                              onDragOver={(e) => handleSubcategoryDragOver(e, catIndex, subIndex)}
-                              onDragLeave={handleSubcategoryDragLeave}
-                              onDrop={(e) => handleSubcategoryDrop(e, catIndex, subIndex)}
-                              onDragEnd={handleSubcategoryDragEnd}
-                            >
-                              {subcategories.length > 1 && (
-                                <span className={styles.dragHandle}>⋮⋮</span>
-                              )}
+                            <div className={styles.subcategoryHeader}>
                               <span className={styles.subcategoryName}>
                                 {subcategory.name ?? "(Uncategorized)"}
                               </span>
@@ -585,55 +487,50 @@ export default function MetricOrderEditor({
                           )}
                           
                           {/* Metrics in this subcategory */}
-                          {subcategory.metrics.map((metricItem, metricIndex) => (
-                            <div
-                              key={metricItem.metric.id}
-                              className={`${styles.metricItem} ${
-                                draggedMetricInfo?.categoryIndex === catIndex &&
-                                draggedMetricInfo?.subcategoryIndex === subIndex &&
-                                draggedMetricInfo?.metricIndex === metricIndex
-                                  ? styles.dragging
-                                  : ""
-                              } ${
-                                dragOverMetricInfo?.categoryIndex === catIndex &&
-                                dragOverMetricInfo?.subcategoryIndex === subIndex &&
-                                dragOverMetricInfo?.metricIndex === metricIndex
-                                  ? styles.dragOver
-                                  : ""
-                              }`}
-                              draggable
-                              onDragStart={(e) => {
-                                e.stopPropagation();
-                                handleMetricDragStart(e, catIndex, subIndex, metricIndex);
-                              }}
-                              onDragOver={(e) => handleMetricDragOver(e, catIndex, subIndex, metricIndex)}
-                              onDragLeave={handleMetricDragLeave}
-                              onDrop={(e) => handleMetricDrop(e, catIndex, subIndex, metricIndex)}
-                              onDragEnd={handleMetricDragEnd}
-                            >
-                              <span className={styles.dragHandle}>⋮⋮</span>
-                              <span className={styles.metricName}>
-                                {metricItem.metric.metric_name}
-                              </span>
-                            </div>
-                          ))}
-                          {/* Drop zone at the end of each subcategory for cross-category drops */}
-                          {draggedMetricInfo !== null && (
-                            <div
-                              className={`${styles.dropZone} ${
-                                dragOverMetricInfo?.categoryIndex === catIndex &&
-                                dragOverMetricInfo?.subcategoryIndex === subIndex &&
-                                dragOverMetricInfo?.metricIndex === subcategory.metrics.length
-                                  ? styles.dropZoneActive
-                                  : ""
-                              }`}
-                              onDragOver={(e) => handleMetricDragOver(e, catIndex, subIndex, subcategory.metrics.length)}
-                              onDragLeave={handleMetricDragLeave}
-                              onDrop={(e) => handleMetricDrop(e, catIndex, subIndex, subcategory.metrics.length)}
-                            >
-                              Drop metric here
-                            </div>
-                          )}
+                          {subcategory.metrics.map((metricItem, metricIndex) => {
+                            const isVisible =
+                              visibleMetricIds.size === 0
+                                ? true
+                                : visibleMetricIds.has(metricItem.metric.id);
+                            return (
+                              <div
+                                key={metricItem.metric.id}
+                                className={`${styles.metricItem} ${
+                                  !isVisible ? styles.metricItemHidden : ""
+                                }`}
+                              >
+                                <label
+                                  className={styles.metricCheckbox}
+                                  title={isVisible ? "Hide from dashboard" : "Show on dashboard"}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isVisible}
+                                    onChange={() => toggleMetricVisible(metricItem.metric.id)}
+                                  />
+                                </label>
+                                <span className={styles.moveButtons}>
+                                  <button
+                                    type="button"
+                                    className={styles.moveBtn}
+                                    disabled={metricIndex === 0}
+                                    onClick={(e) => { e.stopPropagation(); moveMetric(catIndex, subIndex, metricIndex, -1); }}
+                                    title="Move up"
+                                  >▲</button>
+                                  <button
+                                    type="button"
+                                    className={styles.moveBtn}
+                                    disabled={metricIndex === subcategory.metrics.length - 1}
+                                    onClick={(e) => { e.stopPropagation(); moveMetric(catIndex, subIndex, metricIndex, 1); }}
+                                    title="Move down"
+                                  >▼</button>
+                                </span>
+                                <span className={styles.metricName}>
+                                  {metricItem.metric.metric_name}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       ))}
                     </div>
@@ -647,27 +544,27 @@ export default function MetricOrderEditor({
             <button
               className={styles.saveButton}
               onClick={handleSave}
-              disabled={!hasChanges || saveMutation.isPending}
+              disabled={!hasChanges || (activeSaveMutation?.isPending ?? false)}
             >
-              {saveMutation.isPending ? "Saving..." : "Save Order"}
+              {activeSaveMutation?.isPending ? "Saving..." : "Save Order"}
             </button>
             <button
               className={styles.resetButton}
               onClick={handleReset}
-              disabled={resetMutation.isPending}
+              disabled={activeResetMutation?.isPending ?? false}
             >
-              {resetMutation.isPending ? "Resetting..." : "Reset to Default"}
+              {activeResetMutation?.isPending ? "Resetting..." : "Reset to Default"}
             </button>
           </div>
 
-          {saveMutation.isError && (
+          {activeSaveMutation?.isError && (
             <div className={styles.error}>
-              Failed to save: {(saveMutation.error as Error)?.message}
+              Failed to save: {(activeSaveMutation.error as Error)?.message}
             </div>
           )}
-          {resetMutation.isError && (
+          {activeResetMutation?.isError && (
             <div className={styles.error}>
-              Failed to reset: {(resetMutation.error as Error)?.message}
+              Failed to reset: {(activeResetMutation.error as Error)?.message}
             </div>
           )}
         </div>

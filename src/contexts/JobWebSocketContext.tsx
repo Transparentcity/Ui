@@ -17,6 +17,16 @@ interface JobWebSocketContextValue {
 
 const JobWebSocketContext = createContext<JobWebSocketContextValue | null>(null);
 
+const defaultContextValue: JobWebSocketContextValue = {
+  jobs: [],
+  activeJobs: [],
+  isConnected: false,
+  cancelJob: async () => {},
+  cancelAllJobs: async () => {},
+  refreshJobs: async () => {},
+  fetchJob: async () => {},
+};
+
 function JobWebSocketProviderInner({ children }: { children: ReactNode }) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   const searchParams = useSearchParams();
@@ -59,7 +69,13 @@ function JobWebSocketProviderInner({ children }: { children: ReactNode }) {
 
 export function JobWebSocketProvider({ children }: { children: ReactNode }) {
   return (
-    <Suspense fallback={<>{children}</>}>
+    <Suspense
+      fallback={
+        <JobWebSocketContext.Provider value={defaultContextValue}>
+          {children}
+        </JobWebSocketContext.Provider>
+      }
+    >
       <JobWebSocketProviderInner>{children}</JobWebSocketProviderInner>
     </Suspense>
   );

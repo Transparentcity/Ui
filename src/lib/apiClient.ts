@@ -1048,6 +1048,26 @@ export function getAdminMetricCityStructure(metricId: number, token: string): Pr
 // Comparison types and interfaces
 export type ComparisonType = "ytd" | "mtd" | "mtd_prior_year";
 
+/** For derived metrics: A/B=C breakdown for transparency */
+export interface CalculationBreakdown {
+  formula: string;
+  display_unit: string;
+  numerator_metric_id: number;
+  denominator_metric_id: number;
+  numerator_name: string;
+  denominator_name: string;
+  current_period: {
+    numerator_value: number | null;
+    denominator_value: number | null;
+    result: number | null;
+  };
+  comparison_period: {
+    numerator_value: number | null;
+    denominator_value: number | null;
+    result: number | null;
+  };
+}
+
 export interface ComparisonResponse {
   metric_id: number;
   district: number | null;
@@ -1061,6 +1081,7 @@ export interface ComparisonResponse {
   period_type: string;
   computed_at: string;
   is_precomputed: boolean;
+  calculation_breakdown?: CalculationBreakdown | null;
 }
 
 export interface ComparisonsResponse {
@@ -1323,6 +1344,38 @@ export function getCityMetrics(
     .catch(() => []); // Return empty array on error
 }
 
+/** Metric item with show_on_dash for customize-metrics UI (all_metrics=true). */
+export interface CityMetricForCustomize {
+  id: number;
+  metric_name: string;
+  metric_key: string;
+  category: string;
+  subcategory?: string | null;
+  show_on_dash: boolean;
+}
+
+// Get all metrics for a city with show_on_dash (for customize metrics dialog)
+export function getCityMetricsForCustomize(
+  cityId: number,
+  token: string
+): Promise<CityMetricForCustomize[]> {
+  return request<CityMetricForCustomize[]>(
+    `/api/cities/${cityId}/metrics?is_active=true&limit=500&all_metrics=true`,
+    "GET",
+    undefined,
+    token
+  ).then((metrics) =>
+    (metrics || []).map((m) => ({
+      id: m.id,
+      metric_name: m.metric_name,
+      metric_key: m.metric_key,
+      category: m.category,
+      subcategory: m.subcategory ?? null,
+      show_on_dash: m.show_on_dash === true,
+    }))
+  );
+}
+
 // Chat API
 export interface ChatMessageRequest {
   message: string;
@@ -1359,6 +1412,9 @@ export interface SessionDetail {
   intermediate_steps: any[];
   total_execution_time_ms: number;
   total_tokens_used: number;
+  total_prompt_tokens?: number;
+  total_completion_tokens?: number;
+  estimated_cost_usd?: number;
   llm_call_count: number;
   message_count: number;
   created_at: string;
@@ -1368,6 +1424,8 @@ export interface SessionDetail {
 export interface SessionStats {
   session_id: string;
   total_tokens_used: number;
+  total_prompt_tokens?: number;
+  total_completion_tokens?: number;
   llm_call_count: number;
   total_execution_time_ms: number;
   model_key: string;
@@ -1497,11 +1555,14 @@ export function getSessionStats(
   return getSession(sessionId, token).then((session) => ({
     session_id: session.session_id,
     total_tokens_used: session.total_tokens_used,
+    total_prompt_tokens: session.total_prompt_tokens ?? 0,
+    total_completion_tokens: session.total_completion_tokens ?? 0,
     llm_call_count: session.llm_call_count,
     total_execution_time_ms: session.total_execution_time_ms,
     model_key: session.model_key || "",
     last_message_at: session.last_message_at || null,
     created_at: session.created_at,
+    estimated_cost_usd: session.estimated_cost_usd ?? 0,
   }));
 }
 
@@ -3610,6 +3671,48 @@ export function resetCityMetricOrdering(
 }
 
 // ============================================================================
+// USER METRIC ORDERING (per-user dashboard order)
+// ============================================================================
+
+// Same shape as MetricOrderingResponse; GET /api/admin/me/metric-ordering/{city_id}
+export function getUserMetricOrdering(
+  cityId: number,
+  token: string
+): Promise<MetricOrderingResponse> {
+  return request<MetricOrderingResponse>(
+    `/api/admin/me/metric-ordering/${cityId}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function saveUserMetricOrdering(
+  cityId: number,
+  orderings: MetricOrderingItem[],
+  token: string
+): Promise<{ success: boolean; message: string; count: number }> {
+  return request<{ success: boolean; message: string; count: number }>(
+    `/api/admin/me/metric-ordering/${cityId}`,
+    "PUT",
+    { orderings },
+    token
+  );
+}
+
+export function resetUserMetricOrdering(
+  cityId: number,
+  token: string
+): Promise<{ success: boolean; message: string; deleted_count: number }> {
+  return request<{ success: boolean; message: string; deleted_count: number }>(
+    `/api/admin/me/metric-ordering/${cityId}`,
+    "DELETE",
+    undefined,
+    token
+  );
+}
+
+// ============================================================================
 // BATCH METRIC EXECUTION API
 // ============================================================================
 
@@ -3694,5 +3797,652 @@ export function getDefaultExecuteStartDateByPeriod(periodType: string): string {
   return `${startYear}-01-01`;
 }
 
+// ============================================================================
+// WASTE DETECTION
+// ============================================================================
+
+export interface WasteFinding {
+  id: string;
+  category: "payroll" | "contracts" | "infrastructure" | "integrity" | "influence" | "confirmed";
+  subcategory: string;
+  severity: "critical" | "high" | "medium" | "low" | "info";
+  entity: string;
+  metric: string;
+  metricDetail: string;
+  amount: number | null;
+  description: string;
+  tool: string;
+  confidence: "High" | "Medium" | "Low";
+  confidence_reason: string | null;
+  confidence_score: number;
+  estimated_dollar_impact: number | null;
+  corroboration_count: number;
+  data_completeness: number;
+  priority_score: number;
+  is_partial_data: boolean;
+  truncated_total: number | null;
+  caveat: string | null;
+  narrative: string | null;
+  finding_report: string | null;
+  is_new?: boolean;
+  fiscal_year?: number | null;
+}
+
+export interface WasteDataFreshness {
+  dataset_name: string;
+  data_as_of: string | null;
+  data_loaded_at: string | null;
+  rows_fetched: number;
+  is_partial_year: boolean;
+  stale: boolean;
+  stale_reason: string | null;
+}
+
+export interface WasteCategorySummary {
+  category: string;
+  finding_count: number;
+  critical_count: number;
+  high_count: number;
+  medium_count: number;
+  total_amount: number | null;
+  records_analyzed: number;
+}
+
+export interface WasteSummaryResponse {
+  total_findings: number;
+  critical_count: number;
+  estimated_exposure: number | null;
+  gross_exposure: number | null;
+  net_exposure: number | null;
+  departments_affected: number;
+  categories: WasteCategorySummary[];
+}
+
+export interface WasteAnalyzeResponse {
+  findings: WasteFinding[];
+  summary: WasteSummaryResponse;
+  cached: boolean;
+  analysis_timestamp: string | null;
+  errors: string[];
+  data_freshness: WasteDataFreshness[];
+}
+
+export type WasteDispositionType =
+  | "confirmed_fraud"
+  | "confirmed_waste"
+  | "policy_violation"
+  | "data_error"
+  | "false_positive"
+  | "under_investigation"
+  | "inconclusive";
+
+export interface WasteDisposition {
+  id: string;
+  finding_id: number;
+  entity_id: string | null;
+  city_id: number;
+  disposition: WasteDispositionType;
+  auditor_id: string;
+  notes: string | null;
+  evidence_links: string[];
+  created_at: string | null;
+}
+
+export interface WasteDetectorAccuracy {
+  id: string;
+  detector_key: string;
+  city_id: number;
+  total_findings: number;
+  confirmed_count: number;
+  false_positive_count: number;
+  precision_rate: number;
+  updated_at: string | null;
+}
+
+export interface WasteReviewQueueItem {
+  id: string;
+  finding_id: number;
+  city_id: number;
+  status: "pending" | "assigned" | "disposed";
+  priority: "low" | "medium" | "high" | "critical";
+  assigned_to: string | null;
+  finding_detector_key: string | null;
+  finding_category: string | null;
+  finding_subcategory: string | null;
+  finding_entity_name: string | null;
+  finding_severity: string | null;
+  finding_description: string | null;
+  finding_created_at: string | null;
+  composite_score: number | null;
+  severity_tier: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface WasteReviewQueuePage {
+  items: WasteReviewQueueItem[];
+  page: number;
+  per_page: number;
+  total: number;
+}
+
+export interface CreateWasteDispositionRequest {
+  city_id: number;
+  disposition: WasteDispositionType;
+  notes?: string;
+  evidence_links?: string[];
+}
+
+export interface AssignWasteQueueItemRequest {
+  assigned_to: string;
+}
+
+export interface BulkDisposeWasteFindingsRequest {
+  city_id: number;
+  finding_ids: number[];
+  disposition: WasteDispositionType;
+  notes?: string;
+}
+
+export interface RunWasteAnalysisRequest {
+  city_id: number;
+  category?: string;
+  force_refresh?: boolean;
+  persist?: boolean;
+}
+
+export interface WasteRun {
+  id: number;
+  city_id: number;
+  category: string | null;
+  status: string;
+  is_active: boolean;
+  analysis_timestamp: string | null;
+  job_id: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  run_config: Record<string, unknown>;
+  errors: string[];
+}
+
+export interface SyncWasteReviewQueueRequest {
+  city_id: number;
+  run_id?: number;
+}
+
+export interface SyncWasteReviewQueueResponse {
+  city_id: number;
+  run_id: number | null;
+  processed: number;
+  inserted: number;
+  updated: number;
+  reopened: number;
+}
+
+export function getWasteAnalysis(
+  token: string,
+  category?: string,
+  forceRefresh?: boolean
+): Promise<WasteAnalyzeResponse> {
+  const params = new URLSearchParams();
+  if (category) params.append("category", category);
+  if (forceRefresh) params.append("force_refresh", "true");
+  const query = params.toString();
+  const path = `/api/waste/analyze${query ? `?${query}` : ""}`;
+  return request<WasteAnalyzeResponse>(path, "GET", undefined, token);
+}
+
+export function runWasteAnalysis(
+  token: string,
+  payload: RunWasteAnalysisRequest
+): Promise<WasteAnalyzeResponse> {
+  return request<WasteAnalyzeResponse>("/api/waste/run", "POST", payload, token);
+}
+
+export function getWasteSummary(
+  token: string
+): Promise<WasteSummaryResponse> {
+  return request<WasteSummaryResponse>("/api/waste/summary", "GET", undefined, token);
+}
+
+export function listWasteRuns(
+  token: string,
+  cityId: number,
+  category?: string,
+  limit: number = 1
+): Promise<WasteRun[]> {
+  const query = new URLSearchParams();
+  query.set("city_id", String(cityId));
+  query.set("limit", String(limit));
+  if (category) query.set("category", category);
+  return request<WasteRun[]>(
+    `/api/waste/runs?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getWasteReviewQueue(
+  token: string,
+  params: {
+    city_id: number;
+    status?: string;
+    priority?: string;
+    assigned_to?: string;
+    page?: number;
+    per_page?: number;
+  }
+): Promise<WasteReviewQueuePage> {
+  const query = new URLSearchParams();
+  query.set("city_id", String(params.city_id));
+  if (params.status) query.set("status", params.status);
+  if (params.priority) query.set("priority", params.priority);
+  if (params.assigned_to) query.set("assigned_to", params.assigned_to);
+  if (params.page) query.set("page", String(params.page));
+  if (params.per_page) query.set("per_page", String(params.per_page));
+  return request<WasteReviewQueuePage>(
+    `/api/waste/queue?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function assignWasteQueueItem(
+  token: string,
+  itemId: string,
+  cityId: number,
+  payload: AssignWasteQueueItemRequest
+): Promise<WasteReviewQueueItem> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  return request<WasteReviewQueueItem>(
+    `/api/waste/queue/${itemId}/assign?${query.toString()}`,
+    "PUT",
+    payload,
+    token
+  );
+}
+
+export function createWasteDisposition(
+  token: string,
+  findingId: number,
+  payload: CreateWasteDispositionRequest
+): Promise<WasteDisposition> {
+  return request<WasteDisposition>(
+    `/api/waste/findings/${findingId}/dispositions`,
+    "POST",
+    payload,
+    token
+  );
+}
+
+export function getWasteDispositions(
+  token: string,
+  findingId: number,
+  cityId: number
+): Promise<WasteDisposition[]> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  return request<WasteDisposition[]>(
+    `/api/waste/findings/${findingId}/dispositions?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getWasteDetectorAccuracy(
+  token: string,
+  cityId: number,
+  detectorKey?: string
+): Promise<WasteDetectorAccuracy[]> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  if (detectorKey) query.set("detector_key", detectorKey);
+  return request<WasteDetectorAccuracy[]>(
+    `/api/waste/accuracy?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function bulkDisposeWasteFindings(
+  token: string,
+  payload: BulkDisposeWasteFindingsRequest
+): Promise<WasteDisposition[]> {
+  return request<WasteDisposition[]>(
+    "/api/waste/queue/bulk-dispose",
+    "POST",
+    payload,
+    token
+  );
+}
+
+export function syncWasteReviewQueue(
+  token: string,
+  payload: SyncWasteReviewQueueRequest
+): Promise<SyncWasteReviewQueueResponse> {
+  return request<SyncWasteReviewQueueResponse>(
+    "/api/waste/queue/sync",
+    "POST",
+    payload,
+    token
+  );
+}
+
+export async function exportWasteFindings(
+  token: string,
+  category: string,
+  format: "csv" | "json" | "xlsx"
+): Promise<Blob> {
+  const url = `${API_BASE}/api/waste/export/${category}?format=${format}`;
+  const res = await fetch(url, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Export failed: ${res.status}`);
+  }
+  return res.blob();
+}
+
+export async function exportAuditorReport(
+  token: string,
+  category: string = "all"
+): Promise<Blob> {
+  const url = `${API_BASE}/api/waste/export-report?category=${encodeURIComponent(category)}`;
+  const res = await fetch(url, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Auditor report export failed: ${res.status}`);
+  }
+  return res.blob();
+}
+
 // Force rebuild - all exports are defined above
+
+// ============================================================================
+// WASTE ENTITY SCORES
+// ============================================================================
+
+export interface WasteEntityScoreSignal {
+  detector_key: string;
+  weight: number;
+  confidence_score: number;
+  contribution: number;
+  finding_id: number | null;
+  severity: string;
+  decay_multiplier: number;
+  watchlist_multiplier: number;
+  run_id: number | null;
+}
+
+export interface WasteEntityScore {
+  id: string;
+  entity_name: string;
+  entity_match_name: string;
+  entity_type: string;
+  city_id: number;
+  composite_score: number;
+  severity_tier: "critical" | "high" | "medium" | "low" | "info";
+  signal_count: number;
+  top_detector: string | null;
+  top_finding_id: number | null;
+  signals: WasteEntityScoreSignal[];
+  last_scored_at: string | null;
+  decay_factor: number;
+  score_delta: number | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface WasteEntityScoresPage {
+  items: WasteEntityScore[];
+  page: number;
+  per_page: number;
+  total: number;
+  has_next: boolean;
+}
+
+export function getWasteEntityScores(
+  token: string,
+  params: {
+    city_id: number;
+    page?: number;
+    per_page?: number;
+    severity_tier?: string;
+    entity_type?: string;
+    sort_by?: string;
+    sort_dir?: "asc" | "desc";
+  }
+): Promise<WasteEntityScoresPage> {
+  const query = new URLSearchParams();
+  query.set("city_id", String(params.city_id));
+  if (params.page) query.set("page", String(params.page));
+  if (params.per_page) query.set("per_page", String(params.per_page));
+  if (params.severity_tier) query.set("severity_tier", params.severity_tier);
+  if (params.entity_type) query.set("entity_type", params.entity_type);
+  if (params.sort_by) query.set("sort_by", params.sort_by);
+  if (params.sort_dir) query.set("sort_dir", params.sort_dir);
+  return request<WasteEntityScoresPage>(
+    `/api/waste/scores?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+// ============================================================================
+// WASTE INVESTIGATIONS
+// ============================================================================
+
+export interface WasteInvestigationAction {
+  id: string;
+  investigation_id: string;
+  action_type: "document_request" | "interview" | "site_visit" | "subpoena" | "referral" | "note" | "evidence_collected";
+  title: string;
+  description: string;
+  status: "pending" | "in_progress" | "completed" | "cancelled";
+  assigned_to: string | null;
+  target_department: string | null;
+  due_date: string | null;
+  completed_at: string | null;
+  response_notes: string | null;
+  attachments: string[];
+  created_at: string | null;
+  created_by: string | null;
+}
+
+export interface WasteInvestigation {
+  id: string;
+  city_id: number;
+  title: string;
+  status: "open" | "in_progress" | "pending_response" | "closed";
+  lead_auditor_id: string | null;
+  finding_id: number | null;
+  finding: Record<string, unknown> | null;
+  entity_score: Record<string, unknown> | null;
+  final_disposition: WasteDispositionType | null;
+  actions: WasteInvestigationAction[];
+  dispositions: Record<string, unknown>[];
+  opened_at: string | null;
+  closed_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface WasteInvestigationsPage {
+  items: WasteInvestigation[];
+  page: number;
+  per_page: number;
+  total: number;
+  has_next: boolean;
+}
+
+export interface CreateInvestigationActionRequest {
+  action_type: WasteInvestigationAction["action_type"];
+  title: string;
+  description: string;
+  assigned_to?: string;
+  target_department?: string;
+  due_date?: string;
+}
+
+export interface CloseInvestigationRequest {
+  final_disposition: WasteDispositionType;
+  notes?: string;
+}
+
+export function getWasteInvestigations(
+  token: string,
+  params: {
+    city_id: number;
+    status?: string;
+    page?: number;
+    per_page?: number;
+  }
+): Promise<WasteInvestigationsPage> {
+  const query = new URLSearchParams();
+  query.set("city_id", String(params.city_id));
+  if (params.status) query.set("status", params.status);
+  if (params.page) query.set("page", String(params.page));
+  if (params.per_page) query.set("per_page", String(params.per_page));
+  return request<WasteInvestigationsPage>(
+    `/api/waste/investigations?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getWasteInvestigation(
+  token: string,
+  investigationId: string
+): Promise<WasteInvestigation> {
+  return request<WasteInvestigation>(
+    `/api/waste/investigations/${investigationId}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function createInvestigationAction(
+  token: string,
+  investigationId: string,
+  payload: CreateInvestigationActionRequest
+): Promise<WasteInvestigationAction> {
+  return request<WasteInvestigationAction>(
+    `/api/waste/investigations/${investigationId}/actions`,
+    "POST",
+    payload,
+    token
+  );
+}
+
+export function closeInvestigation(
+  token: string,
+  investigationId: string,
+  payload: CloseInvestigationRequest
+): Promise<WasteInvestigation> {
+  return request<WasteInvestigation>(
+    `/api/waste/investigations/${investigationId}/close`,
+    "POST",
+    payload,
+    token
+  );
+}
+
+export function exportInvestigationEvidence(
+  token: string,
+  investigationId: string
+): Promise<Blob> {
+  const url = `${API_BASE}/api/waste/investigations/${investigationId}/export`;
+  return fetch(url, {
+    method: "GET",
+    credentials: "include",
+    headers: { Authorization: `Bearer ${token}` },
+  }).then((res) => {
+    if (!res.ok) throw new Error(`Evidence export failed: ${res.status}`);
+    return res.blob();
+  });
+}
+
+// ============================================================================
+// WASTE THRESHOLDS
+// ============================================================================
+
+export interface WasteThreshold {
+  id: string;
+  detector_key: string;
+  detector_name: string;
+  category: "vendor" | "payroll" | "infrastructure" | "nonprofit";
+  city_id: number;
+  field_label: string;
+  current_value: number;
+  default_value: number;
+  min_value: number;
+  max_value: number;
+  updated_at: string | null;
+}
+
+export interface UpdateThresholdRequest {
+  detector_key: string;
+  value: number;
+}
+
+export function getWasteThresholds(
+  token: string,
+  cityId: number
+): Promise<WasteThreshold[]> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  return request<WasteThreshold[]>(
+    `/api/waste/thresholds?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function updateWasteThresholds(
+  token: string,
+  cityId: number,
+  updates: UpdateThresholdRequest[]
+): Promise<WasteThreshold[]> {
+  return request<WasteThreshold[]>(
+    "/api/waste/thresholds",
+    "PUT",
+    { city_id: cityId, updates },
+    token
+  );
+}
+
+// ============================================================================
+// CHAT JOBS API
+// ============================================================================
+
+export interface ChatJobResponse {
+  job_id: string;
+  status: string;
+  message: string;
+  session_id: string;
+}
+
+export function createChatJob(
+  payload: ChatMessageRequest,
+  token: string
+): Promise<ChatJobResponse> {
+  return request<ChatJobResponse>("/api/chat/jobs", "POST", payload, token);
+}
+
 

@@ -16,7 +16,8 @@ import UserManagement from "@/components/UserManagement";
 import JobLogsViewer from "@/components/JobLogsViewer";
 import FeedView from "@/components/FeedView";
 import { useTheme } from "@/contexts/ThemeContext";
-import { getMyPermissions, getSavedCities, getUserPreferences, updateUserPreferences, getCity } from "@/lib/apiClient";
+import { getMyPermissions, getSavedCities, getUserPreferences, updateUserPreferences, getCity, saveUserMetricOrdering } from "@/lib/apiClient";
+import { PENDING_ORDER_STORAGE_KEY_PREFIX } from "@/components/MetricOrderEditor";
 import Loader from "@/components/Loader";
 import WelcomeModal from "@/components/WelcomeModal";
 import RedisStatusIndicator from "@/components/RedisStatusIndicator";
@@ -64,6 +65,7 @@ export default function DashboardPage() {
   const [activeCityId, setActiveCityId] = useState<number | null>(null);
   const [initialDistrict, setInitialDistrict] = useState<number | null>(null);
   const [currentResearchId, setCurrentResearchId] = useState<number | null>(null);
+  const [initialChatPrompt, setInitialChatPrompt] = useState<string | null>(null);
   const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const hasAutoSelectedCity = useRef(false);
@@ -87,6 +89,30 @@ export default function DashboardPage() {
       router.push("/");
     }
   }, [isLoading, isAuthenticated, router]);
+
+  // Accept one-time prefilled prompts (e.g. from Waste "Ask Seymour" button)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const prefill = params.get("prefill") || params.get("prompt");
+    if (!prefill) return;
+
+    setCurrentView("chat");
+    setCurrentSessionId(null);
+    setIsCurrentSessionJobSession(false);
+    setActiveCityId(null);
+    setCurrentResearchId(null);
+    setInitialChatPrompt(prefill);
+
+    // Clean URL so refresh/back doesn't resend the same prompt.
+    params.delete("prefill");
+    params.delete("prompt");
+    const nextQuery = params.toString();
+    const nextUrl = nextQuery
+      ? `${window.location.pathname}?${nextQuery}`
+      : window.location.pathname;
+    router.replace(nextUrl);
+  }, [router]);
 
   // Track dashboard view when authenticated
   useEffect(() => {
@@ -116,6 +142,34 @@ export default function DashboardPage() {
       trackLogin(user.sub);
     }
   }, [isAuthenticated, isLoading, user]);
+
+  // Migrate pending metric order from localStorage to user account when user signs in
+  useEffect(() => {
+    if (!isAuthenticated || isLoading || typeof window === "undefined") return;
+
+    const migratePendingMetricOrder = async () => {
+      const prefix = PENDING_ORDER_STORAGE_KEY_PREFIX;
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i);
+        if (!key?.startsWith(prefix)) continue;
+        try {
+          const raw = window.localStorage.getItem(key);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw) as { city_id: number; orderings: Array<{ category_name: string; category_order: number; subcategory_name?: string | null; metric_id: number; metric_order: number }> };
+          if (parsed?.city_id == null || !Array.isArray(parsed.orderings)) continue;
+          const token = await getAccessTokenSilently();
+          await saveUserMetricOrdering(parsed.city_id, parsed.orderings, token);
+          keysToRemove.push(key);
+        } catch {
+          // Skip this key on error
+        }
+      }
+      keysToRemove.forEach((k) => window.localStorage.removeItem(k));
+    };
+
+    migratePendingMetricOrder();
+  }, [isAuthenticated, isLoading]);
 
   // Reload preferences when settings view becomes active
   useEffect(() => {
@@ -682,6 +736,8 @@ export default function DashboardPage() {
               <ChatView
                 sessionId={currentSessionId}
                 onSessionChange={setCurrentSessionId}
+                initialPrompt={initialChatPrompt}
+                onInitialPromptHandled={() => setInitialChatPrompt(null)}
               />
             </div>
           )}

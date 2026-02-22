@@ -12,9 +12,11 @@ import {
 } from "@/lib/publicApiClient";
 import CitySignupButton from "./CitySignupButton";
 import CityDashboardSection from "./CityDashboardSection";
+import CityDashboardSectionWithOrdering from "./CityDashboardSectionWithOrdering";
 import CityViewTracker from "./CityViewTracker";
 import CityPageClient from "./CityPageClient";
 import CityHeroNewsletter from "./CityHeroNewsletter";
+import CustomizeMetricsTrigger from "./CustomizeMetricsTrigger";
 
 export const revalidate = 3600;
 
@@ -225,8 +227,8 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                 <CityHeroNewsletter cityName={city?.display ?? slug} />
               </div>
 
-              {/* Category links - below newsletter */}
-              {uniqueCategories.length > 0 && (
+              {/* Category links and customize metrics - below newsletter */}
+              {(uniqueCategories.length > 0 || (city?.id && (cityDetail?.metrics?.length ?? 0) > 0)) && (
                 <div className="hero-category-links">
                   {uniqueCategories.map((cat) => (
                     <Link
@@ -237,6 +239,19 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                       {cat}
                     </Link>
                   ))}
+                  {city?.id && (cityDetail?.metrics?.length ?? 0) > 0 && (
+                    <CustomizeMetricsTrigger
+                      cityId={city.id}
+                      cityName={city.display}
+                      metrics={(cityDetail!.metrics ?? []).map((m) => ({
+                        id: m.id,
+                        metric_name: m.metric_name,
+                        category: m.category,
+                        subcategory: m.subcategory ?? null,
+                        sub_category: m.subcategory ?? null,
+                      }))}
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -249,14 +264,26 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         </div>
       </section>
 
-      <CityDashboardSection
-        cityDisplayName={cityDisplayName}
-        slug={slug}
-        metrics={cityDetail?.metrics ?? []}
-        comparisonsMap={comparisonsMap}
-        districts={districts}
-        maps={maps}
-      />
+      {city?.id ? (
+        <CityDashboardSectionWithOrdering
+          cityId={city.id}
+          cityDisplayName={cityDisplayName}
+          slug={slug}
+          metrics={cityDetail?.metrics ?? []}
+          comparisonsMap={comparisonsMap}
+          districts={districts}
+          maps={maps}
+        />
+      ) : (
+        <CityDashboardSection
+          cityDisplayName={cityDisplayName}
+          slug={slug}
+          metrics={cityDetail?.metrics ?? []}
+          comparisonsMap={comparisonsMap}
+          districts={districts}
+          maps={maps}
+        />
+      )}
 
       <footer className="footer">
         <div className="container">

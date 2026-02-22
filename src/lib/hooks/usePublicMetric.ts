@@ -39,6 +39,7 @@ export function usePublicMetricComparisons(
     enabled: metricId !== null,
     staleTime: 5 * 60 * 1000, // 5 minutes
     initialData,
+    refetchOnMount: initialData === undefined,
   });
 }
 
@@ -56,5 +57,6 @@ export function usePublicMetricTimeSeriesSummary(
     enabled: metricId !== null,
     staleTime: 5 * 60 * 1000, // 5 minutes
     initialData,
+    refetchOnMount: initialData === undefined,
   });
 }

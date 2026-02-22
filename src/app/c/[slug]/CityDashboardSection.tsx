@@ -1,3 +1,4 @@
+import React from "react";
 import Link from "next/link";
 import type {
   PublicCityMetricItem,
@@ -6,6 +7,15 @@ import type {
 } from "@/lib/publicApiClient";
 import "@/components/CityView.css";
 
+/** Optional ordering: when provided, categories and metrics are sorted by it. */
+export type MetricOrderingEntry = {
+  metric_id: number;
+  category_order: number;
+  metric_order: number;
+  category_name: string;
+  subcategory_name: string | null;
+};
+
 type CityDashboardSectionProps = {
   cityDisplayName: string;
   slug: string;
@@ -13,6 +23,10 @@ type CityDashboardSectionProps = {
   comparisonsMap: Record<number, PublicMetricComparisons>;
   districts: number[];
   maps: PublicMapListItem[];
+  /** Optional: custom order (user or city-level). When set, categories/metrics sorted by this. */
+  orderings?: MetricOrderingEntry[];
+  /** Optional: when set, shows a "Customize metrics" control in the section header. */
+  onCustomizeMetricsClick?: () => void;
 };
 
 /**
@@ -97,8 +111,26 @@ export default function CityDashboardSection({
   comparisonsMap,
   districts,
   maps,
+  orderings,
+  onCustomizeMetricsClick,
 }: CityDashboardSectionProps) {
   const base = `/c/${slug}`;
+
+  const orderingMap = React.useMemo(() => {
+    if (!orderings?.length) return null;
+    const map = new Map<number, { categoryOrder: number; metricOrder: number; categoryName: string; subcategoryName: string | null }>();
+    orderings.forEach((o) => {
+      if (o.metric_id != null) {
+        map.set(o.metric_id, {
+          categoryOrder: o.category_order,
+          metricOrder: o.metric_order,
+          categoryName: o.category_name,
+          subcategoryName: o.subcategory_name ?? null,
+        });
+      }
+    });
+    return map;
+  }, [orderings]);
 
   // YTD column headers (public API only has ytd)
   const now = new Date();
@@ -109,29 +141,45 @@ export default function CityDashboardSection({
     comparison: `${priorYear} YTD`,
   };
 
-  // Group metrics by category, then subcategory (same as dashboard)
+  // Group metrics by category, then subcategory (use ordering when present)
   const grouped = new Map<
     string,
-    Map<string | null, { m: PublicCityMetricItem; ytd: NonNullable<PublicMetricComparisons["comparisons"]["ytd"]> | null }[]>
+    Map<string | null, { m: PublicCityMetricItem; ytd: NonNullable<PublicMetricComparisons["comparisons"]["ytd"]> | null; categoryOrder: number; metricOrder: number }[]>
   >();
 
   metrics.forEach((m) => {
     const comp = comparisonsMap[m.id];
     const ytd = comp?.comparisons?.ytd ?? null;
-    const cat = m.category || "Uncategorized";
-    const sub = m.subcategory || null;
+    const ord = orderingMap?.get(m.id);
+    const cat = ord?.categoryName ?? m.category ?? "Uncategorized";
+    const sub = ord?.subcategoryName ?? m.subcategory ?? null;
+    const categoryOrder = ord?.categoryOrder ?? 1000;
+    const metricOrder = ord?.metricOrder ?? 1000;
     if (!grouped.has(cat)) {
       grouped.set(cat, new Map());
     }
     const subMap = grouped.get(cat)!;
     if (!subMap.has(sub)) subMap.set(sub, []);
-    subMap.get(sub)!.push({ m, ytd });
+    subMap.get(sub)!.push({ m, ytd, categoryOrder, metricOrder });
   });
 
-  // Sort categories, then subcategories (null first), then metrics by name
-  const sortedCategories = Array.from(grouped.keys()).sort((a, b) =>
-    a.localeCompare(b)
-  );
+  const getCategoryOrder = (cat: string) => {
+    let minOrder = 1000;
+    grouped.get(cat)?.forEach((arr) => {
+      arr.forEach(({ categoryOrder }) => {
+        if (categoryOrder < minOrder) minOrder = categoryOrder;
+      });
+    });
+    return minOrder;
+  };
+  const sortedCategories = Array.from(grouped.keys()).sort((a, b) => {
+    if (orderingMap) {
+      const orderA = getCategoryOrder(a);
+      const orderB = getCategoryOrder(b);
+      if (orderA !== orderB) return orderA - orderB;
+    }
+    return a.localeCompare(b);
+  });
 
   // Last computed from any comparison
   let lastComputedAt: string | null = null;
@@ -200,8 +248,35 @@ export default function CityDashboardSection({
 
   return (
     <section className="dashboard-section" style={{ marginTop: 0 }}>
-      <div className="dashboard-header">
+      <div
+        className="dashboard-header"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 8,
+        }}
+      >
         <h2 className="dashboard-title">Citywide Dashboard</h2>
+        {onCustomizeMetricsClick && (
+          <button
+            type="button"
+            onClick={onCustomizeMetricsClick}
+            style={{
+              padding: "6px 12px",
+              fontSize: 13,
+              fontWeight: 500,
+              color: "var(--brand-primary, #ad35fa)",
+              background: "transparent",
+              border: "1px solid var(--brand-primary, #ad35fa)",
+              borderRadius: 6,
+              cursor: "pointer",
+            }}
+          >
+            Customize metrics
+          </button>
+        )}
       </div>
 
       {/* Comparison bar: YTD only (matches dashboard selector style) */}
@@ -263,9 +338,10 @@ export default function CityDashboardSection({
                         r.ytd?.current_period_value != null ||
                         r.ytd?.comparison_period_value != null
                     )
-                    .sort((a, b) =>
-                      a.m.metric_name.localeCompare(b.m.metric_name)
-                    );
+                    .sort((a, b) => {
+                      if (orderingMap && a.metricOrder !== b.metricOrder) return a.metricOrder - b.metricOrder;
+                      return a.m.metric_name.localeCompare(b.m.metric_name);
+                    });
                   if (rows.length === 0) return null;
                   return (
                     <div key={subcategory ?? "uncategorized"} style={{ display: "contents" }}>

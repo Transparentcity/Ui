@@ -26,17 +26,21 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Copy,
+  SendHorizontal,
 } from "lucide-react"
 import type { SendQueueItem, Contact } from "@/lib/types"
 import { 
   updateQueueItemContent, 
+  updateQueueItemStatus,
   approveQueueItems, 
   rejectQueueItems,
   regenerateQueueItems
 } from "@/app/actions/send-queue"
-import { useAnomalies } from "@/lib/hooks/useAnomalies"
+import { useAnomaliesPublic } from "@/lib/hooks/useAnomaliesPublic"
 import { mapApiAnomaliesToCrm } from "@/lib/anomalyMapper"
+import { isAnomalyIgnored } from "./anomalies-manager"
 
 // San Francisco city_id - TODO: make this configurable
 const SF_CITY_ID = 57260
@@ -57,13 +61,39 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
   const [viewMode, setViewMode] = useState<"list" | "single">("list")
   
   // Fetch anomalies from Platform API for email regeneration
-  // High limit ensures 5+ anomalies per district plus citywide
-  const { data: anomalyData } = useAnomalies({
+  // API max limit is 200 - this provides enough for district + citywide coverage
+  // Using public hook (no Auth0 required) for CRM pages
+  const { data: anomalyData, isLoading: anomaliesLoading, error: anomaliesError } = useAnomaliesPublic({
     is_anomaly: true,
-    limit: 500,
+    limit: 200,
     city_id: SF_CITY_ID,
   })
   const anomalies = anomalyData?.results ? mapApiAnomaliesToCrm(anomalyData.results) : []
+  
+  // Filter out ignored anomalies and create slim objects to avoid payload size issues
+  const activeAnomalies = anomalies.filter(a => !isAnomalyIgnored(a.id))
+  const slimAnomalies = activeAnomalies.map(a => ({
+    id: a.id,
+    title: a.title,
+    description: a.description,
+    district: a.district,
+    district_label: a.district_label,
+    is_citywide: a.is_citywide,
+    metric_id: a.metric_id,
+    metric_name: (a as any).metric_name,
+    pct_change: a.pct_change,
+    severity: a.severity,
+    period_type: a.period_type,
+    period_date: (a as any).period_date,
+    group_field: a.group_field,
+    group_value: a.group_value,
+    recent_mean: (a as any).recent_mean,
+    comparison_mean: (a as any).comparison_mean,
+    comparison_window: (a as any).comparison_window,
+    metric_category: (a as any).metric_category,
+    is_anomaly: a.is_anomaly,
+    created_at: a.created_at,
+  }))
 
   const toggleSelect = (id: string) => {
     const newSelected = new Set(selectedIds)
@@ -102,6 +132,26 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
     })
   }
 
+  // Copy helpers for edit dialog
+  const [copiedField, setCopiedField] = useState<"subject" | "body" | null>(null)
+  const copyToClipboard = async (text: string, field: "subject" | "body") => {
+    await navigator.clipboard.writeText(text)
+    setCopiedField(field)
+    setTimeout(() => setCopiedField(null), 2000)
+  }
+
+  // Mark as manually sent
+  const markAsManuallySent = () => {
+    if (!editingItem) return
+    if (!confirm("Mark this message as manually sent? This cannot be undone.")) return
+    
+    startTransition(async () => {
+      await updateQueueItemStatus(editingItem.id, "sent")
+      setEditingItem(null)
+      onUpdate?.()
+    })
+  }
+
   const handleApprove = (ids: string[]) => {
     if (ids.length === 0) return
     
@@ -126,14 +176,46 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
 
   const handleRegenerate = async (ids: string[]) => {
     if (ids.length === 0) return
-    if (!confirm(`Regenerate ${ids.length} message(s) with AI? The current content will be replaced.`)) return
+    
+    // Check if anomalies are still loading
+    if (anomaliesLoading) {
+      alert('Anomaly data is still loading. Please wait a moment and try again.')
+      return
+    }
+    
+    // Warn if no anomalies available
+    if (slimAnomalies.length === 0) {
+      const proceed = confirm(
+        'Warning: No anomaly data available for regeneration.\n\n' +
+        'This could be an authentication or API issue.\n' +
+        'Regenerating without anomaly data will produce generic emails.\n\n' +
+        'Continue anyway?'
+      )
+      if (!proceed) return
+    }
+    
+    if (!confirm(`Regenerate ${ids.length} message(s) with AI using DIFFERENT anomalies? The current content will be replaced.`)) return
+    
+    // Log detailed anomaly info
+    const citywideCount = slimAnomalies.filter(a => a.is_citywide === true || a.district === 0).length
+    const districtCounts: Record<string, number> = {}
+    slimAnomalies.forEach(a => {
+      const d = a.district === 0 ? 'Citywide' : `D${a.district}`
+      districtCounts[d] = (districtCounts[d] || 0) + 1
+    })
+    console.log('[MessageReview] Regenerating with', slimAnomalies.length, 'anomalies available')
+    console.log('[MessageReview] Citywide anomalies:', citywideCount)
+    console.log('[MessageReview] By district:', districtCounts)
+    if (slimAnomalies.length > 0) {
+      console.log('[MessageReview] Sample anomaly:', JSON.stringify(slimAnomalies[0]))
+    }
     
     // Mark items as regenerating
     setIsRegenerating(new Set(ids))
     
     startTransition(async () => {
       try {
-        await regenerateQueueItems(ids, anomalies)
+        await regenerateQueueItems(ids, slimAnomalies as any)
         onUpdate?.()
       } finally {
         setIsRegenerating(new Set())
@@ -443,7 +525,19 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
             )}
             
             <div className="space-y-2">
-              <Label>Subject</Label>
+              <div className="flex items-center justify-between">
+                <Label>Subject</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs text-muted-foreground"
+                  onClick={() => copyToClipboard(editSubject, "subject")}
+                >
+                  {copiedField === "subject" ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  {copiedField === "subject" ? "Copied" : "Copy"}
+                </Button>
+              </div>
               <Input
                 value={editSubject}
                 onChange={(e) => setEditSubject(e.target.value)}
@@ -452,7 +546,19 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
             </div>
             
             <div className="space-y-2">
-              <Label>Message Body</Label>
+              <div className="flex items-center justify-between">
+                <Label>Message Body</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs text-muted-foreground"
+                  onClick={() => copyToClipboard(editBody, "body")}
+                >
+                  {copiedField === "body" ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  {copiedField === "body" ? "Copied" : "Copy"}
+                </Button>
+              </div>
               <Textarea
                 value={editBody}
                 onChange={(e) => setEditBody(e.target.value)}
@@ -461,7 +567,16 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={markAsManuallySent}
+              disabled={isPending || editingItem?.status === "sent"}
+              className="gap-2 text-green-600 border-green-300 hover:bg-green-50 sm:mr-auto"
+            >
+              <SendHorizontal className="w-4 h-4" />
+              Mark as Manually Sent
+            </Button>
             <Button variant="outline" onClick={() => setEditingItem(null)}>
               Cancel
             </Button>

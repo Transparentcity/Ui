@@ -40,6 +40,8 @@ interface Message {
 interface ChatViewProps {
   sessionId?: string | null;
   onSessionChange?: (sessionId: string | null) => void;
+  initialPrompt?: string | null;
+  onInitialPromptHandled?: () => void;
   currentSession?: any; // Store session data for intermediate_steps
 }
 
@@ -78,7 +80,12 @@ function getProviderBadgeLetter(provider: ProviderKey): string {
   }
 }
 
-export default function ChatView({ sessionId = null, onSessionChange }: ChatViewProps) {
+export default function ChatView({
+  sessionId = null,
+  onSessionChange,
+  initialPrompt = null,
+  onInitialPromptHandled,
+}: ChatViewProps) {
   const { getAccessTokenSilently } = useAuth0();
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -125,6 +132,8 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
   const modelIconWrapperRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasShownWelcome = useRef(false);
+  const lastAutoPromptRef = useRef<string | null>(null);
+  const sendMessageRef = useRef<((overrideMessage?: string) => Promise<void>) | undefined>(undefined);
   const hasPendingSendRef = useRef(false);
   const pendingSessionIdRef = useRef<string | null>(null);
   const statsSetFromSessionLoadRef = useRef<string | null>(null); // Track which session had stats set from handleSessionLoaded
@@ -495,10 +504,10 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run once on mount
 
-  const handleSend = async () => {
-    if (!message.trim() || isStreaming) return;
+  const handleSend = async (overrideMessage?: string) => {
+    const userMessageText = (overrideMessage ?? message).trim();
+    if (!userMessageText || isStreaming) return;
 
-    const userMessageText = message.trim();
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -935,6 +944,21 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
     }
   };
 
+  // Keep an up-to-date send function available for side effects.
+  sendMessageRef.current = handleSend;
+
+  // Auto-send a one-time prefilled prompt when supplied by parent route state.
+  useEffect(() => {
+    const prompt = initialPrompt?.trim();
+    if (!prompt) return;
+    if (isStreaming || hasPendingSendRef.current) return;
+    if (lastAutoPromptRef.current === prompt) return;
+
+    lastAutoPromptRef.current = prompt;
+    void sendMessageRef.current?.(prompt);
+    onInitialPromptHandled?.();
+  }, [initialPrompt, isStreaming, onInitialPromptHandled]);
+
   const handleStop = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -1269,7 +1293,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
                 <button
                   id="send-btn"
                   className={styles.welcomeSendButton}
-                  onClick={handleSend}
+                  onClick={() => handleSend()}
                   disabled={!message.trim() || isTyping}
                 >
                   <span className={styles.welcomeSendIcon}>→</span>
@@ -1495,7 +1519,7 @@ export default function ChatView({ sessionId = null, onSessionChange }: ChatView
               <button
                 id="send-btn"
                 className={styles.sendIconButton}
-                onClick={handleSend}
+                onClick={() => handleSend()}
                 disabled={!message.trim() || isTyping}
                 type="button"
                 aria-label="Send message"

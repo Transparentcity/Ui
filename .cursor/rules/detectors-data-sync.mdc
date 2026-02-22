@@ -1,0 +1,46 @@
+---
+description: Keep the Detectors & Data UI registry in sync whenever backend detectors or datasets change
+globs:
+  - src/components/waste/waste-detectors-data.tsx
+  - src/components/waste/waste-detectors-data.test.tsx
+alwaysApply: false
+---
+
+# Detectors & Data Sync Rule
+
+Whenever a **new detector** or **dataset** is added to the backend (or removed/renamed), the UI registry and its tests **must** be updated in lockstep.
+
+## Files to update
+
+1. **`src/components/waste/waste-detectors-data.tsx`**
+   - Add/remove the entry in `DETECTOR_GROUPS` (for detectors) or `DATASETS` (for datasets).
+   - Set `isNew: true` on any newly added detector or dataset.
+   - Keep the ordering consistent: detectors grouped by category, datasets in logical order.
+
+2. **`src/components/waste/waste-detectors-data.test.tsx`**
+   - Update the expected-count constants at the top of the file:
+     - `EXPECTED_DETECTOR_GROUPS` — number of category groups
+     - `EXPECTED_TOTAL_DETECTORS` — total detector count across all groups
+     - `EXPECTED_TOTAL_DATASETS` — total dataset count
+   - If a new Socrata dataset ID is added, add it to `EXPECTED_SOCRATA_IDS`.
+   - If a new detector group (category) is added, verify the group-level tests still pass.
+
+## Checklist for adding a detector
+
+- [ ] Add entry to the correct group in `DETECTOR_GROUPS` with `id`, `name`, `description`, and `isNew: true`
+- [ ] Increment `EXPECTED_TOTAL_DETECTORS` in the test file
+- [ ] Run `npm run test` and verify all tests pass
+
+## Checklist for adding a dataset
+
+- [ ] Add entry to `DATASETS` with `id`, `socrataId`, `name`, `description`, and `isNew: true`
+- [ ] Add the Socrata ID to `EXPECTED_SOCRATA_IDS` in the test file
+- [ ] Increment `EXPECTED_TOTAL_DATASETS` in the test file
+- [ ] Run `npm run test` and verify all tests pass
+
+## Checklist for adding a detector group (new category)
+
+- [ ] Add the new group object to `DETECTOR_GROUPS`
+- [ ] Increment `EXPECTED_DETECTOR_GROUPS` in the test file
+- [ ] Increment `EXPECTED_TOTAL_DETECTORS` by the number of detectors in the new group
+- [ ] Run `npm run test` and verify all tests pass

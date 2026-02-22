@@ -357,11 +357,14 @@ function createQueryBuilder(tableName: string, dbPool: Pool): QueryBuilder {
             const values: unknown[] = []
             let paramIndex = 1
             
-            // Add updated_at if not provided
-            const updateWithTimestamp = {
-              ...state.updateData,
-              updated_at: state.updateData.updated_at || new Date().toISOString()
-            }
+            // Add updated_at if not provided (skip for tables that don't have it)
+            const tablesWithoutUpdatedAt = ['send_queue', 'campaign_prospects']
+            const updateWithTimestamp = tablesWithoutUpdatedAt.includes(state.table)
+              ? state.updateData
+              : {
+                  ...state.updateData,
+                  updated_at: state.updateData.updated_at || new Date().toISOString()
+                }
             
             for (const [key, value] of Object.entries(updateWithTimestamp)) {
               setClauses.push(`${key} = $${paramIndex}`)

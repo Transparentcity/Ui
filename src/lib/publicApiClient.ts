@@ -53,7 +53,9 @@ async function requestPublic<T>(path: string): Promise<T> {
   try {
     const res = await fetch(url, {
       method: "GET",
-      credentials: "include",
+      // Public endpoints should not require cookies/auth headers.
+      // Omitting credentials avoids cross-origin credential/CORS failures.
+      credentials: "omit",
       headers: {
         Accept: "application/json",
       },
@@ -99,7 +101,8 @@ async function requestPublicPost<T>(path: string, body: object): Promise<T> {
   try {
     const res = await fetch(url, {
       method: "POST",
-      credentials: "include",
+      // Public endpoints should not require cookies/auth headers.
+      credentials: "omit",
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
@@ -154,6 +157,7 @@ export type PublicCityMetricItem = {
   metric_key: string;
   category: string;
   subcategory?: string | null;
+  show_on_dash?: boolean;
 };
 
 export type PublicCityDetail = {
@@ -305,6 +309,26 @@ export type PublicMetricDetail = {
   city_name?: string | null;
 };
 
+/** For derived metrics: shows A/B=C formula with component values for transparency */
+export type CalculationBreakdown = {
+  formula: string;
+  display_unit: string;
+  numerator_metric_id: number;
+  denominator_metric_id: number;
+  numerator_name: string;
+  denominator_name: string;
+  current_period: {
+    numerator_value: number | null;
+    denominator_value: number | null;
+    result: number | null;
+  };
+  comparison_period: {
+    numerator_value: number | null;
+    denominator_value: number | null;
+    result: number | null;
+  };
+};
+
 export type PublicMetricComparison = {
   metric_id: number;
   district: number | null;
@@ -318,6 +342,8 @@ export type PublicMetricComparison = {
   period_type: string;
   computed_at: string | null;
   is_precomputed: boolean;
+  /** For derived metrics: A/B=C breakdown so users see exactly how the rate was calculated */
+  calculation_breakdown?: CalculationBreakdown | null;
 };
 
 export type PublicMetricComparisons = {
@@ -724,4 +750,79 @@ export async function saveMetricMap(
   }
   
   return res.json();
+}
+
+// ============================================================================
+// ANOMALIES (PUBLIC - NO AUTH REQUIRED)
+// ============================================================================
+
+export interface PublicAnomalyResult {
+  id: number;
+  run_id: number;
+  metric_id: number;
+  city_id: number;
+  district: number;
+  period_type: string;
+  period_date: string;
+  period_label: string | null;
+  pct_change: number;
+  z_score: number | null;
+  recent_mean: number;
+  comparison_mean: number;
+  is_anomaly: boolean;
+  severity: string;
+  data_source: string | null;
+  group_field: string | null;
+  group_value: string | null;
+  title: string | null;
+  description: string | null;
+  chart_payload: any | null;
+  created_at: string;
+  // Additional fields returned by API and used by anomaly mapper
+  object_id?: string | null;
+  object_name?: string | null;
+  metric_name?: string | null;
+  item_noun?: string | null;
+  greendirection?: string | null;
+  city_name?: string | null;
+  // Window configuration - tells us how many periods the comparison covers
+  comparison_window?: { label?: string; size?: number; match_weekday?: boolean } | null;
+  recent_window?: { label?: string; size?: number; match_weekday?: boolean } | null;
+}
+
+export interface ListAnomaliesPublicResponse {
+  results: PublicAnomalyResult[];
+  count: number;
+}
+
+/**
+ * List anomalies without authentication.
+ * Uses the public /api/anomalies endpoint.
+ */
+export async function listAnomaliesPublic(options?: {
+  metric_id?: number;
+  is_anomaly?: boolean | null;
+  period_type?: string;
+  limit?: number;
+  city_id?: number;
+  district?: number | null;
+  period_date?: string | null;
+}): Promise<ListAnomaliesPublicResponse> {
+  const params = new URLSearchParams();
+  if (options?.city_id) params.append("city_id", options.city_id.toString());
+  if (options?.metric_id) params.append("metric_id", options.metric_id.toString());
+  if (options?.is_anomaly === true || options?.is_anomaly === false) {
+    params.append("is_anomaly", options.is_anomaly.toString());
+  }
+  if (options?.period_type) params.append("period_type", options.period_type);
+  if (options?.limit) params.append("limit", options.limit.toString());
+  if (options?.district !== undefined && options?.district !== null) {
+    params.append("district", options.district.toString());
+  }
+  if (options?.period_date) params.append("period_date", options.period_date);
+
+  const query = params.toString();
+  const path = `/api/anomalies${query ? `?${query}` : ""}`;
+  
+  return requestPublic<ListAnomaliesPublicResponse>(path);
 }

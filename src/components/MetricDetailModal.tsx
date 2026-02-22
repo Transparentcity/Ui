@@ -276,6 +276,11 @@ export default function MetricDetailModal({
     return `${startStr} – ${endStr}`;
   };
 
+  const formatBreakdownNum = (n: number | null | undefined): string =>
+    n != null ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "—";
+  const formatBreakdownResult = (r: number | null | undefined, isPct?: boolean): string =>
+    r != null ? (isPct ? r.toFixed(1) + "%" : r.toLocaleString(undefined, { maximumFractionDigits: 1 })) : "—";
+
   const currentPeriodEndFormatted =
     comparison?.current_period_end
       ? new Date(comparison.current_period_end).toLocaleDateString("en-US", {
@@ -447,8 +452,7 @@ export default function MetricDetailModal({
                   Last updated on {new Date(metric.last_execution_at).toLocaleDateString("en-US", {
                     month: "long",
                     day: "numeric",
-                    year: "numeric",
-                    timeZone: "UTC"
+                    year: "numeric"
                   })}
                 </div>
               )}
@@ -479,6 +483,16 @@ export default function MetricDetailModal({
                       {formatDateRange(comparison?.comparison_period_start, comparison?.comparison_period_end, isComparisonsLoading)}
                     </div>
                     <div className="comparison-value">{formatValue(comparison?.comparison_period_value, isComparisonsLoading)}</div>
+                    {comparison?.calculation_breakdown && !isComparisonsLoading && (
+                      <div className="comparison-card-breakdown">
+                        {comparison.calculation_breakdown.numerator_name} ÷ {comparison.calculation_breakdown.denominator_name}
+                        <br />
+                        <span className="comparison-card-breakdown-formula">
+                          {formatBreakdownNum(comparison.calculation_breakdown.comparison_period.numerator_value)} ÷ {formatBreakdownNum(comparison.calculation_breakdown.comparison_period.denominator_value)}
+                          {comparison.calculation_breakdown.display_unit === "percentage" && " × 100"} = {formatBreakdownResult(comparison.calculation_breakdown.comparison_period.result, comparison.calculation_breakdown.display_unit === "percentage")}
+                        </span>
+                      </div>
+                    )}
                     <div className="comparison-unit">{metric.item_noun}</div>
                   </div>
                   <div className="comparison-vs">→</div>
@@ -489,9 +503,29 @@ export default function MetricDetailModal({
                       {formatDateRange(comparison?.current_period_start, comparison?.current_period_end, isComparisonsLoading)}
                     </div>
                     <div className="comparison-value">{formatValue(comparison?.current_period_value, isComparisonsLoading)}</div>
+                    {comparison?.calculation_breakdown && !isComparisonsLoading && (
+                      <div className="comparison-card-breakdown">
+                        {comparison.calculation_breakdown.numerator_name} ÷ {comparison.calculation_breakdown.denominator_name}
+                        <br />
+                        <span className="comparison-card-breakdown-formula">
+                          {formatBreakdownNum(comparison.calculation_breakdown.current_period.numerator_value)} ÷ {formatBreakdownNum(comparison.calculation_breakdown.current_period.denominator_value)}
+                          {comparison.calculation_breakdown.display_unit === "percentage" && " × 100"} = {formatBreakdownResult(comparison.calculation_breakdown.current_period.result, comparison.calculation_breakdown.display_unit === "percentage")}
+                        </span>
+                      </div>
+                    )}
                     <div className="comparison-unit">{metric.item_noun}</div>
                   </div>
                 </div>
+                {/* Prose explanation for derived metrics */}
+                {comparison?.calculation_breakdown && !isComparisonsLoading && (
+                  <div className="metric-calculation-explanation">
+                    <p>
+                      This rate is calculated as <strong>{comparison.calculation_breakdown.numerator_name}</strong> divided by <strong>{comparison.calculation_breakdown.denominator_name}</strong>
+                      {comparison.calculation_breakdown.display_unit === "percentage" && ", then multiplied by 100 for percentage"}.
+                      Both components use the same date range so the comparison is apples-to-apples.
+                    </p>
+                  </div>
+                )}
                 {trend && !isComparisonsLoading && (
                   <div className="comparison-summary">
                     {isStale ? (
@@ -800,12 +834,11 @@ export default function MetricDetailModal({
                                   ? `Last checked ${new Date(metric.last_execution_at).toLocaleDateString("en-US", {
                                       month: "short",
                                       day: "numeric",
-                                      year: "numeric",
-                                      timeZone: "UTC"
+                                      year: "numeric"
                                     })}`
                                   : "Last checked date unavailable"}
                                 {completenessStats?.total_runs !== undefined
-                                  ? ` · ${completenessStats.total_runs.toLocaleString()} runs`
+                                  ? ` · ${completenessStats.total_runs.toLocaleString()} distinct days run`
                                   : ""}
                               </span>
                             </>
