@@ -18,6 +18,7 @@ export interface AnomalySparklineData {
 
 export interface AnomalySparklineProps {
   chartData: AnomalySparklineData;
+  periodType?: string;
   height?: number;
   width?: number;
   showAverage?: boolean;
@@ -81,6 +82,7 @@ function formatValue(value: number): string {
 
 export default function AnomalySparkline({
   chartData,
+  periodType,
   height = 60,
   width = 120,
   showAverage = true,
@@ -104,6 +106,12 @@ export default function AnomalySparkline({
           continue;
         }
 
+        // For weekly data, shift to end-of-week (Sunday) so the last
+        // data point visually represents coverage through the full week.
+        if (periodType === "week") {
+          dateObj.setDate(dateObj.getDate() + 6);
+        }
+
         pairs.push({ date: dateObj, value });
       }
     }
@@ -112,7 +120,7 @@ export default function AnomalySparkline({
     pairs.sort((a, b) => a.date.getTime() - b.date.getTime());
 
     return pairs;
-  }, [chartData]);
+  }, [chartData, periodType]);
 
   // Prepare traces and annotations for Plotly
   const { traces, annotations } = useMemo(() => {

@@ -22,6 +22,7 @@ interface Session {
   session_id: string;
   title: string;
   messages: Message[];
+  tool_calls?: any[];
   model_key?: string;
   message_count: number;
   created_at: string;
@@ -91,6 +92,7 @@ export default function ChatSessionLoader({
           
           // Convert session messages to the format expected by ChatView
           // Messages from API are Dict[str, Any] with 'role' and 'content' fields
+          const sessionToolCalls = session.tool_calls || [];
           const messages: Message[] = (session.messages || []).map((msg: any, index: number) => ({
             id: msg.id || msg.message_id || `msg-${index}`,
             role: msg.role || (msg.type === 'user' ? 'user' : 'assistant'),
@@ -99,6 +101,13 @@ export default function ChatSessionLoader({
             tool_calls: msg.tool_calls || [],
             intermediate_events: msg.intermediate_events || [],
           }));
+          // Job sessions (e.g. template instantiation) store tool_calls at session level; attach to last assistant message so they render
+          if (sessionToolCalls.length > 0) {
+            const lastAssistantIdx = messages.map((m, i) => (m.role === 'assistant' ? i : -1)).filter((i) => i >= 0).pop();
+            if (lastAssistantIdx !== undefined && (!messages[lastAssistantIdx].tool_calls || messages[lastAssistantIdx].tool_calls!.length === 0)) {
+              messages[lastAssistantIdx] = { ...messages[lastAssistantIdx], tool_calls: sessionToolCalls };
+            }
+          }
           onMessagesLoaded(messages);
         }
       } catch (error) {

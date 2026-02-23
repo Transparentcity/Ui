@@ -6,6 +6,7 @@ import { useCityAnomalies, type AnomalyResult } from "@/lib/hooks/useAnomalies";
 import { useCityLeaders } from "@/lib/hooks/useCities";
 import { useCityMetricsForMap } from "@/lib/hooks/useMetrics";
 import AnomalySparkline from "./AnomalySparkline";
+import { parseLocalDate } from "@/lib/dateRange";
 import styles from "./AnomaliesBottomSheet.module.css";
 
 interface AnomaliesBottomSheetProps {
@@ -65,7 +66,7 @@ function formatPeriodTitle(periodType: string, dateStr: string | null | undefine
       } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         [year, month] = dateStr.split("-");
       } else {
-        const date = new Date(dateStr);
+        const date = parseLocalDate(dateStr);
         if (isNaN(date.getTime())) return "";
         year = date.getFullYear().toString();
         month = (date.getMonth() + 1).toString().padStart(2, "0");
@@ -104,14 +105,13 @@ function formatPeriodTitle(periodType: string, dateStr: string | null | undefine
           return `Week of ${startMonth} ${startDay} - ${endMonth} ${endDay}, ${yearStr}`;
         }
       } else {
-        // Try to parse as date and calculate week
-        const date = new Date(dateStr);
+        const date = parseLocalDate(dateStr);
         if (isNaN(date.getTime())) return "";
         
-        // Get Monday of the week
         const day = date.getDay();
-        const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-        const monday = new Date(date.setDate(diff));
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(date);
+        monday.setDate(diff);
         const sunday = new Date(monday);
         sunday.setDate(sunday.getDate() + 6);
         
@@ -128,14 +128,14 @@ function formatPeriodTitle(periodType: string, dateStr: string | null | undefine
         }
       }
     } else if (periodType === "day") {
-      const date = new Date(dateStr);
+      const date = parseLocalDate(dateStr);
       if (isNaN(date.getTime())) return "";
       return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
     } else if (periodType === "year") {
       if (/^\d{4}$/.test(dateStr)) {
         return dateStr;
       }
-      const date = new Date(dateStr);
+      const date = parseLocalDate(dateStr);
       if (isNaN(date.getTime())) return "";
       return date.getFullYear().toString();
     }
@@ -190,7 +190,7 @@ function formatDateForDisplay(dateStr: string): string {
       return `${monthNames[parseInt(month) - 1]} ${year}`;
     }
     // Handle full date format: "2025-01-08"
-    const date = new Date(dateStr);
+    const date = parseLocalDate(dateStr);
     if (!isNaN(date.getTime())) {
       return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     }
@@ -460,6 +460,7 @@ export default function AnomaliesBottomSheet({
                   values: selectedAnomaly.chart_payload.values || [],
                   periods: selectedAnomaly.chart_payload.periods || [],
                 }}
+                periodType={selectedAnomaly.period_type}
                 height={50}
                 width={100}
                 showAverage={false}
@@ -645,6 +646,7 @@ export default function AnomaliesBottomSheet({
                             values: topAnomaly.chart_payload.values || [],
                             periods: topAnomaly.chart_payload.periods || [],
                           }}
+                          periodType={topAnomaly.period_type}
                           height={60}
                           width={120}
                           showAverage={true}

@@ -1,11 +1,25 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { Job, getJob, JobStats } from "@/lib/apiClient";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Job, getJob, JobStats, listJobs } from "@/lib/apiClient";
 import { useJobWebSocketContext } from "@/contexts/JobWebSocketContext";
 import type { Job as WebSocketJob } from "@/lib/useJobWebSocket";
 import Loader from "./Loader";
 import styles from "./JobListPanel.module.css";
+
+/** Filter by schedule / job type: value is job_type for API, label is for UI */
+const SCHEDULE_FILTER_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "All jobs" },
+  { value: "batch_metric_execution", label: "Daily / metric runs" },
+  { value: "check_email", label: "Daily emails" },
+  { value: "weekly_newsletter", label: "Weekly newsletter" },
+  { value: "database_cleanup", label: "Database cleanup" },
+  { value: "load_city_data", label: "Load city data" },
+  { value: "custom_scheduled_job", label: "Custom scheduled" },
+  { value: "scheduled_job", label: "Scheduled job" },
+  { value: "metric_calculation", label: "Metric calculation" },
+  { value: "research", label: "Research" },
+];
 
 interface JobListPanelProps {
   stats: JobStats | null;
@@ -23,6 +37,9 @@ export default function JobListPanel({
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterType, setFilterType] = useState<string>("");
+  const [scheduleFilter, setScheduleFilter] = useState<string>("");
+  const [filteredByTypeJobs, setFilteredByTypeJobs] = useState<Job[] | null>(null);
+  const [filteredJobsLoading, setFilteredJobsLoading] = useState(false);
   const selectedJobRef = useRef<Job | null>(null);
 
   const { jobs: webSocketJobs, isConnected } = useJobWebSocketContext();
@@ -44,27 +61,102 @@ export default function JobListPanel({
     return null;
   };
 
-  const jobs: Job[] = webSocketJobs
-    .filter((job) => {
-      if (filterStatus && job.status !== filterStatus) return false;
-      return true;
-    })
-    .map((wsJob: WebSocketJob) => ({
-      job_id: wsJob.job_id,
-      job_type: wsJob.job_type || "unknown",
-      status: wsJob.status,
-      description: wsJob.description,
-      status_message: wsJob.status_message,
-      progress: wsJob.progress,
-      created_at: wsJob.created_at,
-      started_at: wsJob.started_at || null,
-      completed_at: wsJob.completed_at || null,
-      error_message: wsJob.error || null,
-      duration_seconds: calculateDuration(wsJob.started_at, wsJob.completed_at),
-      logs: [],
-      result: null,
-      job_metadata: {},
-    }));
+  const wsJobMap = new Map(
+    webSocketJobs.map((wsJob: WebSocketJob) => [
+      wsJob.job_id,
+      {
+        job_id: wsJob.job_id,
+        job_type: wsJob.job_type || "unknown",
+        status: wsJob.status,
+        description: wsJob.description,
+        status_message: wsJob.status_message,
+        progress: wsJob.progress,
+        created_at: wsJob.created_at,
+        started_at: wsJob.started_at || null,
+        completed_at: wsJob.completed_at || null,
+        error_message: wsJob.error || null,
+        duration_seconds: calculateDuration(wsJob.started_at, wsJob.completed_at),
+        logs: [],
+        result: null,
+        job_metadata: {},
+      } as Job,
+    ])
+  );
+
+  const fetchFilteredByType = useCallback(async () => {
+    if (!scheduleFilter || !token) {
+      setFilteredByTypeJobs(null);
+      return;
+    }
+    setFilteredJobsLoading(true);
+    try {
+      const currentToken = token || (await getAccessTokenSilently());
+      const res = await listJobs(currentToken, 100, filterStatus || undefined, undefined, scheduleFilter);
+      const list = (res.jobs || []).map((j) => ({
+        ...j,
+        duration_seconds: j.duration_seconds ?? calculateDuration(j.started_at, j.completed_at),
+      }));
+      setFilteredByTypeJobs(list);
+    } catch (err) {
+      console.error("Error loading jobs by type:", err);
+      setFilteredByTypeJobs([]);
+    } finally {
+      setFilteredJobsLoading(false);
+    }
+  }, [scheduleFilter, token, getAccessTokenSilently, filterStatus]);
+
+  useEffect(() => {
+    if (scheduleFilter && token) {
+      fetchFilteredByType();
+    } else {
+      setFilteredByTypeJobs(null);
+    }
+  }, [scheduleFilter, token, fetchFilteredByType]);
+
+  const baseJobs: Job[] = filteredByTypeJobs !== null
+    ? filteredByTypeJobs.map((j) => {
+        const live = wsJobMap.get(j.job_id);
+        if (live) {
+          return {
+            ...j,
+            status: live.status,
+            progress: live.progress,
+            status_message: live.status_message,
+            started_at: live.started_at,
+            completed_at: live.completed_at,
+            error_message: live.error_message,
+            duration_seconds: live.duration_seconds ?? calculateDuration(live.started_at, live.completed_at),
+          };
+        }
+        return j;
+      })
+    : webSocketJobs
+        .filter((job) => {
+          if (filterStatus && job.status !== filterStatus) return false;
+          return true;
+        })
+        .map((wsJob: WebSocketJob) => ({
+          job_id: wsJob.job_id,
+          job_type: wsJob.job_type || "unknown",
+          status: wsJob.status,
+          description: wsJob.description,
+          status_message: wsJob.status_message,
+          progress: wsJob.progress,
+          created_at: wsJob.created_at,
+          started_at: wsJob.started_at || null,
+          completed_at: wsJob.completed_at || null,
+          error_message: wsJob.error || null,
+          duration_seconds: calculateDuration(wsJob.started_at, wsJob.completed_at),
+          logs: [],
+          result: null,
+          job_metadata: {},
+        }));
+
+  const jobs: Job[] = baseJobs.filter((job) => {
+    if (filterStatus && job.status !== filterStatus) return false;
+    if (filterType && job.job_type !== filterType) return false;
+    return true;
+  });
 
   const loadJobDetails = async (jobId: string) => {
     try {
@@ -182,12 +274,7 @@ export default function JobListPanel({
     }
   };
 
-  const filteredJobs = jobs
-    .filter((job) => {
-      if (filterType && job.job_type !== filterType) return false;
-      return true;
-    })
-    .sort((a, b) => {
+  const filteredJobs = [...jobs].sort((a, b) => {
       const statusPriority = (status: string) => {
         switch (status) {
           case "running":
@@ -241,6 +328,26 @@ export default function JobListPanel({
       {error && <div className={styles.error}>{error}</div>}
 
       <div className={styles.filters}>
+        <div className={styles.filterGroup}>
+          <label>Schedule / job type:</label>
+          <select
+            value={scheduleFilter}
+            onChange={(e) => setScheduleFilter(e.target.value)}
+            className={styles.filterSelect}
+            disabled={filteredJobsLoading}
+          >
+            {SCHEDULE_FILTER_OPTIONS.map((opt) => (
+              <option key={opt.value || "all"} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          {filteredJobsLoading && (
+            <span className={styles.filterLoading}>
+              <Loader size="sm" color="dark" />
+            </span>
+          )}
+        </div>
         <div className={styles.filterGroup}>
           <label>Status:</label>
           <select

@@ -139,6 +139,44 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
     return freq.charAt(0).toUpperCase() + freq.slice(1);
   };
 
+  const getMapTypeLabel = (story: FeedStory): string => {
+    const mapType = story.primary_visualization?.map_type;
+    const labels: Record<string, string> = {
+      point: "Point Map",
+      choropleth: "Choropleth",
+      symbol: "Symbol Map",
+      heatmap: "Heatmap",
+      multi_layer: "Multi-Layer Map",
+    };
+    return labels[mapType as string] || "Map";
+  };
+
+  const getVisualizationBadge = (story: FeedStory): string => {
+    switch (story.visualization_type) {
+      case "chart":
+        return "📊 Chart";
+      case "map":
+        return `🗺️ ${getMapTypeLabel(story)}`;
+      case "anomaly":
+        return "📈 Anomaly";
+      default:
+        return "📊 Visualization";
+    }
+  };
+
+  const getVisualizationPlaceholder = (story: FeedStory): string => {
+    switch (story.visualization_type) {
+      case "chart":
+        return "📊 View Chart";
+      case "map":
+        return `🗺️ View ${getMapTypeLabel(story)}`;
+      case "anomaly":
+        return "📈 View Anomaly";
+      default:
+        return "📊 View Visualization";
+    }
+  };
+
   if (isLoading) {
     return (
       <div className={styles.feedContainer}>
@@ -305,39 +343,44 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
                 {/* Visualization */}
                 {story.primary_visualization && (
                   <div className={styles.storyVisualization}>
+                    {story.visualization_type && (
+                      <div className={styles.vizTypeBadge}>
+                        {getVisualizationBadge(story)}
+                      </div>
+                    )}
                     {story.primary_visualization.embed_url ? (
                       <iframe
                         src={story.primary_visualization.embed_url}
                         title={story.primary_visualization.title || "Visualization"}
-                        className={styles.visualizationIframe}
+                        className={`${styles.visualizationIframe} ${
+                          story.visualization_type === "map"
+                            ? styles.visualizationIframeMap
+                            : story.visualization_type === "anomaly"
+                            ? styles.visualizationIframeAnomaly
+                            : ""
+                        }`}
                         frameBorder="0"
                         scrolling="no"
                         allowFullScreen
                         loading="lazy"
                         sandbox="allow-scripts allow-same-origin allow-popups"
                       />
-                    ) : story.primary_visualization.url ? (
+                    ) : story.primary_visualization.view_url || story.primary_visualization.url ? (
                       <a
-                        href={story.primary_visualization.url}
+                        href={story.primary_visualization.view_url || story.primary_visualization.url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className={styles.visualizationLink}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className={styles.visualizationPlaceholder}>
-                          {story.visualization_type === "chart" && "📊 Chart"}
-                          {story.visualization_type === "map" && "🗺️ Map"}
-                          {story.visualization_type === "anomaly_chart" && "📈 Anomaly Chart"}
-                          {!story.visualization_type && "📊 Visualization"}
+                          {getVisualizationPlaceholder(story)}
                           <span className={styles.visualizationLinkText}>View →</span>
                         </div>
                       </a>
                     ) : (
                       <div className={styles.visualizationPlaceholder}>
-                        {story.visualization_type === "chart" && "📊 Chart"}
-                        {story.visualization_type === "map" && "🗺️ Map"}
-                        {story.visualization_type === "anomaly_chart" && "📈 Anomaly Chart"}
-                        {!story.visualization_type && "📊 Visualization"}
+                        {getVisualizationPlaceholder(story)}
                       </div>
                     )}
                   </div>

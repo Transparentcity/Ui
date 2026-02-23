@@ -267,6 +267,17 @@
   border: 1px solid var(--border-primary);
 }
 
+.vizTypeBadge {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 .visualizationPlaceholder {
   padding: 36px;
   text-align: center;
@@ -283,6 +294,14 @@
   min-height: 360px;
   border: none;
   display: block;
+}
+
+.visualizationIframeMap {
+  min-height: 440px;
+}
+
+.visualizationIframeAnomaly {
+  min-height: 340px;
 }
 
 .visualizationLink {

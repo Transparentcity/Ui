@@ -433,27 +433,34 @@ export function getTemplateInstantiationStatus(
   );
 }
 
+/** Optional body for template instantiation (single or all). */
+export interface InstantiateTemplateRequest {
+  model_key?: string | null;
+}
+
 export function instantiateSingleTemplate(
   cityId: number,
   templateId: number,
-  token: string
+  token: string,
+  body?: InstantiateTemplateRequest
 ): Promise<JobResponse> {
   return request<JobResponse>(
     `/api/admin/cities/${cityId}/instantiate-template/${templateId}`,
     "POST",
-    undefined,
+    body ?? undefined,
     token
   );
 }
 
 export function instantiateAllTemplates(
   cityId: number,
-  token: string
+  token: string,
+  body?: InstantiateTemplateRequest
 ): Promise<JobResponse> {
   return request<JobResponse>(
     `/api/admin/cities/${cityId}/instantiate-all-templates`,
     "POST",
-    undefined,
+    body ?? undefined,
     token
   );
 }
@@ -1692,12 +1699,14 @@ export async function listJobs(
   token: string,
   limit: number = 20,
   status?: string,
-  job_id?: string
+  job_id?: string,
+  job_type?: string
 ): Promise<JobsListResponse> {
   const params = new URLSearchParams();
   params.append("limit", limit.toString());
-  if (status) params.append("status", status);
+  if (status) params.append("job_status", status);
   if (job_id) params.append("job_id", job_id);
+  if (job_type) params.append("job_type", job_type);
   
   const query = params.toString();
   const path = `/api/jobs${query ? `?${query}` : ""}`;

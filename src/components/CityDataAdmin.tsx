@@ -445,6 +445,7 @@ export default function CityDataAdmin({
   const { jobs } = useJobWebSocketContext();
   const [runningSingleJobByTemplateId, setRunningSingleJobByTemplateId] = useState<Record<number, string>>({});
   const [runningAllJobId, setRunningAllJobId] = useState<string | null>(null);
+  const [templateStructuringModelKey, setTemplateStructuringModelKey] = useState<string>("");
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -478,6 +479,14 @@ export default function CityDataAdmin({
   const [hoveredQuery, setHoveredQuery] = useState<{ config: any; x: number; y: number } | null>(null);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   // Note: model defaults are centralized in `lib/modelDefaults.ts`
+
+  // Default template structuring model when available models load
+  useEffect(() => {
+    if (availableModelsData?.length && !templateStructuringModelKey) {
+      const defaultKey = pickDefaultModelKey(availableModelsData);
+      if (defaultKey) setTemplateStructuringModelKey(defaultKey);
+    }
+  }, [availableModelsData, templateStructuringModelKey]);
 
   // Metric action modals state
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -3503,30 +3512,66 @@ export default function CityDataAdmin({
                 gap: "8px",
               }}>
                 <span>Template metrics</span>
-                <button
-                  onClick={async () => {
-                    try {
-                      const result = await instantiateAllMutation.mutateAsync(cityId);
-                      setRunningAllJobId(result.job_id);
-                      notifyJobCreated(result.job_id);
-                    } catch (err: unknown) {
-                      alert("Failed to start: " + (err instanceof Error ? err.message : String(err)));
-                    }
-                  }}
-                  disabled={instantiateAllMutation.isPending || !!runningAllJobId}
-                  style={{
-                    padding: "6px 12px",
-                    background: runningAllJobId || instantiateAllMutation.isPending ? "var(--text-secondary, #666)" : "var(--brand-secondary, #00a86b)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "6px",
-                    fontSize: "12px",
-                    fontWeight: 500,
-                    cursor: runningAllJobId || instantiateAllMutation.isPending ? "wait" : "pointer",
-                  }}
-                >
-                  {runningAllJobId ? "Running all…" : instantiateAllMutation.isPending ? "Starting…" : "Run all templates"}
-                </button>
+                <span style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                  <label style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                    Model:
+                    <select
+                      value={templateStructuringModelKey}
+                      onChange={(e) => setTemplateStructuringModelKey(e.target.value)}
+                      style={{
+                        marginLeft: "6px",
+                        padding: "4px 8px",
+                        fontSize: "12px",
+                        borderRadius: "4px",
+                        border: "1px solid var(--border-color, #ccc)",
+                        background: "var(--bg-secondary, #fff)",
+                        color: "var(--text-primary)",
+                        minWidth: "160px",
+                      }}
+                      disabled={instantiateAllMutation.isPending || !!runningAllJobId}
+                    >
+                      {availableModelsData?.flatMap((g) =>
+                        (g.models || []).map((m) => (
+                          <option
+                            key={m.key}
+                            value={m.key}
+                            disabled={!m.is_available}
+                          >
+                            {m.key}
+                            {!m.is_available ? " (no key)" : ""}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </label>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const result = await instantiateAllMutation.mutateAsync({
+                          cityId,
+                          modelKey: templateStructuringModelKey || undefined,
+                        });
+                        setRunningAllJobId(result.job_id);
+                        notifyJobCreated(result.job_id);
+                      } catch (err: unknown) {
+                        alert("Failed to start: " + (err instanceof Error ? err.message : String(err)));
+                      }
+                    }}
+                    disabled={instantiateAllMutation.isPending || !!runningAllJobId}
+                    style={{
+                      padding: "6px 12px",
+                      background: runningAllJobId || instantiateAllMutation.isPending ? "var(--text-secondary, #666)" : "var(--brand-secondary, #00a86b)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "6px",
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      cursor: runningAllJobId || instantiateAllMutation.isPending ? "wait" : "pointer",
+                    }}
+                  >
+                    {runningAllJobId ? "Running all…" : instantiateAllMutation.isPending ? "Starting…" : "Run all templates"}
+                  </button>
+                </span>
               </h4>
               <div className={styles.metricsTableContainer}>
                 <table className={styles.metricsTable}>
@@ -3572,6 +3617,7 @@ export default function CityDataAdmin({
                                       const result = await instantiateSingleMutation.mutateAsync({
                                         cityId,
                                         templateId: t.template_id,
+                                        modelKey: templateStructuringModelKey || undefined,
                                       });
                                       setRunningSingleJobByTemplateId((prev) => ({ ...prev, [t.template_id]: result.job_id }));
                                       notifyJobCreated(result.job_id);
@@ -4637,6 +4683,7 @@ export default function CityDataAdmin({
                                     ? anomaly.chart_payload.periods 
                                     : undefined,
                                 }}
+                                periodType={anomaly.period_type}
                                 height={60}
                                 width={120}
                                 showAverage={true}

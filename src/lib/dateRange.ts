@@ -17,6 +17,18 @@ export function toIsoDateString(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
+/**
+ * Parse a "YYYY-MM-DD" string as local midnight.
+ *
+ * `new Date("YYYY-MM-DD")` is spec'd to parse as UTC, so getDay() / getDate()
+ * return the *previous* calendar day in US timezones. This helper avoids that
+ * by constructing the Date with explicit year/month/day components.
+ */
+export function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 export function addDays(d: Date, days: number): Date {
   const next = new Date(d);
   next.setDate(next.getDate() + days);

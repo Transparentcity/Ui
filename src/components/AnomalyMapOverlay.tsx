@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { type AnomalyResult } from "@/lib/hooks/useAnomalies";
 import AnomalySparkline from "./AnomalySparkline";
+import { parseLocalDate } from "@/lib/dateRange";
 import styles from "./AnomalyMapOverlay.module.css";
 
 interface AnomalyMapOverlayProps {
@@ -24,7 +25,7 @@ function formatPeriodTitle(periodType: string, dateStr: string | null | undefine
       } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         [year, month] = dateStr.split("-");
       } else {
-        const date = new Date(dateStr);
+        const date = parseLocalDate(dateStr);
         if (isNaN(date.getTime())) return "";
         year = date.getFullYear().toString();
         month = (date.getMonth() + 1).toString().padStart(2, "0");
@@ -63,14 +64,13 @@ function formatPeriodTitle(periodType: string, dateStr: string | null | undefine
           return `Week of ${startMonth} ${startDay} - ${endMonth} ${endDay}, ${yearStr}`;
         }
       } else {
-        // Try to parse as date and calculate week
-        const date = new Date(dateStr);
+        const date = parseLocalDate(dateStr);
         if (isNaN(date.getTime())) return "";
         
-        // Get Monday of the week
         const day = date.getDay();
-        const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-        const monday = new Date(date.setDate(diff));
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(date);
+        monday.setDate(diff);
         const sunday = new Date(monday);
         sunday.setDate(sunday.getDate() + 6);
         
@@ -87,14 +87,14 @@ function formatPeriodTitle(periodType: string, dateStr: string | null | undefine
         }
       }
     } else if (periodType === "day") {
-      const date = new Date(dateStr);
+      const date = parseLocalDate(dateStr);
       if (isNaN(date.getTime())) return "";
       return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
     } else if (periodType === "year") {
       if (/^\d{4}$/.test(dateStr)) {
         return dateStr;
       }
-      const date = new Date(dateStr);
+      const date = parseLocalDate(dateStr);
       if (isNaN(date.getTime())) return "";
       return date.getFullYear().toString();
     }
@@ -221,6 +221,7 @@ export default function AnomalyMapOverlay({
                 values: anomaly.chart_payload.values || [],
                 periods: anomaly.chart_payload.periods || [],
               }}
+              periodType={anomaly.period_type}
               height={100}
               width={180}
               showAverage={true}

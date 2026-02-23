@@ -78,6 +78,12 @@
   border-color: var(--border-secondary, #d1d5db);
 }
 
+.filterLoading {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.25rem;
+}
+
 .filterSelect:focus {
   outline: none;
   border-color: var(--brand-primary, #ad35fa);

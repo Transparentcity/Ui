@@ -360,9 +360,22 @@ export function useInstantiateSingleTemplate() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ cityId, templateId }: { cityId: number; templateId: number }) => {
+    mutationFn: async ({
+      cityId,
+      templateId,
+      modelKey,
+    }: {
+      cityId: number;
+      templateId: number;
+      modelKey?: string | null;
+    }) => {
       const token = await getAccessTokenSilently();
-      return instantiateSingleTemplate(cityId, templateId, token);
+      return instantiateSingleTemplate(
+        cityId,
+        templateId,
+        token,
+        modelKey != null ? { model_key: modelKey } : undefined
+      );
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: cityAdminKeys.detail(variables.cityId) });
@@ -383,11 +396,22 @@ export function useInstantiateAllTemplates() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (cityId: number) => {
+    mutationFn: async ({
+      cityId,
+      modelKey,
+    }: {
+      cityId: number;
+      modelKey?: string | null;
+    }) => {
       const token = await getAccessTokenSilently();
-      return instantiateAllTemplates(cityId, token);
+      return instantiateAllTemplates(
+        cityId,
+        token,
+        modelKey != null ? { model_key: modelKey } : undefined
+      );
     },
-    onSuccess: (_, cityId) => {
+    onSuccess: (_, variables) => {
+      const cityId = typeof variables === "number" ? variables : variables.cityId;
       queryClient.invalidateQueries({ queryKey: cityAdminKeys.detail(cityId) });
       queryClient.invalidateQueries({
         queryKey: cityAdminKeys.templateInstantiationStatus(cityId),

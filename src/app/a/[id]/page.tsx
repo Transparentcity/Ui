@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { getPublicMetric, getPublicCityDetail, type PublicMetricDetail, type PublicCityDetail } from "@/lib/publicApiClient";
+import { parseLocalDate } from "@/lib/dateRange";
 import "./styles.css";
 
 // Dynamically import AnomalyMap to avoid SSR issues with Mapbox
@@ -360,6 +361,13 @@ export default function AnomalyChartPage() {
       })()
     : null;
   
+  // For weekly data, shift a date from Monday (start) to Sunday (end) for display
+  const toWeekEnd = (d: Date): Date => {
+    const s = new Date(d);
+    s.setDate(s.getDate() + 6);
+    return s;
+  };
+
   // Format recent date for display
   const recentDateDisplay = processedData?.mostRecentDate
     ? (() => {
@@ -371,7 +379,10 @@ export default function AnomalyChartPage() {
         } else if (periodType === "month") {
           return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
         } else if (periodType === "week") {
-          return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+          const sunday = toWeekEnd(date);
+          const monStr = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+          const sunStr = sunday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+          return `${monStr} – ${sunStr}`;
         } else {
           return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
         }
@@ -385,10 +396,31 @@ export default function AnomalyChartPage() {
         const { recentDates, recentValues, comparisonDates, comparisonValues } =
           processedData;
 
+        const isWeekly = anomaly?.period_type === "week";
+
+        // For weekly data, plot at end-of-week (Sunday) so the chart
+        // clearly shows data coverage through the last day of the period.
+        const chartDates = (dates: Date[]) =>
+          isWeekly ? dates.map(toWeekEnd) : dates;
+
+        // Build hover label showing week range (Mon – Sun) for weekly data
+        const weekHoverLabels = (dates: Date[]) =>
+          dates.map((d) => {
+            const sun = toWeekEnd(d);
+            const monStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+            const sunStr = sun.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+            return `${monStr} – ${sunStr}`;
+          });
+
+        const itemNoun = anomaly?.metadata?.item_noun || "";
+        const nounText = itemNoun ? ` ${itemNoun}` : "";
+
         // Normal range shaded area
         if (comparisonDates.length > 0 && anomaly) {
-          const allDates = [...comparisonDates, ...recentDates].sort(
-            (a, b) => a.getTime() - b.getTime()
+          const allDates = chartDates(
+            [...comparisonDates, ...recentDates].sort(
+              (a, b) => a.getTime() - b.getTime()
+            )
           );
           const upperBound = allDates.map(
             () => anomaly.comparison_mean + 2 * anomaly.std_dev
@@ -423,8 +455,9 @@ export default function AnomalyChartPage() {
 
         // Historical data
         if (comparisonDates.length > 0) {
+          const xDates = chartDates(comparisonDates);
           traces.push({
-            x: comparisonDates,
+            x: xDates,
             y: comparisonValues,
             type: "scatter",
             mode: "lines+markers",
@@ -432,19 +465,22 @@ export default function AnomalyChartPage() {
             line: { color: "#ad35fa", width: 2 },
             marker: { color: "#ad35fa", size: 6 },
             showlegend: true,
-            hovertemplate: (() => {
-              const itemNoun = anomaly?.metadata?.item_noun || "";
-              const nounText = itemNoun ? ` ${itemNoun}` : "";
-              const dateFormat = anomaly?.period_type === "week" ? "%B %d, %Y" : "%B %Y";
-              return `%{x|${dateFormat}}<br>%{y:,.0f}${nounText}<extra></extra>`;
-            })(),
+            ...(isWeekly
+              ? {
+                  customdata: weekHoverLabels(comparisonDates).map((l) => [l]),
+                  hovertemplate: `%{customdata[0]}<br>%{y:,.0f}${nounText}<extra></extra>`,
+                }
+              : {
+                  hovertemplate: `%{x|%B %Y}<br>%{y:,.0f}${nounText}<extra></extra>`,
+                }),
           });
         }
 
         // Recent data
         if (recentDates.length > 0) {
+          const xDates = chartDates(recentDates);
           traces.push({
-            x: recentDates,
+            x: xDates,
             y: recentValues,
             type: "scatter",
             mode: "lines+markers",
@@ -452,21 +488,23 @@ export default function AnomalyChartPage() {
             line: { color: "#ad35fa", width: 2 },
             marker: { color: "#ad35fa", size: 6 },
             showlegend: true,
-            hovertemplate: (() => {
-              const itemNoun = anomaly?.metadata?.item_noun || "";
-              const nounText = itemNoun ? ` ${itemNoun}` : "";
-              const dateFormat = anomaly?.period_type === "week" ? "%B %d, %Y" : "%B %Y";
-              return `%{x|${dateFormat}}<br>%{y:,.0f}${nounText}<extra></extra>`;
-            })(),
+            ...(isWeekly
+              ? {
+                  customdata: weekHoverLabels(recentDates).map((l) => [l]),
+                  hovertemplate: `%{customdata[0]}<br>%{y:,.0f}${nounText}<extra></extra>`,
+                }
+              : {
+                  hovertemplate: `%{x|%B %Y}<br>%{y:,.0f}${nounText}<extra></extra>`,
+                }),
           });
         }
 
         // Connecting line
         if (comparisonDates.length > 0 && recentDates.length > 0) {
-          const lastHistoricalDate = comparisonDates[comparisonDates.length - 1];
+          const lastHistoricalDate = chartDates(comparisonDates)[comparisonDates.length - 1];
           const lastHistoricalValue =
             comparisonValues[comparisonValues.length - 1];
-          const firstRecentDate = recentDates[0];
+          const firstRecentDate = chartDates(recentDates)[0];
           const firstRecentValue = recentValues[0];
 
           traces.push({
@@ -483,6 +521,44 @@ export default function AnomalyChartPage() {
         return traces;
       })()
     : [];
+
+  // Compute explicit x-axis tick values so the first and last data points
+  // are always labeled on the axis (Plotly's auto-ticks often skip them).
+  const xAxisTicks = (() => {
+    if (!processedData || !anomaly) return {};
+    const { comparisonDates, recentDates } = processedData;
+    const isWeekly = anomaly.period_type === "week";
+
+    const allRaw = [...comparisonDates, ...recentDates].sort(
+      (a, b) => a.getTime() - b.getTime()
+    );
+    if (allRaw.length === 0) return {};
+
+    const displayDates = isWeekly ? allRaw.map(toWeekEnd) : allRaw;
+    const first = displayDates[0];
+    const last = displayDates[displayDates.length - 1];
+
+    const maxTicks = 8;
+    const step = Math.max(1, Math.floor(displayDates.length / (maxTicks - 1)));
+    const tickvals: Date[] = [first];
+    for (let i = step; i < displayDates.length - 1; i += step) {
+      tickvals.push(displayDates[i]);
+    }
+    if (tickvals[tickvals.length - 1].getTime() !== last.getTime()) {
+      tickvals.push(last);
+    }
+
+    const fmt = (d: Date) =>
+      isWeekly
+        ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+        : d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+
+    return {
+      tickmode: "array" as const,
+      tickvals,
+      ticktext: tickvals.map(fmt),
+    };
+  })();
 
   // Build chart title - prioritize showing group info, city, and date
   const chartTitle = anomaly
@@ -744,8 +820,7 @@ export default function AnomalyChartPage() {
                   visible: true,
                   title: "",
                   showgrid: false,
-                  tickformat:
-                    anomaly.period_type === "week" ? "%b %d, %Y" : "%b %Y",
+                  ...xAxisTicks,
                   tickfont: {
                     family: "IBM Plex Sans, Arial, sans-serif",
                     size: 9,
@@ -834,7 +909,7 @@ export default function AnomalyChartPage() {
   // Format date for map caption
   const formatMapDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return "";
-    const date = new Date(dateStr);
+    const date = parseLocalDate(dateStr);
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   };
 
@@ -937,7 +1012,7 @@ export default function AnomalyChartPage() {
                     visible: true,
                     title: "",
                     showgrid: false,
-                    tickformat: anomaly.period_type === "week" ? "%b %d, %Y" : "%b %Y",
+                    ...xAxisTicks,
                     tickfont: { family: "IBM Plex Sans, Arial, sans-serif", size: 11, color: "var(--text-primary, #222222)" },
                     ticklen: 3,
                     tickcolor: "var(--text-primary, #222222)",
