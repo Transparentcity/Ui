@@ -1912,14 +1912,13 @@ export function runSchedule(
   );
 }
 
-export async function sendChatMessageStream(
+async function _executeChatStream(
+  url: string,
   request: ChatMessageRequest,
   token: string,
   onEvent: (event: StreamEvent) => void,
   abortSignal?: AbortSignal
-): Promise<void> {
-  const url = `${API_BASE}/api/chat/message/stream`;
-
+): Promise<{ eventCount: number }> {
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -1928,7 +1927,7 @@ export async function sendChatMessageStream(
       Accept: "text/event-stream",
     },
     body: JSON.stringify(request),
-    signal: abortSignal, // Use provided abort signal if available
+    signal: abortSignal,
   });
 
   if (!response.ok) {
@@ -1947,10 +1946,9 @@ export async function sendChatMessageStream(
   let buffer = "";
   let eventCount = 0;
   let lastActivity = Date.now();
-  const MAX_IDLE_TIME = 120000; // 2 minutes
-  const HEARTBEAT_CHECK_INTERVAL = 30000; // Check every 30 seconds
+  const MAX_IDLE_TIME = 180000; // 3 minutes (backend sends heartbeats every 15s)
+  const HEARTBEAT_CHECK_INTERVAL = 30000;
 
-  // Set up heartbeat checker
   const heartbeatChecker = setInterval(() => {
     const now = Date.now();
     if (now - lastActivity > MAX_IDLE_TIME) {
@@ -1968,31 +1966,28 @@ export async function sendChatMessageStream(
         break;
       }
 
-      lastActivity = Date.now(); // Update activity timestamp
+      lastActivity = Date.now();
       buffer += decoder.decode(value, { stream: true });
-      
-      // Handle multiple SSE events in buffer (split by double newline)
+
       const events = buffer.split("\n\n");
-      buffer = events.pop() || ""; // Keep incomplete event in buffer
+      buffer = events.pop() || "";
 
       for (const eventBlock of events) {
         if (eventBlock.trim() === "") continue;
-        
-        // Parse SSE event (format: "data: {...}\n" or just "data: {...}")
+
         const lines = eventBlock.split("\n");
         for (const line of lines) {
           if (line.trim() === "") continue;
-          
+
           if (line.startsWith("data: ")) {
             try {
               const jsonStr = line.slice(6);
               const data = JSON.parse(jsonStr);
-              
-              // Skip heartbeat events (they're just for keeping connection alive)
+
               if (data.type === "heartbeat") {
                 continue;
               }
-              
+
               eventCount++;
               onEvent(data);
             } catch (e) {
@@ -2002,38 +1997,96 @@ export async function sendChatMessageStream(
         }
       }
     }
-  } catch (error) {
-    console.error("❌ Stream error:", error);
-    
-    // Check if this is an abort error (expected when user cancels)
-    const isAbortError = 
-      error instanceof Error && 
-      (error.name === "AbortError" || error.message.includes("aborted") || error.message.includes("cancelled"));
-    
-    if (isAbortError) {
-      // Don't send error event for user-initiated cancellations
-      clearInterval(heartbeatChecker);
-      return; // Exit gracefully without throwing
-    }
-    
-    // For other errors, send error event to callback if possible
-    try {
-      onEvent({
-        type: "error",
-        content: error instanceof Error ? error.message : String(error),
-      });
-    } catch (callbackError) {
-      console.error("❌ Failed to send error event to callback:", callbackError);
-    }
-    clearInterval(heartbeatChecker);
-    throw error;
   } finally {
     clearInterval(heartbeatChecker);
     try {
       reader.releaseLock();
-    } catch (releaseError) {
-      console.warn("⚠️ Failed to release reader lock:", releaseError);
+    } catch {
+      // Reader may already be released
     }
+  }
+
+  return { eventCount };
+}
+
+const MAX_STREAM_RETRIES = 2;
+const RETRY_BASE_DELAY_MS = 1500;
+
+export async function sendChatMessageStream(
+  request: ChatMessageRequest,
+  token: string,
+  onEvent: (event: StreamEvent) => void,
+  abortSignal?: AbortSignal
+): Promise<void> {
+  const url = `${API_BASE}/api/chat/message/stream`;
+
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt <= MAX_STREAM_RETRIES; attempt++) {
+    if (abortSignal?.aborted) return;
+
+    try {
+      const { eventCount } = await _executeChatStream(
+        url,
+        request,
+        token,
+        onEvent,
+        abortSignal
+      );
+
+      // Stream completed normally (reader.read() returned done)
+      return;
+    } catch (error) {
+      lastError = error;
+
+      const isAbortError =
+        error instanceof Error &&
+        (error.name === "AbortError" ||
+          error.message.includes("aborted") ||
+          error.message.includes("cancelled"));
+
+      if (isAbortError) {
+        return;
+      }
+
+      // Only retry on network-level errors (not HTTP 4xx/5xx which are already handled)
+      const isNetworkError =
+        error instanceof TypeError ||
+        (error instanceof Error &&
+          (error.message.toLowerCase().includes("network") ||
+            error.message.toLowerCase().includes("failed to fetch") ||
+            error.message.toLowerCase().includes("load failed") ||
+            error.message.toLowerCase().includes("connection") ||
+            error.message.toLowerCase().includes("terminated")));
+
+      if (!isNetworkError || attempt >= MAX_STREAM_RETRIES) {
+        break;
+      }
+
+      const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+      console.warn(
+        `⚠️ Stream network error (attempt ${attempt + 1}/${MAX_STREAM_RETRIES + 1}), retrying in ${delay}ms...`,
+        error
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  // All retries exhausted -- forward the error
+  if (lastError) {
+    try {
+      onEvent({
+        type: "error",
+        content:
+          lastError instanceof Error
+            ? lastError.message
+            : String(lastError),
+      });
+    } catch {
+      // Callback may have been cleaned up
+    }
+    throw lastError;
   }
 }
 
