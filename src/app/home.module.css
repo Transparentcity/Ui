@@ -175,6 +175,7 @@
 .buttonGhost {
   background: var(--bg-secondary, rgba(17, 24, 39, 0.04));
   border-color: var(--border-primary, rgba(17, 24, 39, 0.08));
+  color: var(--button-secondary-text, var(--text-primary));
 }
 
 .menuWrap {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   ScheduledJobSummary,
   ScheduledJobRunSummary,
@@ -289,7 +290,8 @@ export default function ScheduledJobsPanel({
                   </div>
                   <span
                     className={styles.cardStatus}
-                    style={{ color: getStatusColor(job.last_run_status || job.status) }}
+                    style={{ color: getStatusColor(job.status) }}
+                    title="Schedule status (active/paused)"
                   >
                     {job.status}
                   </span>
@@ -308,6 +310,32 @@ export default function ScheduledJobsPanel({
                   <div>
                     <span className={styles.metaLabel}>Next run</span>{" "}
                     {job.next_run_at ? formatDate(job.next_run_at) : "N/A"}
+                  </div>
+                  <div>
+                    <span className={styles.metaLabel}>Last run</span>{" "}
+                    {job.last_run_at ? formatDate(job.last_run_at) : "Never"}
+                    {job.last_run_status && (
+                      <>
+                        {" · "}
+                        <span
+                          className={styles.lastRunStatus}
+                          style={{ color: getStatusColor(job.last_run_status) }}
+                        >
+                          {job.last_run_status}
+                        </span>
+                        {job.last_run_job_id && (
+                          <>
+                            {" · "}
+                            <Link
+                              href={`/dashboard?tab=logs&job_id=${encodeURIComponent(job.last_run_job_id)}`}
+                              className={styles.viewRunLink}
+                            >
+                              View run
+                            </Link>
+                          </>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -446,6 +474,19 @@ export default function ScheduledJobsPanel({
                 ✕
               </button>
             </div>
+
+            {editJob.job_config?.question && (
+              <div className={styles.formRow}>
+                <label className={styles.label}>Research prompt (read-only)</label>
+                <textarea
+                  className={styles.promptPreview}
+                  readOnly
+                  value={editJob.job_config.question}
+                  rows={12}
+                  aria-label="Research prompt"
+                />
+              </div>
+            )}
 
             <div className={styles.formRow}>
               <label className={styles.label}>Schedule type</label>

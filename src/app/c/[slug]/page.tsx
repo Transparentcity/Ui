@@ -8,6 +8,7 @@ import {
   getPublicCityDetail,
   getPublicMetricComparisonsBatch,
   getPublicMetricDistrictComparisons,
+  getPublicCityDistricts,
   listPublicMapsForCity,
   getPublicLeadersForCity,
 } from "@/lib/publicApiClient";
@@ -127,14 +128,19 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
   let leaders: Awaited<ReturnType<typeof getPublicLeadersForCity>> = [];
   if (city?.id) {
     try {
-      const [detail, mapsRes, leadersRes] = await Promise.all([
+      const [detail, mapsRes, leadersRes, cityDistrictsRes] = await Promise.all([
         getPublicCityDetail(city.id),
         listPublicMapsForCity(city.id).catch(() => []),
         getPublicLeadersForCity(city.id).catch(() => []),
+        getPublicCityDistricts(city.id).catch((): number[] => []),
       ]);
       cityDetail = detail;
       maps = mapsRes;
       leaders = leadersRes;
+      // Use city-level districts (any metric with district data); fallback to first metric
+      if (Array.isArray(cityDistrictsRes) && cityDistrictsRes.length > 0) {
+        districts = [...cityDistrictsRes].sort((a, b) => a - b);
+      }
       const metrics = cityDetail?.metrics ?? [];
       if (metrics.length > 0) {
         comparisonsMap = await getPublicMetricComparisonsBatch({
@@ -142,15 +148,17 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
           district: 0,
           comparison_types: ["ytd"],
         }).catch(() => ({}));
-        const dc = await getPublicMetricDistrictComparisons(
-          metrics[0].id,
-          "ytd"
-        ).catch(() => null);
-        if (dc?.districts)
-          districts = dc.districts
-            .map((d) => d.district)
-            .filter((n) => n > 0)
-            .sort((a, b) => a - b);
+        if (districts.length === 0) {
+          const dc = await getPublicMetricDistrictComparisons(
+            metrics[0].id,
+            "ytd"
+          ).catch(() => null);
+          if (dc?.districts)
+            districts = dc.districts
+              .map((d) => d.district)
+              .filter((n) => n > 0)
+              .sort((a, b) => a - b);
+        }
       }
     } catch {
       // leave defaults

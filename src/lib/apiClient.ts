@@ -301,6 +301,44 @@ export function updateCity(
   return request<CityAdminData>(`/api/admin/cities/${cityId}`, "PUT", data, token);
 }
 
+// --- Population by district (admin) ---
+
+export interface PopulationSourceConfig {
+  id: number;
+  city_id: number;
+  source_type: string;
+  source_url?: string | null;
+  socrata_dataset_id?: string | null;
+  socrata_domain?: string | null;
+  source_name?: string | null;
+  source_attribution_url?: string | null;
+  refresh_mode: string;
+  refresh_interval_hours?: number | null;
+  last_refreshed_at?: string | null;
+  last_refresh_status?: string | null;
+  last_refresh_error?: string | null;
+  config?: Record<string, unknown>;
+  population_metric_id?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface PopulationRefreshResult {
+  success: boolean;
+  rows_written?: number;
+  source_name?: string;
+  source_url?: string | null;
+  error?: string;
+}
+
+export function getPopulationSource(cityId: number, token: string): Promise<PopulationSourceConfig> {
+  return request<PopulationSourceConfig>(`/api/admin/population/sources/${cityId}`, "GET", undefined, token);
+}
+
+export function refreshPopulation(cityId: number, token: string): Promise<PopulationRefreshResult> {
+  return request<PopulationRefreshResult>(`/api/admin/population/refresh/${cityId}`, "POST", undefined, token);
+}
+
 export function getCityStructure(cityId: number, token: string): Promise<CityStructureData> {
   const now = Date.now();
   const cacheKey = cityId;
@@ -2546,6 +2584,18 @@ export function unsaveCity(cityId: number, token: string): Promise<{ message: st
   );
 }
 
+// Saved Districts (My Districts) API - followed representatives
+export interface SavedDistrict {
+  city_id: number;
+  district: string;
+  display_name: string;
+  slug: string;
+}
+
+export function getSavedDistricts(token: string): Promise<SavedDistrict[]> {
+  return request<SavedDistrict[]>("/api/cities/saved-districts", "GET", undefined, token);
+}
+
 // Datasets Admin API
 export interface DatasetStats {
   total_datasets: number;
@@ -2687,6 +2737,20 @@ export interface User {
   last_login_at: string | null;
   city_lead_city_ids?: number[];
   is_city_lead?: boolean;
+  government_verified?: boolean;
+  government_email?: string | null;
+  government_user_type?: string | null;
+  government_leader_id?: number | null;
+  government_leader_name?: string | null;
+  government_city_id?: number | null;
+  government_district?: number | null;
+}
+
+export interface UpdateUserGovernmentStatusRequest {
+  government_verified: boolean;
+  government_email?: string | null;
+  government_user_type?: "staff" | "elected_official" | null;
+  government_leader_id?: number | null;
 }
 
 export interface UserUpdateRequest {
@@ -2807,6 +2871,19 @@ export function updateUser(
   return request<User>(`/api/admin/users/${userId}`, "PUT", data, token);
 }
 
+export function updateUserGovernmentStatus(
+  userId: number,
+  data: UpdateUserGovernmentStatusRequest,
+  token: string
+): Promise<User> {
+  return request<User>(
+    `/api/admin/users/${userId}/government-status`,
+    "PATCH",
+    data,
+    token
+  );
+}
+
 export function getUserByEmail(email: string, token: string): Promise<User> {
   return request<User>(`/api/admin/users/by-email/${encodeURIComponent(email)}`, "GET", undefined, token);
 }
@@ -2919,6 +2996,8 @@ export function listAnomalies(
     city_id?: number;
     district?: number | null;
     period_date?: string | null;
+    group_field?: string | null;
+    group_value?: string | null;
   }
 ): Promise<ListAnomaliesResponse> {
   const params = new URLSearchParams();
@@ -2935,6 +3014,8 @@ export function listAnomalies(
     params.append("district", options.district.toString());
   }
   if (options?.period_date) params.append("period_date", options.period_date);
+  if (options?.group_field) params.append("group_field", options.group_field);
+  if (options?.group_value) params.append("group_value", options.group_value);
 
   const query = params.toString();
   const path = `/api/anomalies${query ? `?${query}` : ""}`;
@@ -3876,6 +3957,89 @@ export function submitCityLeadInterest(
   token: string
 ): Promise<CityLeadInterestResponse> {
   return request<CityLeadInterestResponse>("/api/admin/cities/lead-interest", "POST", data, token);
+}
+
+// ============================================================================
+// GOVERNMENT VERIFICATION API (claim profile / government service onboarding)
+// ============================================================================
+
+export interface ClaimContext {
+  city_id?: number | null;
+  district?: number | null;
+  leader_id?: number | null;
+}
+
+export interface GovernmentVerificationStatus {
+  government_verified: boolean;
+  government_pending_verification?: boolean;
+  government_email?: string | null;
+  claim_context?: ClaimContext | null;
+}
+
+export function getGovernmentVerificationStatus(
+  token: string
+): Promise<GovernmentVerificationStatus> {
+  return request<GovernmentVerificationStatus>(
+    "/api/admin/me/government-verification",
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function sendGovernmentVerificationCode(
+  email: string,
+  token: string
+): Promise<{ status: string; message: string; dev_code?: string }> {
+  return request<{ status: string; message: string; dev_code?: string }>(
+    "/api/admin/me/government-verification/send-code",
+    "POST",
+    { email },
+    token
+  );
+}
+
+export function verifyGovernmentCode(
+  code: string,
+  token: string
+): Promise<{ status: string; message: string; government_email?: string }> {
+  return request<{ status: string; message: string; government_email?: string }>(
+    "/api/admin/me/government-verification/verify",
+    "POST",
+    { code },
+    token
+  );
+}
+
+/** Set or clear government verification (for preview/testing). Does not validate email domain. */
+export function updateGovernmentVerification(
+  government_verified: boolean,
+  government_email: string | undefined,
+  token: string
+): Promise<GovernmentVerificationStatus> {
+  return request<GovernmentVerificationStatus>(
+    "/api/admin/me/government-verification",
+    "PATCH",
+    { government_verified, government_email: government_email || undefined },
+    token
+  );
+}
+
+// Record signup intent (source, claim context) for analytics and onboarding branching
+export interface SignupIntentPayload {
+  source: string;
+  citySlug?: string | null;
+  cityName?: string | null;
+  roleInterest?: string | null;
+  timestamp?: string | null;
+  claim_context?: ClaimContext | null;
+}
+
+export function recordSignupIntent(
+  payload: SignupIntentPayload,
+  token: string
+): Promise<{ status: string }> {
+  return request<{ status: string }>("/api/users/signup-intent", "POST", payload, token);
 }
 
 // ============================================================================

@@ -363,20 +363,20 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
                     >
                       {city.name}
                     </button>
-                    {/* District badge (city-wide vs district) and relative time */}
                     <div className={styles.actorMeta}>
-                      <span className={styles.districtBadge} title={(story.district ?? 0) === 0 ? "City-wide story" : `District ${story.district} story`}>
-                        {getDistrictLabel(story.district ?? 0)}
-                      </span>
-                      <span className={styles.metaDot}>·</span>
                       <span className={styles.timestamp}>
                         {getRelativeTime(story.published_at || story.story_date)}
                       </span>
                     </div>
                   </div>
-                  {story.is_featured && (
-                    <span className={styles.featuredBadge}>Featured</span>
-                  )}
+                  <div className={styles.actorRight}>
+                    <span className={styles.districtBadge} title={(story.district ?? 0) === 0 ? "City-wide story" : `District ${story.district} story`}>
+                      {getDistrictLabel(story.district ?? 0)}
+                    </span>
+                    {story.is_featured && (
+                      <span className={styles.featuredBadge}>Featured</span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Content */}

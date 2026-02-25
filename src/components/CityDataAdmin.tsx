@@ -9,6 +9,9 @@ import {
   getDefaultExecuteStartDateByPeriod,
   getMetricRecordCounts,
   clearCityStructureCache,
+  getPopulationSource,
+  refreshPopulation,
+  type PopulationSourceConfig,
 } from "@/lib/apiClient";
 import {
   useCityAdmin,
@@ -503,6 +506,9 @@ export default function CityDataAdmin({
   const [anomaliesOpen, setAnomaliesOpen] = useState(false);
   const [runAllMetricsOpen, setRunAllMetricsOpen] = useState(false);
   const [anomaliesMetricId, setAnomaliesMetricId] = useState<number | null>(null);
+  const [populationSource, setPopulationSource] = useState<PopulationSourceConfig | null | "none">(null);
+  const [populationRefreshLoading, setPopulationRefreshLoading] = useState(false);
+  const [populationRefreshError, setPopulationRefreshError] = useState<string | null>(null);
 
   // Clear running template job state when job completes/fails (so refetched status shows and Run is enabled again)
   useEffect(() => {
@@ -591,6 +597,49 @@ export default function CityDataAdmin({
   useEffect(() => {
     setSelectedAnomalyPeriodDate(null);
   }, [anomalyPeriodFilter]);
+
+  // Load population source config when Data tab is active
+  useEffect(() => {
+    if (activeTab !== "data" || !cityId) return;
+    let cancelled = false;
+    getAccessTokenSilently()
+      .then((token) => getPopulationSource(cityId, token))
+      .then((config) => {
+        if (!cancelled) setPopulationSource(config);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : String(err);
+          setPopulationSource(msg.includes("404") ? "none" : null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, cityId, getAccessTokenSilently]);
+
+  const handleRefreshPopulation = async () => {
+    setPopulationRefreshError(null);
+    setPopulationRefreshLoading(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const result = await refreshPopulation(cityId, token);
+      if (result.success) {
+        const msg = result.rows_written != null
+          ? `Ingested ${result.rows_written} district-level value(s) from ${result.source_name ?? "source"}.`
+          : "Refresh completed.";
+        alert(msg);
+        getAccessTokenSilently().then((t) => getPopulationSource(cityId, t).then(setPopulationSource));
+      } else {
+        setPopulationRefreshError(result.error ?? "Refresh failed");
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setPopulationRefreshError(message);
+    } finally {
+      setPopulationRefreshLoading(false);
+    }
+  };
 
   const metricData = metricQuery.data ?? null;
   const anomalyDetail = anomalyDetailQuery.data ?? null;
@@ -1693,6 +1742,163 @@ export default function CityDataAdmin({
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Population by district */}
+          <div style={{ marginBottom: "24px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "16px",
+                flexWrap: "wrap",
+                gap: "12px",
+              }}
+            >
+              <h3 style={{ margin: 0 }}>Population by district</h3>
+              {populationSource != null && populationSource !== "none" && (
+                <button
+                  onClick={handleRefreshPopulation}
+                  disabled={populationRefreshLoading}
+                  style={{
+                    padding: "8px 16px",
+                    background: "var(--brand-primary)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: populationRefreshLoading ? "not-allowed" : "pointer",
+                    fontWeight: 500,
+                    opacity: populationRefreshLoading ? 0.6 : 1,
+                  }}
+                >
+                  {populationRefreshLoading ? "Refreshing…" : "Refresh from source"}
+                </button>
+              )}
+            </div>
+            {populationRefreshError && (
+              <div
+                style={{
+                  padding: "12px",
+                  marginBottom: "12px",
+                  background: "#fee2e2",
+                  color: "#991b1b",
+                  borderRadius: "4px",
+                  fontSize: "14px",
+                }}
+              >
+                {populationRefreshError}
+              </div>
+            )}
+            {populationSource === null && (
+              <p style={{ color: "var(--text-secondary)", margin: 0 }}>Loading…</p>
+            )}
+            {populationSource === "none" && (
+              <p style={{ color: "var(--text-secondary)", margin: 0 }}>
+                No population source configured for this city. Configure one via the API (PUT{" "}
+                <code>/api/admin/population/sources/{cityId}</code>) to pull district-level population from
+                Socrata, a URL, or manual entry. Then you can run initial ingestion here.
+              </p>
+            )}
+            {populationSource != null && populationSource !== "none" && (
+              <table className={styles.dataTable} style={{ width: "100%", borderCollapse: "collapse" }}>
+                <tbody>
+                  <tr>
+                    <th
+                      style={{
+                        textAlign: "left",
+                        padding: "12px",
+                        background: "var(--bg-secondary)",
+                        fontWeight: 600,
+                        width: "200px",
+                      }}
+                    >
+                      Source
+                    </th>
+                    <td style={{ padding: "12px", borderBottom: "1px solid var(--border-primary)" }}>
+                      {populationSource.source_name ?? populationSource.source_type}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th
+                      style={{
+                        textAlign: "left",
+                        padding: "12px",
+                        background: "var(--bg-secondary)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Last refreshed
+                    </th>
+                    <td style={{ padding: "12px", borderBottom: "1px solid var(--border-primary)" }}>
+                      {populationSource.last_refreshed_at
+                        ? new Date(populationSource.last_refreshed_at).toLocaleString()
+                        : "Never"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th
+                      style={{
+                        textAlign: "left",
+                        padding: "12px",
+                        background: "var(--bg-secondary)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Status
+                    </th>
+                    <td style={{ padding: "12px", borderBottom: "1px solid var(--border-primary)" }}>
+                      <span
+                        style={{
+                          padding: "4px 8px",
+                          borderRadius: "4px",
+                          fontSize: "12px",
+                          fontWeight: 500,
+                          background:
+                            populationSource.last_refresh_status === "success"
+                              ? "#d1fae5"
+                              : populationSource.last_refresh_status === "failed"
+                              ? "#fee2e2"
+                              : "#f3f4f6",
+                          color:
+                            populationSource.last_refresh_status === "success"
+                              ? "#065f46"
+                              : populationSource.last_refresh_status === "failed"
+                              ? "#991b1b"
+                              : "#374151",
+                        }}
+                      >
+                        {populationSource.last_refresh_status ?? "—"}
+                      </span>
+                    </td>
+                  </tr>
+                  {populationSource.last_refresh_error && (
+                    <tr>
+                      <th
+                        style={{
+                          textAlign: "left",
+                          padding: "12px",
+                          background: "var(--bg-secondary)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Last error
+                      </th>
+                      <td
+                        style={{
+                          padding: "12px",
+                          borderBottom: "1px solid var(--border-primary)",
+                          color: "#dc2626",
+                          fontSize: "12px",
+                        }}
+                      >
+                        {populationSource.last_refresh_error}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       )}

@@ -2,10 +2,12 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth0 } from "@auth0/auth0-react";
+import { emitSavedCitiesChanged } from "@/lib/uiEvents";
 import {
   getCity,
   getCityMetrics,
   getSavedCities,
+  getSavedDistricts,
   listCities,
   getCityStructure,
   getCityLeaders,
@@ -20,6 +22,7 @@ import {
   unsaveCity,
   type CityDetail,
   type SavedCity,
+  type SavedDistrict,
   type CityListItem,
   type CityStructureData,
   type CityLeader,
@@ -27,6 +30,7 @@ import {
   type CityShapeLayerListItem,
   type UpdateShapeLayerInstanceRequest,
 } from "@/lib/apiClient";
+import { getPublicCityDistricts } from "@/lib/publicApiClient";
 
 // Query keys factory for cities
 export const cityKeys = {
@@ -36,6 +40,7 @@ export const cityKeys = {
   details: () => [...cityKeys.all, "detail"] as const,
   detail: (id: number) => [...cityKeys.details(), id] as const,
   saved: () => [...cityKeys.all, "saved"] as const,
+  savedDistricts: () => [...cityKeys.all, "savedDistricts"] as const,
   structure: (id: number) => [...cityKeys.all, "structure", id] as const,
   leaders: (id: number) => [...cityKeys.all, "leaders", id] as const,
   representativeFollowerCounts: (id: number) =>
@@ -45,6 +50,8 @@ export const cityKeys = {
   shapefiles: (id: number) => [...cityKeys.all, "shapefiles", id] as const,
   shapeLayers: (id: number, includeGeometry?: boolean) =>
     [...cityKeys.all, "shapeLayers", id, includeGeometry] as const,
+  publicDistricts: (id: number) =>
+    [...cityKeys.all, "publicDistricts", id] as const,
 };
 
 /**
@@ -158,6 +165,23 @@ export function useCityLeaders(cityId: number | null) {
 }
 
 /**
+ * Hook to fetch district numbers that have metric data for a city (public API, no auth).
+ * Used to show district nav when city has district-level data but no leaders in structure.
+ */
+export function usePublicCityDistricts(
+  cityId: number | null,
+  options?: { enabled?: boolean }
+) {
+  const enabled = options?.enabled !== undefined ? (!!cityId && options.enabled) : !!cityId;
+  return useQuery({
+    queryKey: cityKeys.publicDistricts(cityId!),
+    queryFn: () => getPublicCityDistricts(cityId!),
+    enabled,
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
+}
+
+/**
  * Hook to fetch representative follower counts per district for a city.
  * Returns Record<string, number> keyed by district ("0"=mayor, "1"-"11"=districts).
  * On error or 404, data is {}. Cache time: 5 minutes.
@@ -248,6 +272,9 @@ export function useFollowRepresentative(cityId: number | null) {
     onSuccess: (_data, _district) => {
       if (!cityId) return;
       queryClient.invalidateQueries({ queryKey: cityKeys.representativeFollows(cityId) });
+      queryClient.invalidateQueries({ queryKey: cityKeys.saved() });
+      queryClient.invalidateQueries({ queryKey: cityKeys.savedDistricts() });
+      emitSavedCitiesChanged();
     },
     onError: (_err, _district, ctx) => {
       if (cityId && ctx?.prev != null) {
@@ -295,6 +322,9 @@ export function useUnfollowRepresentative(cityId: number | null) {
     onSuccess: (_data, _district) => {
       if (!cityId) return;
       queryClient.invalidateQueries({ queryKey: cityKeys.representativeFollows(cityId) });
+      queryClient.invalidateQueries({ queryKey: cityKeys.saved() });
+      queryClient.invalidateQueries({ queryKey: cityKeys.savedDistricts() });
+      emitSavedCitiesChanged();
     },
     onError: (_err, _district, ctx) => {
       if (cityId && ctx?.prev != null) {
@@ -304,6 +334,23 @@ export function useUnfollowRepresentative(cityId: number | null) {
         );
       }
     },
+  });
+}
+
+/**
+ * Hook to fetch saved districts (My Districts) for the current user.
+ * Returns list of followed city+district with display name and slug.
+ */
+export function useSavedDistricts() {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: cityKeys.savedDistricts(),
+    queryFn: async (): Promise<SavedDistrict[]> => {
+      const token = await getAccessTokenSilently();
+      return getSavedDistricts(token);
+    },
+    staleTime: 2 * 60 * 1000,
   });
 }
 

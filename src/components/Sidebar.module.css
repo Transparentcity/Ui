@@ -98,6 +98,28 @@
   fill: #ffffff;
 }
 
+/* Government mode: small "g" in center of braces – light grey when not yet approved */
+.logoGovG {
+  fill: var(--text-tertiary, #9ca3af);
+  transition: fill 0.2s ease;
+}
+
+:global([data-theme="dark"]) .logoGovG,
+:global(.dark) .logoGovG {
+  fill: rgba(255, 255, 255, 0.45);
+}
+
+/* Darker when approved (verified government email) */
+.logoGovGApproved {
+  fill: var(--text-secondary, #6b7280);
+  transition: fill 0.2s ease;
+}
+
+:global([data-theme="dark"]) .logoGovGApproved,
+:global(.dark) .logoGovGApproved {
+  fill: rgba(255, 255, 255, 0.75);
+}
+
 .logoText {
   font-weight: 700;
   font-size: 18px;

@@ -6,6 +6,7 @@ import UserProfile from "./UserProfile";
 import SessionList from "./SessionList";
 import JobSessionList from "./JobSessionList";
 import MyCities from "./MyCities";
+import MyDistricts from "./MyDistricts";
 import ResearchList from "./ResearchList";
 import SidebarCitySearch from "./SidebarCitySearch";
 import styles from "./Sidebar.module.css";
@@ -14,6 +15,10 @@ interface SidebarProps {
   isOpen: boolean;
   isAdmin?: boolean;
   cityLeadCityIds?: number[];
+  /** When true, show a small "g" in the logo braces (government mode). */
+  governmentVerified?: boolean;
+  /** When set and not a preview address, "g" is darker (approved); otherwise light grey. */
+  governmentEmail?: string | null;
   onNewChat: () => void;
   onSearchCities?: () => void; // Optional for backward compatibility
   onOpenSettings?: () => void;
@@ -44,10 +49,14 @@ const isNarrowScreen = (): boolean => {
   return window.innerWidth <= MOBILE_BREAKPOINT;
 };
 
+const PREVIEW_GOV_EMAIL = "preview@government.user";
+
 export default function Sidebar({
   isOpen,
   isAdmin = false,
   cityLeadCityIds = [],
+  governmentVerified = false,
+  governmentEmail = null,
   onNewChat,
   onSearchCities,
   onOpenSettings,
@@ -68,6 +77,10 @@ export default function Sidebar({
   onMenuToggle,
   currentView,
 }: SidebarProps) {
+  const governmentApproved =
+    governmentVerified &&
+    !!governmentEmail &&
+    governmentEmail.toLowerCase() !== PREVIEW_GOV_EMAIL;
   const [recentChatsExpanded, setRecentChatsExpanded] = useState(false);
   const [researchExpanded, setResearchExpanded] = useState(false);
   const [jobSessionsExpanded, setJobSessionsExpanded] = useState(false);
@@ -77,8 +90,8 @@ export default function Sidebar({
   const logoMaskIdBl = `${baseId}-logo-mask-bl`;
   const logoMaskIdTr = `${baseId}-logo-mask-tr`;
 
-  // Research and New Research Report: admin only
-  const canAccessResearch = isAdmin;
+  // Research and New Research Report: admin or government mode
+  const canAccessResearch = isAdmin || governmentVerified;
 
   // Helper to close sidebar in narrow mode after action
   const handleActionWithClose = (action: () => void) => {
@@ -223,6 +236,22 @@ export default function Sidebar({
                     mask={`url(#${logoMaskIdTr})`}
                     transform="translate(-23.5%, 23.5%)"
                   />
+                  {governmentVerified && (
+                    <text
+                      x="50"
+                      y="50"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      className={
+                        governmentApproved
+                          ? styles.logoGovGApproved
+                          : styles.logoGovG
+                      }
+                      style={{ fontSize: 28, fontFamily: "inherit", fontWeight: 600 }}
+                    >
+                      g
+                    </text>
+                  )}
                 </svg>
               </div>
               <span className={styles.logoText}>
@@ -347,6 +376,19 @@ export default function Sidebar({
                 onViewChange("city");
               }
               // Auto-close sidebar in narrow mode after city selection
+              if (isNarrowScreen() && onClose) {
+                onClose();
+              }
+            }}
+            activeCityId={activeCityId}
+          />
+
+          {/* My Districts Section */}
+          <MyDistricts
+            onDistrictClick={() => {
+              if (onViewChange) {
+                onViewChange("city");
+              }
               if (isNarrowScreen() && onClose) {
                 onClose();
               }

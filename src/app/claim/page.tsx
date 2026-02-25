@@ -31,6 +31,11 @@ function ClaimPageContent() {
   const [myClaimsLoading, setMyClaimsLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  // After sign-in/sign-up, send users to dashboard for government onboarding (verify gov email, then they can submit claim)
+  const dashboardReturn =
+    hasContext && cityId != null && district != null
+      ? `/dashboard?signup=government&city_id=${cityId}&district=${district}`
+      : "/dashboard?signup=government";
   const returnTo = hasContext ? `/claim?city_id=${cityId}&district=${district}` : "/claim";
 
   const handleSignInToClaim = async () => {
@@ -39,7 +44,7 @@ function ClaimPageContent() {
         screen_hint: "signup",
         prompt: "login",
       },
-      appState: { returnTo },
+      appState: { returnTo: dashboardReturn },
     });
   };
 

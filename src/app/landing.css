@@ -1354,6 +1354,8 @@
   --text-tertiary: #94a3b8;
   --border-primary: #334155;
   --border-secondary: #475569;
+  /* Softer text for secondary/outline buttons so they stay legible in dark mode */
+  --button-secondary-text: #a8b8cc;
 }
 
 [data-theme="dark"] body,
@@ -1441,7 +1443,8 @@
 
 [data-theme="dark"] .logo-transparent,
 .dark .logo-transparent {
-  color: var(--text-inverse, #ffffff);
+  /* Use light text on dark nav/footer (text-inverse in dark mode is for buttons, not logo) */
+  color: var(--text-primary, #ffffff);
 }
 
 [data-theme="dark"] .btn-outline,

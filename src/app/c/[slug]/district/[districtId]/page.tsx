@@ -9,6 +9,7 @@ import {
   getPublicCityDetail,
   getPublicMetricComparisonsBatch,
   getPublicMetricDistrictComparisons,
+  getPublicCityDistricts,
   getPublicLeadersForCity,
   listPublicFeedStories,
   listPublicMapsForCity,
@@ -90,7 +91,7 @@ export default async function DistrictPage({ params }: PageProps) {
   let maps: Awaited<ReturnType<typeof listPublicMapsForCity>> = [];
 
   try {
-    const [detail, leadersRes, feedRes, mapsRes] = await Promise.all([
+    const [detail, leadersRes, feedRes, mapsRes, cityDistrictsRes] = await Promise.all([
       getPublicCityDetail(city.id),
       getPublicLeadersForCity(city.id).catch(() => []),
       listPublicFeedStories({
@@ -100,20 +101,28 @@ export default async function DistrictPage({ params }: PageProps) {
         order_by: "published_at",
       }).catch(() => ({ stories: [], count: 0 })),
       listPublicMapsForCity(city.id).catch(() => []),
+      getPublicCityDistricts(city.id).catch((): number[] => []),
     ]);
     cityDetail = detail;
     leaders = leadersRes;
     feedStories = feedRes.stories ?? [];
     maps = mapsRes;
+    if (Array.isArray(cityDistrictsRes) && cityDistrictsRes.length > 0) {
+      districts = [...cityDistrictsRes].sort((a, b) => a - b);
+      districtValid = cityDistrictsRes.includes(d);
+    }
     const metrics = cityDetail?.metrics ?? [];
     if (metrics.length > 0) {
-      const dc = await getPublicMetricDistrictComparisons(metrics[0].id, "ytd").catch(() => null);
-      if (dc?.districts) {
-        districtValid = dc.districts.some((x) => x.district === d);
-        districts = dc.districts
-          .map((x) => x.district)
-          .filter((n) => n > 0)
-          .sort((a, b) => a - b);
+      if (!districtValid) {
+        const dc = await getPublicMetricDistrictComparisons(metrics[0].id, "ytd").catch(() => null);
+        if (dc?.districts) {
+          districtValid = dc.districts.some((x) => x.district === d);
+          if (districts.length === 0)
+            districts = dc.districts
+              .map((x) => x.district)
+              .filter((n) => n > 0)
+              .sort((a, b) => a - b);
+        }
       }
       const batch = await getPublicMetricComparisonsBatch({
         metric_ids: metrics.map((m) => m.id),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   getJobStats,
@@ -38,10 +39,21 @@ export default function JobLogsViewer() {
   const [customSchedules, setCustomSchedules] = useState<CustomScheduledJob[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabId>("logs");
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const jobIdParam = searchParams.get("job_id");
+  const [activeTab, setActiveTab] = useState<TabId>(
+    tabParam === "scheduled" ? "scheduled" : "logs"
+  );
 
   const { jobs: webSocketJobs, isConnected, refreshJobs } = useJobWebSocketContext();
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Sync tab from URL (e.g. /dashboard?tab=logs&job_id=xxx)
+  useEffect(() => {
+    if (tabParam === "scheduled") setActiveTab("scheduled");
+    else if (tabParam === "logs" || jobIdParam) setActiveTab("logs");
+  }, [tabParam, jobIdParam]);
 
   // Get token for API calls
   useEffect(() => {
@@ -192,6 +204,7 @@ export default function JobLogsViewer() {
             stats={stats}
             getAccessTokenSilently={getAccessTokenSilently}
             token={token}
+            initialJobId={jobIdParam || undefined}
           />
         )}
         {activeTab === "scheduled" && (

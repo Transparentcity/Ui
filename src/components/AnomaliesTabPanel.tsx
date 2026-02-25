@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useCityAnomalies, useAvailablePeriods, type AnomalyResult } from "@/lib/hooks/useAnomalies";
 import AnomalySparkline from "./AnomalySparkline";
@@ -396,6 +396,8 @@ export default function AnomaliesTabPanel({
   const [metricId, setMetricId] = useState<number | "">("");
   const [minSigma, setMinSigma] = useState<string | number>("");
   const [districtFilter, setDistrictFilter] = useState<DistrictFilterValue>("all");
+  // Group filter: "" = All, or "groupField|groupValue" when a single metric with groups is selected
+  const [groupFilter, setGroupFilter] = useState("");
 
   const toggleMetricExpanded = useCallback((mid: number) => {
     setExpandedMetricIds((prev) => {
@@ -423,6 +425,13 @@ export default function AnomaliesTabPanel({
       ? 0
       : parseInt(districtFilter, 10);
 
+  // Parse group filter for API (only when a single metric is selected)
+  const groupFilterParts = groupFilter ? groupFilter.split("|") : [];
+  const apiGroupField =
+    groupFilterParts.length === 2 ? groupFilterParts[0] : undefined;
+  const apiGroupValue =
+    groupFilterParts.length === 2 ? groupFilterParts[1] : undefined;
+
   // Fetch anomalies with backend filters
   const { data: anomaliesData, isLoading, error } = useCityAnomalies(cityId, {
     is_anomaly: true,
@@ -431,7 +440,46 @@ export default function AnomaliesTabPanel({
     period_date: periodDate || undefined,
     metric_id: metricId === "" ? undefined : (metricId as number),
     district: Number.isNaN(apiDistrict) ? undefined : apiDistrict,
+    group_field: apiGroupField,
+    group_value: apiGroupValue,
   });
+
+  // Group options for the selected metric: only when one metric is selected and results have group_field/group_value.
+  // Cache in a ref so when user filters by group we still show the full list in the dropdown.
+  const groupOptionsCacheRef = useRef<{ value: string; label: string }[]>([]);
+  const groupOptions = useMemo(() => {
+    if (metricId === "" || !anomaliesData?.results) {
+      if (metricId === "") groupOptionsCacheRef.current = [];
+      return groupOptionsCacheRef.current;
+    }
+    const resultsForMetric = anomaliesData.results.filter(
+      (r) => r.metric_id === metricId && r.group_field && r.group_value
+    );
+    const set = new Set<string>();
+    for (const r of resultsForMetric) {
+      set.add(`${r.group_field}|${r.group_value}`);
+    }
+    const list = Array.from(set).sort();
+    const options = list.map((key) => {
+      const [f, v] = key.split("|");
+      return { value: key, label: `${f}: ${v}` };
+    });
+    // Only update cache when not filtering by group (so we have the full list)
+    if (options.length > 0 && !groupFilter) {
+      groupOptionsCacheRef.current = options;
+    }
+    return groupOptionsCacheRef.current.length > 0
+      ? groupOptionsCacheRef.current
+      : options;
+  }, [metricId, groupFilter, anomaliesData?.results]);
+
+  const showGroupFilter = metricId !== "" && groupOptions.length > 0;
+
+  // When metric changes, clear group filter and cached options for the new metric
+  useEffect(() => {
+    setGroupFilter("");
+    groupOptionsCacheRef.current = [];
+  }, [metricId]);
 
   // Extract unique districts from data to populate the dropdown.
   // Cache them in a ref so they persist when the user selects a specific district
@@ -573,6 +621,27 @@ export default function AnomaliesTabPanel({
             ))}
           </select>
         </div>
+        {showGroupFilter && (
+          <div className={styles.filterGroup}>
+            <label className={styles.filterLabel} htmlFor="anomaly-group">
+              Group
+            </label>
+            <select
+              id="anomaly-group"
+              className={styles.filterSelect}
+              value={groupFilter}
+              onChange={(e) => setGroupFilter(e.target.value)}
+              aria-label="Filter by group"
+            >
+              <option value="">All</option>
+              {groupOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className={styles.filterGroup}>
           <label className={styles.filterLabel} htmlFor="anomaly-min-sigma">
             Min sigma

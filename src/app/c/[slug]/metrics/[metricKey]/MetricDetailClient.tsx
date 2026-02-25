@@ -106,7 +106,15 @@ export default function MetricDetailClient({
       </nav>
       <div className="metric-detail-content-wrapper">
         <h1 className="metric-detail-page-title">
-          {metric.metric_name} in {year}
+          <span className="metric-detail-title-text">{metric.metric_name} in {year}</span>
+          <a
+            href="#about-this-data"
+            className="metric-detail-about-link"
+            aria-label="About this data"
+            title="About this data"
+          >
+            ?
+          </a>
         </h1>
         <MetricDetailContent
           metric={metric}

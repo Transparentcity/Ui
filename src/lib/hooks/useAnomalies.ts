@@ -154,6 +154,8 @@ export function useCityAnomalies(
     limit?: number;
     period_date?: string | null;
     metric_id?: number | null;
+    group_field?: string | null;
+    group_value?: string | null;
   }
 ) {
   const { getAccessTokenSilently } = useAuth0();
@@ -171,6 +173,8 @@ export function useCityAnomalies(
         limit: options?.limit ?? 200, // Backend max limit is 200
         period_date: options?.period_date ?? undefined,
         metric_id: options?.metric_id ?? undefined,
+        group_field: options?.group_field ?? undefined,
+        group_value: options?.group_value ?? undefined,
       });
     },
     staleTime: 2 * 60 * 1000, // 2 minutes

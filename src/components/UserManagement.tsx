@@ -5,6 +5,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import {
   listUsers,
   updateUser,
+  updateUserGovernmentStatus,
   makeUserAdmin,
   getUserStats,
   getDatabaseSize,
@@ -13,12 +14,15 @@ import {
   setUserCityLeads,
   getUserNewsletterSubscriptions,
   setUserNewsletterSubscriptions,
+  listLeadersForClaim,
   type User,
   type UserUpdateRequest,
+  type UpdateUserGovernmentStatusRequest,
   type UserStats,
   type CityListItem,
   type DatabaseSizeResponse,
   type NewsletterSubscription,
+  type LeaderForClaim,
 } from "@/lib/apiClient";
 import Loader from "./Loader";
 import styles from "./UserManagement.module.css";
@@ -57,6 +61,16 @@ export default function UserManagement() {
   const [addSubCityOpen, setAddSubCityOpen] = useState(false);
   const [addSubDistrict, setAddSubDistrict] = useState("0");
   const [addSubFrequency, setAddSubFrequency] = useState<"weekly" | "monthly">("weekly");
+
+  // Government user state
+  const [editGovernmentVerified, setEditGovernmentVerified] = useState(false);
+  const [editGovernmentUserType, setEditGovernmentUserType] = useState<"staff" | "elected_official" | "">("");
+  const [editGovernmentLeaderId, setEditGovernmentLeaderId] = useState<number | "">("");
+  const [editGovernmentLeaderName, setEditGovernmentLeaderName] = useState<string>("");
+  const [editGovernmentCityId, setEditGovernmentCityId] = useState<number | "">("");
+  const [leadersForElected, setLeadersForElected] = useState<LeaderForClaim[]>([]);
+  const [leadersForElectedLoading, setLeadersForElectedLoading] = useState(false);
+  const [editGovernmentDirty, setEditGovernmentDirty] = useState(false);
 
   // Load initial data
   const loadData = useCallback(async () => {
@@ -165,6 +179,17 @@ export default function UserManagement() {
     setAddSubCityOpen(false);
     setAddSubDistrict("0");
     setAddSubFrequency("weekly");
+    setEditGovernmentVerified(!!user.government_verified);
+    setEditGovernmentUserType(
+      user.government_user_type === "staff" || user.government_user_type === "elected_official"
+        ? user.government_user_type
+        : ""
+    );
+    setEditGovernmentLeaderId(user.government_leader_id ?? "");
+    setEditGovernmentLeaderName(user.government_leader_name ?? "");
+    setEditGovernmentCityId(user.government_city_id ?? "");
+    setLeadersForElected([]);
+    setEditGovernmentDirty(false);
   };
 
   const handleCloseEdit = () => {
@@ -182,6 +207,13 @@ export default function UserManagement() {
     setAddSubCityOpen(false);
     setAddSubDistrict("0");
     setAddSubFrequency("weekly");
+    setEditGovernmentVerified(false);
+    setEditGovernmentUserType("");
+    setEditGovernmentLeaderId("");
+    setEditGovernmentLeaderName("");
+    setEditGovernmentCityId("");
+    setLeadersForElected([]);
+    setEditGovernmentDirty(false);
   };
 
   // Load city lead assignments fresh when modal opens (source of truth is backend)
@@ -223,6 +255,29 @@ export default function UserManagement() {
     loadNewsletterSubs();
   }, [editingUser, getAccessTokenSilently]);
 
+  // Load leaders for elected-official city (listLeadersForClaim is public, no token)
+  useEffect(() => {
+    if (editGovernmentCityId === "" || typeof editGovernmentCityId !== "number") {
+      setLeadersForElected([]);
+      return;
+    }
+    let cancelled = false;
+    setLeadersForElectedLoading(true);
+    listLeadersForClaim(editGovernmentCityId)
+      .then((list) => {
+        if (!cancelled) setLeadersForElected(list);
+      })
+      .catch(() => {
+        if (!cancelled) setLeadersForElected([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLeadersForElectedLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [editGovernmentCityId]);
+
   const handleSaveEdit = async () => {
     if (!editingUser) return;
 
@@ -237,6 +292,23 @@ export default function UserManagement() {
 
       if (editNewsletterDirty) {
         await setUserNewsletterSubscriptions(editingUser.id, editNewsletterSubs, token);
+      }
+
+      if (editGovernmentDirty) {
+        const govPayload: UpdateUserGovernmentStatusRequest = {
+          government_verified: editGovernmentVerified,
+          government_email: editingUser.email,
+        };
+        if (editGovernmentVerified) {
+          govPayload.government_user_type =
+            editGovernmentUserType === "staff" || editGovernmentUserType === "elected_official"
+              ? editGovernmentUserType
+              : "staff";
+          if (editGovernmentUserType === "elected_official" && editGovernmentLeaderId !== "") {
+            govPayload.government_leader_id = Number(editGovernmentLeaderId);
+          }
+        }
+        await updateUserGovernmentStatus(editingUser.id, govPayload, token);
       }
 
       await loadUsers();
@@ -700,6 +772,7 @@ export default function UserManagement() {
                 <th className={styles.tableHeaderCell}>Email</th>
                 <th className={styles.tableHeaderCell}>Name</th>
                 <th className={styles.tableHeaderCell}>Role</th>
+                <th className={styles.tableHeaderCell}>Government</th>
                 <th className={styles.tableHeaderCell}>City Lead Cities</th>
                 <th className={styles.tableHeaderCell}>Status</th>
                 <th className={styles.tableHeaderCell}>Last Login</th>
@@ -710,7 +783,7 @@ export default function UserManagement() {
             <tbody className={styles.tableBody}>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className={styles.tableCell} style={{ textAlign: "center" }}>
+                  <td colSpan={9} className={styles.tableCell} style={{ textAlign: "center" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
                       <Loader size="sm" color="dark" />
                       <span className={styles.loadingText}>Loading users...</span>
@@ -719,7 +792,7 @@ export default function UserManagement() {
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className={styles.emptyState}>
+                  <td colSpan={9} className={styles.emptyState}>
                     No users found matching the current filters.
                   </td>
                 </tr>
@@ -744,6 +817,20 @@ export default function UserManagement() {
                           </span>
                         )}
                       </div>
+                    </td>
+                    <td className={styles.tableCell}>
+                      {!user.government_verified ? (
+                        <span style={{ color: "var(--text-tertiary)" }}>—</span>
+                      ) : user.government_user_type === "elected_official" && user.government_leader_name ? (
+                        <span className={styles.roleBadge} style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }} title={`Elected: ${user.government_leader_name}${user.government_district != null ? ` District ${user.government_district}` : ""}`}>
+                          Elected: {user.government_leader_name}
+                          {user.government_district != null ? ` (D${user.government_district})` : ""}
+                        </span>
+                      ) : (
+                        <span className={styles.roleBadge} style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>
+                          Staff
+                        </span>
+                      )}
                     </td>
                     <td className={styles.tableCell}>
                       {user.city_lead_city_ids && user.city_lead_city_ids.length > 0 ? (
@@ -1034,6 +1121,99 @@ export default function UserManagement() {
                       </button>
                     )}
                   </>
+                )}
+              </div>
+
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Government user</label>
+                <p className={styles.helpText} style={{ marginBottom: 8 }}>
+                  Staff: government user without a district. Elected official: mapped to a district (higher verification).
+                </p>
+                <select
+                  value={
+                    !editGovernmentVerified
+                      ? "none"
+                      : editGovernmentUserType === "elected_official"
+                        ? "elected_official"
+                        : "staff"
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setEditGovernmentDirty(true);
+                    if (v === "none") {
+                      setEditGovernmentVerified(false);
+                      setEditGovernmentUserType("");
+                      setEditGovernmentLeaderId("");
+                      setEditGovernmentLeaderName("");
+                      setEditGovernmentCityId("");
+                    } else {
+                      setEditGovernmentVerified(true);
+                      setEditGovernmentUserType(v as "staff" | "elected_official");
+                      if (v === "staff") {
+                        setEditGovernmentLeaderId("");
+                        setEditGovernmentLeaderName("");
+                        setEditGovernmentCityId("");
+                      }
+                    }
+                  }}
+                  className={styles.formSelect}
+                >
+                  <option value="none">Not a government user</option>
+                  <option value="staff">Government staff</option>
+                  <option value="elected_official">Elected official (mapped to district)</option>
+                </select>
+                {editGovernmentUserType === "elected_official" && (
+                  <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      <select
+                        value={editGovernmentCityId}
+                        onChange={(e) => {
+                          const num = e.target.value === "" ? "" : Number(e.target.value);
+                          setEditGovernmentCityId(num);
+                          setEditGovernmentLeaderId("");
+                          setEditGovernmentLeaderName("");
+                          setEditGovernmentDirty(true);
+                        }}
+                        className={styles.formSelect}
+                        style={{ minWidth: 180 }}
+                      >
+                        <option value="">Select city…</option>
+                        {safeCities.slice(0, 500).map((c) => (
+                          <option key={c.city_id} value={c.city_id}>
+                            {formatCityDisplayName(c)}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={editGovernmentLeaderId}
+                        onChange={(e) => {
+                          const id = e.target.value === "" ? "" : Number(e.target.value);
+                          setEditGovernmentLeaderId(id);
+                          const leader = leadersForElected.find((l) => l.id === id);
+                          setEditGovernmentLeaderName(leader ? `${leader.name} – ${leader.title}` : "");
+                          setEditGovernmentDirty(true);
+                        }}
+                        disabled={leadersForElectedLoading || !editGovernmentCityId}
+                        className={styles.formSelect}
+                        style={{ minWidth: 220 }}
+                      >
+                        <option value="">
+                          {leadersForElectedLoading ? "Loading…" : "Select official…"}
+                        </option>
+                        {leadersForElected.map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.name} – {l.title}
+                            {l.district != null ? ` (District ${l.district})` : " (at-large)"}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {editGovernmentLeaderName && (
+                      <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                        Selected: {editGovernmentLeaderName}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 

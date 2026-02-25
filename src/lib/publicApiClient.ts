@@ -242,6 +242,11 @@ export function getPublicRepresentativeFollowerCounts(
   );
 }
 
+/** District numbers that have metric data for this city (for district links/dashboards). */
+export function getPublicCityDistricts(cityId: number): Promise<number[]> {
+  return requestPublic<number[]>(`/api/public/cities/${cityId}/districts`);
+}
+
 // Public feed stories (e.g. for district elected-official pages)
 export type PublicFeedStory = {
   id: number;

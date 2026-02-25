@@ -7,7 +7,7 @@ import CityHeader from "@/components/CityHeader";
 import MetricDateRangeSelector from "@/components/MetricDateRangeSelector";
 import DistrictNavigation from "@/components/DistrictNavigation";
 import AnomaliesTabPanel from "@/components/AnomaliesTabPanel";
-import { useCity, useSavedCities, useSaveCity, useUnsaveCity, useCityLeaders, useRepresentativeFollowerCounts } from "@/lib/hooks/useCities";
+import { useCity, useSavedCities, useSaveCity, useUnsaveCity, useCityLeaders, useRepresentativeFollowerCounts, usePublicCityDistricts } from "@/lib/hooks/useCities";
 import type { CityLeader } from "@/lib/apiClient";
 import { useUserMetricOrdering } from "@/lib/hooks/useCityAdmin";
 import { emitSavedCitiesChanged, SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEvents";
@@ -1640,7 +1640,28 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
   const { data: savedCities = [], isLoading: loadingSaved } = useSavedCities();
   // Defer newsletter/follower requests until city has loaded to avoid blocking on slow connections
   const { data: leaderFollowerCounts } = useRepresentativeFollowerCounts(cityId, { enabled: cityLoaded });
-  
+  const { data: publicCityDistricts = [] } = usePublicCityDistricts(cityId, { enabled: !!cityId && cityLoaded });
+
+  // When city has district-level data but no leaders in structure (e.g. Chicago, Oakland), build synthetic leaders so district nav still shows
+  const syntheticLeadersFromDistricts = useMemo((): CityLeader[] => {
+    if (!cityId || !Array.isArray(publicCityDistricts) || publicCityDistricts.length === 0) return [];
+    return publicCityDistricts
+      .slice()
+      .sort((a, b) => a - b)
+      .map((d) => ({
+        city_id: cityId,
+        name: `District ${d}`,
+        title: "District",
+        district: d,
+      }));
+  }, [cityId, publicCityDistricts]);
+
+  const effectiveLeaders = useMemo(() => {
+    if (mapLeaders.length > 0) return mapLeaders;
+    if (syntheticLeadersFromDistricts.length > 0) return syntheticLeadersFromDistricts;
+    return [];
+  }, [mapLeaders, syntheticLeadersFromDistricts]);
+
   // Mutations for save/unsave
   const saveCityMutation = useSaveCity();
   const unsaveCityMutation = useUnsaveCity();
@@ -1850,11 +1871,11 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
           </div>
 
           {/* District Navigation - Above Date Range - Only show when data is ready */}
-          {isCityDataReady && mapLeaders.length > 0 && (
+          {isCityDataReady && effectiveLeaders.length > 0 && (
             <div className={`map-district-navigation-overlay ${headerVisible ? "visible" : "hidden"}`}>
               <DistrictNavigation
                 selectedDistrict={selectedDistrict}
-                leaders={mapLeaders}
+                leaders={effectiveLeaders}
                 shapefiles={mapShapefiles}
                 onDistrictSelect={(district) => {
                   setSelectedDistrict(district);
@@ -1940,7 +1961,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
                 cityId={cityId}
                 cityName={cityData.name}
                 selectedDistrict={selectedDistrict}
-                leaders={isCityDataReady ? mapLeaders : []}
+                leaders={isCityDataReady ? effectiveLeaders : []}
                 shapefiles={isCityDataReady ? mapShapefiles : []}
                 onDistrictChange={setSelectedDistrict}
                 onGPSLocation={setDistrictGPSLocation}

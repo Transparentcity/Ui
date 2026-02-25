@@ -18,10 +18,23 @@ import JobLogsViewer from "@/components/JobLogsViewer";
 import FeedStoriesAdmin from "@/components/FeedStoriesAdmin";
 import FeedView from "@/components/FeedView";
 import { useTheme } from "@/contexts/ThemeContext";
-import { getMyPermissions, getSavedCities, getUserPreferences, updateUserPreferences, getCity, saveUserMetricOrdering } from "@/lib/apiClient";
+import {
+  getMyPermissions,
+  getSavedCities,
+  getUserPreferences,
+  updateUserPreferences,
+  getCity,
+  saveUserMetricOrdering,
+  recordSignupIntent,
+  getGovernmentVerificationStatus,
+  updateGovernmentVerification,
+  type ClaimContext,
+  type GovernmentVerificationStatus,
+} from "@/lib/apiClient";
 import { PENDING_ORDER_STORAGE_KEY_PREFIX } from "@/components/MetricOrderEditor";
 import Loader from "@/components/Loader";
 import WelcomeModal from "@/components/WelcomeModal";
+import GovernmentOnboardingModal from "@/components/GovernmentOnboardingModal";
 import RedisStatusIndicator from "@/components/RedisStatusIndicator";
 import {
   trackSignupComplete,
@@ -70,13 +83,17 @@ export default function DashboardPage() {
   const [initialChatPrompt, setInitialChatPrompt] = useState<string | null>(null);
   const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [showGovernmentOnboardingModal, setShowGovernmentOnboardingModal] = useState(false);
+  const [governmentClaimContext, setGovernmentClaimContext] = useState<ClaimContext | null>(null);
   const hasAutoSelectedCity = useRef(false);
   const hasCheckedOnboarding = useRef(false);
   const [userPreferences, setUserPreferences] = useState<any>(null);
+  const [govVerificationStatus, setGovVerificationStatus] = useState<GovernmentVerificationStatus | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [homeCity, setHomeCity] = useState<any>(null);
   const [loadingPreferences, setLoadingPreferences] = useState(false);
   const [savingPreferences, setSavingPreferences] = useState(false);
+  const [govModeToggling, setGovModeToggling] = useState(false);
   
   // Editable preference state
   const [editableAnomalyAlerts, setEditableAnomalyAlerts] = useState(false);
@@ -122,6 +139,23 @@ export default function DashboardPage() {
       trackDashboardView();
     }
   }, [isAuthenticated, isLoading]);
+
+  // Load government verification status for sidebar logo (and keep in sync when settings load it)
+  useEffect(() => {
+    if (!isAuthenticated || isLoading) return;
+    let cancelled = false;
+    getAccessTokenSilently()
+      .then((token) => getGovernmentVerificationStatus(token))
+      .then((status) => {
+        if (!cancelled) setGovVerificationStatus(status);
+      })
+      .catch(() => {
+        if (!cancelled) setGovVerificationStatus(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, isLoading, getAccessTokenSilently]);
 
   // Track signup completion and login
   useEffect(() => {
@@ -259,21 +293,67 @@ export default function DashboardPage() {
 
       try {
         const token = await getAccessTokenSilently();
-        
-        // Check if user has completed onboarding
         const prefs = await getUserPreferences(token);
-        
+
         if (!prefs.has_completed_onboarding) {
-          // Also check if they have any saved cities - if so, skip onboarding
           const savedCities = await getSavedCities(token);
-          
           if (savedCities.length === 0) {
-            // First time user - show welcome modal
-            setShowWelcomeModal(true);
+            const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+            const signup = urlParams?.get("signup");
+            const cityIdParam = urlParams?.get("city_id");
+            const districtParam = urlParams?.get("district");
+            const preferredType = prefs.extra?.preferred_onboarding_type as string | undefined;
+            const isGovernmentFlow =
+              signup === "government" ||
+              signup === "public-servant" ||
+              preferredType === "government";
+
+            if (isGovernmentFlow) {
+              // Persist signup intent and claim context for this user
+              const claimContextPayload =
+                cityIdParam != null &&
+                districtParam != null &&
+                Number.isFinite(Number(cityIdParam)) &&
+                Number.isFinite(Number(districtParam))
+                  ? {
+                      city_id: parseInt(cityIdParam, 10),
+                      district: parseInt(districtParam, 10),
+                    }
+                  : undefined;
+              try {
+                await recordSignupIntent(
+                  {
+                    source: signup === "government" ? "claim_profile" : "public-servant",
+                    claim_context: claimContextPayload,
+                  },
+                  token
+                );
+              } catch {
+                // Non-blocking
+              }
+              // Prefer claim context from server if already stored, else from URL
+              let claimContext: ClaimContext | null = claimContextPayload ?? null;
+              try {
+                const govStatus = await getGovernmentVerificationStatus(token);
+                if (govStatus.claim_context && (govStatus.claim_context.city_id != null || govStatus.claim_context.leader_id != null)) {
+                  claimContext = govStatus.claim_context;
+                }
+              } catch {
+                // Use URL-derived context
+              }
+              if (!claimContext && claimContextPayload) {
+                claimContext = claimContextPayload;
+              }
+              setGovernmentClaimContext(
+                preferredType === "government" && !signup ? null : claimContext
+              );
+              setShowGovernmentOnboardingModal(true);
+            } else {
+              setShowWelcomeModal(true);
+            }
           }
         }
       } catch (error) {
-        // On error, silently skip onboarding check
         console.error("Error checking onboarding status:", error);
       }
     };
@@ -302,13 +382,14 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // Redirect non-admins away from research and research-new views
+  // Redirect away from research and research-new unless admin or government mode
+  const canAccessResearch = isAdmin || !!govVerificationStatus?.government_verified;
   useEffect(() => {
-    if (!isCheckingAdmin && !isAdmin && (currentView === "research" || currentView === "research-new")) {
+    if (!isCheckingAdmin && !canAccessResearch && (currentView === "research" || currentView === "research-new")) {
       setCurrentView("chat");
       setCurrentResearchId(null);
     }
-  }, [isCheckingAdmin, isAdmin, currentView]);
+  }, [isCheckingAdmin, canAccessResearch, currentView]);
 
   // Allow other views (e.g., Research) to open a Job Session for review.
   useEffect(() => {
@@ -441,6 +522,14 @@ export default function DashboardPage() {
         learningFocus: prefs.extra?.learning_focus || "",
       });
       
+      // Fetch government verification status (for Settings government mode section)
+      try {
+        const govStatus = await getGovernmentVerificationStatus(token);
+        setGovVerificationStatus(govStatus);
+      } catch {
+        setGovVerificationStatus(null);
+      }
+
       // Fetch user email from permissions
       try {
         const permissions = await getMyPermissions(token);
@@ -577,33 +666,99 @@ export default function DashboardPage() {
 
   const handleWelcomeComplete = () => {
     setShowWelcomeModal(false);
-    // Track onboarding completion
     if (user?.sub) {
       trackOnboardingComplete(user.sub);
       trackUserActivation("onboarding_complete");
     }
   };
 
+  const handleGovernmentOnboardingComplete = () => {
+    setShowGovernmentOnboardingModal(false);
+    setGovernmentClaimContext(null);
+    if (user?.sub) {
+      trackOnboardingComplete(user.sub);
+      trackUserActivation("onboarding_complete");
+    }
+    const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    if (urlParams?.get("signup")) {
+      const p = new URLSearchParams(window.location.search);
+      p.delete("signup");
+      p.delete("city_id");
+      p.delete("district");
+      const next = p.toString() ? `${window.location.pathname}?${p}` : window.location.pathname;
+      window.history.replaceState({}, "", next);
+    }
+  };
+
+  const buttonStyle = {
+    padding: "8px 16px",
+    fontSize: "14px",
+    fontWeight: 500,
+    color: "var(--button-secondary-text)",
+    background: "var(--bg-secondary)",
+    border: "1px solid var(--border-primary)",
+    borderRadius: "6px",
+    cursor: "pointer",
+    transition: "all 0.15s ease",
+  };
+  const buttonHover = (e: React.MouseEvent<HTMLButtonElement>, over: boolean) => {
+    e.currentTarget.style.background = over ? "var(--bg-tertiary)" : "var(--bg-secondary)";
+    e.currentTarget.style.borderColor = over ? "var(--border-secondary)" : "var(--border-primary)";
+  };
+
   const handleResetOnboarding = async () => {
-    if (!confirm("This will reset your onboarding experience. The welcome screen will appear immediately. Continue?")) {
+    if (!confirm("This will reset your onboarding experience. The welcome (citizen) screen will appear immediately. Continue?")) {
       return;
     }
 
     try {
       const token = await getAccessTokenSilently();
-      await updateUserPreferences({ has_completed_onboarding: false }, token);
-      
-      // Reset the ref so it can check again if needed
+      const extra = { ...(userPreferences?.extra || {}), preferred_onboarding_type: "citizen" };
+      await updateUserPreferences({ has_completed_onboarding: false, extra }, token);
       hasCheckedOnboarding.current = false;
-      
-      // Check if user has saved cities - if they do, still show the modal (for testing/reset purposes)
       await getSavedCities(token);
-      
-      // Show the modal immediately after reset
+      setShowGovernmentOnboardingModal(false);
       setShowWelcomeModal(true);
     } catch (error) {
       console.error("Error resetting onboarding:", error);
       alert("Failed to reset onboarding. Please try again.");
+    }
+  };
+
+  const handleResetOnboardingGovernment = async () => {
+    if (!confirm("This will reset onboarding and show the government flow (verify email, etc.) immediately. Continue?")) {
+      return;
+    }
+
+    try {
+      const token = await getAccessTokenSilently();
+      const extra = { ...(userPreferences?.extra || {}), preferred_onboarding_type: "government" };
+      await updateUserPreferences({ has_completed_onboarding: false, extra }, token);
+      hasCheckedOnboarding.current = false;
+      setShowWelcomeModal(false);
+      setGovernmentClaimContext(null);
+      setShowGovernmentOnboardingModal(true);
+    } catch (error) {
+      console.error("Error resetting to government onboarding:", error);
+      alert("Failed to reset. Please try again.");
+    }
+  };
+
+  const handleSwitchGovernmentMode = async (enable: boolean) => {
+    try {
+      setGovModeToggling(true);
+      const token = await getAccessTokenSilently();
+      const updated = await updateGovernmentVerification(
+        enable,
+        enable ? (userEmail ?? undefined) : undefined,
+        token
+      );
+      setGovVerificationStatus(updated);
+    } catch (error) {
+      console.error("Error toggling government mode:", error);
+      alert(enable ? "Failed to switch to government mode." : "Failed to revert to standard user.");
+    } finally {
+      setGovModeToggling(false);
     }
   };
 
@@ -620,6 +775,8 @@ export default function DashboardPage() {
     return null;
   }
 
+  const hasGovernmentBanner = !!govVerificationStatus?.government_verified;
+
   return (
     <div className={`${styles.dashboardLayout} ${sidebarOpen ? "sidebar-open" : "sidebar-collapsed"}`}>
       <TitleBar
@@ -633,6 +790,8 @@ export default function DashboardPage() {
         isAdmin={isAdmin}
         cityLeadCityIds={cityLeadCityIds}
         currentView={currentView}
+        governmentVerified={govVerificationStatus?.government_verified ?? false}
+        governmentEmail={govVerificationStatus?.government_email ?? null}
         onNewChat={handleNewChat}
         onSearchCities={handleSearchCities}
         onOpenSettings={handleOpenSettings}
@@ -677,6 +836,11 @@ export default function DashboardPage() {
       />
 
       <main className={`${styles.mainContent} ${sidebarOpen ? "" : styles.mainContentCollapsed}`} id="main-content">
+        {hasGovernmentBanner && (
+          <div className={styles.governmentBanner} role="banner">
+            Government mode
+          </div>
+        )}
         <div className={styles.viewsContainer}>
           {currentView === "chat" && (
             <div className={`${styles.contentView} ${styles.contentViewActive}`}>
@@ -689,13 +853,13 @@ export default function DashboardPage() {
             </div>
           )}
 
-                  {currentView === "research" && currentResearchId && isAdmin && (
+                  {currentView === "research" && currentResearchId && canAccessResearch && (
             <div className={`${styles.contentView} ${styles.contentViewActive}`}>
                       <ResearchView reportId={currentResearchId} isAdmin={isAdmin} />
             </div>
           )}
 
-          {currentView === "research-new" && isAdmin && (
+          {currentView === "research-new" && canAccessResearch && (
             <div className={`${styles.contentView} ${styles.contentViewActive}`}>
               <NewResearchPage />
             </div>
@@ -869,7 +1033,7 @@ export default function DashboardPage() {
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = "var(--bg-secondary)";
-                    e.currentTarget.style.color = "var(--text-primary)";
+                    e.currentTarget.style.color = "var(--button-secondary-text)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = "none";
@@ -1364,12 +1528,11 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {/* Onboarding Section */}
+                  {/* Government mode (preview) */}
                   <div style={{ marginBottom: "32px" }}>
                     <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
-                      Onboarding
+                      Government mode (preview)
                     </h3>
-                    
                     <div
                       style={{
                         display: "flex",
@@ -1381,42 +1544,100 @@ export default function DashboardPage() {
                       }}
                     >
                       <div>
-                        <div
-                          style={{
-                            fontWeight: 600,
-                            color: "var(--text-primary)",
-                            marginBottom: "4px",
-                          }}
-                        >
+                        <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: "4px" }}>
+                          {govVerificationStatus?.government_verified ? "Government mode on" : "Government mode off"}
+                        </div>
+                        <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
+                          {govVerificationStatus?.government_verified
+                            ? govVerificationStatus.government_email
+                              ? `Verified as ${govVerificationStatus.government_email}`
+                              : "You're seeing the app as a government user."
+                            : "Switch to government mode to see the UI as a government-verified user."}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        {govVerificationStatus?.government_verified ? (
+                          <button
+                            onClick={() => handleSwitchGovernmentMode(false)}
+                            disabled={govModeToggling}
+                            style={buttonStyle}
+                            onMouseEnter={(e) => buttonHover(e, true)}
+                            onMouseLeave={(e) => buttonHover(e, false)}
+                          >
+                            {govModeToggling ? "…" : "Revert to standard user"}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleSwitchGovernmentMode(true)}
+                            disabled={govModeToggling}
+                            style={buttonStyle}
+                            onMouseEnter={(e) => buttonHover(e, true)}
+                            onMouseLeave={(e) => buttonHover(e, false)}
+                          >
+                            {govModeToggling ? "…" : "Switch to government mode"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Onboarding Section */}
+                  <div style={{ marginBottom: "32px" }}>
+                    <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
+                      Onboarding
+                    </h3>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "12px 0",
+                        borderBottom: "1px solid var(--border-primary)",
+                        gap: "16px",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: "4px" }}>
                           Reset onboarding
                         </div>
                         <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                          Show the welcome screen again on your next visit.
+                          Show the citizen welcome screen again on your next visit.
                         </div>
                       </div>
                       <button
                         onClick={handleResetOnboarding}
-                        style={{
-                          padding: "8px 16px",
-                          fontSize: "14px",
-                          fontWeight: 500,
-                          color: "var(--text-primary)",
-                          background: "var(--bg-secondary)",
-                          border: "1px solid var(--border-primary)",
-                          borderRadius: "6px",
-                          cursor: "pointer",
-                          transition: "all 0.15s ease",
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = "var(--bg-tertiary)";
-                          e.currentTarget.style.borderColor = "var(--border-secondary)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = "var(--bg-secondary)";
-                          e.currentTarget.style.borderColor = "var(--border-primary)";
-                        }}
+                        style={buttonStyle}
+                        onMouseEnter={(e) => buttonHover(e, true)}
+                        onMouseLeave={(e) => buttonHover(e, false)}
                       >
                         Reset
+                      </button>
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "12px 0",
+                        borderBottom: "1px solid var(--border-primary)",
+                        gap: "16px",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: "4px" }}>
+                          Reset and show government onboarding
+                        </div>
+                        <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
+                          Run the government flow (verify email, confirm profile) again.
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleResetOnboardingGovernment}
+                        style={buttonStyle}
+                        onMouseEnter={(e) => buttonHover(e, true)}
+                        onMouseLeave={(e) => buttonHover(e, false)}
+                      >
+                        Reset (government)
                       </button>
                     </div>
                   </div>
@@ -1438,6 +1659,12 @@ export default function DashboardPage() {
       )}
 
       {/* Welcome Modal for first-time users */}
+      <GovernmentOnboardingModal
+        isOpen={showGovernmentOnboardingModal}
+        onClose={() => setShowGovernmentOnboardingModal(false)}
+        onComplete={handleGovernmentOnboardingComplete}
+        claimContext={governmentClaimContext}
+      />
       <WelcomeModal
         isOpen={showWelcomeModal}
         onClose={() => setShowWelcomeModal(false)}

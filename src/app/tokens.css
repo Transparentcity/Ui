@@ -29,6 +29,9 @@
   --text-muted: #9ca3af;
   --text-inverse: #ffffff;
 
+  /* Secondary button text (light mode: same as primary text) */
+  --button-secondary-text: var(--text-primary);
+
   --border: #e5e7eb;
   --border-primary: #e5e7eb;
   --border-secondary: #d1d5db;
@@ -92,6 +95,9 @@
   --text-tertiary: #94a3b8;
   --text-muted: #94a3b8;
   --text-inverse: #0f172a;
+
+  /* Secondary button text: slightly softer than primary so buttons aren’t harsh white in dark mode */
+  --button-secondary-text: #a8b8cc;
 
   --border: #334155;
   --border-primary: #334155;

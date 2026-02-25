@@ -28,12 +28,13 @@
 
 .btn-secondary {
   background: var(--bg-secondary);
-  color: var(--text-primary);
+  color: var(--button-secondary-text);
   border: 1px solid var(--border-primary);
 }
 
 .btn-secondary:hover:not(:disabled) {
   background: var(--bg-tertiary);
+  color: var(--button-secondary-text);
   transform: translateY(-2px);
 }
 

@@ -308,6 +308,37 @@
   color: var(--text-secondary, #6b7280);
 }
 
+.lastRunStatus {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.viewRunLink {
+  font-size: 0.75rem;
+  color: var(--brand-primary, #ad35fa);
+  text-decoration: none;
+}
+
+.viewRunLink:hover {
+  text-decoration: underline;
+}
+
+.promptPreview {
+  width: 100%;
+  min-height: 8rem;
+  max-height: 20rem;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.8125rem;
+  font-family: inherit;
+  line-height: 1.45;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg-secondary, #f9fafb);
+  color: var(--text-primary, #1f2937);
+  resize: vertical;
+  overflow-y: auto;
+}
+
 .recentRuns {
   margin-top: 0.5rem;
   border-top: 1px solid var(--border, #e5e7eb);

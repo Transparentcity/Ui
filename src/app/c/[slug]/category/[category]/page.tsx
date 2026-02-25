@@ -9,6 +9,7 @@ import {
   getPublicCityDetail,
   getPublicMetricComparisonsBatch,
   getPublicMetricDistrictComparisons,
+  getPublicCityDistricts,
   listPublicMapsForCity,
 } from "@/lib/publicApiClient";
 import EmailSignInLink from "../../EmailSignInLink";
@@ -138,7 +139,16 @@ export default async function CityCategoryPage({
   let maps: Awaited<ReturnType<typeof listPublicMapsForCity>> = [];
 
   try {
-    cityDetail = await getPublicCityDetail(city.id);
+    const [detail, cityDistrictsRes, mapsRes] = await Promise.all([
+      getPublicCityDetail(city.id),
+      getPublicCityDistricts(city.id).catch((): number[] => []),
+      listPublicMapsForCity(city.id).catch(() => []),
+    ]);
+    cityDetail = detail;
+    maps = mapsRes;
+    if (Array.isArray(cityDistrictsRes) && cityDistrictsRes.length > 0) {
+      districts = [...cityDistrictsRes].sort((a, b) => a - b);
+    }
     const allMetrics = cityDetail?.metrics ?? [];
     const categoryMetrics = allMetrics.filter(
       (m) => (m.category || "Uncategorized") === categoryName
@@ -154,17 +164,17 @@ export default async function CityCategoryPage({
       comparison_types: ["ytd"],
     }).catch(() => ({}));
 
-    const dc = await getPublicMetricDistrictComparisons(
-      categoryMetrics[0].id,
-      "ytd"
-    ).catch(() => null);
-    if (dc?.districts)
-      districts = dc.districts
-        .map((d) => d.district)
-        .filter((n) => n > 0)
-        .sort((a, b) => a - b);
-
-    maps = await listPublicMapsForCity(city.id).catch(() => []);
+    if (districts.length === 0) {
+      const dc = await getPublicMetricDistrictComparisons(
+        categoryMetrics[0].id,
+        "ytd"
+      ).catch(() => null);
+      if (dc?.districts)
+        districts = dc.districts
+          .map((d) => d.district)
+          .filter((n) => n > 0)
+          .sort((a, b) => a - b);
+    }
   } catch {
     notFound();
   }

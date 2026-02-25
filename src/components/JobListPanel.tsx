@@ -25,12 +25,15 @@ interface JobListPanelProps {
   stats: JobStats | null;
   getAccessTokenSilently: () => Promise<string>;
   token: string | null;
+  /** When set (e.g. from URL ?job_id=), select and load this job on mount */
+  initialJobId?: string;
 }
 
 export default function JobListPanel({
   stats,
   getAccessTokenSilently,
   token,
+  initialJobId,
 }: JobListPanelProps) {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
@@ -41,6 +44,7 @@ export default function JobListPanel({
   const [filteredByTypeJobs, setFilteredByTypeJobs] = useState<Job[] | null>(null);
   const [filteredJobsLoading, setFilteredJobsLoading] = useState(false);
   const selectedJobRef = useRef<Job | null>(null);
+  const initialJobIdAppliedRef = useRef(false);
 
   const { jobs: webSocketJobs, isConnected } = useJobWebSocketContext();
 
@@ -198,6 +202,14 @@ export default function JobListPanel({
       loadJobDetails(jobId);
     }
   };
+
+  // Deep link: select and load job when initialJobId is set (e.g. from "View run" on scheduled job)
+  useEffect(() => {
+    if (!initialJobId || !token || initialJobIdAppliedRef.current) return;
+    initialJobIdAppliedRef.current = true;
+    setDetailsLoading(true);
+    loadJobDetails(initialJobId);
+  }, [initialJobId, token]);
 
   useEffect(() => {
     if (selectedJobRef.current) {

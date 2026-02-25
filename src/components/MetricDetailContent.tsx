@@ -177,6 +177,18 @@ export default function MetricDetailContent({
   const [definitionExpanded, setDefinitionExpanded] = useState(false);
   const selectedDistrict = district ?? null; // null = citywide, number = specific district
 
+  // Expand "About this data" when linking from the title ? icon (#about-this-data)
+  useEffect(() => {
+    const checkHash = () => {
+      if (typeof window !== "undefined" && window.location.hash === "#about-this-data") {
+        setDefinitionExpanded(true);
+      }
+    };
+    checkHash();
+    window.addEventListener("hashchange", checkHash);
+    return () => window.removeEventListener("hashchange", checkHash);
+  }, []);
+
   const comparisonsQuery = usePublicMetricComparisons(
     metric.id,
     selectedDistrict,
@@ -665,7 +677,7 @@ export default function MetricDetailContent({
       )}
 
       {/* About This Data */}
-      <section className="metric-section metric-definition">
+      <section id="about-this-data" className="metric-section metric-definition">
         <h2 className="metric-section-title">About this data</h2>
         
         {/* Data source summary - always visible */}
