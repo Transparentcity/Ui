@@ -15,6 +15,46 @@ import "./DeltaMapView.css";
 // Mapbox access token
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
+/** Compute [[sw_lng, sw_lat], [ne_lng, ne_lat]] from a GeoJSON FeatureCollection. */
+function getBoundsFromGeoJson(
+  fc: GeoJSON.FeatureCollection
+): [[number, number], [number, number]] | null {
+  let minLng = Infinity;
+  let minLat = Infinity;
+  let maxLng = -Infinity;
+  let maxLat = -Infinity;
+  const addPoint = (lng: number, lat: number) => {
+    minLng = Math.min(minLng, lng);
+    minLat = Math.min(minLat, lat);
+    maxLng = Math.max(maxLng, lng);
+    maxLat = Math.max(maxLat, lat);
+  };
+  for (const f of fc.features) {
+    const geom = f?.geometry;
+    if (!geom) continue;
+    if (geom.type === "Polygon") {
+      for (const ring of geom.coordinates) {
+        for (const pos of ring) {
+          if (pos.length >= 2) addPoint(pos[0], pos[1]);
+        }
+      }
+    } else if (geom.type === "MultiPolygon") {
+      for (const polygon of geom.coordinates) {
+        for (const ring of polygon) {
+          for (const pos of ring) {
+            if (pos.length >= 2) addPoint(pos[0], pos[1]);
+          }
+        }
+      }
+    }
+  }
+  if (minLng === Infinity || minLat === Infinity) return null;
+  return [
+    [minLng, minLat],
+    [maxLng, maxLat],
+  ];
+}
+
 interface DeltaMapViewProps {
   metricId: number;
   comparisonType: "ytd" | "mtd" | "mtd_prior_year";
@@ -29,9 +69,11 @@ export default function DeltaMapView({
   comparisonType,
   greenDirection = "down",
   height = 350,
-  cityCenter = [-122.4194, 37.7749], // SF default
+  cityCenter, // Caller can pass; when omitted we fit to shape bounds so no city-specific default
   cityZoom = 11,
 }: DeltaMapViewProps) {
+  // Neutral fallback when no center provided (map will fit to shape bounds once loaded)
+  const initialCenter: [number, number] = cityCenter ?? [-98.5795, 39.8283];
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const [loading, setLoading] = useState(true);
@@ -158,7 +200,7 @@ export default function DeltaMapView({
     const map = new mapboxgl.Map({
       container: mapContainer.current,
       style: "mapbox://styles/mapbox/light-v11",
-      center: cityCenter,
+      center: initialCenter,
       zoom: cityZoom,
       scrollZoom: false,
       attributionControl: false,
@@ -250,6 +292,16 @@ export default function DeltaMapView({
         },
       });
 
+      // Frame map on district shapes so it shows the correct city (not a fixed center)
+      const bounds = getBoundsFromGeoJson(geoJsonWithData);
+      if (bounds) {
+        try {
+          map.fitBounds(bounds, { padding: 50, maxZoom: 12, duration: 0 });
+        } catch (e) {
+          console.warn("[DeltaMapView] fitBounds failed:", e);
+        }
+      }
+
       // Add hover popup
       const popup = new mapboxgl.Popup({
         closeButton: false,
@@ -320,7 +372,7 @@ export default function DeltaMapView({
       map.remove();
       mapRef.current = null;
     };
-  }, [geoJsonWithData, cityCenter, cityZoom, greenDirection]);
+  }, [geoJsonWithData, initialCenter, cityZoom, greenDirection]);
 
   // Labels for period comparison
   const periodLabel = useMemo(() => {

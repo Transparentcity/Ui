@@ -429,14 +429,25 @@ export default function ProgressiveMapView({
     try {
       mapboxgl.accessToken = MAPBOX_TOKEN;
 
-      // Use a slightly lower zoom level for the embedded view to show more context
+      // Default center: use map center, or midpoint of bounds, or neutral US center (not city-specific)
+      const bounds = mapData.bounds;
+      let initialCenter: [number, number];
+      if (mapData.center) {
+        initialCenter = [mapData.center.lng, mapData.center.lat];
+      } else if (bounds && bounds.length === 2) {
+        const [[swLng, swLat], [neLng, neLat]] = bounds;
+        initialCenter = [(swLng + neLng) / 2, (swLat + neLat) / 2];
+      } else {
+        initialCenter = [-98.5795, 39.8283]; // Continental US center (neutral fallback when backend sends no center/bounds)
+      }
+
       const baseZoom = mapData.center?.zoom || 11;
-      const embeddedZoom = Math.max(baseZoom - 1, 10); // Zoom out by 1, but don't go below 10
-      
+      const embeddedZoom = Math.max(baseZoom - 1, 10);
+
       const map = new mapboxgl.Map({
         container: container,
         style: "mapbox://styles/mapbox/light-v11",
-        center: mapData.center ? [mapData.center.lng, mapData.center.lat] : [-122.4194, 37.7749],
+        center: initialCenter,
         zoom: embeddedZoom,
         attributionControl: false,
         scrollZoom: false, // Disable scroll zoom for embedded maps
@@ -444,7 +455,6 @@ export default function ProgressiveMapView({
 
       mapInstanceRef.current = map;
 
-      // Add zoom controls in the bottom-right corner
       map.addControl(
         new mapboxgl.NavigationControl({ showCompass: false }),
         "bottom-right"
@@ -453,12 +463,20 @@ export default function ProgressiveMapView({
       map.on("load", async () => {
         setTimeout(async () => {
           try {
-            // For point maps, load points immediately
+            if (bounds && bounds.length === 2) {
+              try {
+                map.fitBounds(bounds as [[number, number], [number, number]], {
+                  padding: 50,
+                  maxZoom: 14,
+                  duration: 0,
+                });
+              } catch (fitErr) {
+                console.warn("fitBounds failed, using initial center:", fitErr);
+              }
+            }
             if (isPointMap) {
               loadPointMap(map);
             }
-            // For choropleth maps, wait for shape layer to be selected
-            // This will be handled by the useEffect that watches selectedShapeLayer
           } catch (err) {
             console.error("Error loading map layers:", err);
             onError?.(`Failed to load map layers: ${err instanceof Error ? err.message : String(err)}`);

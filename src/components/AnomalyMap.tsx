@@ -224,11 +224,21 @@ export default function AnomalyMap({
       }
     }
 
-    // Create map
+    // Initial center: use map center, or midpoint of bounds, or neutral US center (not city-specific)
+    let initialCenter: [number, number];
+    if (center) {
+      initialCenter = [center.lng, center.lat];
+    } else if (bounds && bounds.length === 2) {
+      const [[swLng, swLat], [neLng, neLat]] = bounds;
+      initialCenter = [(swLng + neLng) / 2, (swLat + neLat) / 2];
+    } else {
+      initialCenter = [-98.5795, 39.8283]; // Continental US center (neutral fallback)
+    }
+
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
       style: "mapbox://styles/mapbox/light-v11",
-      center: center ? [center.lng, center.lat] : [-122.4194, 37.7749], // Default to SF
+      center: initialCenter,
       zoom: center?.zoom || 11,
       attributionControl: false,
     });

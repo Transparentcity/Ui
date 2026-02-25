@@ -167,13 +167,26 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
   const getVisualizationPlaceholder = (story: FeedStory): string => {
     switch (story.visualization_type) {
       case "chart":
-        return "📊 View Chart";
+        return "📊 Chart";
       case "map":
-        return `🗺️ View ${getMapTypeLabel(story)}`;
+        return `🗺️ ${getMapTypeLabel(story)}`;
       case "anomaly":
-        return "📈 View Anomaly";
+        return "📈 Anomaly";
       default:
-        return "📊 View Visualization";
+        return "📊 Visualization";
+    }
+  };
+
+  const getVisualizationLinkLabel = (story: FeedStory): string => {
+    switch (story.visualization_type) {
+      case "chart":
+        return "Open chart →";
+      case "map":
+        return "Open map →";
+      case "anomaly":
+        return "View details →";
+      default:
+        return "View →";
     }
   };
 
@@ -307,26 +320,11 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
                     >
                       {city.name}
                     </button>
+                    {/* Only relative time—no redundant date range or district; headline carries the story */}
                     <div className={styles.actorMeta}>
                       <span className={styles.timestamp}>
                         {getRelativeTime(story.published_at || story.story_date)}
                       </span>
-                      {story.newsletter_frequency && (
-                        <>
-                          <span className={styles.metaDot}>·</span>
-                          <span className={styles.frequencyTag}>
-                            {getFrequencyLabel(story.newsletter_frequency)}
-                          </span>
-                        </>
-                      )}
-                      {story.district !== undefined && (
-                        <>
-                          <span className={styles.metaDot}>·</span>
-                          <span className={styles.districtTag}>
-                            {getDistrictLabel(story.district)}
-                          </span>
-                        </>
-                      )}
                     </div>
                   </div>
                   {story.is_featured && (
@@ -340,7 +338,7 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
                   <p className={styles.storyDescription}>{story.description}</p>
                 </div>
 
-                {/* Visualization */}
+                {/* Visualization: chart or map with clear link when available */}
                 {story.primary_visualization && (
                   <div className={styles.storyVisualization}>
                     {story.visualization_type && (
@@ -375,7 +373,9 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
                       >
                         <div className={styles.visualizationPlaceholder}>
                           {getVisualizationPlaceholder(story)}
-                          <span className={styles.visualizationLinkText}>View →</span>
+                          <span className={styles.visualizationLinkText}>
+                            {getVisualizationLinkLabel(story)}
+                          </span>
                         </div>
                       </a>
                     ) : (

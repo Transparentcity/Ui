@@ -96,6 +96,50 @@
   color: var(--text-primary, #222222);
 }
 
+.categoryNameEditable {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary, #222222);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.categoryNameEditable:hover {
+  background: rgba(173, 53, 250, 0.08);
+  color: var(--brand-primary, #ad35fa);
+}
+
+.categoryNameInput {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary, #222222);
+  padding: 4px 8px;
+  border: 1px solid var(--brand-primary, #ad35fa);
+  border-radius: 6px;
+  outline: none;
+  min-width: 120px;
+  font-family: inherit;
+}
+
+.renameBtn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary, #6b7280);
+  background: var(--bg-tertiary, #f3f4f6);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.renameBtn:hover {
+  background: rgba(173, 53, 250, 0.1);
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary, #ad35fa);
+}
+
 .metricCount {
   margin-left: auto;
   font-size: 11px;
@@ -137,6 +181,116 @@
 .subcategoryCount {
   font-size: 11px;
   color: var(--text-tertiary, #9ca3af);
+}
+
+.subcategoryNameEditable {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.subcategoryNameEditable:hover {
+  background: rgba(173, 53, 250, 0.08);
+  color: var(--brand-primary, #ad35fa);
+}
+
+.subcategoryNameInput {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border: 1px solid var(--brand-primary, #ad35fa);
+  border-radius: 4px;
+  outline: none;
+  min-width: 100px;
+  font-family: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.renameBtnSmall {
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-tertiary, #9ca3af);
+  background: transparent;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.renameBtnSmall:hover {
+  background: rgba(173, 53, 250, 0.08);
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary, #ad35fa);
+}
+
+.addCategoryRow {
+  margin-top: 10px;
+  padding: 8px 0;
+}
+
+.addCategoryBtn {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--brand-primary, #ad35fa);
+  background: rgba(173, 53, 250, 0.08);
+  border: 1px dashed var(--brand-primary, #ad35fa);
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.addCategoryBtn:hover {
+  background: rgba(173, 53, 250, 0.12);
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+.addSubcategoryRow {
+  margin-top: 8px;
+  padding: 4px 0;
+}
+
+.addSubcategoryBtn {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #6b7280);
+  background: transparent;
+  border: 1px dashed var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.addSubcategoryBtn:hover {
+  background: rgba(173, 53, 250, 0.06);
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary, #ad35fa);
+}
+
+.moveToSelect {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  font-family: inherit;
+  max-width: 180px;
+}
+
+.moveToSelect:hover {
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary, #ad35fa);
 }
 
 .metricItem {

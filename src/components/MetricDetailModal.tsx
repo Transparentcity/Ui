@@ -712,7 +712,11 @@ export default function MetricDetailModal({
               {metric.category_fields && metric.category_fields.length > 0 && (
                 <section className="metric-section">
                   <h2 className="metric-section-title">What types of {metric.metric_name.toLowerCase()} are there?</h2>
-                  <CategoryBreakdown metricId={metric.id} categoryFields={metric.category_fields} />
+                  <CategoryBreakdown
+                    metricId={metric.id}
+                    categoryFields={metric.category_fields}
+                    timeSeriesSummary={timeSeriesQuery.data ?? undefined}
+                  />
                 </section>
               )}
 

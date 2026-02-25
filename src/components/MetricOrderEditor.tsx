@@ -55,6 +55,12 @@ interface CategoryGroup {
   isExpanded: boolean;
 }
 
+/** For inline rename: which category or subcategory is being edited. */
+type EditingTarget =
+  | { type: "category"; catIndex: number }
+  | { type: "subcategory"; catIndex: number; subIndex: number }
+  | null;
+
 /**
  * MetricOrderEditor - Editor for category and metric ordering with visibility controls
  */
@@ -73,6 +79,9 @@ export default function MetricOrderEditor({
   const [localStorageOrdering, setLocalStorageOrdering] = useState<MetricOrderingResponse | null>(null);
   /** Metric IDs to show on dashboard (user can toggle). When empty, fall back to show_on_dash. */
   const [visibleMetricIds, setVisibleMetricIds] = useState<Set<number>>(new Set());
+  /** Inline edit state for custom category/subcategory names. */
+  const [editingTarget, setEditingTarget] = useState<EditingTarget>(null);
+  const [editingValue, setEditingValue] = useState("");
 
   const isUserMode = variant === "user";
   const useCityOrdering = !isUserMode;
@@ -292,6 +301,104 @@ export default function MetricOrderEditor({
     setHasChanges(true);
   }, []);
 
+  // Add new category (user-defined name)
+  const addCategory = useCallback(() => {
+    const name = window.prompt("New category name:");
+    const trimmed = name?.trim();
+    if (!trimmed) return;
+    setCategoryGroups((prev) => [
+      ...prev,
+      {
+        name: trimmed,
+        order: (prev.length + 1) * 100,
+        subcategories: [{ name: null, metrics: [] }],
+        isExpanded: true,
+      },
+    ]);
+    setHasChanges(true);
+  }, []);
+
+  // Start or commit renaming a category
+  const startRenameCategory = useCallback((catIndex: number) => {
+    const cat = categoryGroups[catIndex];
+    if (!cat) return;
+    setEditingTarget({ type: "category", catIndex });
+    setEditingValue(cat.name);
+  }, [categoryGroups]);
+
+  const startRenameSubcategory = useCallback((catIndex: number, subIndex: number) => {
+    const cat = categoryGroups[catIndex];
+    const sub = cat?.subcategories?.[subIndex];
+    if (!sub) return;
+    setEditingTarget({ type: "subcategory", catIndex, subIndex });
+    setEditingValue(sub.name ?? "");
+  }, [categoryGroups]);
+
+  const commitEditing = useCallback(() => {
+    if (!editingTarget || editingValue === undefined) return;
+    const trimmed = String(editingValue).trim();
+    setCategoryGroups((prev) => {
+      const next = prev.map((c) => ({
+        ...c,
+        subcategories: c.subcategories.map((s) => ({ ...s, metrics: [...s.metrics] })),
+      }));
+      if (editingTarget.type === "category") {
+        const cat = next[editingTarget.catIndex];
+        if (cat && trimmed) cat.name = trimmed;
+      } else {
+        const cat = next[editingTarget.catIndex];
+        const sub = cat?.subcategories?.[editingTarget.subIndex];
+        if (sub) sub.name = trimmed || null;
+      }
+      return next;
+    });
+    setEditingTarget(null);
+    setEditingValue("");
+    setHasChanges(true);
+  }, [editingTarget, editingValue]);
+
+  // Add new subcategory under a category (user-defined name)
+  const addSubcategory = useCallback((catIndex: number) => {
+    const name = window.prompt("New subcategory name:");
+    const trimmed = name?.trim() || null;
+    setCategoryGroups((prev) => {
+      const next = prev.map((c, i) => {
+        if (i !== catIndex) return c;
+        return {
+          ...c,
+          subcategories: [
+            ...c.subcategories,
+            { name: trimmed, metrics: [] },
+          ],
+        };
+      });
+      return next;
+    });
+    setHasChanges(true);
+  }, []);
+
+  // Move a metric to another category/subcategory
+  const moveMetricTo = useCallback(
+    (fromCat: number, fromSub: number, metricIndex: number, toCat: number, toSub: number) => {
+      if (fromCat === toCat && fromSub === toSub) return;
+      setCategoryGroups((prev) => {
+        const next = prev.map((c) => ({
+          ...c,
+          subcategories: c.subcategories.map((s) => ({
+            ...s,
+            metrics: [...s.metrics],
+          })),
+        }));
+        const metricItem = next[fromCat].subcategories[fromSub].metrics[metricIndex];
+        if (!metricItem) return prev;
+        next[fromCat].subcategories[fromSub].metrics.splice(metricIndex, 1);
+        next[toCat].subcategories[toSub].metrics.push(metricItem);
+        return next;
+      });
+      setHasChanges(true);
+    },
+    []
+  );
 
   // Save ordering to database or localStorage (only visible metrics are included)
   const handleSave = useCallback(async () => {
@@ -418,7 +525,7 @@ export default function MetricOrderEditor({
       {isExpanded && (
         <div className={styles.content}>
           <div className={styles.instructions}>
-            Use the checkboxes to add or remove metrics. Use the ▲▼ arrows to reorder categories and metrics.
+            Add or rename categories and subcategories, reorder with ▲▼, and use checkboxes to show or hide metrics. Move metrics between groups with the dropdown. Save to persist; empty categories are not saved.
           </div>
 
           <div className={styles.categoryList}>
@@ -431,11 +538,13 @@ export default function MetricOrderEditor({
                 (sum, sub) => sum + sub.metrics.length, 0
               );
               
-              const showSubcategoryHeaders = subcategories.length > 1;
+              const showSubcategoryHeaders = subcategories.length >= 1;
+              const isEditingCategory =
+                editingTarget?.type === "category" && editingTarget.catIndex === catIndex;
               
               return (
                 <div
-                  key={category.name}
+                  key={`${category.name}-${catIndex}`}
                   className={styles.categoryItem}
                 >
                   <div className={styles.categoryHeader}>
@@ -464,7 +573,44 @@ export default function MetricOrderEditor({
                     >
                       {category.isExpanded ? "▼" : "▶"}
                     </span>
-                    <span className={styles.categoryName}>{category.name}</span>
+                    {isEditingCategory ? (
+                      <input
+                        type="text"
+                        className={styles.categoryNameInput}
+                        value={editingValue}
+                        onChange={(e) => setEditingValue(e.target.value)}
+                        onBlur={commitEditing}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commitEditing();
+                          if (e.key === "Escape") {
+                            setEditingTarget(null);
+                            setEditingValue("");
+                          }
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        autoFocus
+                        aria-label="Category name"
+                      />
+                    ) : (
+                      <>
+                        <span
+                          className={styles.categoryNameEditable}
+                          onClick={(e) => { e.stopPropagation(); startRenameCategory(catIndex); }}
+                          title="Click to rename category"
+                        >
+                          {category.name}
+                        </span>
+                        <button
+                          type="button"
+                          className={styles.renameBtn}
+                          onClick={(e) => { e.stopPropagation(); startRenameCategory(catIndex); }}
+                          title="Rename category"
+                          aria-label="Rename category"
+                        >
+                          Rename
+                        </button>
+                      </>
+                    )}
                     <span className={styles.metricCount}>
                       ({totalMetrics} metrics)
                     </span>
@@ -472,72 +618,163 @@ export default function MetricOrderEditor({
 
                   {category.isExpanded && (
                     <div className={styles.metricList}>
-                      {subcategories.map((subcategory, subIndex) => (
-                        <div key={subcategory.name ?? 'uncategorized'}>
-                          {/* Subcategory header */}
-                          {showSubcategoryHeaders && (
-                            <div className={styles.subcategoryHeader}>
-                              <span className={styles.subcategoryName}>
-                                {subcategory.name ?? "(Uncategorized)"}
-                              </span>
-                              <span className={styles.subcategoryCount}>
-                                ({subcategory.metrics.length})
-                              </span>
-                            </div>
-                          )}
-                          
-                          {/* Metrics in this subcategory */}
-                          {subcategory.metrics.map((metricItem, metricIndex) => {
-                            const isVisible =
-                              visibleMetricIds.size === 0
-                                ? true
-                                : visibleMetricIds.has(metricItem.metric.id);
-                            return (
-                              <div
-                                key={metricItem.metric.id}
-                                className={`${styles.metricItem} ${
-                                  !isVisible ? styles.metricItemHidden : ""
-                                }`}
-                              >
-                                <label
-                                  className={styles.metricCheckbox}
-                                  title={isVisible ? "Hide from dashboard" : "Show on dashboard"}
-                                >
+                      {subcategories.map((subcategory, subIndex) => {
+                        const isEditingSub =
+                          editingTarget?.type === "subcategory" &&
+                          editingTarget.catIndex === catIndex &&
+                          editingTarget.subIndex === subIndex;
+                        return (
+                          <div key={subcategory.name ?? `sub-${subIndex}`}>
+                            {/* Subcategory header */}
+                            {showSubcategoryHeaders && (
+                              <div className={styles.subcategoryHeader}>
+                                {isEditingSub ? (
                                   <input
-                                    type="checkbox"
-                                    checked={isVisible}
-                                    onChange={() => toggleMetricVisible(metricItem.metric.id)}
+                                    type="text"
+                                    className={styles.subcategoryNameInput}
+                                    value={editingValue}
+                                    onChange={(e) => setEditingValue(e.target.value)}
+                                    onBlur={commitEditing}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") commitEditing();
+                                      if (e.key === "Escape") {
+                                        setEditingTarget(null);
+                                        setEditingValue("");
+                                      }
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    autoFocus
+                                    placeholder="Subcategory name"
+                                    aria-label="Subcategory name"
                                   />
-                                </label>
-                                <span className={styles.moveButtons}>
-                                  <button
-                                    type="button"
-                                    className={styles.moveBtn}
-                                    disabled={metricIndex === 0}
-                                    onClick={(e) => { e.stopPropagation(); moveMetric(catIndex, subIndex, metricIndex, -1); }}
-                                    title="Move up"
-                                  >▲</button>
-                                  <button
-                                    type="button"
-                                    className={styles.moveBtn}
-                                    disabled={metricIndex === subcategory.metrics.length - 1}
-                                    onClick={(e) => { e.stopPropagation(); moveMetric(catIndex, subIndex, metricIndex, 1); }}
-                                    title="Move down"
-                                  >▼</button>
-                                </span>
-                                <span className={styles.metricName}>
-                                  {metricItem.metric.metric_name}
+                                ) : (
+                                  <>
+                                    <span
+                                      className={styles.subcategoryNameEditable}
+                                      onClick={(e) => { e.stopPropagation(); startRenameSubcategory(catIndex, subIndex); }}
+                                      title="Click to rename subcategory"
+                                    >
+                                      {subcategory.name ?? "(Uncategorized)"}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className={styles.renameBtnSmall}
+                                      onClick={(e) => { e.stopPropagation(); startRenameSubcategory(catIndex, subIndex); }}
+                                      title="Rename subcategory"
+                                      aria-label="Rename subcategory"
+                                    >
+                                      Rename
+                                    </button>
+                                  </>
+                                )}
+                                <span className={styles.subcategoryCount}>
+                                  ({subcategory.metrics.length})
                                 </span>
                               </div>
-                            );
-                          })}
-                        </div>
-                      ))}
+                            )}
+                            
+                            {/* Metrics in this subcategory */}
+                            {subcategory.metrics.map((metricItem, metricIndex) => {
+                              const isVisible =
+                                visibleMetricIds.size === 0
+                                  ? true
+                                  : visibleMetricIds.has(metricItem.metric.id);
+                              return (
+                                <div
+                                  key={metricItem.metric.id}
+                                  className={`${styles.metricItem} ${
+                                    !isVisible ? styles.metricItemHidden : ""
+                                  }`}
+                                >
+                                  <label
+                                    className={styles.metricCheckbox}
+                                    title={isVisible ? "Hide from dashboard" : "Show on dashboard"}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isVisible}
+                                      onChange={() => toggleMetricVisible(metricItem.metric.id)}
+                                    />
+                                  </label>
+                                  <span className={styles.moveButtons}>
+                                    <button
+                                      type="button"
+                                      className={styles.moveBtn}
+                                      disabled={metricIndex === 0}
+                                      onClick={(e) => { e.stopPropagation(); moveMetric(catIndex, subIndex, metricIndex, -1); }}
+                                      title="Move up"
+                                    >▲</button>
+                                    <button
+                                      type="button"
+                                      className={styles.moveBtn}
+                                      disabled={metricIndex === subcategory.metrics.length - 1}
+                                      onClick={(e) => { e.stopPropagation(); moveMetric(catIndex, subIndex, metricIndex, 1); }}
+                                      title="Move down"
+                                    >▼</button>
+                                  </span>
+                                  <span className={styles.metricName}>
+                                    {metricItem.metric.metric_name}
+                                  </span>
+                                  <select
+                                    className={styles.moveToSelect}
+                                    value=""
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      e.target.value = "";
+                                      if (!v) return;
+                                      const [toCatStr, toSubStr] = v.split(",");
+                                      const toCat = parseInt(toCatStr, 10);
+                                      const toSub = parseInt(toSubStr, 10);
+                                      if (!Number.isNaN(toCat) && !Number.isNaN(toSub)) {
+                                        moveMetricTo(catIndex, subIndex, metricIndex, toCat, toSub);
+                                      }
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    title="Move to another category or subcategory"
+                                    aria-label="Move to"
+                                  >
+                                    <option value="">Move to…</option>
+                                    {categoryGroups.map((c, ci) =>
+                                      c.subcategories.map((s, si) => (
+                                        <option
+                                          key={`${ci}-${si}`}
+                                          value={`${ci},${si}`}
+                                          disabled={ci === catIndex && si === subIndex}
+                                        >
+                                          {c.name} → {s.name ?? "(Uncategorized)"}
+                                        </option>
+                                      ))
+                                    )}
+                                  </select>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                      <div className={styles.addSubcategoryRow}>
+                        <button
+                          type="button"
+                          className={styles.addSubcategoryBtn}
+                          onClick={(e) => { e.stopPropagation(); addSubcategory(catIndex); }}
+                        >
+                          + Add subcategory
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
               );
             })}
+            <div className={styles.addCategoryRow}>
+              <button
+                type="button"
+                className={styles.addCategoryBtn}
+                onClick={addCategory}
+              >
+                + Add category
+              </button>
+            </div>
           </div>
 
           <div className={styles.actions}>
