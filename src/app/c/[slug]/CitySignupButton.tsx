@@ -31,25 +31,25 @@ export default function CitySignupButton() {
   }, [signupMenuOpen]);
 
   const handleSignup = async (intent: "resident" | "public-servant") => {
-    // Track signup start
+    setSignupMenuOpen(false);
     trackSignupStart(intent);
-    
     if (typeof window !== "undefined") {
       window.localStorage.setItem("transparentcity.signup_intent", intent);
     }
-
-    // Track signup click
     trackSignupClick(intent);
-
     await loginWithRedirect({
       authorizationParams: {
         screen_hint: "signup",
         prompt: "login",
-        // Pre-fill email if user entered one in newsletter form
         ...(prefillEmail && { login_hint: prefillEmail }),
       },
       appState: { returnTo: `/dashboard?signup=${intent}` },
     });
+  };
+
+  const handleGoToClaim = () => {
+    setSignupMenuOpen(false);
+    router.push("/claim");
   };
 
   const handleLogin = async () => {
@@ -104,7 +104,7 @@ export default function CitySignupButton() {
               onClick={() => handleSignup("resident")}
               disabled={isLoading}
             >
-              <div className="nav-signup-item-title">I&apos;m a resident</div>
+              <div className="nav-signup-item-title">I&apos;m a citizen</div>
               <div className="nav-signup-item-desc">
                 Follow a city, read research, and get the map view.
               </div>
@@ -115,9 +115,19 @@ export default function CitySignupButton() {
               onClick={() => handleSignup("public-servant")}
               disabled={isLoading}
             >
-              <div className="nav-signup-item-title">I&apos;m a public servant</div>
+              <div className="nav-signup-item-title">I&apos;m city staff</div>
               <div className="nav-signup-item-desc">
-                Tools for staff: briefs, context, and operational clarity.
+                Briefs, context, and operational clarity.
+              </div>
+            </button>
+            <button
+              className="nav-signup-item"
+              role="menuitem"
+              onClick={handleGoToClaim}
+            >
+              <div className="nav-signup-item-title">I&apos;m an elected official</div>
+              <div className="nav-signup-item-desc">
+                Claim your profile to respond to constituents.
               </div>
             </button>
           </div>

@@ -337,30 +337,52 @@ export default function MetricMapEmbed({
           )}
         </div>
       )}
-      {/* Legend showing what the dot colors mean - only show for point maps, not choropleth */}
+      {/* Legend: period (current vs comparison) and/or series field colors - only for point maps */}
       {mapData && (() => {
-        // Check if this is a point map (not choropleth) where we show the colored dots
         const defaultView = mapData.map_config?.default_view;
-        const isPointMode = defaultView?.type === "points" || 
-          (mapData.map_type === "point" && !mapData.map_config?.aggregations);
-        
-        // Only show the point legend if we're in point mode
+        const isPointMode = defaultView?.type === "points" ||
+          (mapData.map_type === "point" && !(mapData.map_config?.aggregations && Object.keys(mapData.map_config.aggregations).length > 0));
         if (!isPointMode) return null;
-        
+
+        const seriesField = mapData.map_config?.series_field as string | undefined;
+        const seriesColors = mapData.map_config?.series_colors as Record<string, string> | undefined;
+        const seriesValues = mapData.map_config?.series_values as string[] | undefined;
+        const hasSeriesLegend = !!(seriesField && seriesColors && Object.keys(seriesColors).length > 0);
+        const seriesLabels = hasSeriesLegend
+          ? (Array.isArray(seriesValues) ? seriesValues : Object.keys(seriesColors)).filter((v) => seriesColors[v])
+          : [];
+
         return (
-          <div className="map-legend">
-            <div className="map-legend-item">
-              <span className="map-legend-dot map-legend-dot-current" />
-              <span className="map-legend-label">
-                {currentYear ? `${currentYear}` : "Current"}
-              </span>
-            </div>
-            {hasComparison && (
-              <div className="map-legend-item">
-                <span className="map-legend-dot map-legend-dot-comparison" />
-                <span className="map-legend-label">
-                  {comparisonYear ? `${comparisonYear}` : "Prior period"}
-                </span>
+          <div className="map-legend-wrapper">
+            {(hasComparison || !hasSeriesLegend) && (
+              <div className="map-legend">
+                <div className="map-legend-item">
+                  <span className="map-legend-dot map-legend-dot-current" />
+                  <span className="map-legend-label">
+                    {currentYear ? `${currentYear}` : "Current"}
+                  </span>
+                </div>
+                {hasComparison && (
+                  <div className="map-legend-item">
+                    <span className="map-legend-dot map-legend-dot-comparison" />
+                    <span className="map-legend-label">
+                      {comparisonYear ? `${comparisonYear}` : "Prior period"}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+            {hasSeriesLegend && seriesLabels.length > 0 && (
+              <div className="map-legend map-legend-series">
+                {seriesLabels.map((label) => (
+                  <div key={String(label)} className="map-legend-item">
+                    <span
+                      className="map-legend-dot map-legend-dot-series"
+                      style={{ backgroundColor: seriesColors[label] ?? "#ad35fa" }}
+                    />
+                    <span className="map-legend-label">{label}</span>
+                  </div>
+                ))}
               </div>
             )}
           </div>

@@ -34,9 +34,12 @@ export const feedKeys = {
 export function useFeedStories(options?: {
   city_id?: number;
   district?: number | null;
+  scope?: "city_wide" | "district_only" | null;
   newsletter_frequency?: string | null;
   limit?: number;
   order_by?: string;
+  /** When true and no city_id, return all active stories (ignore follows). Use for "All Cities" view. */
+  all_cities?: boolean;
 }) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
 
@@ -64,6 +67,7 @@ export function useCityFeedStories(
   cityId: number | null,
   options?: {
     district?: number | null;
+    scope?: "city_wide" | "district_only" | null;
     newsletter_frequency?: string | null;
     limit?: number;
     order_by?: string;
@@ -75,12 +79,13 @@ export function useCityFeedStories(
     queryKey: feedKeys.city(cityId, options),
     queryFn: async () => {
       if (!cityId) throw new Error("City ID is required");
-      
+
       if (isAuthenticated) {
         const token = await getAccessTokenSilently();
         return listFeedStories(token, {
           city_id: cityId,
           district: options?.district ?? undefined,
+          scope: options?.scope ?? undefined,
           newsletter_frequency: options?.newsletter_frequency ?? undefined,
           limit: options?.limit ?? 50,
           order_by: options?.order_by ?? "published_at",
@@ -89,6 +94,7 @@ export function useCityFeedStories(
         return listPublicFeedStories({
           city_id: cityId,
           district: options?.district ?? undefined,
+          scope: options?.scope ?? undefined,
           newsletter_frequency: options?.newsletter_frequency ?? undefined,
           limit: options?.limit ?? 50,
           order_by: options?.order_by ?? "published_at",

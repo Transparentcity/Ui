@@ -1,7 +1,6 @@
 "use client";
 
-import NewsletterSignup from "@/components/NewsletterSignup";
-import { useSignupEmail } from "./SignupEmailContext";
+import EmailSignInLink from "./EmailSignInLink";
 
 type CityHeroNewsletterProps = {
   cityName: string;
@@ -9,15 +8,8 @@ type CityHeroNewsletterProps = {
   district?: number;
 };
 
-export default function CityHeroNewsletter({ cityName, citySlug, district }: CityHeroNewsletterProps) {
-  const { setEmail } = useSignupEmail();
-
+export default function CityHeroNewsletter({ cityName }: CityHeroNewsletterProps) {
   return (
-    <NewsletterSignup
-      cityName={cityName}
-      citySlug={citySlug}
-      district={district}
-      onEmailChange={setEmail}
-    />
+    <EmailSignInLink label={`To get updates for ${cityName}.`} />
   );
 }

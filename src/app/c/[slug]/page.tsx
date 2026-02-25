@@ -9,6 +9,7 @@ import {
   getPublicMetricComparisonsBatch,
   getPublicMetricDistrictComparisons,
   listPublicMapsForCity,
+  getPublicLeadersForCity,
 } from "@/lib/publicApiClient";
 import CitySignupButton from "./CitySignupButton";
 import CityDashboardSection from "./CityDashboardSection";
@@ -17,6 +18,8 @@ import CityViewTracker from "./CityViewTracker";
 import CityPageClient from "./CityPageClient";
 import CityHeroNewsletter from "./CityHeroNewsletter";
 import CustomizeMetricsTrigger from "./CustomizeMetricsTrigger";
+import DistrictFollowClaimBlock from "./district/DistrictFollowClaimBlock";
+import PublicNavBar from "@/components/PublicNavBar";
 
 export const revalidate = 3600;
 
@@ -121,9 +124,17 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
   > = {};
   let districts: number[] = [];
   let maps: Awaited<ReturnType<typeof listPublicMapsForCity>> = [];
+  let leaders: Awaited<ReturnType<typeof getPublicLeadersForCity>> = [];
   if (city?.id) {
     try {
-      cityDetail = await getPublicCityDetail(city.id);
+      const [detail, mapsRes, leadersRes] = await Promise.all([
+        getPublicCityDetail(city.id),
+        listPublicMapsForCity(city.id).catch(() => []),
+        getPublicLeadersForCity(city.id).catch(() => []),
+      ]);
+      cityDetail = detail;
+      maps = mapsRes;
+      leaders = leadersRes;
       const metrics = cityDetail?.metrics ?? [];
       if (metrics.length > 0) {
         comparisonsMap = await getPublicMetricComparisonsBatch({
@@ -141,7 +152,6 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
             .filter((n) => n > 0)
             .sort((a, b) => a - b);
       }
-      maps = await listPublicMapsForCity(city.id).catch(() => []);
     } catch {
       // leave defaults
     }
@@ -158,40 +168,28 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
   return (
     <CityPageClient>
       <CityViewTracker citySlug={slug} cityId={city?.id} />
-      <nav className="navbar">
-        <div className="container">
-          <div className="nav-content">
-            <Link href="/" className="logo" style={{ textDecoration: "none" }}>
-              <span className="logo-text">
-                <span className="logo-transparent">transparent</span>
-                <span className="logo-city">.city</span>
-              </span>
-            </Link>
-            <div className="nav-links">
-              <Link href={`/c/${slug}/methodology`} className="nav-link">
-                Methodology
-              </Link>
-              <a
-                href="https://www.transparentsf.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="nav-link"
-              >
-                Newsletter
-              </a>
-              <Link href="/sitemap" className="nav-link">
-                Site map
-              </Link>
-              <Link href="/" className="nav-link">
-                Home
-              </Link>
-              <CitySignupButton />
-            </div>
-          </div>
-        </div>
-      </nav>
+      <PublicNavBar>
+        <Link href={`/c/${slug}/methodology`} className="nav-link">
+          Methodology
+        </Link>
+        <a
+          href="https://www.transparentsf.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="nav-link"
+        >
+          Newsletter
+        </a>
+        <Link href="/sitemap" className="nav-link">
+          Site map
+        </Link>
+        <Link href="/" className="nav-link">
+          Home
+        </Link>
+        <CitySignupButton />
+      </PublicNavBar>
 
-      <section className="hero" style={{ paddingTop: 56 }}>
+      <section className="hero" style={{ paddingTop: 96 }}>
         <div className="container">
           <div className="hero-content">
             <div className="hero-text">
@@ -205,55 +203,20 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                   : "Browse public datasets and source-linked civic context."}
               </p>
 
-              {/* Mayor and subscriber count - prominent in hero */}
-              {(cityDetail?.mayor || cityDetail?.mayor_subscriber_count != null) && (
-                <div className="hero-mayor-subscribers">
-                  {cityDetail?.mayor && (
-                    <span className="hero-mayor-name">Mayor {cityDetail.mayor.name}</span>
-                  )}
-                  {cityDetail?.mayor && cityDetail?.mayor_subscriber_count != null && (
-                    <span className="hero-mayor-sep"> · </span>
-                  )}
-                  {cityDetail?.mayor_subscriber_count != null && (
-                    <span className="hero-subscriber-count">
-                      {cityDetail.mayor_subscriber_count} followers
-                    </span>
-                  )}
+              {/* City official (mayor): same treatment as district – follow + claim */}
+              {(cityDetail?.mayor || cityDetail?.mayor_subscriber_count != null) && city?.id && (
+                <div className="hero-mayor-subscribers hero-official-row">
+                  <span className="hero-mayor-name">
+                    Mayor {cityDetail?.mayor?.name ?? "Citywide"}
+                  </span>
+                  <DistrictFollowClaimBlock cityId={city.id} district={0} slug={slug} />
                 </div>
               )}
               
-              {/* Newsletter Signup - Above the fold */}
+              {/* Single sign-up for updates */}
               <div className="hero-newsletter">
                 <CityHeroNewsletter cityName={city?.display ?? slug} />
               </div>
-
-              {/* Category links and customize metrics - below newsletter */}
-              {(uniqueCategories.length > 0 || (city?.id && (cityDetail?.metrics?.length ?? 0) > 0)) && (
-                <div className="hero-category-links">
-                  {uniqueCategories.map((cat) => (
-                    <Link
-                      key={cat}
-                      href={`/c/${slug}/category/${encodeURIComponent(cat)}`}
-                      className="hero-category-link"
-                    >
-                      {cat}
-                    </Link>
-                  ))}
-                  {city?.id && (cityDetail?.metrics?.length ?? 0) > 0 && (
-                    <CustomizeMetricsTrigger
-                      cityId={city.id}
-                      cityName={city.display}
-                      metrics={(cityDetail!.metrics ?? []).map((m) => ({
-                        id: m.id,
-                        metric_name: m.metric_name,
-                        category: m.category,
-                        subcategory: m.subcategory ?? null,
-                        sub_category: m.subcategory ?? null,
-                      }))}
-                    />
-                  )}
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -273,6 +236,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
           comparisonsMap={comparisonsMap}
           districts={districts}
           maps={maps}
+          leaders={leaders}
         />
       ) : (
         <CityDashboardSection
@@ -285,15 +249,43 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         />
       )}
 
+      {/* Category / subcategory-level dashboard links - below citywide dashboard */}
+      {(uniqueCategories.length > 0 || (city?.id && (cityDetail?.metrics?.length ?? 0) > 0)) && (
+        <div className="dashboard-below-links container" style={{ marginTop: 24, marginBottom: 24 }}>
+          <div className="hero-category-links">
+            {uniqueCategories.map((cat) => (
+              <Link
+                key={cat}
+                href={`/c/${slug}/category/${encodeURIComponent(cat)}`}
+                className="hero-category-link"
+              >
+                {cat}
+              </Link>
+            ))}
+            {city?.id && (cityDetail?.metrics?.length ?? 0) > 0 && (
+              <CustomizeMetricsTrigger
+                cityId={city.id}
+                cityName={city.display}
+                metrics={(cityDetail!.metrics ?? []).map((m) => ({
+                  id: m.id,
+                  metric_name: m.metric_name,
+                  category: m.category,
+                  subcategory: m.subcategory ?? null,
+                  sub_category: m.subcategory ?? null,
+                }))}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
       <footer className="footer">
         <div className="container">
           <div className="footer-content">
             <div className="footer-column">
-              <div className="logo">
-                <span className="logo-text">
-                  <span className="logo-transparent">transparent</span>
-                  <span className="logo-city">.city</span>
-                </span>
+              <div className="brand-text">
+                <span className="logo-transparent">transparent</span>
+                <span className="logo-city">.city</span>
               </div>
               <p className="footer-description">
                 Maps, metrics, and research built from public city data—so

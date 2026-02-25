@@ -14,19 +14,15 @@ interface UserProfileProps {
 export default function UserProfile({ isAdmin = false, cityLeadCityIds = [], onViewChange }: UserProfileProps) {
   const { user } = useAuth0();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close menu when clicking outside
+  // Close menu when clicking outside (wrapper = profile + menu)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
-      if (
-        profileRef.current &&
-        menuRef.current &&
-        !profileRef.current.contains(target) &&
-        !menuRef.current.contains(target)
-      ) {
+      if (wrapperRef.current && !wrapperRef.current.contains(target)) {
         setIsMenuOpen(false);
       }
     };
@@ -55,13 +51,12 @@ export default function UserProfile({ isAdmin = false, cityLeadCityIds = [], onV
   };
 
   return (
-    <>
+    <div ref={wrapperRef} style={{ position: "relative", overflow: "visible" }}>
       <div
         ref={profileRef}
         className={styles.userProfile}
         id="user-profile"
         onClick={toggleMenu}
-        style={{ position: "relative" }}
       >
         <div
           className={`${styles.userAvatar} ${isAdmin ? styles.adminAvatar : ""}` }
@@ -83,7 +78,7 @@ export default function UserProfile({ isAdmin = false, cityLeadCityIds = [], onV
         onClose={() => setIsMenuOpen(false)}
         onViewChange={onViewChange}
       />
-    </>
+    </div>
   );
 }
 

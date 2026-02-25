@@ -8,10 +8,12 @@ import UserMetricOrderDialog from "@/components/UserMetricOrderDialog";
 import CityDashboardSection, {
   type MetricOrderingEntry,
 } from "./CityDashboardSection";
+import SignUpToCustomizeMetricsButton from "./SignUpToCustomizeMetricsButton";
 import type {
   PublicCityMetricItem,
   PublicMetricComparisons,
   PublicMapListItem,
+  PublicLeader,
 } from "@/lib/publicApiClient";
 
 type Props = {
@@ -22,6 +24,7 @@ type Props = {
   comparisonsMap: Record<number, PublicMetricComparisons>;
   districts: number[];
   maps: PublicMapListItem[];
+  leaders?: PublicLeader[] | null;
 };
 
 export default function CityDashboardSectionWithOrdering({
@@ -32,6 +35,7 @@ export default function CityDashboardSectionWithOrdering({
   comparisonsMap,
   districts,
   maps,
+  leaders = null,
 }: Props) {
   const { isAuthenticated } = useAuth0();
   const { data: userOrdering } = useUserMetricOrdering(isAuthenticated ? cityId : null);
@@ -105,7 +109,14 @@ export default function CityDashboardSectionWithOrdering({
         districts={districts}
         maps={maps}
         orderings={orderings}
-        onCustomizeMetricsClick={() => setDialogOpen(true)}
+        onCustomizeMetricsClick={
+          isAuthenticated ? () => setDialogOpen(true) : undefined
+        }
+        signUpToCustomizeMetricsNode={
+          !isAuthenticated ? <SignUpToCustomizeMetricsButton /> : undefined
+        }
+        cityId={cityId}
+        leaders={leaders}
       />
     </>
   );

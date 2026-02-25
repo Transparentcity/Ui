@@ -32,6 +32,7 @@ interface SidebarProps {
   onCitySelect?: (cityId: number) => void;
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void;
   onMenuToggle?: () => void;
+  currentView?: string;
 }
 
 // Mobile breakpoint (matches CSS media query)
@@ -65,6 +66,7 @@ export default function Sidebar({
   onCitySelect,
   onGPSLocation,
   onMenuToggle,
+  currentView,
 }: SidebarProps) {
   const [recentChatsExpanded, setRecentChatsExpanded] = useState(false);
   const [researchExpanded, setResearchExpanded] = useState(false);
@@ -290,7 +292,7 @@ export default function Sidebar({
           )}
 
           <button
-            className={`${styles.navItem} ${styles.newChatBtn}`}
+            className={`${styles.navItem} ${styles.newChatBtn} ${currentView === "feed" ? styles.navItemActive : ""}`}
             id="feed-btn"
             onClick={() =>
               handleActionWithClose(() => {

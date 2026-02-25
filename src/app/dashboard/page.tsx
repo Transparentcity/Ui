@@ -13,7 +13,9 @@ import ResearchView from "@/components/ResearchView";
 import DatasetsAdmin from "@/components/DatasetsAdmin";
 import MetricsAdmin from "@/components/MetricsAdmin";
 import UserManagement from "@/components/UserManagement";
+import ClaimsAdmin from "@/components/ClaimsAdmin";
 import JobLogsViewer from "@/components/JobLogsViewer";
+import FeedStoriesAdmin from "@/components/FeedStoriesAdmin";
 import FeedView from "@/components/FeedView";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getMyPermissions, getSavedCities, getUserPreferences, updateUserPreferences, getCity, saveUserMetricOrdering } from "@/lib/apiClient";
@@ -35,7 +37,7 @@ import dynamic from "next/dynamic";
 // Dynamically import NewResearchPage to avoid SSR issues
 const NewResearchPage = dynamic(() => import("../research/new/page"), { ssr: false });
 
-type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "metrics-admin" | "datasets-admin" | "city" | "metric" | "job-logs" | "research" | "research-new" | "feed";
+type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "claims-admin" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "city" | "metric" | "job-logs" | "research" | "research-new" | "feed";
 
 // Mobile breakpoint (matches CSS media query)
 const MOBILE_BREAKPOINT = 768;
@@ -58,7 +60,7 @@ export default function DashboardPage() {
   // Will be updated on client mount based on screen size
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [currentView, setCurrentView] = useState<ViewType>("chat");
+  const [currentView, setCurrentView] = useState<ViewType>("feed");
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isCurrentSessionJobSession, setIsCurrentSessionJobSession] = useState(false);
   const [selectedCityId, setSelectedCityId] = useState<number | null>(null);
@@ -130,16 +132,17 @@ export default function DashboardPage() {
     const signupIntent = urlParams.get("signup") as "resident" | "public-servant" | null;
     
     if (signupIntent) {
-      // User just completed signup
+      // User just completed signup: show feed view by default
       trackSignupComplete(signupIntent, user.sub);
       trackUserActivation("signup_complete");
-      
+      setCurrentView("feed");
       // Clean up URL
       const newUrl = window.location.pathname;
       window.history.replaceState({}, "", newUrl);
     } else {
-      // Regular login
+      // Regular login: default to feed for all users
       trackLogin(user.sub);
+      setCurrentView("feed");
     }
   }, [isAuthenticated, isLoading, user]);
 
@@ -330,64 +333,7 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // Auto-select city from saved home location or first city from MyCities on initial load
-  useEffect(() => {
-    const autoSelectCity = async () => {
-      // Only run once, when authenticated and no city is currently active
-      if (
-        !isAuthenticated ||
-        isLoading ||
-        activeCityId !== null ||
-        hasAutoSelectedCity.current
-      ) {
-        return;
-      }
-
-      try {
-        const token = await getAccessTokenSilently();
-        
-        // Check for saved home location first
-        const prefs = await getUserPreferences(token);
-        const homeLocation = prefs.extra?.home_location;
-        
-        if (homeLocation?.city_id) {
-          // Check if the home city is in saved cities
-          const savedCities = await getSavedCities(token);
-          const homeCity = savedCities.find((c) => c.id === homeLocation.city_id);
-          
-          if (homeCity) {
-            // Use home location city and GPS; default to citywide so metrics table and modal show citywide
-            setActiveCityId(homeLocation.city_id);
-            setInitialDistrict(null);
-            if (homeLocation.coordinates) {
-              setGpsLocation(homeLocation.coordinates);
-            }
-            setCurrentView("city");
-            hasAutoSelectedCity.current = true;
-            console.log("Auto-selected home city:", homeLocation.city_id);
-            return;
-          }
-        }
-        
-        // Fallback to first saved city if no home location
-        const savedCities = await getSavedCities(token);
-        if (savedCities.length > 0 && activeCityId === null) {
-          const firstCityId = savedCities[0].id;
-          setActiveCityId(firstCityId);
-          setCurrentView("city"); // Default to map view
-          hasAutoSelectedCity.current = true;
-          console.log("Auto-selected first city from MyCities:", firstCityId);
-        }
-      } catch (error) {
-        console.error("Error auto-selecting city:", error);
-        // Don't mark as attempted if there was an error, so we can retry
-      }
-    };
-
-    if (isAuthenticated && !isLoading) {
-      autoSelectCity();
-    }
-  }, [isAuthenticated, isLoading, activeCityId, getAccessTokenSilently]);
+  // Do not auto-select a city on landing. Only Feed is selected; user picks a city from My Cities when they want.
 
   const handleMenuToggle = () => {
     setSidebarOpen(!sidebarOpen);
@@ -663,7 +609,7 @@ export default function DashboardPage() {
 
   if (isLoading || isCheckingAdmin) {
     return (
-      <div className={styles.dashboardLoading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px" }}>
+      <div className={styles.dashboardLoading}>
         <Loader size="sm" color="dark" />
         <span>Loading...</span>
       </div>
@@ -686,6 +632,7 @@ export default function DashboardPage() {
         isOpen={sidebarOpen}
         isAdmin={isAdmin}
         cityLeadCityIds={cityLeadCityIds}
+        currentView={currentView}
         onNewChat={handleNewChat}
         onSearchCities={handleSearchCities}
         onOpenSettings={handleOpenSettings}
@@ -778,6 +725,14 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {currentView === "claims-admin" && (
+            <div id="claims-admin-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
+              <div className={styles.adminContainer}>
+                <ClaimsAdmin />
+              </div>
+            </div>
+          )}
+
           {currentView === "metrics-admin" && (
             <div id="metrics-admin-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
               <div className={styles.adminContainer}>
@@ -836,9 +791,20 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {currentView === "feed-stories-admin" && (isAdmin || cityLeadCityIds.length > 0) && (
+            <div id="feed-stories-admin-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
+              <div className={styles.adminContainer}>
+                <h2 style={{ margin: "0 0 8px 0", padding: 0, color: "var(--text-primary)", fontSize: "18px" }}>
+                  Feed stories
+                </h2>
+                <FeedStoriesAdmin />
+              </div>
+            </div>
+          )}
+
           {currentView === "feed" && (
             <div id="feed-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
-              <FeedView cityId={activeCityId} district={initialDistrict} />
+              <FeedView cityId={null} district={null} />
             </div>
           )}
         </div>

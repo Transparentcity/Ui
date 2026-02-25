@@ -239,14 +239,15 @@ export default function ProgressiveMapView({
     return shapeLayersFromConfig?.length ? shapeLayersFromConfig : EMPTY_SHAPE_LAYERS;
   }, [availableViews, shapeLayersFromConfig]);
 
-  // Initial view from default_view (backend decides); fallback for old maps without default_view
+  // Initial view from default_view (backend decides); with few points always show points so dots are visible
   const initialViewRef = useRef(false);
   useEffect(() => {
     if (initialViewRef.current) return;
     initialViewRef.current = true;
+    const fewPoints = locationDataCount <= 100;
     if (defaultView) {
-      if (defaultView.type === "points") {
-      setShowPoints(true);
+      if (defaultView.type === "points" || fewPoints) {
+        setShowPoints(true);
         setSelectedShapeLayer(null);
       } else if (defaultView.type === "choropleth" && defaultView.shape_layer_instance_id != null) {
         setShowPoints(false);
@@ -1092,6 +1093,20 @@ export default function ProgressiveMapView({
           data: geojsonData,
         });
 
+        const seriesField = mapData.map_config?.series_field as string | undefined;
+        const seriesColors = mapData.map_config?.series_colors as Record<string, string> | undefined;
+        const circleColor = (() => {
+          if (seriesField && seriesColors && Object.keys(seriesColors).length > 0) {
+            const matchExpr: any[] = ["match", ["to-string", ["get", seriesField]]];
+            for (const [label, color] of Object.entries(seriesColors)) {
+              matchExpr.push(String(label), String(color));
+            }
+            matchExpr.push("#ad35fa");
+            return matchExpr;
+          }
+          return "#ad35fa";
+        })();
+
         console.log("[ProgressiveMapView] Adding points-layer");
         mapInstance.addLayer({
           id: "points-layer",
@@ -1111,7 +1126,7 @@ export default function ProgressiveMapView({
               10, 18,    // 10 points = radius 18
               20, 22,    // 20+ points = radius 22
             ],
-            "circle-color": "#ad35fa",
+            "circle-color": circleColor,
             "circle-stroke-color": "#fff",
             // Scale stroke width slightly with size
             "circle-stroke-width": [

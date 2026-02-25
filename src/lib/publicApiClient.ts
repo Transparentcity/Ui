@@ -195,6 +195,70 @@ export function listPublicMapsForCity(cityId: number): Promise<PublicMapListItem
   ).then((r) => r.maps || []);
 }
 
+// Public leaders for a city (claim flow; used to show district reps on city pages)
+export type PublicLeader = {
+  id: number;
+  city_id: number;
+  name: string;
+  title: string;
+  district: number | null;
+};
+
+export function getPublicLeadersForCity(cityId: number): Promise<PublicLeader[]> {
+  return requestPublic<PublicLeader[]>(`/api/claim/leaders?city_id=${cityId}`);
+}
+
+// Representative follower counts per district (public, for follow buttons)
+export type PublicRepresentativeFollowerCount = {
+  district: string;
+  follower_count: number;
+};
+
+export function getPublicRepresentativeFollowerCounts(
+  cityId: number
+): Promise<PublicRepresentativeFollowerCount[]> {
+  return requestPublic<PublicRepresentativeFollowerCount[]>(
+    `/api/public/cities/${cityId}/representative-follower-counts`
+  );
+}
+
+// Public feed stories (e.g. for district elected-official pages)
+export type PublicFeedStory = {
+  id: number;
+  story_type: string;
+  city_id: number;
+  city_name?: string | null;
+  district: number;
+  headline: string;
+  description: string;
+  summary?: string | null;
+  detail_url: string;
+  story_date: string;
+  published_at?: string | null;
+};
+
+export type PublicFeedStoriesResponse = {
+  stories: PublicFeedStory[];
+  count: number;
+};
+
+export function listPublicFeedStories(options?: {
+  city_id?: number;
+  district?: number | null;
+  limit?: number;
+  order_by?: string;
+}): Promise<PublicFeedStoriesResponse> {
+  const params = new URLSearchParams();
+  if (options?.city_id != null) params.set("city_id", String(options.city_id));
+  if (options?.district != null) params.set("district", String(options.district));
+  if (options?.limit != null) params.set("limit", String(options.limit));
+  if (options?.order_by) params.set("order_by", options.order_by);
+  const query = params.toString();
+  return requestPublic<PublicFeedStoriesResponse>(
+    `/api/feed/public${query ? `?${query}` : ""}`
+  );
+}
+
 export type PublicCitySearchResult = {
   id: number;
   name: string;

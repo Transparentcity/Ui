@@ -274,9 +274,19 @@ export default function UserManagement() {
   const subKey = (sub: NewsletterSubscription): string =>
     `${sub.city_id}:${sub.district || "0"}:${sub.frequency}`;
 
-  const filteredSubCities = cities.filter((c) => {
+  const formatCityDisplayName = (city: CityListItem): string => {
+    if (!city || typeof city !== "object") return "";
+    const name = city.city_name ?? "";
+    const parts = [name];
+    if (city.state) parts.push(city.state);
+    if (city.country) parts.push(city.country);
+    return parts.filter(Boolean).join(", ");
+  };
+
+  const safeCities = Array.isArray(cities) ? cities : [];
+  const filteredSubCities = safeCities.filter((c) => {
     if (!addSubCityQuery.trim()) return true;
-    const q = addSubCityQuery.toLowerCase();
+    const q = String(addSubCityQuery).toLowerCase();
     return formatCityDisplayName(c).toLowerCase().includes(q);
   }).slice(0, 50);
 
@@ -340,20 +350,13 @@ export default function UserManagement() {
     }
   };
 
-  const formatCityDisplayName = (city: CityListItem): string => {
-    const parts = [city.city_name];
-    if (city.state) parts.push(city.state);
-    if (city.country) parts.push(city.country);
-    return parts.filter(Boolean).join(", ");
-  };
-
   const cityNameById = useCallback(() => {
     const map = new Map<number, string>();
-    for (const c of cities) {
+    for (const c of safeCities) {
       map.set(c.city_id, formatCityDisplayName(c));
     }
     return map;
-  }, [cities]);
+  }, [safeCities]);
 
   const getCityName = useCallback(
     (cityId: number): string => {
@@ -860,7 +863,7 @@ export default function UserManagement() {
                         className={styles.formSelect}
                       >
                         <option value="">Add a city…</option>
-                        {cities
+                        {safeCities
                           .filter((c) => !editCityLeadCityIds.includes(c.city_id))
                           .slice(0, 500)
                           .map((c) => (

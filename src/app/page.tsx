@@ -86,8 +86,28 @@ const STATIC_RESEARCH: ResearchCard[] = [
 ];
 
 export default function Home() {
-  const { isAuthenticated, isLoading } = useAuth0();
+  const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const router = useRouter();
+
+  const handleSignupCitizen = async () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("transparentcity.signup_intent", "resident");
+    }
+    await loginWithRedirect({
+      authorizationParams: { screen_hint: "signup", prompt: "login" },
+      appState: { returnTo: "/dashboard?signup=resident" },
+    });
+  };
+
+  const handleSignupCityStaff = async () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("transparentcity.signup_intent", "public-servant");
+    }
+    await loginWithRedirect({
+      authorizationParams: { screen_hint: "signup", prompt: "login" },
+      appState: { returnTo: "/dashboard?signup=public-servant" },
+    });
+  };
   const [cityQuery, setCityQuery] = useState("");
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
   const [cityResults, setCityResults] = useState<PublicCitySearchResult[]>([]);
@@ -280,12 +300,20 @@ export default function Home() {
 
   // Show loader while checking auth status or redirecting authenticated users
   if (isLoading) {
-    return <Loader />;
+    return (
+      <div className={styles.loaderScreen}>
+        <Loader />
+      </div>
+    );
   }
 
   // If authenticated, show loader briefly while redirect happens
   if (isAuthenticated) {
-    return <Loader />;
+    return (
+      <div className={styles.loaderScreen}>
+        <Loader />
+      </div>
+    );
   }
 
   return (
@@ -314,7 +342,7 @@ export default function Home() {
                 <span className="badge">📊 Your city's data, made clear</span>
                 <h1 className="hero-title">Your City Just Got Easier to Understand</h1>
                 <p className="hero-subhead" style={{ fontSize: "1.1rem", fontWeight: 500, marginTop: "0.5rem", marginBottom: "1rem", color: "var(--text-secondary)" }}>
-                  For city staff or residents
+                  For citizens and officials &amp; city workers
                 </p>
                 <p className="hero-description">
                   See what's changing in your city. Get clear, source-linked views 
@@ -402,13 +430,13 @@ export default function Home() {
           <div className={styles.container}>
             <h2 className={styles.sectionTitle}>Giving you the clarity you want</h2>
             <p className={styles.sectionLead}>
-              For city staff: track what's changing in your area of focus and see what solutions are working. For residents: understand what's going on with your city through clear, data-driven insights.
+              For citizens: understand what&apos;s going on with your city through clear, data-driven insights. For officials &amp; city workers: track what&apos;s changing in your area of focus and see what solutions are working.
             </p>
 
             <div className={styles.grid}>
               <div className={`${styles.card} ${styles.tile}`}>
                 <div className={styles.audienceCardHeader}>
-                  <div className={styles.tileTitle}>Residents</div>
+                  <div className={styles.tileTitle}>Citizens</div>
                   <span className={styles.audienceTag}>For individuals</span>
                 </div>
                 <div className={styles.tileBody}>
@@ -419,11 +447,21 @@ export default function Home() {
                   <li>Maps and trend views (where available)</li>
                   <li>Source-linked research writeups</li>
                 </ul>
+                <div style={{ marginTop: "1rem" }}>
+                  <button type="button" onClick={handleSignupCitizen} className={styles.link} style={{ fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit" }}>
+                    Sign up as citizen
+                  </button>
+                </div>
+                <div style={{ marginTop: "0.5rem" }}>
+                  <Link href="/claim" className={styles.link} style={{ fontSize: "0.9rem" }}>
+                    For officials →
+                  </Link>
+                </div>
               </div>
 
               <div className={`${styles.card} ${styles.tile}`}>
                 <div className={styles.audienceCardHeader}>
-                  <div className={styles.tileTitle}>City staff</div>
+                  <div className={styles.tileTitle}>Officials &amp; city workers</div>
                   <span className={styles.audienceTag}>For government</span>
                 </div>
                 <div className={styles.tileBody}>
@@ -434,6 +472,14 @@ export default function Home() {
                   <li>Consistent measurement across topics</li>
                   <li>Secure tools for .gov email addresses</li>
                 </ul>
+                <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <Link href="/claim" className={styles.link} style={{ fontWeight: 600 }}>
+                    I&apos;m an elected official
+                  </Link>
+                  <button type="button" onClick={handleSignupCityStaff} className={styles.link} style={{ fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left", font: "inherit" }}>
+                    I&apos;m city staff
+                  </button>
+                </div>
               </div>
             </div>
           </div>

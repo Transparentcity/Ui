@@ -3,9 +3,11 @@ import Link from "next/link";
 import type {
   PublicCityMetricItem,
   PublicMetricComparisons,
+  PublicLeader,
   PublicMapListItem,
 } from "@/lib/publicApiClient";
 import "@/components/CityView.css";
+import DistrictListWithFollow from "./DistrictListWithFollow";
 
 /** Optional ordering: when provided, categories and metrics are sorted by it. */
 export type MetricOrderingEntry = {
@@ -23,10 +25,17 @@ type CityDashboardSectionProps = {
   comparisonsMap: Record<number, PublicMetricComparisons>;
   districts: number[];
   maps: PublicMapListItem[];
+  /** Optional: when set, shows district-scoped dashboard (title, metric links with ?district=, hide By district list). */
+  district?: number;
   /** Optional: custom order (user or city-level). When set, categories/metrics sorted by this. */
   orderings?: MetricOrderingEntry[];
   /** Optional: when set, shows a "Customize metrics" control in the section header. */
   onCustomizeMetricsClick?: () => void;
+  /** Optional: when set (e.g. when logged out), shows this CTA instead of Customize metrics. */
+  signUpToCustomizeMetricsNode?: React.ReactNode;
+  /** Optional: when set with cityId, district block shows rep names, follow buttons, and Claim my page. */
+  cityId?: number;
+  leaders?: PublicLeader[] | null;
 };
 
 /**
@@ -111,10 +120,15 @@ export default function CityDashboardSection({
   comparisonsMap,
   districts,
   maps,
+  district: districtFilter,
   orderings,
   onCustomizeMetricsClick,
+  signUpToCustomizeMetricsNode,
+  cityId,
+  leaders,
 }: CityDashboardSectionProps) {
   const base = `/c/${slug}`;
+  const isDistrictView = districtFilter != null && districtFilter >= 1;
 
   const orderingMap = React.useMemo(() => {
     if (!orderings?.length) return null;
@@ -212,20 +226,29 @@ export default function CityDashboardSection({
           <p>No metrics with comparison data for {cityDisplayName} yet.</p>
         </div>
         {/* District and maps links even when no metrics */}
-        {districts.length > 0 && (
-          <div className="metrics-category-section" style={{ marginTop: 24 }}>
-            <div className="metrics-category-title" style={{ borderBottom: "none", paddingLeft: 0, marginBottom: 8 }}>
-              By district
+        {districts.length > 0 &&
+          (cityId != null ? (
+            <DistrictListWithFollow
+              cityId={cityId}
+              slug={slug}
+              cityDisplayName={cityDisplayName}
+              districts={districts}
+              leaders={leaders}
+            />
+          ) : (
+            <div className="metrics-category-section" style={{ marginTop: 24 }}>
+              <div className="metrics-category-title" style={{ borderBottom: "none", paddingLeft: 0, marginBottom: 8 }}>
+                By district
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, padding: "0 0 8px 0" }}>
+                {districts.map((d) => (
+                  <Link key={d} href={`${base}/district/${d}`} className="nav-link" style={{ fontSize: 14 }}>
+                    District {d}
+                  </Link>
+                ))}
+              </div>
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, padding: "0 0 8px 0" }}>
-              {districts.map((d) => (
-                <Link key={d} href={`${base}/district/${d}`} className="nav-link" style={{ fontSize: 14 }}>
-                  District {d}
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
+          ))}
         {maps.length > 0 && (
           <div className="metrics-category-section" style={{ marginTop: 16 }}>
             <div className="metrics-category-title" style={{ borderBottom: "none", paddingLeft: 0, marginBottom: 8 }}>
@@ -258,8 +281,10 @@ export default function CityDashboardSection({
           gap: 8,
         }}
       >
-        <h2 className="dashboard-title">Citywide Dashboard</h2>
-        {onCustomizeMetricsClick && (
+        <h2 className="dashboard-title">
+          {isDistrictView ? `District ${districtFilter} Dashboard` : "Citywide Dashboard"}
+        </h2>
+        {!isDistrictView && onCustomizeMetricsClick != null && (
           <button
             type="button"
             onClick={onCustomizeMetricsClick}
@@ -277,6 +302,7 @@ export default function CityDashboardSection({
             Customize metrics
           </button>
         )}
+        {!isDistrictView && signUpToCustomizeMetricsNode}
       </div>
 
       {/* Comparison bar: YTD only (matches dashboard selector style) */}
@@ -345,13 +371,6 @@ export default function CityDashboardSection({
                   if (rows.length === 0) return null;
                   return (
                     <div key={subcategory ?? "uncategorized"} style={{ display: "contents" }}>
-                      {showSubHeaders && subcategory && (
-                        <div className="metrics-subcategory-header">
-                          <span className="metrics-subcategory-title">
-                            {subcategory}
-                          </span>
-                        </div>
-                      )}
                       {rows.map(({ m, ytd }) => {
                           const curr =
                             ytd?.current_period_value ?? null;
@@ -398,10 +417,13 @@ export default function CityDashboardSection({
                           );
                           const displayUnit: string | null = null;
 
+                          const metricHref = isDistrictView
+                            ? `${base}/metrics/${m.metric_key}?district=${districtFilter}`
+                            : `${base}/metrics/${m.metric_key}`;
                           return (
                             <Link
                               key={m.id}
-                              href={`${base}/metrics/${m.metric_key}`}
+                              href={metricHref}
                               className="metrics-table-row metrics-table-row-clickable"
                               style={{
                                 textDecoration: "none",
@@ -476,6 +498,13 @@ export default function CityDashboardSection({
                             </Link>
                           );
                         })}
+                      {showSubHeaders && subcategory && (
+                        <div className="metrics-subcategory-header metrics-subcategory-footer">
+                          <span className="metrics-subcategory-title">
+                            {subcategory}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -485,14 +514,14 @@ export default function CityDashboardSection({
         })}
       </div>
 
-      {/* District links and maps below (compact, secondary) */}
-      {districts.length > 0 && (
+      {/* District links and maps below (compact, secondary); when viewing a district, show Back to citywide */}
+      {isDistrictView ? (
         <div className="metrics-category-section" style={{ marginTop: 24 }}>
           <div
             className="metrics-category-title"
             style={{ borderBottom: "none", paddingLeft: 0, marginBottom: 8 }}
           >
-            By district
+            All districts
           </div>
           <div
             style={{
@@ -502,6 +531,9 @@ export default function CityDashboardSection({
               padding: "0 0 8px 0",
             }}
           >
+            <Link href={base} className="nav-link" style={{ fontSize: 14 }}>
+              ← Back to citywide
+            </Link>
             {districts.map((d) => (
               <Link
                 key={d}
@@ -514,6 +546,44 @@ export default function CityDashboardSection({
             ))}
           </div>
         </div>
+      ) : (
+        districts.length > 0 &&
+        (cityId != null ? (
+          <DistrictListWithFollow
+            cityId={cityId}
+            slug={slug}
+            districts={districts}
+            leaders={leaders}
+          />
+        ) : (
+          <div className="metrics-category-section" style={{ marginTop: 24 }}>
+            <div
+              className="metrics-category-title"
+              style={{ borderBottom: "none", paddingLeft: 0, marginBottom: 8 }}
+            >
+              By district
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 10,
+                padding: "0 0 8px 0",
+              }}
+            >
+              {districts.map((d) => (
+                <Link
+                  key={d}
+                  href={`${base}/district/${d}`}
+                  className="nav-link"
+                  style={{ fontSize: 14 }}
+                >
+                  District {d}
+                </Link>
+              ))}
+            </div>
+          </div>
+        ))
       )}
 
       {maps.length > 0 && (

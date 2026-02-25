@@ -11,10 +11,11 @@ import {
   getPublicMetricDistrictComparisons,
   listPublicMapsForCity,
 } from "@/lib/publicApiClient";
-import NewsletterSignup from "@/components/NewsletterSignup";
+import EmailSignInLink from "../../EmailSignInLink";
 import CitySignupButton from "../../CitySignupButton";
 import CityViewTracker from "../../CityViewTracker";
 import CustomizeMetricsTrigger from "../../CustomizeMetricsTrigger";
+import DistrictFollowClaimBlock from "../../district/DistrictFollowClaimBlock";
 import CategoryDashboardSection from "./CategoryDashboardSection";
 
 export const revalidate = 3600;
@@ -211,7 +212,7 @@ export default async function CityCategoryPage({
         </div>
       </nav>
 
-      <section className="hero" style={{ paddingTop: 56 }}>
+      <section className="hero" style={{ paddingTop: 96 }}>
         <div className="container">
           <div className="hero-content">
             <div className="hero-text">
@@ -225,27 +226,18 @@ export default async function CityCategoryPage({
                 context.
               </p>
 
-              {(cityDetail?.mayor || cityDetail?.mayor_subscriber_count != null) && (
-                <div className="hero-mayor-subscribers">
-                  {cityDetail?.mayor && (
-                    <span className="hero-mayor-name">
-                      Mayor {cityDetail.mayor.name}
-                    </span>
-                  )}
-                  {cityDetail?.mayor &&
-                    cityDetail?.mayor_subscriber_count != null && (
-                      <span className="hero-mayor-sep"> · </span>
-                    )}
-                  {cityDetail?.mayor_subscriber_count != null && (
-                    <span className="hero-subscriber-count">
-                      {cityDetail.mayor_subscriber_count} followers
-                    </span>
-                  )}
+              {/* City official (mayor): same treatment as district – follow + claim */}
+              {(cityDetail?.mayor || cityDetail?.mayor_subscriber_count != null) && city?.id && (
+                <div className="hero-mayor-subscribers hero-official-row">
+                  <span className="hero-mayor-name">
+                    Mayor {cityDetail?.mayor?.name ?? "Citywide"}
+                  </span>
+                  <DistrictFollowClaimBlock cityId={city.id} district={0} slug={slug} />
                 </div>
               )}
 
               <div className="hero-newsletter">
-                <NewsletterSignup cityName={cityDisplayName} />
+                <EmailSignInLink label={`To get updates for ${cityDisplayName}.`} />
               </div>
 
               {(() => {

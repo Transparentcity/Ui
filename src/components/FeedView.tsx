@@ -12,27 +12,43 @@ interface FeedViewProps {
   district?: number | null;
 }
 
+type ScopeFilter = "all" | "city_wide" | "district_only";
+
 export default function FeedView({ cityId, district }: FeedViewProps) {
   const router = useRouter();
+  const [selectedScope, setSelectedScope] = useState<ScopeFilter>("all");
   const [selectedCityId, setSelectedCityId] = useState<number | null>(cityId ?? null);
   const [selectedDistrict, setSelectedDistrict] = useState<number | null>(district ?? null);
   const [selectedFrequency, setSelectedFrequency] = useState<string | null>(null);
+  const [displayLimit, setDisplayLimit] = useState(10);
   const { data: citiesList } = useCities();
   const trackEngagement = useTrackFeedEngagement();
 
+  const scopeParam = selectedScope === "all" ? undefined : selectedScope;
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setDisplayLimit(10);
+  }, [selectedScope, selectedCityId, selectedDistrict, selectedFrequency]);
+
+  // Feed loads with initial limit 10 (no wait for My Cities); Load more requests +10
+  // When no city selected ("All Cities"), pass all_cities=true so feed shows all active stories (e.g. SF citywide), not just subscription follows
   const { data: feedData, isLoading, error } = selectedCityId
     ? useCityFeedStories(selectedCityId, {
         district: selectedDistrict,
+        scope: scopeParam ?? undefined,
         newsletter_frequency: selectedFrequency ?? undefined,
-        limit: 50,
+        limit: displayLimit,
         order_by: "published_at",
       })
     : useFeedStories({
         city_id: selectedCityId ?? undefined,
         district: selectedDistrict ?? undefined,
+        scope: scopeParam ?? undefined,
         newsletter_frequency: selectedFrequency ?? undefined,
-        limit: 50,
+        limit: displayLimit,
         order_by: "published_at",
+        all_cities: true,
       });
 
   const viewedStoriesRef = useRef<Set<number>>(new Set());
@@ -218,8 +234,35 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
       <div className={styles.feedHeader}>
         <h1 className={styles.feedTitle}>Feed</h1>
         <p className={styles.feedSubtitle}>
-          Latest civic data stories across your cities
+          {selectedCityId == null
+            ? "Latest civic data stories from all cities"
+            : "Latest civic data stories across your cities"}
         </p>
+      </div>
+
+      {/* Scope filter: All / City-wide / District (at the top) */}
+      <div className={styles.scopeBar}>
+        <button
+          type="button"
+          className={`${styles.scopeChip} ${selectedScope === "all" ? styles.scopeChipActive : ""}`}
+          onClick={() => setSelectedScope("all")}
+        >
+          All
+        </button>
+        <button
+          type="button"
+          className={`${styles.scopeChip} ${selectedScope === "city_wide" ? styles.scopeChipActive : ""}`}
+          onClick={() => setSelectedScope("city_wide")}
+        >
+          City-wide
+        </button>
+        <button
+          type="button"
+          className={`${styles.scopeChip} ${selectedScope === "district_only" ? styles.scopeChipActive : ""}`}
+          onClick={() => setSelectedScope("district_only")}
+        >
+          District
+        </button>
       </div>
 
       {/* City filter chips */}
@@ -320,8 +363,12 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
                     >
                       {city.name}
                     </button>
-                    {/* Only relative time—no redundant date range or district; headline carries the story */}
+                    {/* District badge (city-wide vs district) and relative time */}
                     <div className={styles.actorMeta}>
+                      <span className={styles.districtBadge} title={(story.district ?? 0) === 0 ? "City-wide story" : `District ${story.district} story`}>
+                        {getDistrictLabel(story.district ?? 0)}
+                      </span>
+                      <span className={styles.metaDot}>·</span>
                       <span className={styles.timestamp}>
                         {getRelativeTime(story.published_at || story.story_date)}
                       </span>
@@ -415,6 +462,19 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
               </article>
             );
           })}
+        </div>
+      )}
+
+      {/* Load more: show when we got a full page (may have more) */}
+      {!isLoading && stories.length > 0 && stories.length >= displayLimit && (
+        <div className={styles.loadMoreWrap}>
+          <button
+            type="button"
+            className={styles.loadMoreBtn}
+            onClick={() => setDisplayLimit((prev) => prev + 10)}
+          >
+            Load more
+          </button>
         </div>
       )}
     </div>

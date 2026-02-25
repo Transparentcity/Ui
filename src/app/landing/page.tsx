@@ -7,6 +7,7 @@
 import "../landing.css";
 import { useAuth0 } from "@auth0/auth0-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 
@@ -23,13 +24,29 @@ export default function LandingPage() {
     return () => window.clearInterval(interval);
   }, []);
 
-  const handleSignup = async () => {
+  const handleSignupCitizen = async () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("transparentcity.signup_intent", "resident");
+    }
     await loginWithRedirect({
       authorizationParams: {
         screen_hint: "signup",
         prompt: "login",
       },
-      appState: { returnTo: "/dashboard" },
+      appState: { returnTo: "/dashboard?signup=resident" },
+    });
+  };
+
+  const handleSignupCityStaff = async () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("transparentcity.signup_intent", "public-servant");
+    }
+    await loginWithRedirect({
+      authorizationParams: {
+        screen_hint: "signup",
+        prompt: "login",
+      },
+      appState: { returnTo: "/dashboard?signup=public-servant" },
     });
   };
 
@@ -166,10 +183,10 @@ export default function LandingPage() {
                 <button
                   id="hero-signup-btn"
                   className="btn btn-primary btn-large"
-                  onClick={handleSignup}
+                  onClick={handleSignupCitizen}
                   disabled={isLoading}
                 >
-                  {isAuthenticated ? "Go to Dashboard" : "Sign up now"}
+                  {isAuthenticated ? "Go to Dashboard" : "Sign up as citizen"}
                   <svg
                     width="20"
                     height="20"
@@ -298,10 +315,10 @@ export default function LandingPage() {
               everyone looking at the same shared facts.
             </p>
           </div>
-          <div className="user-types-grid">
+            <div className="user-types-grid">
             <div className="user-type-card">
               <div className="user-type-icon">👥</div>
-              <h3 className="user-type-title">Residents &amp; Neighbors</h3>
+              <h3 className="user-type-title">Citizens</h3>
               <p className="user-type-description">
                 Turn “something feels off” into “here’s what changed, here’s the
                 data, and here’s how we should recognize what’s working—or push
@@ -317,19 +334,18 @@ export default function LandingPage() {
                 </li>
               </ul>
               <div className="user-type-cta">
-                <a
-                  href="https://dashboard.transparentsf.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-outline"
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSignupCitizen}
+                  disabled={isLoading}
                 >
-                  Open the SF Dashboard
-                </a>
+                  Sign up as citizen
+                </button>
               </div>
             </div>
             <div className="user-type-card user-type-card-with-phone">
               <div className="user-type-icon">🏛️</div>
-              <h3 className="user-type-title">Supervisors &amp; City Staff</h3>
+              <h3 className="user-type-title">Elected officials &amp; city workers</h3>
               <p className="user-type-description">
                 Get a clear read on what’s happening in your district, so you
                 can see what’s working, where things need attention, and respond
@@ -379,14 +395,17 @@ export default function LandingPage() {
                   </li>
                 </ul>
               </div>
-              <div className="user-type-cta">
+              <div className="user-type-cta" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <Link href="/claim" className="btn btn-primary" style={{ textDecoration: "none", textAlign: "center" }}>
+                  Claim your district profile
+                </Link>
                 <button
-                  id="official-signup-btn"
-                  className="btn btn-primary"
-                  onClick={handleSignup}
+                  id="city-staff-signup-btn"
+                  className="btn btn-outline"
+                  onClick={handleSignupCityStaff}
                   disabled={isLoading}
                 >
-                  Start as a Public Official
+                  Sign up as city staff
                 </button>
               </div>
             </div>
@@ -557,7 +576,7 @@ export default function LandingPage() {
             <div className="pricing-card pricing-featured">
               <div className="featured-badge">Public Access</div>
               <div className="pricing-header">
-                <h3 className="pricing-title">Residents</h3>
+                <h3 className="pricing-title">Citizens</h3>
                 <div className="pricing-price">
                   <span className="price">Free</span>
                 </div>
@@ -583,7 +602,7 @@ export default function LandingPage() {
               </ul>
               <button
                 className="btn btn-primary pricing-btn"
-                onClick={handleSignup}
+                onClick={handleSignupCitizen}
                 disabled={isLoading}
               >
                 Start Free
@@ -592,26 +611,31 @@ export default function LandingPage() {
 
             <div className="pricing-card">
               <div className="pricing-header">
-                <h3 className="pricing-title">Public Officials</h3>
+                <h3 className="pricing-title">Elected officials &amp; city staff</h3>
                 <div className="pricing-price">
                   <span className="price">Free</span>
                 </div>
-                <p className="period">With verified .gov or city email</p>
+                <p className="period">Elected officials: claim your profile. City staff: sign up for tools.</p>
               </div>
               <ul className="pricing-features">
                 <li>✅ Full access to district dashboards and tooling</li>
                 <li>✅ Advanced alerts and trend views</li>
                 <li>✅ Custom briefing packs for hearings and meetings</li>
                 <li>✅ Priority support for data questions</li>
-                <li>✅ “Verified Official” badge inside the product</li>
+                <li>✅ Elected officials: &quot;Verified Official&quot; badge after claim</li>
               </ul>
-              <button
-                className="btn btn-outline pricing-btn"
-                onClick={handleSignup}
-                disabled={isLoading}
-              >
-                Verify &amp; Join
-              </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <Link href="/claim" className="btn btn-primary pricing-btn" style={{ textDecoration: "none", textAlign: "center" }}>
+                  Claim your profile
+                </Link>
+                <button
+                  className="btn btn-outline pricing-btn"
+                  onClick={handleSignupCityStaff}
+                  disabled={isLoading}
+                >
+                  Sign up as city staff
+                </button>
+              </div>
             </div>
 
             <div className="pricing-card">
@@ -632,7 +656,7 @@ export default function LandingPage() {
               </ul>
               <button
                 className="btn btn-outline pricing-btn"
-                onClick={handleSignup}
+                onClick={handleSignupCitizen}
                 disabled={isLoading}
               >
                 Start Free Trial
@@ -727,7 +751,7 @@ export default function LandingPage() {
               </p>
             </div>
             <div className="footer-column">
-              <h4 className="footer-title">For Residents</h4>
+              <h4 className="footer-title">For Citizens</h4>
               <a href="#who-we-serve" className="footer-link">
                 How It Helps
               </a>

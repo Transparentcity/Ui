@@ -48,6 +48,20 @@ export default function Header({
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const router = useRouter();
   const cityPickerRef = useRef<HTMLDivElement | null>(null);
+  const signupMenuRef = useRef<HTMLDivElement | null>(null);
+  const [signupMenuOpen, setSignupMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!signupMenuOpen) return;
+    const onDocumentClick = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (target && signupMenuRef.current && !signupMenuRef.current.contains(target)) {
+        setSignupMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocumentClick);
+    return () => document.removeEventListener("mousedown", onDocumentClick);
+  }, [signupMenuOpen]);
 
   const handleLogin = async () => {
     if (isAuthenticated) {
@@ -72,10 +86,10 @@ export default function Header({
   };
 
   const handleSignup = async (intent: "resident" | "public-servant") => {
+    setSignupMenuOpen(false);
     if (typeof window !== "undefined") {
       window.localStorage.setItem("transparentcity.signup_intent", intent);
     }
-
     await loginWithRedirect({
       authorizationParams: {
         screen_hint: "signup",
@@ -83,6 +97,11 @@ export default function Header({
       },
       appState: { returnTo: `/dashboard?signup=${intent}` },
     });
+  };
+
+  const handleGoToClaim = () => {
+    setSignupMenuOpen(false);
+    router.push("/claim");
   };
 
   useEffect(() => {
@@ -402,13 +421,57 @@ export default function Header({
               {isAuthenticated ? "Dashboard" : "Sign in"}
             </button>
 
-            <button
-              className={styles.buttonSignUp}
-              onClick={handleGoToDashboard}
-              disabled={isLoading}
-            >
-              {isAuthenticated ? "Go to dashboard" : "Sign up"}
-            </button>
+            {isAuthenticated ? (
+              <button
+                className={styles.buttonSignUp}
+                onClick={() => router.push("/dashboard")}
+                disabled={isLoading}
+              >
+                Go to dashboard
+              </button>
+            ) : (
+              <div className={styles.menuWrap} ref={signupMenuRef}>
+                <button
+                  className={styles.buttonSignUp}
+                  onClick={() => setSignupMenuOpen((v) => !v)}
+                  disabled={isLoading}
+                  aria-haspopup="menu"
+                  aria-expanded={signupMenuOpen}
+                >
+                  Sign up
+                </button>
+                {signupMenuOpen && (
+                  <div className={styles.menu} role="menu" aria-label="Sign up options">
+                    <button
+                      className={styles.menuItem}
+                      role="menuitem"
+                      onClick={() => handleSignup("resident")}
+                      disabled={isLoading}
+                    >
+                      <span className={styles.menuItemTitle}>Sign up as citizen</span>
+                      <span className={styles.menuItemDesc}>Follow cities, research, and maps.</span>
+                    </button>
+                    <button
+                      className={styles.menuItem}
+                      role="menuitem"
+                      onClick={handleGoToClaim}
+                    >
+                      <span className={styles.menuItemTitle}>I&apos;m an elected official</span>
+                      <span className={styles.menuItemDesc}>Claim your profile to respond to constituents.</span>
+                    </button>
+                    <button
+                      className={styles.menuItem}
+                      role="menuitem"
+                      onClick={() => handleSignup("public-servant")}
+                      disabled={isLoading}
+                    >
+                      <span className={styles.menuItemTitle}>I&apos;m city staff</span>
+                      <span className={styles.menuItemDesc}>Briefs, context, and operational clarity.</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </nav>
         </div>
       </div>

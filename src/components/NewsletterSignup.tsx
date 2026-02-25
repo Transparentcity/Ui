@@ -51,7 +51,7 @@ export default function NewsletterSignup({ cityName, citySlug, district, onEmail
     <form onSubmit={handleSubmit} className="newsletter-signup">
       <div className="newsletter-signup-content">
         <label htmlFor="newsletter-email" className="newsletter-label">
-          Get monthly updates for {cityName ? cityName : "your city"}
+          To get updates for {cityName ? cityName : "your city"}.
         </label>
         <div className="newsletter-input-group">
           <input

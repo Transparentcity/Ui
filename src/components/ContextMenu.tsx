@@ -2,6 +2,7 @@
 
 import { forwardRef } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { API_BASE } from "@/lib/apiBase";
@@ -167,6 +168,28 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
             strokeLinejoin="round"
             style={{ filter: "grayscale(100%)" }}
           >
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+        ),
+        label: "Official claims",
+        view: "claims-admin",
+      },
+      {
+        icon: (
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ filter: "grayscale(100%)" }}
+          >
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
             <polyline points="14 2 14 8 20 8"></polyline>
             <line x1="16" y1="13" x2="8" y2="13"></line>
@@ -185,6 +208,36 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
         className={`${styles.menu} ${isOpen ? styles.open : ""}` }
         id="context-menu"
       >
+        {/* Sitemap - at top for easy access */}
+        <Link href="/sitemap" className={styles.item} id="sitemap-menu-item">
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "20px",
+              height: "20px",
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ filter: "grayscale(100%)" }}
+            >
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="2" y1="12" x2="22" y2="12"></line>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+            </svg>
+          </span>
+          <span>Sitemap</span>
+        </Link>
+
         {/* API Documentation - Only visible to admins or city leads */}
         {canAccessApiDocs && (
           <a
@@ -222,6 +275,44 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
             </span>
             <span>API Documentation</span>
           </a>
+        )}
+
+        {/* Feed stories - visible to admins and city leads (same as API docs) */}
+        {canAccessApiDocs && (
+          <div
+            className={styles.item}
+            data-view="feed-stories-admin"
+            onClick={() => handleAdminView("feed-stories-admin")}
+          >
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "20px",
+                height: "20px",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ filter: "grayscale(100%)" }}
+              >
+                <path d="M4 11a9 9 0 0 1 9 9"></path>
+                <path d="M4 4a9 9 0 0 1 9 9"></path>
+                <line x1="21" y1="4" x2="14" y2="4"></line>
+                <line x1="21" y1="8" x2="14" y2="8"></line>
+                <line x1="21" y1="12" x2="14" y2="12"></line>
+              </svg>
+            </span>
+            <span>Feed stories</span>
+          </div>
         )}
 
         {isAdmin && (

@@ -2611,6 +2611,70 @@ export function getDataset(datasetId: number, token: string): Promise<Dataset> {
   return request<Dataset>(`/api/admin/datasets/${datasetId}`, "GET", undefined, token);
 }
 
+// Claim (elected official verification) API
+export interface LeaderForClaim {
+  id: number;
+  city_id: number;
+  name: string;
+  title: string;
+  district: number | null;
+}
+
+export interface ClaimResponse {
+  id: number;
+  user_id: number;
+  leader_id: number;
+  status: string;
+  requested_at: string;
+  reviewed_at: string | null;
+  verification_notes: string | null;
+  leader_name: string | null;
+  leader_title: string | null;
+  leader_district: number | null;
+  city_id: number | null;
+}
+
+export function listLeadersForClaim(cityId: number): Promise<LeaderForClaim[]> {
+  return request<LeaderForClaim[]>(`/api/claim/leaders?city_id=${cityId}`);
+}
+
+export function createClaim(leaderId: number, token: string): Promise<ClaimResponse> {
+  return request<ClaimResponse>("/api/claim", "POST", { leader_id: leaderId }, token);
+}
+
+export function getMyClaims(token: string): Promise<ClaimResponse[]> {
+  return request<ClaimResponse[]>("/api/claim/me", "GET", undefined, token);
+}
+
+export interface AdminClaimResponse {
+  id: number;
+  user_id: number;
+  user_email: string | null;
+  leader_id: number;
+  leader_name: string;
+  leader_title: string;
+  leader_district: number | null;
+  city_id: number;
+  status: string;
+  requested_at: string;
+  reviewed_at: string | null;
+  reviewed_by: number | null;
+  verification_notes: string | null;
+}
+
+export function listAdminClaims(token: string, statusFilter?: string): Promise<AdminClaimResponse[]> {
+  const q = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : "";
+  return request<AdminClaimResponse[]>(`/api/admin/claims${q}`, "GET", undefined, token);
+}
+
+export function updateAdminClaim(
+  claimId: number,
+  body: { status: "approved" | "rejected"; verification_notes?: string },
+  token: string
+): Promise<AdminClaimResponse> {
+  return request<AdminClaimResponse>(`/api/admin/claims/${claimId}`, "PATCH", body, token);
+}
+
 // User Management API
 export interface User {
   id: number;
@@ -2983,10 +3047,13 @@ export function listFeedStories(
   options?: {
     city_id?: number;
     district?: number | null;
+    scope?: "city_wide" | "district_only" | null;
     newsletter_frequency?: string | null;
     research_report_id?: number;
     limit?: number;
     order_by?: string;
+    /** When true and no city_id, return all active stories (ignore subscription/follows). Use for "All Cities" view. */
+    all_cities?: boolean;
   }
 ): Promise<FeedStoriesResponse> {
   const params = new URLSearchParams();
@@ -2994,6 +3061,7 @@ export function listFeedStories(
   if (options?.district !== undefined && options?.district !== null) {
     params.append("district", options.district.toString());
   }
+  if (options?.scope) params.append("scope", options.scope);
   if (options?.newsletter_frequency) {
     params.append("newsletter_frequency", options.newsletter_frequency);
   }
@@ -3002,6 +3070,7 @@ export function listFeedStories(
   }
   if (options?.limit) params.append("limit", options.limit.toString());
   if (options?.order_by) params.append("order_by", options.order_by);
+  if (options?.all_cities) params.append("all_cities", "true");
 
   const query = params.toString();
   const path = `/api/feed${query ? `?${query}` : ""}`;
@@ -3025,11 +3094,62 @@ export function trackFeedEngagement(
   );
 }
 
+// Admin feed delete (requires admin)
+export interface DeleteFeedStoryResponse {
+  success: boolean;
+  message: string;
+  deleted: number;
+}
+
+export interface DeleteFeedStoriesByCityResponse {
+  success: boolean;
+  message: string;
+  deleted: number;
+  city_id: number;
+  district?: number | null;
+}
+
+export function deleteFeedStory(storyId: number, token: string): Promise<DeleteFeedStoryResponse> {
+  return request<DeleteFeedStoryResponse>(
+    `/api/feed/admin/story/${storyId}`,
+    "DELETE",
+    undefined,
+    token
+  );
+}
+
+export function deleteFeedStoriesByCity(
+  cityId: number,
+  token: string,
+  district?: number | null
+): Promise<DeleteFeedStoriesByCityResponse> {
+  const params = new URLSearchParams();
+  if (district !== undefined && district !== null) {
+    params.append("district", district.toString());
+  }
+  const query = params.toString();
+  const path = `/api/feed/admin/by-city/${cityId}${query ? `?${query}` : ""}`;
+  return request<DeleteFeedStoriesByCityResponse>(path, "DELETE", undefined, token);
+}
+
+/** Cities that have at least one active feed story (for admin dropdown). */
+export interface CityWithFeedStories {
+  city_id: number;
+  city_name: string;
+  state?: string | null;
+  story_count: number;
+}
+
+export function listCitiesWithFeedStories(token: string): Promise<CityWithFeedStories[]> {
+  return request<CityWithFeedStories[]>(`/api/feed/admin/cities-with-stories`, "GET", undefined, token);
+}
+
 // Public feed endpoints (no auth required)
 export function listPublicFeedStories(
   options?: {
     city_id?: number;
     district?: number | null;
+    scope?: "city_wide" | "district_only" | null;
     newsletter_frequency?: string | null;
     limit?: number;
     order_by?: string;
@@ -3040,6 +3160,7 @@ export function listPublicFeedStories(
   if (options?.district !== undefined && options?.district !== null) {
     params.append("district", options.district.toString());
   }
+  if (options?.scope) params.append("scope", options.scope);
   if (options?.newsletter_frequency) {
     params.append("newsletter_frequency", options.newsletter_frequency);
   }

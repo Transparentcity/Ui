@@ -24,6 +24,48 @@
   margin: 0;
 }
 
+/* ── Scope filter (All / City-wide / District) ── */
+
+.scopeBar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.scopeChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 999px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.scopeChip:hover {
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.scopeChipActive {
+  background: var(--brand-primary, #ad35fa);
+  color: #fff;
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+.scopeChipActive:hover {
+  background: var(--brand-primary-dark, #9420e0);
+  color: #fff;
+  border-color: var(--brand-primary-dark, #9420e0);
+}
+
 /* ── City filter chips ── */
 
 .chipBar {
@@ -123,6 +165,30 @@
   gap: 2px;
 }
 
+.loadMoreWrap {
+  display: flex;
+  justify-content: center;
+  padding: 24px 0 16px;
+}
+
+.loadMoreBtn {
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--brand-primary, #ad35fa);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.loadMoreBtn:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary-hover, #9333ea);
+}
+
 /* ── Story card ── */
 
 .storyCard {
@@ -217,6 +283,21 @@
 .frequencyTag,
 .districtTag {
   white-space: nowrap;
+}
+
+/* District badge: city-wide vs district-level story */
+.districtBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-radius: 4px;
+  white-space: nowrap;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-primary);
 }
 
 .featuredBadge {

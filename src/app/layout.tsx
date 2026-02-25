@@ -19,9 +19,6 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.svg",
   },
-  alternates: {
-    canonical: "/",
-  },
   openGraph: {
     type: "website",
     siteName: "Transparent.city",
