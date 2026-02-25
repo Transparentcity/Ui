@@ -1,6 +1,6 @@
 import { API_BASE } from "./apiBase";
 
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 // Request deduplication cache for getSavedCities
 const savedCitiesCache: {

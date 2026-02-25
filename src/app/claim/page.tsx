@@ -3,7 +3,7 @@
 import { useAuth0 } from "@auth0/auth0-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Header from "@/components/Header";
 import {
   listLeadersForClaim,
@@ -13,7 +13,7 @@ import {
   type ClaimResponse,
 } from "@/lib/apiClient";
 
-export default function ClaimPage() {
+function ClaimPageContent() {
   const searchParams = useSearchParams();
   const cityIdParam = searchParams.get("city_id");
   const districtParam = searchParams.get("district");
@@ -320,5 +320,20 @@ export default function ClaimPage() {
         </p>
       </main>
     </>
+  );
+}
+
+export default function ClaimPage() {
+  return (
+    <Suspense
+      fallback={
+        <>
+          <Header showCityPicker={false} />
+          <main style={{ padding: "2rem", textAlign: "center" }}>Loading…</main>
+        </>
+      }
+    >
+      <ClaimPageContent />
+    </Suspense>
   );
 }

@@ -64,14 +64,24 @@ async function requestPublic<T>(path: string): Promise<T> {
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      let errorMessage = `API GET ${path} failed: ${res.status}`;
-      if (text) {
+      let errorMessage: string;
+      if (res.status === 502 || res.status === 503 || res.status === 504) {
+        errorMessage =
+          res.status === 502
+            ? "The cities service is temporarily unavailable (bad gateway). Please try again in a few minutes."
+            : res.status === 503
+              ? "The cities service is temporarily unavailable. Please try again in a few minutes."
+              : "The cities service took too long to respond. Please try again.";
+      } else if (text) {
         try {
           const errorJson = JSON.parse(text);
-          errorMessage = errorJson.message || errorJson.detail || errorMessage;
+          const detail = errorJson.message ?? errorJson.detail;
+          errorMessage = typeof detail === "string" ? detail : `API GET ${path} failed: ${res.status}`;
         } catch {
-          errorMessage = `${errorMessage} - ${text.substring(0, 200)}`;
+          errorMessage = `API GET ${path} failed: ${res.status}`;
         }
+      } else {
+        errorMessage = `API GET ${path} failed: ${res.status}`;
       }
       const err = new Error(errorMessage) as Error & { status?: number };
       err.status = res.status;
@@ -111,14 +121,24 @@ async function requestPublicPost<T>(path: string, body: object): Promise<T> {
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      let errorMessage = `API POST ${path} failed: ${res.status}`;
-      if (text) {
+      let errorMessage: string;
+      if (res.status === 502 || res.status === 503 || res.status === 504) {
+        errorMessage =
+          res.status === 502
+            ? "The service is temporarily unavailable (bad gateway). Please try again in a few minutes."
+            : res.status === 503
+              ? "The service is temporarily unavailable. Please try again in a few minutes."
+              : "The service took too long to respond. Please try again.";
+      } else if (text) {
         try {
           const errorJson = JSON.parse(text);
-          errorMessage = errorJson.message || errorJson.detail || errorMessage;
+          const detail = errorJson.message ?? errorJson.detail;
+          errorMessage = typeof detail === "string" ? detail : `API POST ${path} failed: ${res.status}`;
         } catch {
-          errorMessage = `${errorMessage} - ${text.substring(0, 200)}`;
+          errorMessage = `API POST ${path} failed: ${res.status}`;
         }
+      } else {
+        errorMessage = `API POST ${path} failed: ${res.status}`;
       }
       const err = new Error(errorMessage) as Error & { status?: number };
       err.status = res.status;

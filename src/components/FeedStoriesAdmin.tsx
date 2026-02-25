@@ -47,7 +47,8 @@ export default function FeedStoriesAdmin() {
   }, [getAccessTokenSilently, cityId]);
 
   const loadStories = useCallback(async () => {
-    if (cityId == null) {
+    const id = cityId;
+    if (id == null) {
       setStories([]);
       return;
     }
@@ -61,13 +62,13 @@ export default function FeedStoriesAdmin() {
           : districtFilter === "citywide"
             ? 0
             : parseInt(districtFilter, 10);
-      if (districtFilter !== "" && districtFilter !== "citywide" && isNaN(districtParam)) {
+      if (districtFilter !== "" && districtFilter !== "citywide" && (typeof districtParam !== "number" || isNaN(districtParam))) {
         setStories([]);
         setLoading(false);
         return;
       }
       const res = await listFeedStories(token, {
-        city_id: cityId,
+        city_id: id,
         district: districtParam ?? undefined,
         limit: 200,
         order_by: "published_at",

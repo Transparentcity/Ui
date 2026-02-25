@@ -552,6 +552,7 @@ export default function CityDashboardSection({
           <DistrictListWithFollow
             cityId={cityId}
             slug={slug}
+            cityDisplayName={cityDisplayName}
             districts={districts}
             leaders={leaders}
           />

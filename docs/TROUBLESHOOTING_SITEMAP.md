@@ -144,6 +144,16 @@ After applying fixes:
 - **Cause**: Backend API is unreachable
 - **Fix**: Check backend is running and accessible
 
+### "API GET /api/public/cities/sitemap failed: 502" (Bad Gateway)
+- **Cause**: Nginx (or your reverse proxy) could not get a valid response from the API backend. Common reasons:
+  - Backend process (e.g. uvicorn/gunicorn) is not running or crashed
+  - Backend is too slow and the proxy timed out (`proxy_read_timeout`)
+  - Upstream address/port in nginx is wrong, or backend is bound only to localhost and unreachable from the proxy
+- **Fix**:
+  1. Confirm the API process is running on the expected host/port (e.g. `curl http://127.0.0.1:8000/health` on the API host).
+  2. Check nginx upstream config (e.g. `proxy_pass`, `proxy_read_timeout`) and increase timeouts if the backend is slow.
+  3. Check API and nginx error logs: `tail -f /var/log/nginx/error.log` and your app logs.
+
 ### "API GET /api/public/cities/sitemap failed: 503"
 - **Cause**: Backend service unavailable (often database connection)
 - **Fix**: Check backend logs and database connectivity
