@@ -6,15 +6,18 @@ import {
   listFeedStories,
   getFeedStory,
   trackFeedEngagement,
+  listFeedPlaces,
   listPublicFeedStories,
   getPublicFeedStory,
+  listPublicFeedPlaces,
   type FeedStory,
   type FeedStoriesResponse,
   type FeedStoryResponse,
+  type FeedPlace,
 } from "@/lib/apiClient";
 
 // Re-export types for consumers
-export type { FeedStory };
+export type { FeedStory, FeedPlace };
 
 // Query keys factory for feed stories
 export const feedKeys = {
@@ -25,7 +28,29 @@ export const feedKeys = {
     [...feedKeys.all, "city", cityId, filters] as const,
   details: () => [...feedKeys.all, "detail"] as const,
   detail: (storyId: number | null) => [...feedKeys.details(), storyId] as const,
+  places: () => [...feedKeys.all, "places"] as const,
 };
+
+/**
+ * Hook to list (city, district) places that have feed stories (for filter UI).
+ * Returns the actual subset of cities and districts in the feed (e.g. SF District 2, SF District 3).
+ */
+export function useFeedPlaces() {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+
+  return useQuery({
+    queryKey: feedKeys.places(),
+    queryFn: async () => {
+      if (isAuthenticated) {
+        const token = await getAccessTokenSilently();
+        return listFeedPlaces(token);
+      }
+      return listPublicFeedPlaces();
+    },
+    staleTime: 2 * 60 * 1000,
+    enabled: true,
+  });
+}
 
 /**
  * Hook to list feed stories with optional filtering.
@@ -36,6 +61,7 @@ export function useFeedStories(options?: {
   district?: number | null;
   scope?: "city_wide" | "district_only" | null;
   newsletter_frequency?: string | null;
+  category?: string | null;
   limit?: number;
   order_by?: string;
   /** When true and no city_id, return all active stories (ignore follows). Use for "All Cities" view. */

@@ -186,6 +186,10 @@ export default function TimeSeriesChartPage() {
   const metadata = timeSeries.metadata;
   const metricName = metadata.object_name || metadata.field_name || "Time Series Chart";
 
+  // Default to the series' actual period type so the view matches the data and title (e.g. "Monthly Trend").
+  const defaultPeriod =
+    (metadata.period_type?.toLowerCase() as "day" | "week" | "month" | "year") || "month";
+
   if (isEmbedded) {
     return (
       <div className="time-series-page embedded">
@@ -211,7 +215,7 @@ export default function TimeSeriesChartPage() {
             data={aggregated}
             metadata={metadata}
             height={380}
-            defaultPeriod="week"
+            defaultPeriod={defaultPeriod}
             fullBleed={true}
             hidePeriodSelector={false}
             showExternalTitle={false}
@@ -290,7 +294,7 @@ export default function TimeSeriesChartPage() {
             data={aggregated}
             metadata={metadata}
             height={500}
-            defaultPeriod="week"
+            defaultPeriod={defaultPeriod}
             fullBleed={true}
             hidePeriodSelector={false}
             showExternalTitle={true}

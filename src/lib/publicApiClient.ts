@@ -258,6 +258,8 @@ export type PublicFeedStory = {
   description: string;
   summary?: string | null;
   detail_url: string;
+  /** Call-to-action label, e.g. "Read full report", "View metric". Defaults to "Read full report". */
+  cta_label?: string | null;
   story_date: string;
   published_at?: string | null;
 };

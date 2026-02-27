@@ -1172,19 +1172,15 @@ export default function PublicMapPage() {
             "heatmap-weight": 1,
             "heatmap-intensity": 1,
             "heatmap-radius": 15,
-            "heatmap-opacity": (showPoints && !selectedShapeLayer) ? 0.8 : 0,
+            "heatmap-opacity": 0,
           },
         });
         
-        // For heatmap maps, only auto-show if NOT using choropleth and NOT waiting for shape layers
-        const shouldAutoShowHeatmap = (isEmbedded || showPoints) && !selectedShapeLayer && !shouldUseChoropleth && !mightUseChoropleth;
-        if (shouldAutoShowHeatmap) {
-          setShowPoints(true);
-        }
+        const wantHeatmapVisible = (defaultIsPoints || isEmbedded) && !selectedShapeLayer && !shouldUseChoropleth && !mightUseChoropleth;
+        setShowPoints(wantHeatmapVisible);
         
-        // Set initial visibility based on showPoints and selectedShapeLayer
         if (mapInstance.getLayer("map-heatmap")) {
-          if (shouldAutoShowHeatmap) {
+          if (wantHeatmapVisible) {
             mapInstance.setLayoutProperty("map-heatmap", "visibility", "visible");
             mapInstance.setPaintProperty("map-heatmap", "heatmap-opacity", 0.8);
           } else {
@@ -1287,21 +1283,17 @@ export default function PublicMapPage() {
             })(),
             "circle-stroke-color": "#fff",
             "circle-stroke-width": 1,
-            "circle-opacity": (showPoints && !selectedShapeLayer) ? 0.8 : 0,
+            "circle-opacity": 0,
           },
         });
         
-        // Set initial visibility based on showPoints and selectedShapeLayer
-        // For point maps, only auto-show points if NOT using choropleth and NOT waiting for shape layers
-        // Don't auto-show if we're waiting for shape layers to be discovered (mightUseChoropleth)
-        const shouldAutoShowPoints = (isEmbedded || showPoints) && !selectedShapeLayer && !shouldUseChoropleth && !mightUseChoropleth;
-        if (shouldAutoShowPoints) {
-          setShowPoints(true);
-        }
+        // Set initial visibility from map config (defaultIsPoints), not from showPoints state,
+        // since this callback runs async and may see stale showPoints. Sync state after.
+        const wantPointsVisible = (defaultIsPoints || isEmbedded) && !selectedShapeLayer && !shouldUseChoropleth && !mightUseChoropleth;
+        setShowPoints(wantPointsVisible);
         
-        // Set initial visibility
         if (mapInstance.getLayer("map-points")) {
-          if (shouldAutoShowPoints) {
+          if (wantPointsVisible) {
             mapInstance.setLayoutProperty("map-points", "visibility", "visible");
             mapInstance.setPaintProperty("map-points", "circle-opacity", 0.8);
           } else {
@@ -1709,6 +1701,22 @@ export default function PublicMapPage() {
             canShowDots={!!(map.location_data && map.location_data.length > 0)}
           />
           <div className="map-container embedded-map" ref={mapContainerRef} />
+          {legend && legend.items.length > 0 && (
+            <div className="map-legend" aria-label="Map legend">
+              <div className="map-legend-title">{legend.title}</div>
+              <div className="map-legend-items">
+                {legend.items.map((item) => (
+                  <div key={item.label} className="map-legend-item">
+                    <span
+                      className="map-legend-swatch"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className="map-legend-label">{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {districtPanel && (
             <div className="map-bottom-panel" role="region" aria-label="District details">
               <div className="map-bottom-panel-header">

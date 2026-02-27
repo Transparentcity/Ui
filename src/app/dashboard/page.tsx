@@ -24,6 +24,7 @@ import {
   getUserPreferences,
   updateUserPreferences,
   getCity,
+  createResearch,
   saveUserMetricOrdering,
   recordSignupIntent,
   getGovernmentVerificationStatus,
@@ -100,8 +101,10 @@ export default function DashboardPage() {
   const [editableWeeklyDigest, setEditableWeeklyDigest] = useState(false);
   const [editableMonthlyReport, setEditableMonthlyReport] = useState(false);
   const [editableReportScope, setEditableReportScope] = useState<"district" | "city">("district");
-  const [editableCategories, setEditableCategories] = useState<string[]>([]);
-  const [editableLearningFocus, setEditableLearningFocus] = useState("");
+  const [editableNewsletterDescription, setEditableNewsletterDescription] = useState("");
+  const [editableNewsletterFrequency, setEditableNewsletterFrequency] = useState<"weekly" | "monthly">("weekly");
+  const [generatingSampleNewsletter, setGeneratingSampleNewsletter] = useState(false);
+  const [sampleNewsletterReportUrl, setSampleNewsletterReportUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -503,24 +506,15 @@ export default function DashboardPage() {
       // Initialize editable state from preferences
       const commPrefs = prefs.extra?.communication_preferences || {};
       console.log("Communication preferences from loaded prefs:", commPrefs);
-      console.log("Category interests from loaded prefs:", prefs.extra?.category_interests);
-      console.log("Learning focus from loaded prefs:", prefs.extra?.learning_focus);
       
       setEditableAnomalyAlerts(commPrefs.anomaly_alerts ?? false);
       setEditableWeeklyDigest(commPrefs.weekly_digest ?? false);
       setEditableMonthlyReport(commPrefs.monthly_report ?? false);
       setEditableReportScope(commPrefs.report_scope || "district");
-      setEditableCategories(prefs.extra?.category_interests || []);
-      setEditableLearningFocus(prefs.extra?.learning_focus || "");
-      
-      console.log("Initialized editable state:", {
-        anomalyAlerts: commPrefs.anomaly_alerts ?? false,
-        weeklyDigest: commPrefs.weekly_digest ?? false,
-        monthlyReport: commPrefs.monthly_report ?? false,
-        reportScope: commPrefs.report_scope || "district",
-        categories: prefs.extra?.category_interests || [],
-        learningFocus: prefs.extra?.learning_focus || "",
-      });
+      setEditableNewsletterDescription(commPrefs.newsletter_description || "");
+      setEditableNewsletterFrequency(
+        commPrefs.newsletter_frequency === "monthly" ? "monthly" : "weekly"
+      );
       
       // Fetch government verification status (for Settings government mode section)
       try {
@@ -578,9 +572,9 @@ export default function DashboardPage() {
           weekly_digest: editableWeeklyDigest,
           monthly_report: editableMonthlyReport,
           report_scope: editableMonthlyReport ? editableReportScope : null,
+          newsletter_description: editableNewsletterDescription || null,
+          newsletter_frequency: editableNewsletterFrequency,
         },
-        category_interests: editableCategories,
-        learning_focus: editableLearningFocus || null,
       };
       
       console.log("Updated extra to send:", JSON.stringify(updatedExtra, null, 2));
@@ -612,27 +606,15 @@ export default function DashboardPage() {
       
       // Re-initialize editable state from refreshed preferences to ensure sync
       const commPrefs = refreshed.extra?.communication_preferences || {};
-      console.log("Setting editable state from refreshed prefs:", {
-        commPrefs,
-        category_interests: refreshed.extra?.category_interests,
-        learning_focus: refreshed.extra?.learning_focus,
-      });
       
       setEditableAnomalyAlerts(commPrefs.anomaly_alerts ?? false);
       setEditableWeeklyDigest(commPrefs.weekly_digest ?? false);
       setEditableMonthlyReport(commPrefs.monthly_report ?? false);
       setEditableReportScope(commPrefs.report_scope || "district");
-      setEditableCategories(refreshed.extra?.category_interests || []);
-      setEditableLearningFocus(refreshed.extra?.learning_focus || "");
-      
-      console.log("Editable state after save:", {
-        anomalyAlerts: commPrefs.anomaly_alerts ?? false,
-        weeklyDigest: commPrefs.weekly_digest ?? false,
-        monthlyReport: commPrefs.monthly_report ?? false,
-        reportScope: commPrefs.report_scope || "district",
-        categories: refreshed.extra?.category_interests || [],
-        learningFocus: refreshed.extra?.learning_focus || "",
-      });
+      setEditableNewsletterDescription(commPrefs.newsletter_description || "");
+      setEditableNewsletterFrequency(
+        commPrefs.newsletter_frequency === "monthly" ? "monthly" : "weekly"
+      );
       
       // Update home city if it exists
       if (refreshed.extra?.home_location?.city_id) {
@@ -651,6 +633,53 @@ export default function DashboardPage() {
       alert("Failed to save preferences. Please try again.");
     } finally {
       setSavingPreferences(false);
+    }
+  };
+
+  const handleGenerateSampleNewsletter = async () => {
+    const homeLocation = userPreferences?.extra?.home_location;
+    const cityId = homeLocation?.city_id;
+    const district = homeLocation?.district ?? 0;
+    if (!cityId) {
+      alert("Set a home city first (complete onboarding or save a city as home).");
+      return;
+    }
+    const cityName = homeCity?.name || homeCity?.display_name || "Your city";
+    const districtLabel = district ? `District ${district}` : "citywide";
+    const defaultPrompt =
+      "Create a weekly newsletter report for this city and district. Focus on recent changes and trends in key metrics (crime, housing, permits, 311 calls), notable anomalies, comparative analysis (this period vs. previous, district vs. city-wide), and actionable insights for residents. Be data-driven with specific numbers; highlight both positive and concerning trends.";
+    const prompt = editableNewsletterDescription.trim() || defaultPrompt;
+    const fullPrompt = `For ${cityName} (${districtLabel}). ${prompt}`;
+
+    setGeneratingSampleNewsletter(true);
+    setSampleNewsletterReportUrl(null);
+    try {
+      const token = await getAccessTokenSilently();
+      const res = await createResearch(
+        {
+          prompt: fullPrompt,
+          city_id: cityId,
+          district: district ? String(district) : null,
+          max_iterations: 1,
+          max_subquestions: 2,
+          is_newsletter: true,
+          newsletter_frequency: editableNewsletterFrequency,
+          generate_feed_stories: true,
+          feed_story_count: 2,
+          feed_story_frequency: editableNewsletterFrequency,
+          feed_story_category: "personal_newsletter",
+          use_low_cost_model: true,
+        },
+        token
+      );
+      if (res?.public_url) {
+        setSampleNewsletterReportUrl(res.public_url);
+      }
+    } catch (err) {
+      console.error("Error generating sample newsletter:", err);
+      alert("Failed to generate sample newsletter. Please try again.");
+    } finally {
+      setGeneratingSampleNewsletter(false);
     }
   };
 
@@ -1303,84 +1332,23 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {/* Category Interests Section */}
+                  {/* Personalized Newsletter Section */}
                   <div style={{ marginBottom: "32px" }}>
                     <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "8px" }}>
-                      Category Interests
+                      Personalized newsletter
                     </h3>
                     <p style={{ color: "var(--text-secondary)", fontSize: "13px", marginBottom: "12px" }}>
-                      Select categories you&apos;d like to track (optional)
+                      Your newsletter preferences from onboarding. Edit below and save to update. Generate an example to see a sample in the Personal newsletter section of your feed.
                     </p>
                     <div style={{ padding: "12px 0", borderBottom: "1px solid var(--border-primary)" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px" }}>
-                        {[
-                          "Crime & Safety",
-                          "Traffic & Transportation",
-                          "Housing & Development",
-                          "Budget & Finance",
-                          "Environment & Sustainability",
-                          "Public Health",
-                          "Education",
-                          "Infrastructure",
-                        ].map((category) => (
-                          <label
-                            key={category}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "8px",
-                              padding: "8px 12px",
-                              background: editableCategories.includes(category)
-                                ? "var(--brand-primary-light, rgba(173, 53, 250, 0.1))"
-                                : "var(--bg-secondary)",
-                              border: `1px solid ${
-                                editableCategories.includes(category)
-                                  ? "var(--brand-primary, #ad35fa)"
-                                  : "var(--border-primary)"
-                              }`,
-                              borderRadius: "8px",
-                              cursor: "pointer",
-                              fontSize: "13px",
-                              color: editableCategories.includes(category)
-                                ? "var(--brand-primary, #ad35fa)"
-                                : "var(--text-primary)",
-                              fontWeight: editableCategories.includes(category) ? 500 : 400,
-                              transition: "all 0.15s ease",
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={editableCategories.includes(category)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setEditableCategories([...editableCategories, category]);
-                                } else {
-                                  setEditableCategories(editableCategories.filter((c) => c !== category));
-                                }
-                              }}
-                              style={{ accentColor: "var(--brand-primary, #ad35fa)" }}
-                            />
-                            <span>{category}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Learning Focus Section */}
-                  <div style={{ marginBottom: "32px" }}>
-                    <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "8px" }}>
-                      Learning Focus
-                    </h3>
-                    <p style={{ color: "var(--text-secondary)", fontSize: "13px", marginBottom: "12px" }}>
-                      Tell us what you&apos;d like to focus on (optional)
-                    </p>
-                    <div style={{ padding: "12px 0", borderBottom: "1px solid var(--border-primary)" }}>
+                      <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "var(--text-primary)", marginBottom: "6px" }}>
+                        Newsletter description (what you want each edition to focus on)
+                      </label>
                       <textarea
-                        value={editableLearningFocus}
-                        onChange={(e) => setEditableLearningFocus(e.target.value)}
-                        placeholder="e.g., Understanding budget allocation, tracking crime trends, monitoring infrastructure projects..."
-                        rows={3}
+                        value={editableNewsletterDescription}
+                        onChange={(e) => setEditableNewsletterDescription(e.target.value)}
+                        placeholder="Create a weekly newsletter report for this city and district. Focus on recent changes and trends in key metrics (crime, housing, permits, 311 calls), notable anomalies, comparative analysis..."
+                        rows={4}
                         style={{
                           width: "100%",
                           padding: "12px 14px",
@@ -1392,6 +1360,7 @@ export default function DashboardPage() {
                           color: "var(--text-primary)",
                           resize: "vertical",
                           transition: "all 0.15s ease",
+                          marginBottom: "12px",
                         }}
                         onFocus={(e) => {
                           e.target.style.borderColor = "var(--brand-primary, #ad35fa)";
@@ -1402,6 +1371,64 @@ export default function DashboardPage() {
                           e.target.style.boxShadow = "none";
                         }}
                       />
+                      <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "16px" }}>
+                        <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--text-primary)" }}>Frequency:</span>
+                        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "var(--text-secondary)", cursor: "pointer" }}>
+                          <input
+                            type="radio"
+                            name="newsletterFreqSettings"
+                            checked={editableNewsletterFrequency === "weekly"}
+                            onChange={() => setEditableNewsletterFrequency("weekly")}
+                            style={{ accentColor: "var(--brand-primary, #ad35fa)" }}
+                          />
+                          Weekly
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "var(--text-secondary)", cursor: "pointer" }}>
+                          <input
+                            type="radio"
+                            name="newsletterFreqSettings"
+                            checked={editableNewsletterFrequency === "monthly"}
+                            onChange={() => setEditableNewsletterFrequency("monthly")}
+                            style={{ accentColor: "var(--brand-primary, #ad35fa)" }}
+                          />
+                          Monthly
+                        </label>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleGenerateSampleNewsletter}
+                        disabled={generatingSampleNewsletter}
+                        style={{
+                          padding: "10px 18px",
+                          fontSize: "14px",
+                          fontWeight: 600,
+                          color: "#fff",
+                          background: generatingSampleNewsletter ? "var(--text-tertiary, #9ca3af)" : "var(--brand-primary, #ad35fa)",
+                          border: "none",
+                          borderRadius: "8px",
+                          cursor: generatingSampleNewsletter ? "not-allowed" : "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "8px",
+                        }}
+                      >
+                        {generatingSampleNewsletter ? (
+                          <>
+                            <Loader size="sm" color="white" />
+                            <span>Generating sample…</span>
+                          </>
+                        ) : (
+                          "Generate example newsletter"
+                        )}
+                      </button>
+                      {sampleNewsletterReportUrl && (
+                        <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "12px", padding: "10px", background: "var(--bg-secondary)", borderRadius: "6px" }}>
+                          Sample is being generated. It will appear under <strong>Personal newsletter</strong> in your feed when ready.{" "}
+                          <a href={sampleNewsletterReportUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand-primary, #ad35fa)" }}>
+                            View report
+                          </a>
+                        </p>
+                      )}
                     </div>
                   </div>
 

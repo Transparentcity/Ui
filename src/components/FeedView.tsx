@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useFeedStories, useCityFeedStories, useTrackFeedEngagement, type FeedStory } from "@/lib/hooks/useFeed";
+import { useFeedStories, useTrackFeedEngagement, useFeedPlaces, type FeedStory } from "@/lib/hooks/useFeed";
 import { useCities } from "@/lib/hooks/useCities";
 import Loader from "./Loader";
 import styles from "./FeedView.module.css";
@@ -12,44 +12,39 @@ interface FeedViewProps {
   district?: number | null;
 }
 
-type ScopeFilter = "all" | "city_wide" | "district_only";
+/** Selected place filter: null = All; otherwise filter by this (city_id, district). */
+type SelectedPlace = { city_id: number; district: number } | null;
 
 export default function FeedView({ cityId, district }: FeedViewProps) {
   const router = useRouter();
-  const [selectedScope, setSelectedScope] = useState<ScopeFilter>("all");
-  const [selectedCityId, setSelectedCityId] = useState<number | null>(cityId ?? null);
-  const [selectedDistrict, setSelectedDistrict] = useState<number | null>(district ?? null);
+  const [selectedPlace, setSelectedPlace] = useState<SelectedPlace>(() =>
+    cityId != null ? { city_id: cityId, district: district ?? 0 } : null
+  );
   const [selectedFrequency, setSelectedFrequency] = useState<string | null>(null);
+  /** When true, show only stories from "Generate example newsletter" (personal_newsletter category). */
+  const [personalNewsletterOnly, setPersonalNewsletterOnly] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(10);
   const { data: citiesList } = useCities();
+  const { data: placesData } = useFeedPlaces();
   const trackEngagement = useTrackFeedEngagement();
 
-  const scopeParam = selectedScope === "all" ? undefined : selectedScope;
+  const places = placesData?.places ?? [];
 
   // Reset to first page when filters change
   useEffect(() => {
     setDisplayLimit(10);
-  }, [selectedScope, selectedCityId, selectedDistrict, selectedFrequency]);
+  }, [selectedPlace, selectedFrequency, personalNewsletterOnly]);
 
-  // Feed loads with initial limit 10 (no wait for My Cities); Load more requests +10
-  // When no city selected ("All Cities"), pass all_cities=true so feed shows all active stories (e.g. SF citywide), not just subscription follows
-  const { data: feedData, isLoading, error } = selectedCityId
-    ? useCityFeedStories(selectedCityId, {
-        district: selectedDistrict,
-        scope: scopeParam ?? undefined,
-        newsletter_frequency: selectedFrequency ?? undefined,
-        limit: displayLimit,
-        order_by: "published_at",
-      })
-    : useFeedStories({
-        city_id: selectedCityId ?? undefined,
-        district: selectedDistrict ?? undefined,
-        scope: scopeParam ?? undefined,
-        newsletter_frequency: selectedFrequency ?? undefined,
-        limit: displayLimit,
-        order_by: "published_at",
-        all_cities: true,
-      });
+  // Feed: when "Personal newsletter" is on, filter by category; otherwise filter by place/frequency
+  const { data: feedData, isLoading, error } = useFeedStories({
+    city_id: personalNewsletterOnly ? undefined : selectedPlace?.city_id,
+    district: personalNewsletterOnly ? undefined : (selectedPlace != null ? selectedPlace.district : undefined),
+    newsletter_frequency: selectedFrequency ?? undefined,
+    category: personalNewsletterOnly ? "personal_newsletter" : undefined,
+    limit: displayLimit,
+    order_by: "published_at",
+    all_cities: personalNewsletterOnly || selectedPlace == null,
+  });
 
   const viewedStoriesRef = useRef<Set<number>>(new Set());
 
@@ -64,30 +59,20 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
     }
   }, [feedData?.stories]);
 
-  // Derive unique cities from the feed data for filter chips
-  const feedCities = useMemo(() => {
-    if (!feedData?.stories) return [];
-    const cityMap = new Map<number, { id: number; name: string; emoji: string }>();
-    for (const story of feedData.stories) {
-      if (!cityMap.has(story.city_id)) {
-        cityMap.set(story.city_id, {
-          id: story.city_id,
-          name: story.city_name || citiesList?.find(c => c.city_id === story.city_id)?.city_name || "Unknown",
-          emoji: story.city_emoji || citiesList?.find(c => c.city_id === story.city_id)?.emoji || "🏙️",
-        });
-      }
-    }
-    return Array.from(cityMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [feedData?.stories, citiesList]);
+  const isPlaceSelected = (p: { city_id: number; district: number }) =>
+    selectedPlace?.city_id === p.city_id && selectedPlace?.district === p.district;
 
-  const handleCityChipClick = (chipCityId: number) => {
-    if (selectedCityId === chipCityId) {
-      setSelectedCityId(null);
-      setSelectedDistrict(null);
-    } else {
-      setSelectedCityId(chipCityId);
-      setSelectedDistrict(null);
-    }
+  const handlePlaceClick = (place: { city_id: number; district: number }) => {
+    setSelectedPlace((prev) =>
+      prev?.city_id === place.city_id && prev?.district === place.district
+        ? null
+        : { city_id: place.city_id, district: place.district }
+    );
+  };
+
+  const handleStoryCityClick = (storyCityId: number, storyDistrict: number | null) => {
+    const d = storyDistrict ?? 0;
+    handlePlaceClick({ city_id: storyCityId, district: d });
   };
 
   const handleStoryClick = (story: FeedStory) => {
@@ -234,101 +219,82 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
       <div className={styles.feedHeader}>
         <h1 className={styles.feedTitle}>Feed</h1>
         <p className={styles.feedSubtitle}>
-          {selectedCityId == null
-            ? "Latest civic data stories from all cities"
-            : "Latest civic data stories across your cities"}
+          {personalNewsletterOnly
+            ? "Sample newsletters you generated (from Settings)"
+            : selectedPlace == null
+              ? "Latest civic data stories from all cities"
+              : `Stories for ${places.find((p) => isPlaceSelected(p))?.label ?? "selected place"}`
+          }
         </p>
       </div>
 
-      {/* Scope filter: All / City-wide / District (at the top) */}
-      <div className={styles.scopeBar}>
+      {/* Top-level filter: Personal newsletter vs main feed */}
+      <div className={styles.chipBar}>
         <button
           type="button"
-          className={`${styles.scopeChip} ${selectedScope === "all" ? styles.scopeChipActive : ""}`}
-          onClick={() => setSelectedScope("all")}
+          className={`${styles.chip} ${!personalNewsletterOnly ? styles.chipActive : ""}`}
+          onClick={() => setPersonalNewsletterOnly(false)}
         >
-          All
+          All stories
         </button>
         <button
           type="button"
-          className={`${styles.scopeChip} ${selectedScope === "city_wide" ? styles.scopeChipActive : ""}`}
-          onClick={() => setSelectedScope("city_wide")}
+          className={`${styles.chip} ${personalNewsletterOnly ? styles.chipActive : ""}`}
+          onClick={() => setPersonalNewsletterOnly(true)}
         >
-          City-wide
-        </button>
-        <button
-          type="button"
-          className={`${styles.scopeChip} ${selectedScope === "district_only" ? styles.scopeChipActive : ""}`}
-          onClick={() => setSelectedScope("district_only")}
-        >
-          District
+          Personal newsletter
         </button>
       </div>
 
-      {/* City filter chips */}
-      {feedCities.length > 1 && (
-        <div className={styles.chipBar}>
+      {/* Place filter: All + actual cities/districts (only when not in Personal newsletter view) */}
+      {!personalNewsletterOnly && (
+      <div className={styles.chipBar}>
+        <button
+          type="button"
+          className={`${styles.chip} ${selectedPlace === null ? styles.chipActive : ""}`}
+          onClick={() => setSelectedPlace(null)}
+        >
+          All
+        </button>
+        {places.map((place) => (
           <button
-            className={`${styles.chip} ${selectedCityId === null ? styles.chipActive : ""}`}
-            onClick={() => { setSelectedCityId(null); setSelectedDistrict(null); }}
+            key={`${place.city_id}-${place.district}`}
+            type="button"
+            className={`${styles.chip} ${isPlaceSelected(place) ? styles.chipActive : ""}`}
+            onClick={() => handlePlaceClick(place)}
           >
-            All Cities
+            <span className={styles.chipEmoji}>{place.city_emoji}</span>
+            {place.label}
           </button>
-          {feedCities.map((city) => (
-            <button
-              key={city.id}
-              className={`${styles.chip} ${selectedCityId === city.id ? styles.chipActive : ""}`}
-              onClick={() => handleCityChipClick(city.id)}
-            >
-              <span className={styles.chipEmoji}>{city.emoji}</span>
-              {city.name}
-            </button>
-          ))}
-        </div>
+        ))}
+      </div>
       )}
 
-      {/* Secondary filters row */}
-      {(selectedCityId || selectedFrequency) && (
-        <div className={styles.secondaryFilters}>
-          {selectedCityId && (
-            <div className={styles.filterGroup}>
-              <label htmlFor="district-filter">District:</label>
-              <select
-                id="district-filter"
-                value={selectedDistrict ?? ""}
-                onChange={(e) => setSelectedDistrict(e.target.value ? Number(e.target.value) : null)}
-                className={styles.filterSelect}
-              >
-                <option value="">All Districts</option>
-                <option value="0">City-wide</option>
-                {Array.from({ length: 11 }, (_, i) => i + 1).map((d) => (
-                  <option key={d} value={d}>
-                    District {d}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          <div className={styles.filterGroup}>
-            <label htmlFor="frequency-filter">Frequency:</label>
-            <select
-              id="frequency-filter"
-              value={selectedFrequency ?? ""}
-              onChange={(e) => setSelectedFrequency(e.target.value || null)}
-              className={styles.filterSelect}
-            >
-              <option value="">All</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-            </select>
-          </div>
+      {/* Frequency filter */}
+      <div className={styles.secondaryFilters}>
+        <div className={styles.filterGroup}>
+          <label htmlFor="frequency-filter">Frequency:</label>
+          <select
+            id="frequency-filter"
+            value={selectedFrequency ?? ""}
+            onChange={(e) => setSelectedFrequency(e.target.value || null)}
+            className={styles.filterSelect}
+          >
+            <option value="">All</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
         </div>
-      )}
+      </div>
 
       {/* Stories */}
       {stories.length === 0 ? (
         <div className={styles.emptyState}>
-          <p>No feed stories found. Check back later for new newsletters!</p>
+          <p>
+            {personalNewsletterOnly
+              ? "No personal newsletter samples yet. Generate one from Settings → Personalized newsletter."
+              : "No feed stories found. Check back later for new newsletters!"}
+          </p>
         </div>
       ) : (
         <div className={styles.storiesList}>
@@ -346,9 +312,9 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
                     className={styles.actorAvatar}
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleCityChipClick(story.city_id);
+                      handleStoryCityClick(story.city_id, story.district ?? null);
                     }}
-                    title={`Filter by ${city.name}`}
+                    title={`Filter by ${city.name}${(story.district ?? 0) !== 0 ? ` District ${story.district}` : ""}`}
                   >
                     {city.emoji}
                   </button>
@@ -357,9 +323,9 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
                       className={styles.actorName}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleCityChipClick(story.city_id);
+                        handleStoryCityClick(story.city_id, story.district ?? null);
                       }}
-                      title={`Filter by ${city.name}`}
+                      title={`Filter by ${city.name}${(story.district ?? 0) !== 0 ? ` District ${story.district}` : ""}`}
                     >
                       {city.name}
                     </button>
@@ -442,7 +408,7 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
                       handleStoryClick(story);
                     }}
                   >
-                    Read Full Report →
+                    {story.cta_label ?? "Read full report"} →
                   </button>
                   <button
                     className={styles.shareBtn}

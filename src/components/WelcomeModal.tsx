@@ -163,7 +163,7 @@ interface WelcomeModalProps {
   onComplete: () => void;
 }
 
-type Step = "welcome" | "leader" | "preferences" | "all-set" | "coming-soon";
+type Step = "welcome" | "leader" | "email-personalization" | "preferences" | "all-set" | "coming-soon";
 
 interface LocationResult {
   cityName: string;
@@ -200,11 +200,8 @@ export default function WelcomeModal({
   const [weeklyDigest, setWeeklyDigest] = useState(false);
   const [monthlyReport, setMonthlyReport] = useState(true);
   const [reportScope, setReportScope] = useState<"district" | "city">("district");
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [learningFocus, setLearningFocus] = useState("");
   const [newsletterDescription, setNewsletterDescription] = useState("");
   const [newsletterFrequency, setNewsletterFrequency] = useState<"weekly" | "monthly">("weekly");
-  const [showMoreInterests, setShowMoreInterests] = useState(false);
   
   // City search state
   const [citySearchResults, setCitySearchResults] = useState<PublicCitySearchResult[]>([]);
@@ -229,11 +226,8 @@ export default function WelcomeModal({
       setWeeklyDigest(false);
       setMonthlyReport(true);
       setReportScope("district");
-      setSelectedCategories([]);
-      setLearningFocus("");
       setNewsletterDescription("");
       setNewsletterFrequency("weekly");
-      setShowMoreInterests(false);
     }
   }, [isOpen]);
 
@@ -683,7 +677,7 @@ export default function WelcomeModal({
     if (step === "coming-soon") {
       steps = ["welcome", "coming-soon"];
     } else {
-      steps = ["welcome", "leader", "preferences", "all-set"];
+      steps = ["welcome", "leader", "email-personalization", "preferences", "all-set"];
     }
     
     const currentIndex = steps.indexOf(step);
@@ -883,13 +877,130 @@ export default function WelcomeModal({
         <div className={styles.actions}>
           <button
             className={styles.primaryButton}
-            onClick={() => setStep("preferences")}
+            onClick={() => setStep("email-personalization")}
             disabled={loading}
           >
             Continue
           </button>
           <button className={styles.backButton} onClick={() => setStep("welcome")}>
             Try a different city
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // One-click preset prompts for personalized newsletter
+  const EMAIL_PRESETS = [
+    {
+      id: "crime-safety",
+      label: "Crime & Safety",
+      prompt:
+        "Create a newsletter focused on crime and safety trends: violent and property crime trends, 311 calls related to safety and encampments, and any notable changes or anomalies. Compare to prior period and highlight actionable insights for residents.",
+    },
+    {
+      id: "economy",
+      label: "Economy & Jobs",
+      prompt:
+        "Create a newsletter focused on local economy and jobs: business permits, employment-related metrics, economic development, and key indicators. Include period-over-period comparison and notable shifts.",
+    },
+    {
+      id: "real-estate",
+      label: "Real Estate & Housing",
+      prompt:
+        "Create a newsletter focused on housing and real estate: permits, construction, affordability indicators, and housing-related 311 or code data. Highlight trends and anomalies relevant to residents and renters.",
+    },
+    {
+      id: "transportation",
+      label: "Transportation & Traffic",
+      prompt:
+        "Create a newsletter focused on transportation and traffic: transit usage, traffic volumes, 311 street and sidewalk issues, and mobility trends. Include comparisons and notable changes.",
+    },
+    {
+      id: "environment",
+      label: "Environment & Sustainability",
+      prompt:
+        "Create a newsletter focused on environment and sustainability: air quality, waste, green infrastructure, and sustainability metrics. Compare to prior period and highlight key takeaways.",
+    },
+  ];
+
+  const defaultSamplePrompt =
+    "Create a weekly newsletter report for this city and district. Focus on recent changes and trends in key metrics (crime, housing, permits, 311 calls), notable anomalies, comparative analysis (this period vs. previous, district vs. city-wide), and actionable insights for residents. Be data-driven with specific numbers; highlight both positive and concerning trends.";
+
+  // Render email personalization step (dedicated screen with space)
+  const renderEmailPersonalizationStep = () => {
+    if (!locationResult) return null;
+    const cityDisplayName = locationResult.state
+      ? `${locationResult.cityName}, ${locationResult.state}`
+      : locationResult.cityName;
+
+    return (
+      <div className={`${styles.stepContent} ${styles.emailPersonalizationStep}`}>
+        <h2 className={styles.stepTitle}>Personalize your email</h2>
+        <p className={styles.stepDescription}>
+          Choose a focus or describe what you want in your {newsletterFrequency} newsletter for {cityDisplayName}.
+        </p>
+
+        <div className={styles.presetChips}>
+          {EMAIL_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              className={
+                newsletterDescription === preset.prompt
+                  ? `${styles.presetChip} ${styles.presetChipActive}`
+                  : styles.presetChip
+              }
+              onClick={() => setNewsletterDescription(preset.prompt)}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+
+        <label className={styles.textInputLabel}>Sample prompt (edit if you like)</label>
+        <textarea
+          className={styles.newsletterDescriptionInput}
+          placeholder={defaultSamplePrompt}
+          value={newsletterDescription}
+          onChange={(e) => setNewsletterDescription(e.target.value)}
+          rows={5}
+        />
+
+        <div className={styles.frequencySelector}>
+          <span className={styles.frequencyLabel}>Frequency:</span>
+          <label className={styles.frequencyOption}>
+            <input
+              type="radio"
+              name="newsletterFrequencyEmail"
+              checked={newsletterFrequency === "weekly"}
+              onChange={() => setNewsletterFrequency("weekly")}
+            />
+            <span>Weekly</span>
+          </label>
+          <label className={styles.frequencyOption}>
+            <input
+              type="radio"
+              name="newsletterFrequencyEmail"
+              checked={newsletterFrequency === "monthly"}
+              onChange={() => setNewsletterFrequency("monthly")}
+            />
+            <span>Monthly</span>
+          </label>
+        </div>
+
+        {error && <div className={styles.error}>{error}</div>}
+
+        <div className={styles.actions}>
+          <button
+            className={styles.primaryButton}
+            onClick={() => setStep("preferences")}
+            disabled={loading}
+          >
+            Continue
+          </button>
+          <button className={styles.backButton} onClick={() => setStep("leader")}>
+            Back
           </button>
         </div>
       </div>
@@ -927,8 +1038,6 @@ export default function WelcomeModal({
             newsletter_description: newsletterDescription || null,
             newsletter_frequency: personalizedEmail ? newsletterFrequency : null,
           },
-          category_interests: selectedCategories,
-          learning_focus: learningFocus || null,
         },
       };
       
@@ -972,25 +1081,6 @@ export default function WelcomeModal({
   // Render preferences step
   const renderPreferencesStep = () => {
     if (!locationResult) return null;
-
-    const commonCategories = [
-      "Crime & Safety",
-      "Traffic & Transportation",
-      "Housing & Development",
-      "Budget & Finance",
-      "Environment & Sustainability",
-      "Public Health",
-      "Education",
-      "Infrastructure",
-    ];
-
-    const toggleCategory = (category: string) => {
-      setSelectedCategories((prev) =>
-        prev.includes(category)
-          ? prev.filter((c) => c !== category)
-          : [...prev, category]
-      );
-    };
 
     return (
       <div className={styles.stepContent}>
@@ -1076,45 +1166,6 @@ export default function WelcomeModal({
           </label>
         </div>
 
-        {/* Category Interests - Optional second page */}
-        {!showMoreInterests && (
-          <div className={styles.preferencesSection}>
-            <button
-              className={styles.showMoreButton}
-              onClick={() => setShowMoreInterests(true)}
-            >
-              Customize interests (optional)
-            </button>
-          </div>
-        )}
-
-        {showMoreInterests && (
-          <div className={styles.preferencesSection}>
-            <h3 className={styles.sectionTitle}>What interests you?</h3>
-            <p className={styles.sectionDescription}>
-              Select categories you&apos;d like to track (optional)
-            </p>
-            <div className={styles.categoryGrid}>
-              {commonCategories.map((category) => (
-                <label key={category} className={styles.categoryChip}>
-                  <input
-                    type="checkbox"
-                    checked={selectedCategories.includes(category)}
-                    onChange={() => toggleCategory(category)}
-                  />
-                  <span>{category}</span>
-                </label>
-              ))}
-            </div>
-            <button
-              className={styles.hideMoreButton}
-              onClick={() => setShowMoreInterests(false)}
-            >
-              Hide
-            </button>
-          </div>
-        )}
-
         {error && <div className={styles.error}>{error}</div>}
 
         <div className={styles.actions}>
@@ -1131,7 +1182,7 @@ export default function WelcomeModal({
               "Continue"
             )}
           </button>
-          <button className={styles.backButton} onClick={() => setStep("leader")}>
+          <button className={styles.backButton} onClick={() => setStep("email-personalization")}>
             Back
           </button>
         </div>
@@ -1290,6 +1341,7 @@ export default function WelcomeModal({
 
         {step === "welcome" && renderWelcomeStep()}
         {step === "leader" && renderLeaderStep()}
+        {step === "email-personalization" && renderEmailPersonalizationStep()}
         {step === "preferences" && renderPreferencesStep()}
         {step === "all-set" && renderAllSetStep()}
         {step === "coming-soon" && renderComingSoonStep()}

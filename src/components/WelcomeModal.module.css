@@ -894,6 +894,108 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
+}
+
+/* Email personalization step - cleared screen with space */
+.emailPersonalizationStep {
+  width: 100%;
+  max-width: 100%;
+  min-height: 420px;
+  padding-bottom: 32px;
+  align-items: stretch;
+  text-align: left;
+}
+
+.emailPersonalizationStep .stepTitle,
+.emailPersonalizationStep .stepDescription {
+  text-align: center;
+}
+
+.presetChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 16px 0;
+}
+
+.presetChip {
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary, #6b7280);
+  background: var(--bg-secondary, #f8f9fa);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.presetChip:hover {
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary, #ad35fa);
+  background: var(--bg-tertiary, #f3f4f6);
+}
+
+.presetChipActive {
+  background: var(--brand-primary-light, rgba(173, 53, 250, 0.1));
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary, #ad35fa);
+}
+
+.emailPersonalizationStep .textInputLabel {
+  margin-top: 8px;
+  display: block;
+}
+
+.emailPersonalizationStep .newsletterDescriptionInput {
+  margin-bottom: 12px;
+}
+
+.emailPersonalizationStep .frequencySelector {
+  margin-bottom: 20px;
+}
+
+.generateExampleButton {
+  width: 100%;
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  background: var(--brand-primary, #ad35fa);
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-bottom: 12px;
+}
+
+.generateExampleButton:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.generateExampleButton:disabled {
+  opacity: 0.8;
+  cursor: not-allowed;
+}
+
+.sampleSuccess {
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+  margin: 0 0 16px 0;
+  padding: 12px;
+  background: var(--bg-secondary, #f8f9fa);
+  border-radius: var(--radius-sm, 6px);
+}
+
+.sampleSuccess a {
+  color: var(--brand-primary, #ad35fa);
+  text-decoration: none;
+}
+
+.sampleSuccess a:hover {
+  text-decoration: underline;
 }
 
 /* Mobile adjustments for preferences */

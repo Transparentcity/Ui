@@ -201,6 +201,21 @@
   color: var(--text-secondary, #6b7280);
 }
 
+.promptVariablesNote {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #6b7280);
+  margin: 0 0 0.35rem 0;
+  line-height: 1.4;
+}
+
+.promptVariablesNote code {
+  font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.25rem;
+  background: var(--bg-secondary, #f3f4f6);
+  border-radius: 3px;
+}
+
 .input {
   border: 1px solid var(--border, #e5e7eb);
   border-radius: var(--radius-sm, 6px);

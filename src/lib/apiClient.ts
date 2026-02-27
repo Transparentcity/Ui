@@ -3131,6 +3131,8 @@ export interface FeedStory {
   visualization_type?: string | null;
   visualization_ref_id?: number | null;
   detail_url: string;
+  /** Call-to-action label, e.g. "Read full report", "View metric", "View anomaly details". Defaults to "Read full report". */
+  cta_label?: string | null;
   related_urls?: Array<Record<string, any>>;
   view_count: number;
   click_count: number;
@@ -3171,6 +3173,8 @@ export function listFeedStories(
     scope?: "city_wide" | "district_only" | null;
     newsletter_frequency?: string | null;
     research_report_id?: number;
+    /** Filter by feed story category (e.g. 'personal_newsletter'). */
+    category?: string | null;
     limit?: number;
     order_by?: string;
     /** When true and no city_id, return all active stories (ignore subscription/follows). Use for "All Cities" view. */
@@ -3189,6 +3193,7 @@ export function listFeedStories(
   if (options?.research_report_id) {
     params.append("research_report_id", options.research_report_id.toString());
   }
+  if (options?.category) params.append("category", options.category);
   if (options?.limit) params.append("limit", options.limit.toString());
   if (options?.order_by) params.append("order_by", options.order_by);
   if (options?.all_cities) params.append("all_cities", "true");
@@ -3196,6 +3201,23 @@ export function listFeedStories(
   const query = params.toString();
   const path = `/api/feed${query ? `?${query}` : ""}`;
   return request<FeedStoriesResponse>(path, "GET", undefined, token);
+}
+
+/** A (city, district) place that has at least one active feed story (for filter UI). */
+export interface FeedPlace {
+  city_id: number;
+  city_name: string;
+  city_emoji: string;
+  district: number;
+  label: string;
+}
+
+export interface FeedPlacesResponse {
+  places: FeedPlace[];
+}
+
+export function listFeedPlaces(token: string): Promise<FeedPlacesResponse> {
+  return request<FeedPlacesResponse>(`/api/feed/places`, "GET", undefined, token);
 }
 
 export function getFeedStory(storyId: number, token: string): Promise<FeedStoryResponse> {
@@ -3295,6 +3317,10 @@ export function listPublicFeedStories(
 
 export function getPublicFeedStory(storyId: number): Promise<FeedStoryResponse> {
   return request<FeedStoryResponse>(`/api/feed/public/story/${storyId}`, "GET", undefined);
+}
+
+export function listPublicFeedPlaces(): Promise<FeedPlacesResponse> {
+  return request<FeedPlacesResponse>(`/api/feed/public/places`, "GET", undefined);
 }
 
 export interface GenerateFeedStoriesRequest {
@@ -3443,6 +3469,11 @@ export interface CreateResearchRequest {
   // Newsletter metadata fields (optional) - set these to create a newsletter report
   is_newsletter?: boolean;
   newsletter_frequency?: "weekly" | "monthly" | null;
+  generate_feed_stories?: boolean;
+  feed_story_count?: number;
+  feed_story_frequency?: string | null;
+  feed_story_category?: string | null;
+  use_low_cost_model?: boolean;
 }
 
 export interface CreateResearchResponse {

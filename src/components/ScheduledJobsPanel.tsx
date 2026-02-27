@@ -485,6 +485,11 @@ export default function ScheduledJobsPanel({
             {editJob.job_config?.question != null && (
               <div className={styles.formRow}>
                 <label className={styles.label}>Research prompt</label>
+                <p className={styles.promptVariablesNote}>
+                  Prompt variables (replaced at run time):{" "}
+                  <code>{`{last_run}`}</code> — date/time of the previous run, or &quot;Never&quot; if first run;{" "}
+                  <code>{`{now}`}</code> — date/time of this run. Use these to refer to time since last run (e.g. &quot;What changed since {`{last_run}`}?&quot;).
+                </p>
                 <textarea
                   className={styles.promptInput}
                   value={editForm.question}

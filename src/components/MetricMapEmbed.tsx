@@ -337,12 +337,12 @@ export default function MetricMapEmbed({
           )}
         </div>
       )}
-      {/* Legend: period (current vs comparison) and/or series field colors - only for point maps */}
+      {/* Legend: period (current vs comparison) and/or series field colors - for point maps; always show series legend when dots are colored by series */}
       {mapData && (() => {
         const defaultView = mapData.map_config?.default_view;
+        const hasAggregations = !!(mapData.map_config?.aggregations && Object.keys(mapData.map_config.aggregations).length > 0);
         const isPointMode = defaultView?.type === "points" ||
-          (mapData.map_type === "point" && !(mapData.map_config?.aggregations && Object.keys(mapData.map_config.aggregations).length > 0));
-        if (!isPointMode) return null;
+          (mapData.map_type === "point" && !hasAggregations);
 
         const seriesField = mapData.map_config?.series_field as string | undefined;
         const seriesColors = mapData.map_config?.series_colors as Record<string, string> | undefined;
@@ -351,6 +351,10 @@ export default function MetricMapEmbed({
         const seriesLabels = hasSeriesLegend
           ? (Array.isArray(seriesValues) ? seriesValues : Object.keys(seriesColors)).filter((v) => seriesColors[v])
           : [];
+
+        // Show legend when in point mode OR when this is a point map with series-colored dots (embedded view may not set default_view)
+        const showLegend = isPointMode || (mapData.map_type === "point" && hasSeriesLegend);
+        if (!showLegend) return null;
 
         return (
           <div className="map-legend-wrapper">
