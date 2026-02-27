@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import {
   FileText,
@@ -11,30 +11,12 @@ import {
   ArrowRight,
   Loader2,
   Plus,
-  MessageSquare,
-  Database,
-  RefreshCw,
 } from "lucide-react"
-import { useAuth0 } from "@auth0/auth0-react"
-import { getFoiaDashboard, listFoiaRequests, listFoiaTasks } from "@/lib/foiaApiClient"
-import { API_BASE } from "@/lib/apiBase"
+import { getFoiaDashboard } from "@/lib/foiaApiClient"
 import { RequestStatusBadge, TaskStatusBadge } from "@/components/foia/status-badge"
 import { NewRequestModal } from "@/components/foia/new-request-modal"
 import { formatDistanceToNow } from "date-fns"
 import type { FoiaDashboardSummary, FoiaRequest, FoiaTask } from "@/lib/foia/types"
-
-const DEFAULT_SUMMARY: FoiaDashboardSummary = {
-  total_requests: 0,
-  open_requests: 0,
-  unacknowledged: 0,
-  messages_to_respond: 0,
-  pending_data_review: 0,
-  incomplete_deliveries: 0,
-  awaiting_review: 0,
-  tasks_due: 0,
-  overdue_requests: 0,
-  completeness_by_city: [],
-}
 
 function KpiCard({
   label,
@@ -80,49 +62,27 @@ function KpiCard({
 }
 
 export function DashboardContent() {
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
   const [summary, setSummary] = useState<FoiaDashboardSummary | null>(null)
   const [recentRequests, setRecentRequests] = useState<FoiaRequest[]>([])
   const [pendingTasks, setPendingTasks] = useState<FoiaTask[]>([])
   const [loading, setLoading] = useState(true)
   const [showNewRequest, setShowNewRequest] = useState(false)
-  const [apiError, setApiError] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    setApiError(null)
-    let token: string | undefined
-    if (isAuthenticated) {
-      try {
-        token = await getAccessTokenSilently()
-      } catch {
-        // Not logged in or token failed; continue without token (backend may use DEV_MODE)
-      }
-    }
-    try {
-      const [dash, reqData, taskData] = await Promise.all([
-        getFoiaDashboard(token),
-        listFoiaRequests({ page_size: 5 }, token),
-        listFoiaTasks({ status: "pending" }, token),
-      ])
-      setSummary(dash)
-      setRecentRequests(reqData.items.slice(0, 5))
-      setPendingTasks(taskData.slice(0, 5))
-    } catch (err) {
-      console.error("Failed to load FOIA dashboard:", err)
-      const message = err instanceof Error ? err.message : "Failed to load dashboard"
-      setApiError(message)
-      setSummary(DEFAULT_SUMMARY)
-      setRecentRequests([])
-      setPendingTasks([])
-    } finally {
-      setLoading(false)
-    }
-  }, [isAuthenticated, getAccessTokenSilently])
 
   useEffect(() => {
+    async function load() {
+      try {
+        const dash = await getFoiaDashboard()
+        setSummary(dash)
+        setRecentRequests((dash.recent_requests ?? []).slice(0, 5))
+        setPendingTasks((dash.pending_tasks ?? []).slice(0, 5))
+      } catch (err) {
+        console.error("Failed to load FOIA dashboard:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
     load()
-  }, [load])
+  }, [])
 
   if (loading) {
     return (
@@ -132,38 +92,8 @@ export function DashboardContent() {
     )
   }
 
-  const displaySummary = summary ?? DEFAULT_SUMMARY
-
   return (
     <div className="flex flex-col gap-8">
-      {apiError && (
-        <div
-          className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-          role="alert"
-        >
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="font-medium">Could not load dashboard data</p>
-            <p className="mt-0.5 text-amber-700">{apiError}</p>
-            <p className="mt-1 text-xs text-amber-600">
-              Requests are being sent to: <code className="rounded bg-amber-100 px-1 break-all">{API_BASE}</code>
-              . Ensure the backend is running there (or set{" "}
-              <code className="rounded bg-amber-100 px-1">NEXT_PUBLIC_API_BASE_URL</code> to match
-              your backend, e.g. <code className="rounded bg-amber-100 px-1">http://localhost:8001</code>
-              ) and you are signed in if the API requires authentication.
-            </p>
-            <button
-              type="button"
-              onClick={() => load()}
-              className="mt-3 flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              Retry
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -181,75 +111,40 @@ export function DashboardContent() {
         </button>
       </div>
 
-      {/* Workflow: Request pipeline */}
-      <div>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
-          Request pipeline
-        </h2>
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <KpiCard
-            label="Open Requests"
-            value={displaySummary.open_requests}
-            icon={FileText}
-            href="/foia/requests"
-            accent="primary"
-          />
-          <KpiCard
-            label="Unacknowledged"
-            value={displaySummary.unacknowledged}
-            icon={AlertTriangle}
-            href="/foia/requests?status=submitted_unacknowledged"
-            accent="warning"
-          />
-          <KpiCard
-            label="Overdue"
-            value={displaySummary.overdue_requests}
-            icon={Clock}
-            href="/foia/requests?overdue=true"
-            accent="destructive"
-          />
-          <KpiCard
-            label="Tasks Due"
-            value={displaySummary.tasks_due}
-            icon={CheckCircle2}
-            href="/foia/tasks"
-            accent="primary"
-          />
-        </div>
-      </div>
-
-      {/* Workflow: Action needed */}
-      <div>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
-          Action needed
-        </h2>
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <KpiCard
-            label="Messages to Respond To"
-            value={displaySummary.messages_to_respond ?? 0}
-            icon={MessageSquare}
-            href="/foia/messages"
-            accent={displaySummary.messages_to_respond ? "warning" : undefined}
-          />
-          <KpiCard
-            label="Data to Review"
-            value={displaySummary.pending_data_review ?? 0}
-            icon={Database}
-            href="/foia/data-review"
-            accent={displaySummary.pending_data_review ? "warning" : undefined}
-          />
-          <KpiCard
-            label="Incomplete Deliveries"
-            value={displaySummary.incomplete_deliveries ?? 0}
-            icon={RefreshCw}
-            href="/foia/data-review"
-            accent={displaySummary.incomplete_deliveries ? "warning" : undefined}
-          />
-        </div>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <KpiCard
+          label="Open Requests"
+          value={summary?.open_requests ?? 0}
+          icon={FileText}
+          href="/foia/requests"
+          accent="primary"
+        />
+        <KpiCard
+          label="Unacknowledged"
+          value={summary?.unacknowledged ?? 0}
+          icon={AlertTriangle}
+          href="/foia/requests?status=submitted_unacknowledged"
+          accent="warning"
+        />
+        <KpiCard
+          label="Overdue"
+          value={summary?.overdue_requests ?? 0}
+          icon={Clock}
+          href="/foia/requests?overdue=true"
+          accent="destructive"
+        />
+        <KpiCard
+          label="Tasks Due"
+          value={summary?.tasks_due ?? 0}
+          icon={CheckCircle2}
+          href="/foia/tasks"
+          accent="primary"
+        />
       </div>
 
       {/* Completeness by City */}
-      {(displaySummary.completeness_by_city?.length ?? 0) > 0 && (
+      {(summary?.completeness_by_city?.length ?? 0) > 0 && (
         <div className="rounded-xl border border-gray-200 bg-white">
           <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
             <div className="flex items-center gap-2">
@@ -264,16 +159,14 @@ export function DashboardContent() {
             </Link>
           </div>
           <div className="divide-y divide-gray-100">
-            {displaySummary.completeness_by_city!.map((snap) => (
+            {summary!.completeness_by_city.map((snap) => (
               <div key={snap.city_id} className="flex items-center gap-6 px-6 py-4">
                 <div className="min-w-[140px]">
                   <Link
                     href={`/foia/cities/${snap.city_id}`}
                     className="font-medium text-gray-900 hover:text-purple-600"
                   >
-                    {snap.city?.name
-                      ? `${snap.city.name}${snap.city.state ? `, ${snap.city.state}` : ""}`
-                      : `City #${snap.city_id}`}
+                    City #{snap.city_id}
                   </Link>
                   <p className="text-xs text-gray-500">
                     {snap.fulfilled_targets}/{snap.total_targets} targets fulfilled

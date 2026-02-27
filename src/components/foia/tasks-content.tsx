@@ -1,11 +1,10 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Loader2, Plus, X, CheckCircle2, AlertTriangle, Trash2 } from "lucide-react"
-import { useAuth0 } from "@auth0/auth0-react"
-import { deleteFoiaTask, listFoiaTasks } from "@/lib/foiaApiClient"
-import { assignFoiaTask, completeFoiaTask, createFoiaTask } from "@/app/actions/foia"
+import { Loader2, Plus, X, CheckCircle2 } from "lucide-react"
+import { completeFoiaTask as completeFoiaTaskApi, createFoiaMessage, listFoiaTasks } from "@/lib/foiaApiClient"
+import { assignFoiaTask, createFoiaTask } from "@/app/actions/foia"
 import { TaskStatusBadge } from "@/components/foia/status-badge"
 import type { FoiaTask, TaskStatus, TaskType } from "@/lib/foia/types"
 import { formatDistanceToNow } from "date-fns"
@@ -29,14 +28,17 @@ const TASK_TYPES: { value: TaskType; label: string }[] = [
 ]
 
 export function TasksContent() {
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
   const [tasks, setTasks] = useState<FoiaTask[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<TaskStatus | "all">("all")
   const [showNewTask, setShowNewTask] = useState(false)
   const [actionLoading, setActionLoading] = useState<number | null>(null)
-  const [deletingId, setDeletingId] = useState<number | null>(null)
-  const [apiError, setApiError] = useState<string | null>(null)
+  const [taskToComplete, setTaskToComplete] = useState<FoiaTask | null>(null)
+  const [completionMessage, setCompletionMessage] = useState({
+    recipient: "",
+    subject: "",
+    body: "",
+  })
 
   const [newTask, setNewTask] = useState({
     type: "review_delivery" as TaskType,
@@ -46,40 +48,81 @@ export function TasksContent() {
   })
   const [creating, setCreating] = useState(false)
 
-  const load = useCallback(async () => {
+  async function load() {
     setLoading(true)
-    setApiError(null)
-    let token: string | undefined
-    if (isAuthenticated) {
-      try {
-        token = await getAccessTokenSilently()
-      } catch {
-        // continue without token
-      }
-    }
     try {
-      const data = await listFoiaTasks(
-        { status: filter === "all" ? undefined : filter },
-        token
-      )
+      const data = await listFoiaTasks({
+        status: filter === "all" ? undefined : filter,
+      })
       setTasks(data)
     } catch (err) {
       console.error("Failed to load tasks:", err)
-      setApiError(err instanceof Error ? err.message : "Failed to load tasks")
-      setTasks([])
     } finally {
       setLoading(false)
     }
-  }, [filter, isAuthenticated, getAccessTokenSilently])
+  }
 
   useEffect(() => {
     load()
-  }, [load])
+  }, [filter])
 
-  async function handleComplete(taskId: number) {
-    setActionLoading(taskId)
+  function needsEmailPaste(task: FoiaTask): boolean {
+    const text = `${task.title} ${task.description ?? ""}`.toLowerCase()
+    return (
+      task.type === "approve_follow_up" ||
+      task.type === "review_rewrite" ||
+      text.includes("email") ||
+      text.includes("follow up") ||
+      text.includes("follow-up") ||
+      text.includes("status check") ||
+      text.includes("no response")
+    )
+  }
+
+  async function handleComplete(task: FoiaTask) {
+    if (task.request_id) {
+      setTaskToComplete(task)
+      setCompletionMessage({
+        recipient: "",
+        subject: task.title ? `RE: ${task.title}` : "",
+        body: "",
+      })
+      return
+    }
+    setActionLoading(task.id)
     try {
-      await completeFoiaTask(taskId)
+      await completeFoiaTaskApi(task.id)
+      await load()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to complete task")
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  async function handleConfirmCompleteWithMessage() {
+    if (!taskToComplete) return
+    const requireEmail = needsEmailPaste(taskToComplete)
+    if (requireEmail && !completionMessage.body.trim()) {
+      alert("Paste the sent email body before completing this task.")
+      return
+    }
+
+    setActionLoading(taskToComplete.id)
+    try {
+      if (completionMessage.body.trim() && taskToComplete.request_id) {
+        await createFoiaMessage(taskToComplete.request_id, {
+          direction: "outbound",
+          classification: "follow_up",
+          recipient: completionMessage.recipient.trim() || undefined,
+          subject: completionMessage.subject.trim() || `Task completion note #${taskToComplete.id}`,
+          body: completionMessage.body.trim(),
+          sender: "admin@transparentcity.org",
+        })
+      }
+      await completeFoiaTaskApi(taskToComplete.id)
+      setTaskToComplete(null)
+      setCompletionMessage({ recipient: "", subject: "", body: "" })
       await load()
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to complete task")
@@ -123,50 +166,83 @@ export function TasksContent() {
     }
   }
 
-  async function handleDelete(taskId: number) {
-    const ok = confirm("Delete this follow-up/task? This cannot be undone.")
-    if (!ok) return
-
-    setDeletingId(taskId)
-    let token: string | undefined
-    if (isAuthenticated) {
-      try {
-        token = await getAccessTokenSilently()
-      } catch {
-        // continue without token
-      }
-    }
-    try {
-      await deleteFoiaTask(taskId, token)
-      await load()
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Delete failed")
-    } finally {
-      setDeletingId(null)
-    }
-  }
-
   return (
     <div className="flex flex-col gap-6">
-      {apiError && (
-        <div
-          className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-          role="alert"
-        >
-          <AlertTriangle className="h-5 w-5 shrink-0" />
-          <div>
-            <p className="font-medium">Could not load tasks</p>
-            <p className="mt-0.5 text-amber-700">{apiError}</p>
-            <p className="mt-1 text-xs text-amber-600">
-              Ensure the backend is running and{" "}
-              <code className="rounded bg-amber-100 px-1">NEXT_PUBLIC_API_BASE_URL</code> matches
-              (e.g. <code className="rounded bg-amber-100 px-1">http://localhost:8001</code>). Sign
-              in if the API requires authentication.
-            </p>
+      {taskToComplete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/40" onClick={() => setTaskToComplete(null)} />
+          <div className="relative z-10 w-full max-w-2xl rounded-2xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+              <h2 className="text-lg font-semibold text-gray-900">Complete task and log sent email</h2>
+              <button
+                onClick={() => setTaskToComplete(null)}
+                className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5">
+              <p className="mb-4 text-sm text-gray-600">{taskToComplete.title}</p>
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">Recipient (optional)</label>
+                  <input
+                    type="text"
+                    value={completionMessage.recipient}
+                    onChange={(e) =>
+                      setCompletionMessage((prev) => ({ ...prev, recipient: e.target.value }))
+                    }
+                    placeholder="records@sfgov.org"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">Subject (optional)</label>
+                  <input
+                    type="text"
+                    value={completionMessage.subject}
+                    onChange={(e) =>
+                      setCompletionMessage((prev) => ({ ...prev, subject: e.target.value }))
+                    }
+                    placeholder="RE: Public Records Request"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">
+                    Paste sent email{needsEmailPaste(taskToComplete) ? " *" : " (optional)"}
+                  </label>
+                  <textarea
+                    value={completionMessage.body}
+                    onChange={(e) => setCompletionMessage((prev) => ({ ...prev, body: e.target.value }))}
+                    rows={8}
+                    placeholder="Paste the full email you sent..."
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm leading-relaxed focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setTaskToComplete(null)}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCompleteWithMessage}
+                disabled={actionLoading === taskToComplete.id}
+                className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+              >
+                {actionLoading === taskToComplete.id && <Loader2 className="h-4 w-4 animate-spin" />}
+                Save and complete
+              </button>
+            </div>
           </div>
         </div>
       )}
-
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Tasks</h1>
@@ -283,18 +359,6 @@ export function TasksContent() {
                 </div>
               </div>
               <TaskStatusBadge status={task.status} />
-              <button
-                type="button"
-                onClick={() => handleDelete(task.id)}
-                disabled={deletingId === task.id}
-                className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-                title="Delete"
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  <Trash2 className="h-3.5 w-3.5" />
-                  {deletingId === task.id ? "Deleting..." : "Delete"}
-                </span>
-              </button>
               {task.status !== "completed" && task.status !== "cancelled" && (
                 <div className="flex items-center gap-1.5">
                   {!task.assigned_to && (
@@ -307,7 +371,7 @@ export function TasksContent() {
                     </button>
                   )}
                   <button
-                    onClick={() => handleComplete(task.id)}
+                    onClick={() => handleComplete(task)}
                     disabled={actionLoading === task.id}
                     className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
                   >
@@ -322,9 +386,9 @@ export function TasksContent() {
               )}
             </div>
           ))}
-          {tasks.length === 0 && !loading && (
+          {tasks.length === 0 && (
             <div className="px-6 py-12 text-center text-sm text-gray-400">
-              {apiError ? "Tasks could not be loaded. Check the message above." : "No tasks match your filter."}
+              No tasks match your filter.
             </div>
           )}
         </div>

@@ -24,27 +24,6 @@ export type MessageClassification =
   | "follow_up"
   | "initial_request"
   | "acknowledgment"
-  | "status_update"
-  | "narrow_request"
-  | "pickup_instructions"
-  | "no_records"
-  | "partial_no_records"
-  | "fee_estimate"
-  | "extension"
-  | "exemption"
-
-export type CommunicationChannel = "email" | "phone" | "portal" | "in_person" | "mail"
-
-export type ResponseAction =
-  | "narrow_request"
-  | "pickup_data"
-  | "no_records"
-  | "partial_no_records"
-  | "status_update"
-  | "pay_fee"
-  | "generate_response"
-  | "appeal"
-  | "none"
 
 export type TaskType =
   | "review_rewrite"
@@ -53,13 +32,6 @@ export type TaskType =
   | "review_data_completeness"
   | "mapping_needed"
   | "review_delivery"
-  | "narrow_request"
-  | "pickup_data"
-  | "send_response"
-  | "general_followup"
-  | "pay_fee"
-  | "appeal_denial"
-  | "follow_up_partial"
 
 export type TaskStatus = "pending" | "assigned" | "in_progress" | "completed" | "cancelled"
 
@@ -124,10 +96,6 @@ export interface CityFoiaProfile {
   contact_email?: string
   contact_phone?: string
   portal_url?: string
-  civic_platform_url?: string
-  civic_platform_username?: string
-  civic_platform_email?: string
-  civic_platform_password?: string
   required_fields: string[]
   statute_name: string
   default_response_days: number
@@ -177,8 +145,6 @@ export interface FoiaRequest {
   request_version: number
   parent_request_id?: number
   assigned_to?: string
-  submission_url?: string
-  submission_email_address?: string
   created_at: string
   updated_at: string
 }
@@ -192,14 +158,6 @@ export interface FoiaMessage {
   body: string
   sender?: string
   recipient?: string
-  sender_name?: string
-  sender_email?: string
-  sender_phone?: string
-  sender_title?: string
-  notes?: string
-  email_snippet?: string
-  channel?: CommunicationChannel
-  response_action_required?: ResponseAction
   sent_at?: string
   created_at: string
 }
@@ -242,13 +200,6 @@ export interface FoiaRequestEvent {
   created_at: string
 }
 
-export type DatasetInstanceStatus =
-  | "pending_review"
-  | "accepted"
-  | "rejected"
-  | "needs_mapping"
-  | "incomplete"
-
 export interface DatasetInstance {
   id: number
   city_id: number
@@ -256,13 +207,12 @@ export interface DatasetInstance {
   dataset_type_id: string
   request_id?: number
   attachment_id?: number
-  status: DatasetInstanceStatus
+  status: "pending_review" | "accepted" | "rejected" | "needs_mapping"
   row_count?: number
   coverage_start?: string
   coverage_end?: string
   completeness_score?: number
   field_mapping?: Record<string, string>
-  review_notes?: string
   created_at: string
   updated_at: string
 }
@@ -294,13 +244,12 @@ export interface FoiaDashboardSummary {
   total_requests: number
   open_requests: number
   unacknowledged: number
-  messages_to_respond?: number
-  pending_data_review?: number
-  incomplete_deliveries?: number
   awaiting_review: number
   tasks_due: number
   overdue_requests: number
   completeness_by_city: CompletenessSnapshot[]
+  recent_requests?: FoiaRequest[]
+  pending_tasks?: FoiaTask[]
 }
 
 export interface PaginatedResponse<T> {

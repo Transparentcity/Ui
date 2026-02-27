@@ -2,6 +2,7 @@
 
 import { useAnomalies } from "@/lib/hooks/useAnomalies"
 import { mapApiAnomaliesToCrm } from "@/lib/anomalyMapper"
+import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { AIEmailComposer } from "@/components/ai-email-composer"
 import type { ContactWithKeywords, Keyword } from "@/lib/types"
@@ -16,15 +17,12 @@ interface ComposePageContentProps {
   keywords: Keyword[]
 }
 
-// San Francisco city_id - TODO: make this configurable
-const SF_CITY_ID = 57260;
-
 export function ComposePageContent({ contacts, keywords }: ComposePageContentProps) {
   // High limit ensures 5+ anomalies per district plus citywide
   const { data, isLoading } = useAnomalies({
     is_anomaly: true,
     limit: 500,
-    city_id: SF_CITY_ID,
+    city_id: CRM_DEFAULT_CITY_ID,
   })
 
   const apiResults = data?.results ?? []

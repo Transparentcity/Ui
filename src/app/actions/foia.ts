@@ -14,22 +14,38 @@ import { API_BASE } from "@/lib/apiBase"
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function apiRequest<T = unknown>(
-  method: "POST" | "PUT" | "DELETE",
-  path: string,
-  body?: unknown
-): Promise<T> {
+async function apiPost<T = unknown>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) {
     const text = await res.text().catch(() => "")
     throw new Error(`FOIA API ${res.status}: ${text || res.statusText}`)
   }
-  if (method === "DELETE") return undefined as T
   return res.json() as Promise<T>
+}
+
+async function apiPut<T = unknown>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`FOIA API ${res.status}: ${text || res.statusText}`)
+  }
+  return res.json() as Promise<T>
+}
+
+async function apiDelete(path: string): Promise<void> {
+  const res = await fetch(`${API_BASE}${path}`, { method: "DELETE" })
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`FOIA API ${res.status}: ${text || res.statusText}`)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -51,22 +67,15 @@ export async function createFoiaRequest(data: {
   requested_fields?: string[]
   format_requested?: string
   assigned_to?: string
-  submission_url?: string
-  submission_email_address?: string
 }) {
-  const result = await apiRequest("POST", "/api/foia/requests", data)
+  const result = await apiPost("/api/foia/requests", data)
   revalidatePath("/foia")
   revalidatePath("/foia/requests")
   return result
 }
 
-export async function submitFoiaRequest(
-  requestId: number,
-  data?: {
-    submitted_date?: string
-  }
-) {
-  const result = await apiRequest("POST", `/api/foia/requests/${requestId}/submit`, data)
+export async function submitFoiaRequest(requestId: number) {
+  const result = await apiPost(`/api/foia/requests/${requestId}/submit`)
   revalidatePath("/foia")
   revalidatePath("/foia/requests")
   revalidatePath(`/foia/requests/${requestId}`)
@@ -80,10 +89,9 @@ export async function rewriteFoiaRequest(
     coverage_end?: string
     requested_fields?: string[]
     format_requested?: string
-    incomplete_reason?: string
   }
 ) {
-  const result = await apiRequest("POST", `/api/foia/requests/${requestId}/rewrite`, data)
+  const result = await apiPost(`/api/foia/requests/${requestId}/rewrite`, data)
   revalidatePath("/foia")
   revalidatePath("/foia/requests")
   return result
@@ -95,7 +103,7 @@ export async function updateRequestStatus(
   actor?: string,
   notes?: string
 ) {
-  const result = await apiRequest("POST", `/api/foia/requests/${requestId}/status`, {
+  const result = await apiPost(`/api/foia/requests/${requestId}/status`, {
     status,
     actor: actor ?? "admin",
     notes,
@@ -119,17 +127,9 @@ export async function createFoiaMessage(
     body?: string
     sender?: string
     recipient?: string
-    sender_name?: string
-    sender_email?: string
-    sender_phone?: string
-    sender_title?: string
-    notes?: string
-    email_snippet?: string
-    channel?: string
-    response_action_required?: string
   }
 ) {
-  const result = await apiRequest("POST", `/api/foia/requests/${requestId}/messages`, data)
+  const result = await apiPost(`/api/foia/requests/${requestId}/messages`, data)
   revalidatePath(`/foia/requests/${requestId}`)
   revalidatePath("/foia/messages")
   return result
@@ -149,27 +149,10 @@ export async function uploadFoiaAttachment(
     message_id?: number
   }
 ) {
-  const result = await apiRequest("POST", `/api/foia/requests/${requestId}/attachments`, data)
+  const result = await apiPost(`/api/foia/requests/${requestId}/attachments`, data)
   revalidatePath(`/foia/requests/${requestId}`)
   revalidatePath("/foia/data-review")
   return result
-}
-
-export async function uploadFoiaFile(
-  requestId: number,
-  formData: FormData,
-) {
-  const res = await fetch(`${API_BASE}/api/foia/requests/${requestId}/upload`, {
-    method: "POST",
-    body: formData,
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Upload failed: ${text}`)
-  }
-  revalidatePath(`/foia/requests/${requestId}`)
-  revalidatePath("/foia/data-review")
-  return res.json()
 }
 
 // ---------------------------------------------------------------------------
@@ -185,14 +168,14 @@ export async function createFoiaTask(data: {
   assigned_to?: string
   due_at?: string
 }) {
-  const result = await apiRequest("POST", "/api/foia/tasks", data)
+  const result = await apiPost("/api/foia/tasks", data)
   revalidatePath("/foia")
   revalidatePath("/foia/tasks")
   return result
 }
 
 export async function assignFoiaTask(taskId: number, assignedTo: string) {
-  const result = await apiRequest("POST", `/api/foia/tasks/${taskId}/assign`, {
+  const result = await apiPost(`/api/foia/tasks/${taskId}/assign`, {
     assigned_to: assignedTo,
   })
   revalidatePath("/foia/tasks")
@@ -200,28 +183,9 @@ export async function assignFoiaTask(taskId: number, assignedTo: string) {
 }
 
 export async function completeFoiaTask(taskId: number) {
-  const result = await apiRequest("POST", `/api/foia/tasks/${taskId}/complete`)
+  const result = await apiPost(`/api/foia/tasks/${taskId}/complete`)
   revalidatePath("/foia")
   revalidatePath("/foia/tasks")
-  revalidatePath("/foia/messages")
-  return result
-}
-
-// ---------------------------------------------------------------------------
-// AI Draft (follow-up / rewrite)
-// ---------------------------------------------------------------------------
-
-export async function aiDraftFollowUp(
-  requestId: number,
-  mode: "draft_request" | "draft_followup" | "draft_rewrite" = "draft_followup",
-  additionalContext?: string
-): Promise<{ draft: string; mode: string; saved_as_message: boolean }> {
-  const result = await apiRequest<{ draft: string; mode: string; saved_as_message: boolean }>(
-    "POST",
-    `/api/foia/requests/${requestId}/ai-draft`,
-    { mode, additional_context: additionalContext }
-  )
-  revalidatePath(`/foia/requests/${requestId}`)
   revalidatePath("/foia/messages")
   return result
 }
@@ -242,7 +206,7 @@ export async function createDatasetInstance(data: {
   completeness_score?: number
   field_mapping?: Record<string, string>
 }) {
-  const result = await apiRequest("POST", "/api/foia/dataset-instances", data)
+  const result = await apiPost("/api/foia/dataset-instances", data)
   revalidatePath("/foia/data-review")
   return result
 }
@@ -255,7 +219,7 @@ export async function updateCityFoiaProfile(
   cityId: number,
   data: Record<string, unknown>
 ) {
-  const result = await apiRequest("PUT", `/api/admin/foia/cities/${cityId}/profile`, data)
+  const result = await apiPut(`/api/admin/foia/cities/${cityId}/profile`, data)
   revalidatePath(`/foia/cities/${cityId}`)
   return result
 }
@@ -264,9 +228,7 @@ export async function updateCityDatasetTargets(
   cityId: number,
   targets: Array<{ dataset_type_id: string; status: string; refresh_cadence_days?: number; notes?: string }>
 ) {
-  const result = await apiRequest("PUT", `/api/admin/foia/cities/${cityId}/dataset-targets`, {
-    targets,
-  })
+  const result = await apiPut(`/api/admin/foia/cities/${cityId}/dataset-targets`, { targets })
   revalidatePath(`/foia/cities/${cityId}`)
   return result
 }
@@ -283,7 +245,7 @@ export async function createFoiaTemplate(data: {
   body_template: string
   notes?: string
 }) {
-  const result = await apiRequest("POST", "/api/admin/foia/templates", data)
+  const result = await apiPost("/api/admin/foia/templates", data)
   revalidatePath("/foia/templates")
   return result
 }
@@ -292,12 +254,12 @@ export async function updateFoiaTemplate(
   templateId: number,
   data: Record<string, unknown>
 ) {
-  const result = await apiRequest("PUT", `/api/admin/foia/templates/${templateId}`, data)
+  const result = await apiPut(`/api/admin/foia/templates/${templateId}`, data)
   revalidatePath("/foia/templates")
   return result
 }
 
 export async function deleteFoiaTemplate(templateId: number) {
-  await apiRequest("DELETE", `/api/admin/foia/templates/${templateId}`)
+  await apiDelete(`/api/admin/foia/templates/${templateId}`)
   revalidatePath("/foia/templates")
 }

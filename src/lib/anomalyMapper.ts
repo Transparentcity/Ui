@@ -27,7 +27,7 @@ export interface AnomalyInput {
   difference?: number | null;
   pct_change?: number | null;
   is_anomaly: boolean;
-  chart_payload?: Record<string, any> | null;
+  chart_payload?: Record<string, unknown> | null;
   item_noun?: string | null;
   city_name?: string | null;
   greendirection?: string | null;
@@ -84,8 +84,10 @@ function getPeriodLabel(periodType: string | undefined): string {
 /**
  * Get the most recent period date from chart_payload.
  */
-function getRecentPeriodDate(chartPayload: any): string | undefined {
-  if (!chartPayload?.dates || !Array.isArray(chartPayload.dates) || chartPayload.dates.length === 0) {
+function getRecentPeriodDate(
+  chartPayload: { dates?: string[] } | null | undefined
+): string | undefined {
+  if (!chartPayload?.dates || chartPayload.dates.length === 0) {
     return undefined
   }
   return chartPayload.dates[chartPayload.dates.length - 1]
@@ -156,17 +158,18 @@ function anomalyFingerprint(api: AnomalyInput): string {
  * 
  * Accepts both authenticated (AnomalyResult) and public (PublicAnomalyResult) API responses.
  */
-export function mapApiAnomalyToCrm(api: AnomalyInput, uniqueId: string): Anomaly & {
+export function mapApiAnomalyToCrm(api: AnomalyInput, fingerprint: string): Anomaly & {
   recent_mean?: number | null
   comparison_mean?: number | null
   metric_category?: string
   metric_name?: string
   data_source?: string
+  period_date?: string
+  comparison_window?: { label?: string; size?: number; match_weekday?: boolean } | null
 } {
   const { district_label, is_citywide } = districtToLabel(api.district ?? 0)
   const metricName = api.metric_name ?? api.object_name ?? undefined
   const severity = calculateSeverity(api.pct_change)
-  const recentPeriodDate = getRecentPeriodDate(api.chart_payload)
   
   // Build a searchable title that includes the metric name and key info
   const titleParts: string[] = []
@@ -198,7 +201,9 @@ export function mapApiAnomalyToCrm(api: AnomalyInput, uniqueId: string): Anomaly
   }
   
   return {
-    id: uniqueId,
+    id: fingerprint,
+    anomaly_id: api.id ?? null,
+    fingerprint,
     title,
     description,
     district: api.district ?? null,
@@ -226,8 +231,8 @@ export function mapApiAnomalyToCrm(api: AnomalyInput, uniqueId: string): Anomaly
     metric_name: metricName,
     data_source: api.city_name ?? undefined,
     // Time period fields for emails
-    period_date: (api as any).period_date ?? undefined,
-    comparison_window: (api as any).comparison_window ?? undefined,
+    period_date: api.period_date ?? getRecentPeriodDate(api.chart_payload),
+    comparison_window: api.comparison_window ?? undefined,
   }
 }
 

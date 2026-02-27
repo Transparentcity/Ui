@@ -1,63 +1,40 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
-import { Loader2, Plus, Edit3, Trash2, AlertTriangle } from "lucide-react"
-import { useAuth0 } from "@auth0/auth0-react"
+import { useEffect, useState } from "react"
+import { Loader2, Plus, Edit3, Trash2 } from "lucide-react"
 import { listFoiaTemplates, deleteFoiaTemplate } from "@/lib/foiaApiClient"
 import { TemplateModal } from "@/components/foia/template-modal"
 import type { FoiaRequestTemplate } from "@/lib/foia/types"
 import { format } from "date-fns"
 
 export function TemplatesContent() {
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
   const [templates, setTemplates] = useState<FoiaRequestTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<FoiaRequestTemplate | null>(null)
-  const [apiError, setApiError] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    setApiError(null)
-    let token: string | undefined
-    if (isAuthenticated) {
-      try {
-        token = await getAccessTokenSilently()
-      } catch {
-        // continue without token
-      }
-    }
+  async function load() {
     try {
-      const data = await listFoiaTemplates(token)
+      const data = await listFoiaTemplates()
       setTemplates(data)
     } catch (err) {
       console.error("Failed to load templates:", err)
-      setApiError(err instanceof Error ? err.message : "Failed to load templates")
-      setTemplates([])
     } finally {
       setLoading(false)
     }
-  }, [isAuthenticated, getAccessTokenSilently])
+  }
 
   useEffect(() => {
     load()
-  }, [load])
+  }, [])
 
   async function handleDelete(id: number) {
     if (!confirm("Delete this template?")) return
-    let token: string | undefined
-    if (isAuthenticated) {
-      try {
-        token = await getAccessTokenSilently()
-      } catch {
-        // continue without token
-      }
-    }
     try {
-      await deleteFoiaTemplate(id, token)
+      await deleteFoiaTemplate(id)
       setTemplates((prev) => prev.filter((t) => t.id !== id))
     } catch (err) {
       console.error("Failed to delete template:", err)
-      alert(err instanceof Error ? err.message : "Failed to delete template")
     }
   }
 
@@ -86,25 +63,6 @@ export function TemplatesContent() {
 
   return (
     <div className="flex flex-col gap-6">
-      {apiError && (
-        <div
-          className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-          role="alert"
-        >
-          <AlertTriangle className="h-5 w-5 shrink-0" />
-          <div>
-            <p className="font-medium">Could not load templates</p>
-            <p className="mt-0.5 text-amber-700">{apiError}</p>
-            <p className="mt-1 text-xs text-amber-600">
-              Ensure the backend is running and{" "}
-              <code className="rounded bg-amber-100 px-1">NEXT_PUBLIC_API_BASE_URL</code> matches
-              (e.g. <code className="rounded bg-amber-100 px-1">http://localhost:8001</code>). Sign
-              in as an admin if the API requires authentication.
-            </p>
-          </div>
-        </div>
-      )}
-
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Templates</h1>
@@ -165,9 +123,9 @@ export function TemplatesContent() {
             )}
           </div>
         ))}
-        {templates.length === 0 && !loading && (
+        {templates.length === 0 && (
           <div className="rounded-xl border border-gray-200 bg-white px-6 py-12 text-center text-sm text-gray-400">
-            {apiError ? "Templates could not be loaded. Check the message above." : "No templates created yet."}
+            No templates created yet.
           </div>
         )}
       </div>

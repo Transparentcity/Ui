@@ -210,6 +210,31 @@ export function AIEmailComposer({ contacts, anomalies, keywords }: AIEmailCompos
     }
   }
 
+  // Skip AI and use the exact same email for all selected contacts.
+  // Useful for situations like "CC'ing" a district update to multiple staff members,
+  // while still recording an individual message per contact in the CRM.
+  const handleUseSameCopyForAll = () => {
+    if (selectedContacts.length === 0) {
+      setGenerationError("Please select at least one contact")
+      return
+    }
+    if (!sampleEmail.trim()) {
+      setGenerationError("Please write a sample email first")
+      return
+    }
+
+    setGenerationError(null)
+    setGeneratedEmails(
+      selectedContacts.map((contactId) => ({
+        subject: sampleSubject || "",
+        body: sampleEmail,
+        contactId,
+        anomalyIds: [],
+      }))
+    )
+    setStep("review")
+  }
+
   // Queue emails for sending
   const handleQueueEmails = async () => {
     setIsQueueing(true)
@@ -652,33 +677,54 @@ Transparent City`}
               >
                 Back to Select
               </button>
-              <button 
-                onClick={handleGenerate} 
-                disabled={isGenerating}
-                className="flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{
-                  padding: '12px 24px',
-                  background: 'var(--brand-primary)',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  fontWeight: 500,
-                  color: 'white',
-                  cursor: 'pointer',
-                }}
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                    <span>Generating {selectedContacts.length} Emails...</span>
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="w-4 h-4 shrink-0" />
-                    <span>Generate Emails with AI</span>
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleUseSameCopyForAll}
+                  disabled={isGenerating}
+                  className="flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{
+                    padding: "12px 20px",
+                    background: "var(--bg-primary)",
+                    border: "1px solid var(--border-primary)",
+                    borderRadius: "8px",
+                    fontSize: "14px",
+                    fontWeight: 500,
+                    color: "var(--text-primary)",
+                    cursor: "pointer",
+                  }}
+                  title='Queue identical copies (useful for "CC" style outreach)'
+                >
+                  <Copy className="w-4 h-4 shrink-0" />
+                  <span>Use Same Copy for All</span>
+                </button>
+                <button 
+                  onClick={handleGenerate} 
+                  disabled={isGenerating}
+                  className="flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{
+                    padding: '12px 24px',
+                    background: 'var(--brand-primary)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    color: 'white',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                      <span>Generating {selectedContacts.length} Emails...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-4 h-4 shrink-0" />
+                      <span>Generate Emails with AI</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

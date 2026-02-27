@@ -18,7 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Search, MoreHorizontal, CheckCircle, Clock, Archive, Trash2, CalendarPlus } from "lucide-react"
+import { Search, MoreHorizontal, CheckCircle, Clock, Archive, Trash2, CalendarPlus, Plus } from "lucide-react"
 import { Response } from "@/lib/types"
 import { ResponseDialog } from "./response-dialog"
 import { updateResponseStatus, deleteResponse } from "@/app/actions/responses"
@@ -38,6 +38,13 @@ interface Contact {
 interface ResponsesManagerProps {
   responses: ResponseWithRelations[]
   contacts: Contact[]
+  sentEmails?: Array<{
+    id: string
+    prospect_id: string
+    personalized_subject: string | null
+    sent_at: string | null
+    channel: string | null
+  }>
 }
 
 function getSentimentColor(sentiment: string | null) {
@@ -64,7 +71,7 @@ function getPriorityLabel(priority: number) {
   return labels[priority] || 'Medium'
 }
 
-export function ResponsesManager({ responses, contacts }: ResponsesManagerProps) {
+export function ResponsesManager({ responses, contacts, sentEmails = [] }: ResponsesManagerProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [sentimentFilter, setSentimentFilter] = useState<string>("all")
@@ -132,6 +139,18 @@ export function ResponsesManager({ responses, contacts }: ResponsesManagerProps)
             <SelectItem value="needs_followup">Needs Follow-up</SelectItem>
           </SelectContent>
         </Select>
+        <ResponseDialog contacts={contacts} sentEmails={sentEmails}>
+          <Button>
+            <Plus className="w-4 h-4 mr-2" />
+            Log Response
+          </Button>
+        </ResponseDialog>
+        <FollowupDialog contacts={contacts}>
+          <Button variant="outline">
+            <CalendarPlus className="w-4 h-4 mr-2" />
+            Schedule Follow-up
+          </Button>
+        </FollowupDialog>
         <p className="text-sm text-muted-foreground">
           {filteredResponses.length} response{filteredResponses.length !== 1 ? 's' : ''}
         </p>

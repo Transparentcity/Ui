@@ -1,10 +1,9 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Plus, Search, Filter, Loader2, AlertTriangle, Trash2, Pencil, Copy, ExternalLink, Mail } from "lucide-react"
-import { useAuth0 } from "@auth0/auth0-react"
-import { deleteFoiaRequest, listFoiaRequests } from "@/lib/foiaApiClient"
+import { Plus, Search, Filter, Loader2 } from "lucide-react"
+import { listFoiaRequests } from "@/lib/foiaApiClient"
 import { RequestStatusBadge } from "@/components/foia/status-badge"
 import { NewRequestModal } from "@/components/foia/new-request-modal"
 import type { RequestStatus, FoiaRequest } from "@/lib/foia/types"
@@ -25,74 +24,32 @@ const statusOptions: { value: RequestStatus | "all"; label: string }[] = [
 ]
 
 export function RequestsListContent() {
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
   const [requests, setRequests] = useState<FoiaRequest[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [deletingId, setDeletingId] = useState<number | null>(null)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<RequestStatus | "all">("all")
   const [showNewRequest, setShowNewRequest] = useState(false)
-  const [apiError, setApiError] = useState<string | null>(null)
 
-  const loadRequests = useCallback(async () => {
-    setLoading(true)
-    setApiError(null)
-    let token: string | undefined
-    if (isAuthenticated) {
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
       try {
-        token = await getAccessTokenSilently()
-      } catch {
-        // continue without token
-      }
-    }
-    try {
-      const res = await listFoiaRequests(
-        {
+        const res = await listFoiaRequests({
           status: statusFilter === "all" ? undefined : statusFilter,
           q: search || undefined,
           page_size: 100,
-        },
-        token
-      )
-      setRequests(res.items)
-      setTotal(res.total)
-    } catch (err) {
-      console.error("Failed to load requests:", err)
-      setApiError(err instanceof Error ? err.message : "Failed to load requests")
-      setRequests([])
-      setTotal(0)
-    } finally {
-      setLoading(false)
-    }
-  }, [statusFilter, search, isAuthenticated, getAccessTokenSilently])
-
-  useEffect(() => {
-    loadRequests()
-  }, [loadRequests])
-
-  async function handleDelete(requestId: number) {
-    const ok = confirm("Delete this request? This cannot be undone.")
-    if (!ok) return
-
-    setDeletingId(requestId)
-    let token: string | undefined
-    if (isAuthenticated) {
-      try {
-        token = await getAccessTokenSilently()
-      } catch {
-        // continue without token
+        })
+        setRequests(res.items)
+        setTotal(res.total)
+      } catch (err) {
+        console.error("Failed to load requests:", err)
+      } finally {
+        setLoading(false)
       }
     }
-    try {
-      await deleteFoiaRequest(requestId, token)
-      await loadRequests()
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Delete failed")
-    } finally {
-      setDeletingId(null)
-    }
-  }
+    load()
+  }, [statusFilter, search])
 
   const openCount = requests.filter(
     (r) => !["fulfilled", "denied", "closed_incomplete"].includes(r.status)
@@ -100,23 +57,6 @@ export function RequestsListContent() {
 
   return (
     <div className="flex flex-col gap-6">
-      {apiError && (
-        <div
-          className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-          role="alert"
-        >
-          <AlertTriangle className="h-5 w-5 shrink-0" />
-          <div>
-            <p className="font-medium">Could not load requests</p>
-            <p className="mt-0.5 text-amber-700">{apiError}</p>
-            <p className="mt-1 text-xs text-amber-600">
-              Ensure the backend is running and <code className="rounded bg-amber-100 px-1">NEXT_PUBLIC_API_BASE_URL</code>{" "}
-              matches (e.g. <code className="rounded bg-amber-100 px-1">http://localhost:8001</code>). Sign in if the API requires authentication.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -179,9 +119,6 @@ export function RequestsListContent() {
                   Status
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Submit to
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Coverage
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -190,8 +127,8 @@ export function RequestsListContent() {
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Deadline
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Actions
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Owner
                 </th>
               </tr>
             </thead>
@@ -207,14 +144,9 @@ export function RequestsListContent() {
                     <td className="px-6 py-4">
                       <Link href={`/foia/requests/${req.id}`} className="block">
                         <p className="text-sm font-medium text-gray-900 hover:text-purple-600">
-                          {req.city?.name ?? "Unknown city"}
+                          {req.city?.name ?? `City #${req.city_id}`}
                         </p>
                         <p className="text-xs text-gray-500">{req.dataset_type_id}</p>
-                        {req.department?.name && (
-                          <p className="mt-0.5 text-xs text-gray-400">
-                            Dept: {req.department.name}
-                          </p>
-                        )}
                         {req.agency_request_number && (
                           <p className="mt-0.5 text-xs text-gray-400">
                             #{req.agency_request_number}
@@ -224,9 +156,6 @@ export function RequestsListContent() {
                     </td>
                     <td className="px-4 py-4">
                       <RequestStatusBadge status={req.status} />
-                    </td>
-                    <td className="px-4 py-4">
-                      <SubmitToCell request={req} />
                     </td>
                     <td className="px-4 py-4 text-sm text-gray-500">
                       {req.coverage_start} to {req.coverage_end}
@@ -241,40 +170,16 @@ export function RequestsListContent() {
                         <span className="text-sm text-gray-300">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-4 text-right">
-                      <div className="inline-flex items-center gap-2">
-                        <Link
-                          href={`/foia/requests/${req.id}?edit=1`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                          title={req.status === "draft" ? "Edit request" : "Edit submission email/URL + confirmation number"}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                          Edit
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            void handleDelete(req.id)
-                          }}
-                          disabled={deletingId === req.id}
-                          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-                          title="Delete request"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          {deletingId === req.id ? "Deleting..." : "Delete"}
-                        </button>
-                      </div>
+                    <td className="px-4 py-4 text-sm text-gray-500">
+                      {req.assigned_to || <span className="text-gray-300">Unassigned</span>}
                     </td>
                   </tr>
                 )
               })}
-              {requests.length === 0 && !loading && (
+              {requests.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-400">
-                    {apiError ? "Requests could not be loaded. Check the message above." : "No requests match your filters."}
+                  <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-400">
+                    No requests match your filters.
                   </td>
                 </tr>
               )}
@@ -284,107 +189,6 @@ export function RequestsListContent() {
       )}
 
       <NewRequestModal open={showNewRequest} onClose={() => setShowNewRequest(false)} />
-    </div>
-  )
-}
-
-function SubmitToCell({ request }: { request: FoiaRequest }) {
-  const [copied, setCopied] = useState<string | null>(null)
-
-  async function handleCopy(label: string, text: string) {
-    if (!text) return
-    try {
-      await navigator.clipboard.writeText(text)
-    } catch {
-      const ta = document.createElement("textarea")
-      ta.value = text
-      ta.style.position = "fixed"
-      ta.style.opacity = "0"
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand("copy")
-      document.body.removeChild(ta)
-    }
-    setCopied(label)
-    setTimeout(() => setCopied(null), 1500)
-  }
-
-  const email = request.submission_email_address
-  const url = request.submission_url
-  const deptEmail = request.department?.contact_email
-
-  if (!email && !url && !deptEmail) {
-    return <span className="text-xs text-gray-300">-</span>
-  }
-
-  let hostname = ""
-  if (url) {
-    try {
-      hostname = new URL(url).hostname
-    } catch {
-      hostname = url
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
-      {url && (
-        <div className="flex items-center gap-1.5">
-          <ExternalLink className="h-3 w-3 shrink-0 text-gray-400" />
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="truncate text-xs text-purple-600 hover:underline"
-            title={url}
-          >
-            {hostname}
-          </a>
-          <button
-            type="button"
-            onClick={() => handleCopy("url", url)}
-            className="shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-            title="Copy URL"
-          >
-            <Copy className="h-3 w-3" />
-          </button>
-          {copied === "url" && <span className="text-[10px] text-emerald-600">Copied</span>}
-        </div>
-      )}
-      {email && (
-        <div className="flex items-center gap-1.5">
-          <Mail className="h-3 w-3 shrink-0 text-gray-400" />
-          <span className="truncate text-xs text-gray-600" title={email}>
-            {email}
-          </span>
-          <button
-            type="button"
-            onClick={() => handleCopy("email", email)}
-            className="shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-            title="Copy email"
-          >
-            <Copy className="h-3 w-3" />
-          </button>
-          {copied === "email" && <span className="text-[10px] text-emerald-600">Copied</span>}
-        </div>
-      )}
-      {deptEmail && deptEmail !== email && (
-        <div className="flex items-center gap-1.5">
-          <Mail className="h-3 w-3 shrink-0 text-gray-400" />
-          <span className="truncate text-xs text-gray-500" title={`Dept: ${deptEmail}`}>
-            {deptEmail}
-          </span>
-          <button
-            type="button"
-            onClick={() => handleCopy("deptEmail", deptEmail)}
-            className="shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-            title="Copy department email"
-          >
-            <Copy className="h-3 w-3" />
-          </button>
-          {copied === "deptEmail" && <span className="text-[10px] text-emerald-600">Copied</span>}
-        </div>
-      )}
     </div>
   )
 }

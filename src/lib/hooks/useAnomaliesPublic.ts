@@ -14,12 +14,13 @@ export type { PublicAnomalyResult, ListAnomaliesPublicResponse };
 export const anomalyPublicKeys = {
   all: ["anomalies-public"] as const,
   lists: () => [...anomalyPublicKeys.all, "list"] as const,
-  list: (filters?: Record<string, any>) => [...anomalyPublicKeys.lists(), filters] as const,
+  list: (filters?: Record<string, unknown>) =>
+    [...anomalyPublicKeys.lists(), filters] as const,
 };
 
 /**
  * Hook to list anomalies WITHOUT authentication.
- * Uses the public /api/anomalies endpoint.
+ * Uses the /api/anomalies endpoint.
  * Useful for CRM pages and other contexts where Auth0 login is not required.
  * 
  * Cache time: 2 minutes

@@ -9,7 +9,6 @@ import {
   listCityFoiaDepartments,
   suggestCityFoiaDepartment,
   composeCityFoiaRequestBlock,
-  markFoiaExternallyFiled,
 } from "@/lib/foiaApiClient"
 import { API_BASE } from "@/lib/apiBase"
 import { useRouter } from "next/navigation"
@@ -79,8 +78,6 @@ export function NewRequestModal({
     department_id: undefined as number | undefined,
     requester_email_override: "",
     format_requested: "CSV",
-    submission_url: "",
-    submission_email_address: "",
   })
 
   // Load org-wide requester profile once when modal opens
@@ -185,7 +182,6 @@ export function NewRequestModal({
   const isSf = form.city_id === SF_CITY_ID
   const isOpenRecords = Boolean(cityProfile?.portal_url?.includes("openrecords.nyc.gov"))
   const isNextRequest = Boolean(cityProfile?.portal_url?.includes("nextrequest.com"))
-  const isJustFoia = Boolean(cityProfile?.portal_url?.includes("justfoia.com") || cityProfile?.portal_url?.includes("request.justfoia"))
 
   const effectiveRequesterEmail =
     (form.requester_email_override || "").trim() || (requesterProfile?.email || "").trim()
@@ -195,12 +191,7 @@ export function NewRequestModal({
   const requesterCity = (requesterProfile?.city || "").trim()
   const requesterState = (requesterProfile?.state || "").trim()
   const requesterZip = (requesterProfile?.zip || "").trim()
-  const selectedCityNameOnly = (() => {
-    const raw = (form.city_name || "").trim()
-    if (!raw) return ""
-    return raw.split(",")[0]?.trim() || ""
-  })()
-  const generatedTitle = generateTitleFromDescription(form.request_description, selectedCityNameOnly)
+  const generatedTitle = generateTitleFromDescription(form.request_description)
 
   async function handleComposeBlock() {
     setError("")
@@ -258,6 +249,7 @@ export function NewRequestModal({
         additional_department_ids: additionalDeptIds,
         title: generatedTitle || undefined,
         request_description: form.request_description || undefined,
+        fee_waiver: true,
       })
       setRequestBlock(res.block)
       setRequestBlockInfo(
@@ -423,8 +415,6 @@ export function NewRequestModal({
         requester_email_override: form.requester_email_override || undefined,
         portal_fields: Object.keys(portalFields).length > 0 ? portalFields : undefined,
         format_requested: form.format_requested,
-        submission_url: form.submission_url.trim() || undefined,
-        submission_email_address: form.submission_email_address.trim() || undefined,
       })
 
       const newId = (result as { id?: number })?.id
@@ -447,25 +437,6 @@ export function NewRequestModal({
     setShowSteps(false)
     onClose()
     router.push(`/foia/requests/${id}?external=1`)
-  }
-
-  async function handleSaveConfirmationFromSteps(args: {
-    confirmationCode: string
-    screenshotUri?: string
-    requestUrl?: string
-  }) {
-    const id = createdRequestId ?? (await createDraft())
-    if (!id) return
-
-    await markFoiaExternallyFiled(id, {
-      external_confirmation_id: args.confirmationCode,
-      screenshot_uri: (args.screenshotUri || "").trim() || undefined,
-      external_request_url: (args.requestUrl || "").trim() || undefined,
-    })
-
-    setShowSteps(false)
-    onClose()
-    router.push(`/foia/requests/${id}`)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -500,12 +471,12 @@ export function NewRequestModal({
           portalUrl={portalUrl}
           isNextRequest={isNextRequest}
           isOpenRecords={isOpenRecords}
-          isJustFoia={isJustFoia}
           departmentName={selectedDepartment?.name || generatedDeptName || ""}
           openRecordsCategory={openRecordsCategory}
           openRecordsAgency={openRecordsAgency}
           title={generatedTitle}
-          requestText={portalRequestText || requestBlock}
+          portalRequestText={portalRequestText}
+          fullRequestBlock={requestBlock}
           requester={{
             name: requesterName,
             email: effectiveRequesterEmail,
@@ -517,9 +488,7 @@ export function NewRequestModal({
             organization: (requesterProfile?.organization || "").trim(),
           }}
           onCopy={copyText}
-          onRequestTextChange={setRequestBlock}
           onSubmitted={handleSubmittedFromSteps}
-          onSaveConfirmation={handleSaveConfirmationFromSteps}
           submitting={saving}
         />
 
@@ -633,14 +602,12 @@ export function NewRequestModal({
               </div>
             )}
 
-            {(isSf || isOpenRecords || isJustFoia) && (
+            {(isSf || isOpenRecords) && (
               <div className="rounded-xl border border-gray-200 bg-white p-4">
                 <p className="text-xs font-semibold text-gray-900">Portal checklist</p>
                 <p className="mt-0.5 text-xs text-gray-500">
                   {isSf
                     ? "San Francisco portal fields we expect to fill (based on NextRequest)."
-                    : isJustFoia
-                    ? "JustFOIA requires Description + requester name + email."
                     : "NYC OpenRecords requires Category + Agency + Title + Description + requester info."}
                 </p>
                 <div className="mt-3 grid gap-2 text-xs">
@@ -746,36 +713,6 @@ export function NewRequestModal({
               </button>
               {showAdvanced && (
                 <div className="mt-3 flex flex-col gap-4">
-                  {/* Optional submission address (URL/email) */}
-                  <div className="rounded-lg border border-gray-200 bg-white p-3">
-                    <p className="text-xs font-semibold text-gray-900">Submission address (optional)</p>
-                    <p className="mt-0.5 text-[11px] text-gray-500">
-                      If you want to track what you used, add the portal URL or submission email here. Otherwise, skip.
-                    </p>
-                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-gray-700">Portal / Website URL</label>
-                        <input
-                          type="url"
-                          value={form.submission_url}
-                          onChange={(e) => setForm((f) => ({ ...f, submission_url: e.target.value }))}
-                          placeholder="https://nextrequest.com/... or https://cityname.justfoia.com/..."
-                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-gray-700">Submission Email Address</label>
-                        <input
-                          type="email"
-                          value={form.submission_email_address}
-                          onChange={(e) => setForm((f) => ({ ...f, submission_email_address: e.target.value }))}
-                          placeholder="records@sfgov.org"
-                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
                   {/* Department + coordination (optional) */}
                   {departments.length > 0 && (
                     <div className="rounded-lg border border-gray-200 bg-white p-3">
@@ -996,7 +933,7 @@ function extractPortalRequestText(block: string): string {
   return after.trim()
 }
 
-function generateTitleFromDescription(description: string, preferredCityName?: string): string {
+function generateTitleFromDescription(description: string): string {
   const raw = (description || "").trim()
   if (!raw) return ""
 
@@ -1006,9 +943,9 @@ function generateTitleFromDescription(description: string, preferredCityName?: s
   const yearPart =
     years.length >= 2 ? `${years[0]}–${years[years.length - 1]}` : years[0] || ""
 
-  // IMPORTANT: Always prefer the selected city over any city-name text in the description.
-  // Descriptions can include unrelated city references (e.g., legal comparisons) and should not override.
-  const city = (preferredCityName || "").trim()
+  let city = ""
+  if (/san\s+francisco|city\s+of\s+san\s+francisco/.test(norm)) city = "San Francisco"
+  if (/new\s+york\s+city|\bnyc\b/.test(norm)) city = "New York City"
 
   const droneish =
     /\b(drone|uav|uas)\b/.test(norm) ||
@@ -1031,10 +968,7 @@ function generateTitleFromDescription(description: string, preferredCityName?: s
   if (topic) {
     const parts: string[] = []
     if (city) parts.push(city)
-    // For 911/dispatch, people usually mean police CAD/dispatch records.
-    // Keep other topics unchanged.
-    const topicLabel = topic === "911/dispatch records" ? "911/dispatch police records" : topic
-    parts.push(topicLabel)
+    parts.push(topic)
     let t = parts.join(" ")
     if (yearPart) t = `${t} (${yearPart})`
     t = t.replace(/\s+/g, " ").trim()
@@ -1070,17 +1004,15 @@ function SubmissionStepsModal({
   portalUrl,
   isNextRequest,
   isOpenRecords,
-  isJustFoia,
   departmentName,
   openRecordsCategory,
   openRecordsAgency,
   title,
-  requestText,
+  portalRequestText,
+  fullRequestBlock,
   requester,
   onCopy,
-  onRequestTextChange,
   onSubmitted,
-  onSaveConfirmation,
   submitting,
 }: {
   open: boolean
@@ -1089,12 +1021,12 @@ function SubmissionStepsModal({
   portalUrl: string
   isNextRequest: boolean
   isOpenRecords: boolean
-  isJustFoia: boolean
   departmentName: string
   openRecordsCategory: string
   openRecordsAgency: string
   title: string
-  requestText: string
+  portalRequestText: string
+  fullRequestBlock: string
   requester: {
     name: string
     email: string
@@ -1106,26 +1038,19 @@ function SubmissionStepsModal({
     organization: string
   }
   onCopy: (label: string, text: string) => Promise<void>
-  onRequestTextChange: (text: string) => void
   onSubmitted: () => Promise<void>
-  onSaveConfirmation: (args: { confirmationCode: string; screenshotUri?: string; requestUrl?: string }) => Promise<void>
   submitting: boolean
 }) {
-  const [copied, setCopied] = useState(false)
-  const [confirmationCode, setConfirmationCode] = useState("")
-  const [screenshotUri, setScreenshotUri] = useState("")
-  const [requestUrl, setRequestUrl] = useState("")
-  const [savingConfirmation, setSavingConfirmation] = useState(false)
+  if (!open) return null
 
   const safeCityName = (cityName || "").trim() || "city portal"
   const dept = (departmentName || "").trim() || "(select a department)"
   const link = (portalUrl || "").trim()
+  const [copied, setCopied] = useState(false)
 
   const addressLine = [requester.street, requester.city, requester.state, requester.zip]
     .filter(Boolean)
     .join(", ")
-
-  if (!open) return null
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center">
@@ -1179,34 +1104,6 @@ function SubmissionStepsModal({
                     <span className="font-semibold">Request description</span>.
                   </li>
                 </>
-              ) : isJustFoia ? (
-                <>
-                  <li>
-                    Click <span className="font-semibold">Submit a Request</span> (or <span className="font-semibold">New Request</span>).
-                  </li>
-                  {departmentName.trim() ? (
-                    <li>
-                      Select <span className="font-semibold">{dept}</span> from the{" "}
-                      <span className="font-semibold">Department</span> dropdown if available.
-                    </li>
-                  ) : null}
-                  <li>
-                    Paste the request text below into the <span className="font-semibold">Description</span> or{" "}
-                    <span className="font-semibold">Request</span> field.
-                  </li>
-                  <li>
-                    Fill in <span className="font-semibold">Your name</span>, <span className="font-semibold">Email</span>,
-                    and any other required contact fields using the requester info below.
-                  </li>
-                  <li>
-                    JustFOIA will email a confirmation with a case number (e.g.{" "}
-                    <span className="font-semibold">FOIA 92-2026</span>). Save it.
-                  </li>
-                  <li>
-                    Responses come from <span className="font-semibold">[city]@request.justfoia.com</span>.
-                    You can reply directly to that address.
-                  </li>
-                </>
               ) : isNextRequest ? (
                 <>
                   <li>
@@ -1235,7 +1132,8 @@ function SubmissionStepsModal({
                 Submit the portal form, then copy the portal confirmation number/receipt.
               </li>
               <li>
-                Paste the confirmation code below so it’s saved and reused for future follow-ups.
+                Click <span className="font-semibold">Submitted</span> below to save this draft and jump straight to
+                confirmation-number entry.
               </li>
             </ol>
           </div>
@@ -1249,11 +1147,11 @@ function SubmissionStepsModal({
               <button
                 type="button"
                 onClick={async () => {
-                  await onCopy("portal request text", requestText)
+                  await onCopy("portal request text", portalRequestText || fullRequestBlock)
                   setCopied(true)
                   window.setTimeout(() => setCopied(false), 1200)
                 }}
-                disabled={submitting || !requestText.trim()}
+                disabled={submitting || (!portalRequestText.trim() && !fullRequestBlock.trim())}
                 className="rounded-md bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
               >
                 {submitting ? "Generating..." : copied ? "Copied" : "Copy request text"}
@@ -1273,18 +1171,9 @@ function SubmissionStepsModal({
               </div>
             )}
 
-            <div className="mt-3">
-              <label className="block text-[11px] font-medium text-gray-600">
-                Request text to paste (editable - you can replace this completely)
-              </label>
-              <textarea
-                value={requestText}
-                onChange={(e) => onRequestTextChange(e.target.value)}
-                rows={10}
-                placeholder="Click Generate first, or write your own request text."
-                className="mt-1 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-[11px] leading-relaxed text-gray-800 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-              />
-            </div>
+            <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-[11px] leading-relaxed text-gray-800">
+              {portalRequestText || fullRequestBlock || "Click Generate in the draft first."}
+            </pre>
           </div>
 
           <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
@@ -1363,72 +1252,6 @@ function SubmissionStepsModal({
               )}
             </div>
           </div>
-
-          <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
-            <p className="text-xs font-semibold text-gray-900">Portal confirmation code</p>
-            <p className="mt-0.5 text-xs text-gray-500">
-              Paste the portal’s confirmation/case number here. We’ll use it on all follow-ups.
-            </p>
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="sm:col-span-1">
-                <label className="mb-1 block text-xs font-medium text-gray-700">Confirmation code *</label>
-                <input
-                  value={confirmationCode}
-                  onChange={(e) => setConfirmationCode(e.target.value)}
-                  placeholder="e.g. FOIA 92-2026 / PRR-12345"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                />
-              </div>
-              <div className="sm:col-span-1">
-                <label className="mb-1 block text-xs font-medium text-gray-700">Request URL (optional)</label>
-                <input
-                  type="url"
-                  value={requestUrl}
-                  onChange={(e) => setRequestUrl(e.target.value)}
-                  placeholder="https://sanfrancisco.nextrequest.com/requests/26-915"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                />
-              </div>
-              <div className="sm:col-span-1">
-                <label className="mb-1 block text-xs font-medium text-gray-700">Receipt / screenshot URL (optional)</label>
-                <input
-                  value={screenshotUri}
-                  onChange={(e) => setScreenshotUri(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                />
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[11px] text-gray-500">
-                Tip: if the portal doesn’t show a code instantly, you can skip and add it later from the request page.
-              </p>
-              <button
-                type="button"
-                onClick={async () => {
-                  const code = confirmationCode.trim()
-                  if (!code) {
-                    alert("Please paste a confirmation code first.")
-                    return
-                  }
-                  try {
-                    setSavingConfirmation(true)
-                    await onSaveConfirmation({
-                      confirmationCode: code,
-                      requestUrl: requestUrl.trim() || undefined,
-                      screenshotUri: screenshotUri.trim() || undefined,
-                    })
-                  } finally {
-                    setSavingConfirmation(false)
-                  }
-                }}
-                disabled={submitting || savingConfirmation}
-                className="rounded-md bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
-              >
-                {savingConfirmation ? "Saving..." : "Save confirmation code"}
-              </button>
-            </div>
-          </div>
         </div>
 
         <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
@@ -1445,7 +1268,7 @@ function SubmissionStepsModal({
             disabled={submitting}
             className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
           >
-            {submitting ? "Saving..." : "Skip for now"}
+            {submitting ? "Saving..." : "Submitted"}
           </button>
         </div>
       </div>
