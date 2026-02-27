@@ -804,6 +804,15 @@ export default function DashboardPage() {
         onClose={() => setSidebarOpen(false)}
         onMenuToggle={handleMenuToggle}
         onCityClick={handleCityClick}
+        onDistrictClick={(cityId, district) => {
+          setActiveCityId(cityId);
+          setInitialDistrict(district);
+          setCurrentView("city");
+          setCurrentSessionId(null);
+          setIsCurrentSessionJobSession(false);
+          setCurrentResearchId(null);
+          setGpsLocation(null);
+        }}
         activeCityId={activeCityId}
         onResearchClick={(reportId) => {
           setCurrentResearchId(reportId);

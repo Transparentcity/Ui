@@ -672,6 +672,8 @@ export default function MetricDetailContent({
             metricId={metric.id}
             categoryFields={metric.category_fields}
             timeSeriesSummary={timeSeriesQuery.data ?? undefined}
+            currentPeriodStart={comparison?.current_period_start}
+            currentPeriodEnd={comparison?.current_period_end}
           />
         </section>
       )}

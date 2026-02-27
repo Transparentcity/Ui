@@ -1029,6 +1029,46 @@ export function getAdminMetric(metricId: number, token: string): Promise<AdminMe
   return request<AdminMetricDetail>(`/api/admin/metrics/${metricId}`, "GET", undefined, token);
 }
 
+/** Structured notes from the AI agent's metric instantiation workflow. */
+export interface StructuringNotesResponse {
+  metric_id: number;
+  metric_name: string | null;
+  metric_key: string | null;
+  last_execution_status: string | null;
+  last_execution_error: string | null;
+  city_name: string | null;
+  template_name: string | null;
+  has_structured_notes: boolean;
+  structuring_notes: Record<string, any>;
+  data_freshness_metadata: Record<string, any> | null;
+  most_recent_data_date: string | null;
+}
+
+export function getStructuringNotes(
+  metricId: number,
+  token: string
+): Promise<StructuringNotesResponse> {
+  return request<StructuringNotesResponse>(
+    `/api/admin/metrics/${metricId}/structuring-notes`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getTemplateStructuringNotes(
+  templateId: number,
+  cityId: number,
+  token: string
+): Promise<StructuringNotesResponse> {
+  return request<StructuringNotesResponse>(
+    `/api/admin/metrics/template-structuring-notes?template_id=${templateId}&city_id=${cityId}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
 export function executeAdminMetric(
   metricId: number,
   payload: ExecuteAdminMetricRequest,
@@ -3351,6 +3391,7 @@ export interface ResearchReport {
   final_report_html?: string | null;
   model_key?: string | null;
   session_id?: string | null;
+  synthesis_session_id?: string | null;
   job_id?: string | null;
   estimated_cost_usd?: number | null;
   actual_cost_usd?: number | null;

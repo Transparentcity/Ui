@@ -1418,6 +1418,11 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
               <div className="metrics-table-body">
                 {subcategoryGroups.map((group) => (
                   <React.Fragment key={group.subcategory || 'uncategorized'}>
+                    {showSubcategoryHeaders && group.subcategory && (
+                      <div className="metrics-subcategory-header">
+                        <span className="metrics-subcategory-title">{group.subcategory}</span>
+                      </div>
+                    )}
                     {group.metrics.map((metric) => {
                       // Stale = no current-year data; we show last available year in comparison column and "No data" for current
                       const isStale = metric.stale === true;
@@ -1585,12 +1590,6 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                         </MetricLink>
                       );
                     })}
-                    {/* Subcategory label below the table rows */}
-                    {showSubcategoryHeaders && group.subcategory && (
-                      <div className="metrics-subcategory-header metrics-subcategory-footer">
-                        <span className="metrics-subcategory-title">{group.subcategory}</span>
-                      </div>
-                    )}
                   </React.Fragment>
                 ))}
               </div>

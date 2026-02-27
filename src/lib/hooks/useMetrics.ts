@@ -23,6 +23,8 @@ import {
   getCityMetricsForMap,
   getMetricComparison,
   getMetricComparisons,
+  getStructuringNotes,
+  getTemplateStructuringNotes,
   getBatchComparisons,
   type AdminMetricListItem,
   type AdminMetricDetail,
@@ -113,6 +115,39 @@ export function useMetric(metricId: number | null) {
     },
     enabled: !!metricId,
     staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+export function useStructuringNotes(metricId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: ["structuringNotes", metricId],
+    queryFn: async () => {
+      if (!metricId) throw new Error("Metric ID is required");
+      const token = await getAccessTokenSilently();
+      return getStructuringNotes(metricId, token);
+    },
+    enabled: !!metricId,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useTemplateStructuringNotes(
+  templateId: number | null,
+  cityId: number | null,
+) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: ["templateStructuringNotes", templateId, cityId],
+    queryFn: async () => {
+      if (!templateId || !cityId) throw new Error("Template ID and City ID required");
+      const token = await getAccessTokenSilently();
+      return getTemplateStructuringNotes(templateId, cityId, token);
+    },
+    enabled: !!templateId && !!cityId,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

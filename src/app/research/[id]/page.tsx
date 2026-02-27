@@ -99,6 +99,40 @@ export default function ResearchDetailPage() {
             <strong>Estimated Cost:</strong> ${research.estimated_cost_usd}
           </div>
         )}
+        {research.session_id && (
+          <div className="meta-item">
+            <button
+              type="button"
+              className="session-link-button"
+              onClick={() => {
+                window.dispatchEvent(
+                  new CustomEvent("job-session:open", {
+                    detail: { session_id: research.session_id },
+                  })
+                );
+              }}
+            >
+              Review Job Session
+            </button>
+          </div>
+        )}
+        {research.synthesis_session_id && (
+          <div className="meta-item">
+            <button
+              type="button"
+              className="session-link-button"
+              onClick={() => {
+                window.dispatchEvent(
+                  new CustomEvent("job-session:open", {
+                    detail: { session_id: research.synthesis_session_id },
+                  })
+                );
+              }}
+            >
+              Review Synthesis Session
+            </button>
+          </div>
+        )}
       </div>
       
       <div className="research-question">

@@ -463,17 +463,20 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
               <button
                 type="button"
                 className={styles.copyButton}
-                onClick={() => {
-                  if (typeof window !== "undefined") {
-                    window.dispatchEvent(
-                      new CustomEvent("job-session:open", {
-                        detail: { session_id: research.session_id },
-                      })
-                    );
-                  }
-                }}
+                onClick={() => handleSessionClick(research.session_id!)}
               >
                 Review Job Session
+              </button>
+            </span>
+          )}
+          {isAdmin && research.synthesis_session_id && (
+            <span>
+              <button
+                type="button"
+                className={styles.copyButton}
+                onClick={() => handleSessionClick(research.synthesis_session_id!)}
+              >
+                Review Synthesis Session
               </button>
             </span>
           )}

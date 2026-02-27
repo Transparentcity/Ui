@@ -6,7 +6,6 @@ import UserProfile from "./UserProfile";
 import SessionList from "./SessionList";
 import JobSessionList from "./JobSessionList";
 import MyCities from "./MyCities";
-import MyDistricts from "./MyDistricts";
 import ResearchList from "./ResearchList";
 import SidebarCitySearch from "./SidebarCitySearch";
 import styles from "./Sidebar.module.css";
@@ -30,6 +29,7 @@ interface SidebarProps {
   onSessionDeleted?: (sessionId: string) => void;
   onClose?: () => void;
   onCityClick?: (cityId: number) => void;
+  onDistrictClick?: (cityId: number, district: number) => void;
   activeCityId?: number | null;
   onResearchClick?: (reportId: number) => void;
   currentResearchId?: number | null;
@@ -68,6 +68,7 @@ export default function Sidebar({
   onSessionDeleted,
   onClose,
   onCityClick,
+  onDistrictClick,
   activeCityId,
   onResearchClick,
   currentResearchId,
@@ -366,7 +367,7 @@ export default function Sidebar({
           {/* Spacing */}
           <div className={styles.navSectionSpacer}></div>
 
-          {/* My Cities Section */}
+          {/* My Cities & Districts Section */}
           <MyCities
             onCityClick={(cityId) => {
               if (onCityClick) {
@@ -375,17 +376,14 @@ export default function Sidebar({
               if (onViewChange) {
                 onViewChange("city");
               }
-              // Auto-close sidebar in narrow mode after city selection
               if (isNarrowScreen() && onClose) {
                 onClose();
               }
             }}
-            activeCityId={activeCityId}
-          />
-
-          {/* My Districts Section */}
-          <MyDistricts
-            onDistrictClick={() => {
+            onDistrictClick={(cityId, district) => {
+              if (onDistrictClick) {
+                onDistrictClick(cityId, Number(district));
+              }
               if (onViewChange) {
                 onViewChange("city");
               }

@@ -159,6 +159,53 @@
   text-overflow: ellipsis;
 }
 
+/* District sub-items nested under cities */
+.districtSubList {
+  display: flex;
+  flex-direction: column;
+}
+
+.districtSubItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px var(--space-lg) 4px calc(var(--space-lg) + 28px);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  border-left: 3px solid transparent;
+  text-decoration: none;
+  color: inherit;
+}
+
+.districtSubItem:hover {
+  background: var(--bg-tertiary);
+}
+
+.districtSubItemActive {
+  background: var(--bg-tertiary);
+  border-left-color: var(--brand-primary);
+}
+
+.districtNumber {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  min-width: 22px;
+}
+
+.districtName {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.districtSubItem:hover .districtName,
+.districtSubItemActive .districtName {
+  color: var(--text-primary);
+}
 
 .sectionHeader {
   padding: var(--space-md) var(--space-lg);

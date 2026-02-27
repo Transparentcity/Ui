@@ -149,7 +149,9 @@
 
 .modal {
   width: 100%;
-  max-width: 560px;
+  max-width: 720px;
+  max-height: 90vh;
+  overflow-y: auto;
   background: var(--bg-primary, #ffffff);
   border: 1px solid var(--border, #e5e7eb);
   border-radius: var(--radius-md, 8px);
@@ -323,20 +325,28 @@
   text-decoration: underline;
 }
 
-.promptPreview {
+.promptInput {
   width: 100%;
-  min-height: 8rem;
-  max-height: 20rem;
-  padding: 0.5rem 0.6rem;
+  min-height: 10rem;
+  max-height: 28rem;
+  padding: 0.6rem 0.7rem;
   font-size: 0.8125rem;
-  font-family: inherit;
-  line-height: 1.45;
+  font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  line-height: 1.5;
   border: 1px solid var(--border, #e5e7eb);
   border-radius: var(--radius-sm, 6px);
-  background: var(--bg-secondary, #f9fafb);
+  background: var(--bg-primary, #fff);
   color: var(--text-primary, #1f2937);
   resize: vertical;
   overflow-y: auto;
+  white-space: pre-wrap;
+  tab-size: 2;
+}
+
+.promptInput:focus {
+  outline: none;
+  border-color: var(--accent, #7c3aed);
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
 }
 
 .recentRuns {

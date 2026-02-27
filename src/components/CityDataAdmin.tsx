@@ -48,6 +48,7 @@ import NewslettersTabPanel from "@/components/NewslettersTabPanel";
 import MetricEditModal from "./MetricEditModal";
 import MetricChartsModal from "./MetricChartsModal";
 import MetricMapsModal from "./MetricMapsModal";
+import StructuringNotesModal from "./StructuringNotesModal";
 import MetricOrderEditor from "./MetricOrderEditor";
 import RunAllMetricsModal from "./RunAllMetricsModal";
 import AnomalySparkline from "./AnomalySparkline";
@@ -449,6 +450,10 @@ export default function CityDataAdmin({
   const [runningSingleJobByTemplateId, setRunningSingleJobByTemplateId] = useState<Record<number, string>>({});
   const [runningAllJobId, setRunningAllJobId] = useState<string | null>(null);
   const [templateStructuringModelKey, setTemplateStructuringModelKey] = useState<string>("");
+  const [structuringNotesTarget, setStructuringNotesTarget] = useState<{
+    metricId?: number | null;
+    templateId: number;
+  } | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -3845,6 +3850,26 @@ export default function CityDataAdmin({
                                 >
                                   {isRunning ? "Running…" : isInstantiated ? "Re-run" : "Run"}
                                 </button>
+                                <button
+                                  onClick={() => setStructuringNotesTarget({
+                                    metricId: t.metric_id,
+                                    templateId: t.template_id,
+                                  })}
+                                  style={{
+                                    padding: "6px 10px",
+                                    background: "transparent",
+                                    color: "var(--text-secondary)",
+                                    border: "1px solid var(--border-color, #ddd)",
+                                    borderRadius: "4px",
+                                    fontSize: "11px",
+                                    fontWeight: 500,
+                                    cursor: "pointer",
+                                  }}
+                                  title="View AI structuring notes"
+                                >
+                                  <i className="fas fa-clipboard-list" style={{ marginRight: "4px" }} />
+                                  Notes
+                                </button>
                               </div>
                             </div>
                           </td>
@@ -3981,11 +4006,11 @@ export default function CityDataAdmin({
                                 className={styles.metricTableRow}
                                 style={{
                                   backgroundColor: isSuccess
-                                    ? "rgba(76, 175, 80, 0.03)"
+                                    ? "rgba(76, 175, 80, 0.10)"
                                     : isFailure
-                                    ? "rgba(244, 67, 54, 0.03)"
+                                    ? "rgba(244, 67, 54, 0.10)"
                                     : hasNoStatus
-                                    ? "rgba(158, 158, 158, 0.03)"
+                                    ? "rgba(158, 158, 158, 0.05)"
                                     : "transparent",
                                 }}
                               >
@@ -4195,6 +4220,15 @@ export default function CityDataAdmin({
         metricName={cityDataTyped?.metrics?.find((m) => m.id === mapsMetricId)?.metric_name}
         isOpen={mapsOpen}
         onClose={closeMaps}
+      />
+
+      {/* Structuring Notes Modal */}
+      <StructuringNotesModal
+        metricId={structuringNotesTarget?.metricId}
+        templateId={structuringNotesTarget?.templateId}
+        cityId={cityId}
+        isOpen={structuringNotesTarget != null}
+        onClose={() => setStructuringNotesTarget(null)}
       />
 
       {/* Run All Metrics Modal */}

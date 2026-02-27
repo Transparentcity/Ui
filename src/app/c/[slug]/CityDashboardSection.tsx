@@ -371,6 +371,13 @@ export default function CityDashboardSection({
                   if (rows.length === 0) return null;
                   return (
                     <div key={subcategory ?? "uncategorized"} style={{ display: "contents" }}>
+                      {showSubHeaders && subcategory && (
+                        <div className="metrics-subcategory-header">
+                          <span className="metrics-subcategory-title">
+                            {subcategory}
+                          </span>
+                        </div>
+                      )}
                       {rows.map(({ m, ytd }) => {
                           const curr =
                             ytd?.current_period_value ?? null;
@@ -498,13 +505,6 @@ export default function CityDashboardSection({
                             </Link>
                           );
                         })}
-                      {showSubHeaders && subcategory && (
-                        <div className="metrics-subcategory-header metrics-subcategory-footer">
-                          <span className="metrics-subcategory-title">
-                            {subcategory}
-                          </span>
-                        </div>
-                      )}
                     </div>
                   );
                 })}

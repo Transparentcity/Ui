@@ -51,6 +51,7 @@ export default function ScheduledJobsPanel({
     max_concurrent_cities: string;
     per_city_concurrency: string;
     cron_expression: string;
+    question: string;
   } | null>(null);
 
   const getStatusColor = (status: string): string => {
@@ -158,6 +159,7 @@ export default function ScheduledJobsPanel({
       max_concurrent_cities: job.max_concurrent_cities !== null && job.max_concurrent_cities !== undefined ? String(job.max_concurrent_cities) : "2",
       per_city_concurrency: job.per_city_concurrency !== null && job.per_city_concurrency !== undefined ? String(job.per_city_concurrency) : "2",
       cron_expression: job.cron_expression || "",
+      question: job.job_config?.question || "",
     });
   };
 
@@ -195,6 +197,11 @@ export default function ScheduledJobsPanel({
         payload.schedule_day_of_month = Number(editForm.schedule_day_of_month || "1");
         payload.schedule_hour = Number(editForm.schedule_hour || "0");
         payload.schedule_minute = Number(editForm.schedule_minute || "0");
+      }
+
+      const originalQuestion = editJob.job_config?.question ?? "";
+      if (editForm.question !== originalQuestion) {
+        payload.job_config = { ...editJob.job_config, question: editForm.question };
       }
 
       await updateCustomScheduledJob(editJob.id, payload, currentToken);
@@ -475,14 +482,17 @@ export default function ScheduledJobsPanel({
               </button>
             </div>
 
-            {editJob.job_config?.question && (
+            {editJob.job_config?.question != null && (
               <div className={styles.formRow}>
-                <label className={styles.label}>Research prompt (read-only)</label>
+                <label className={styles.label}>Research prompt</label>
                 <textarea
-                  className={styles.promptPreview}
-                  readOnly
-                  value={editJob.job_config.question}
-                  rows={12}
+                  className={styles.promptInput}
+                  value={editForm.question}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, question: e.target.value })
+                  }
+                  rows={14}
+                  spellCheck={false}
                   aria-label="Research prompt"
                 />
               </div>

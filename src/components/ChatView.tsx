@@ -2,9 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback, ReactElement } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import ChatSessionLoader from "./ChatSessionLoader";
+import MarkdownWithEmbeds from "./MarkdownWithEmbeds";
 import ToolCall from "./ToolCall";
 import SessionHeader from "./SessionHeader";
 import Loader from "./Loader";
@@ -1039,7 +1038,7 @@ export default function ChatView({
             if (currentTextContent.trim()) {
               elements.push(
                 <div key={`text-${idx}`} className={styles.messageContent}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentTextContent}</ReactMarkdown>
+                  <MarkdownWithEmbeds content={currentTextContent} />
                 </div>
               );
             }
@@ -1055,7 +1054,7 @@ export default function ChatView({
           if (currentTextContent.trim()) {
             elements.push(
               <div key={`text-before-tool-${idx}`} className={styles.messageContent}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentTextContent}</ReactMarkdown>
+                <MarkdownWithEmbeds content={currentTextContent} />
               </div>
             );
             currentTextContent = "";
@@ -1068,7 +1067,7 @@ export default function ChatView({
           if (toolCall) {
             elements.push(
               <ToolCall
-                key={toolCall.tool_id || `tool-${idx}`}
+                key={`${msg.id}-tool-${idx}`}
                 toolCall={toolCall}
               />
             );
@@ -1082,7 +1081,7 @@ export default function ChatView({
       if (currentTextContent.trim()) {
         elements.push(
           <div key="text-final" className={styles.messageContent}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentTextContent}</ReactMarkdown>
+            <MarkdownWithEmbeds content={currentTextContent} />
           </div>
         );
       }
@@ -1099,7 +1098,7 @@ export default function ChatView({
         if (msg.content.trim() !== allTextFromEvents.trim()) {
           elements.push(
             <div key="message-content-final" className={styles.messageContent}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+              <MarkdownWithEmbeds content={msg.content} />
             </div>
           );
         }
@@ -1114,12 +1113,12 @@ export default function ChatView({
           {msg.tool_calls &&
             msg.tool_calls.length > 0 &&
             msg.tool_calls.map((toolCall, idx) => (
-              <ToolCall key={toolCall.tool_id || `tool-${idx}`} toolCall={toolCall} />
+              <ToolCall key={`${msg.id}-tool-${idx}`} toolCall={toolCall} />
             ))}
           {/* Render markdown content */}
           {msg.content && (
             <div className={styles.messageContent}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+              <MarkdownWithEmbeds content={msg.content} />
             </div>
           )}
         </>

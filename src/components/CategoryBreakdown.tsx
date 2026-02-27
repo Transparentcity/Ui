@@ -40,15 +40,30 @@ interface CategoryBreakdownProps {
   categoryFields: CategoryField[];
   /** Optional: pass when parent already has the summary to avoid duplicate request */
   timeSeriesSummary?: PublicTimeSeriesSummary | null;
+  /** ISO date string for the start of the current comparison period (e.g. YTD start) */
+  currentPeriodStart?: string | null;
+  /** ISO date string for the end of the current comparison period (e.g. YTD end) */
+  currentPeriodEnd?: string | null;
 }
 
-/** Sum numeric_value by group_value across all time periods (total count per category). */
-function aggregateByGroupSumAllPeriods(
-  data: PublicTimeSeriesChartPoint[]
+/**
+ * Aggregate numeric_value by group_value, filtered to a date range.
+ * Falls back to the current calendar year when no dates are supplied.
+ */
+function aggregateByGroupForPeriod(
+  data: PublicTimeSeriesChartPoint[],
+  periodStart?: string | null,
+  periodEnd?: string | null,
 ): { group_value: string; total: number }[] {
   if (!data.length) return [];
+
+  const startDate = periodStart ? periodStart.slice(0, 10) : `${new Date().getFullYear()}-01-01`;
+  const endDate = periodEnd ? periodEnd.slice(0, 10) : "9999-12-31";
+
   const byGroup = new Map<string, number>();
   for (const pt of data) {
+    const tp = pt.time_period.slice(0, 10);
+    if (tp < startDate || tp > endDate) continue;
     const gv = pt.group_value != null && pt.group_value !== "" ? String(pt.group_value) : "(blank)";
     const val = Number(pt.numeric_value);
     if (!Number.isFinite(val)) continue;
@@ -93,7 +108,7 @@ function SingleGroupBreakdown({
                     className="category-breakdown-bar-fill"
                     style={{
                       width: `${(r.total / maxVal) * 100}%`,
-                      backgroundColor: BAR_COLORS[i % BAR_COLORS.length],
+                      backgroundColor: BAR_COLORS[0],
                     }}
                   />
                 </div>
@@ -163,6 +178,8 @@ export default function CategoryBreakdown({
   metricId,
   categoryFields,
   timeSeriesSummary: initialSummary,
+  currentPeriodStart,
+  currentPeriodEnd,
 }: CategoryBreakdownProps) {
   const summaryQuery = useQuery({
     queryKey: ["public-metric-time-series-summary", metricId],
@@ -206,12 +223,17 @@ export default function CategoryBreakdown({
   }, [fieldNames, chartIdsByField, categoryFields]);
 
   const chartQueries = useQuery({
-    queryKey: ["category-breakdown-charts", chartsToFetch.map((c) => c.chartId).sort().join(",")],
+    queryKey: [
+      "category-breakdown-charts",
+      chartsToFetch.map((c) => c.chartId).sort().join(","),
+      currentPeriodStart ?? "",
+      currentPeriodEnd ?? "",
+    ],
     queryFn: async () => {
       const results = await Promise.all(
         chartsToFetch.map(async ({ chartId, fieldName, displayName }) => {
           const res = await getPublicTimeSeriesChart(chartId);
-          const rows = aggregateByGroupSumAllPeriods(res.data);
+          const rows = aggregateByGroupForPeriod(res.data, currentPeriodStart, currentPeriodEnd);
           const total = rows.reduce((a, r) => a + r.total, 0);
           const withPct = rows.map((r) => ({
             ...r,

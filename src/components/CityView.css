@@ -1751,14 +1751,9 @@ button.metrics-table-row {
 .metrics-subcategory-header {
   display: flex;
   align-items: center;
-  padding: 6px 16px;
+  padding: 4px 16px;
   background: var(--bg-primary);
   border-bottom: 1px solid var(--border-primary);
-}
-
-.metrics-subcategory-footer {
-  margin-top: 4px;
-  border-top: 1px solid var(--border-secondary, rgba(17, 24, 39, 0.06));
 }
 
 .metrics-subcategory-title {

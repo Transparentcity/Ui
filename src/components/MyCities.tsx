@@ -2,17 +2,20 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
-import { getSavedCities, unsaveCity, SavedCity, prefetchCity } from "@/lib/apiClient";
+import { getSavedCities, unsaveCity, SavedCity, SavedDistrict, prefetchCity } from "@/lib/apiClient";
+import { useSavedDistricts } from "@/lib/hooks/useCities";
 import { SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEvents";
 import Loader from "./Loader";
 import styles from "./SidebarLists.module.css";
 
 interface MyCitiesProps {
   onCityClick?: (cityId: number) => void;
+  onDistrictClick?: (cityId: number, district: string) => void;
   activeCityId?: number | null;
+  activeDistrict?: string | null;
 }
 
-export default function MyCities({ onCityClick, activeCityId }: MyCitiesProps) {
+export default function MyCities({ onCityClick, onDistrictClick, activeCityId, activeDistrict }: MyCitiesProps) {
   const { getAccessTokenSilently } = useAuth0();
   const [cities, setCities] = useState<SavedCity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,6 +25,16 @@ export default function MyCities({ onCityClick, activeCityId }: MyCitiesProps) {
   const menuRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
   const prefetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastPrefetchedCityId = useRef<number | null>(null);
+
+  const { data: savedDistricts = [] } = useSavedDistricts();
+
+  const districtsByCityId = savedDistricts
+    .filter((d) => d.district !== "0")
+    .reduce<Record<number, SavedDistrict[]>>((acc, d) => {
+      if (!acc[d.city_id]) acc[d.city_id] = [];
+      acc[d.city_id].push(d);
+      return acc;
+    }, {});
 
   useEffect(() => {
     loadCities();
@@ -165,47 +178,69 @@ export default function MyCities({ onCityClick, activeCityId }: MyCitiesProps) {
           ) : cities.length === 0 ? (
             <div className={styles.emptyState}>No saved cities</div>
           ) : (
-            cities.map((city) => (
-              <div
-                key={city.id}
-                className={`${styles.item} ${activeCityId === city.id ? styles.itemActive : ""}` }
-                data-city-id={city.id}
-                onMouseEnter={() => handleCityHover(city.id)}
-                onClick={() => handleCityClick(city.id)}
-              >
-                <div className={styles.content}>
-                  <div className={styles.myCitiesItemWrapper}>
-                    {city.emoji && (
-                      <span className={styles.myCitiesEmoji}>{city.emoji}</span>
-                    )}
-                    <div className={styles.myCitiesName}>{city.display_name}</div>
-                  </div>
-                </div>
-                <button
-                  className={styles.menuBtn}
-                  onClick={(e) => handleMenuToggle(e, city.id)}
-                  title="Options"
-                >
-                  ⋮
-                </button>
-                <div
-                  ref={(el) => {
-                    menuRefs.current[city.id] = el;
-                  }}
-                  className={`${styles.menu} ${openMenuId === city.id ? styles.menuShow : ""}` }
-                  id={`city-menu-${city.id}`}
-                >
+            cities.map((city) => {
+              const cityDistricts = districtsByCityId[city.id] || [];
+              return (
+                <div key={city.id}>
                   <div
-                    className={`${styles.menuItem} ${styles.menuItemDelete}` }
-                    onClick={(e) =>
-                      handleUnsaveCity(e, city.id, city.display_name)
-                    }
+                    className={`${styles.item} ${activeCityId === city.id && !activeDistrict ? styles.itemActive : ""}`}
+                    data-city-id={city.id}
+                    onMouseEnter={() => handleCityHover(city.id)}
+                    onClick={() => handleCityClick(city.id)}
                   >
-                    🗑️ Remove from My Cities
+                    <div className={styles.content}>
+                      <div className={styles.myCitiesItemWrapper}>
+                        {city.emoji && (
+                          <span className={styles.myCitiesEmoji}>{city.emoji}</span>
+                        )}
+                        <div className={styles.myCitiesName}>{city.display_name}</div>
+                      </div>
+                    </div>
+                    <button
+                      className={styles.menuBtn}
+                      onClick={(e) => handleMenuToggle(e, city.id)}
+                      title="Options"
+                    >
+                      ⋮
+                    </button>
+                    <div
+                      ref={(el) => {
+                        menuRefs.current[city.id] = el;
+                      }}
+                      className={`${styles.menu} ${openMenuId === city.id ? styles.menuShow : ""}`}
+                      id={`city-menu-${city.id}`}
+                    >
+                      <div
+                        className={`${styles.menuItem} ${styles.menuItemDelete}`}
+                        onClick={(e) =>
+                          handleUnsaveCity(e, city.id, city.display_name)
+                        }
+                      >
+                        🗑️ Remove from My Cities
+                      </div>
+                    </div>
                   </div>
+                  {cityDistricts.length > 0 && (
+                    <div className={styles.districtSubList}>
+                      {cityDistricts.map((d) => {
+                        const isDistrictActive =
+                          activeCityId === d.city_id && String(activeDistrict) === d.district;
+                        return (
+                          <div
+                            key={`${d.city_id}-${d.district}`}
+                            className={`${styles.districtSubItem} ${isDistrictActive ? styles.districtSubItemActive : ""}`}
+                            onClick={() => onDistrictClick?.(d.city_id, d.district)}
+                          >
+                            <span className={styles.districtNumber}>D{d.district}</span>
+                            <span className={styles.districtName}>{d.display_name}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}

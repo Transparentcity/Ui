@@ -211,6 +211,22 @@
   background: #0056b3;
 }
 
+.session-link-button {
+  padding: 0.35rem 0.75rem;
+  background: transparent;
+  color: #007bff;
+  border: 1px solid #007bff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+.session-link-button:hover {
+  background: #007bff;
+  color: white;
+}
+
 .not-public {
   padding: 1rem;
   background: #fff3cd;
