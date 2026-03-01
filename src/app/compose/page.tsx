@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/db"
+import { DashboardShell } from "@/components/dashboard-shell"
 import { ComposePageContent } from "@/components/compose-page-content"
 
 export const dynamic = 'force-dynamic'
@@ -15,7 +16,7 @@ export default async function ComposePage() {
       )
     `)
     .eq("status", "active")
-    .order("priority", { ascending: false })
+    .order("name")
 
   const { data: keywordsData } = await db
     .from("keywords")
@@ -26,9 +27,14 @@ export default async function ComposePage() {
   const keywords = Array.isArray(keywordsData) ? keywordsData : []
 
   return (
-    <ComposePageContent
-      contacts={contacts as any}
-      keywords={keywords as any}
-    />
+    <DashboardShell
+      title="AI Compose"
+      description="Select a contact and generate a personalized anomaly email"
+    >
+      <ComposePageContent
+        contacts={contacts as any}
+        keywords={keywords as any}
+      />
+    </DashboardShell>
   )
 }

@@ -309,6 +309,8 @@ export function ContactImportDialog({ keywords, children }: ContactImportDialogP
             organization: row.data.organization || null,
             department: row.data.department || null,
             jurisdiction: row.data.jurisdiction || null,
+            city_id: null,
+            city_name: null,
             priority: row.data.priority ? parseInt(row.data.priority) : 3,
             notes: row.data.notes || null,
             keywordIds,

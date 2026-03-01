@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useEffect, useRef } from "react"
 import {
   Dialog,
   DialogContent,
@@ -24,7 +24,13 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Contact, Keyword } from "@/lib/types"
 import { createContact, updateContact } from "@/app/actions/contacts"
-import { X } from "lucide-react"
+import { X, MapPin } from "lucide-react"
+import { searchPublicCities } from "@/lib/publicApiClient"
+
+// Pinned cities for quick selection
+const PINNED_CITIES = [
+  { id: 1, name: "San Francisco", state: "CA" },
+]
 
 interface ContactWithKeywords extends Contact {
   keywords?: Keyword[]
@@ -43,9 +49,66 @@ export function ContactDialog({ contact, keywords, children }: ContactDialogProp
     contact?.keywords?.map(k => k.id) || []
   )
 
+  // City search state
+  const [cityQuery, setCityQuery] = useState(contact?.city_name || "")
+  const [cityId, setCityId] = useState<number | null>(contact?.city_id || null)
+  const [cityResults, setCityResults] = useState<Array<{ id: number; name: string; state?: string }>>([])
+  const [showCityDropdown, setShowCityDropdown] = useState(false)
+  const cityRef = useRef<HTMLDivElement>(null)
+
+  // Search cities as user types
+  useEffect(() => {
+    if (cityQuery.length < 2) {
+      setCityResults([])
+      return
+    }
+    // If we already selected a city with this exact name, don't search
+    if (cityId && cityQuery === contact?.city_name) return
+
+    const timer = setTimeout(async () => {
+      try {
+        const results = await searchPublicCities(cityQuery, 8)
+        setCityResults(results.map(r => ({ id: r.id, name: r.name, state: (r as any).state })))
+        setShowCityDropdown(true)
+      } catch {
+        setCityResults([])
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [cityQuery, cityId, contact?.city_name])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (cityRef.current && !cityRef.current.contains(e.target as Node)) {
+        setShowCityDropdown(false)
+      }
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [])
+
+  const selectCity = (city: { id: number; name: string; state?: string }) => {
+    const displayName = city.state ? `${city.name}, ${city.state}` : city.name
+    setCityId(city.id)
+    setCityQuery(displayName)
+    setShowCityDropdown(false)
+  }
+
+  const clearCity = () => {
+    setCityId(null)
+    setCityQuery("")
+    setCityResults([])
+  }
+
   const handleSubmit = async (formData: FormData) => {
     formData.append('keywords', JSON.stringify(selectedKeywords))
-    
+    if (cityId) {
+      formData.append('city_id', String(cityId))
+    }
+    formData.append('city_name', cityQuery)
+
     startTransition(async () => {
       if (contact) {
         await updateContact(contact.id, formData)
@@ -140,14 +203,78 @@ export function ContactDialog({ contact, keywords, children }: ContactDialogProp
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="jurisdiction">Jurisdiction</Label>
-            <Input
-              id="jurisdiction"
-              name="jurisdiction"
-              defaultValue={contact?.jurisdiction || ''}
-              placeholder="District 5, Springfield County"
-            />
+          {/* City + Jurisdiction row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2" ref={cityRef}>
+              <Label htmlFor="city_search">City</Label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  id="city_search"
+                  value={cityQuery}
+                  onChange={(e) => {
+                    setCityQuery(e.target.value)
+                    if (cityId) setCityId(null) // clear selection when typing
+                  }}
+                  onFocus={() => setShowCityDropdown(true)}
+                  placeholder="Search cities..."
+                  className="pl-9"
+                  autoComplete="off"
+                />
+                {cityId && (
+                  <button
+                    type="button"
+                    onClick={clearCity}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+                {showCityDropdown && (cityResults.length > 0 || !cityQuery) && (
+                  <div className="absolute z-50 w-full mt-1 bg-white rounded-md border border-gray-200 shadow-lg max-h-48 overflow-y-auto">
+                    {/* Show pinned cities when no search query */}
+                    {!cityQuery && PINNED_CITIES.map((city) => (
+                      <button
+                        key={`pinned-${city.id}`}
+                        type="button"
+                        onClick={() => selectCity(city)}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-purple-50 flex items-center gap-2"
+                      >
+                        <MapPin className="w-3 h-3 text-purple-500 shrink-0" />
+                        <span className="font-medium">{city.name}{city.state ? `, ${city.state}` : ''}</span>
+                      </button>
+                    ))}
+                    {/* Search results */}
+                    {cityResults.filter(c => !PINNED_CITIES.some(p => p.id === c.id)).map((city) => (
+                      <button
+                        key={city.id}
+                        type="button"
+                        onClick={() => selectCity(city)}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
+                        <span>{city.name}{city.state ? `, ${city.state}` : ''}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {cityId && (
+                <p className="text-xs text-green-600">Linked to city #{cityId}</p>
+              )}
+              {!cityId && cityQuery.length > 0 && (
+                <p className="text-xs text-amber-600">Select a city from the list to enable anomaly matching</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="jurisdiction">Jurisdiction / District</Label>
+              <Input
+                id="jurisdiction"
+                name="jurisdiction"
+                defaultValue={contact?.jurisdiction || ''}
+                placeholder="District 5"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -190,8 +317,8 @@ export function ContactDialog({ contact, keywords, children }: ContactDialogProp
                 selectedKeywords.map(keywordId => {
                   const keyword = keywords.find(k => k.id === keywordId)
                   return keyword ? (
-                    <Badge 
-                      key={keyword.id} 
+                    <Badge
+                      key={keyword.id}
                       variant="secondary"
                       className="flex items-center gap-1 cursor-pointer hover:bg-[var(--bg-tertiary)]"
                       onClick={() => toggleKeyword(keyword.id)}

@@ -14,6 +14,8 @@ export interface Prospect {
   email: string | null
   phone: string | null
   jurisdiction: string | null       // District/area for matching anomalies (e.g., "D5", "District 11")
+  city_id: number | null            // Platform city ID for anomaly matching (e.g., 57260 = San Francisco)
+  city_name: string | null          // Display name of the city (denormalized for convenience)
   priority: number                  // 1=highest, 5=lowest
   status: 'active' | 'inactive' | 'unsubscribed'
   notes: string | null
@@ -186,32 +188,6 @@ export interface ContactWithKeywords extends Contact {
   keywords?: Keyword[]
 }
 
-export interface MessageWithContact extends Message {
-  contact?: Contact
-}
-
-export interface ResponseWithContact extends Response {
-  contact?: Contact
-  message?: Message
-}
-
-export interface FollowupWithContact extends Followup {
-  contact?: Contact
-  response?: Response
-}
-
-// Dashboard stats
-export interface DashboardStats {
-  totalContacts: number
-  activeContacts: number
-  pendingResponses: number
-  overdueFollowups: number
-  messagesSent: number
-  responseRate: number
-  campaignsActive: number
-  anomaliesPending: number
-}
-
 // Dynamic Template System Types
 
 export interface TemplateVariation {
@@ -236,13 +212,15 @@ export interface SendQueueItem {
   campaign_id: string | null
   prospect_id: string
   template_id: string | null
+  anomaly_result_id?: number | null
   channel: 'email' | 'sms'
   personalized_subject: string | null
   personalized_body: string | null
   anomaly_snippet: string | null
+  chart_url?: string | null
   variation_seed: number | null
   priority: number
-  status: 'pending_review' | 'queued' | 'processing' | 'sent' | 'failed' | 'cancelled'
+  status: 'pending_review' | 'queued' | 'processing' | 'sent' | 'failed' | 'cancelled' | 'discarded'
   scheduled_for: string | null
   sent_at: string | null
   error_message: string | null
@@ -296,14 +274,3 @@ export interface TemplateWithVariations extends Template {
   variation_enabled?: boolean
 }
 
-// Queue Statistics
-export interface QueueStats {
-  total: number
-  queued: number
-  processing: number
-  sent: number
-  failed: number
-  cancelled: number
-  todaySent: number
-  hourSent: number
-}

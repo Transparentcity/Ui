@@ -13,6 +13,9 @@ export async function createContact(formData: FormData) {
   const email = formData.get('email') as string | null
   const phone = formData.get('phone') as string | null
   const jurisdiction = formData.get('jurisdiction') as string | null
+  const cityIdRaw = formData.get('city_id') as string | null
+  const city_id = cityIdRaw ? parseInt(cityIdRaw) || null : null
+  const city_name = formData.get('city_name') as string | null
   const priority = parseInt(formData.get('priority') as string) || 3
   const status = formData.get('status') as string || 'active'
   const notes = formData.get('notes') as string | null
@@ -28,6 +31,8 @@ export async function createContact(formData: FormData) {
       email: email || null,
       phone: phone || null,
       jurisdiction: jurisdiction || null,
+      city_id: city_id,
+      city_name: city_name || null,
       priority,
       status,
       notes: notes || null
@@ -64,6 +69,9 @@ export async function updateContact(id: string, formData: FormData) {
   const email = formData.get('email') as string | null
   const phone = formData.get('phone') as string | null
   const jurisdiction = formData.get('jurisdiction') as string | null
+  const cityIdRaw = formData.get('city_id') as string | null
+  const city_id = cityIdRaw ? parseInt(cityIdRaw) || null : null
+  const city_name = formData.get('city_name') as string | null
   const priority = parseInt(formData.get('priority') as string) || 3
   const status = formData.get('status') as string || 'active'
   const notes = formData.get('notes') as string | null
@@ -79,6 +87,8 @@ export async function updateContact(id: string, formData: FormData) {
       email: email || null,
       phone: phone || null,
       jurisdiction: jurisdiction || null,
+      city_id: city_id,
+      city_name: city_name || null,
       priority,
       status,
       notes: notes || null
@@ -122,6 +132,40 @@ export async function deleteContact(id: string) {
   revalidatePath('/')
 }
 
+// Bulk update city on multiple contacts
+export async function bulkUpdateCity(
+  contactIds: string[],
+  cityId: number | null,
+  cityName: string | null
+): Promise<{ updated: number; errors: string[] }> {
+  const db = createClient()
+  const errors: string[] = []
+  let updated = 0
+
+  // Process in batches of 50
+  const batchSize = 50
+  for (let i = 0; i < contactIds.length; i += batchSize) {
+    const batch = contactIds.slice(i, i + batchSize)
+
+    for (const id of batch) {
+      const { error } = await db
+        .from('prospects')
+        .update({ city_id: cityId, city_name: cityName })
+        .eq('id', id)
+
+      if (error) {
+        errors.push(`Contact ${id}: ${error.message}`)
+      } else {
+        updated++
+      }
+    }
+  }
+
+  revalidatePath('/contacts')
+  revalidatePath('/')
+  return { updated, errors }
+}
+
 // Bulk import contacts from CSV
 interface ImportContact {
   name: string
@@ -131,6 +175,8 @@ interface ImportContact {
   organization: string | null
   department: string | null
   jurisdiction: string | null
+  city_id: number | null
+  city_name: string | null
   priority: number
   notes: string | null
   keywordIds: string[]
@@ -182,6 +228,8 @@ export async function importContacts(contacts: ImportContact[]): Promise<ImportR
       organization: c.organization,
       department: c.department,
       jurisdiction: c.jurisdiction,
+      city_id: c.city_id,
+      city_name: c.city_name,
       priority: c.priority,
       status: 'active' as const,
       notes: c.notes,

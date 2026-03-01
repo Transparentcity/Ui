@@ -2,34 +2,22 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { 
-  Users, 
-  Send, 
-  FileText,
-  BarChart3,
+import {
+  Users,
   AlertTriangle,
-  CheckSquare,
   Tags,
-  ListTodo,
-  Inbox,
+  ClipboardCheck,
   Sparkles,
   ArrowLeft,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navigation = [
+  { name: "Review & Send", href: "/review-and-send", icon: ClipboardCheck },
   { name: "AI Compose", href: "/compose", icon: Sparkles, highlight: true },
-  { name: "City Readiness", href: "/cityreadiness", icon: BarChart3 },
   { name: "Contacts", href: "/contacts", icon: Users },
   { name: "Keywords", href: "/keywords", icon: Tags },
-  { name: "Templates", href: "/templates", icon: FileText },
-  { name: "Campaigns", href: "/campaigns", icon: Send },
-  { name: "Message Review", href: "/message-review", icon: ListTodo },
-  { name: "Send Queue", href: "/send-queue", icon: Send },
-  { name: "Responses", href: "/responses", icon: Inbox },
-  { name: "Follow-ups", href: "/followups", icon: CheckSquare },
   { name: "Anomalies", href: "/anomalies", icon: AlertTriangle },
-  { name: "Analytics", href: "/analytics", icon: BarChart3 },
 ]
 
 export function CRMSidebar() {
