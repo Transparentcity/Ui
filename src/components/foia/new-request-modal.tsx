@@ -125,8 +125,6 @@ export function NewRequestModal({
     department_id: undefined as number | undefined,
     requester_email_override: "",
     format_requested: "CSV",
-    submission_url: "",
-    submission_email_address: "",
   })
 
   // Load org-wide requester profile once when modal opens
@@ -478,8 +476,6 @@ export function NewRequestModal({
         requester_email_override: form.requester_email_override || undefined,
         portal_fields: Object.keys(portalFields).length > 0 ? portalFields : undefined,
         format_requested: form.format_requested,
-        submission_url: form.submission_url.trim() || undefined,
-        submission_email_address: form.submission_email_address.trim() || undefined,
       })
 
       const newId = (result as { id?: number })?.id
@@ -865,36 +861,6 @@ export function NewRequestModal({
               </button>
               {showAdvanced && (
                 <div className="mt-3 flex flex-col gap-4">
-                  {/* Optional submission address (URL/email) */}
-                  <div className="rounded-lg border border-gray-200 bg-white p-3">
-                    <p className="text-xs font-semibold text-gray-900">Submission address (optional)</p>
-                    <p className="mt-0.5 text-[11px] text-gray-500">
-                      If you want to track what you used, add the portal URL or submission email here. Otherwise, skip.
-                    </p>
-                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-gray-700">Portal / Website URL</label>
-                        <input
-                          type="url"
-                          value={form.submission_url}
-                          onChange={(e) => setForm((f) => ({ ...f, submission_url: e.target.value }))}
-                          placeholder="https://nextrequest.com/... or https://cityname.justfoia.com/..."
-                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-gray-700">Submission Email Address</label>
-                        <input
-                          type="email"
-                          value={form.submission_email_address}
-                          onChange={(e) => setForm((f) => ({ ...f, submission_email_address: e.target.value }))}
-                          placeholder="records@sfgov.org"
-                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
                   {/* Department + coordination (optional) */}
                   {departments.length > 0 && (
                     <div className="rounded-lg border border-gray-200 bg-white p-3">

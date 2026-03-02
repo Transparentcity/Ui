@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import {
-  Plus, Search, Filter, Loader2, AlertTriangle, Trash2, Pencil, Copy, ExternalLink, Mail,
+  Plus, Search, Filter, Loader2, AlertTriangle, Pencil, Copy, ExternalLink, Mail,
   FileText, Clock, CheckCircle2, MessageSquare, Database, RefreshCw,
 } from "lucide-react"
 import { useAuth0 } from "@auth0/auth0-react"
-import { deleteFoiaRequest, getFoiaDashboard, listFoiaRequests } from "@/lib/foiaApiClient"
+import { getFoiaDashboard, listFoiaRequests } from "@/lib/foiaApiClient"
 import { RequestStatusBadge } from "@/components/foia/status-badge"
 import { NewRequestModal } from "@/components/foia/new-request-modal"
 import type { RequestStatus, FoiaRequest, FoiaDashboardSummary } from "@/lib/foia/types"
@@ -65,7 +65,6 @@ export function RequestsListContent() {
   const [requests, setRequests] = useState<FoiaRequest[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [deletingId, setDeletingId] = useState<number | null>(null)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<RequestStatus | "all">("all")
   const [showNewRequest, setShowNewRequest] = useState(false)
@@ -111,29 +110,6 @@ export function RequestsListContent() {
   useEffect(() => {
     loadRequests()
   }, [loadRequests])
-
-  async function handleDelete(requestId: number) {
-    const ok = confirm("Delete this request? This cannot be undone.")
-    if (!ok) return
-
-    setDeletingId(requestId)
-    let token: string | undefined
-    if (isAuthenticated) {
-      try {
-        token = await getAccessTokenSilently()
-      } catch {
-        // continue without token
-      }
-    }
-    try {
-      await deleteFoiaRequest(requestId, token)
-      await loadRequests()
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Delete failed")
-    } finally {
-      setDeletingId(null)
-    }
-  }
 
   const openCount = requests.filter(
     (r) => !["fulfilled", "denied", "closed_incomplete"].includes(r.status)
@@ -286,31 +262,15 @@ export function RequestsListContent() {
                       )}
                     </td>
                     <td className="px-4 py-4 text-right">
-                      <div className="inline-flex items-center gap-2">
-                        <Link
-                          href={`/foia/requests/${req.id}?edit=1`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                          title={req.status === "draft" ? "Edit request" : "Edit submission email/URL + confirmation number"}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                          Edit
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            void handleDelete(req.id)
-                          }}
-                          disabled={deletingId === req.id}
-                          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-                          title="Delete request"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          {deletingId === req.id ? "Deleting..." : "Delete"}
-                        </button>
-                      </div>
+                      <Link
+                        href={`/foia/requests/${req.id}?edit=1`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                        title={req.status === "draft" ? "Edit request" : "Edit submission email/URL + confirmation number"}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </Link>
                     </td>
                   </tr>
                 )
