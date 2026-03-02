@@ -212,7 +212,7 @@ export function DashboardContent() {
             label="Tasks Due"
             value={displaySummary.tasks_due}
             icon={CheckCircle2}
-            href="/foia/tasks"
+            href="/foia/messages"
             accent="primary"
           />
         </div>
@@ -343,7 +343,7 @@ export function DashboardContent() {
           <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
             <h2 className="text-sm font-semibold text-gray-900">Pending Tasks</h2>
             <Link
-              href="/foia/tasks"
+              href="/foia/messages"
               className="flex items-center gap-1 text-xs font-medium text-purple-600 hover:underline"
             >
               View all <ArrowRight className="h-3 w-3" />
