@@ -6,6 +6,7 @@ import { ChevronRight, Map as MapIcon } from "lucide-react"
 import type { WasteFinding } from "@/lib/apiClient"
 import { WasteFindingCard } from "./waste-finding-card"
 import type { SubGroup } from "./waste-findings-list"
+import { formatDollar } from "./waste-utils"
 
 const ROADMAP_DETECTOR_NAMES = [
   "Address Clustering",
@@ -21,14 +22,6 @@ function hasRoadmapLabel(text: string): boolean {
 
 function stripRoadmapLabel(text: string): string {
   return text.replace(/\s*\(On Roadmap\)/gi, "").trim()
-}
-
-function formatDollar(amount: number | null | undefined): string {
-  if (amount == null) return ""
-  const abs = Math.abs(amount)
-  if (abs >= 1_000_000) return `$${(abs / 1_000_000).toFixed(1)}M`
-  if (abs >= 1_000) return `$${(abs / 1_000).toFixed(0)}K`
-  return `$${abs.toLocaleString()}`
 }
 
 function severityCounts(items: WasteFinding[]) {

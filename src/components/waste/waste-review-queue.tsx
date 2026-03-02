@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   useAssignWasteQueueItem,
@@ -253,37 +253,40 @@ export function WasteReviewQueue({ cityId }: { cityId: number | null }) {
     setLastAnalysisAt(runTimestamp ?? null)
   }, [latestRunQuery.data])
 
-  const runFreshAnalysisAndRefreshQueue = async (mode: "manual" | "auto") => {
-    if (!cityId) return
-    setRunSyncStartedAt(Date.now())
-    setRunSyncElapsedSeconds(0)
-    setRunSyncPhase("running")
-    setRunSyncMessage(
-      mode === "auto"
-        ? "Queue loaded. Running a background freshness analysis because the last run is stale."
-        : "Running fresh waste analysis and updating queue state. This can take up to ~2 minutes."
-    )
-    try {
-      await runAnalysisMutation.mutateAsync({
-        city_id: cityId,
-        force_refresh: true,
-        persist: true,
-      })
-      setRunSyncPhase("refreshing")
-      setRunSyncMessage("Analysis complete. Refreshing queue results…")
-      await Promise.all([queueQuery.refetch(), latestRunQuery.refetch()])
-      setRunSyncPhase("done")
+  const runFreshAnalysisAndRefreshQueue = useCallback(
+    async (mode: "manual" | "auto") => {
+      if (!cityId) return
+      setRunSyncStartedAt(Date.now())
+      setRunSyncElapsedSeconds(0)
+      setRunSyncPhase("running")
       setRunSyncMessage(
-        "Queue updated. If no items appear, current filters may be excluding them."
+        mode === "auto"
+          ? "Queue loaded. Running a background freshness analysis because the last run is stale."
+          : "Running fresh waste analysis and updating queue state. This can take up to ~2 minutes."
       )
-      setLastQueueRefreshAt(new Date().toISOString())
-    } catch {
-      setRunSyncPhase("error")
-      setRunSyncMessage(
-        "Run + Sync failed. Please retry, then check browser console for API errors."
-      )
-    }
-  }
+      try {
+        await runAnalysisMutation.mutateAsync({
+          city_id: cityId,
+          force_refresh: true,
+          persist: true,
+        })
+        setRunSyncPhase("refreshing")
+        setRunSyncMessage("Analysis complete. Refreshing queue results…")
+        await Promise.all([queueQuery.refetch(), latestRunQuery.refetch()])
+        setRunSyncPhase("done")
+        setRunSyncMessage(
+          "Queue updated. If no items appear, current filters may be excluding them."
+        )
+        setLastQueueRefreshAt(new Date().toISOString())
+      } catch {
+        setRunSyncPhase("error")
+        setRunSyncMessage(
+          "Run + Sync failed. Please retry, then check browser console for API errors."
+        )
+      }
+    },
+    [cityId, runAnalysisMutation, queueQuery, latestRunQuery]
+  )
 
   const handleRunAndSyncQueue = async () => {
     await runFreshAnalysisAndRefreshQueue("manual")
@@ -315,6 +318,7 @@ export function WasteReviewQueue({ cityId }: { cityId: number | null }) {
     queueQuery.isError,
     queueQuery.isLoading,
     runAnalysisMutation.isPending,
+    runFreshAnalysisAndRefreshQueue,
     syncQueueMutation.isPending,
   ])
 

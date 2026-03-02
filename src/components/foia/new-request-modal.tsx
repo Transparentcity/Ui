@@ -1,7 +1,7 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
-import { X, Loader2 } from "lucide-react"
+import React, { useState, useEffect, useCallback, useRef } from "react"
+import { X, Loader2, Star } from "lucide-react"
 import { createFoiaRequest } from "@/app/actions/foia"
 import {
   getCityFoiaProfileAndTargets,
@@ -37,6 +37,40 @@ const DEFAULT_DATASET_TYPES = [
 const FORMAT_OPTIONS = ["CSV", "XLSX", "JSON", "PDF"]
 const SF_CITY_ID = 57260
 const DEFAULT_AD_HOC_DATASET_TYPE_ID = "ad_hoc_public_records"
+const BOOKMARKED_CITIES_KEY = "foia_bookmarked_cities"
+
+function loadBookmarkedCities(): CityOption[] {
+  try {
+    const raw = localStorage.getItem(BOOKMARKED_CITIES_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function saveBookmarkedCities(cities: CityOption[]) {
+  try {
+    localStorage.setItem(BOOKMARKED_CITIES_KEY, JSON.stringify(cities))
+  } catch {
+    /* storage full or unavailable */
+  }
+}
+
+function toggleBookmark(city: CityOption): CityOption[] {
+  const existing = loadBookmarkedCities()
+  const idx = existing.findIndex((c) => c.id === city.id)
+  if (idx >= 0) {
+    existing.splice(idx, 1)
+  } else {
+    existing.push(city)
+  }
+  saveBookmarkedCities(existing)
+  return existing
+}
+
+function isCityBookmarked(cityId: number): boolean {
+  return loadBookmarkedCities().some((c) => c.id === cityId)
+}
 
 export function NewRequestModal({
   open,
@@ -70,6 +104,18 @@ export function NewRequestModal({
   const [showSteps, setShowSteps] = useState(false)
   const [openRecordsCategory, setOpenRecordsCategory] = useState<string>("")
   const [openRecordsAgency, setOpenRecordsAgency] = useState<string>("")
+  const [bookmarkedCities, setBookmarkedCities] = useState<CityOption[]>([])
+  const cityInputRef = useRef<HTMLInputElement>(null)
+
+  // Load bookmarks from localStorage on mount
+  useEffect(() => {
+    setBookmarkedCities(loadBookmarkedCities())
+  }, [])
+
+  const handleToggleBookmark = useCallback((city: CityOption) => {
+    const updated = toggleBookmark(city)
+    setBookmarkedCities(updated)
+  }, [])
 
   const [form, setForm] = useState({
     city_id: 0,
@@ -103,7 +149,8 @@ export function NewRequestModal({
   // Search cities as user types
   useEffect(() => {
     if (citySearch.length < 2) {
-      setCities([])
+      // When no search query, show bookmarked cities instead
+      setCities(bookmarkedCities.length > 0 ? bookmarkedCities : [])
       return
     }
     const timer = setTimeout(async () => {
@@ -113,14 +160,22 @@ export function NewRequestModal({
         )
         if (res.ok) {
           const data = await res.json()
-          setCities(Array.isArray(data) ? data : [])
+          const results: CityOption[] = Array.isArray(data) ? data : []
+          // Sort bookmarked cities to the top
+          const bookmarkedIds = new Set(bookmarkedCities.map((c) => c.id))
+          results.sort((a, b) => {
+            const aBookmarked = bookmarkedIds.has(a.id) ? 0 : 1
+            const bBookmarked = bookmarkedIds.has(b.id) ? 0 : 1
+            return aBookmarked - bBookmarked
+          })
+          setCities(results)
         }
       } catch {
         /* ignore */
       }
     }, 300)
     return () => clearTimeout(timer)
-  }, [citySearch])
+  }, [citySearch, bookmarkedCities])
 
   async function selectCity(city: CityOption) {
     setForm((f) => ({ ...f, city_id: city.id, city_name: `${city.name}, ${city.state}` }))
@@ -525,36 +580,100 @@ export function NewRequestModal({
 
         <form onSubmit={handleSubmit} className="max-h-[70vh] overflow-y-auto px-6 py-5">
           <div className="flex flex-col gap-4">
-            {/* City search */}
+            {/* City search with bookmarks */}
             <div className="relative">
               <label className="mb-1 block text-xs font-medium text-gray-700">City *</label>
-              <input
-                type="text"
-                value={citySearch}
-                onChange={(e) => {
-                  setCitySearch(e.target.value)
-                  setShowCityDropdown(true)
-                  if (!e.target.value) setForm((f) => ({ ...f, city_id: 0, city_name: "" }))
-                }}
-                onFocus={() => citySearch.length >= 2 && setShowCityDropdown(true)}
-                placeholder="Search for a city..."
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-              />
-              {showCityDropdown && cities.length > 0 && (
-                <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-                  {cities.map((c) => (
+
+              {/* Bookmarked city chips (quick select) */}
+              {bookmarkedCities.length > 0 && !form.city_id && (
+                <div className="mb-1.5 flex flex-wrap gap-1.5">
+                  {bookmarkedCities.map((c) => (
                     <button
                       key={c.id}
                       type="button"
                       onClick={() => selectCity(c)}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-purple-50"
+                      className="flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-100"
                     >
-                      <span className="font-medium text-gray-900">{c.name}</span>
-                      <span className="text-gray-500">{c.state}</span>
+                      <Star className="h-3 w-3 fill-purple-400 text-purple-400" />
+                      {c.name}, {c.state}
                     </button>
                   ))}
                 </div>
               )}
+
+              <div className="flex gap-1.5">
+                <div className="relative flex-1">
+                  <input
+                    ref={cityInputRef}
+                    type="text"
+                    value={citySearch}
+                    onChange={(e) => {
+                      setCitySearch(e.target.value)
+                      setShowCityDropdown(true)
+                      if (!e.target.value) setForm((f) => ({ ...f, city_id: 0, city_name: "" }))
+                    }}
+                    onFocus={() => setShowCityDropdown(true)}
+                    onBlur={() => {
+                      // Delay hiding so clicks on dropdown items register
+                      setTimeout(() => setShowCityDropdown(false), 200)
+                    }}
+                    placeholder={bookmarkedCities.length > 0 ? "Search or pick a starred city above..." : "Start typing a city name..."}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                  {showCityDropdown && cities.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                      {citySearch.length < 2 && bookmarkedCities.length > 0 && (
+                        <div className="border-b border-gray-100 px-3 py-1.5 text-[11px] font-medium text-gray-400">
+                          Starred cities
+                        </div>
+                      )}
+                      {cities.map((c) => {
+                        const isBookmarked = bookmarkedCities.some((b) => b.id === c.id)
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onMouseDown={(e) => {
+                              e.preventDefault() // prevent input blur
+                              selectCity(c)
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-purple-50"
+                          >
+                            {isBookmarked && <Star className="h-3 w-3 shrink-0 fill-purple-400 text-purple-400" />}
+                            <span className="font-medium text-gray-900">{c.name}</span>
+                            <span className="text-gray-500">{c.state}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Bookmark toggle for selected city */}
+                {form.city_id > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const city: CityOption = {
+                        id: form.city_id,
+                        name: (form.city_name || "").split(",")[0]?.trim() || "",
+                        state: (form.city_name || "").split(",")[1]?.trim() || "",
+                      }
+                      handleToggleBookmark(city)
+                    }}
+                    title={isCityBookmarked(form.city_id) ? "Remove from starred cities" : "Star this city for quick access"}
+                    className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-lg border border-gray-200 transition-colors hover:bg-purple-50"
+                  >
+                    <Star
+                      className={`h-4 w-4 ${
+                        isCityBookmarked(form.city_id)
+                          ? "fill-purple-500 text-purple-500"
+                          : "text-gray-400"
+                      }`}
+                    />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* City profile info */}

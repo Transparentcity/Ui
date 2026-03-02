@@ -3,47 +3,12 @@
 import { cn } from "@/lib/utils"
 import { Users, ShoppingCart, Wrench, FileCheck } from "lucide-react"
 import type { WasteCategorySummary } from "@/lib/apiClient"
-
-function formatDollar(amount: number | null | undefined): string {
-  if (amount == null) return ""
-  const abs = Math.abs(amount)
-  if (abs >= 1_000_000) return `$${(abs / 1_000_000).toFixed(1)}M`
-  if (abs >= 1_000) return `$${(abs / 1_000).toFixed(0)}K`
-  return `$${abs.toLocaleString()}`
-}
+import { normalizeWasteCategory, formatDollar } from "./waste-utils"
 
 interface CategoryConfig {
   key: string
   label: string
   icon: React.ReactNode
-}
-
-function normalizeWasteCategory(category: string): string {
-  const key = category.toLowerCase().trim().replace(/[_\s&.,'-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")
-  if (key === "payroll" || key.includes("payroll") || key === "payroll_compensation") return "payroll"
-  // Map integrity/personnel to payroll
-  if (key === "integrity" || key.includes("integrity") || key.includes("personnel") || key.includes("revolving") || key.includes("conflict")) {
-    return "payroll"
-  }
-  if (key === "contracts" || key === "vendor" || key === "vendors" || key.includes("vendor") || key === "vendor_procurement" || key.includes("contract") || key === "contracts_procurement") {
-    return "contracts"
-  }
-  if (
-    key === "infrastructure" ||
-    key === "services" ||
-    key === "service" ||
-    key.includes("infrastructure") ||
-    key === "infrastructure_services"
-  ) {
-    return "infrastructure"
-  }
-  if (key === "influence" || key.includes("influence") || key.includes("lobby") || key.includes("pay_to_play")) {
-    return "vendor"
-  }
-  if (key === "confirmed" || key.includes("confirmed")) {
-    return "confirmed"
-  }
-  return key
 }
 
 const CATEGORIES: CategoryConfig[] = [
@@ -91,11 +56,6 @@ export function WasteCategoryTabs({
             <div className="flex items-center gap-2 text-gray-600">
               {cat.icon}
               <span className="text-sm font-medium">{cat.label}</span>
-              {(cat.key === "integrity" || cat.key === "confirmed") && (
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-100 text-violet-700 uppercase tracking-wide">
-                  New
-                </span>
-              )}
             </div>
             <div className="flex items-baseline gap-3">
               <span className="text-3xl font-bold text-gray-900">

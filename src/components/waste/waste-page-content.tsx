@@ -29,82 +29,17 @@ import { SeverityDonut } from "./widgets/severity-donut"
 import { QueueStatus } from "./widgets/queue-status"
 import { AccuracyBars } from "./widgets/accuracy-bars"
 import { InvestigationSummary } from "./widgets/investigation-summary"
+import {
+  normalizeWasteCategory,
+  safeSetCache,
+  WASTE_ANALYSIS_CACHE_KEY,
+  type WasteCategoryKey,
+} from "./waste-utils"
 
 type SeverityFilter = "all" | "critical" | "high" | "medium"
-type WasteCategoryKey =
-  | "payroll"
-  | "contracts"
-  | "infrastructure"
-  | "confirmed"
-  | "detectors"
-  | "review"
-  | "accuracy"
 
 const WASTE_ANALYSIS_ESTIMATED_SECONDS = 120
 const WASTE_REFRESH_TIMEOUT_MS = 120_000
-const WASTE_ANALYSIS_CACHE_KEY = "waste:last-analysis:v1"
-function safeSetCache(key: string, data: WasteAnalyzeResponse): void {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(data))
-  } catch {
-    // localStorage full — try progressively smaller subsets
-    const limits = [500, 300, 150]
-    for (const limit of limits) {
-      try {
-        const trimmed: WasteAnalyzeResponse = {
-          ...data,
-          findings: data.findings?.slice(0, limit) ?? [],
-        }
-        window.localStorage.setItem(key, JSON.stringify(trimmed))
-        return
-      } catch {
-        continue
-      }
-    }
-    try {
-      window.localStorage.removeItem(key)
-    } catch {
-      // localStorage completely unavailable – silently give up
-    }
-  }
-}
-
-function normalizeWasteCategory(category: string): WasteCategoryKey {
-  const key = category.toLowerCase().trim().replace(/[_\s&.,'-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")
-  if (key === "payroll" || key.includes("payroll") || key === "payroll_compensation") return "payroll"
-  // Map integrity/personnel to payroll
-  if (key === "integrity" || key.includes("integrity") || key.includes("personnel") || key.includes("revolving") || key.includes("conflict")) {
-    return "payroll"
-  }
-  if (key === "contracts" || key === "vendor" || key === "vendors" || key.includes("vendor") || key.includes("contract") || key === "vendor_procurement" || key === "contracts_procurement") {
-    return "contracts"
-  }
-  if (
-    key === "infrastructure" ||
-    key === "services" ||
-    key === "service" ||
-    key.includes("infrastructure") ||
-    key === "infrastructure_services"
-  ) {
-    return "infrastructure"
-  }
-  if (key === "influence" || key.includes("influence") || key.includes("lobby") || key.includes("pay_to_play")) {
-    return "contracts"
-  }
-  if (key === "confirmed" || key.includes("confirmed")) {
-    return "confirmed"
-  }
-  if (key === "detectors" || key === "detectors_data") {
-    return "detectors"
-  }
-  if (key === "review" || key.includes("queue")) {
-    return "review"
-  }
-  if (key === "accuracy" || key.includes("precision")) {
-    return "accuracy"
-  }
-  return "payroll"
-}
 
 function formatAge(isoDate: string): string {
   const date = new Date(isoDate)

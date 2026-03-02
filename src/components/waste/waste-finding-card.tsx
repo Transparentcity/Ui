@@ -4,14 +4,7 @@ import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion, AlertCircle, Sparkles, Map as MapIcon } from "lucide-react"
 import { type WasteFinding } from "@/lib/apiClient"
-
-function formatDollar(amount: number | null | undefined): string {
-  if (amount == null) return ""
-  const abs = Math.abs(amount)
-  if (abs >= 1_000_000) return `$${(abs / 1_000_000).toFixed(1)}M`
-  if (abs >= 1_000) return `$${(abs / 1_000).toFixed(0)}K`
-  return `$${abs.toLocaleString()}`
-}
+import { formatDollar, escapeSoqlLike as escapeSoqlLikeShared, escapeSoql } from "./waste-utils"
 
 const severityConfig = {
   critical: {
@@ -167,8 +160,9 @@ function buildInfraKeywordFilter(): string {
   return `(${parts.join(" or ")})`
 }
 
+/** Use shared escapeSoqlLike from waste-utils (handles backslashes + quotes). */
 function escapeSoqlLike(value: string): string {
-  return value.replace(/'/g, "''")
+  return escapeSoqlLikeShared(value)
 }
 
 function formatHours(hours: string | undefined): string {
@@ -265,7 +259,7 @@ function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
   // CONTRACTS (vendor/procurement)
   if (cat.includes("contract") || cat.includes("vendor")) {
     const select = "vendor,department,vouchers_paid,voucher,purchase_order,fiscal_year"
-    const vendorName = escapeSoqlLike(finding.entity || "")
+    const vendorName = escapeSoql(finding.entity || "")
     
     const vendorOrder = "fiscal_year DESC,vouchers_paid DESC"
 

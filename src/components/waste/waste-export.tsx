@@ -13,10 +13,12 @@ interface WasteExportProps {
 export function WasteExport({ category }: WasteExportProps) {
   const { getAccessTokenSilently } = useAuth0()
   const [exporting, setExporting] = useState<string | null>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   const handleExport = async (format: "csv" | "json" | "xlsx") => {
     try {
       setExporting(format)
+      setExportError(null)
       const token = await getAccessTokenSilently()
 
       if (format === "xlsx") {
@@ -43,13 +45,21 @@ export function WasteExport({ category }: WasteExportProps) {
       URL.revokeObjectURL(url)
     } catch (err) {
       console.error("Export failed:", err)
+      const message =
+        err instanceof Error ? err.message : "Export failed. Please try again."
+      setExportError(message)
     } finally {
       setExporting(null)
     }
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-wrap">
+      {exportError && (
+        <span className="w-full text-xs text-red-600 mb-1">
+          {exportError}
+        </span>
+      )}
       <Button
         variant="outline"
         size="sm"

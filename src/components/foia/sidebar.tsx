@@ -4,26 +4,22 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import {
-  LayoutDashboard,
   FileText,
-  MessageSquareMore,
+  Inbox,
   Database,
   Building2,
   FileStack,
-  CheckSquare,
-  BarChart3,
+  MessageCircle,
   ArrowLeft,
 } from "lucide-react"
 
 const navItems = [
-  { label: "Dashboard", href: "/foia", icon: LayoutDashboard },
-  { label: "Readiness", href: "/foia/readiness", icon: BarChart3 },
   { label: "Requests", href: "/foia/requests", icon: FileText },
-  { label: "Follow Ups", href: "/foia/messages", icon: MessageSquareMore },
+  { label: "Inbox", href: "/foia/messages", icon: Inbox },
   { label: "Data Review", href: "/foia/data-review", icon: Database },
-  { label: "Tasks", href: "/foia/tasks", icon: CheckSquare },
   { label: "City Profiles", href: "/foia/cities", icon: Building2 },
   { label: "Templates", href: "/foia/templates", icon: FileStack },
+  { label: "Seymour", href: "/foia/chat", icon: MessageCircle },
 ]
 
 export function FoiaSidebar() {

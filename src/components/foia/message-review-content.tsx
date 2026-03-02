@@ -199,6 +199,10 @@ function taskTypeToIntent(taskType: string): Exclude<IntentCategory, "all"> {
     approve_follow_up: "review_draft",
     review_delivery: "general_followup",
     review_data_completeness: "general_followup",
+    portal_followup: "general_followup",
+    portal_check_status: "general_followup",
+    email_response: "send_response",
+    email_triage: "general_followup",
   }
   return map[taskType] || "general_followup"
 }
@@ -258,6 +262,11 @@ export function FollowUpsContent() {
             "appeal_denial",
             "follow_up_partial",
             "review_delivery",
+            "review_data_completeness",
+            "portal_followup",
+            "portal_check_status",
+            "email_response",
+            "email_triage",
           ].includes(t.type)
       )
 
@@ -389,7 +398,7 @@ export function FollowUpsContent() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Follow Ups</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">Inbox</h1>
           <p className="mt-1 text-sm text-gray-500">
             Inbound messages requiring action — review intent, draft a response, and approve before sending.
           </p>

@@ -2,6 +2,7 @@
 
 import { useMemo, useEffect, useRef, useState } from "react"
 import type { WasteFinding } from "@/lib/apiClient"
+import { escapeHtml } from "./waste-utils"
 import "@/components/AnomalyMap.css"
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ""
@@ -268,9 +269,9 @@ export function WasteClusterMap({ findings }: WasteClusterMapProps) {
           .setLngLat(coords)
           .setHTML(
             `<div style="font-family:Inter,sans-serif;font-size:13px;line-height:1.5">
-              <div style="font-weight:600;margin-bottom:2px">${props.neighborhood}</div>
-              <div style="color:#6b7280">${props.count} complaints</div>
-              <div style="color:#9ca3af;font-size:11px">${props.type}</div>
+              <div style="font-weight:600;margin-bottom:2px">${escapeHtml(String(props.neighborhood ?? ""))}</div>
+              <div style="color:#6b7280">${escapeHtml(String(props.count ?? ""))} complaints</div>
+              <div style="color:#9ca3af;font-size:11px">${escapeHtml(String(props.type ?? ""))}</div>
             </div>`
           )
           .addTo(map)

@@ -8,13 +8,11 @@ import {
   Search,
 } from "lucide-react"
 import type { WasteSummaryResponse } from "@/lib/apiClient"
+import { formatDollar as _formatDollar } from "./waste-utils"
 
+/** Stat bar needs "$0" instead of "" for null values. */
 function formatDollar(amount: number | null | undefined): string {
-  if (amount == null) return "$0"
-  const abs = Math.abs(amount)
-  if (abs >= 1_000_000) return `$${(abs / 1_000_000).toFixed(1)}M`
-  if (abs >= 1_000) return `$${(abs / 1_000).toFixed(0)}K`
-  return `$${abs.toLocaleString()}`
+  return _formatDollar(amount) || "$0"
 }
 
 interface StatItemProps {

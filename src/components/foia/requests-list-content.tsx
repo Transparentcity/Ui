@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { Plus, Search, Filter, Loader2, AlertTriangle, Trash2, Pencil, Copy, ExternalLink, Mail } from "lucide-react"
+import {
+  Plus, Search, Filter, Loader2, AlertTriangle, Trash2, Pencil, Copy, ExternalLink, Mail,
+  FileText, Clock, CheckCircle2, MessageSquare, Database, RefreshCw,
+} from "lucide-react"
 import { useAuth0 } from "@auth0/auth0-react"
-import { deleteFoiaRequest, listFoiaRequests } from "@/lib/foiaApiClient"
+import { deleteFoiaRequest, getFoiaDashboard, listFoiaRequests } from "@/lib/foiaApiClient"
 import { RequestStatusBadge } from "@/components/foia/status-badge"
 import { NewRequestModal } from "@/components/foia/new-request-modal"
-import type { RequestStatus, FoiaRequest } from "@/lib/foia/types"
+import type { RequestStatus, FoiaRequest, FoiaDashboardSummary } from "@/lib/foia/types"
 import { formatDistanceToNow, differenceInDays } from "date-fns"
 
 const statusOptions: { value: RequestStatus | "all"; label: string }[] = [
@@ -24,6 +27,39 @@ const statusOptions: { value: RequestStatus | "all"; label: string }[] = [
   { value: "closed_incomplete", label: "Closed" },
 ]
 
+function PipelineSummary({ summary }: { summary: FoiaDashboardSummary | null }) {
+  if (!summary) return null
+  const pills: { label: string; value: number; color: string; href?: string }[] = [
+    { label: "Open", value: summary.open_requests, color: "text-purple-700 bg-purple-50", href: "/foia/requests" },
+    { label: "Unacknowledged", value: summary.unacknowledged, color: "text-amber-700 bg-amber-50", href: "/foia/requests?status=submitted_unacknowledged" },
+    { label: "Overdue", value: summary.overdue_requests, color: "text-red-700 bg-red-50", href: "/foia/requests?overdue=true" },
+    { label: "Tasks Due", value: summary.tasks_due, color: "text-purple-700 bg-purple-50", href: "/foia/messages" },
+    { label: "Messages", value: summary.messages_to_respond ?? 0, color: "text-blue-700 bg-blue-50", href: "/foia/messages" },
+    { label: "Data to Review", value: summary.pending_data_review ?? 0, color: "text-emerald-700 bg-emerald-50", href: "/foia/data-review" },
+  ]
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {pills.map((p) => {
+        const inner = (
+          <span
+            key={p.label}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${p.color} ${p.value === 0 ? "opacity-50" : ""}`}
+          >
+            <span className="text-sm font-semibold">{p.value}</span>
+            {p.label}
+          </span>
+        )
+        return p.href && p.value > 0 ? (
+          <Link key={p.label} href={p.href}>{inner}</Link>
+        ) : (
+          <span key={p.label}>{inner}</span>
+        )
+      })}
+    </div>
+  )
+}
+
 export function RequestsListContent() {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0()
   const [requests, setRequests] = useState<FoiaRequest[]>([])
@@ -34,6 +70,7 @@ export function RequestsListContent() {
   const [statusFilter, setStatusFilter] = useState<RequestStatus | "all">("all")
   const [showNewRequest, setShowNewRequest] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
+  const [summary, setSummary] = useState<FoiaDashboardSummary | null>(null)
 
   const loadRequests = useCallback(async () => {
     setLoading(true)
@@ -47,16 +84,20 @@ export function RequestsListContent() {
       }
     }
     try {
-      const res = await listFoiaRequests(
-        {
-          status: statusFilter === "all" ? undefined : statusFilter,
-          q: search || undefined,
-          page_size: 100,
-        },
-        token
-      )
+      const [res, dash] = await Promise.all([
+        listFoiaRequests(
+          {
+            status: statusFilter === "all" ? undefined : statusFilter,
+            q: search || undefined,
+            page_size: 100,
+          },
+          token
+        ),
+        getFoiaDashboard(token).catch(() => null),
+      ])
       setRequests(res.items)
       setTotal(res.total)
+      setSummary(dash)
     } catch (err) {
       console.error("Failed to load requests:", err)
       setApiError(err instanceof Error ? err.message : "Failed to load requests")
@@ -122,7 +163,7 @@ export function RequestsListContent() {
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Requests</h1>
           <p className="mt-1 text-sm text-gray-500">
-            {total} total requests - {openCount} open
+            {total} total requests, {openCount} open
           </p>
         </div>
         <button
@@ -133,6 +174,9 @@ export function RequestsListContent() {
           New Request
         </button>
       </div>
+
+      {/* Pipeline summary */}
+      <PipelineSummary summary={summary} />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">

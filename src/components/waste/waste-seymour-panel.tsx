@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useAuth0 } from "@auth0/auth0-react"
 import { useRouter } from "next/navigation"
 import {
@@ -98,17 +98,22 @@ export function WasteSeymourPanel({
   const [analysisStartedAt, setAnalysisStartedAt] = useState<number | null>(null)
   const [analysisElapsedSeconds, setAnalysisElapsedSeconds] = useState(0)
   const [usageStats, setUsageStats] = useState<SessionStats | null>(null)
+  /** Abort ref: incremented on each new finding to cancel stale polling loops. */
+  const analysisGenerationRef = useRef(0)
 
   const finding = request?.finding ?? null
   const isOpen = Boolean(finding)
 
   useEffect(() => {
     if (!finding) return
+    // Bump generation to abort any in-flight polling from a previous finding
+    analysisGenerationRef.current += 1
     const nextPrompt = buildAnalysisPrompt(finding)
     setPromptDraft(nextPrompt)
     setAnalysisResult("")
     setAnalysisError(null)
     setUsageStats(null)
+    setIsAnalyzing(false)
     // Auto-run once when a new finding is opened in the side panel.
     void runAnalysis(nextPrompt)
   }, [finding])
@@ -145,14 +150,16 @@ export function WasteSeymourPanel({
   }
 
   const runAnalysis = async (promptToRun: string) => {
-    if (!promptToRun.trim() || isAnalyzing) return
+    if (!promptToRun.trim()) return
+    // Capture the current generation so we can bail if a new finding arrives.
+    const myGeneration = analysisGenerationRef.current
     setIsAnalyzing(true)
     setAnalysisStartedAt(Date.now())
     setAnalysisElapsedSeconds(0)
     setAnalysisError(null)
     setAnalysisResult("")
     setUsageStats(null)
-    
+
     let jobId: string | null = null
 
     try {
@@ -161,12 +168,18 @@ export function WasteSeymourPanel({
         30000,
         "Auth timed out while preparing Seymour analysis. Please try again."
       )
+
+      // Bail if finding changed while we were getting the token
+      if (analysisGenerationRef.current !== myGeneration) return
+
       const models = await withTimeout(
         getAvailableModels(token),
         30000,
         "Loading models timed out. Please try again."
       )
       const selectedModel = pickDefaultModelKey(models) ?? PREFERRED_DEFAULT_MODEL_KEY
+
+      if (analysisGenerationRef.current !== myGeneration) return
 
       // 1. Create background job
       const jobResponse = await createChatJob(
@@ -183,15 +196,22 @@ export function WasteSeymourPanel({
       const MAX_POLLS = 150 // 5 minutes max
 
       for (let i = 0; i < MAX_POLLS; i++) {
+        // Abort if finding changed during polling
+        if (analysisGenerationRef.current !== myGeneration) return
+
         // Wait before polling
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL))
+
+        if (analysisGenerationRef.current !== myGeneration) return
 
         const job = await getJob(jobId, token)
 
         if (job.status === "completed") {
+          // Only apply results if this is still the active generation
+          if (analysisGenerationRef.current !== myGeneration) return
           const result = job.result as { response?: string; session_id?: string }
           setAnalysisResult(result?.response || "Analysis completed.")
-          
+
           if (result?.session_id) {
             try {
               const stats = await getSessionStats(result.session_id, token)
@@ -213,12 +233,17 @@ export function WasteSeymourPanel({
       throw new Error("Analysis timed out waiting for completion.")
 
     } catch (error) {
+      // Only show errors for the active generation
+      if (analysisGenerationRef.current !== myGeneration) return
       const message =
         error instanceof Error ? error.message : "Failed to get Seymour analysis."
       setAnalysisError(message)
     } finally {
-      setIsAnalyzing(false)
-      setAnalysisStartedAt(null)
+      // Only clear loading state if this is still the active generation
+      if (analysisGenerationRef.current === myGeneration) {
+        setIsAnalyzing(false)
+        setAnalysisStartedAt(null)
+      }
     }
   }
 

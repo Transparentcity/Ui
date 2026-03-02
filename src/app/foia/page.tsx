@@ -1,5 +1,5 @@
-import { DashboardContent } from "@/components/foia/dashboard-content"
+import { redirect } from "next/navigation"
 
-export default function FoiaDashboardPage() {
-  return <DashboardContent />
+export default function FoiaIndexPage() {
+  redirect("/foia/requests")
 }
