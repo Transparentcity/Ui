@@ -1327,7 +1327,7 @@ export default function ChatView({
         onSessionLoaded={handleSessionLoaded}
         onLoadingChange={setIsLoadingSession}
       />
-      <div className={styles.sessionHeaderContainer}>
+      <div className={`${styles.sessionHeaderContainer} dashboard-page-header`}>
         <SessionHeader
           sessionId={currentSessionId}
           stats={sessionStats}

@@ -134,6 +134,11 @@
     width: 100vw;
   }
 
+  /* Only the top header row clears the hamburger; content below can sit under it */
+  .mainContentCollapsed :global(.dashboard-page-header) {
+    padding-left: 48px;
+  }
+
   .cityViewContainer {
     padding: 0 !important;
     margin: 0 !important;

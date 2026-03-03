@@ -30,18 +30,26 @@ import type {
 /** Optional auth token (e.g. from useAuth0().getAccessTokenSilently()). FOIA routes require auth unless backend DEV_MODE. */
 export type FoiaAuthToken = string | null | undefined
 
+/** Module-level token set by AdminGuard so FOIA API calls can use the current auth token when not passed explicitly. */
+let foiaAuthToken: FoiaAuthToken = undefined
+
+export function setFoiaAuthToken(token: FoiaAuthToken): void {
+  foiaAuthToken = token
+}
+
 async function apiFetch<T>(
   path: string,
   init?: RequestInit,
   token?: FoiaAuthToken
 ): Promise<T> {
+  const effectiveToken = token ?? foiaAuthToken
   const url = `${API_BASE}${path}`
   const headers: HeadersInit = {
     "Content-Type": "application/json",
     ...(init?.headers || {}),
   }
-  if (token) {
-    ;(headers as Record<string, string>)["Authorization"] = `Bearer ${token}`
+  if (effectiveToken) {
+    ;(headers as Record<string, string>)["Authorization"] = `Bearer ${effectiveToken}`
   }
   const res = await fetch(url, {
     ...init,
@@ -103,24 +111,17 @@ export function createFoiaRequest(data: Partial<FoiaRequest>): Promise<FoiaReque
 
 export function updateFoiaRequest(
   id: number,
-  data: Partial<FoiaRequest> & { submitted_date?: string }
+  data: Partial<FoiaRequest>
 ): Promise<FoiaRequest> {
   return apiFetch(`/api/foia/requests/${id}`, { method: "PUT", body: JSON.stringify(data) })
 }
 
-export function deleteFoiaRequest(id: number, token?: FoiaAuthToken): Promise<{ deleted: boolean }> {
-  return apiFetch(`/api/foia/requests/${id}`, { method: "DELETE" }, token)
-}
-
 export function submitFoiaRequest(
-  id: number,
-  data?: {
-    submitted_date?: string
-  }
+  id: number
 ): Promise<FoiaRequest> {
   return apiFetch(`/api/foia/requests/${id}/submit`, {
     method: "POST",
-    body: JSON.stringify(data ?? {}),
+    body: JSON.stringify({}),
   })
 }
 
@@ -210,10 +211,6 @@ export function assignFoiaTask(taskId: number, assignedTo: string): Promise<Foia
 
 export function completeFoiaTask(taskId: number): Promise<FoiaTask> {
   return apiFetch(`/api/foia/tasks/${taskId}/complete`, { method: "POST" })
-}
-
-export function deleteFoiaTask(taskId: number, token?: FoiaAuthToken): Promise<{ deleted: boolean }> {
-  return apiFetch(`/api/foia/tasks/${taskId}`, { method: "DELETE" }, token)
 }
 
 // ---------------------------------------------------------------------------
@@ -369,26 +366,6 @@ export type AdminFoiaCityListItem = {
 
 export function listAdminFoiaCities(token?: FoiaAuthToken): Promise<AdminFoiaCityListItem[]> {
   return apiFetch("/api/admin/foia/cities", undefined, token)
-}
-
-export function createAdminFoiaCity(
-  data: {
-    name: string
-    state?: string
-    country?: string
-    population?: number
-    emoji?: string
-    main_domain: string
-    main_portal_url: string
-    is_active?: boolean
-  },
-  token?: FoiaAuthToken
-): Promise<AdminFoiaCityListItem> {
-  return apiFetch(
-    "/api/admin/foia/cities",
-    { method: "POST", body: JSON.stringify(data) },
-    token
-  )
 }
 
 export function getCityFoiaProfile(cityId: number): Promise<CityFoiaProfile> {

@@ -19,6 +19,7 @@ import {
   validateMetricFreshness,
   flushMetricCompleteness,
   purgeAdminMetricData,
+  clearCityMetricData,
   getMetricMapData,
   getCityMetricsForMap,
   getMetricComparison,
@@ -432,6 +433,28 @@ export function usePurgeMetricData() {
       queryClient.invalidateQueries({ queryKey: metricKeys.detail(variables.metricId) });
       queryClient.invalidateQueries({ queryKey: metricKeys.timeSeries(variables.metricId) });
       queryClient.invalidateQueries({ queryKey: metricKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: metricKeys.summary() });
+    },
+  });
+}
+
+/**
+ * Hook to clear all city metric data (time series, anomalies, maps, feed stories, etc.)
+ * for one city or all cities. Preserves metric definitions and users.
+ * WARNING: Destructive and cannot be undone!
+ */
+export function useClearCityMetricData() {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ cityId }: { cityId: number | null }) => {
+      const token = await getAccessTokenSilently();
+      return clearCityMetricData(cityId, token);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: metricKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: metricKeys.summary() });
     },
   });
 }

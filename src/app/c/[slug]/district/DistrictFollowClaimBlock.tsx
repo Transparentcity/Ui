@@ -77,7 +77,7 @@ export default function DistrictFollowClaimBlock({
         disabled={loading}
         className="hero-official-btn hero-official-btn-follow"
         style={{
-          color: following ? "var(--brand-primary, #ad35fa)" : "var(--text-inverse)",
+          color: following ? "var(--brand-primary, #ad35fa)" : "var(--text-on-brand, #ffffff)",
           background: following ? "transparent" : "var(--brand-primary, #ad35fa)",
         }}
       >

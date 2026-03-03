@@ -347,7 +347,7 @@
 
 .hero-official-btn-follow {
   background: var(--brand-primary, #ad35fa);
-  color: var(--text-inverse);
+  color: var(--text-on-brand, #ffffff);
 }
 
 .hero-official-btn-follow:disabled {

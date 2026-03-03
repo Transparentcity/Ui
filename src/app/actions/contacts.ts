@@ -3,116 +3,171 @@
 import { createClient } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 
+function parseStringArray(val: unknown): string[] {
+  if (Array.isArray(val)) return val.filter((x): x is string => typeof x === "string")
+  if (typeof val === "string") {
+    try {
+      const parsed = JSON.parse(val) as unknown
+      return Array.isArray(parsed)
+        ? parsed.filter((x): x is string => typeof x === "string")
+        : val.trim() ? val.split(/[,;]/).map((s) => s.trim()).filter(Boolean) : []
+    } catch {
+      return val.trim() ? val.split(/[,;]/).map((s) => s.trim()).filter(Boolean) : []
+    }
+  }
+  return []
+}
+
 export async function createContact(formData: FormData) {
   const db = createClient()
-  
-  const name = formData.get('name') as string
-  const title = formData.get('title') as string | null
-  const organization = formData.get('organization') as string | null
-  const department = formData.get('department') as string | null
-  const email = formData.get('email') as string | null
-  const phone = formData.get('phone') as string | null
-  const jurisdiction = formData.get('jurisdiction') as string | null
-  const cityIdRaw = formData.get('city_id') as string | null
+
+  const contact_type = (formData.get("contact_type") as string) || "city_staff"
+  const name = formData.get("name") as string
+  const title = formData.get("title") as string | null
+  const organization = formData.get("organization") as string | null
+  const department = formData.get("department") as string | null
+  const email = formData.get("email") as string | null
+  const phone = formData.get("phone") as string | null
+  const jurisdiction = formData.get("jurisdiction") as string | null
+  const cityIdRaw = formData.get("city_id") as string | null
   const city_id = cityIdRaw ? parseInt(cityIdRaw) || null : null
-  const city_name = formData.get('city_name') as string | null
-  const priority = parseInt(formData.get('priority') as string) || 3
-  const status = formData.get('status') as string || 'active'
-  const notes = formData.get('notes') as string | null
-  const keywords = JSON.parse(formData.get('keywords') as string || '[]')
+  const city_name = (formData.get("city_name") as string)?.trim() || null
+  const outlet_platform = formData.get("outlet_platform") as string | null
+  const primary_beat = formData.get("primary_beat") as string | null
+  const primary_city = (formData.get("primary_city") as string)?.trim() || null
+  const coverage_cities = parseStringArray(formData.get("coverage_cities"))
+  const sub_geographies = parseStringArray(formData.get("sub_geographies"))
+  const priority = parseInt(formData.get("priority") as string) || 3
+  const status = formData.get("status") as string || "active"
+  const notes = formData.get("notes") as string | null
+  const keywords = JSON.parse((formData.get("keywords") as string) || "[]") as string[]
+  const article_urls = parseStringArray(formData.get("article_urls"))
+
+  const row: Record<string, unknown> = {
+    name,
+    title: title || null,
+    organization: organization || null,
+    department: department || null,
+    email: email || null,
+    phone: phone || null,
+    jurisdiction: jurisdiction || null,
+    contact_type,
+    city_id: city_id,
+    city_name: city_name || null,
+    priority,
+    status,
+    notes: notes || null,
+  }
+  if (contact_type === "media") {
+    row.outlet_platform = outlet_platform || null
+    row.primary_beat = primary_beat || null
+    row.primary_city = primary_city || "San Francisco"
+    row.coverage_cities = coverage_cities.length ? coverage_cities : []
+    row.sub_geographies = sub_geographies.length ? sub_geographies : []
+  }
 
   const { data: contact, error } = await db
-    .from('prospects')
-    .insert({
-      name,
-      title: title || null,
-      organization: organization || null,
-      department: department || null,
-      email: email || null,
-      phone: phone || null,
-      jurisdiction: jurisdiction || null,
-      city_id: city_id,
-      city_name: city_name || null,
-      priority,
-      status,
-      notes: notes || null
-    })
+    .from("prospects")
+    .insert(row)
     .select()
     .single() as { data: { id: string } | null; error: Error | null }
 
   if (error || !contact) {
-    console.error('Error creating contact:', error)
-    throw new Error('Failed to create contact')
+    console.error("Error creating contact:", error)
+    throw new Error("Failed to create contact")
   }
 
-  // Add keyword relationships
   if (keywords.length > 0) {
-    const keywordRelations = keywords.map((keywordId: string) => ({
-      prospect_id: contact.id,
-      keyword_id: keywordId
-    }))
-
-    await db.from('prospect_keywords').insert(keywordRelations)
+    await db.from("prospect_keywords").insert(
+      keywords.map((kid: string) => ({ prospect_id: contact.id, keyword_id: kid }))
+    )
   }
 
-  revalidatePath('/contacts')
-  revalidatePath('/')
+  if (contact_type === "media" && article_urls.length > 0) {
+    for (const url of article_urls) {
+      if (url.trim()) {
+        await db.from("prospect_article_links").insert({ prospect_id: contact.id, url: url.trim() })
+      }
+    }
+  }
+
+  revalidatePath("/contacts")
+  revalidatePath("/")
 }
 
 export async function updateContact(id: string, formData: FormData) {
   const db = createClient()
-  
-  const name = formData.get('name') as string
-  const title = formData.get('title') as string | null
-  const organization = formData.get('organization') as string | null
-  const department = formData.get('department') as string | null
-  const email = formData.get('email') as string | null
-  const phone = formData.get('phone') as string | null
-  const jurisdiction = formData.get('jurisdiction') as string | null
-  const cityIdRaw = formData.get('city_id') as string | null
-  const city_id = cityIdRaw ? parseInt(cityIdRaw) || null : null
-  const city_name = formData.get('city_name') as string | null
-  const priority = parseInt(formData.get('priority') as string) || 3
-  const status = formData.get('status') as string || 'active'
-  const notes = formData.get('notes') as string | null
-  const keywords = JSON.parse(formData.get('keywords') as string || '[]')
 
-  const { error } = await db
-    .from('prospects')
-    .update({
-      name,
-      title: title || null,
-      organization: organization || null,
-      department: department || null,
-      email: email || null,
-      phone: phone || null,
-      jurisdiction: jurisdiction || null,
-      city_id: city_id,
-      city_name: city_name || null,
-      priority,
-      status,
-      notes: notes || null
-    })
-    .eq('id', id)
+  const contact_type = (formData.get("contact_type") as string) || "city_staff"
+  const name = formData.get("name") as string
+  const title = formData.get("title") as string | null
+  const organization = formData.get("organization") as string | null
+  const department = formData.get("department") as string | null
+  const email = formData.get("email") as string | null
+  const phone = formData.get("phone") as string | null
+  const jurisdiction = formData.get("jurisdiction") as string | null
+  const cityIdRaw = formData.get("city_id") as string | null
+  const city_id = cityIdRaw ? parseInt(cityIdRaw) || null : null
+  const city_name = (formData.get("city_name") as string)?.trim() || null
+  const outlet_platform = formData.get("outlet_platform") as string | null
+  const primary_beat = formData.get("primary_beat") as string | null
+  const primary_city = (formData.get("primary_city") as string)?.trim() || null
+  const coverage_cities = parseStringArray(formData.get("coverage_cities"))
+  const sub_geographies = parseStringArray(formData.get("sub_geographies"))
+  const priority = parseInt(formData.get("priority") as string) || 3
+  const status = formData.get("status") as string || "active"
+  const notes = formData.get("notes") as string | null
+  const keywords = JSON.parse((formData.get("keywords") as string) || "[]") as string[]
+  const article_urls = parseStringArray(formData.get("article_urls"))
+
+  const row: Record<string, unknown> = {
+    name,
+    title: title || null,
+    organization: organization || null,
+    department: department || null,
+    email: email || null,
+    phone: phone || null,
+    jurisdiction: jurisdiction || null,
+    contact_type,
+    city_id: city_id,
+    city_name: city_name || null,
+    priority,
+    status,
+    notes: notes || null,
+  }
+  if (contact_type === "media") {
+    row.outlet_platform = outlet_platform || null
+    row.primary_beat = primary_beat || null
+    row.primary_city = primary_city || "San Francisco"
+    row.coverage_cities = coverage_cities.length ? coverage_cities : []
+    row.sub_geographies = sub_geographies.length ? sub_geographies : []
+  }
+
+  const { error } = await db.from("prospects").update(row).eq("id", id)
 
   if (error) {
-    console.error('Error updating contact:', error)
-    throw new Error('Failed to update contact')
+    console.error("Error updating contact:", error)
+    throw new Error("Failed to update contact")
   }
 
-  // Update keyword relationships
-  await db.from('prospect_keywords').delete().eq('prospect_id', id)
-  
+  await db.from("prospect_keywords").delete().eq("prospect_id", id)
   if (keywords.length > 0) {
-    const keywordRelations = keywords.map((keywordId: string) => ({
-      prospect_id: id,
-      keyword_id: keywordId
-    }))
-    await db.from('prospect_keywords').insert(keywordRelations)
+    await db
+      .from("prospect_keywords")
+      .insert(keywords.map((kid: string) => ({ prospect_id: id, keyword_id: kid })))
   }
 
-  revalidatePath('/contacts')
-  revalidatePath('/')
+  await db.from("prospect_article_links").delete().eq("prospect_id", id)
+  if (contact_type === "media" && article_urls.length > 0) {
+    for (const url of article_urls) {
+      if (url.trim()) {
+        await db.from("prospect_article_links").insert({ prospect_id: id, url: url.trim() })
+      }
+    }
+  }
+
+  revalidatePath("/contacts")
+  revalidatePath("/")
 }
 
 export async function deleteContact(id: string) {
@@ -142,17 +197,14 @@ export async function bulkUpdateCity(
   const errors: string[] = []
   let updated = 0
 
-  // Process in batches of 50
   const batchSize = 50
   for (let i = 0; i < contactIds.length; i += batchSize) {
     const batch = contactIds.slice(i, i + batchSize)
-
     for (const id of batch) {
       const { error } = await db
-        .from('prospects')
+        .from("prospects")
         .update({ city_id: cityId, city_name: cityName })
-        .eq('id', id)
-
+        .eq("id", id)
       if (error) {
         errors.push(`Contact ${id}: ${error.message}`)
       } else {
@@ -160,10 +212,34 @@ export async function bulkUpdateCity(
       }
     }
   }
-
-  revalidatePath('/contacts')
-  revalidatePath('/')
+  revalidatePath("/contacts")
+  revalidatePath("/")
   return { updated, errors }
+}
+
+/** Lightweight list for pickers/typeaheads (client-side filtering). */
+export async function listActiveContactsLite(): Promise<
+  Array<{
+    id: string
+    name: string
+    email: string | null
+    organization: string | null
+    department: string | null
+    jurisdiction: string | null
+    status: string
+  }>
+> {
+  const db = createClient()
+  const { data, error } = await db
+    .from("prospects")
+    .select("id, name, email, organization, department, jurisdiction, status")
+    .order("name")
+  if (error) {
+    console.error("[Contacts] Error listing contacts lite:", error)
+    throw new Error("Failed to load contacts")
+  }
+  const arr = Array.isArray(data) ? data : []
+  return arr.filter((c: { status?: string }) => (c?.status || "active") === "active")
 }
 
 // Bulk import contacts from CSV
@@ -219,7 +295,6 @@ export async function importContacts(contacts: ImportContact[]): Promise<ImportR
   for (let i = 0; i < contacts.length; i += batchSize) {
     const batch = contacts.slice(i, i + batchSize)
     
-    // Insert contacts
     const contactsToInsert = batch.map(c => ({
       name: c.name,
       email: c.email,
@@ -230,6 +305,7 @@ export async function importContacts(contacts: ImportContact[]): Promise<ImportR
       jurisdiction: c.jurisdiction,
       city_id: c.city_id,
       city_name: c.city_name,
+      contact_type: "city_staff" as const,
       priority: c.priority,
       status: 'active' as const,
       notes: c.notes,

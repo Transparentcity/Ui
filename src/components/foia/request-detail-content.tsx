@@ -6,7 +6,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   ArrowLeft,
   Send,
-  Trash2,
   RefreshCw,
   MessageSquare,
   Paperclip,
@@ -24,8 +23,6 @@ import {
 } from "lucide-react"
 import { useAuth0 } from "@auth0/auth0-react"
 import {
-  deleteFoiaRequest,
-  deleteFoiaTask,
   getFoiaRequest,
   listFoiaMessages,
   listFoiaAttachments,
@@ -135,8 +132,6 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [showStatusMenu, setShowStatusMenu] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [deletingTaskId, setDeletingTaskId] = useState<number | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showSubmitModal, setShowSubmitModal] = useState(false)
   const [submittedDate, setSubmittedDate] = useState(getTodayDateInput())
@@ -226,10 +221,6 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
   async function handleSaveEdits(data: {
     title?: string
     request_description?: string
-    submission_url?: string
-    submission_email_address?: string
-    agency_request_number?: string
-    submitted_date?: string
   }) {
     if (!request) return
     try {
@@ -254,9 +245,7 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
     if (!request) return
     setActionLoading(true)
     try {
-      await submitFoiaRequest(request.id, {
-        submitted_date: submittedDate || undefined,
-      })
+      await submitFoiaRequest(request.id)
       await loadData()
       setShowSubmitModal(false)
       router.push(`/foia/requests/${request.id}?external=1`)
@@ -264,52 +253,6 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
       alert(err instanceof Error ? err.message : "Failed to mark submitted")
     } finally {
       setActionLoading(false)
-    }
-  }
-
-  async function handleDelete() {
-    const ok = confirm("Delete this request? This cannot be undone.")
-    if (!ok) return
-
-    setDeleting(true)
-    let token: string | undefined
-    if (isAuthenticated) {
-      try {
-        token = await getAccessTokenSilently()
-      } catch {
-        // continue without token
-      }
-    }
-    try {
-      await deleteFoiaRequest(parseInt(requestId, 10), token)
-      router.push("/foia/requests")
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Delete failed")
-    } finally {
-      setDeleting(false)
-    }
-  }
-
-  async function handleDeleteTask(taskId: number) {
-    const ok = confirm("Delete this follow-up/task? This cannot be undone.")
-    if (!ok) return
-
-    setDeletingTaskId(taskId)
-    let token: string | undefined
-    if (isAuthenticated) {
-      try {
-        token = await getAccessTokenSilently()
-      } catch {
-        // continue without token
-      }
-    }
-    try {
-      await deleteFoiaTask(taskId, token)
-      await loadData()
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Delete failed")
-    } finally {
-      setDeletingTaskId(null)
     }
   }
 
@@ -376,7 +319,7 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
           {request.status === "draft" && (
             <button
               onClick={handleMarkSubmitted}
-              disabled={deleting || actionLoading}
+              disabled={actionLoading}
               className="flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
               title="Mark request as submitted"
             >
@@ -386,21 +329,12 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
           )}
           <button
             onClick={() => setShowEditModal(true)}
-            disabled={deleting || actionLoading}
+            disabled={actionLoading}
             className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
             title={request.status === "draft" ? "Edit request" : "Edit submission email/URL + confirmation number"}
           >
             <Pencil className="h-4 w-4" />
             Edit
-          </button>
-          <button
-            onClick={handleDelete}
-            disabled={deleting || actionLoading}
-            className="flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50"
-            title="Delete request"
-          >
-            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-            Delete
           </button>
           {/* Status transition dropdown */}
           {statusActions.length > 0 && (
@@ -547,8 +481,6 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
           tasks={tasks}
           submissionAttempts={submissionAttempts}
           onTaskComplete={loadData}
-          onDeleteTask={handleDeleteTask}
-          deletingTaskId={deletingTaskId}
           autoOpenExternalModal={autoOpenExternal}
         />
       )}
@@ -595,8 +527,6 @@ function OverviewTab({
   tasks,
   submissionAttempts,
   onTaskComplete,
-  onDeleteTask,
-  deletingTaskId,
   autoOpenExternalModal,
 }: {
   request: FoiaRequest
@@ -604,8 +534,6 @@ function OverviewTab({
   tasks: FoiaTask[]
   submissionAttempts: FoiaSubmissionAttempt[]
   onTaskComplete: () => Promise<void>
-  onDeleteTask: (taskId: number) => Promise<void>
-  deletingTaskId: number | null
   autoOpenExternalModal: boolean
 }) {
   const [completing, setCompleting] = useState<number | null>(null)
@@ -1087,15 +1015,6 @@ function OverviewTab({
                 </div>
                 <div className="flex items-center gap-2">
                   <TaskStatusBadge status={task.status} />
-                  <button
-                    type="button"
-                    onClick={() => onDeleteTask(task.id)}
-                    disabled={deletingTaskId === task.id}
-                    className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-                    title="Delete"
-                  >
-                    {deletingTaskId === task.id ? "..." : "Delete"}
-                  </button>
                   {task.status !== "completed" && task.status !== "cancelled" && (
                     <button
                       onClick={() => handleComplete(task.id)}
@@ -1293,14 +1212,6 @@ function EditRequestModal({
 }) {
   const [title, setTitle] = useState(() => (request.title || "").trim())
   const [desc, setDesc] = useState(() => (request.request_description || "").trim())
-  const [submissionUrl, setSubmissionUrl] = useState(() => (request.submission_url || "").trim())
-  const [submissionEmail, setSubmissionEmail] = useState(
-    () => (request.submission_email_address || "").trim()
-  )
-  const [agencyRef, setAgencyRef] = useState(() => (request.agency_request_number || "").trim())
-  const [submittedDate, setSubmittedDate] = useState(() =>
-    request.submitted_at ? request.submitted_at.slice(0, 10) : ""
-  )
 
   if (!open) return null
 
@@ -1329,8 +1240,7 @@ function EditRequestModal({
         <div className="max-h-[75vh] overflow-y-auto px-6 py-5">
           {!isDraft && (
             <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              Only <span className="font-semibold">draft</span> requests can edit title/description. You can still update
-              the submission email/URL and confirmation number here.
+              Only <span className="font-semibold">draft</span> requests can edit title/description.
             </div>
           )}
 
@@ -1358,61 +1268,6 @@ function EditRequestModal({
               />
             </div>
 
-            <div className="rounded-xl border border-gray-200 bg-white p-4">
-              <p className="text-xs font-semibold text-gray-900">Submission address (optional)</p>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-700">Portal / Website URL</label>
-                  <input
-                    type="url"
-                    value={submissionUrl}
-                    onChange={(e) => setSubmissionUrl(e.target.value)}
-                    disabled={!canEditTrackingFields || saving}
-                    placeholder="https://..."
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-50 disabled:text-gray-400"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-700">Submission email</label>
-                  <input
-                    type="email"
-                    value={submissionEmail}
-                    onChange={(e) => setSubmissionEmail(e.target.value)}
-                    disabled={!canEditTrackingFields || saving}
-                    placeholder="records@city.gov"
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-50 disabled:text-gray-400"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-gray-200 bg-white p-4">
-              <p className="text-xs font-semibold text-gray-900">Confirmation / case number (optional)</p>
-              <p className="mt-0.5 text-xs text-gray-500">If you already have the portal confirmation number, save it here.</p>
-              <div className="mt-3">
-                <input
-                  value={agencyRef}
-                  onChange={(e) => setAgencyRef(e.target.value)}
-                  disabled={!canEditTrackingFields || saving}
-                  placeholder="e.g. PRR-12345"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-50 disabled:text-gray-400"
-                />
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-gray-200 bg-white p-4">
-              <p className="text-xs font-semibold text-gray-900">Submitted date (optional)</p>
-              <p className="mt-0.5 text-xs text-gray-500">Adjust when this request was actually submitted.</p>
-              <div className="mt-3">
-                <input
-                  type="date"
-                  value={submittedDate}
-                  onChange={(e) => setSubmittedDate(e.target.value)}
-                  disabled={!canEditTrackingFields || saving}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-50 disabled:text-gray-400"
-                />
-              </div>
-            </div>
           </div>
         </div>
 
@@ -1430,10 +1285,6 @@ function EditRequestModal({
               await onSave({
                 title: canEditCoreFields ? title.trim() || undefined : undefined,
                 request_description: canEditCoreFields ? desc.trim() || undefined : undefined,
-                submission_url: submissionUrl.trim() || undefined,
-                submission_email_address: submissionEmail.trim() || undefined,
-                agency_request_number: agencyRef.trim() || undefined,
-                submitted_date: submittedDate || undefined,
               })
             }}
             disabled={saving}

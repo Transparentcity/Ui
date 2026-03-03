@@ -27,9 +27,13 @@ import {
   CheckCircle2,
   Mail,
 } from "lucide-react"
-import { API_BASE } from "@/lib/apiBase"
+import { API_BASE, CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import { ContactDialog } from "./contact-dialog"
-import type { ContactWithKeywords, Keyword, Contact } from "@/lib/types"
+import { useAnomalies } from "@/lib/hooks/useAnomalies"
+import { mapApiAnomaliesToCrm } from "@/lib/anomalyMapper"
+import { DashboardShell } from "@/components/dashboard-shell"
+import { AIEmailComposer } from "@/components/ai-email-composer"
+import type { ContactWithKeywords, Keyword, Anomaly } from "@/lib/types"
 
 interface AnomalyOption {
   result_id: number
@@ -62,6 +66,11 @@ interface ComposePageContentProps {
 
 export function ComposePageContent({ contacts, keywords }: ComposePageContentProps) {
   const router = useRouter()
+  const { data, isLoading } = useAnomalies({
+    is_anomaly: true,
+    limit: 500,
+    city_id: CRM_DEFAULT_CITY_ID,
+  })
 
   // Contact search/selection
   const [contactSearch, setContactSearch] = useState("")

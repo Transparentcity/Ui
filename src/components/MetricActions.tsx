@@ -9,6 +9,7 @@ interface MetricActionsProps {
   onViewCharts: () => void;
   onExecute: () => void;
   onDelete: () => void;
+  onPurgeData?: () => void;
   onViewAnomalies?: () => void;
   onViewMaps?: () => void;
   compact?: boolean;
@@ -20,6 +21,7 @@ export default function MetricActions({
   onViewCharts,
   onExecute,
   onDelete,
+  onPurgeData,
   onViewAnomalies,
   onViewMaps,
   compact = false,
@@ -80,6 +82,18 @@ export default function MetricActions({
       >
         <i className="fas fa-play" />
       </button>
+      {onPurgeData && (
+        <button
+          className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onPurgeData();
+          }}
+          title="Clear metric data (keep definition)"
+        >
+          <i className="fas fa-eraser" />
+        </button>
+      )}
       <button
         className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
         onClick={(e) => {

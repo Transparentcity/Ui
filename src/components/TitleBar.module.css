@@ -70,6 +70,13 @@
     width: 36px;
     height: 36px;
     padding: var(--space-xs);
+    /* Always show background in narrow mode so it’s visible and doesn’t overlap page titles */
+    background: var(--bg-tertiary);
+  }
+  
+  .hamburgerButton:hover {
+    background: var(--bg-tertiary);
+    opacity: 0.9;
   }
   
   .hamburgerButton span {

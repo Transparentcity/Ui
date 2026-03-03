@@ -5,11 +5,59 @@
   gap: 12px;
 }
 
+.controlsRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .periodSelector {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 14px;
+}
+
+.viewToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.viewToggleLabel {
+  font-weight: 500;
+  color: var(--text-primary, #222222);
+}
+
+.viewToggleBtn,
+.viewToggleActive {
+  padding: 4px 10px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 4px;
+  background-color: var(--bg-primary, #ffffff);
+  color: var(--text-secondary, #666666);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+}
+
+.viewToggleBtn:hover {
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--text-primary, #222222);
+}
+
+.viewToggleActive {
+  border-color: var(--brand-primary, #ad35fa);
+  background-color: rgba(173, 53, 250, 0.08);
+  color: var(--brand-primary, #ad35fa);
+  font-weight: 500;
+}
+
+.viewToggle button + button {
+  margin-left: 0;
 }
 
 .periodSelector label {

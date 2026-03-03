@@ -45,8 +45,14 @@ export default function JobListPanel({
   const [filteredJobsLoading, setFilteredJobsLoading] = useState(false);
   const selectedJobRef = useRef<Job | null>(null);
   const initialJobIdAppliedRef = useRef(false);
+  const logsEndRef = useRef<HTMLDivElement>(null);
 
   const { jobs: webSocketJobs, isConnected } = useJobWebSocketContext();
+
+  // Auto-scroll logs to bottom when new entries arrive (running jobs)
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [selectedJob?.logs?.length]);
 
   const calculateDuration = (
     started_at: string | null | undefined,
@@ -80,9 +86,9 @@ export default function JobListPanel({
         completed_at: wsJob.completed_at || null,
         error_message: wsJob.error || null,
         duration_seconds: calculateDuration(wsJob.started_at, wsJob.completed_at),
-        logs: [],
-        result: null,
-        job_metadata: {},
+        logs: (wsJob as Job).logs ?? [],
+        result: (wsJob as Job).result ?? null,
+        job_metadata: (wsJob as Job).job_metadata ?? {},
       } as Job,
     ])
   );
@@ -151,9 +157,9 @@ export default function JobListPanel({
           completed_at: wsJob.completed_at || null,
           error_message: wsJob.error || null,
           duration_seconds: calculateDuration(wsJob.started_at, wsJob.completed_at),
-          logs: [],
-          result: null,
-          job_metadata: {},
+          logs: (wsJob as Job).logs ?? [],
+          result: (wsJob as Job).result ?? null,
+          job_metadata: (wsJob as Job).job_metadata ?? {},
         }));
 
   const jobs: Job[] = baseJobs.filter((job) => {
@@ -164,6 +170,7 @@ export default function JobListPanel({
 
   const loadJobDetails = async (jobId: string) => {
     try {
+      setDetailsLoading(true);
       const currentToken = token || (await getAccessTokenSilently());
       const job = await getJob(jobId, currentToken);
       if (!job.duration_seconds && job.started_at && job.completed_at) {
@@ -211,6 +218,32 @@ export default function JobListPanel({
     loadJobDetails(initialJobId);
   }, [initialJobId, token]);
 
+  // Poll selected running job so logs stay fresh (e.g. after server restart or if WebSocket missed updates)
+  const POLL_RUNNING_JOB_INTERVAL_MS = 5000;
+  useEffect(() => {
+    if (!selectedJob || selectedJob.status !== "running" || !token) return;
+    const jobId = selectedJob.job_id;
+    const intervalId = setInterval(async () => {
+      try {
+        const currentToken = token || (await getAccessTokenSilently());
+        const job = await getJob(jobId, currentToken);
+        setSelectedJob((prev) => {
+          if (prev?.job_id !== jobId) return prev;
+          return {
+            ...prev,
+            ...job,
+            duration_seconds: job.duration_seconds ?? calculateDuration(job.started_at, job.completed_at),
+          };
+        });
+        selectedJobRef.current = { ...job, duration_seconds: job.duration_seconds ?? calculateDuration(job.started_at, job.completed_at) };
+      } catch {
+        // Ignore poll errors (e.g. job completed, 404)
+      }
+    }, POLL_RUNNING_JOB_INTERVAL_MS);
+    return () => clearInterval(intervalId);
+  }, [selectedJob?.job_id, selectedJob?.status, token, getAccessTokenSilently]);
+
+  // Merge WebSocket updates into selected job so the detail panel shows live logs and progress
   useEffect(() => {
     if (selectedJobRef.current) {
       const updatedJob = webSocketJobs.find(
@@ -220,6 +253,7 @@ export default function JobListPanel({
         if (isConnected) {
           setSelectedJob((prev) => {
             if (prev && prev.job_id === updatedJob.job_id) {
+              const fullJob = updatedJob as Job;
               const calculatedDuration = calculateDuration(
                 updatedJob.started_at,
                 updatedJob.completed_at
@@ -233,18 +267,22 @@ export default function JobListPanel({
                 completed_at: updatedJob.completed_at || null,
                 error_message: updatedJob.error || null,
                 duration_seconds: calculatedDuration ?? prev.duration_seconds,
+                // Merge logs and result from WebSocket so detail panel updates live
+                logs: fullJob.logs?.length ? fullJob.logs : prev.logs,
+                result: fullJob.result ?? prev.result,
+                job_metadata: fullJob.job_metadata ?? prev.job_metadata,
               };
             }
             return prev;
           });
+        }
 
-          if (
-            updatedJob.status === "completed" ||
-            updatedJob.status === "failed" ||
-            updatedJob.status === "cancelled"
-          ) {
-            loadJobDetails(updatedJob.job_id);
-          }
+        if (
+          updatedJob.status === "completed" ||
+          updatedJob.status === "failed" ||
+          updatedJob.status === "cancelled"
+        ) {
+          loadJobDetails(updatedJob.job_id);
         }
       }
     }
@@ -526,11 +564,19 @@ export default function JobListPanel({
 
                 {selectedJob.logs && selectedJob.logs.length > 0 ? (
                   <div className={styles.detailSection}>
-                    <h4>Event Log ({selectedJob.logs.length} entries)</h4>
+                    <div className={styles.logsSectionHeader}>
+                      <h4>Event Log ({selectedJob.logs.length} entries)</h4>
+                      {selectedJob.status === "running" && (
+                        <span className={styles.logsLiveBadge}>
+                          Live · Logs refresh every 5s while running
+                        </span>
+                      )}
+                    </div>
                     <div className={styles.logsContainer}>
                       {selectedJob.logs.map((log, index) => {
                         const isError =
-                          log.includes("ERROR") || log.includes("FATAL");
+                          log.includes("ERROR") || log.includes("FATAL") ||
+                          log.includes("✗ FAILED");
                         return (
                           <div
                             key={index}
@@ -542,6 +588,7 @@ export default function JobListPanel({
                           </div>
                         );
                       })}
+                      <div ref={logsEndRef} />
                     </div>
                   </div>
                 ) : detailsLoading ? (

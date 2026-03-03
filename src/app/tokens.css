@@ -28,6 +28,8 @@
   --text-tertiary: #9ca3af;
   --text-muted: #9ca3af;
   --text-inverse: #ffffff;
+  /* Text on brand (e.g. primary buttons): always light for contrast on purple */
+  --text-on-brand: #ffffff;
 
   /* Secondary button text (light mode: same as primary text) */
   --button-secondary-text: var(--text-primary);
@@ -95,6 +97,8 @@
   --text-tertiary: #94a3b8;
   --text-muted: #94a3b8;
   --text-inverse: #0f172a;
+  /* Text on brand (primary buttons): always white so readable on purple in dark mode */
+  --text-on-brand: #ffffff;
 
   /* Secondary button text: slightly softer than primary so buttons aren’t harsh white in dark mode */
   --button-secondary-text: #a8b8cc;

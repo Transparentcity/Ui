@@ -38,6 +38,7 @@ export default function ScheduledJobsPanel({
   const [runningSchedule, setRunningSchedule] = useState<string | null>(null);
   const [removeAllInactive, setRemoveAllInactive] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [runSuccessMessage, setRunSuccessMessage] = useState<{ jobId: string; jobName: string } | null>(null);
   const [runningCustomJobId, setRunningCustomJobId] = useState<number | null>(null);
 
   const [editJob, setEditJob] = useState<CustomScheduledJob | null>(null);
@@ -218,10 +219,17 @@ export default function ScheduledJobsPanel({
     try {
       setRunningCustomJobId(job.id);
       setLocalError(null);
+      setRunSuccessMessage(null);
       const currentToken = token || (await getAccessTokenSilently());
       const res = await runCustomScheduledJob(job.id, currentToken);
+      if (res?.status === "skipped") {
+        setLocalError(res?.message ?? "Job was skipped (e.g. not active). Resume it first to run.");
+        return;
+      }
       if (res?.job_id) {
-        notifyJobCreated(res.job_id);
+        notifyJobCreated(String(res.job_id));
+        setRunSuccessMessage({ jobId: res.job_id, jobName: job.name });
+        setTimeout(() => setRunSuccessMessage(null), 8000);
       }
       setTimeout(() => onRefresh(), 1000);
     } catch (err) {
@@ -266,6 +274,20 @@ export default function ScheduledJobsPanel({
 
       {displayError && (
         <div className={styles.error}>{displayError}</div>
+      )}
+
+      {runSuccessMessage && (
+        <div className={styles.successMessage}>
+          <span>
+            <strong>{runSuccessMessage.jobName}</strong> run started.{" "}
+            <Link
+              href={`/dashboard?tab=logs&job_id=${encodeURIComponent(runSuccessMessage.jobId)}`}
+              className={styles.viewRunLink}
+            >
+              View in Job Logs
+            </Link>
+          </span>
+        </div>
       )}
 
       {!scheduleLoading &&

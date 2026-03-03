@@ -277,12 +277,12 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
           </a>
         )}
 
-        {/* Feed stories - visible to admins and city leads (same as API docs) */}
+        {/* Email (Seymour's inbox) - visible to admins and city leads */}
         {canAccessApiDocs && (
           <div
             className={styles.item}
-            data-view="feed-stories-admin"
-            onClick={() => handleAdminView("feed-stories-admin")}
+            data-view="email-admin"
+            onClick={() => handleAdminView("email-admin")}
           >
             <span
               style={{
@@ -304,14 +304,11 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
                 strokeLinejoin="round"
                 style={{ filter: "grayscale(100%)" }}
               >
-                <path d="M4 11a9 9 0 0 1 9 9"></path>
-                <path d="M4 4a9 9 0 0 1 9 9"></path>
-                <line x1="21" y1="4" x2="14" y2="4"></line>
-                <line x1="21" y1="8" x2="14" y2="8"></line>
-                <line x1="21" y1="12" x2="14" y2="12"></line>
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
               </svg>
             </span>
-            <span>Feed stories</span>
+            <span>Email (Seymour&apos;s inbox)</span>
           </div>
         )}
 

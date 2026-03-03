@@ -97,22 +97,6 @@ function formatPeriodDate(start?: string | null, end?: string | null): string | 
   }
 }
 
-function formatMetadataDate(dateStr?: string | null): string | null {
-  if (!dateStr) return null;
-  try {
-    const date = new Date(dateStr);
-    // Use UTC timezone to avoid off-by-one date issues with server dates
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "UTC",
-    });
-  } catch {
-    return null;
-  }
-}
-
 export default function CityDashboardSection({
   cityDisplayName,
   slug,
@@ -419,9 +403,6 @@ export default function CityDashboardSection({
                             ytd?.comparison_period_start ?? null,
                             ytd?.comparison_period_end ?? null
                           );
-                          const maxData = formatMetadataDate(
-                            ytd?.current_period_end ?? null
-                          );
                           const displayUnit: string | null = null;
 
                           const metricHref = isDistrictView
@@ -438,16 +419,9 @@ export default function CityDashboardSection({
                               }}
                             >
                               <div className="metric-col metric-col-name">
-                                <div style={{ display: "flex", flexDirection: "column" }}>
-                                  <span className="metric-name">
-                                    {m.metric_name}
-                                  </span>
-                                  {maxData && (
-                                    <div className="metric-metadata">
-                                      Through: {maxData}
-                                    </div>
-                                  )}
-                                </div>
+                                <span className="metric-name">
+                                  {m.metric_name}
+                                </span>
                               </div>
 
                               <div className="metric-col metric-col-value">
@@ -483,17 +457,17 @@ export default function CityDashboardSection({
                                           : "—"}
                                     </span>
                                     <div className="change-values">
-                                      <span className="change-absolute">
-                                        {absDiff != null
-                                          ? (absDiff > 0 ? "+" : "") +
-                                            Math.round(absDiff).toLocaleString()
-                                          : "—"}
-                                      </span>
                                       <span className="change-percent">
                                         {pct != null
                                           ? (pct > 0 ? "+" : "") +
                                             Math.round(pct) +
                                             "%"
+                                          : "—"}
+                                      </span>
+                                      <span className="change-absolute">
+                                        {absDiff != null
+                                          ? (absDiff > 0 ? "+" : "") +
+                                            Math.round(absDiff).toLocaleString()
                                           : "—"}
                                       </span>
                                     </div>

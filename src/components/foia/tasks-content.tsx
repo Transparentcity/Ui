@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { Loader2, Plus, X, CheckCircle2, AlertTriangle, Trash2 } from "lucide-react"
+import { Loader2, Plus, X, CheckCircle2, AlertTriangle } from "lucide-react"
 import { useAuth0 } from "@auth0/auth0-react"
-import { deleteFoiaTask, listFoiaTasks } from "@/lib/foiaApiClient"
+import { listFoiaTasks } from "@/lib/foiaApiClient"
 import { assignFoiaTask, completeFoiaTask, createFoiaTask } from "@/app/actions/foia"
 import { TaskStatusBadge } from "@/components/foia/status-badge"
 import type { FoiaTask, TaskStatus, TaskType } from "@/lib/foia/types"
@@ -35,7 +35,6 @@ export function TasksContent() {
   const [filter, setFilter] = useState<TaskStatus | "all">("all")
   const [showNewTask, setShowNewTask] = useState(false)
   const [actionLoading, setActionLoading] = useState<number | null>(null)
-  const [deletingId, setDeletingId] = useState<number | null>(null)
   const [apiError, setApiError] = useState<string | null>(null)
 
   const [newTask, setNewTask] = useState({
@@ -123,28 +122,6 @@ export function TasksContent() {
     }
   }
 
-  async function handleDelete(taskId: number) {
-    const ok = confirm("Delete this follow-up/task? This cannot be undone.")
-    if (!ok) return
-
-    setDeletingId(taskId)
-    let token: string | undefined
-    if (isAuthenticated) {
-      try {
-        token = await getAccessTokenSilently()
-      } catch {
-        // continue without token
-      }
-    }
-    try {
-      await deleteFoiaTask(taskId, token)
-      await load()
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Delete failed")
-    } finally {
-      setDeletingId(null)
-    }
-  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -283,18 +260,6 @@ export function TasksContent() {
                 </div>
               </div>
               <TaskStatusBadge status={task.status} />
-              <button
-                type="button"
-                onClick={() => handleDelete(task.id)}
-                disabled={deletingId === task.id}
-                className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-                title="Delete"
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  <Trash2 className="h-3.5 w-3.5" />
-                  {deletingId === task.id ? "Deleting..." : "Delete"}
-                </span>
-              </button>
               {task.status !== "completed" && task.status !== "cancelled" && (
                 <div className="flex items-center gap-1.5">
                   {!task.assigned_to && (

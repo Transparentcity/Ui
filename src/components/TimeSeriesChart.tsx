@@ -548,6 +548,8 @@ export default function TimeSeriesChart({
     : (metadata?.period_type?.toLowerCase() as PeriodType) || defaultPeriod;
   const [periodType, setPeriodType] = useState<PeriodType>(effectiveDefaultPeriod);
   const [showPartialInfo, setShowPartialInfo] = useState(false);
+  // Default to stacked when chart has multiple categories; one-click toggle to "by series"
+  const [stackedView, setStackedView] = useState(true);
 
   const handlePeriodChange = (newPeriod: PeriodType) => {
     setPeriodType(newPeriod);
@@ -769,66 +771,126 @@ export default function TimeSeriesChart({
       // Regular period types (day, week, month, year)
       const groupValues = Array.from(aggregatedByGroup.keys()).sort();
 
-      groupValues.forEach((groupValue, index) => {
-        const points = aggregatedByGroup.get(groupValue)!;
-        if (points.length === 0) return;
-
-        const x = points.map((point) => {
-          // Convert time_period to Date for proper x-axis handling
-          if (periodType === "week" && point.time_period.includes("W")) {
-            // Parse ISO week: YYYY-WXX
-            const [year, week] = point.time_period.split("-W");
-            return getDateFromISOWeek(parseInt(year), parseInt(week));
-          } else if (periodType === "month" && point.time_period.match(/^\d{4}-\d{2}$/)) {
-            // YYYY-MM format
-            const [year, month] = point.time_period.split("-");
-            return new Date(parseInt(year), parseInt(month) - 1, 1);
-          } else if (periodType === "year") {
-            return new Date(parseInt(point.time_period), 0, 1);
-          } else {
-            return new Date(point.time_period);
+      if (stackedView && hasGroups && groupValues.length > 1) {
+        // Stacked area: align all groups to same time periods, then stack with fill: 'tonexty'
+        const periodToValue = new Map<string, Map<string, number>>();
+        const allPeriodsSet = new Set<string>();
+        for (const gv of groupValues) {
+          const points = aggregatedByGroup.get(gv)!;
+          const map = new Map<string, number>();
+          periodToValue.set(gv, map);
+          for (const p of points) {
+            map.set(p.time_period, p.numeric_value || 0);
+            allPeriodsSet.add(p.time_period);
           }
+        }
+        const sortedPeriods = Array.from(allPeriodsSet).sort((a, b) => {
+          if (a.includes("W") && b.includes("W")) {
+            const [yA, wA] = a.split("-W").map(Number);
+            const [yB, wB] = b.split("-W").map(Number);
+            if (yA !== yB) return yA - yB;
+            return wA - wB;
+          }
+          return new Date(a).getTime() - new Date(b).getTime();
         });
 
-        const y = points.map((point) => point.numeric_value);
-
-        // Get color for this series (cycle through palette)
-        const colorIndex = index % SERIES_COLORS.length;
-        const color = SERIES_COLORS[colorIndex];
-
-        // Series name: use group value if available, otherwise use default
-        const seriesName = hasGroups && groupValue
-          ? groupValue
-          : metadata?.chart_title || metadata?.object_name || "Time Series";
-
-        // Build hover template with group value included
-        const hoverPrefix = hasGroups && groupValue ? `${groupValue}<br>` : "";
+        const toDate = (timePeriod: string) => {
+          if (periodType === "week" && timePeriod.includes("W")) {
+            const [year, week] = timePeriod.split("-W");
+            return getDateFromISOWeek(parseInt(year), parseInt(week));
+          }
+          if (periodType === "month" && timePeriod.match(/^\d{4}-\d{2}$/)) {
+            const [year, month] = timePeriod.split("-");
+            return new Date(parseInt(year), parseInt(month) - 1, 1);
+          }
+          if (periodType === "year") return new Date(parseInt(timePeriod), 0, 1);
+          return new Date(timePeriod);
+        };
+        const xDates = sortedPeriods.map(toDate);
         const dateFormat = periodType === "month" ? "%b %d, %Y" 
           : periodType === "year" ? "%Y" 
           : periodType === "week" ? "Week of %b %d, %Y"
           : "%b %d, %Y";
 
-        traces.push({
-          x,
-          y,
-          type: "scatter",
-          mode: "lines+markers",
-          name: seriesName,
-          line: {
-            color,
-            width: 2,
-          },
-          marker: {
-            color,
-            size: 6,
-          },
-          hovertemplate: `${hoverPrefix}%{x|${dateFormat}}<br>%{y:,.0f}<extra></extra>`,
+        let cumulativeY: number[] = sortedPeriods.map(() => 0);
+        groupValues.forEach((groupValue, index) => {
+          const map = periodToValue.get(groupValue)!;
+          const rawY = sortedPeriods.map((t) => map.get(t) ?? 0);
+          cumulativeY = cumulativeY.map((c, i) => c + rawY[i]);
+          const colorIndex = index % SERIES_COLORS.length;
+          const color = SERIES_COLORS[colorIndex];
+          const seriesName = groupValue || metadata?.chart_title || metadata?.object_name || "Time Series";
+          const isFirst = index === 0;
+          traces.push({
+            x: xDates,
+            y: cumulativeY,
+            customdata: rawY,
+            type: "scatter",
+            mode: "lines",
+            name: seriesName,
+            fill: isFirst ? "tozeroy" : "tonexty",
+            line: { color, width: 0 },
+            fillcolor: color,
+            hovertemplate: `${seriesName}<br>%{x|${dateFormat}}<br>%{customdata:,.0f}<extra></extra>`,
+          });
         });
-      });
+      } else {
+        // Multiple series (grouped lines) or single series
+        groupValues.forEach((groupValue, index) => {
+          const points = aggregatedByGroup.get(groupValue)!;
+          if (points.length === 0) return;
+
+          const x = points.map((point) => {
+            if (periodType === "week" && point.time_period.includes("W")) {
+              const [year, week] = point.time_period.split("-W");
+              return getDateFromISOWeek(parseInt(year), parseInt(week));
+            } else if (periodType === "month" && point.time_period.match(/^\d{4}-\d{2}$/)) {
+              const [year, month] = point.time_period.split("-");
+              return new Date(parseInt(year), parseInt(month) - 1, 1);
+            } else if (periodType === "year") {
+              return new Date(parseInt(point.time_period), 0, 1);
+            } else {
+              return new Date(point.time_period);
+            }
+          });
+
+          const y = points.map((point) => point.numeric_value);
+
+          const colorIndex = index % SERIES_COLORS.length;
+          const color = SERIES_COLORS[colorIndex];
+
+          const seriesName = hasGroups && groupValue
+            ? groupValue
+            : metadata?.chart_title || metadata?.object_name || "Time Series";
+
+          const hoverPrefix = hasGroups && groupValue ? `${groupValue}<br>` : "";
+          const dateFormat = periodType === "month" ? "%b %d, %Y" 
+            : periodType === "year" ? "%Y" 
+            : periodType === "week" ? "Week of %b %d, %Y"
+            : "%b %d, %Y";
+
+          traces.push({
+            x,
+            y,
+            type: "scatter",
+            mode: "lines+markers",
+            name: seriesName,
+            line: {
+              color,
+              width: 2,
+            },
+            marker: {
+              color,
+              size: 6,
+            },
+            hovertemplate: `${hoverPrefix}%{x|${dateFormat}}<br>%{y:,.0f}<extra></extra>`,
+          });
+        });
+      }
     }
 
     return traces;
-  }, [aggregatedByGroup, periodType, hasGroups, metadata]);
+  }, [aggregatedByGroup, periodType, hasGroups, metadata, stackedView]);
 
   const chartTitleText =
     metadata?.chart_title ||
@@ -857,8 +919,28 @@ export default function TimeSeriesChart({
       ? `District ${metadata.district}` 
       : null;
 
-  // Calculate maximum Y value from all data points for Y-axis range
+  // Calculate maximum Y value for Y-axis range (stacked: max period total; otherwise max single value)
   const maxYValue = useMemo(() => {
+    if (stackedView && hasGroups && periodType !== "ytd") {
+      const groupValues = Array.from(aggregatedByGroup.keys()).sort();
+      if (groupValues.length <= 1) {
+        let m = 0;
+        for (const points of aggregatedByGroup.values()) {
+          for (const p of points) if ((p.numeric_value || 0) > m) m = p.numeric_value || 0;
+        }
+        return m > 0 ? m * 1.1 : 10;
+      }
+      const periodSums = new Map<string, number>();
+      for (const gv of groupValues) {
+        for (const p of aggregatedByGroup.get(gv)!) {
+          const v = p.numeric_value || 0;
+          periodSums.set(p.time_period, (periodSums.get(p.time_period) || 0) + v);
+        }
+      }
+      let max = 0;
+      for (const sum of periodSums.values()) if (sum > max) max = sum;
+      return max > 0 ? max * 1.1 : 10;
+    }
     let max = 0;
     for (const points of aggregatedByGroup.values()) {
       for (const point of points) {
@@ -867,9 +949,8 @@ export default function TimeSeriesChart({
         }
       }
     }
-    // Add 10% padding at the top, but ensure minimum range
     return max > 0 ? max * 1.1 : 10;
-  }, [aggregatedByGroup]);
+  }, [aggregatedByGroup, stackedView, hasGroups, periodType]);
 
   // Use lighter, more visible colors in dark mode
   const textColor = theme === "dark" ? "#f1f5f9" : "#222222";
@@ -1104,19 +1185,21 @@ export default function TimeSeriesChart({
     return (
       <div className={styles.container}>
         {!hidePeriodSelector && (
-          <div className={styles.periodSelector}>
-            <label>Period:</label>
-            <select
-              value={periodType}
-              onChange={(e) => handlePeriodChange(e.target.value as PeriodType)}
-              className={styles.select}
-            >
-              <option value="day">Day</option>
-              <option value="week">Week</option>
-              <option value="month">Month</option>
-              <option value="year">Year</option>
-              <option value="ytd">Year-to-Date</option>
-            </select>
+          <div className={styles.controlsRow}>
+            <div className={styles.periodSelector}>
+              <label>Period:</label>
+              <select
+                value={periodType}
+                onChange={(e) => handlePeriodChange(e.target.value as PeriodType)}
+                className={styles.select}
+              >
+                <option value="day">Day</option>
+                <option value="week">Week</option>
+                <option value="month">Month</option>
+                <option value="year">Year</option>
+                <option value="ytd">Year-to-Date</option>
+              </select>
+            </div>
           </div>
         )}
         <div className={styles.emptyState}>
@@ -1141,19 +1224,42 @@ export default function TimeSeriesChart({
         </div>
       )}
       {!hidePeriodSelector && (
-        <div className={styles.periodSelector}>
-          <label>Period:</label>
-          <select
-            value={periodType}
-            onChange={(e) => handlePeriodChange(e.target.value as PeriodType)}
-            className={styles.select}
-          >
-            <option value="day">Day</option>
-            <option value="week">Week</option>
-            <option value="month">Month</option>
-            <option value="year">Year</option>
-            <option value="ytd">Year-to-Date</option>
-          </select>
+        <div className={styles.controlsRow}>
+          <div className={styles.periodSelector}>
+            <label>Period:</label>
+            <select
+              value={periodType}
+              onChange={(e) => handlePeriodChange(e.target.value as PeriodType)}
+              className={styles.select}
+            >
+              <option value="day">Day</option>
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+              <option value="year">Year</option>
+              <option value="ytd">Year-to-Date</option>
+            </select>
+          </div>
+          {hasGroups && periodType !== "ytd" && (
+            <div className={styles.viewToggle}>
+              <span className={styles.viewToggleLabel}>View:</span>
+              <button
+                type="button"
+                className={stackedView ? styles.viewToggleActive : styles.viewToggleBtn}
+                onClick={() => setStackedView(true)}
+                aria-pressed={stackedView}
+              >
+                Stacked
+              </button>
+              <button
+                type="button"
+                className={!stackedView ? styles.viewToggleActive : styles.viewToggleBtn}
+                onClick={() => setStackedView(false)}
+                aria-pressed={!stackedView}
+              >
+                By series
+              </button>
+            </div>
+          )}
         </div>
       )}
       {metadata?.caption && (

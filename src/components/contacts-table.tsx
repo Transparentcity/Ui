@@ -20,6 +20,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
 import { Contact, Keyword } from "@/lib/types"
 import { ContactDialog } from "./contact-dialog"
@@ -32,67 +39,89 @@ import {
   Pencil,
   MapPin,
   Loader2,
+  ExternalLink,
 } from "lucide-react"
 import { deleteContact, bulkUpdateCity } from "@/app/actions/contacts"
 import { searchPublicCities, type PublicCitySearchResult } from "@/lib/publicApiClient"
 
-// Pinned cities that appear at the top of the city picker for quick selection
 const PINNED_CITIES: PublicCitySearchResult[] = [
   { id: 1, name: "San Francisco", state: "CA", display_name: "San Francisco" },
 ]
 
-interface ContactWithKeywords extends Contact {
-  keywords: Keyword[]
+function getArticleLabel(url: string, title: string | null): string {
+  if (title?.trim()) return title
+  try {
+    return new URL(url).hostname
+  } catch {
+    return "Link"
+  }
+}
+
+interface ContactWithKeywords extends Omit<Contact, "article_links"> {
+  keywords?: Keyword[]
+  article_links?: Array<{ id: string; url: string; title?: string | null }>
 }
 
 interface ContactsTableProps {
   contacts: ContactWithKeywords[]
   keywords: Keyword[]
+  /** Initial type filter from URL (e.g. ?type=media) */
+  initialTypeFilter?: TypeFilter
 }
 
+type TypeFilter = "all" | "city_staff" | "media"
+
 function getPriorityLabel(priority: number) {
-  const labels = ['', 'Critical', 'High', 'Medium', 'Low', 'Minimal']
-  return labels[priority] || 'Medium'
+  const labels = ["", "Critical", "High", "Medium", "Low", "Minimal"]
+  return labels[priority] || "Medium"
 }
 
 function getPriorityColor(priority: number) {
-  if (priority <= 2) return 'bg-destructive/10 text-destructive border-destructive/20'
-  if (priority === 3) return 'bg-warning/10 text-warning-foreground border-warning/20'
-  return 'bg-muted text-muted-foreground border-muted'
+  if (priority <= 2) return "bg-destructive/10 text-destructive border-destructive/20"
+  if (priority === 3) return "bg-warning/10 text-warning-foreground border-warning/20"
+  return "bg-muted text-muted-foreground border-muted"
 }
 
 function getStatusColor(status: string) {
   switch (status) {
-    case 'active': return 'bg-success/10 text-success border-success/20'
-    case 'inactive': return 'bg-muted text-muted-foreground border-muted'
-    case 'unsubscribed': return 'bg-destructive/10 text-destructive border-destructive/20'
-    default: return 'bg-muted text-muted-foreground border-muted'
+    case "active":
+      return "bg-success/10 text-success border-success/20"
+    case "inactive":
+      return "bg-muted text-muted-foreground border-muted"
+    case "unsubscribed":
+      return "bg-destructive/10 text-destructive border-destructive/20"
+    default:
+      return "bg-muted text-muted-foreground border-muted"
   }
 }
 
-export function ContactsTable({ contacts, keywords }: ContactsTableProps) {
+export function ContactsTable({ contacts, keywords, initialTypeFilter }: ContactsTableProps) {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>(initialTypeFilter ?? "all")
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
-
-  // Bulk city assignment state
   const [showCityPicker, setShowCityPicker] = useState(false)
   const [citySearch, setCitySearch] = useState("")
   const [cityResults, setCityResults] = useState<PublicCitySearchResult[]>([])
   const [citySearching, setCitySearching] = useState(false)
   const [bulkMessage, setBulkMessage] = useState<string | null>(null)
 
-  const filteredContacts = contacts.filter(contact => {
+  const filteredContacts = contacts.filter((contact) => {
+    if (typeFilter !== "all" && (contact.contact_type as string) !== typeFilter) return false
     const search = searchQuery.toLowerCase()
+    const c = contact as ContactWithKeywords
     return (
-      contact.name.toLowerCase().includes(search) ||
-      contact.email?.toLowerCase().includes(search) ||
-      contact.organization?.toLowerCase().includes(search) ||
-      contact.department?.toLowerCase().includes(search) ||
-      contact.jurisdiction?.toLowerCase().includes(search) ||
-      contact.city_name?.toLowerCase().includes(search) ||
-      contact.keywords?.some(k => k.name.toLowerCase().includes(search))
+      c.name.toLowerCase().includes(search) ||
+      c.email?.toLowerCase().includes(search) ||
+      c.organization?.toLowerCase().includes(search) ||
+      c.department?.toLowerCase().includes(search) ||
+      c.jurisdiction?.toLowerCase().includes(search) ||
+      (c.city_name ?? "").toLowerCase().includes(search) ||
+      (c.outlet_platform ?? "").toLowerCase().includes(search) ||
+      (c.primary_city ?? "").toLowerCase().includes(search) ||
+      (c.primary_beat ?? "").toLowerCase().includes(search) ||
+      c.keywords?.some((k) => k.name.toLowerCase().includes(search))
     )
   })
 
@@ -167,9 +196,8 @@ export function ContactsTable({ contacts, keywords }: ContactsTableProps) {
 
   return (
     <div className="space-y-4">
-      {/* Top bar: search + bulk actions + city stats */}
       <div className="flex items-center gap-4 flex-wrap">
-        <div className="relative flex-1 max-w-sm">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Search contacts..."
@@ -178,8 +206,18 @@ export function ContactsTable({ contacts, keywords }: ContactsTableProps) {
             className="pl-9"
           />
         </div>
+        <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TypeFilter)}>
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="city_staff">City staff</SelectItem>
+            <SelectItem value="media">Media</SelectItem>
+          </SelectContent>
+        </Select>
         <p className="text-sm text-muted-foreground">
-          {filteredContacts.length} contact{filteredContacts.length !== 1 ? 's' : ''}
+          {filteredContacts.length} contact{filteredContacts.length !== 1 ? "s" : ""}
         </p>
         {/* City breakdown badges */}
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -291,16 +329,15 @@ export function ContactsTable({ contacts, keywords }: ContactsTableProps) {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">
-                  <Checkbox
-                    checked={allSelected}
-                    onCheckedChange={toggleAll}
-                  />
+                  <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
                 </TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>City</TableHead>
-                <TableHead>District</TableHead>
+                <TableHead>District / Outlet</TableHead>
                 <TableHead>Contact Info</TableHead>
                 <TableHead>Keywords</TableHead>
+                <TableHead>Articles</TableHead>
                 <TableHead>Priority</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-12"></TableHead>
@@ -309,131 +346,197 @@ export function ContactsTable({ contacts, keywords }: ContactsTableProps) {
             <TableBody>
               {filteredContacts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
-                    {searchQuery ? 'No contacts found matching your search' : 'No contacts yet. Add your first contact to get started.'}
+                  <TableCell colSpan={11} className="h-32 text-center text-muted-foreground">
+                    {searchQuery || typeFilter !== "all"
+                      ? "No contacts found"
+                      : "No contacts yet. Add your first contact to get started."}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredContacts.map((contact) => (
-                  <TableRow key={contact.id} className={selectedIds.has(contact.id) ? 'bg-purple-50/50' : ''}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedIds.has(contact.id)}
-                        onCheckedChange={() => toggleOne(contact.id)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{contact.name}</p>
-                        {contact.title && (
-                          <p className="text-xs text-muted-foreground">{contact.title}</p>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {contact.city_name ? (
-                        <div className="flex items-center gap-1.5">
-                          <MapPin className="w-3 h-3 text-gray-400" />
-                          <span className="text-sm">{contact.city_name}</span>
+                filteredContacts.map((contact) => {
+                  const isMedia = (contact.contact_type as string) === "media"
+                  return (
+                    <TableRow
+                      key={contact.id}
+                      className={selectedIds.has(contact.id) ? "bg-purple-50/50" : ""}
+                    >
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.has(contact.id)}
+                          onCheckedChange={() => toggleOne(contact.id)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">
+                          {isMedia ? "Media" : "City staff"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{contact.name}</p>
+                          {contact.title && (
+                            <p className="text-xs text-muted-foreground">{contact.title}</p>
+                          )}
+                          {isMedia && contact.primary_beat && (
+                            <p className="text-xs text-muted-foreground">{contact.primary_beat}</p>
+                          )}
                         </div>
-                      ) : (
-                        <span className="text-xs text-amber-600">Not set</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="text-sm font-medium">{contact.jurisdiction || '-'}</p>
-                        {contact.organization && (
-                          <p className="text-xs text-muted-foreground">{contact.organization}</p>
-                        )}
-                        {contact.department && (
-                          <p className="text-xs text-muted-foreground">{contact.department}</p>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        {contact.email && (
-                          <a
-                            href={`mailto:${contact.email}`}
-                            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            <Mail className="w-3 h-3" />
-                            {contact.email}
-                          </a>
-                        )}
-                        {contact.phone && (
-                          <a
-                            href={`tel:${contact.phone}`}
-                            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            <Phone className="w-3 h-3" />
-                            {contact.phone}
-                          </a>
-                        )}
-                        {!contact.email && !contact.phone && (
-                          <span className="text-sm text-muted-foreground">-</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1 max-w-48">
-                        {contact.keywords?.length > 0 ? (
-                          contact.keywords.slice(0, 3).map((keyword) => (
-                            <Badge key={keyword.id} variant="outline" className="text-xs">
-                              {keyword.name}
-                            </Badge>
-                          ))
+                      </TableCell>
+                      <TableCell>
+                        {contact.city_name ? (
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="w-3 h-3 text-gray-400" />
+                            <span className="text-sm">{contact.city_name}</span>
+                          </div>
                         ) : (
-                          <span className="text-sm text-muted-foreground">-</span>
+                          <span className="text-xs text-amber-600">Not set</span>
                         )}
-                        {contact.keywords?.length > 3 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{contact.keywords.length - 3}
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={getPriorityColor(contact.priority)}>
-                        {getPriorityLabel(contact.priority)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={getStatusColor(contact.status)}>
-                        {contact.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <ContactDialog contact={contact} keywords={keywords}>
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                              <Pencil className="w-4 h-4 mr-2" />
-                              Edit
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          {isMedia ? (
+                            <>
+                              <p className="text-sm font-medium">
+                                {contact.outlet_platform || "-"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {contact.primary_city || ""}
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-sm font-medium">
+                                {contact.jurisdiction || "-"}
+                              </p>
+                              {contact.organization && (
+                                <p className="text-xs text-muted-foreground">
+                                  {contact.organization}
+                                </p>
+                              )}
+                              {contact.department && (
+                                <p className="text-xs text-muted-foreground">
+                                  {contact.department}
+                                </p>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          {contact.email && (
+                            <a
+                              href={`mailto:${contact.email}`}
+                              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              <Mail className="w-3 h-3" />
+                              {contact.email}
+                            </a>
+                          )}
+                          {contact.phone && (
+                            <a
+                              href={`tel:${contact.phone}`}
+                              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              <Phone className="w-3 h-3" />
+                              {contact.phone}
+                            </a>
+                          )}
+                          {!contact.email && !contact.phone && (
+                            <span className="text-sm text-muted-foreground">-</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1 max-w-48">
+                          {contact.keywords?.length ? (
+                            contact.keywords.slice(0, 3).map((k) => (
+                              <Badge key={k.id} variant="outline" className="text-xs">
+                                {k.name}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-sm text-muted-foreground">-</span>
+                          )}
+                          {(contact.keywords?.length ?? 0) > 3 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{(contact.keywords?.length ?? 0) - 3}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5 max-w-40">
+                          {(contact as ContactWithKeywords).article_links?.length ? (
+                            (contact as ContactWithKeywords).article_links!.slice(0, 2).map(
+                              (a) => (
+                                <a
+                                  key={a.id}
+                                  href={a.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground truncate"
+                                >
+                                  <ExternalLink className="w-3 h-3 shrink-0" />
+                                  {getArticleLabel(a.url, a.title ?? null)}
+                                </a>
+                              )
+                            )
+                          ) : (
+                            <span className="text-sm text-muted-foreground">-</span>
+                          )}
+                          {((contact as ContactWithKeywords).article_links?.length ?? 0) > 2 && (
+                            <span className="text-xs text-muted-foreground">
+                              +
+                              {((contact as ContactWithKeywords).article_links?.length ?? 0) - 2}{" "}
+                              more
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={getPriorityColor(contact.priority)}>
+                          {getPriorityLabel(contact.priority)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={getStatusColor(contact.status)}>
+                          {contact.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <ContactDialog contact={contact} keywords={keywords}>
+                              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                <Pencil className="w-4 h-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                            </ContactDialog>
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={async () => {
+                                if (
+                                  confirm("Are you sure you want to delete this contact?")
+                                ) {
+                                  await deleteContact(contact.id)
+                                }
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete
                             </DropdownMenuItem>
-                          </ContactDialog>
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={async () => {
-                              if (confirm('Are you sure you want to delete this contact?')) {
-                                await deleteContact(contact.id)
-                              }
-                            }}
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
               )}
             </TableBody>
           </Table>

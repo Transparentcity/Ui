@@ -343,6 +343,33 @@
   margin: 0;
 }
 
+.logsSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.logsSectionHeader h4 {
+  margin: 0;
+}
+
+.logsLiveBadge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--success, #10b981);
+  background: rgba(16, 185, 129, 0.1);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.lastUpdated {
+  color: var(--text-tertiary, #9ca3af);
+  font-weight: 500;
+}
+
 .logsContainer {
   max-height: 400px;
   overflow-y: auto;

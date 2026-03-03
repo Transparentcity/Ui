@@ -45,6 +45,33 @@ export async function getOrCreateCrmMetadata(anomalyId: number): Promise<CrmAnom
 }
 
 /**
+ * Fetch CRM metadata for a list of anomaly IDs.
+ * Returns a map keyed by anomaly_id for lightweight client merging.
+ */
+export async function getCrmMetadataForAnomalies(
+  anomalyIds: number[]
+): Promise<Record<number, CrmAnomalyMetadata>> {
+  const uniqueIds = Array.from(new Set(anomalyIds.filter((id) => Number.isFinite(id) && id > 0)))
+  if (uniqueIds.length === 0) return {}
+
+  const db = await createClient()
+  const { data, error } = await db
+    .from('crm_anomaly_metadata')
+    .select('*')
+    .in('anomaly_id', uniqueIds)
+
+  if (error) {
+    throw new Error(`Failed to fetch CRM metadata: ${error.message}`)
+  }
+
+  const rows = (data ?? []) as CrmAnomalyMetadata[]
+  return rows.reduce<Record<number, CrmAnomalyMetadata>>((acc, row) => {
+    acc[row.anomaly_id] = row
+    return acc
+  }, {})
+}
+
+/**
  * Update CRM status for an anomaly
  */
 export async function updateCrmStatus(

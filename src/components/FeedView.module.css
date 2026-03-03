@@ -1,7 +1,9 @@
 .feedContainer {
-  padding: 24px 20px;
+  width: 100%;
   max-width: 720px;
+  min-width: 0;
   margin: 0 auto;
+  padding: 24px 20px;
   color: var(--text-primary);
   box-sizing: border-box;
   overflow-x: hidden;
@@ -26,6 +28,90 @@
   line-height: 1.5;
   color: var(--text-secondary);
   margin: 0;
+}
+
+/* ── Admin bar (city/district filters + delete) ── */
+
+.adminBar {
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-primary);
+  border-radius: 10px;
+  background: var(--bg-secondary);
+}
+
+.adminBarRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.adminLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.adminSelect {
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-width: 140px;
+}
+
+.adminBarActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.adminDeleteCity,
+.adminDeleteDistrict {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid var(--border-primary);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.adminDeleteCity:hover:not(:disabled),
+.adminDeleteDistrict:hover:not(:disabled) {
+  border-color: var(--error, #dc2626);
+  color: var(--error, #dc2626);
+}
+
+.adminDeleteCity:disabled,
+.adminDeleteDistrict:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.storyDeleteBtn {
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-primary);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  margin-left: 6px;
+}
+
+.storyDeleteBtn:hover:not(:disabled) {
+  border-color: var(--error, #dc2626);
+  color: var(--error, #dc2626);
+}
+
+.storyDeleteBtn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 /* ── Scope filter (All / City-wide / District) ── */
@@ -557,7 +643,7 @@
 
 @media (max-width: 768px) {
   .feedContainer {
-    padding: 12px;
+    padding: 16px 8px 12px;
   }
 
   .feedHeader {

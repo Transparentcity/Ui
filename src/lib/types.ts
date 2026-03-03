@@ -1,9 +1,11 @@
+/** Contact type: city_staff (officials) or media (reporters). Both are prospects. */
+export type ContactType = 'city_staff' | 'media'
+
 /**
- * Prospect (Government Official) for CRM outreach
- * 
- * The `jurisdiction` field is critical for anomaly matching:
- * - Should match district format (e.g., "D5", "District 11", "Mission")
- * - Used to automatically match anomalies by geographic area
+ * Prospect - unified contact for CRM outreach (city staff + media)
+ *
+ * City staff: jurisdiction (district), organization, department
+ * Media: outlet_platform, primary_city, coverage_cities, sub_geographies
  */
 export interface Prospect {
   id: string
@@ -21,11 +23,28 @@ export interface Prospect {
   notes: string | null
   created_at: string
   updated_at: string
-  // Join table data (populated when fetching with joins)
+  // Type and media-specific fields
+  contact_type: ContactType
+  outlet_platform?: string | null
+  primary_beat?: string | null
+  primary_city?: string | null
+  coverage_cities?: string[]
+  sub_geographies?: string[]
+  // Join table data
   prospect_keywords?: Array<{
     keyword_id: string
     keyword?: Keyword
   }>
+  article_links?: ProspectArticleLink[]
+}
+
+export interface ProspectArticleLink {
+  id: string
+  prospect_id: string
+  url: string
+  title: string | null
+  published_at: string | null
+  created_at: string
 }
 
 // Alias for backwards compatibility
@@ -75,7 +94,7 @@ export interface Campaign {
 
 export interface Message {
   id: string
-  contact_id: string
+  prospect_id: string
   campaign_id: string | null
   template_id: string | null
   channel: 'email' | 'sms'
@@ -91,7 +110,7 @@ export interface Message {
 export interface Response {
   id: string
   message_id: string | null
-  contact_id: string
+  prospect_id: string
   channel: 'email' | 'sms' | 'phone' | 'other'
   content: string | null
   sentiment: 'positive' | 'neutral' | 'negative' | 'needs_followup' | null
@@ -106,7 +125,7 @@ export interface Response {
 
 export interface Followup {
   id: string
-  contact_id: string
+  prospect_id: string
   response_id: string | null
   title: string
   description: string | null
@@ -146,6 +165,8 @@ export interface CrmAnomalyMetadata {
  */
 export interface Anomaly {
   id: string | number               // SERIAL in database (integer), but can be string in JS
+  anomaly_id?: number | null        // Canonical anomaly_results.id for CRM metadata operations
+  fingerprint?: string              // Stable UI key across API rows/refreshes
   title?: string                    // Optional - may not exist in anomaly_results
   description?: string | null
   data_source?: string | null
@@ -160,7 +181,14 @@ export interface Anomaly {
   group_value?: string              // e.g., "C"
   period_type?: string              // e.g., "month"
   period_date?: string | null       // Optional date for the period (backend-dependent)
-  comparison_window?: string | null // Optional window label/description (backend-dependent)
+  comparison_window?:
+    | string
+    | {
+        label?: string
+        size?: number
+        match_weekday?: boolean
+      }
+    | null
   pct_change?: number               // Percentage change
   is_anomaly?: boolean
   chart_payload?: {

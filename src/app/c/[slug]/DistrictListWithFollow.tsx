@@ -151,7 +151,7 @@ export default function DistrictListWithFollow({
                   fontWeight: 500,
                   color: following
                     ? "var(--brand-primary, #ad35fa)"
-                    : "var(--text-inverse)",
+                    : "var(--text-on-brand, #ffffff)",
                   background: following
                     ? "transparent"
                     : "var(--brand-primary, #ad35fa)",
