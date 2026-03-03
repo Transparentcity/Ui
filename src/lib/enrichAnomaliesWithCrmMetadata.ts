@@ -16,7 +16,9 @@ export async function enrichAnomaliesWithCrmMetadata(
   if (anomalies.length === 0) return anomalies
 
   const db = await createClient()
-  const anomalyIds = anomalies.map(a => Number(a.id)).filter(id => !isNaN(id))
+  const anomalyIds = anomalies
+    .map((a) => a.anomaly_id ?? Number(a.id))
+    .filter((id) => !isNaN(id))
 
   if (anomalyIds.length === 0) return anomalies
 
@@ -45,7 +47,7 @@ export async function enrichAnomaliesWithCrmMetadata(
 
     // Enrich anomalies with metadata
     return anomalies.map(anomaly => {
-      const anomalyId = Number(anomaly.id)
+      const anomalyId = anomaly.anomaly_id ?? Number(anomaly.id)
       const metadata = metadataMap.get(anomalyId)
 
       if (!metadata) {

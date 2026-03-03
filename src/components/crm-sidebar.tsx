@@ -117,7 +117,7 @@ export function CRMSidebar() {
       {/* Footer */}
       <div className="px-4 py-3 border-t border-gray-200 bg-white">
         <p className="text-xs text-gray-400 m-0">
-          Government Official Outreach
+          Officials &amp; Media Outreach
         </p>
       </div>
     </aside>

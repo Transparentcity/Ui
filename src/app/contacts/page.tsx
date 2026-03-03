@@ -6,38 +6,63 @@ import { ContactImportDialog } from "@/components/contact-import-dialog"
 import { Button } from "@/components/ui/button"
 import { Plus, Upload } from "lucide-react"
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic"
 
-export default async function ContactsPage() {
-  const db = await createClient()
-  
+interface ContactsPageProps {
+  searchParams?: Promise<{ type?: string }>
+}
+
+export default async function ContactsPage({ searchParams }: ContactsPageProps) {
+  const db = createClient()
+  const params = searchParams ? await searchParams : {}
+  const typeParam = params?.type
+  const initialTypeFilter =
+    typeParam === "media"
+      ? ("media" as const)
+      : typeParam === "city_staff"
+        ? ("city_staff" as const)
+        : undefined
+
   const { data: contactsData } = await db
-    .from('prospects')
-    .select(`
+    .from("prospects")
+    .select(
+      `
       *,
-      prospect_keywords(
-        keyword:keywords(id, name)
-      )
-    `)
-    .order('created_at', { ascending: false })
+      prospect_keywords(keyword:keywords(id, name))
+    `
+    )
+    .order("created_at", { ascending: false })
 
-  const { data: keywordsData } = await db
-    .from('keywords')
-    .select('*')
-    .order('name')
+  const { data: articleLinksData } = await db.from("prospect_article_links").select("*")
+
+  const { data: keywordsData } = await db.from("keywords").select("*").order("name")
 
   const contacts = Array.isArray(contactsData) ? contactsData : []
+  const articleLinks = Array.isArray(articleLinksData) ? articleLinksData : []
   const keywords = Array.isArray(keywordsData) ? keywordsData : []
 
-  const contactsWithKeywords = contacts.map((contact: any) => ({
+  const linksByProspect = new Map<string, (typeof articleLinks)[number][]>()
+  for (const a of articleLinks) {
+    const pid = (a as { prospect_id: string }).prospect_id
+    const arr = linksByProspect.get(pid) ?? []
+    arr.push(a)
+    linksByProspect.set(pid, arr)
+  }
+
+  const contactsWithKeywords = contacts.map((contact: Record<string, unknown>) => ({
     ...contact,
-    keywords: contact.prospect_keywords?.map((ck: { keyword: { id: string; name: string } }) => ck.keyword) || []
+    contact_type: contact.contact_type || "city_staff",
+    keywords:
+      (contact.prospect_keywords as { keyword: { id: string; name: string } }[])?.map(
+        (ck) => ck.keyword
+      ) ?? [],
+    article_links: linksByProspect.get(contact.id as string) ?? [],
   }))
 
   return (
     <DashboardShell
       title="Contacts"
-      description="Manage government officials and their contact information"
+      description="City staff and media prospects"
       actions={
         <div className="flex items-center gap-2">
           <ContactImportDialog keywords={keywords as any}>
@@ -55,7 +80,11 @@ export default async function ContactsPage() {
         </div>
       }
     >
-      <ContactsTable contacts={contactsWithKeywords as any} keywords={keywords as any} />
+      <ContactsTable
+          contacts={contactsWithKeywords as any}
+          keywords={keywords as any}
+          initialTypeFilter={initialTypeFilter}
+        />
     </DashboardShell>
   )
 }

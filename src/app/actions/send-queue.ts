@@ -247,8 +247,167 @@ export async function updateQueueItemStatus(id: string, status: string, errorMes
     console.error("[v0] Error updating queue item:", error)
     throw new Error("Failed to update queue item")
   }
+
+  // If marked as sent, ensure we create/link a `messages` row so replies can be connected.
+  if (status === "sent") {
+    try {
+      const { data: sq } = await db
+        .from("send_queue")
+        .select("*")
+        .eq("id", id)
+        .single()
+
+      const row = sq as any
+      if (row) {
+        const sentAt =
+          (row.sent_at as string | null) ||
+          (updateData.sent_at as string | null) ||
+          new Date().toISOString()
+
+        const existingMessageId = (row.message_id as string | null) || null
+
+        if (existingMessageId) {
+          await db
+            .from("messages")
+            .update({
+              status: "sent",
+              sent_at: sentAt,
+              subject: row.personalized_subject || null,
+              body: row.personalized_body || null,
+              channel: row.channel || "email",
+              campaign_id: row.campaign_id || null,
+              template_id: row.template_id || null,
+              prospect_id: row.prospect_id,
+            })
+            .eq("id", existingMessageId)
+        } else {
+          const { data: msg, error: msgErr } = await db
+            .from("messages")
+            .insert({
+              campaign_id: row.campaign_id || null,
+              prospect_id: row.prospect_id,
+              template_id: row.template_id || null,
+              channel: row.channel || "email",
+              subject: row.personalized_subject || null,
+              body: row.personalized_body || null,
+              status: "sent",
+              sent_at: sentAt,
+            })
+            .select()
+            .single()
+
+          if (msgErr) {
+            console.error("[v0] Error creating messages row:", msgErr)
+          } else if (msg) {
+            const { error: linkErr } = await db
+              .from("send_queue")
+              .update({ message_id: (msg as any).id })
+              .eq("id", id)
+            if (linkErr) {
+              console.error("[v0] Error linking send_queue.message_id:", linkErr)
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error("[v0] Failed ensuring message row for sent queue item:", e)
+      // non-fatal
+    }
+  }
   
   revalidatePath("/send-queue")
+}
+
+/**
+ * Mark one or more queue items as sent (manual override).
+ * - Sets status="sent"
+ * - Sets sent_at to now
+ * - Clears error_message (since it's now considered resolved)
+ */
+export async function markQueueItemsAsSent(ids: string[]) {
+  if (!Array.isArray(ids) || ids.length === 0) return
+
+  const db = createClient()
+
+  const nowIso = new Date().toISOString()
+  const { error } = await db
+    .from("send_queue")
+    .update({
+      status: "sent",
+      sent_at: nowIso,
+      error_message: null,
+    })
+    .in("id", ids)
+
+  if (error) {
+    console.error("[v0] Error marking queue items as sent:", error)
+    throw new Error("Failed to mark messages as sent")
+  }
+
+  // Best-effort: create/link messages rows for each item (without changing sent_at again).
+  for (const id of ids) {
+    try {
+      const { data: sq } = await db
+        .from("send_queue")
+        .select("*")
+        .eq("id", id)
+        .single()
+
+      const row = sq as any
+      if (!row) continue
+
+      const existingMessageId = (row.message_id as string | null) || null
+      if (existingMessageId) {
+        await db
+          .from("messages")
+          .update({
+            status: "sent",
+            sent_at: row.sent_at || nowIso,
+            subject: row.personalized_subject || null,
+            body: row.personalized_body || null,
+            channel: row.channel || "email",
+            campaign_id: row.campaign_id || null,
+            template_id: row.template_id || null,
+            prospect_id: row.prospect_id,
+          })
+          .eq("id", existingMessageId)
+        continue
+      }
+
+      const { data: msg, error: msgErr } = await db
+        .from("messages")
+        .insert({
+          campaign_id: row.campaign_id || null,
+          prospect_id: row.prospect_id,
+          template_id: row.template_id || null,
+          channel: row.channel || "email",
+          subject: row.personalized_subject || null,
+          body: row.personalized_body || null,
+          status: "sent",
+          sent_at: row.sent_at || nowIso,
+        })
+        .select()
+        .single()
+
+      if (msgErr) {
+        console.error("[v0] Error creating messages row:", msgErr)
+        continue
+      }
+
+      const { error: linkErr } = await db
+        .from("send_queue")
+        .update({ message_id: (msg as any).id })
+        .eq("id", id)
+      if (linkErr) {
+        console.error("[v0] Error linking send_queue.message_id:", linkErr)
+      }
+    } catch (e) {
+      console.error("[v0] Failed linking message for sent item:", id, e)
+    }
+  }
+
+  revalidatePath("/send-queue")
+  revalidatePath("/campaigns")
 }
 
 export async function cancelQueueItems(ids: string[]) {
@@ -346,6 +505,110 @@ export async function updateQueueItemContent(
   }
   
   revalidatePath("/send-queue")
+}
+
+// Bulk-update queue items content (e.g., make multiple messages identical)
+export async function bulkUpdateQueueItemContent(options: {
+  ids: string[]
+  personalized_subject: string
+  personalized_body: string
+}) {
+  const { ids, personalized_subject, personalized_body } = options
+  if (!Array.isArray(ids) || ids.length === 0) return
+
+  const db = createClient()
+
+  const { error } = await db
+    .from("send_queue")
+    .update({
+      personalized_subject,
+      personalized_body,
+    })
+    .in("id", ids)
+
+  if (error) {
+    console.error("[v0] Error bulk-updating queue item content:", error)
+    throw new Error("Failed to update messages")
+  }
+
+  revalidatePath("/send-queue")
+  revalidatePath("/message-review")
+}
+
+// Create new draft queue items for additional recipients using the same copy.
+export async function addRecipientsToDraftEmail(options: {
+  source_queue_item_id: string
+  prospect_ids: string[]
+  personalized_subject: string
+  personalized_body: string
+}) {
+  const { source_queue_item_id, prospect_ids, personalized_subject, personalized_body } = options
+  if (!Array.isArray(prospect_ids) || prospect_ids.length === 0) return { added: 0 }
+
+  const db = createClient()
+
+  const { data: source, error: srcErr } = await db
+    .from("send_queue")
+    .select("*")
+    .eq("id", source_queue_item_id)
+    .single()
+
+  if (srcErr || !source) {
+    console.error("[v0] Error loading source queue item:", srcErr)
+    throw new Error("Failed to load source message")
+  }
+
+  // Avoid duplicates: don't add if a draft already exists for that prospect
+  // in the same campaign/template context.
+  let existingQuery = db
+    .from("send_queue")
+    .select("prospect_id")
+    .eq("status", "pending_review")
+    .in("prospect_id", prospect_ids)
+  if ((source as any).campaign_id) {
+    existingQuery = existingQuery.eq("campaign_id", (source as any).campaign_id)
+  } else {
+    existingQuery = existingQuery.is("campaign_id", null)
+  }
+  if ((source as any).template_id) {
+    existingQuery = existingQuery.eq("template_id", (source as any).template_id)
+  } else {
+    existingQuery = existingQuery.is("template_id", null)
+  }
+  const { data: existing } = await existingQuery
+
+  const existingIds = new Set<string>(
+    (Array.isArray(existing) ? existing : []).map((r: any) => String(r.prospect_id))
+  )
+
+  const toInsert = prospect_ids
+    .map((id) => String(id))
+    .filter((id) => !existingIds.has(id))
+    .map((prospect_id) => ({
+      campaign_id: (source as any).campaign_id || null,
+      prospect_id,
+      template_id: (source as any).template_id || null,
+      channel: (source as any).channel || "email",
+      personalized_subject,
+      personalized_body,
+      anomaly_snippet: (source as any).anomaly_snippet || null,
+      variation_seed: Math.floor(Math.random() * 1000000),
+      priority: (source as any).priority ?? 5,
+      status: "pending_review" as const,
+      scheduled_for: null,
+    }))
+
+  if (toInsert.length === 0) return { added: 0 }
+
+  const { error: insErr } = await db.from("send_queue").insert(toInsert)
+  if (insErr) {
+    console.error("[v0] Error inserting additional recipients:", insErr)
+    throw new Error("Failed to add recipients")
+  }
+
+  revalidatePath("/message-review")
+  revalidatePath("/send-queue")
+  return { added: toInsert.length }
 }
 
 // Approve messages and schedule them automatically using throttle settings
@@ -592,8 +855,18 @@ export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Ano
       const periodUnit = periodType === 'week' ? 'week' : periodType === 'month' ? 'month' : 'period'
       const avgVal = a.comparison_mean ? `, ${windowSize}-${periodUnit} avg: ${a.comparison_mean.toFixed(1)}` : ''
       // Include time period info
-      const periodDate = a.period_date ? new Date(a.period_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
-      const periodInfo = periodDate ? ` [${periodType}ly data ending ${periodDate}]` : ` [${periodType}ly]`
+      const periodDate = a.period_date
+        ? new Date(a.period_date).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })
+        : ""
+      const relativePeriod =
+        periodType === "month" ? "last month" : periodType === "week" ? "last week" : "the latest reporting period"
+      const periodInfo = periodDate
+        ? ` [${periodType}ly data week ending ${periodDate}]`
+        : ` [${periodType}ly data (${relativePeriod})]`
       return `- ${name}${change}${recentVal}${avgVal} - Severity: ${a.severity || 'medium'}${periodInfo}`
     }
     
@@ -633,10 +906,14 @@ CITYWIDE vs DISTRICT - BE PRECISE:
 - GOOD: "also in District 11, traffic stops surged..." (if this is District 11 data)
 
 TIME PERIOD CLARITY (REQUIRED):
-- Always specify the time period and approximate date for the data
-- GOOD: "In the week ending February 3rd, drug incidents jumped to 21..."
-- GOOD: "This past week, homeless calls spiked to 20..."
-- BAD: "this period" or "recently" without specifying when
+- Always specify the time period AND an explicit week-ending date with year (use the anomaly's period_date).
+- Use this format whenever possible: "In the week ending Feb 3, 2026, ..."
+- Do NOT use vague phrasing like "around early February", "recently", "this period", or "this past week" without a concrete date.
+- If a week-ending date is unavailable, do NOT mention that it's unavailable. Instead, use relative phrasing like:
+  - Weekly: "last week"
+  - Monthly: "last month"
+  - Otherwise: "in the latest reporting period"
+- Never add meta commentary about missing information (e.g., "Unfortunately, I don't have the exact week-ending date..." or "I don't have the exact date for this period...").
 
 AVERAGE/COMPARISON PERIOD CLARITY (REQUIRED):
 - When mentioning the average or "usual" number, specify what time period it's based on
@@ -1085,8 +1362,22 @@ async function generateEmailsWithAI(
     
     // Include time period info
     const periodType = anomaly.period_type || 'week'
-    const periodDate = anomaly.period_date ? new Date(anomaly.period_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'recent'
-    const periodLabel = `${periodType}ly data ending ${periodDate}`
+    const periodDate = anomaly.period_date
+      ? new Date(anomaly.period_date).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : ""
+    const relativePeriod =
+      periodType === "month"
+        ? "last month"
+        : periodType === "week"
+          ? "last week"
+          : "the latest reporting period"
+    const periodLabel = periodDate
+      ? `${periodType}ly data (week ending ${periodDate})`
+      : `${periodType}ly data (${relativePeriod})`
     // Comparison period context - use actual window size if available
     const windowSize = anomaly.comparison_window?.size || 12
     const periodUnit = periodType === 'week' ? 'weeks' : periodType === 'month' ? 'months' : 'periods'
@@ -1177,11 +1468,14 @@ CITYWIDE vs DISTRICT - BE PRECISE:
 - GOOD: "citywide, traffic stops surged to 17..." (ONLY if district = 0 / is_citywide = true)
 
 TIME PERIOD CLARITY (REQUIRED):
-- Always specify the time period and approximate date for the data
-- Use the period_type (weekly/monthly) and period_date from the anomaly data
-- GOOD: "In the week ending February 3rd, drug crime incidents jumped to 21..."
-- GOOD: "This past week, we saw homeless calls spike to 20..."
-- BAD: "this period" or "recently" without specifying when
+- Always specify the time period AND an explicit week-ending date with year (use the period_type + period_date from the anomaly data).
+- Use this format whenever possible: "In the week ending Feb 3, 2026, ..."
+- Do NOT use vague phrasing like "around early February", "recently", "this period", or "this past week" without a concrete date.
+- If a week-ending date is unavailable, do NOT mention that it's unavailable. Instead, use relative phrasing like:
+  - Weekly: "last week"
+  - Monthly: "last month"
+  - Otherwise: "in the latest reporting period"
+- Never add meta commentary about missing information (e.g., "Unfortunately, I don't have the exact week-ending date..." or "I don't have the exact date for this period...").
 
 AVERAGE/COMPARISON PERIOD CLARITY (REQUIRED):
 - When mentioning the average or "usual" number, specify what time period it's based on

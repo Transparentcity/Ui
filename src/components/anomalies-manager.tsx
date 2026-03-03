@@ -30,7 +30,7 @@ import {
 import { Search, MoreHorizontal, Send, CheckCircle, Trash2, AlertTriangle, AlertCircle, Info, EyeOff, Eye, Sparkles, Loader2, Copy, Check } from "lucide-react"
 import { Anomaly, Keyword } from "@/lib/types"
 import { AnomalyDialog } from "./anomaly-dialog"
-import { updateAnomalyStatus, deleteAnomaly } from "@/app/actions/anomalies"
+import { deleteCrmMetadata, updateCrmStatus } from "@/app/actions/crm-anomaly-metadata"
 
 // ---------------------------------------------------------------------------
 // Ignored-anomaly persistence (localStorage)
@@ -84,6 +84,7 @@ interface AnomalyWithKeywords extends Anomaly {
   recent_mean?: number | null
   comparison_mean?: number | null
   metric_name?: string
+  comparison_window?: Anomaly["comparison_window"]
 }
 
 interface AnomaliesManagerProps {
@@ -157,6 +158,15 @@ function sortAnomalies(list: AnomalyWithKeywords[], key: SortKey): AnomalyWithKe
   }
 }
 
+function getComparisonWindowSize(
+  comparisonWindow: AnomalyWithKeywords["comparison_window"]
+): number {
+  if (comparisonWindow && typeof comparisonWindow === "object") {
+    return comparisonWindow.size || 12
+  }
+  return 12
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -172,12 +182,12 @@ async function analyzeAnomaly(anomaly: AnomalyWithKeywords): Promise<string> {
         title: anomaly.title,
         description: anomaly.description,
         pct_change: anomaly.pct_change,
-        recent_mean: (anomaly as any).recent_mean,
-        comparison_mean: (anomaly as any).comparison_mean,
+        recent_mean: anomaly.recent_mean,
+        comparison_mean: anomaly.comparison_mean,
         period_type: anomaly.period_type,
         district_label: anomaly.district_label,
         data_source: anomaly.data_source,
-        metric_name: (anomaly as any).metric_name,
+        metric_name: anomaly.metric_name,
         chart_payload: anomaly.chart_payload,
       },
     }),
@@ -240,7 +250,8 @@ export function AnomaliesManager({ anomalies, keywords }: AnomaliesManagerProps)
   }, [])
 
   // ------- Selection helpers -------
-  const sid = (a: AnomalyWithKeywords) => String(a.id)
+  const sid = (a: AnomalyWithKeywords) =>
+    String(a.fingerprint ?? a.id)
 
   const isSelected = (a: AnomalyWithKeywords) => selectedIds.has(sid(a))
 
@@ -331,16 +342,27 @@ export function AnomaliesManager({ anomalies, keywords }: AnomaliesManagerProps)
   }
 
   // ------- Actions -------
-  const handleStatusChange = async (id: string, status: string) => {
+  const handleStatusChange = async (
+    anomaly: AnomalyWithKeywords,
+    status: "new" | "sent" | "acknowledged" | "resolved"
+  ) => {
+    const parsedId = Number(anomaly.id)
+    const anomalyId = anomaly.anomaly_id ?? (Number.isFinite(parsedId) ? parsedId : null)
+    if (!anomalyId) return
     startTransition(async () => {
-      await updateAnomalyStatus(id, status)
+      await updateCrmStatus(anomalyId, status)
     })
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this anomaly?')) {
+  const handleDelete = async (anomaly: AnomalyWithKeywords) => {
+    if (confirm('Remove CRM metadata and ignore this anomaly in CRM views?')) {
       startTransition(async () => {
-        await deleteAnomaly(id)
+        const parsedId = Number(anomaly.id)
+        const anomalyId = anomaly.anomaly_id ?? (Number.isFinite(parsedId) ? parsedId : null)
+        if (anomalyId) {
+          await deleteCrmMetadata(anomalyId)
+        }
+        handleIgnore([anomaly])
       })
     }
   }
@@ -549,7 +571,7 @@ export function AnomaliesManager({ anomalies, keywords }: AnomaliesManagerProps)
                         </div>
 
                         {/* Stats display */}
-                        {(anomaly.pct_change != null || (anomaly as any).recent_mean != null) && (
+                        {(anomaly.pct_change != null || anomaly.recent_mean != null) && (
                           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2 text-sm">
                             {anomaly.pct_change != null && (
                               <span className={`font-semibold ${anomaly.pct_change < 0 ? 'text-red-600' : 'text-green-600'}`}>
@@ -561,20 +583,20 @@ export function AnomaliesManager({ anomalies, keywords }: AnomaliesManagerProps)
                                 {anomaly.period_type}ly
                               </Badge>
                             )}
-                            {(anomaly as any).recent_mean != null && (anomaly as any).comparison_mean != null && (
+                            {anomaly.recent_mean != null && anomaly.comparison_mean != null && (
                               <span className="text-muted-foreground">
-                                <span className="font-medium text-foreground">{Number((anomaly as any).recent_mean).toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                                <span className="font-medium text-foreground">{Number(anomaly.recent_mean).toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
                                 {' '}this {anomaly.period_type || 'week'}
                                 {' · '}
-                                <span className="font-medium text-foreground">{Number((anomaly as any).comparison_mean).toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
-                                {' '}({(anomaly as any).comparison_window?.size || 12}-{anomaly.period_type || 'week'} avg)
+                                <span className="font-medium text-foreground">{Number(anomaly.comparison_mean).toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                                {' '}({getComparisonWindowSize(anomaly.comparison_window)}-{anomaly.period_type || 'week'} avg)
                               </span>
                             )}
                           </div>
                         )}
 
                         {/* Description (only when no stats line) */}
-                        {anomaly.description && !(anomaly as any).recent_mean && (
+                        {anomaly.description && !anomaly.recent_mean && (
                           <p className="text-sm text-muted-foreground mb-2">
                             {anomaly.description}
                           </p>
@@ -613,19 +635,19 @@ export function AnomaliesManager({ anomalies, keywords }: AnomaliesManagerProps)
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             {(anomaly.crm_status || anomaly.status || 'new') === 'new' && (
-                              <DropdownMenuItem onClick={() => handleStatusChange(String(anomaly.id), 'sent')} disabled={isPending}>
+                              <DropdownMenuItem onClick={() => handleStatusChange(anomaly, 'sent')} disabled={isPending}>
                                 <Send className="w-4 h-4 mr-2" />
                                 Mark as Sent
                               </DropdownMenuItem>
                             )}
                             {(anomaly.crm_status || anomaly.status) === 'sent' && (
-                              <DropdownMenuItem onClick={() => handleStatusChange(String(anomaly.id), 'acknowledged')} disabled={isPending}>
+                              <DropdownMenuItem onClick={() => handleStatusChange(anomaly, 'acknowledged')} disabled={isPending}>
                                 <CheckCircle className="w-4 h-4 mr-2" />
                                 Mark Acknowledged
                               </DropdownMenuItem>
                             )}
                             {((anomaly.crm_status || anomaly.status) === 'acknowledged' || (anomaly.crm_status || anomaly.status) === 'sent') && (
-                              <DropdownMenuItem onClick={() => handleStatusChange(String(anomaly.id), 'resolved')} disabled={isPending}>
+                              <DropdownMenuItem onClick={() => handleStatusChange(anomaly, 'resolved')} disabled={isPending}>
                                 <CheckCircle className="w-4 h-4 mr-2" />
                                 Mark Resolved
                               </DropdownMenuItem>
@@ -656,7 +678,7 @@ export function AnomaliesManager({ anomalies, keywords }: AnomaliesManagerProps)
                                 Ignore
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(String(anomaly.id))} disabled={isPending}>
+                            <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(anomaly)} disabled={isPending}>
                               <Trash2 className="w-4 h-4 mr-2" />
                               Delete
                             </DropdownMenuItem>

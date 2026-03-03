@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache"
 export async function createFollowup(formData: FormData) {
   const db = await createClient()
   
-  const contact_id = formData.get('contact_id') as string
+  const prospect_id = formData.get('prospect_id') as string
   const response_id = formData.get('response_id') as string | null
   const title = formData.get('title') as string
   const description = formData.get('description') as string | null
@@ -16,7 +16,7 @@ export async function createFollowup(formData: FormData) {
   const { error } = await db
     .from('followups')
     .insert({
-      contact_id,
+      prospect_id,
       response_id: response_id || null,
       title,
       description: description || null,

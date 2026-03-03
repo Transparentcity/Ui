@@ -29,3 +29,8 @@ export function getApiBaseUrl(): string {
 // Export the API base URL as a constant
 export const API_BASE = getApiBaseUrl();
 
+// Default city used by CRM pages; configurable via env.
+export const CRM_DEFAULT_CITY_ID = Number(
+  process.env.NEXT_PUBLIC_CRM_CITY_ID ?? 57260
+);
+
