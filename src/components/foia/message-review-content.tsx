@@ -24,7 +24,6 @@ import {
 } from "lucide-react"
 import { useAuth0 } from "@auth0/auth0-react"
 import {
-  deleteFoiaTask,
   listFoiaTasks,
   listFoiaMessages,
   getFoiaRequest,
@@ -199,6 +198,10 @@ function taskTypeToIntent(taskType: string): Exclude<IntentCategory, "all"> {
     approve_follow_up: "review_draft",
     review_delivery: "general_followup",
     review_data_completeness: "general_followup",
+    portal_followup: "general_followup",
+    portal_check_status: "general_followup",
+    email_response: "send_response",
+    email_triage: "general_followup",
   }
   return map[taskType] || "general_followup"
 }
@@ -226,8 +229,6 @@ export function FollowUpsContent() {
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [showNewForm, setShowNewForm] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<number | null>(null)
-
   const loadFollowUps = useCallback(async () => {
     setApiError(null)
     let token: string | undefined
@@ -258,6 +259,11 @@ export function FollowUpsContent() {
             "appeal_denial",
             "follow_up_partial",
             "review_delivery",
+            "review_data_completeness",
+            "portal_followup",
+            "portal_check_status",
+            "email_response",
+            "email_triage",
           ].includes(t.type)
       )
 
@@ -320,33 +326,6 @@ export function FollowUpsContent() {
     loadFollowUps()
   }, [loadFollowUps])
 
-  const handleDelete = useCallback(
-    async (taskId: number) => {
-      const ok = confirm("Delete this follow-up/task? This cannot be undone.")
-      if (!ok) return
-
-      setDeletingId(taskId)
-      let token: string | undefined
-      if (isAuthenticated) {
-        try {
-          token = await getAccessTokenSilently()
-        } catch {
-          // continue without token
-        }
-      }
-      try {
-        await deleteFoiaTask(taskId, token)
-        if (expandedId === taskId) setExpandedId(null)
-        await loadFollowUps()
-      } catch (err) {
-        alert(err instanceof Error ? err.message : "Delete failed")
-      } finally {
-        setDeletingId(null)
-      }
-    },
-    [expandedId, getAccessTokenSilently, isAuthenticated, loadFollowUps]
-  )
-
   const filtered =
     activeFilter === "all" ? followUps : followUps.filter((fu) => fu.intent === activeFilter)
 
@@ -389,7 +368,7 @@ export function FollowUpsContent() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Follow Ups</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">Inbox</h1>
           <p className="mt-1 text-sm text-gray-500">
             Inbound messages requiring action — review intent, draft a response, and approve before sending.
           </p>
@@ -476,8 +455,6 @@ export function FollowUpsContent() {
             expanded={expandedId === fu.task.id}
             onToggle={() => setExpandedId(expandedId === fu.task.id ? null : fu.task.id)}
             onRefresh={loadFollowUps}
-            onDelete={() => handleDelete(fu.task.id)}
-            deleting={deletingId === fu.task.id}
           />
         ))}
         {filtered.length === 0 && !loading && (
@@ -512,15 +489,11 @@ function FollowUpCard({
   expanded,
   onToggle,
   onRefresh,
-  onDelete,
-  deleting,
 }: {
   followUp: EnrichedFollowUp
   expanded: boolean
   onToggle: () => void
   onRefresh: () => Promise<void>
-  onDelete: () => void
-  deleting: boolean
 }) {
   const { task, intent, request, triggerMessage } = followUp
   const meta = INTENT_META[intent]
@@ -863,16 +836,6 @@ function FollowUpCard({
               )}
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onDelete}
-                disabled={deleting}
-                className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
-                title="Delete follow-up"
-              >
-                {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
-                Delete
-              </button>
               {!draftText && (
                 <button
                   onClick={handleComplete}
