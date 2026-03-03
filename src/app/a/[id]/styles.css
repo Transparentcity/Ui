@@ -204,6 +204,14 @@
   font-family: var(--font-body, "IBM Plex Sans", sans-serif);
 }
 
+.anomaly-calculation-range {
+  margin: 0.5rem 0 0 0;
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  font-family: var(--font-body, "IBM Plex Sans", sans-serif);
+  opacity: 0.9;
+}
+
 /* Sections */
 .anomaly-section {
   margin-bottom: 3rem;
