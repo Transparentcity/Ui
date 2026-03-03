@@ -30,18 +30,26 @@ import type {
 /** Optional auth token (e.g. from useAuth0().getAccessTokenSilently()). FOIA routes require auth unless backend DEV_MODE. */
 export type FoiaAuthToken = string | null | undefined
 
+/** Module-level token set by AdminGuard so FOIA API calls can use the current auth token when not passed explicitly. */
+let foiaAuthToken: FoiaAuthToken = undefined
+
+export function setFoiaAuthToken(token: FoiaAuthToken): void {
+  foiaAuthToken = token
+}
+
 async function apiFetch<T>(
   path: string,
   init?: RequestInit,
   token?: FoiaAuthToken
 ): Promise<T> {
+  const effectiveToken = token ?? foiaAuthToken
   const url = `${API_BASE}${path}`
   const headers: HeadersInit = {
     "Content-Type": "application/json",
     ...(init?.headers || {}),
   }
-  if (token) {
-    ;(headers as Record<string, string>)["Authorization"] = `Bearer ${token}`
+  if (effectiveToken) {
+    ;(headers as Record<string, string>)["Authorization"] = `Bearer ${effectiveToken}`
   }
   const res = await fetch(url, {
     ...init,

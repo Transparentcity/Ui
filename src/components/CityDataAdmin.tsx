@@ -3640,9 +3640,9 @@ export default function CityDataAdmin({
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
-              <h3 style={{ margin: 0 }}>Metrics</h3>
+              <h3 style={{ margin: 0 }}>Metric system dashboard</h3>
               <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "var(--text-secondary)" }}>
-                Sort by last execution:
+                Sort:
                 <select
                   value={metricSortByLastExecution ?? ""}
                   onChange={(e) => setMetricSortByLastExecution((e.target.value === "asc" || e.target.value === "desc") ? e.target.value : null)}
@@ -3656,11 +3656,12 @@ export default function CityDataAdmin({
                     cursor: "pointer",
                   }}
                 >
-                  <option value="">Default</option>
-                  <option value="desc">Newest first</option>
-                  <option value="asc">Oldest first</option>
+                  <option value="">By last data date (newest first)</option>
+                  <option value="desc">By last execution (newest first)</option>
+                  <option value="asc">By last execution (oldest first)</option>
                 </select>
               </label>
+              <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>Rows with no time series data are highlighted in red.</span>
             </div>
             <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <button
@@ -3909,24 +3910,28 @@ export default function CityDataAdmin({
           {cityDataTyped.metrics && cityDataTyped.metrics.length > 0 ? (
             <div>
               {(() => {
+                // Metric system dashboard: sort by last data date descending (most recent first, no data last)
+                const lastDataDateKey = (m: Metric) => m.most_recent_data_date ? new Date(m.most_recent_data_date).getTime() : 0;
+                const metricsByFreshness = [...cityDataTyped.metrics].sort((a, b) => lastDataDateKey(b) - lastDataDateKey(a));
+
                 // Group and sort metrics by category using saved ordering (same as dashboard)
                 const grouped: Record<string, { metrics: Metric[]; categoryOrder: number }> = {};
-                
-                cityDataTyped.metrics.forEach((metric) => {
+
+                metricsByFreshness.forEach((metric) => {
                   const ordering = orderingMap.get(metric.id);
                   const category = ordering?.categoryName || metric.category || "Uncategorized";
                   const categoryOrder = ordering?.categoryOrder ?? 1000;
                   const metricOrder = ordering?.metricOrder ?? 1000;
-                  
+
                   if (!grouped[category]) {
                     grouped[category] = { metrics: [], categoryOrder };
                   }
                   // Update category order to match any metric in it (they should all have the same)
                   grouped[category].categoryOrder = Math.min(grouped[category].categoryOrder, categoryOrder);
-                  
+
                   // Merge record counts if available
                   const counts = recordCounts?.[metric.id];
-                  
+
                   grouped[category].metrics.push({
                     ...metric,
                     metricOrder, // Store for sorting
@@ -3941,8 +3946,8 @@ export default function CityDataAdmin({
                   if (orderA !== orderB) return orderA - orderB;
                   return a.localeCompare(b);
                 });
-                
-                // Sort metrics within each category: by last execution (if selected) or by metric order then name (same as dashboard)
+
+                // Sort metrics within each category: by last data date desc (dashboard default), last execution, or metric order
                 sortedCategories.forEach((category) => {
                   grouped[category].metrics.sort((a, b) => {
                     if (metricSortByLastExecution === "desc") {
@@ -3955,6 +3960,10 @@ export default function CityDataAdmin({
                       const tB = b.last_execution_at ? new Date(b.last_execution_at).getTime() : 0;
                       return tA - tB; // oldest first; nulls (0) first
                     }
+                    // Default: by last data date descending (most recent / current at top, most stale at bottom)
+                    const dA = lastDataDateKey(a);
+                    const dB = lastDataDateKey(b);
+                    if (dB !== dA) return dB - dA;
                     const orderA = (a as any).metricOrder ?? 1000;
                     const orderB = (b as any).metricOrder ?? 1000;
                     if (orderA !== orderB) return orderA - orderB;
@@ -3989,23 +3998,30 @@ export default function CityDataAdmin({
                         </thead>
                         <tbody>
                           {grouped[category].metrics.map((metric) => {
-                            // Determine background color based on execution status
-                            // Status values from backend: "completed", "failed", "error", or null
+                            // No time series data at all => red row (metric system dashboard)
+                            const counts = (metric as any).record_counts ?? metric.record_counts;
+                            const activePoints = counts?.active_data_points ?? counts?.total_active ?? null;
+                            const hasNoTimeSeriesData =
+                              !metric.most_recent_data_date && (activePoints === null || activePoints === 0);
+
+                            // Determine background color: no data = red; then execution status
                             const isSuccess = metric.last_execution_status === "completed" || metric.last_execution_status === "success";
-                            const isFailure = metric.last_execution_status === "failed" || 
-                                             metric.last_execution_status === "failure" || 
+                            const isFailure = metric.last_execution_status === "failed" ||
+                                             metric.last_execution_status === "failure" ||
                                              metric.last_execution_status === "error";
                             const hasNoStatus = !metric.last_execution_status;
-                            
+
                             // Access data - handle both typed and untyped (any) metric objects
                             const metricAny = metric as any;
 
                             return (
                               <tr
                                 key={metric.id}
-                                className={styles.metricTableRow}
+                                className={`${styles.metricTableRow} ${hasNoTimeSeriesData ? styles.metricTableRowNoData : ""}`}
                                 style={{
-                                  backgroundColor: isSuccess
+                                  backgroundColor: hasNoTimeSeriesData
+                                    ? "rgba(220, 38, 38, 0.12)"
+                                    : isSuccess
                                     ? "rgba(76, 175, 80, 0.10)"
                                     : isFailure
                                     ? "rgba(244, 67, 54, 0.10)"

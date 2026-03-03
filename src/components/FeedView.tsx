@@ -1,24 +1,41 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth0 } from "@auth0/auth0-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useFeedStories, useTrackFeedEngagement, useFeedPlaces, type FeedStory } from "@/lib/hooks/useFeed";
 import { useCities } from "@/lib/hooks/useCities";
+import {
+  listCitiesWithFeedStories,
+  deleteFeedStory,
+  deleteFeedStoriesByCity,
+  type CityWithFeedStories,
+} from "@/lib/apiClient";
+import { feedKeys } from "@/lib/hooks/useFeed";
 import Loader from "./Loader";
 import styles from "./FeedView.module.css";
 
 interface FeedViewProps {
   cityId?: number | null;
   district?: number | null;
+  /** When true, show admin filters and delete options by city. */
+  isAdmin?: boolean;
+  /** City IDs the user leads; with isAdmin, show admin bar. */
+  cityLeadCityIds?: number[];
 }
 
-/** Selected place filter: null = All; otherwise filter by this (city_id, district). */
-type SelectedPlace = { city_id: number; district: number } | null;
+/** Selected place filter: null = All; otherwise filter by this (city_id, district). district null = all districts for city. */
+type SelectedPlace = { city_id: number; district: number | null } | null;
 
-export default function FeedView({ cityId, district }: FeedViewProps) {
+export default function FeedView({ cityId, district, isAdmin = false, cityLeadCityIds = [] }: FeedViewProps) {
   const router = useRouter();
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+  const canAdminFeed = isAdmin || cityLeadCityIds.length > 0;
+
   const [selectedPlace, setSelectedPlace] = useState<SelectedPlace>(() =>
-    cityId != null ? { city_id: cityId, district: district ?? 0 } : null
+    cityId != null ? { city_id: cityId, district: district ?? null } : null
   );
   const [selectedFrequency, setSelectedFrequency] = useState<string | null>(null);
   /** When true, show only stories from "Generate example newsletter" (personal_newsletter category). */
@@ -27,6 +44,93 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
   const { data: citiesList } = useCities();
   const { data: placesData } = useFeedPlaces();
   const trackEngagement = useTrackFeedEngagement();
+
+  // Admin: cities with feed stories for dropdown
+  const [adminCities, setAdminCities] = useState<CityWithFeedStories[]>([]);
+  const [adminCityId, setAdminCityId] = useState<number | null>(null);
+  const [adminDistrict, setAdminDistrict] = useState<string>("");
+  const [loadingAdminCities, setLoadingAdminCities] = useState(false);
+  const [deletingStoryId, setDeletingStoryId] = useState<number | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const loadAdminCities = useCallback(async () => {
+    if (!canAdminFeed) return;
+    setLoadingAdminCities(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const list = await listCitiesWithFeedStories(token);
+      setAdminCities(Array.isArray(list) ? list : []);
+      if (Array.isArray(list) && list.length > 0 && adminCityId == null) {
+        setAdminCityId(list[0].city_id);
+      }
+    } catch {
+      setAdminCities([]);
+    } finally {
+      setLoadingAdminCities(false);
+    }
+  }, [canAdminFeed, getAccessTokenSilently, adminCityId]);
+
+  useEffect(() => {
+    if (canAdminFeed) loadAdminCities();
+  }, [canAdminFeed, loadAdminCities]);
+
+  const invalidateFeedQueries = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: feedKeys.lists() });
+    queryClient.invalidateQueries({ queryKey: feedKeys.all });
+  }, [queryClient]);
+
+  const handleDeleteStory = async (storyId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeletingStoryId(storyId);
+    try {
+      const token = await getAccessTokenSilently();
+      await deleteFeedStory(storyId, token);
+      invalidateFeedQueries();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete story");
+    } finally {
+      setDeletingStoryId(null);
+    }
+  };
+
+  const handleDeleteAllForCity = async () => {
+    if (adminCityId == null) return;
+    if (!confirm("Delete all feed stories for this city? This cannot be undone.")) return;
+    setBulkDeleting(true);
+    try {
+      const token = await getAccessTokenSilently();
+      await deleteFeedStoriesByCity(adminCityId, token);
+      invalidateFeedQueries();
+      await loadAdminCities();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete stories");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const handleDeleteAllForDistrict = async () => {
+    if (adminCityId == null) return;
+    const districtNum =
+      adminDistrict === "citywide" ? 0 : adminDistrict === "" ? null : parseInt(adminDistrict, 10);
+    if (districtNum === null || isNaN(districtNum)) {
+      alert("Select a district first.");
+      return;
+    }
+    const label = districtNum === 0 ? "city-wide" : `district ${districtNum}`;
+    if (!confirm(`Delete all feed stories for ${label}? This cannot be undone.`)) return;
+    setBulkDeleting(true);
+    try {
+      const token = await getAccessTokenSilently();
+      await deleteFeedStoriesByCity(adminCityId, token, districtNum);
+      invalidateFeedQueries();
+      await loadAdminCities();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete stories");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
 
   const places = placesData?.places ?? [];
 
@@ -38,7 +142,7 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
   // Feed: when "Personal newsletter" is on, filter by category; otherwise filter by place/frequency
   const { data: feedData, isLoading, error } = useFeedStories({
     city_id: personalNewsletterOnly ? undefined : selectedPlace?.city_id,
-    district: personalNewsletterOnly ? undefined : (selectedPlace != null ? selectedPlace.district : undefined),
+    district: personalNewsletterOnly ? undefined : (selectedPlace != null && selectedPlace.district !== null ? selectedPlace.district : undefined),
     newsletter_frequency: selectedFrequency ?? undefined,
     category: personalNewsletterOnly ? "personal_newsletter" : undefined,
     limit: displayLimit,
@@ -191,6 +295,35 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
     }
   };
 
+  /** Effective embed URL for iframe: use stored embed_url, or derive from short_hash/id for maps/charts/anomalies so embeds work when backend did not persist embed_url (e.g. older refs or generate_map without save). */
+  const getEmbedUrl = (story: FeedStory): string | null => {
+    const pv = story.primary_visualization;
+    if (!pv) return null;
+    if (pv.embed_url) return pv.embed_url;
+    const type = (story.visualization_type || pv.type || "").toLowerCase();
+    const hash = pv.short_hash;
+    const id = pv.id;
+    if (type === "map" && hash) return `/m/${hash}?embedded=true`;
+    if (type === "chart" && id != null) return `/t/${id}?embedded=true`;
+    if (type === "anomaly" && (id != null || hash)) return `/a/${id ?? hash}?embedded=true`;
+    return null;
+  };
+
+  /** Effective view URL for "open in new tab" when embed_url is missing. */
+  const getViewUrl = (story: FeedStory): string | null => {
+    const pv = story.primary_visualization;
+    if (!pv) return null;
+    if (pv.view_url) return pv.view_url;
+    if (pv.url) return pv.url;
+    const type = (story.visualization_type || pv.type || "").toLowerCase();
+    const hash = pv.short_hash;
+    const id = pv.id;
+    if (type === "map" && hash) return `/m/${hash}`;
+    if (type === "chart" && id != null) return `/t/${id}`;
+    if (type === "anomaly" && (id != null || hash)) return `/a/${id ?? hash}`;
+    return null;
+  };
+
   if (isLoading) {
     return (
       <div className={styles.feedContainer}>
@@ -216,7 +349,7 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
 
   return (
     <div className={styles.feedContainer}>
-      <div className={styles.feedHeader}>
+      <div className={`${styles.feedHeader} dashboard-page-header`}>
         <h1 className={styles.feedTitle}>Feed</h1>
         <p className={styles.feedSubtitle}>
           {personalNewsletterOnly
@@ -227,6 +360,89 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
           }
         </p>
       </div>
+
+      {/* Admin: filter by city/district and delete */}
+      {canAdminFeed && (
+        <div className={styles.adminBar}>
+          <div className={styles.adminBarRow}>
+            <label htmlFor="feed-admin-city" className={styles.adminLabel}>
+              City
+            </label>
+            <select
+              id="feed-admin-city"
+              value={adminCityId ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                const cid = v ? parseInt(v, 10) : null;
+                setAdminCityId(cid);
+                if (cid != null)
+                  setSelectedPlace({
+                    city_id: cid,
+                    district: adminDistrict === "citywide" ? 0 : adminDistrict ? parseInt(adminDistrict, 10) : null,
+                  });
+              }}
+              className={styles.adminSelect}
+              disabled={loadingAdminCities}
+            >
+              <option value="">
+                {loadingAdminCities ? "Loading…" : "Select city"}
+              </option>
+              {adminCities.map((c) => (
+                <option key={c.city_id} value={c.city_id}>
+                  {c.state ? `${c.city_name}, ${c.state}` : c.city_name}
+                  {c.story_count != null ? ` (${c.story_count})` : ""}
+                </option>
+              ))}
+            </select>
+            <label htmlFor="feed-admin-district" className={styles.adminLabel}>
+              District
+            </label>
+            <select
+              id="feed-admin-district"
+              value={adminDistrict}
+              onChange={(e) => {
+                const v = e.target.value;
+                setAdminDistrict(v);
+                if (adminCityId != null)
+                  setSelectedPlace({
+                    city_id: adminCityId,
+                    district: v === "citywide" ? 0 : v ? parseInt(v, 10) : null,
+                  });
+              }}
+              className={styles.adminSelect}
+              disabled={!adminCityId}
+            >
+              <option value="">All</option>
+              <option value="citywide">City-wide</option>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((d) => (
+                <option key={d} value={String(d)}>
+                  District {d}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.adminBarActions}>
+            <button
+              type="button"
+              onClick={handleDeleteAllForCity}
+              disabled={bulkDeleting || !adminCityId}
+              className={styles.adminDeleteCity}
+            >
+              {bulkDeleting ? "Deleting…" : "Delete all for city"}
+            </button>
+            {adminCityId != null && adminDistrict !== "" && (
+              <button
+                type="button"
+                onClick={handleDeleteAllForDistrict}
+                disabled={bulkDeleting}
+                className={styles.adminDeleteDistrict}
+              >
+                {bulkDeleting ? "Deleting…" : "Delete all for district"}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Top-level filter: Personal newsletter vs main feed */}
       <div className={styles.chipBar}>
@@ -342,6 +558,17 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
                     {story.is_featured && (
                       <span className={styles.featuredBadge}>Featured</span>
                     )}
+                    {canAdminFeed && (
+                      <button
+                        type="button"
+                        className={styles.storyDeleteBtn}
+                        onClick={(e) => handleDeleteStory(story.id, e)}
+                        disabled={deletingStoryId === story.id}
+                        title="Delete this story"
+                      >
+                        {deletingStoryId === story.id ? "…" : "Delete"}
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -351,7 +578,7 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
                   <p className={styles.storyDescription}>{story.description}</p>
                 </div>
 
-                {/* Visualization: chart or map with clear link when available */}
+                {/* Visualization: chart or map with clear link when available. Embed URL is derived from short_hash when not stored (e.g. district business stories with map refs). */}
                 {story.primary_visualization && (
                   <div className={styles.storyVisualization}>
                     {story.visualization_type && (
@@ -359,9 +586,9 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
                         {getVisualizationBadge(story)}
                       </div>
                     )}
-                    {story.primary_visualization.embed_url ? (
+                    {getEmbedUrl(story) ? (
                       <iframe
-                        src={story.primary_visualization.embed_url}
+                        src={getEmbedUrl(story)!}
                         title={story.primary_visualization.title || "Visualization"}
                         className={`${styles.visualizationIframe} ${
                           story.visualization_type === "map"
@@ -376,9 +603,9 @@ export default function FeedView({ cityId, district }: FeedViewProps) {
                         loading="lazy"
                         sandbox="allow-scripts allow-same-origin allow-popups"
                       />
-                    ) : story.primary_visualization.view_url || story.primary_visualization.url ? (
+                    ) : getViewUrl(story) ? (
                       <a
-                        href={story.primary_visualization.view_url || story.primary_visualization.url}
+                        href={getViewUrl(story)!}
                         target="_blank"
                         rel="noopener noreferrer"
                         className={styles.visualizationLink}

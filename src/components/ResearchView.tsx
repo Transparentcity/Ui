@@ -439,7 +439,7 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
+      <div className={`${styles.header} dashboard-page-header`}>
         <div className={styles.headerTop}>
           <h1 className={styles.title}>{research.title}</h1>
           <span className={`${styles.statusBadge} ${getStatusBadgeClass(research.status)}`}>

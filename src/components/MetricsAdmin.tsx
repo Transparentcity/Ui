@@ -22,6 +22,8 @@ import {
   useDeleteMetric,
   useExecuteMetric,
   useValidateMetricFreshness,
+  usePurgeMetricData,
+  useClearCityMetricData,
 } from "@/lib/hooks/useMetrics";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import TemplateOrderEditor from "./TemplateOrderEditor";
@@ -164,6 +166,8 @@ export default function MetricsAdmin() {
   const deleteMetricMutation = useDeleteMetric();
   const executeMetricMutation = useExecuteMetric();
   const validateFreshnessMutation = useValidateMetricFreshness();
+  const purgeMetricDataMutation = usePurgeMetricData();
+  const clearCityMetricDataMutation = useClearCityMetricData();
   
   // Execute metric configuration modal state
   const [showExecuteModal, setShowExecuteModal] = useState(false);
@@ -390,6 +394,61 @@ export default function MetricsAdmin() {
       });
     } catch (err) {
       console.error("Error deleting metric:", err);
+    }
+  };
+
+  const purgeMetricData = async (metricId: number, metricName: string) => {
+    if (
+      !confirm(
+        `Clear all data for "${metricName}"?\n\nThis removes time series, charts, maps, anomalies, and completeness data. The metric definition is kept. This cannot be undone.`
+      )
+    )
+      return;
+    try {
+      purgeMetricDataMutation.mutate(
+        { metricId },
+        {
+          onSuccess: (res) => {
+            alert(res.message || `Cleared data for ${res.metric_name}`);
+            metricsQuery.refetch();
+            summaryQuery.refetch();
+          },
+          onError: (err) => {
+            console.error("Error purging metric data:", err);
+            alert(err instanceof Error ? err.message : "Failed to clear metric data");
+          },
+        }
+      );
+    } catch (err) {
+      console.error("Error purging metric data:", err);
+    }
+  };
+
+  const clearCityData = async (cityId: number | null) => {
+    const scope = cityId ? `city "${cities.find((c) => c.id === cityId)?.display_name ?? cityId}"` : "all cities";
+    if (
+      !confirm(
+        `Clear all metric data for ${scope}?\n\nThis removes time series, anomalies, maps, feed stories, research, and completeness data. Metrics and users are kept. This cannot be undone.`
+      )
+    )
+      return;
+    try {
+      clearCityMetricDataMutation.mutate(
+        { cityId },
+        {
+          onSuccess: (res) => {
+            alert(res.message || `Cleared ${res.total_deleted} records for ${scope}`);
+            metricsQuery.refetch();
+            summaryQuery.refetch();
+          },
+          onError: (err) => {
+            console.error("Error clearing city metric data:", err);
+            alert(err instanceof Error ? err.message : "Failed to clear city data");
+          },
+        }
+      );
+    } catch (err) {
+      console.error("Error clearing city metric data:", err);
     }
   };
 
@@ -760,6 +819,30 @@ export default function MetricsAdmin() {
           <button className={styles.primaryBtn} onClick={openCreate}>
             <i className="fas fa-plus" /> Create Metric
           </button>
+
+          <div className={styles.clearDataGroup}>
+            <span className={styles.clearDataLabel}>Clear data:</span>
+            {selectedCityId ? (
+              <button
+                className={styles.dangerBtn}
+                onClick={() => clearCityData(selectedCityId)}
+                disabled={clearCityMetricDataMutation.isPending}
+                title={`Remove all time series, anomalies, maps, feed stories, and research for ${selectedCityDisplayName}`}
+              >
+                <i className="fas fa-eraser" /> {selectedCityDisplayName}
+              </button>
+            ) : (
+              <span className={styles.muted} style={{ fontSize: 12 }}>Select a city to clear</span>
+            )}
+            <button
+              className={styles.dangerBtn}
+              onClick={() => clearCityData(null)}
+              disabled={clearCityMetricDataMutation.isPending}
+              title="Remove all metric data for every city (metrics and users kept)"
+            >
+              <i className="fas fa-eraser" /> All cities
+            </button>
+          </div>
         </div>
       </div>
 
@@ -850,6 +933,7 @@ export default function MetricsAdmin() {
                         onViewCharts={() => openCharts(m.id)}
                         onViewMaps={() => openMaps(m.id)}
                         onExecute={() => openExecuteModal(m.id)}
+                        onPurgeData={() => purgeMetricData(m.id, m.metric_name)}
                         onDelete={() => deleteMetric(m.id)}
                       />
                     </td>

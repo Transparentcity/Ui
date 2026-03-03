@@ -71,8 +71,9 @@
   --text-tertiary: #94a3b8;
   --text-inverse: #0f172a;
 
-  --border-primary: #334155;
-  --border-secondary: #475569;
+  /* Invisible borders in dark mode to avoid clutter from hairlines/dividers */
+  --border-primary: transparent;
+  --border-secondary: transparent;
 
   /* Shadows (lighter in dark mode) */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);

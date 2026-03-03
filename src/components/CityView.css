@@ -572,7 +572,7 @@
 
 @media (max-width: 640px) {
   .dashboard-section {
-    padding: 0 14px;
+    padding: 0 8px;
     width: 100%;
     max-width: 100%;
   }
@@ -593,10 +593,60 @@
   color: var(--text-primary);
 }
 
-/* Dashboard Header with Official Selector - matches map view look */
+/* Dashboard Header with Official Selector - single row: selector | Compare dropdowns | Customize */
 .dashboard-header {
   margin-bottom: 24px;
-  padding: 12px 0 0 0; /* Reduced top padding for Official Selector */
+  padding: 12px 0 0 0;
+}
+
+.dashboard-header-single-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  background-color: var(--bg-secondary, #f9fafb);
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 0;
+}
+
+.dashboard-header-left {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.dashboard-header-compare {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+
+.dashboard-header-customize-btn {
+  margin-left: auto;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--brand-primary, #ad35fa);
+  background: transparent;
+  border: 1px solid var(--brand-primary, #ad35fa);
+  border-radius: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.dashboard-header-customize-btn:hover {
+  background: var(--brand-primary-light, rgba(173, 53, 250, 0.1));
+}
+
+[data-theme="dark"] .dashboard-header-single-row,
+.dark .dashboard-header-single-row {
+  border-color: var(--border-primary);
+  background-color: var(--bg-secondary);
 }
 
 /* District Navigation in Dashboard View - full width Official Selector */
@@ -688,13 +738,47 @@
 }
 
 @media (max-width: 640px) {
-  .dashboard-comparison-selector {
-    padding: 8px 12px;
-    gap: 4px;
+  /* Two lines: (1) Official selector + Customize  (2) Compare dropdowns full width */
+  .dashboard-header-single-row {
+    gap: 8px 12px;
+    padding: 8px 8px;
   }
-  
-  .comparison-selector-content {
+
+  .dashboard-header-left {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .dashboard-header-customize-btn {
+    order: 2;
+    margin-left: 0;
+    flex-shrink: 0;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .dashboard-header-compare {
+    order: 3;
+    flex-basis: 100%;
+    width: 100%;
     gap: 4px;
+    margin-top: 2px;
+  }
+
+  /* No vertical space between header row and first subcategory header */
+  .dashboard-section .metrics-table-container {
+    margin-top: 0;
+  }
+  .metrics-table-container > .metrics-category-section:first-child {
+    margin-top: 0;
+    padding-top: 0;
+  }
+  .metrics-category-section:first-child .metrics-table-header {
+    margin-bottom: 0;
+  }
+  .metrics-table-body > .metrics-subcategory-header:first-child {
+    margin-top: 0;
+    padding-top: 0;
   }
   
   .comparison-selector-label {
@@ -918,7 +1002,7 @@
   }
   
   .dashboard-section {
-    padding: 0 14px;
+    padding: 0 8px;
     width: 100%;
     max-width: 100%;
     margin: 0;
@@ -1618,25 +1702,25 @@ button.metrics-table-row {
   /* Header: 100% width, optimized column ratios for mobile */
   .metrics-table-header {
     grid-template-columns: 2fr 1fr 1fr 1fr; /* Better space distribution */
-    gap: 8px; /* Slightly more breathing room */
-    padding: 12px 10px; /* Vertical padding for clarity */
+    gap: 8px;
+    padding: 12px 6px; /* Tighter horizontal padding in narrow mode */
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
   }
   
-  /* Rows: Optimized for mobile readability - visible row container */
+  /* Rows: metric name, last year, this year, change aligned to same vertical middle */
   .metrics-table-row {
     grid-template-columns: 2fr 1fr 1fr 1fr; /* Match header, better proportions */
     gap: 8px;
-    padding: 20px 10px 18px 10px; /* More vertical padding between rows */
+    padding: 12px 6px;
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
-    min-height: auto; /* Let content determine height */
+    min-height: auto;
     background: var(--bg-primary);
     border-bottom: 1px solid var(--border-primary);
-    align-items: start; /* Align all columns to top so row padding creates space above */
+    align-items: center; /* Align metric name, values, change to same vertical middle */
   }
   
   .metrics-table-body {
@@ -1671,36 +1755,22 @@ button.metrics-table-row {
   }
   
   .metric-name {
-    font-size: 13px; /* Slightly larger for readability */
+    font-size: 13px;
     font-weight: 500;
-    line-height: 1.4; /* Improved line height for clarity */
-    margin-top: 4px; /* Spacing above metric name */
-    margin-bottom: 0;
+    line-height: 1.4;
+    margin: 0;
   }
   
-  /* Align metric name column to top, not centered */
   .metrics-table-row .metric-col-name {
     justify-content: flex-start;
-    padding-left: 8px;
-    padding-top: 2px; /* Small top padding for visual spacing */
+    padding-left: 4px;
+    padding-top: 0;
   }
   
-  /* Metadata: Compact but readable - same spacing as desktop */
-  .metric-metadata {
-    font-size: 9px; /* Slightly larger for legibility */
-    line-height: 1.2;
-    margin-top: 1px; /* Tight spacing - closer to metric name above (same as desktop) */
-    margin-bottom: 6px; /* Space below to set off from next row (same as desktop) */
-    color: var(--text-tertiary, #9ca3af);
-    letter-spacing: 0.01em; /* Slight letter spacing for clarity */
-  }
-  
-  
-  /* Change column: same as desktop - align with YTD values (date-label equivalent space) */
+  /* Change column: percent above amount, aligned with row center */
   .metrics-table-row .metric-col-change {
-    align-self: start;
-    padding-top: 5px;
-    padding-right: 8px;
+    padding-top: 0;
+    padding-right: 4px;
   }
   
   .metric-value {
@@ -1779,7 +1849,7 @@ button.metrics-table-row {
 /* Mobile responsiveness */
 @media (max-width: 640px) {
   .metrics-subcategory-header {
-    padding: 8px 12px;
+    padding: 8px 6px;
     width: 100%;
     margin: 0;
   }

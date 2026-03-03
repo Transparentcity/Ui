@@ -1119,6 +1119,34 @@ export function purgeAdminMetricData(metricId: number, token: string): Promise<P
   return request<PurgeMetricDataResponse>(`/api/admin/metrics/${metricId}/purge`, "DELETE", undefined, token);
 }
 
+export interface ClearCityMetricDataResponse {
+  status: string;
+  scope: "all" | "city";
+  city_id: number | null;
+  total_deleted: number;
+  deleted: {
+    feed_stories: number;
+    research_items: number;
+    research_reports: number;
+    precomputed_metric_comparisons: number;
+    anomaly_results: number;
+    anomaly_runs: number;
+    time_series_data: number;
+    time_series_metadata: number;
+    saved_maps: number;
+    period_completeness: number;
+    metric_stability_patterns: number;
+  };
+  message: string;
+}
+
+export function clearCityMetricData(
+  cityId: number | null,
+  token: string
+): Promise<ClearCityMetricDataResponse> {
+  return request<ClearCityMetricDataResponse>("/api/admin/data/clear-city-metric-data", "POST", { city_id: cityId }, token);
+}
+
 export function invalidateAdminMetricMapCache(
   metricId: number,
   options: { period_type?: string; district?: number | null } | undefined,
@@ -2765,6 +2793,126 @@ export function updateAdminClaim(
   return request<AdminClaimResponse>(`/api/admin/claims/${claimId}`, "PATCH", body, token);
 }
 
+// Inbound Email (Seymour's inbox) - Admin only
+export interface InboundEmailListItem {
+  id: number;
+  from_email: string;
+  from_name: string | null;
+  to_email: string;
+  subject: string | null;
+  body_preview: string;
+  status: string;
+  spam_score: number | null;
+  retry_count: number;
+  received_at: string | null;
+  processed_at: string | null;
+  responded_at: string | null;
+  error_message: string | null;
+}
+
+export interface InboundEmailListResponse {
+  emails: InboundEmailListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface InboundEmailDetail {
+  id: number;
+  from_email: string;
+  from_name: string | null;
+  to_email: string;
+  subject: string | null;
+  body_plain: string | null;
+  body_html: string | null;
+  message_id: string | null;
+  in_reply_to: string | null;
+  attachments_count: number;
+  spam_score: number | null;
+  status: string;
+  response_text: string | null;
+  responded_at: string | null;
+  error_message: string | null;
+  retry_count: number;
+  received_at: string | null;
+  processed_at: string | null;
+}
+
+export function listInboundEmails(
+  token: string,
+  options?: { status?: string; limit?: number; offset?: number }
+): Promise<InboundEmailListResponse> {
+  const params = new URLSearchParams();
+  if (options?.status) params.append("status", options.status);
+  if (options?.limit != null) params.append("limit", String(options.limit));
+  if (options?.offset != null) params.append("offset", String(options.offset));
+  const query = params.toString();
+  return request<InboundEmailListResponse>(
+    `/api/admin/inbound-email/${query ? `?${query}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getInboundEmail(emailId: number, token: string): Promise<InboundEmailDetail> {
+  return request<InboundEmailDetail>(`/api/admin/inbound-email/${emailId}`, "GET", undefined, token);
+}
+
+// Seymour's outbox (outbound emails)
+export interface OutboundEmailListItem {
+  id: number;
+  to_email: string;
+  subject: string;
+  body_preview: string;
+  prompt_text: string | null;
+  source: string;
+  user_id: number | null;
+  city_id: number | null;
+  created_at: string | null;
+}
+
+export interface OutboundEmailDetail {
+  id: number;
+  to_email: string;
+  from_email: string | null;
+  subject: string;
+  body_html: string | null;
+  body_plain: string | null;
+  prompt_text: string | null;
+  source: string;
+  user_id: number | null;
+  city_id: number | null;
+  created_at: string | null;
+}
+
+export interface OutboundEmailListResponse {
+  emails: OutboundEmailListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export function listOutboundEmails(
+  token: string,
+  options?: { limit?: number; offset?: number }
+): Promise<OutboundEmailListResponse> {
+  const params = new URLSearchParams();
+  if (options?.limit != null) params.append("limit", String(options.limit));
+  if (options?.offset != null) params.append("offset", String(options.offset));
+  const query = params.toString();
+  return request<OutboundEmailListResponse>(
+    `/api/admin/outbound-email/${query ? `?${query}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getOutboundEmail(emailId: number, token: string): Promise<OutboundEmailDetail> {
+  return request<OutboundEmailDetail>(`/api/admin/outbound-email/${emailId}`, "GET", undefined, token);
+}
+
 // User Management API
 export interface User {
   id: number;
@@ -3499,6 +3647,34 @@ export function createResearch(
   token: string
 ): Promise<CreateResearchResponse> {
   return request<CreateResearchResponse>("/api/research/create", "POST", payload, token);
+}
+
+/** Generate sample newsletter via email one-shot (no research report, no email sent). */
+export interface GenerateSampleNewsletterRequest {
+  /** City ID for this environment. Omit when using city_slug. */
+  city_id?: number | null;
+  /** City slug (e.g. "san-francisco") so newsletter works when IDs differ (e.g. local vs prod). */
+  city_slug?: string | null;
+  district?: number | null;
+  frequency?: string;
+  prompt_override?: string | null;
+}
+
+export interface GenerateSampleNewsletterResponse {
+  html: string;
+  title: string;
+}
+
+export function generateSampleNewsletter(
+  payload: GenerateSampleNewsletterRequest,
+  token: string
+): Promise<GenerateSampleNewsletterResponse> {
+  return request<GenerateSampleNewsletterResponse>(
+    "/api/newsletter/generate-sample",
+    "POST",
+    payload,
+    token
+  );
 }
 
 export function getResearch(reportId: number, token: string): Promise<ResearchReport> {

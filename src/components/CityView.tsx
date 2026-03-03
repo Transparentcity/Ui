@@ -1272,9 +1272,9 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
 
   return (
     <div className="dashboard-section">
-      {/* Dashboard title / district nav (left) and Customize metrics (right) */}
-      <div className="dashboard-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+      {/* Single row: official selector (left), Compare dropdowns (middle), Customize (right) */}
+      <div className="dashboard-header dashboard-header-single-row">
+        <div className="dashboard-header-left">
           {leaders && leaders.length > 0 && onDistrictChange ? (
             <div className="dashboard-district-navigation">
               <DistrictNavigation
@@ -1295,38 +1295,14 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
             <h2 className="dashboard-title">{dashboardTitle}</h2>
           )}
         </div>
-        {onCustomizeMetricsClick && (
-          <button
-            type="button"
-            onClick={onCustomizeMetricsClick}
-            style={{
-              padding: "6px 12px",
-              fontSize: 13,
-              fontWeight: 500,
-              color: "var(--brand-primary, #ad35fa)",
-              background: "transparent",
-              border: "1px solid var(--brand-primary, #ad35fa)",
-              borderRadius: 6,
-              cursor: "pointer",
-            }}
-          >
-            Customize metrics
-          </button>
-        )}
-      </div>
-
-      {/* Comparison Type Selector */}
-      <div className="dashboard-comparison-selector">
-        <div className="comparison-selector-content">
-          <span className="comparison-selector-label">Comparing:</span>
+        <div className="dashboard-header-compare">
+          <span className="comparison-selector-label">Compare</span>
           <select
             className="comparison-selector-dropdown"
             value={currentPeriodType}
             onChange={(e) => {
               const newCurrent = e.target.value as CurrentPeriodType;
               setCurrentPeriodType(newCurrent);
-              // Auto-adjust comparison period if needed to maintain valid combination
-              // this_year can only compare with last_year
               if (newCurrent === 'this_year' && comparisonPeriodType === 'last_month') {
                 setComparisonPeriodType('last_year');
               }
@@ -1339,15 +1315,13 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
               </option>
             ))}
           </select>
-          <span className="comparison-selector-label">with</span>
+          <span className="comparison-selector-label">to</span>
           <select
             className="comparison-selector-dropdown"
             value={comparisonPeriodType}
             onChange={(e) => {
               const newComparison = e.target.value as ComparisonPeriodType;
               setComparisonPeriodType(newComparison);
-              // Auto-adjust current period if needed to maintain valid combination
-              // last_month can only compare with this_month
               if (currentPeriodType === 'this_year' && newComparison === 'last_month') {
                 setCurrentPeriodType('this_month');
               }
@@ -1361,8 +1335,17 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
             ))}
           </select>
         </div>
+        {onCustomizeMetricsClick && (
+          <button
+            type="button"
+            className="dashboard-header-customize-btn"
+            onClick={onCustomizeMetricsClick}
+          >
+            Customize metrics
+          </button>
+        )}
       </div>
-      
+
       <div className="metrics-table-container">
         {groupedMetrics.sortedCategories.map((category) => {
           // Filter metrics with valid data
@@ -1486,16 +1469,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                         >
                           {/* Metric name column */}
                           <div className="metric-col metric-col-name">
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span className="metric-name">{metric.metric_name}</span>
-                              {maxDataDateFormatted && (
-                                <div className={`metric-metadata${metric.stale ? " metric-through-stale" : ""}`} title={metric.stale ? "No current-year data; through date is last available" : "Data through this date"}>
-                                  <span>
-                                    Through: {maxDataDateFormatted}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
+                            <span className="metric-name">{metric.metric_name}</span>
                           </div>
                           
                           {/* Comparison column: apples-to-apples period (e.g. Jan 1 - Jan 5 2025); cut-off styling when data ends mid-window */}
@@ -1571,13 +1545,13 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                                       {absoluteDiff !== null ? (absoluteDiff > 0 ? "+" : "") + absoluteDiff.toFixed(1) + " pts" : "—"}
                                     </span>
                                   ) : (
-                                    // For count/other metrics, show absolute and percent change
+                                    // For count/other metrics: percent above, amount below (like headers over dates)
                                     <>
-                                      <span className="change-absolute">
-                                        {absoluteDiff !== null ? (absoluteDiff > 0 ? "+" : "") + Math.round(absoluteDiff).toLocaleString() : "—"}
-                                      </span>
                                       <span className="change-percent">
                                         {percentDelta !== null ? (percentDelta > 0 ? "+" : "") + Math.round(percentDelta) + "%" : "—"}
+                                      </span>
+                                      <span className="change-absolute">
+                                        {absoluteDiff !== null ? (absoluteDiff > 0 ? "+" : "") + Math.round(absoluteDiff).toLocaleString() : "—"}
                                       </span>
                                     </>
                                   )}

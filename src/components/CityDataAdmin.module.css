@@ -137,6 +137,15 @@
   background-color: var(--bg-secondary) !important;
 }
 
+/* Metric system dashboard: no time series data at all */
+.metricTableRowNoData {
+  border-left: 3px solid rgba(220, 38, 38, 0.9);
+}
+
+.metricTableRowNoData:hover {
+  background-color: rgba(220, 38, 38, 0.08) !important;
+}
+
 .metricNameCell {
   font-weight: 500;
   color: var(--text-primary);
