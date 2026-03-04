@@ -91,6 +91,9 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [generateResult, setGenerateResult] = useState<string | null>(null)
 
+  // Per-item error feedback
+  const [itemError, setItemError] = useState<{ id: string; message: string } | null>(null)
+
   // Helper to get auth headers for API calls
   const getAuthHeaders = useCallback(async (contentType?: boolean) => {
     const headers: Record<string, string> = {}
@@ -204,16 +207,27 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   // Regenerate draft text (keep same anomaly, new LLM variation)
   const regenerateDraft = useCallback(async (draftId: string) => {
     setRegeneratingId(draftId)
+    setItemError(null)
     try {
       const headers = await getAuthHeaders(true)
       const resp = await fetch(`${API_BASE}/api/crm/drafts/${draftId}/regenerate`, {
         method: "POST",
         headers,
       })
-      if (!resp.ok) throw new Error("Regenerate failed")
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}))
+        const detail = data.detail || ""
+        if (detail.includes("missing anomaly") || resp.status === 400) {
+          setItemError({ id: draftId, message: "Can't regenerate — this older draft doesn't have anomaly data linked. Use AI Compose to create a new draft for this contact." })
+        } else {
+          setItemError({ id: draftId, message: "Regenerate failed. Please try again." })
+        }
+        return
+      }
       router.refresh()
     } catch (err) {
       console.error("Regenerate error:", err)
+      setItemError({ id: draftId, message: "Regenerate failed. Please try again." })
     } finally {
       setRegeneratingId(null)
     }
@@ -601,7 +615,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                           {loadingAnomalies && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
                         </div>
                         {!loadingAnomalies && applicableAnomalies.length === 0 && (
-                          <p className="text-sm text-gray-500">No other anomalies found for this city.</p>
+                          <p className="text-sm text-gray-500">No anomalies found for this city in the last 14 days. Newer anomalies will appear here automatically.</p>
                         )}
                         <div className="max-h-48 overflow-y-auto space-y-1">
                           {applicableAnomalies.map((a) => (
@@ -638,6 +652,16 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                           ))}
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Error feedback */}
+                  {itemError?.id === item.id && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
+                      <span className="flex-1">{itemError.message}</span>
+                      <button onClick={() => setItemError(null)} className="text-amber-500 hover:text-amber-700 shrink-0">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   )}
 

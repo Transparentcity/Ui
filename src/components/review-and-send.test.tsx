@@ -533,7 +533,7 @@ describe("ReviewAndSend", () => {
   // EDGE CASE: API failure scenarios
   // ===================================================================
 
-  it("handles regenerate API failure gracefully (no crash)", async () => {
+  it("handles regenerate API failure gracefully and shows error message", async () => {
     const user = userEvent.setup()
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     mockFetch.mockRejectedValueOnce(new Error("Server down"))
@@ -542,11 +542,54 @@ describe("ReviewAndSend", () => {
     await user.click(screen.getByRole("button", { name: /regenerate/i }))
 
     await waitFor(() => {
-      // Button should go back to normal state
       expect(screen.getByRole("button", { name: /regenerate/i })).not.toBeDisabled()
     })
-    expect(consoleSpy).toHaveBeenCalledWith("Regenerate error:", expect.any(Error))
+    // Should show user-visible error
+    await waitFor(() => {
+      expect(screen.getByText(/regenerate failed/i)).toBeInTheDocument()
+    })
     consoleSpy.mockRestore()
+  })
+
+  it("shows specific message when regenerate fails due to missing anomaly data", async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ detail: "Draft is missing anomaly or prospect data, cannot regenerate" }),
+    })
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByRole("button", { name: /regenerate/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/older draft doesn't have anomaly data/i)).toBeInTheDocument()
+    })
+  })
+
+  it("dismisses regenerate error when X is clicked", async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ detail: "Draft is missing anomaly or prospect data, cannot regenerate" }),
+    })
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByRole("button", { name: /regenerate/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/older draft/i)).toBeInTheDocument()
+    })
+
+    // Click dismiss
+    const errorBanner = screen.getByText(/older draft/i).closest("div")!
+    const dismissBtn = within(errorBanner).getByRole("button")
+    await user.click(dismissBtn)
+
+    await waitFor(() => {
+      expect(screen.queryByText(/older draft/i)).not.toBeInTheDocument()
+    })
   })
 
   it("handles anomaly fetch failure gracefully", async () => {
@@ -558,7 +601,7 @@ describe("ReviewAndSend", () => {
     await user.click(screen.getByRole("button", { name: /anomalies/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/no other anomalies found/i)).toBeInTheDocument()
+      expect(screen.getByText(/no anomalies found.*14 days/i)).toBeInTheDocument()
     })
     expect(consoleSpy).toHaveBeenCalledWith("Fetch anomalies error:", expect.any(Error))
     consoleSpy.mockRestore()
