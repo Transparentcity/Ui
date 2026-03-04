@@ -300,8 +300,8 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
         {canAccessApiDocs && (
           <div
             className={styles.item}
-            data-view="email-admin"
-            onClick={() => handleAdminView("email-admin")}
+            data-view="feed-stories-admin"
+            onClick={() => handleAdminView("feed-stories-admin")}
           >
             <span
               style={{
