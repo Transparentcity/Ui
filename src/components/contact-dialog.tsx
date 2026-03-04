@@ -44,8 +44,8 @@ interface ContactDialogProps {
 export function ContactDialog({ contact, keywords, children }: ContactDialogProps) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
-  const [contactType, setContactType] = useState<"city_staff" | "media">(
-    (contact?.contact_type as "city_staff" | "media") || "city_staff"
+  const [contactType, setContactType] = useState<string>(
+    contact?.contact_type || "city_staff"
   )
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(
     contact?.keywords?.map((k) => k.id) || []
@@ -154,15 +154,20 @@ export function ContactDialog({ contact, keywords, children }: ContactDialogProp
             <Label>Type</Label>
             <Select
               value={contactType}
-              onValueChange={(v) => setContactType(v as "city_staff" | "media")}
+              onValueChange={(v) => setContactType(v)}
               name="contact_type"
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="city_staff">City staff</SelectItem>
-                <SelectItem value="media">Media</SelectItem>
+                <SelectItem value="elected_official">Elected Official</SelectItem>
+                <SelectItem value="city_staff">City Staff</SelectItem>
+                <SelectItem value="media">Press / Media</SelectItem>
+                <SelectItem value="academic">Academic</SelectItem>
+                <SelectItem value="nonprofit">Nonprofit</SelectItem>
+                <SelectItem value="lobbyist">Lobbyist</SelectItem>
+                <SelectItem value="community_leader">Community Leader</SelectItem>
               </SelectContent>
             </Select>
           </div>

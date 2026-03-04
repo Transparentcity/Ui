@@ -41,7 +41,7 @@ import {
   regenerateQueueItems
 } from "@/app/actions/send-queue"
 import { listActiveContactsLite } from "@/app/actions/contacts"
-import { useAnomaliesPublic } from "@/lib/hooks/useAnomaliesPublic"
+import { useAnomalies } from "@/lib/hooks/useAnomalies"
 import { mapApiAnomaliesToCrm } from "@/lib/anomalyMapper"
 import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import { toSlimEmailAnomaly, type CrmEmailAnomaly } from "@/lib/crmAnomalyUtils"
@@ -88,8 +88,7 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
   
   // Fetch anomalies from Platform API for email regeneration
   // API max limit is 200 - this provides enough for district + citywide coverage
-  // Using public hook (no Auth0 required) for CRM pages
-  const { data: anomalyData, isLoading: anomaliesLoading } = useAnomaliesPublic({
+  const { data: anomalyData, isLoading: anomaliesLoading } = useAnomalies({
     is_anomaly: true,
     limit: 200,
     city_id: CRM_DEFAULT_CITY_ID,

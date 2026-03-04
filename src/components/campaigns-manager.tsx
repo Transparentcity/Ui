@@ -20,7 +20,7 @@ import { CampaignDialog } from "./campaign-dialog"
 import { ThrottleSettings } from "./throttle-settings"
 import { deleteCampaign, updateCampaignStatus } from "@/app/actions/campaigns"
 import { queueCampaignMessages, regenerateCampaign } from "@/app/actions/send-queue"
-import { useAnomaliesPublic } from "@/lib/hooks/useAnomaliesPublic"
+import { useAnomalies } from "@/lib/hooks/useAnomalies"
 import { mapApiAnomaliesToCrm } from "@/lib/anomalyMapper"
 import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import { toSlimEmailAnomaly, type CrmEmailAnomaly } from "@/lib/crmAnomalyUtils"
@@ -65,8 +65,7 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
   
   // Fetch anomalies from Platform API for email generation
   // API max limit is 200 - this should provide ~15+ anomalies per district plus citywide
-  // Using public hook (no Auth0 required) for CRM pages
-  const { data: anomalyData, isLoading: anomaliesLoading, error: anomaliesError } = useAnomaliesPublic({
+  const { data: anomalyData, isLoading: anomaliesLoading, error: anomaliesError } = useAnomalies({
     is_anomaly: true,
     limit: 200,
     city_id: CRM_DEFAULT_CITY_ID,

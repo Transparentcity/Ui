@@ -2,9 +2,8 @@ import { createClient } from "@/lib/db"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { ContactsTable } from "@/components/contacts-table"
 import { ContactDialog } from "@/components/contact-dialog"
-import { ContactImportDialog } from "@/components/contact-import-dialog"
 import { Button } from "@/components/ui/button"
-import { Plus, Upload } from "lucide-react"
+import { Plus } from "lucide-react"
 
 export const dynamic = "force-dynamic"
 
@@ -64,20 +63,12 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
       title="Contacts"
       description="City staff and media prospects"
       actions={
-        <div className="flex items-center gap-2">
-          <ContactImportDialog keywords={keywords as any}>
-            <Button variant="outline">
-              <Upload className="w-4 h-4 mr-2" />
-              Import CSV
-            </Button>
-          </ContactImportDialog>
-          <ContactDialog keywords={keywords as any}>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Contact
-            </Button>
-          </ContactDialog>
-        </div>
+        <ContactDialog keywords={keywords as any}>
+          <Button>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Contact
+          </Button>
+        </ContactDialog>
       }
     >
       <ContactsTable

@@ -1,5 +1,5 @@
-/** Contact type: city_staff (officials) or media (reporters). Both are prospects. */
-export type ContactType = 'city_staff' | 'media'
+/** Contact type categories for CRM contacts. */
+export type ContactType = 'elected_official' | 'city_staff' | 'media' | 'academic' | 'nonprofit' | 'lobbyist' | 'community_leader'
 
 /**
  * Prospect - unified contact for CRM outreach (city staff + media)
@@ -24,7 +24,7 @@ export interface Prospect {
   created_at: string
   updated_at: string
   // Type and media-specific fields
-  contact_type: ContactType
+  contact_type: ContactType | null
   outlet_platform?: string | null
   primary_beat?: string | null
   primary_city?: string | null
