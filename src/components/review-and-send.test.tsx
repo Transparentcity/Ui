@@ -827,4 +827,160 @@ describe("ReviewAndSend", () => {
     expect(screen.getByText("Select all")).toBeInTheDocument()
     expect(screen.queryByText(/selected/)).not.toBeInTheDocument()
   })
+
+  // ===================================================================
+  // Generate Drafts
+  // ===================================================================
+
+  it("shows Generate Drafts button", () => {
+    render(<ReviewAndSend items={[]} />)
+    expect(screen.getByRole("button", { name: /generate drafts/i })).toBeInTheDocument()
+  })
+
+  it("calls generate-drafts API with auth and shows success banner", async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "ok",
+        anomalies_found: 5,
+        matches_found: 3,
+        drafts_created: 3,
+        cities_processed: 1,
+        city_results: [],
+      }),
+    })
+
+    render(<ReviewAndSend items={[]} />)
+
+    await user.click(screen.getByRole("button", { name: /generate drafts/i }))
+
+    // Should call the API with auth headers
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/crm/generate-drafts"),
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-token",
+            "Content-Type": "application/json",
+          }),
+          body: JSON.stringify({ lookback_days: 7 }),
+        }),
+      )
+    })
+
+    // Should show result banner
+    await waitFor(() => {
+      expect(screen.getByText(/Created 3 draft\(s\)/)).toBeInTheDocument()
+    })
+    expect(mockRefresh).toHaveBeenCalled()
+  })
+
+  it("shows no-matches message when zero drafts created", async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "ok",
+        anomalies_found: 0,
+        matches_found: 0,
+        drafts_created: 0,
+        cities_processed: 1,
+        city_results: [],
+      }),
+    })
+
+    render(<ReviewAndSend items={[]} />)
+    await user.click(screen.getByRole("button", { name: /generate drafts/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/no new matches found/i)).toBeInTheDocument()
+    })
+  })
+
+  it("shows API error message when generate-drafts returns error field", async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "no_cities",
+        anomalies_found: 0,
+        drafts_created: 0,
+        cities_processed: 0,
+        error: "No contacts have a city assigned. Assign cities to your contacts first.",
+      }),
+    })
+
+    render(<ReviewAndSend items={[]} />)
+    await user.click(screen.getByRole("button", { name: /generate drafts/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/No contacts have a city assigned/)).toBeInTheDocument()
+    })
+  })
+
+  it("handles generate-drafts network failure gracefully", async () => {
+    const user = userEvent.setup()
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    mockFetch.mockRejectedValueOnce(new Error("Network error"))
+
+    render(<ReviewAndSend items={[]} />)
+    await user.click(screen.getByRole("button", { name: /generate drafts/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/failed to generate drafts/i)).toBeInTheDocument()
+    })
+    consoleSpy.mockRestore()
+  })
+
+  it("shows loading state while generating", async () => {
+    const user = userEvent.setup()
+    // Use a promise that won't resolve immediately
+    let resolveFetch!: (v: any) => void
+    mockFetch.mockReturnValueOnce(
+      new Promise((resolve) => { resolveFetch = resolve })
+    )
+
+    render(<ReviewAndSend items={[]} />)
+    await user.click(screen.getByRole("button", { name: /generate drafts/i }))
+
+    // Button should show "Generating..." while in flight
+    expect(screen.getByRole("button", { name: /generating/i })).toBeDisabled()
+
+    // Resolve to clean up
+    resolveFetch({ ok: true, json: async () => ({ drafts_created: 0, anomalies_found: 0 }) })
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /generate drafts/i })).not.toBeDisabled()
+    })
+  })
+
+  it("dismisses result banner when X is clicked", async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "ok",
+        anomalies_found: 2,
+        drafts_created: 2,
+        cities_processed: 1,
+      }),
+    })
+
+    render(<ReviewAndSend items={[]} />)
+    await user.click(screen.getByRole("button", { name: /generate drafts/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Created 2 draft/)).toBeInTheDocument()
+    })
+
+    // Click the dismiss X button on the banner
+    const banner = screen.getByText(/Created 2 draft/).closest("div")!
+    const dismissBtn = within(banner).getByRole("button")
+    await user.click(dismissBtn)
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Created 2 draft/)).not.toBeInTheDocument()
+    })
+  })
 })
