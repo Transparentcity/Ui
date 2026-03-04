@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useTransition, useCallback, useEffect } from "react"
+import { useState, useTransition, useCallback, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
+import { useAuth0 } from "@auth0/auth0-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -35,6 +36,8 @@ import {
   ChevronDown,
   ChevronUp,
   ArrowRightLeft,
+  CheckSquare,
+  Square,
 } from "lucide-react"
 import type { SendQueueItem, Contact } from "@/lib/types"
 import {
@@ -62,6 +65,7 @@ interface ReviewAndSendProps {
 
 export function ReviewAndSend({ items }: ReviewAndSendProps) {
   const router = useRouter()
+  const { getAccessTokenSilently } = useAuth0()
   const [activeTab, setActiveTab] = useState<TabKey>("pending")
   const [editingItem, setEditingItem] = useState<SendQueueItem | null>(null)
   const [editSubject, setEditSubject] = useState("")
@@ -79,6 +83,22 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   const [applicableAnomalies, setApplicableAnomalies] = useState<ApplicableAnomaly[]>([])
   const [loadingAnomalies, setLoadingAnomalies] = useState(false)
   const [swappingAnomalyId, setSwappingAnomalyId] = useState<number | null>(null)
+
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  // Helper to get auth headers for API calls
+  const getAuthHeaders = useCallback(async (contentType?: boolean) => {
+    const headers: Record<string, string> = {}
+    try {
+      const token = await getAccessTokenSilently()
+      headers["Authorization"] = `Bearer ${token}`
+    } catch {
+      // In dev mode, auth may not be configured
+    }
+    if (contentType) headers["Content-Type"] = "application/json"
+    return headers
+  }, [getAccessTokenSilently])
 
   // Filter items by tab
   const filteredItems = items.filter((item) => {
@@ -181,9 +201,10 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   const regenerateDraft = useCallback(async (draftId: string) => {
     setRegeneratingId(draftId)
     try {
+      const headers = await getAuthHeaders(true)
       const resp = await fetch(`${API_BASE}/api/crm/drafts/${draftId}/regenerate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
       })
       if (!resp.ok) throw new Error("Regenerate failed")
       router.refresh()
@@ -192,7 +213,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
     } finally {
       setRegeneratingId(null)
     }
-  }, [router])
+  }, [router, getAuthHeaders])
 
   // Fetch applicable anomalies for a draft
   const fetchApplicableAnomalies = useCallback(async (draftId: string) => {
@@ -205,7 +226,8 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
     setAnomalyPickerDraftId(draftId)
     setLoadingAnomalies(true)
     try {
-      const resp = await fetch(`${API_BASE}/api/crm/drafts/${draftId}/applicable-anomalies`)
+      const headers = await getAuthHeaders()
+      const resp = await fetch(`${API_BASE}/api/crm/drafts/${draftId}/applicable-anomalies`, { headers })
       if (!resp.ok) throw new Error("Failed to fetch anomalies")
       const data = await resp.json()
       setApplicableAnomalies(data.anomalies || [])
@@ -215,15 +237,16 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
     } finally {
       setLoadingAnomalies(false)
     }
-  }, [anomalyPickerDraftId])
+  }, [anomalyPickerDraftId, getAuthHeaders])
 
   // Swap anomaly on a draft
   const swapAnomaly = useCallback(async (draftId: string, resultId: number) => {
     setSwappingAnomalyId(resultId)
     try {
+      const headers = await getAuthHeaders(true)
       const resp = await fetch(`${API_BASE}/api/crm/drafts/${draftId}/swap-anomaly`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ anomaly_result_id: resultId }),
       })
       if (!resp.ok) throw new Error("Swap failed")
@@ -235,7 +258,60 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
     } finally {
       setSwappingAnomalyId(null)
     }
-  }, [router])
+  }, [router, getAuthHeaders])
+
+  // Bulk selection helpers
+  const pendingItems = useMemo(
+    () => items.filter((i) => i.status === "pending_review"),
+    [items]
+  )
+  const allPendingSelected =
+    pendingItems.length > 0 && pendingItems.every((i) => selectedIds.has(i.id))
+  const somePendingSelected = selectedIds.size > 0
+
+  const toggleSelectAll = () => {
+    if (allPendingSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(pendingItems.map((i) => i.id)))
+    }
+  }
+
+  const toggleSelect = (id: string) => {
+    const next = new Set(selectedIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setSelectedIds(next)
+  }
+
+  // Clear selection when tab changes
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [activeTab])
+
+  // Bulk mark as sent
+  const bulkMarkSent = () => {
+    if (selectedIds.size === 0) return
+    if (!confirm(`Mark ${selectedIds.size} item(s) as sent?`)) return
+    startTransition(async () => {
+      await Promise.all(
+        Array.from(selectedIds).map((id) => updateQueueItemStatus(id, "sent"))
+      )
+      setSelectedIds(new Set())
+      router.refresh()
+    })
+  }
+
+  // Bulk discard
+  const bulkDiscard = () => {
+    if (selectedIds.size === 0) return
+    if (!confirm(`Discard ${selectedIds.size} item(s)? They will be removed from the queue.`)) return
+    startTransition(async () => {
+      await deleteQueueItems(Array.from(selectedIds))
+      setSelectedIds(new Set())
+      router.refresh()
+    })
+  }
 
   const tabs: { key: TabKey; label: string; count: number }[] = [
     { key: "pending", label: "Pending Review", count: pendingCount },
@@ -268,6 +344,50 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
           </button>
         ))}
       </div>
+
+      {/* Bulk action toolbar (pending tab only) */}
+      {activeTab === "pending" && pendingItems.length > 0 && (
+        <div className="flex items-center gap-3 px-1">
+          <button
+            onClick={toggleSelectAll}
+            className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900"
+          >
+            {allPendingSelected ? (
+              <CheckSquare className="w-4 h-4 text-purple-600" />
+            ) : (
+              <Square className="w-4 h-4" />
+            )}
+            {allPendingSelected ? "Deselect all" : "Select all"}
+          </button>
+          {somePendingSelected && (
+            <>
+              <span className="text-xs text-gray-400">
+                {selectedIds.size} selected
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={bulkMarkSent}
+                disabled={isPending}
+                className="gap-1.5 text-xs text-green-700 border-green-300 hover:bg-green-50"
+              >
+                <SendHorizontal className="w-3.5 h-3.5" />
+                Mark Sent
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={bulkDiscard}
+                disabled={isPending}
+                className="gap-1.5 text-xs text-red-600 border-red-200 hover:bg-red-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Discard
+              </Button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Empty state */}
       {filteredItems.length === 0 && (
@@ -306,6 +426,18 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                   {/* Top row: contact info + status badge */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 text-sm">
+                      {!isSent && activeTab === "pending" && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleSelect(item.id) }}
+                          className="shrink-0"
+                        >
+                          {selectedIds.has(item.id) ? (
+                            <CheckSquare className="w-4 h-4 text-purple-600" />
+                          ) : (
+                            <Square className="w-4 h-4 text-gray-300 hover:text-gray-500" />
+                          )}
+                        </button>
+                      )}
                       <div className="flex items-center gap-1.5">
                         <User className="w-4 h-4 text-gray-400" />
                         <span className="font-medium text-gray-900">

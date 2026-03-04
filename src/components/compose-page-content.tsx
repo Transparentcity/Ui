@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
+import { useAuth0 } from "@auth0/auth0-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -66,6 +67,20 @@ interface ComposePageContentProps {
 
 export function ComposePageContent({ contacts, keywords }: ComposePageContentProps) {
   const router = useRouter()
+  const { getAccessTokenSilently } = useAuth0()
+
+  const getAuthHeaders = useCallback(async (contentType?: boolean) => {
+    const headers: Record<string, string> = {}
+    try {
+      const token = await getAccessTokenSilently()
+      headers["Authorization"] = `Bearer ${token}`
+    } catch {
+      // In dev mode, auth may not be configured
+    }
+    if (contentType) headers["Content-Type"] = "application/json"
+    return headers
+  }, [getAccessTokenSilently])
+
   const { data, isLoading } = useAnomalies({
     is_anomaly: true,
     limit: 500,
@@ -140,7 +155,8 @@ export function ComposePageContent({ contacts, keywords }: ComposePageContentPro
 
     setLoadingAnomalies(true)
     try {
-      const resp = await fetch(`${API_BASE}/api/crm/cities/${contact.city_id}/anomalies?lookback_days=14&limit=30`)
+      const headers = await getAuthHeaders()
+      const resp = await fetch(`${API_BASE}/api/crm/cities/${contact.city_id}/anomalies?lookback_days=90&limit=30`, { headers })
       if (!resp.ok) throw new Error("Failed to fetch anomalies")
       const data = await resp.json()
       const fetched: AnomalyOption[] = data.anomalies || []
@@ -169,9 +185,10 @@ export function ComposePageContent({ contacts, keywords }: ComposePageContentPro
     setIsGenerating(true)
     setSaved(false)
     try {
+      const composeHeaders = await getAuthHeaders(true)
       const resp = await fetch(`${API_BASE}/api/crm/compose`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: composeHeaders,
         body: JSON.stringify({
           prospect_id: contact.id,
           anomaly_result_id: anomaly.result_id,

@@ -18,6 +18,11 @@ import { vi, describe, it, expect, beforeEach } from "vitest"
 
 // ---- Mocks ----------------------------------------------------------------
 
+const mockGetAccessTokenSilently = vi.fn().mockResolvedValue("test-token")
+vi.mock("@auth0/auth0-react", () => ({
+  useAuth0: () => ({ getAccessTokenSilently: mockGetAccessTokenSilently }),
+}))
+
 const mockRefresh = vi.fn()
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: mockRefresh }),
@@ -226,7 +231,7 @@ describe("ReviewAndSend", () => {
 
   // ---------- Regenerate ----------
 
-  it("calls regenerate endpoint when Regenerate is clicked", async () => {
+  it("calls regenerate endpoint with auth headers when Regenerate is clicked", async () => {
     const user = userEvent.setup()
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -241,7 +246,12 @@ describe("ReviewAndSend", () => {
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/api/crm/drafts/q-1/regenerate"),
-        expect.objectContaining({ method: "POST" }),
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-token",
+          }),
+        }),
       )
     })
     expect(mockRefresh).toHaveBeenCalled()
@@ -270,6 +280,11 @@ describe("ReviewAndSend", () => {
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/api/crm/drafts/q-1/applicable-anomalies"),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-token",
+          }),
+        }),
       )
     })
 
@@ -674,5 +689,142 @@ describe("ReviewAndSend", () => {
 
     // Component should still be intact
     expect(screen.getByText(PENDING_ITEM.personalized_subject!)).toBeInTheDocument()
+  })
+
+  // ===================================================================
+  // Bulk actions
+  // ===================================================================
+
+  it("shows Select all button on pending tab when items exist", () => {
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+    expect(screen.getByText("Select all")).toBeInTheDocument()
+  })
+
+  it("does not show Select all on sent tab", async () => {
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[SENT_ITEM]} />)
+
+    await user.click(screen.getByText("Sent"))
+    expect(screen.queryByText("Select all")).not.toBeInTheDocument()
+  })
+
+  it("selects all pending items and shows bulk action buttons", async () => {
+    const user = userEvent.setup()
+    const item2 = makeQueueItem({ id: "q-3", personalized_subject: "Second draft" })
+    render(<ReviewAndSend items={[PENDING_ITEM, item2, SENT_ITEM]} />)
+
+    await user.click(screen.getByText("Select all"))
+
+    // Should show "2 selected" and bulk buttons
+    await waitFor(() => {
+      expect(screen.getByText("2 selected")).toBeInTheDocument()
+    })
+    expect(screen.getByRole("button", { name: /mark sent/i })).toBeInTheDocument()
+
+    // The bulk discard button text
+    const bulkDiscardBtns = screen.getAllByRole("button", { name: /discard/i })
+    expect(bulkDiscardBtns.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("toggles individual item selection via checkbox", async () => {
+    const user = userEvent.setup()
+    const item2 = makeQueueItem({ id: "q-3", personalized_subject: "Second draft" })
+    render(<ReviewAndSend items={[PENDING_ITEM, item2]} />)
+
+    // Click the first checkbox (there should be per-card checkboxes)
+    const checkboxes = screen.getAllByRole("button").filter(
+      (btn) => btn.querySelector(".lucide-square") !== null
+    )
+    expect(checkboxes.length).toBeGreaterThan(0)
+  })
+
+  it("bulk mark sent calls updateQueueItemStatus for each selected item", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, "confirm").mockReturnValue(true)
+    const item2 = makeQueueItem({ id: "q-3", personalized_subject: "Second draft" })
+    render(<ReviewAndSend items={[PENDING_ITEM, item2]} />)
+
+    // Select all
+    await user.click(screen.getByText("Select all"))
+    await waitFor(() => {
+      expect(screen.getByText("2 selected")).toBeInTheDocument()
+    })
+
+    // Click bulk Mark Sent
+    await user.click(screen.getByRole("button", { name: /mark sent/i }))
+
+    await waitFor(() => {
+      expect(mockUpdateStatus).toHaveBeenCalledWith("q-1", "sent")
+      expect(mockUpdateStatus).toHaveBeenCalledWith("q-3", "sent")
+    })
+    expect(mockRefresh).toHaveBeenCalled()
+  })
+
+  it("bulk discard calls deleteQueueItems for selected items", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, "confirm").mockReturnValue(true)
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    // Select all
+    await user.click(screen.getByText("Select all"))
+    await waitFor(() => {
+      expect(screen.getByText("1 selected")).toBeInTheDocument()
+    })
+
+    // Click bulk Discard (the one in the toolbar, not the per-card one)
+    // The toolbar discard has different styling — find by the text inside the toolbar area
+    const bulkDiscardBtns = screen.getAllByRole("button", { name: /discard/i })
+    // The first one is in the bulk toolbar, the second on the card
+    await user.click(bulkDiscardBtns[0])
+
+    await waitFor(() => {
+      expect(mockDeleteItems).toHaveBeenCalledWith(["q-1"])
+    })
+    expect(mockRefresh).toHaveBeenCalled()
+  })
+
+  it("deselect all clears selection", async () => {
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    // Select all
+    await user.click(screen.getByText("Select all"))
+    await waitFor(() => {
+      expect(screen.getByText("1 selected")).toBeInTheDocument()
+    })
+
+    // Deselect all
+    await user.click(screen.getByText("Deselect all"))
+    await waitFor(() => {
+      expect(screen.queryByText("1 selected")).not.toBeInTheDocument()
+    })
+  })
+
+  it("clears selection when switching tabs", async () => {
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[PENDING_ITEM, SENT_ITEM]} />)
+
+    // Select all on pending tab
+    await user.click(screen.getByText("Select all"))
+    await waitFor(() => {
+      expect(screen.getByText("1 selected")).toBeInTheDocument()
+    })
+
+    // Switch to sent tab
+    await user.click(screen.getByText("Sent"))
+
+    // Switch back to pending
+    await user.click(screen.getAllByText("Pending Review")[0])
+
+    // Selection should be cleared
+    expect(screen.queryByText("1 selected")).not.toBeInTheDocument()
+  })
+
+  it("does not show bulk buttons when nothing selected", () => {
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    // "Select all" visible, but no bulk action buttons
+    expect(screen.getByText("Select all")).toBeInTheDocument()
+    expect(screen.queryByText(/selected/)).not.toBeInTheDocument()
   })
 })

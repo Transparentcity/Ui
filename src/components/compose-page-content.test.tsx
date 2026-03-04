@@ -17,6 +17,12 @@ import { vi, describe, it, expect, beforeEach, type Mock } from "vitest"
 
 // ---- Mocks ----------------------------------------------------------------
 
+// Mock Auth0
+const mockGetAccessTokenSilently = vi.fn().mockResolvedValue("test-token")
+vi.mock("@auth0/auth0-react", () => ({
+  useAuth0: () => ({ getAccessTokenSilently: mockGetAccessTokenSilently }),
+}))
+
 // Mock next/navigation
 const mockPush = vi.fn()
 vi.mock("next/navigation", () => ({
@@ -28,6 +34,16 @@ vi.mock("./contact-dialog", () => ({
   ContactDialog: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="contact-dialog-trigger">{children}</div>
   ),
+}))
+
+// Mock useAnomalies (requires QueryClientProvider we don't set up)
+vi.mock("@/lib/hooks/useAnomalies", () => ({
+  useAnomalies: () => ({ data: { results: [] }, isLoading: false }),
+}))
+
+// Mock anomalyMapper
+vi.mock("@/lib/anomalyMapper", () => ({
+  mapApiAnomaliesToCrm: () => [],
 }))
 
 // Mock fetch globally
