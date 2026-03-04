@@ -63,6 +63,7 @@ interface TestContact {
   jurisdiction: string | null
   city_id: number | null
   city_name: string | null
+  contact_type: string | null
   priority: number
   status: "active" | "inactive" | "unsubscribed"
   notes: string | null
@@ -83,6 +84,7 @@ const CONTACTS: TestContact[] = [
     jurisdiction: "D5",
     city_id: 1,
     city_name: "San Francisco",
+    contact_type: "elected_official",
     priority: 1,
     status: "active",
     notes: null,
@@ -101,6 +103,7 @@ const CONTACTS: TestContact[] = [
     jurisdiction: "D11",
     city_id: 1,
     city_name: "San Francisco",
+    contact_type: "city_staff",
     priority: 2,
     status: "active",
     notes: null,
@@ -119,6 +122,7 @@ const CONTACTS: TestContact[] = [
     jurisdiction: null,
     city_id: null,
     city_name: null,
+    contact_type: null,
     priority: 3,
     status: "active",
     notes: null,
@@ -295,5 +299,48 @@ describe("ContactsTable", () => {
 
     // Bulk bar should be gone
     expect(screen.queryByText(/selected/i)).not.toBeInTheDocument()
+  })
+
+  // ---------- Contact type column ----------
+
+  it("renders a Type column header", () => {
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+    expect(screen.getByText("Type")).toBeInTheDocument()
+  })
+
+  it("shows contact type badge when set", () => {
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+    expect(screen.getByText("Elected Official")).toBeInTheDocument()
+    expect(screen.getByText("City Staff")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["elected_official", "Elected Official"],
+    ["city_staff", "City Staff"],
+    ["media", "Press"],
+    ["academic", "Academic"],
+    ["nonprofit", "Nonprofit"],
+    ["lobbyist", "Lobbyist"],
+    ["community_leader", "Community Leader"],
+  ])("renders correct label for contact_type=%s", (type, label) => {
+    const contact: TestContact = {
+      ...CONTACTS[0],
+      id: `ct-${type}`,
+      contact_type: type,
+    }
+    render(<ContactsTable contacts={[contact]} keywords={KEYWORDS} />)
+    expect(screen.getByText(label)).toBeInTheDocument()
+  })
+
+  it("filters contacts by contact type label in search", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    const searchInput = screen.getByPlaceholderText(/search contacts/i)
+    await user.type(searchInput, "Elected")
+
+    expect(screen.getByText("Alice Wong")).toBeInTheDocument()
+    expect(screen.queryByText("Bob Chen")).not.toBeInTheDocument()
+    expect(screen.queryByText("Carol Martinez")).not.toBeInTheDocument()
   })
 })

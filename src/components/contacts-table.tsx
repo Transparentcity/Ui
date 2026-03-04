@@ -69,7 +69,7 @@ interface ContactsTableProps {
   initialTypeFilter?: TypeFilter
 }
 
-type TypeFilter = "all" | "city_staff" | "media"
+type TypeFilter = "all" | "elected_official" | "city_staff" | "media" | "academic" | "nonprofit" | "lobbyist" | "community_leader"
 
 function getPriorityLabel(priority: number) {
   const labels = ["", "Critical", "High", "Medium", "Low", "Minimal"]
@@ -92,6 +92,29 @@ function getStatusColor(status: string) {
       return "bg-destructive/10 text-destructive border-destructive/20"
     default:
       return "bg-muted text-muted-foreground border-muted"
+  }
+}
+
+const CONTACT_TYPE_LABELS: Record<string, string> = {
+  elected_official: 'Elected Official',
+  city_staff: 'City Staff',
+  media: 'Press',
+  academic: 'Academic',
+  nonprofit: 'Nonprofit',
+  lobbyist: 'Lobbyist',
+  community_leader: 'Community Leader',
+}
+
+function getContactTypeColor(type: string) {
+  switch (type) {
+    case 'elected_official': return 'bg-blue-100 text-blue-800 border-blue-200'
+    case 'city_staff': return 'bg-indigo-100 text-indigo-800 border-indigo-200'
+    case 'media': return 'bg-pink-100 text-pink-800 border-pink-200'
+    case 'academic': return 'bg-cyan-100 text-cyan-800 border-cyan-200'
+    case 'nonprofit': return 'bg-emerald-100 text-emerald-800 border-emerald-200'
+    case 'lobbyist': return 'bg-orange-100 text-orange-800 border-orange-200'
+    case 'community_leader': return 'bg-violet-100 text-violet-800 border-violet-200'
+    default: return 'bg-muted text-muted-foreground border-muted'
   }
 }
 
@@ -121,6 +144,7 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
       (c.outlet_platform ?? "").toLowerCase().includes(search) ||
       (c.primary_city ?? "").toLowerCase().includes(search) ||
       (c.primary_beat ?? "").toLowerCase().includes(search) ||
+      (c.contact_type && CONTACT_TYPE_LABELS[c.contact_type as string]?.toLowerCase().includes(search)) ||
       c.keywords?.some((k) => k.name.toLowerCase().includes(search))
     )
   })
@@ -212,8 +236,13 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All</SelectItem>
-            <SelectItem value="city_staff">City staff</SelectItem>
-            <SelectItem value="media">Media</SelectItem>
+            <SelectItem value="elected_official">Elected Official</SelectItem>
+            <SelectItem value="city_staff">City Staff</SelectItem>
+            <SelectItem value="media">Press</SelectItem>
+            <SelectItem value="academic">Academic</SelectItem>
+            <SelectItem value="nonprofit">Nonprofit</SelectItem>
+            <SelectItem value="lobbyist">Lobbyist</SelectItem>
+            <SelectItem value="community_leader">Community Leader</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-sm text-muted-foreground">
@@ -346,7 +375,7 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
             <TableBody>
               {filteredContacts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={12} className="h-32 text-center text-muted-foreground">
                     {searchQuery || typeFilter !== "all"
                       ? "No contacts found"
                       : "No contacts yet. Add your first contact to get started."}
@@ -367,9 +396,13 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
                         />
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {isMedia ? "Media" : "City staff"}
-                        </Badge>
+                        {contact.contact_type ? (
+                          <Badge variant="outline" className={`text-xs ${getContactTypeColor(contact.contact_type as string)}`}>
+                            {CONTACT_TYPE_LABELS[contact.contact_type as string] || contact.contact_type}
+                          </Badge>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div>
