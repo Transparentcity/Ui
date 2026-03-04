@@ -46,8 +46,10 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  Tag,
+  Users,
 } from "lucide-react"
-import { deleteContact, bulkUpdateCity } from "@/app/actions/contacts"
+import { deleteContact, bulkUpdateCity, bulkAddKeywords, bulkUpdateType } from "@/app/actions/contacts"
 import { searchPublicCities, type PublicCitySearchResult } from "@/lib/publicApiClient"
 
 const PINNED_CITIES: PublicCitySearchResult[] = [
@@ -138,6 +140,10 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
   const [cityResults, setCityResults] = useState<PublicCitySearchResult[]>([])
   const [citySearching, setCitySearching] = useState(false)
   const [bulkMessage, setBulkMessage] = useState<string | null>(null)
+  const [showKeywordPicker, setShowKeywordPicker] = useState(false)
+  const [keywordSearch, setKeywordSearch] = useState("")
+  const [selectedKeywordIds, setSelectedKeywordIds] = useState<Set<string>>(new Set())
+  const [showTypePicker, setShowTypePicker] = useState(false)
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>("asc")
 
@@ -252,6 +258,39 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
       setTimeout(() => setBulkMessage(null), 4000)
     })
   }, [selectedIds, router])
+
+  const handleBulkAssignKeywords = useCallback(() => {
+    if (selectedKeywordIds.size === 0) return
+    const ids = Array.from(selectedIds)
+    const kwIds = Array.from(selectedKeywordIds)
+    startTransition(async () => {
+      const result = await bulkAddKeywords(ids, kwIds)
+      setBulkMessage(`Added ${kwIds.length} keyword${kwIds.length !== 1 ? 's' : ''} to ${result.updated} contact${result.updated !== 1 ? 's' : ''}`)
+      setSelectedIds(new Set())
+      setShowKeywordPicker(false)
+      setSelectedKeywordIds(new Set())
+      setKeywordSearch("")
+      router.refresh()
+      setTimeout(() => setBulkMessage(null), 4000)
+    })
+  }, [selectedIds, selectedKeywordIds, router])
+
+  const handleBulkAssignType = useCallback((type: string) => {
+    const ids = Array.from(selectedIds)
+    startTransition(async () => {
+      const result = await bulkUpdateType(ids, type)
+      const label = CONTACT_TYPE_LABELS[type] || type
+      setBulkMessage(`Set type to "${label}" for ${result.updated} contact${result.updated !== 1 ? 's' : ''}`)
+      setSelectedIds(new Set())
+      setShowTypePicker(false)
+      router.refresh()
+      setTimeout(() => setBulkMessage(null), 4000)
+    })
+  }, [selectedIds, router])
+
+  const filteredKeywords = keywords.filter((k) =>
+    k.name.toLowerCase().includes(keywordSearch.toLowerCase())
+  )
 
   const cityBreakdown = contacts.reduce<Record<string, number>>((acc, c) => {
     const key = c.city_name || (c.city_id ? `City #${c.city_id}` : 'No city')
@@ -376,7 +415,7 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowCityPicker(!showCityPicker)}
+              onClick={() => { setShowCityPicker(!showCityPicker); setShowKeywordPicker(false); setShowTypePicker(false) }}
               disabled={isPending}
               className="gap-1.5 text-xs"
             >
@@ -437,10 +476,93 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
               </div>
             )}
           </div>
+          {/* Keyword picker */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setShowKeywordPicker(!showKeywordPicker); setShowCityPicker(false); setShowTypePicker(false) }}
+              disabled={isPending}
+              className="gap-1.5 text-xs"
+            >
+              {isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Tag className="w-3 h-3" />}
+              Assign Keywords
+            </Button>
+            {showKeywordPicker && (
+              <div className="absolute top-full left-0 mt-1 w-72 bg-white rounded-lg shadow-lg border z-50 p-2 max-h-80 flex flex-col">
+                <Input
+                  placeholder="Search keywords..."
+                  value={keywordSearch}
+                  onChange={(e) => setKeywordSearch(e.target.value)}
+                  className="mb-2"
+                  autoFocus
+                />
+                <div className="overflow-y-auto flex-1 space-y-0.5">
+                  {filteredKeywords.length === 0 ? (
+                    <p className="text-sm text-gray-500 p-2">No keywords found</p>
+                  ) : (
+                    filteredKeywords.map((kw) => (
+                      <label
+                        key={kw.id}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm rounded hover:bg-purple-50 transition-colors cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={selectedKeywordIds.has(kw.id)}
+                          onCheckedChange={() => {
+                            const next = new Set(selectedKeywordIds)
+                            if (next.has(kw.id)) next.delete(kw.id)
+                            else next.add(kw.id)
+                            setSelectedKeywordIds(next)
+                          }}
+                        />
+                        <span>{kw.name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+                {selectedKeywordIds.size > 0 && (
+                  <div className="border-t mt-1 pt-2 flex justify-between items-center">
+                    <span className="text-xs text-gray-500">{selectedKeywordIds.size} selected</span>
+                    <Button size="sm" className="text-xs h-7" onClick={handleBulkAssignKeywords}>
+                      Apply
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          {/* Type picker */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setShowTypePicker(!showTypePicker); setShowCityPicker(false); setShowKeywordPicker(false) }}
+              disabled={isPending}
+              className="gap-1.5 text-xs"
+            >
+              {isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Users className="w-3 h-3" />}
+              Assign Type
+            </Button>
+            {showTypePicker && (
+              <div className="absolute top-full left-0 mt-1 w-56 bg-white rounded-lg shadow-lg border z-50 p-1">
+                {Object.entries(CONTACT_TYPE_LABELS).map(([value, label]) => (
+                  <button
+                    key={value}
+                    onClick={() => handleBulkAssignType(value)}
+                    className="w-full text-left px-3 py-2 text-sm rounded hover:bg-purple-50 transition-colors flex items-center gap-2"
+                  >
+                    <Badge variant="outline" className={`text-xs ${getContactTypeColor(value)}`}>
+                      {label}
+                    </Badge>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => { setSelectedIds(new Set()); setShowCityPicker(false) }}
+            onClick={() => { setSelectedIds(new Set()); setShowCityPicker(false); setShowKeywordPicker(false); setShowTypePicker(false) }}
             className="text-xs text-gray-500"
           >
             Clear selection

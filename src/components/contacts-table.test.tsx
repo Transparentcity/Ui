@@ -6,6 +6,8 @@
  * - Search/filter contacts
  * - Checkbox selection
  * - Bulk city assignment (pinned + search)
+ * - Bulk keyword assignment
+ * - Bulk type assignment
  * - City breakdown badges
  * - Clear city assignment
  */
@@ -38,6 +40,8 @@ vi.mock("./contact-import-dialog", () => ({
 vi.mock("@/app/actions/contacts", () => ({
   deleteContact: vi.fn().mockResolvedValue(undefined),
   bulkUpdateCity: vi.fn().mockResolvedValue({ updated: 2, errors: [] }),
+  bulkAddKeywords: vi.fn().mockResolvedValue({ updated: 2, errors: [] }),
+  bulkUpdateType: vi.fn().mockResolvedValue({ updated: 2, errors: [] }),
 }))
 
 // Mock city search API
@@ -134,12 +138,14 @@ const CONTACTS: TestContact[] = [
 
 const KEYWORDS: Keyword[] = [
   { id: "k1", name: "budget", description: null, category: null, created_at: "" },
+  { id: "k2", name: "police", description: null, category: null, created_at: "" },
+  { id: "k3", name: "housing", description: null, category: null, created_at: "" },
 ]
 
 // ---- Import under test (after mocks) --------------------------------------
 
 import { ContactsTable } from "./contacts-table"
-import { bulkUpdateCity } from "@/app/actions/contacts"
+import { bulkUpdateCity, bulkAddKeywords, bulkUpdateType } from "@/app/actions/contacts"
 
 // ---- Tests -----------------------------------------------------------------
 
@@ -342,5 +348,183 @@ describe("ContactsTable", () => {
     expect(screen.getByText("Alice Wong")).toBeInTheDocument()
     expect(screen.queryByText("Bob Chen")).not.toBeInTheDocument()
     expect(screen.queryByText("Carol Martinez")).not.toBeInTheDocument()
+  })
+
+  // ---------- Bulk keyword assignment ----------
+
+  it("shows Assign Keywords button when contacts are selected", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    await user.click(screen.getAllByRole("checkbox")[1])
+
+    expect(screen.getByRole("button", { name: /assign keywords/i })).toBeInTheDocument()
+  })
+
+  it("opens keyword picker with all keywords listed", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    await user.click(screen.getAllByRole("checkbox")[0]) // select all
+    await user.click(screen.getByRole("button", { name: /assign keywords/i }))
+
+    expect(screen.getByPlaceholderText(/search keywords/i)).toBeInTheDocument()
+    // "budget" appears in table AND picker, so use getAllByText
+    expect(screen.getAllByText("budget").length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText("police")).toBeInTheDocument()
+    expect(screen.getByText("housing")).toBeInTheDocument()
+  })
+
+  it("filters keywords in the picker by search", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    await user.click(screen.getAllByRole("checkbox")[1])
+    await user.click(screen.getByRole("button", { name: /assign keywords/i }))
+
+    const kwSearch = screen.getByPlaceholderText(/search keywords/i)
+    await user.type(kwSearch, "pol")
+
+    expect(screen.getByText("police")).toBeInTheDocument()
+    // "housing" should not appear in the picker (filtered out)
+    // "budget" still appears in Alice's keyword column, but not in the picker
+    expect(screen.queryByText("housing")).not.toBeInTheDocument()
+
+    // Verify the picker only shows police — get the picker container
+    const pickerContainer = screen.getByRole("button", { name: /assign keywords/i }).parentElement!
+    const dropdown = pickerContainer.querySelector(".absolute")!
+    expect(dropdown.textContent).toContain("police")
+    expect(dropdown.textContent).not.toContain("housing")
+  })
+
+  it("calls bulkAddKeywords when selecting keywords and clicking Apply", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    // Select Alice and Bob
+    const checkboxes = screen.getAllByRole("checkbox")
+    await user.click(checkboxes[1])
+    await user.click(checkboxes[2])
+
+    // Open keyword picker
+    await user.click(screen.getByRole("button", { name: /assign keywords/i }))
+
+    // Get keyword checkboxes from inside the picker dropdown
+    const pickerContainer = screen.getByRole("button", { name: /assign keywords/i }).parentElement!
+    const dropdown = pickerContainer.querySelector(".absolute")!
+    const kwCheckboxes = Array.from(dropdown.querySelectorAll('[role="checkbox"]'))
+    // Order: budget, police, housing
+    await user.click(kwCheckboxes[1]) // police
+    await user.click(kwCheckboxes[2]) // housing
+
+    // Apply button should appear
+    const applyBtn = screen.getByRole("button", { name: /apply/i })
+    await user.click(applyBtn)
+
+    await waitFor(() => {
+      expect(bulkAddKeywords).toHaveBeenCalledWith(
+        expect.arrayContaining(["c-1", "c-2"]),
+        expect.arrayContaining(["k2", "k3"]),
+      )
+    })
+  })
+
+  it("does not show Apply button when no keywords are checked", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    await user.click(screen.getAllByRole("checkbox")[1])
+    await user.click(screen.getByRole("button", { name: /assign keywords/i }))
+
+    expect(screen.queryByRole("button", { name: /apply/i })).not.toBeInTheDocument()
+  })
+
+  // ---------- Bulk type assignment ----------
+
+  it("shows Assign Type button when contacts are selected", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    await user.click(screen.getAllByRole("checkbox")[1])
+
+    expect(screen.getByRole("button", { name: /assign type/i })).toBeInTheDocument()
+  })
+
+  it("opens type picker with all contact types listed", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    await user.click(screen.getAllByRole("checkbox")[1])
+    await user.click(screen.getByRole("button", { name: /assign type/i }))
+
+    // Type picker should show all 7 types as badges inside buttons
+    const pickerContainer = screen.getByRole("button", { name: /assign type/i }).parentElement!
+    const dropdown = pickerContainer.querySelector(".absolute")
+    expect(dropdown).not.toBeNull()
+
+    // Check for specific type labels inside the dropdown
+    expect(dropdown!.textContent).toContain("Elected Official")
+    expect(dropdown!.textContent).toContain("City Staff")
+    expect(dropdown!.textContent).toContain("Press")
+    expect(dropdown!.textContent).toContain("Academic")
+    expect(dropdown!.textContent).toContain("Nonprofit")
+    expect(dropdown!.textContent).toContain("Lobbyist")
+    expect(dropdown!.textContent).toContain("Community Leader")
+  })
+
+  it("calls bulkUpdateType when clicking a type", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    // Select Carol (no type)
+    await user.click(screen.getAllByRole("checkbox")[3])
+
+    // Open type picker
+    await user.click(screen.getByRole("button", { name: /assign type/i }))
+
+    // Click "Press" type in the dropdown
+    const pickerContainer = screen.getByRole("button", { name: /assign type/i }).parentElement!
+    const dropdown = pickerContainer.querySelector(".absolute")!
+    const pressBtn = Array.from(dropdown.querySelectorAll("button")).find(
+      btn => btn.textContent?.includes("Press")
+    )!
+    await user.click(pressBtn)
+
+    await waitFor(() => {
+      expect(bulkUpdateType).toHaveBeenCalledWith(["c-3"], "media")
+    })
+  })
+
+  // ---------- Picker mutual exclusion ----------
+
+  it("closes city picker when opening keyword picker", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    await user.click(screen.getAllByRole("checkbox")[1])
+
+    // Open city picker
+    await user.click(screen.getByRole("button", { name: /assign city/i }))
+    expect(screen.getByPlaceholderText(/search other cities/i)).toBeInTheDocument()
+
+    // Open keyword picker — city picker should close
+    await user.click(screen.getByRole("button", { name: /assign keywords/i }))
+    expect(screen.queryByPlaceholderText(/search other cities/i)).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/search keywords/i)).toBeInTheDocument()
+  })
+
+  it("closes keyword picker when opening type picker", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    await user.click(screen.getAllByRole("checkbox")[1])
+
+    // Open keyword picker
+    await user.click(screen.getByRole("button", { name: /assign keywords/i }))
+    expect(screen.getByPlaceholderText(/search keywords/i)).toBeInTheDocument()
+
+    // Open type picker — keyword picker should close
+    await user.click(screen.getByRole("button", { name: /assign type/i }))
+    expect(screen.queryByPlaceholderText(/search keywords/i)).not.toBeInTheDocument()
   })
 })
