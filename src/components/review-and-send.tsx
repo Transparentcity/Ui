@@ -87,6 +87,10 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
+  // Generate drafts state
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [generateResult, setGenerateResult] = useState<string | null>(null)
+
   // Helper to get auth headers for API calls
   const getAuthHeaders = useCallback(async (contentType?: boolean) => {
     const headers: Record<string, string> = {}
@@ -260,6 +264,35 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
     }
   }, [router, getAuthHeaders])
 
+  // Generate drafts (bulk anomaly-to-prospect matching)
+  const generateDrafts = useCallback(async () => {
+    setIsGenerating(true)
+    setGenerateResult(null)
+    try {
+      const headers = await getAuthHeaders(true)
+      const resp = await fetch(`${API_BASE}/api/crm/generate-drafts`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ lookback_days: 7 }),
+      })
+      if (!resp.ok) throw new Error("Generate drafts failed")
+      const data = await resp.json()
+      if (data.drafts_created > 0) {
+        setGenerateResult(`Created ${data.drafts_created} draft(s) from ${data.anomalies_found} anomalies across ${data.cities_processed} city/cities.`)
+        router.refresh()
+      } else if (data.error) {
+        setGenerateResult(data.error)
+      } else {
+        setGenerateResult("No new matches found. Try adjusting lookback or adding more contacts.")
+      }
+    } catch (err) {
+      console.error("Generate drafts error:", err)
+      setGenerateResult("Failed to generate drafts. Check the console for details.")
+    } finally {
+      setIsGenerating(false)
+    }
+  }, [router, getAuthHeaders])
+
   // Bulk selection helpers
   const pendingItems = useMemo(
     () => items.filter((i) => i.status === "pending_review"),
@@ -321,29 +354,54 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
 
   return (
     <div className="space-y-4">
-      {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-gray-200 pb-0">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.key
-                ? "border-purple-600 text-purple-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
-          >
-            {tab.label}
-            <span className={`ml-2 px-1.5 py-0.5 text-xs rounded-full ${
-              activeTab === tab.key
-                ? "bg-purple-100 text-purple-700"
-                : "bg-gray-100 text-gray-500"
-            }`}>
-              {tab.count}
-            </span>
-          </button>
-        ))}
+      {/* Tabs + Generate button */}
+      <div className="flex items-center justify-between border-b border-gray-200 pb-0">
+        <div className="flex items-center gap-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.key
+                  ? "border-purple-600 text-purple-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              {tab.label}
+              <span className={`ml-2 px-1.5 py-0.5 text-xs rounded-full ${
+                activeTab === tab.key
+                  ? "bg-purple-100 text-purple-700"
+                  : "bg-gray-100 text-gray-500"
+              }`}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+        <Button
+          onClick={generateDrafts}
+          disabled={isGenerating}
+          className="gap-2 bg-purple-600 hover:bg-purple-700 text-white mb-1"
+          size="sm"
+        >
+          {isGenerating ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Sparkles className="w-4 h-4" />
+          )}
+          {isGenerating ? "Generating..." : "Generate Drafts"}
+        </Button>
       </div>
+
+      {/* Generate result banner */}
+      {generateResult && (
+        <div className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-700">
+          <span>{generateResult}</span>
+          <button onClick={() => setGenerateResult(null)} className="text-gray-400 hover:text-gray-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Bulk action toolbar (pending tab only) */}
       {activeTab === "pending" && pendingItems.length > 0 && (
