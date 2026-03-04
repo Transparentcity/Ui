@@ -217,6 +217,72 @@ export async function bulkUpdateCity(
   return { updated, errors }
 }
 
+// Bulk add keywords to multiple contacts (adds without removing existing)
+export async function bulkAddKeywords(
+  contactIds: string[],
+  keywordIds: string[]
+): Promise<{ updated: number; errors: string[] }> {
+  const db = createClient()
+  const errors: string[] = []
+  let updated = 0
+
+  for (const contactId of contactIds) {
+    // Fetch existing keyword links to avoid duplicates
+    const { data: existing } = await db
+      .from("prospect_keywords")
+      .select("keyword_id")
+      .eq("prospect_id", contactId)
+    const existingIds = new Set(
+      (existing as { keyword_id: string }[] | null)?.map((r) => r.keyword_id) ?? []
+    )
+    const newLinks = keywordIds
+      .filter((kid) => !existingIds.has(kid))
+      .map((kid) => ({ prospect_id: contactId, keyword_id: kid }))
+
+    if (newLinks.length > 0) {
+      const { error } = await db.from("prospect_keywords").insert(newLinks)
+      if (error) {
+        errors.push(`Contact ${contactId}: ${error.message}`)
+        continue
+      }
+    }
+    updated++
+  }
+
+  revalidatePath("/contacts")
+  revalidatePath("/")
+  return { updated, errors }
+}
+
+// Bulk update contact type on multiple contacts
+export async function bulkUpdateType(
+  contactIds: string[],
+  contactType: string
+): Promise<{ updated: number; errors: string[] }> {
+  const db = createClient()
+  const errors: string[] = []
+  let updated = 0
+
+  const batchSize = 50
+  for (let i = 0; i < contactIds.length; i += batchSize) {
+    const batch = contactIds.slice(i, i + batchSize)
+    for (const id of batch) {
+      const { error } = await db
+        .from("prospects")
+        .update({ contact_type: contactType })
+        .eq("id", id)
+      if (error) {
+        errors.push(`Contact ${id}: ${error.message}`)
+      } else {
+        updated++
+      }
+    }
+  }
+  revalidatePath("/contacts")
+  revalidatePath("/")
+  return { updated, errors }
+}
+
 /** Lightweight list for pickers/typeaheads (client-side filtering). */
 export async function listActiveContactsLite(): Promise<
   Array<{

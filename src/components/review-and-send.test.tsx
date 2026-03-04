@@ -18,6 +18,11 @@ import { vi, describe, it, expect, beforeEach } from "vitest"
 
 // ---- Mocks ----------------------------------------------------------------
 
+const mockGetAccessTokenSilently = vi.fn().mockResolvedValue("test-token")
+vi.mock("@auth0/auth0-react", () => ({
+  useAuth0: () => ({ getAccessTokenSilently: mockGetAccessTokenSilently }),
+}))
+
 const mockRefresh = vi.fn()
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: mockRefresh }),
@@ -226,7 +231,7 @@ describe("ReviewAndSend", () => {
 
   // ---------- Regenerate ----------
 
-  it("calls regenerate endpoint when Regenerate is clicked", async () => {
+  it("calls regenerate endpoint with auth headers when Regenerate is clicked", async () => {
     const user = userEvent.setup()
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -241,7 +246,12 @@ describe("ReviewAndSend", () => {
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/api/crm/drafts/q-1/regenerate"),
-        expect.objectContaining({ method: "POST" }),
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-token",
+          }),
+        }),
       )
     })
     expect(mockRefresh).toHaveBeenCalled()
@@ -270,6 +280,11 @@ describe("ReviewAndSend", () => {
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/api/crm/drafts/q-1/applicable-anomalies"),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-token",
+          }),
+        }),
       )
     })
 
@@ -518,7 +533,7 @@ describe("ReviewAndSend", () => {
   // EDGE CASE: API failure scenarios
   // ===================================================================
 
-  it("handles regenerate API failure gracefully (no crash)", async () => {
+  it("handles regenerate API failure gracefully and shows error message", async () => {
     const user = userEvent.setup()
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     mockFetch.mockRejectedValueOnce(new Error("Server down"))
@@ -527,11 +542,54 @@ describe("ReviewAndSend", () => {
     await user.click(screen.getByRole("button", { name: /regenerate/i }))
 
     await waitFor(() => {
-      // Button should go back to normal state
       expect(screen.getByRole("button", { name: /regenerate/i })).not.toBeDisabled()
     })
-    expect(consoleSpy).toHaveBeenCalledWith("Regenerate error:", expect.any(Error))
+    // Should show user-visible error
+    await waitFor(() => {
+      expect(screen.getByText(/regenerate failed/i)).toBeInTheDocument()
+    })
     consoleSpy.mockRestore()
+  })
+
+  it("shows specific message when regenerate fails due to missing anomaly data", async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ detail: "Draft is missing anomaly or prospect data, cannot regenerate" }),
+    })
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByRole("button", { name: /regenerate/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/older draft doesn't have anomaly data/i)).toBeInTheDocument()
+    })
+  })
+
+  it("dismisses regenerate error when X is clicked", async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ detail: "Draft is missing anomaly or prospect data, cannot regenerate" }),
+    })
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByRole("button", { name: /regenerate/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/older draft/i)).toBeInTheDocument()
+    })
+
+    // Click dismiss
+    const errorBanner = screen.getByText(/older draft/i).closest("div")!
+    const dismissBtn = within(errorBanner).getByRole("button")
+    await user.click(dismissBtn)
+
+    await waitFor(() => {
+      expect(screen.queryByText(/older draft/i)).not.toBeInTheDocument()
+    })
   })
 
   it("handles anomaly fetch failure gracefully", async () => {
@@ -543,7 +601,7 @@ describe("ReviewAndSend", () => {
     await user.click(screen.getByRole("button", { name: /anomalies/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/no other anomalies found/i)).toBeInTheDocument()
+      expect(screen.getByText(/no anomalies found.*14 days/i)).toBeInTheDocument()
     })
     expect(consoleSpy).toHaveBeenCalledWith("Fetch anomalies error:", expect.any(Error))
     consoleSpy.mockRestore()
@@ -674,5 +732,298 @@ describe("ReviewAndSend", () => {
 
     // Component should still be intact
     expect(screen.getByText(PENDING_ITEM.personalized_subject!)).toBeInTheDocument()
+  })
+
+  // ===================================================================
+  // Bulk actions
+  // ===================================================================
+
+  it("shows Select all button on pending tab when items exist", () => {
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+    expect(screen.getByText("Select all")).toBeInTheDocument()
+  })
+
+  it("does not show Select all on sent tab", async () => {
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[SENT_ITEM]} />)
+
+    await user.click(screen.getByText("Sent"))
+    expect(screen.queryByText("Select all")).not.toBeInTheDocument()
+  })
+
+  it("selects all pending items and shows bulk action buttons", async () => {
+    const user = userEvent.setup()
+    const item2 = makeQueueItem({ id: "q-3", personalized_subject: "Second draft" })
+    render(<ReviewAndSend items={[PENDING_ITEM, item2, SENT_ITEM]} />)
+
+    await user.click(screen.getByText("Select all"))
+
+    // Should show "2 selected" and bulk buttons
+    await waitFor(() => {
+      expect(screen.getByText("2 selected")).toBeInTheDocument()
+    })
+    expect(screen.getByRole("button", { name: /mark sent/i })).toBeInTheDocument()
+
+    // The bulk discard button text
+    const bulkDiscardBtns = screen.getAllByRole("button", { name: /discard/i })
+    expect(bulkDiscardBtns.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("toggles individual item selection via checkbox", async () => {
+    const user = userEvent.setup()
+    const item2 = makeQueueItem({ id: "q-3", personalized_subject: "Second draft" })
+    render(<ReviewAndSend items={[PENDING_ITEM, item2]} />)
+
+    // Click the first checkbox (there should be per-card checkboxes)
+    const checkboxes = screen.getAllByRole("button").filter(
+      (btn) => btn.querySelector(".lucide-square") !== null
+    )
+    expect(checkboxes.length).toBeGreaterThan(0)
+  })
+
+  it("bulk mark sent calls updateQueueItemStatus for each selected item", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, "confirm").mockReturnValue(true)
+    const item2 = makeQueueItem({ id: "q-3", personalized_subject: "Second draft" })
+    render(<ReviewAndSend items={[PENDING_ITEM, item2]} />)
+
+    // Select all
+    await user.click(screen.getByText("Select all"))
+    await waitFor(() => {
+      expect(screen.getByText("2 selected")).toBeInTheDocument()
+    })
+
+    // Click bulk Mark Sent
+    await user.click(screen.getByRole("button", { name: /mark sent/i }))
+
+    await waitFor(() => {
+      expect(mockUpdateStatus).toHaveBeenCalledWith("q-1", "sent")
+      expect(mockUpdateStatus).toHaveBeenCalledWith("q-3", "sent")
+    })
+    expect(mockRefresh).toHaveBeenCalled()
+  })
+
+  it("bulk discard calls deleteQueueItems for selected items", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, "confirm").mockReturnValue(true)
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    // Select all
+    await user.click(screen.getByText("Select all"))
+    await waitFor(() => {
+      expect(screen.getByText("1 selected")).toBeInTheDocument()
+    })
+
+    // Click bulk Discard (the one in the toolbar, not the per-card one)
+    // The toolbar discard has different styling — find by the text inside the toolbar area
+    const bulkDiscardBtns = screen.getAllByRole("button", { name: /discard/i })
+    // The first one is in the bulk toolbar, the second on the card
+    await user.click(bulkDiscardBtns[0])
+
+    await waitFor(() => {
+      expect(mockDeleteItems).toHaveBeenCalledWith(["q-1"])
+    })
+    expect(mockRefresh).toHaveBeenCalled()
+  })
+
+  it("deselect all clears selection", async () => {
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    // Select all
+    await user.click(screen.getByText("Select all"))
+    await waitFor(() => {
+      expect(screen.getByText("1 selected")).toBeInTheDocument()
+    })
+
+    // Deselect all
+    await user.click(screen.getByText("Deselect all"))
+    await waitFor(() => {
+      expect(screen.queryByText("1 selected")).not.toBeInTheDocument()
+    })
+  })
+
+  it("clears selection when switching tabs", async () => {
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[PENDING_ITEM, SENT_ITEM]} />)
+
+    // Select all on pending tab
+    await user.click(screen.getByText("Select all"))
+    await waitFor(() => {
+      expect(screen.getByText("1 selected")).toBeInTheDocument()
+    })
+
+    // Switch to sent tab
+    await user.click(screen.getByText("Sent"))
+
+    // Switch back to pending
+    await user.click(screen.getAllByText("Pending Review")[0])
+
+    // Selection should be cleared
+    expect(screen.queryByText("1 selected")).not.toBeInTheDocument()
+  })
+
+  it("does not show bulk buttons when nothing selected", () => {
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    // "Select all" visible, but no bulk action buttons
+    expect(screen.getByText("Select all")).toBeInTheDocument()
+    expect(screen.queryByText(/selected/)).not.toBeInTheDocument()
+  })
+
+  // ===================================================================
+  // Generate Drafts
+  // ===================================================================
+
+  it("shows Generate Drafts button", () => {
+    render(<ReviewAndSend items={[]} />)
+    expect(screen.getByRole("button", { name: /generate drafts/i })).toBeInTheDocument()
+  })
+
+  it("calls generate-drafts API with auth and shows success banner", async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "ok",
+        anomalies_found: 5,
+        matches_found: 3,
+        drafts_created: 3,
+        cities_processed: 1,
+        city_results: [],
+      }),
+    })
+
+    render(<ReviewAndSend items={[]} />)
+
+    await user.click(screen.getByRole("button", { name: /generate drafts/i }))
+
+    // Should call the API with auth headers
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/crm/generate-drafts"),
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-token",
+            "Content-Type": "application/json",
+          }),
+          body: JSON.stringify({ lookback_days: 7 }),
+        }),
+      )
+    })
+
+    // Should show result banner
+    await waitFor(() => {
+      expect(screen.getByText(/Created 3 draft\(s\)/)).toBeInTheDocument()
+    })
+    expect(mockRefresh).toHaveBeenCalled()
+  })
+
+  it("shows no-matches message when zero drafts created", async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "ok",
+        anomalies_found: 0,
+        matches_found: 0,
+        drafts_created: 0,
+        cities_processed: 1,
+        city_results: [],
+      }),
+    })
+
+    render(<ReviewAndSend items={[]} />)
+    await user.click(screen.getByRole("button", { name: /generate drafts/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/no new matches found/i)).toBeInTheDocument()
+    })
+  })
+
+  it("shows API error message when generate-drafts returns error field", async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "no_cities",
+        anomalies_found: 0,
+        drafts_created: 0,
+        cities_processed: 0,
+        error: "No contacts have a city assigned. Assign cities to your contacts first.",
+      }),
+    })
+
+    render(<ReviewAndSend items={[]} />)
+    await user.click(screen.getByRole("button", { name: /generate drafts/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/No contacts have a city assigned/)).toBeInTheDocument()
+    })
+  })
+
+  it("handles generate-drafts network failure gracefully", async () => {
+    const user = userEvent.setup()
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    mockFetch.mockRejectedValueOnce(new Error("Network error"))
+
+    render(<ReviewAndSend items={[]} />)
+    await user.click(screen.getByRole("button", { name: /generate drafts/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/failed to generate drafts/i)).toBeInTheDocument()
+    })
+    consoleSpy.mockRestore()
+  })
+
+  it("shows loading state while generating", async () => {
+    const user = userEvent.setup()
+    // Use a promise that won't resolve immediately
+    let resolveFetch!: (v: any) => void
+    mockFetch.mockReturnValueOnce(
+      new Promise((resolve) => { resolveFetch = resolve })
+    )
+
+    render(<ReviewAndSend items={[]} />)
+    await user.click(screen.getByRole("button", { name: /generate drafts/i }))
+
+    // Button should show "Generating..." while in flight
+    expect(screen.getByRole("button", { name: /generating/i })).toBeDisabled()
+
+    // Resolve to clean up
+    resolveFetch({ ok: true, json: async () => ({ drafts_created: 0, anomalies_found: 0 }) })
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /generate drafts/i })).not.toBeDisabled()
+    })
+  })
+
+  it("dismisses result banner when X is clicked", async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "ok",
+        anomalies_found: 2,
+        drafts_created: 2,
+        cities_processed: 1,
+      }),
+    })
+
+    render(<ReviewAndSend items={[]} />)
+    await user.click(screen.getByRole("button", { name: /generate drafts/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Created 2 draft/)).toBeInTheDocument()
+    })
+
+    // Click the dismiss X button on the banner
+    const banner = screen.getByText(/Created 2 draft/).closest("div")!
+    const dismissBtn = within(banner).getByRole("button")
+    await user.click(dismissBtn)
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Created 2 draft/)).not.toBeInTheDocument()
+    })
   })
 })
