@@ -30,6 +30,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card"
 import { Contact, Keyword } from "@/lib/types"
 import { ContactDialog } from "./contact-dialog"
+import { ContactImportDialog } from "./contact-import-dialog"
 import {
   MoreHorizontal,
   Search,
@@ -40,6 +41,11 @@ import {
   MapPin,
   Loader2,
   ExternalLink,
+  Download,
+  Upload,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react"
 import { deleteContact, bulkUpdateCity } from "@/app/actions/contacts"
 import { searchPublicCities, type PublicCitySearchResult } from "@/lib/publicApiClient"
@@ -70,6 +76,9 @@ interface ContactsTableProps {
 }
 
 type TypeFilter = "all" | "elected_official" | "city_staff" | "media" | "academic" | "nonprofit" | "lobbyist" | "community_leader"
+
+type SortKey = "name" | "type" | "city" | "district" | "email" | "keywords" | "articles"
+type SortDir = "asc" | "desc"
 
 function getPriorityLabel(priority: number) {
   const labels = ["", "Critical", "High", "Medium", "Low", "Minimal"]
@@ -129,6 +138,17 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
   const [cityResults, setCityResults] = useState<PublicCitySearchResult[]>([])
   const [citySearching, setCitySearching] = useState(false)
   const [bulkMessage, setBulkMessage] = useState<string | null>(null)
+  const [sortKey, setSortKey] = useState<SortKey | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>("asc")
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(prev => prev === "asc" ? "desc" : "asc")
+    } else {
+      setSortKey(key)
+      setSortDir("asc")
+    }
+  }
 
   const filteredContacts = contacts.filter((contact) => {
     if (typeFilter !== "all" && (contact.contact_type as string) !== typeFilter) return false
@@ -149,14 +169,35 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
     )
   })
 
-  const allSelected = filteredContacts.length > 0 && filteredContacts.every(c => selectedIds.has(c.id))
+  const sortedContacts = sortKey
+    ? [...filteredContacts].sort((a, b) => {
+        const dir = sortDir === "asc" ? 1 : -1
+        const str = (v: string | null | undefined) => (v ?? "").toLowerCase()
+        switch (sortKey) {
+          case "name": return dir * str(a.name).localeCompare(str(b.name))
+          case "type": return dir * str(CONTACT_TYPE_LABELS[(a.contact_type as string) ?? ""] ?? a.contact_type as string).localeCompare(str(CONTACT_TYPE_LABELS[(b.contact_type as string) ?? ""] ?? b.contact_type as string))
+          case "city": return dir * str(a.city_name).localeCompare(str(b.city_name))
+          case "district": {
+            const aVal = (a.contact_type as string) === "media" ? a.outlet_platform : a.jurisdiction
+            const bVal = (b.contact_type as string) === "media" ? b.outlet_platform : b.jurisdiction
+            return dir * str(aVal).localeCompare(str(bVal))
+          }
+          case "email": return dir * str(a.email).localeCompare(str(b.email))
+          case "keywords": return dir * ((a.keywords?.length ?? 0) - (b.keywords?.length ?? 0))
+          case "articles": return dir * (((a as ContactWithKeywords).article_links?.length ?? 0) - ((b as ContactWithKeywords).article_links?.length ?? 0))
+          default: return 0
+        }
+      })
+    : filteredContacts
+
+  const allSelected = sortedContacts.length > 0 && sortedContacts.every(c => selectedIds.has(c.id))
   const someSelected = selectedIds.size > 0
 
   const toggleAll = () => {
     if (allSelected) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(filteredContacts.map(c => c.id)))
+      setSelectedIds(new Set(sortedContacts.map(c => c.id)))
     }
   }
 
@@ -218,6 +259,58 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
     return acc
   }, {})
 
+  const handleExportCsv = useCallback(() => {
+    const headers = [
+      "Name", "Email", "Phone", "Title", "Organization", "Department",
+      "Contact Type", "City", "Jurisdiction", "Priority", "Status",
+      "Notes", "Keywords", "Created", "Updated",
+      "Outlet/Platform", "Primary Beat", "Primary City",
+    ]
+
+    const escapeCsv = (value: string | null | undefined): string => {
+      if (value == null) return ""
+      const str = String(value)
+      if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+        return `"${str.replace(/"/g, '""')}"`
+      }
+      return str
+    }
+
+    const rows = filteredContacts.map((c) => [
+      c.name,
+      c.email,
+      c.phone,
+      c.title,
+      c.organization,
+      c.department,
+      c.contact_type ? (CONTACT_TYPE_LABELS[c.contact_type as string] || c.contact_type) : "",
+      c.city_name,
+      c.jurisdiction,
+      getPriorityLabel(c.priority),
+      c.status,
+      c.notes,
+      c.keywords?.map((k) => k.name).join("; "),
+      c.created_at ? new Date(c.created_at).toLocaleDateString() : "",
+      c.updated_at ? new Date(c.updated_at).toLocaleDateString() : "",
+      c.outlet_platform,
+      c.primary_beat,
+      c.primary_city,
+    ])
+
+    const csvContent = [
+      headers.map(escapeCsv).join(","),
+      ...rows.map((row) => row.map(escapeCsv).join(",")),
+    ].join("\n")
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `contacts-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [filteredContacts])
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4 flex-wrap">
@@ -248,6 +341,16 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
         <p className="text-sm text-muted-foreground">
           {filteredContacts.length} contact{filteredContacts.length !== 1 ? "s" : ""}
         </p>
+        <ContactImportDialog keywords={keywords}>
+          <Button variant="outline" size="sm" className="gap-1.5">
+            <Upload className="w-4 h-4" />
+            Import CSV
+          </Button>
+        </ContactImportDialog>
+        <Button variant="outline" size="sm" onClick={handleExportCsv} className="gap-1.5">
+          <Download className="w-4 h-4" />
+          Export CSV
+        </Button>
         {/* City breakdown badges */}
         <div className="flex items-center gap-1.5 flex-wrap">
           {Object.entries(cityBreakdown).map(([city, count]) => (
@@ -360,29 +463,43 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
                 <TableHead className="w-10">
                   <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
                 </TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>City</TableHead>
-                <TableHead>District / Outlet</TableHead>
-                <TableHead>Contact Info</TableHead>
-                <TableHead>Keywords</TableHead>
-                <TableHead>Articles</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Status</TableHead>
+                {([
+                  ["type", "Type"],
+                  ["name", "Name"],
+                  ["city", "City"],
+                  ["district", "District / Outlet"],
+                  ["email", "Contact Info"],
+                  ["keywords", "Keywords"],
+                  ["articles", "Articles"],
+                ] as [SortKey, string][]).map(([key, label]) => (
+                  <TableHead key={key}>
+                    <button
+                      className="flex items-center gap-1 hover:text-foreground transition-colors"
+                      onClick={() => toggleSort(key)}
+                    >
+                      {label}
+                      {sortKey === key ? (
+                        sortDir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-30" />
+                      )}
+                    </button>
+                  </TableHead>
+                ))}
                 <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredContacts.length === 0 ? (
+              {sortedContacts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={12} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
                     {searchQuery || typeFilter !== "all"
                       ? "No contacts found"
                       : "No contacts yet. Add your first contact to get started."}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredContacts.map((contact) => {
+                sortedContacts.map((contact) => {
                   const isMedia = (contact.contact_type as string) === "media"
                   return (
                     <TableRow
@@ -526,16 +643,6 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
                             </span>
                           )}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={getPriorityColor(contact.priority)}>
-                          {getPriorityLabel(contact.priority)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={getStatusColor(contact.status)}>
-                          {contact.status}
-                        </Badge>
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
