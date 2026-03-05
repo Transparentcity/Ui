@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { vi, describe, it, expect, beforeEach } from "vitest"
 import { WastePageContent } from "./waste-page-content"
 import { installResizeObserver } from "./test-utils"
@@ -94,7 +95,7 @@ vi.mock("@/lib/hooks/useCities", () => ({
   }),
 }))
 
-const mockForceRefetch = vi.fn().mockResolvedValue({ error: null })
+const mockStartJob = vi.fn()
 
 vi.mock("@/lib/hooks/useWaste", () => ({
   useWasteAnalysis: vi.fn().mockReturnValue({
@@ -102,10 +103,17 @@ vi.mock("@/lib/hooks/useWaste", () => ({
     error: null,
     forceRefetch: vi.fn().mockResolvedValue({ error: null }),
   }),
+  useActiveWasteJob: vi.fn().mockReturnValue({
+    activeJob: null,
+    isRunning: false,
+    isStarting: false,
+    startJob: vi.fn(),
+  }),
 }))
 
-import { useWasteAnalysis as _useWasteAnalysis } from "@/lib/hooks/useWaste"
+import { useWasteAnalysis as _useWasteAnalysis, useActiveWasteJob as _useActiveWasteJob } from "@/lib/hooks/useWaste"
 const useWasteAnalysis = vi.mocked(_useWasteAnalysis)
+const useActiveWasteJob = vi.mocked(_useActiveWasteJob)
 
 const CACHE_KEY = "waste:last-analysis:v1"
 
@@ -133,6 +141,12 @@ describe("WastePageContent", () => {
       data: null,
       error: null,
       forceRefetch: vi.fn().mockResolvedValue({ error: null }),
+    })
+    useActiveWasteJob.mockReturnValue({
+      activeJob: null,
+      isRunning: false,
+      isStarting: false,
+      startJob: mockStartJob,
     })
   })
 
@@ -188,5 +202,307 @@ describe("WastePageContent", () => {
     expect(screen.getByTestId("widget-queue")).toBeInTheDocument()
     expect(screen.getByTestId("widget-accuracy")).toBeInTheDocument()
     expect(screen.getByTestId("widget-inv")).toBeInTheDocument()
+  })
+
+  // ── Loading indicator / job progress tests ────────────────────────────────
+
+  it("shows progress indicator when a waste job is running", () => {
+    useActiveWasteJob.mockReturnValue({
+      activeJob: {
+        job_id: "job-123",
+        job_type: "waste_analysis_run",
+        status: "running",
+        description: "Waste analysis",
+        progress: 45,
+        status_message: "Detecting anomalous patterns",
+        created_at: new Date(Date.now() - 30_000).toISOString(),
+        started_at: new Date(Date.now() - 25_000).toISOString(),
+      } as any,
+      isRunning: true,
+      isStarting: false,
+      startJob: mockStartJob,
+    })
+    render(<WastePageContent />)
+    // Header shows the Analyzing button
+    expect(screen.getByText(/Analyzing/)).toBeInTheDocument()
+    // Progress percentage visible
+    expect(screen.getByText(/45%/)).toBeInTheDocument()
+    // Status step text visible in the inline progress line
+    expect(screen.getByText(/Detecting anomalous patterns/)).toBeInTheDocument()
+  })
+
+  it("shows progress indicator with pending job (0% progress)", () => {
+    useActiveWasteJob.mockReturnValue({
+      activeJob: {
+        job_id: "job-456",
+        job_type: "waste_analysis_run",
+        status: "pending",
+        description: "Waste analysis",
+        progress: 0,
+        status_message: "",
+        created_at: new Date().toISOString(),
+      } as any,
+      isRunning: true,
+      isStarting: false,
+      startJob: mockStartJob,
+    })
+    render(<WastePageContent />)
+    expect(screen.getByText(/Analyzing/)).toBeInTheDocument()
+    // Welcome state should NOT be shown during analysis
+    expect(screen.queryByText("Welcome to Waste Detection")).not.toBeInTheDocument()
+  })
+
+  it("hides progress indicator when job completes and shows results", () => {
+    // Job is completed, data is available
+    useActiveWasteJob.mockReturnValue({
+      activeJob: {
+        job_id: "job-789",
+        job_type: "waste_analysis_run",
+        status: "completed",
+        description: "Waste analysis",
+        progress: 100,
+        created_at: new Date(Date.now() - 120_000).toISOString(),
+        completed_at: new Date().toISOString(),
+      } as any,
+      isRunning: false,
+      isStarting: false,
+      startJob: mockStartJob,
+    })
+    useWasteAnalysis.mockReturnValue({
+      data: cachedAnalysis as any,
+      error: null,
+      forceRefetch: vi.fn().mockResolvedValue({ error: null }),
+    })
+    render(<WastePageContent />)
+    // Analyzing button should NOT be present
+    expect(screen.queryByText(/Analyzing/)).not.toBeInTheDocument()
+    // The Refresh button should be present (not disabled)
+    expect(screen.getByText("Refresh")).toBeInTheDocument()
+  })
+
+  it("shows skeleton widgets while job is running", () => {
+    useActiveWasteJob.mockReturnValue({
+      activeJob: {
+        job_id: "job-skel",
+        job_type: "waste_analysis_run",
+        status: "running",
+        description: "Waste analysis",
+        progress: 20,
+        created_at: new Date().toISOString(),
+      } as any,
+      isRunning: true,
+      isStarting: false,
+      startJob: mockStartJob,
+    })
+    const { container } = render(<WastePageContent />)
+    // Should show skeleton placeholders instead of real widgets
+    const pulsingDivs = container.querySelectorAll(".animate-pulse")
+    expect(pulsingDivs.length).toBeGreaterThan(0)
+    // Real widgets should NOT be rendered
+    expect(screen.queryByTestId("widget-donut")).not.toBeInTheDocument()
+  })
+
+  it("shows failure banner when job fails", () => {
+    useActiveWasteJob.mockReturnValue({
+      activeJob: {
+        job_id: "job-fail",
+        job_type: "waste_analysis_run",
+        status: "failed",
+        description: "Waste analysis",
+        progress: 30,
+        error_message: "Dataset fetch timed out",
+        created_at: new Date().toISOString(),
+      } as any,
+      isRunning: false,
+      isStarting: false,
+      startJob: mockStartJob,
+    })
+    render(<WastePageContent />)
+    expect(screen.getByText("Dataset fetch timed out")).toBeInTheDocument()
+    expect(screen.getByText("Retry")).toBeInTheDocument()
+  })
+
+  it("calls startJob when Run Analysis button is clicked", async () => {
+    const user = userEvent.setup()
+    render(<WastePageContent />)
+    const runButton = screen.getByText("Run Analysis")
+    await user.click(runButton)
+    expect(mockStartJob).toHaveBeenCalled()
+  })
+
+  it("Refresh button is disabled while job is running", () => {
+    useActiveWasteJob.mockReturnValue({
+      activeJob: {
+        job_id: "job-dis",
+        job_type: "waste_analysis_run",
+        status: "running",
+        description: "Waste analysis",
+        progress: 50,
+        created_at: new Date().toISOString(),
+      } as any,
+      isRunning: true,
+      isStarting: false,
+      startJob: mockStartJob,
+    })
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cachedAnalysis))
+    render(<WastePageContent />)
+    const analyzingBtn = screen.getByText(/Analyzing/)
+    expect(analyzingBtn.closest("button")).toBeDisabled()
+  })
+
+  it("resumes showing progress for an already-running job on mount", () => {
+    // Simulates navigating away and back — hook detects running job on mount
+    useActiveWasteJob.mockReturnValue({
+      activeJob: {
+        job_id: "job-resume",
+        job_type: "waste_analysis_run",
+        status: "running",
+        description: "Waste analysis",
+        progress: 65,
+        status_message: "Scoring findings for confidence and priority",
+        created_at: new Date(Date.now() - 60_000).toISOString(),
+        started_at: new Date(Date.now() - 55_000).toISOString(),
+      } as any,
+      isRunning: true,
+      isStarting: false,
+      startJob: mockStartJob,
+    })
+    render(<WastePageContent />)
+    expect(screen.getByText(/65%/)).toBeInTheDocument()
+    expect(screen.getByText(/Scoring findings/)).toBeInTheDocument()
+    expect(screen.getByText(/Analyzing/)).toBeInTheDocument()
+  })
+
+  it("shows stale job error with job ID when analysis ran too long", () => {
+    useActiveWasteJob.mockReturnValue({
+      activeJob: {
+        job_id: "job-stale-abc",
+        job_type: "waste_analysis_run",
+        status: "failed",
+        description: "Waste analysis",
+        progress: 10,
+        error_message:
+          "Analysis has been running for 11 minutes without completing. " +
+          "The server may have restarted or a detector may be stuck. " +
+          "Job ID: job-stale-abc",
+        created_at: new Date(Date.now() - 11 * 60_000).toISOString(),
+      } as any,
+      isRunning: false,
+      isStarting: false,
+      startJob: mockStartJob,
+    })
+    render(<WastePageContent />)
+    // Error banner shows the detailed message including job ID
+    expect(screen.getByText(/server may have restarted/)).toBeInTheDocument()
+    expect(screen.getByText(/job-stale-abc/)).toBeInTheDocument()
+    expect(screen.getByText("Retry")).toBeInTheDocument()
+    // Progress indicator should NOT be shown
+    expect(screen.queryByText(/Analyzing/)).not.toBeInTheDocument()
+  })
+
+  it("shows backend status_message when available instead of time-based step", () => {
+    useActiveWasteJob.mockReturnValue({
+      activeJob: {
+        job_id: "job-msg",
+        job_type: "waste_analysis_run",
+        status: "running",
+        description: "Waste analysis",
+        progress: 40,
+        status_message: "Running waste analysis detectors...",
+        created_at: new Date(Date.now() - 20_000).toISOString(),
+        started_at: new Date(Date.now() - 18_000).toISOString(),
+      } as any,
+      isRunning: true,
+      isStarting: false,
+      startJob: mockStartJob,
+    })
+    render(<WastePageContent />)
+    // Should show the backend's status_message, not the time-based fallback
+    expect(screen.getByText(/Running waste analysis detectors/)).toBeInTheDocument()
+    expect(screen.getByText(/40%/)).toBeInTheDocument()
+  })
+
+  it("shows elapsed time counter during analysis", () => {
+    useActiveWasteJob.mockReturnValue({
+      activeJob: {
+        job_id: "job-elapsed",
+        job_type: "waste_analysis_run",
+        status: "running",
+        description: "Waste analysis",
+        progress: 25,
+        status_message: "",
+        created_at: new Date(Date.now() - 45_000).toISOString(),
+        started_at: new Date(Date.now() - 42_000).toISOString(),
+      } as any,
+      isRunning: true,
+      isStarting: false,
+      startJob: mockStartJob,
+    })
+    render(<WastePageContent />)
+    // Elapsed seconds should be shown (approximately 42s)
+    expect(screen.getByText(/\d+s/)).toBeInTheDocument()
+  })
+})
+
+// ── getWasteAnalysisProgress unit tests ─────────────────────────────────────
+
+import { getWasteAnalysisProgress } from "./waste-page-content"
+
+describe("getWasteAnalysisProgress", () => {
+  it("shows data fetch step at start", () => {
+    const p = getWasteAnalysisProgress(3)
+    expect(p.step).toMatch(/Fetching latest records/)
+    expect(p.progressPct).toBeGreaterThanOrEqual(6)
+  })
+
+  it("shows payroll detectors step after 8s", () => {
+    const p = getWasteAnalysisProgress(10)
+    expect(p.step).toMatch(/payroll/)
+  })
+
+  it("shows vendor detectors step after 15s", () => {
+    const p = getWasteAnalysisProgress(20)
+    expect(p.step).toMatch(/vendor/)
+  })
+
+  it("shows infrastructure detectors step after 35s", () => {
+    const p = getWasteAnalysisProgress(40)
+    expect(p.step).toMatch(/infrastructure/)
+  })
+
+  it("shows integrity detectors step after 45s with cross-matching detail", () => {
+    const p = getWasteAnalysisProgress(50)
+    expect(p.step).toMatch(/integrity/)
+    expect(p.step).toMatch(/cross-matching/)
+  })
+
+  it("shows scoring step after 80s", () => {
+    const p = getWasteAnalysisProgress(90)
+    expect(p.step).toMatch(/Scoring findings/)
+  })
+
+  it("shows elapsed time and reassurance for long-running analysis (>120s)", () => {
+    const p = getWasteAnalysisProgress(150)
+    expect(p.step).toMatch(/Still processing/)
+    expect(p.step).toMatch(/2m/)
+    expect(p.step).toMatch(/large datasets/)
+  })
+
+  it("shows concern message after 5 minutes", () => {
+    const p = getWasteAnalysisProgress(320)
+    expect(p.step).toMatch(/longer than expected/)
+    expect(p.step).toMatch(/5m/)
+  })
+
+  it("progress never exceeds 95%", () => {
+    const p = getWasteAnalysisProgress(600)
+    expect(p.progressPct).toBeLessThanOrEqual(95)
+  })
+
+  it("marks as long-running after estimated time + 12s", () => {
+    const notYet = getWasteAnalysisProgress(120)
+    expect(notYet.isLongRunning).toBe(false)
+    const yes = getWasteAnalysisProgress(140)
+    expect(yes.isLongRunning).toBe(true)
   })
 })

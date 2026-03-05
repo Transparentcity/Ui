@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
-import { useWasteAnalysis } from "@/lib/hooks/useWaste"
+import { useWasteAnalysis, useActiveWasteJob } from "@/lib/hooks/useWaste"
 import { useCities } from "@/lib/hooks/useCities"
 import { WasteShell } from "./waste-shell"
 import { Button } from "@/components/ui/button"
@@ -39,7 +39,7 @@ import {
 type SeverityFilter = "all" | "critical" | "high" | "medium"
 
 const WASTE_ANALYSIS_ESTIMATED_SECONDS = 120
-const WASTE_REFRESH_TIMEOUT_MS = 120_000
+// (timeout constant removed — job polling handles lifecycle)
 
 function formatAge(isoDate: string): string {
   const date = new Date(isoDate)
@@ -53,7 +53,7 @@ function formatAge(isoDate: string): string {
   return `${diffMonths} month${diffMonths > 1 ? "s" : ""} ago`
 }
 
-function getWasteAnalysisProgress(elapsedSeconds: number): {
+export function getWasteAnalysisProgress(elapsedSeconds: number): {
   step: string
   etaLabel: string
   progressPct: number
@@ -61,13 +61,27 @@ function getWasteAnalysisProgress(elapsedSeconds: number): {
 } {
   let step = "Fetching latest records from city datasets"
   if (elapsedSeconds > 8) {
-    step = "Detecting anomalous patterns across payroll, contracts, and infrastructure"
+    step = "Running payroll and compensation detectors"
   }
-  if (elapsedSeconds > 20) {
-    step = "Scoring findings for confidence and priority"
+  if (elapsedSeconds > 15) {
+    step = "Running vendor and contract detectors"
   }
   if (elapsedSeconds > 35) {
-    step = "Finalizing results and preparing report output"
+    step = "Running infrastructure and services detectors"
+  }
+  if (elapsedSeconds > 45) {
+    step = "Running influence and integrity detectors — cross-matching employee and vendor records"
+  }
+  if (elapsedSeconds > 80) {
+    step = "Scoring findings and preparing results"
+  }
+  if (elapsedSeconds > WASTE_ANALYSIS_ESTIMATED_SECONDS) {
+    const mins = Math.floor(elapsedSeconds / 60)
+    step = `Still processing (${mins}m ${elapsedSeconds % 60}s) — large datasets can take several minutes`
+  }
+  if (elapsedSeconds > 300) {
+    const mins = Math.floor(elapsedSeconds / 60)
+    step = `Running longer than expected (${mins}m) — checking server status`
   }
 
   const remaining = Math.max(0, WASTE_ANALYSIS_ESTIMATED_SECONDS - elapsedSeconds)
@@ -150,11 +164,8 @@ function DataFreshnessBanner({ freshness }: { freshness: WasteDataFreshness[] })
 export function WastePageContent() {
   const [activeCategory, setActiveCategory] = useState<WasteCategoryKey>("payroll")
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
-  const [allowAutoFetch, setAllowAutoFetch] = useState(false)
-  const [isManualRefreshing, setIsManualRefreshing] = useState(false)
-  const [refreshTimedOut, setRefreshTimedOut] = useState(false)
   const [seymourRequest, setSeymourRequest] = useState<WasteSeymourRequest | null>(null)
-  const [cachedData, setCachedData] = useState<WasteAnalyzeResponse | null>(() => {
+  const [cachedData] = useState<WasteAnalyzeResponse | null>(() => {
     if (typeof window === "undefined") return null
     try {
       const raw = window.localStorage.getItem(WASTE_ANALYSIS_CACHE_KEY)
@@ -169,8 +180,6 @@ export function WastePageContent() {
       return null
     }
   })
-  const [analysisStartedAt, setAnalysisStartedAt] = useState<number | null>(null)
-  const [analysisElapsedSeconds, setAnalysisElapsedSeconds] = useState(0)
   const now = new Date()
   const localDateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
     now.getDate()
@@ -195,68 +204,46 @@ export function WastePageContent() {
     return null
   }, [wasteEligibleCities])
 
-  const { data, error, forceRefetch } = useWasteAnalysis(
-    undefined,
-    allowAutoFetch,
-    selectedCityId,
-    true
-  )
+  const { data, error } = useWasteAnalysis(undefined, true)
+
+  const { activeJob, isRunning: isManualRefreshing, startJob } = useActiveWasteJob(selectedCityId)
 
   const displayData = data ?? cachedData
   const showLoadingState = isManualRefreshing && !displayData
 
-  useEffect(() => {
-    if (!data) return
-    setCachedData(data)
-    if (typeof window !== "undefined") {
-      safeSetCache(WASTE_ANALYSIS_CACHE_KEY, data)
-    }
-  }, [data])
+  // Derive progress from the live job data
+  const jobProgress = activeJob?.progress ?? 0
+  const jobStatusMessage = activeJob?.status_message ?? ""
 
-  useEffect(() => {
-    if (isManualRefreshing) {
-      setAnalysisStartedAt((prev) => prev ?? Date.now())
-      return
-    }
-    setAnalysisStartedAt(null)
-    setAnalysisElapsedSeconds(0)
-  }, [isManualRefreshing])
-
-  useEffect(() => {
-    if (!isManualRefreshing || analysisStartedAt == null) return
-    setAnalysisElapsedSeconds(
-      Math.max(0, Math.floor((Date.now() - analysisStartedAt) / 1000))
-    )
-    const interval = window.setInterval(() => {
-      setAnalysisElapsedSeconds(
-        Math.max(0, Math.floor((Date.now() - analysisStartedAt) / 1000))
-      )
-    }, 1000)
-    return () => window.clearInterval(interval)
-  }, [isManualRefreshing, analysisStartedAt])
-
+  // Track elapsed seconds; interval callbacks are fine for setState
+  const [analysisElapsedSeconds, setAnalysisElapsedSeconds] = useState(0)
   useEffect(() => {
     if (!isManualRefreshing) return
-    const timeout = window.setTimeout(() => {
-      setRefreshTimedOut(true)
-    }, WASTE_REFRESH_TIMEOUT_MS)
-    return () => window.clearTimeout(timeout)
+    const interval = window.setInterval(() => {
+      setAnalysisElapsedSeconds((t) => t + 1)
+    }, 1000)
+    return () => {
+      window.clearInterval(interval)
+      setAnalysisElapsedSeconds(0)
+    }
   }, [isManualRefreshing])
 
-  const analysisProgress = getWasteAnalysisProgress(analysisElapsedSeconds)
+  const analysisProgress = useMemo(() => {
+    // Prefer real job progress from backend; fall back to time-based estimate
+    const pct = jobProgress > 0 ? jobProgress : getWasteAnalysisProgress(analysisElapsedSeconds).progressPct
+    const step = jobStatusMessage || getWasteAnalysisProgress(analysisElapsedSeconds).step
+    const isLongRunning = analysisElapsedSeconds > WASTE_ANALYSIS_ESTIMATED_SECONDS + 12
+    return { step, progressPct: Math.min(pct, 99), isLongRunning }
+  }, [jobProgress, jobStatusMessage, analysisElapsedSeconds])
 
-  const handleRefresh = async () => {
-    setAllowAutoFetch(true)
-    setRefreshTimedOut(false)
-    setIsManualRefreshing(true)
-    try {
-      const result = await forceRefetch()
-      if (!result.error) {
-        setRefreshTimedOut(false)
-      }
-    } finally {
-      setIsManualRefreshing(false)
-    }
+  // Persist fresh data to localStorage cache
+  useEffect(() => {
+    if (!data || typeof window === "undefined") return
+    safeSetCache(WASTE_ANALYSIS_CACHE_KEY, data)
+  }, [data])
+
+  const handleRefresh = () => {
+    startJob()
   }
 
   // Keep category state in sync with hash navigation from the sidebar.
@@ -474,9 +461,11 @@ export function WastePageContent() {
           )}
 
           {/* Timeout banner */}
-          {!isManualRefreshing && refreshTimedOut && (
+          {!isManualRefreshing && activeJob?.status === "failed" && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between gap-3 text-sm">
-              <span className="text-amber-800">Last refresh timed out. Showing previous snapshot.</span>
+              <span className="text-amber-800">
+                {activeJob.error_message || "Analysis failed. Showing previous snapshot."}
+              </span>
               <Button
                 variant="outline"
                 size="sm"
