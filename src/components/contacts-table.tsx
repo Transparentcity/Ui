@@ -53,7 +53,7 @@ import { deleteContact, bulkUpdateCity, bulkAddKeywords, bulkUpdateType } from "
 import { searchPublicCities, type PublicCitySearchResult } from "@/lib/publicApiClient"
 
 const PINNED_CITIES: PublicCitySearchResult[] = [
-  { id: 1, name: "San Francisco", state: "CA", display_name: "San Francisco" },
+  { id: 57260, name: "San Francisco", state: "CA", display_name: "San Francisco" },
 ]
 
 function getArticleLabel(url: string, title: string | null): string {

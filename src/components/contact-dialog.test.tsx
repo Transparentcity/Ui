@@ -32,7 +32,7 @@ function makeContact(overrides: Record<string, unknown> = {}) {
     email: "jane@city.gov",
     phone: null,
     jurisdiction: "District 5",
-    city_id: 1,
+    city_id: 57260,
     city_name: "San Francisco, CA",
     contact_type: "city_staff" as string | null,
     priority: 2,

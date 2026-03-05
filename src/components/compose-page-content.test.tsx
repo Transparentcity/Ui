@@ -63,7 +63,7 @@ const SF_CONTACT: ContactWithKeywords = {
   email: "jane.smith@sfgov.org",
   phone: null,
   jurisdiction: "District 5",
-  city_id: 1,
+  city_id: 57260,
   city_name: "San Francisco",
   priority: 1,
   status: "active",
@@ -109,7 +109,7 @@ const ANOMALIES_RESPONSE = {
     },
   ],
   total: 2,
-  city_id: 1,
+  city_id: 57260,
 }
 
 const COMPOSE_RESPONSE = {
@@ -183,6 +183,40 @@ describe("ComposePageContent", () => {
     expect(screen.queryByText("Bob Jones")).not.toBeInTheDocument()
   })
 
+  it("selects the first matching contact when Enter is pressed in the search input", async () => {
+    const user = userEvent.setup()
+    setupHappyPath()
+    renderCompose()
+
+    const input = screen.getByPlaceholderText(/search contacts/i)
+    await user.click(input)
+    await user.type(input, "jane")
+    await user.keyboard("{Enter}")
+
+    // Should have selected Jane and started fetching anomalies
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled()
+    })
+    // The search input should be replaced by the selected contact card
+    expect(screen.queryByPlaceholderText(/search contacts/i)).not.toBeInTheDocument()
+    // Contact name should be displayed in the selected card
+    expect(screen.getByText("Jane Smith")).toBeInTheDocument()
+  })
+
+  it("does not crash when Enter is pressed with no matching contacts", async () => {
+    const user = userEvent.setup()
+    renderCompose()
+
+    const input = screen.getByPlaceholderText(/search contacts/i)
+    await user.click(input)
+    await user.type(input, "zzzznonexistent")
+    await user.keyboard("{Enter}")
+
+    // Should still be on the search screen, no crash
+    expect(screen.getByPlaceholderText(/search contacts/i)).toBeInTheDocument()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
   it("shows 'No city' badge for contacts without city_id", async () => {
     const user = userEvent.setup()
     renderCompose()
@@ -227,7 +261,7 @@ describe("ComposePageContent", () => {
     })
 
     // First call: anomalies for city
-    expect(mockFetch.mock.calls[0][0]).toContain("/api/crm/cities/1/anomalies")
+    expect(mockFetch.mock.calls[0][0]).toContain("/api/crm/cities/57260/anomalies")
 
     // Second call: compose
     expect(mockFetch.mock.calls[1][0]).toContain("/api/crm/compose")
@@ -620,7 +654,7 @@ describe("ComposePageContent", () => {
   // EDGE CASE: Loading indicators and state transitions
   // ===================================================================
 
-  it("shows loading indicator while fetching anomalies", async () => {
+  it("shows staged loading indicators while fetching anomalies", async () => {
     const user = userEvent.setup()
     // Use a promise we can control to keep the fetch "pending"
     let resolveAnomalies!: (v: any) => void
@@ -632,8 +666,10 @@ describe("ComposePageContent", () => {
     await user.click(screen.getByPlaceholderText(/search contacts/i))
     await user.click(screen.getByText("Jane Smith"))
 
-    // Loading indicator should be visible
-    expect(screen.getByText(/finding anomalies and generating draft/i)).toBeInTheDocument()
+    // Step 1 loading indicator should be visible with city name
+    expect(screen.getByText(/finding anomalies for san francisco/i)).toBeInTheDocument()
+    // Step 2 should show as pending (grayed out)
+    expect(screen.getByText(/generating personalized email draft/i)).toBeInTheDocument()
 
     // Now resolve the fetch
     resolveAnomalies({
@@ -644,6 +680,42 @@ describe("ComposePageContent", () => {
     await waitFor(() => {
       expect(screen.queryByText(/finding anomalies/i)).not.toBeInTheDocument()
     })
+  })
+
+  it("shows anomaly count badge in loading indicator after anomalies are found", async () => {
+    let resolveCompose!: (v: any) => void
+
+    // Anomalies resolves immediately
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ANOMALIES_RESPONSE,
+    })
+    // Compose hangs until we resolve it
+    mockFetch.mockReturnValueOnce(
+      new Promise((resolve) => { resolveCompose = resolve })
+    )
+    renderCompose()
+
+    const { fireEvent } = await import("@testing-library/react")
+    fireEvent.focus(screen.getByPlaceholderText(/search contacts/i))
+    fireEvent.click(screen.getByText("Jane Smith"))
+
+    // Wait for anomalies to be found but compose still pending
+    await waitFor(() => {
+      expect(screen.getByText("2 found")).toBeInTheDocument()
+    }, { timeout: 5000 })
+
+    // Step 2 should now be active (generating)
+    expect(screen.getByText(/generating personalized email draft/i)).toBeInTheDocument()
+
+    resolveCompose({
+      ok: true,
+      json: async () => COMPOSE_RESPONSE,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText(COMPOSE_RESPONSE.subject)).toBeInTheDocument()
+    }, { timeout: 5000 })
   })
 
   it("shows generating spinner while LLM compose is in progress", async () => {
