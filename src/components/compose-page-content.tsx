@@ -63,9 +63,10 @@ interface ComposeResult {
 interface ComposePageContentProps {
   contacts: ContactWithKeywords[]
   keywords: Keyword[]
+  initialContactId?: string | null
 }
 
-export function ComposePageContent({ contacts, keywords }: ComposePageContentProps) {
+export function ComposePageContent({ contacts, keywords, initialContactId }: ComposePageContentProps) {
   const router = useRouter()
   const { getAccessTokenSilently } = useAuth0()
 
@@ -124,17 +125,6 @@ export function ComposePageContent({ contacts, keywords }: ComposePageContentPro
       }).slice(0, 8)
     : activeContacts.slice(0, 8)
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setShowContactResults(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClick)
-    return () => document.removeEventListener("mousedown", handleClick)
-  }, [])
-
   // When a contact is selected, fetch anomalies for their city
   const selectContact = useCallback(async (contact: ContactWithKeywords) => {
     setSelectedContact(contact)
@@ -174,6 +164,29 @@ export function ComposePageContent({ contacts, keywords }: ComposePageContentPro
     } finally {
       setLoadingAnomalies(false)
     }
+  }, [])
+
+  // Auto-select contact from URL param
+  const initialContactHandled = useRef(false)
+  useEffect(() => {
+    if (initialContactId && !initialContactHandled.current && !selectedContact) {
+      initialContactHandled.current = true
+      const match = contacts.find((c) => c.id === initialContactId)
+      if (match) {
+        selectContact(match)
+      }
+    }
+  }, [initialContactId, contacts, selectedContact, selectContact])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowContactResults(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
   }, [])
 
   // Generate a draft

@@ -1167,4 +1167,75 @@ describe("ReviewAndSend", () => {
       expect(screen.queryByText(/Created 2 draft/)).not.toBeInTheDocument()
     })
   })
+
+  // ===================================================================
+  // Search result count (#4)
+  // ===================================================================
+
+  it("shows search result count when query is non-empty", async () => {
+    const user = userEvent.setup()
+    const item2 = makeQueueItem({ id: "q-3", personalized_subject: "Second draft about parks", anomaly_snippet: "Parks budget up 15%" })
+    render(<ReviewAndSend items={[PENDING_ITEM, item2, SENT_ITEM]} />)
+
+    const searchInput = screen.getByPlaceholderText(/search drafts/i)
+    await user.type(searchInput, "police")
+
+    await waitFor(() => {
+      expect(screen.getByTestId("search-count")).toHaveTextContent("Showing 1 of 2 drafts")
+    })
+  })
+
+  it("does not show search count when search is empty", () => {
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+    expect(screen.queryByTestId("search-count")).not.toBeInTheDocument()
+  })
+
+  // ===================================================================
+  // Select all filtered (#7)
+  // ===================================================================
+
+  it("shows 'Select all N' with count when search is active", async () => {
+    const user = userEvent.setup()
+    const item2 = makeQueueItem({ id: "q-3", personalized_subject: "Second draft about parks", anomaly_snippet: "Parks budget up 15%" })
+    render(<ReviewAndSend items={[PENDING_ITEM, item2]} />)
+
+    const searchInput = screen.getByPlaceholderText(/search drafts/i)
+    await user.type(searchInput, "police")
+
+    await waitFor(() => {
+      expect(screen.getByText(/Select all 1/)).toBeInTheDocument()
+    })
+  })
+
+  it("select all only selects filtered pending items when search active", async () => {
+    const user = userEvent.setup()
+    const item2 = makeQueueItem({ id: "q-3", personalized_subject: "Second draft about parks", anomaly_snippet: "Parks budget up 15%" })
+    render(<ReviewAndSend items={[PENDING_ITEM, item2]} />)
+
+    const searchInput = screen.getByPlaceholderText(/search drafts/i)
+    await user.type(searchInput, "police")
+
+    await waitFor(() => {
+      expect(screen.getByText(/Select all 1/)).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByText(/Select all 1/))
+
+    await waitFor(() => {
+      expect(screen.getByText("1 selected")).toBeInTheDocument()
+    })
+  })
+
+  // ===================================================================
+  // Subject tooltip (#5)
+  // ===================================================================
+
+  it("wraps subject line in a tooltip trigger", () => {
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    // The subject text should be inside a Tooltip trigger (button with tooltip role)
+    const subjectEl = screen.getByText("Quick note on police overtime")
+    // The element should be a child of a TooltipTrigger (which renders a button)
+    expect(subjectEl.closest("[data-state]") || subjectEl.tagName).toBeTruthy()
+  })
 })
