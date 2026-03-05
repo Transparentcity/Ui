@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
+import { formatDateRangeFromStrings } from "@/lib/formatters";
 import { usePublicMetricComparisons, usePublicMetricTimeSeriesSummary } from "@/lib/hooks/usePublicMetric";
 import type { PublicMetricDetail, PublicMetricComparisons, PublicTimeSeriesSummary } from "@/lib/publicApiClient";
 import {
@@ -317,18 +318,8 @@ export default function MetricDetailContent({
   const formatBreakdownResult = (r: number | null | undefined, isPct?: boolean): string =>
     r != null ? (isPct ? r.toFixed(1) + "%" : r.toLocaleString(undefined, { maximumFractionDigits: 1 })) : "—";
 
-  const formatDateRange = (start: string | null | undefined, end: string | null | undefined, isLoading?: boolean): string => {
-    if (isLoading) return "Loading...";
-    if (!start || !end) return "—";
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-      return "—";
-    }
-    const startStr = startDate.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-    const endStr = endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-    return `${startStr} – ${endStr}`;
-  };
+  const formatDateRange = (start: string | null | undefined, end: string | null | undefined, isLoading?: boolean): string =>
+    formatDateRangeFromStrings(start, end, { loading: isLoading });
 
   const currentPeriodEndFormatted =
     comparison?.current_period_end

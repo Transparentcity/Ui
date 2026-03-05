@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { formatDateRangeFromStrings } from "@/lib/formatters";
 import { getMetricMapPreview, saveMetricMap, type MapPreviewResponse } from "@/lib/publicApiClient";
 import type { SavedMap } from "@/lib/apiClient";
 import ProgressiveMapView from "./ProgressiveMapView";
@@ -181,25 +182,8 @@ export default function MetricMapEmbed({
   const hasComparison = comparisonLocationData && comparisonLocationData.length > 0;
 
   // Format date range for caption
-  const formatDateRange = (start: string | null | undefined, end: string | null | undefined): string => {
-    if (!start || !end) return "";
-    try {
-      const startDate = new Date(start);
-      const endDate = new Date(end);
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return "";
-      
-      const startStr = startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      const endStr = endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-      
-      // If same year, don't repeat year
-      if (startDate.getFullYear() === endDate.getFullYear()) {
-        return `${startStr} – ${endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
-      }
-      return `${startStr} – ${endStr}`;
-    } catch {
-      return "";
-    }
-  };
+  const formatDateRange = (start: string | null | undefined, end: string | null | undefined): string =>
+    formatDateRangeFromStrings(start, end, { fallback: "" });
 
   // Total count for caption: use sum of values (YTD-style), not number of districts/points
   const getTotalCount = (): number | null => {
