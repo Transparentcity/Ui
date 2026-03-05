@@ -60,7 +60,7 @@ export function useWasteAnalysis(
   const forceRefreshRef = useRef(false)
 
   const query = useQuery<WasteAnalyzeResponse>({
-    queryKey: ["waste", "analysis", category ?? "all", cityId ?? "none"],
+    queryKey: ["waste", "analysis", category ?? "all"],
     queryFn: async () => {
       const token = await getAccessTokenSilently()
       const shouldForce = forceRefreshRef.current
@@ -98,13 +98,14 @@ export function useActiveWasteJob(cityId: number | null) {
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
-      clearInterval(pollRef.current)
+      clearTimeout(pollRef.current)
       pollRef.current = null
     }
   }, [])
 
   const pollJob = useCallback(
     async (jobId: string) => {
+      let shouldContinue = true
       try {
         const token = await getAccessTokenSilently()
         const job = await getJob(jobId, token)
@@ -127,7 +128,7 @@ export function useActiveWasteJob(cityId: number | null) {
               `The server may have restarted or a detector may be stuck. ` +
               `Job ID: ${jobId}`,
           })
-          stopPolling()
+          shouldContinue = false
           return
         }
 
@@ -137,7 +138,7 @@ export function useActiveWasteJob(cityId: number | null) {
           job.status === "failed" ||
           job.status === "cancelled"
         ) {
-          stopPolling()
+          shouldContinue = false
           // Refresh analysis data now that the job is done
           if (job.status === "completed") {
             queryClient.invalidateQueries({ queryKey: ["waste", "analysis"] })
@@ -147,17 +148,22 @@ export function useActiveWasteJob(cityId: number | null) {
         }
       } catch {
         // network blip — keep polling
+      } finally {
+        // Chain next poll with setTimeout to prevent overlapping requests
+        if (shouldContinue && pollRef.current !== null) {
+          pollRef.current = setTimeout(() => pollJob(jobId), 3000)
+        }
       }
     },
-    [getAccessTokenSilently, stopPolling, queryClient]
+    [getAccessTokenSilently, queryClient]
   )
 
   const startPolling = useCallback(
     (jobId: string) => {
       stopPolling()
-      // Poll immediately, then every 3s
+      // Poll immediately, chain subsequent polls via setTimeout in pollJob
+      pollRef.current = -1 as unknown as ReturnType<typeof setTimeout> // sentinel: polling active
       pollJob(jobId)
-      pollRef.current = setInterval(() => pollJob(jobId), 3000)
     },
     [pollJob, stopPolling]
   )
