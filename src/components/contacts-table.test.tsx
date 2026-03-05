@@ -947,6 +947,153 @@ describe("ContactsTable", () => {
     })
   })
 
+  it("shows toast on bulk clear city", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    // Select Alice (has city_id set)
+    await user.click(screen.getAllByRole("checkbox")[1])
+    const assignBtn = screen.getByRole("button", { name: /assign city/i })
+    await user.click(assignBtn)
+
+    // Click "Clear city assignment" at the bottom of the picker
+    const clearBtn = screen.getByText("Clear city assignment")
+    await user.click(clearBtn)
+
+    await waitFor(() => {
+      expect(bulkUpdateCity).toHaveBeenCalledWith(["c-1"], null, null)
+      expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringContaining("Cleared city"))
+    })
+  })
+
+  it("shows toast on bulk keyword assignment", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    // Select Carol (no keywords, avoids duplicate "budget" text)
+    await user.click(screen.getAllByRole("checkbox")[3])
+    const kwBtn = screen.getByRole("button", { name: /assign keywords/i })
+    await user.click(kwBtn)
+
+    // Check "police" keyword (unique in DOM — "budget" may appear as a badge too)
+    await waitFor(() => {
+      expect(screen.getByRole("checkbox", { name: /police/i })).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole("checkbox", { name: /police/i }))
+
+    const applyBtn = screen.getByRole("button", { name: /apply/i })
+    await user.click(applyBtn)
+
+    await waitFor(() => {
+      expect(bulkAddKeywords).toHaveBeenCalled()
+      expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringContaining("keyword"))
+    })
+  })
+
+  it("shows toast on bulk type assignment", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    // Select Carol (no contact_type, so "City Staff" won't appear as badge)
+    await user.click(screen.getAllByRole("checkbox")[3])
+    const typeBtn = screen.getByRole("button", { name: /assign type/i })
+    await user.click(typeBtn)
+
+    // Click a type option in the picker dropdown
+    await waitFor(() => {
+      const pickerItems = screen.getAllByText("City Staff")
+      expect(pickerItems.length).toBeGreaterThan(0)
+    })
+    // Find the picker item inside the absolute-positioned dropdown
+    const typeOptions = screen.getAllByText("City Staff").filter(
+      el => el.closest(".absolute")
+    )
+    await user.click(typeOptions[0])
+
+    await waitFor(() => {
+      expect(bulkUpdateType).toHaveBeenCalled()
+      expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringContaining("Set type"))
+    })
+  })
+
+  it("shows error toast when delete fails", async () => {
+    const user = userEvent.setup()
+    ;(deleteContact as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("DB error"))
+
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    const moreButtons = screen.getAllByRole("button", { name: "" }).filter(
+      (btn) => btn.classList.contains("h-8") && btn.classList.contains("w-8")
+    )
+    await user.click(moreButtons[0])
+    const deleteOption = await screen.findByRole("menuitem", { name: /delete/i })
+    await user.click(deleteOption)
+    const confirmBtn = await screen.findByRole("button", { name: /^delete$/i })
+    await user.click(confirmBtn)
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Failed to delete contact")
+    })
+  })
+
+  it("shows error toast when bulk clear city fails", async () => {
+    const user = userEvent.setup()
+    ;(bulkUpdateCity as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Server error"))
+
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    await user.click(screen.getAllByRole("checkbox")[1])
+    const assignBtn = screen.getByRole("button", { name: /assign city/i })
+    await user.click(assignBtn)
+
+    await user.click(screen.getByText("Clear city assignment"))
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Failed to clear city")
+    })
+  })
+
+  it("shows error toast when bulk keyword assignment fails", async () => {
+    const user = userEvent.setup()
+    ;(bulkAddKeywords as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Server error"))
+
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    await user.click(screen.getAllByRole("checkbox")[3]) // Carol — no keyword badges
+    await user.click(screen.getByRole("button", { name: /assign keywords/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("checkbox", { name: /police/i })).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole("checkbox", { name: /police/i }))
+    await user.click(screen.getByRole("button", { name: /apply/i }))
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Failed to assign keywords")
+    })
+  })
+
+  it("shows error toast when bulk type assignment fails", async () => {
+    const user = userEvent.setup()
+    ;(bulkUpdateType as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Server error"))
+
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    await user.click(screen.getAllByRole("checkbox")[3]) // Carol — no type badge
+    await user.click(screen.getByRole("button", { name: /assign type/i }))
+
+    await waitFor(() => {
+      const typeOptions = screen.getAllByText("City Staff").filter(el => el.closest(".absolute"))
+      expect(typeOptions.length).toBeGreaterThan(0)
+    })
+    const typeOptions = screen.getAllByText("City Staff").filter(el => el.closest(".absolute"))
+    await user.click(typeOptions[0])
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Failed to assign type")
+    })
+  })
+
   // ---------- Debounced search ----------
 
   it("debounces search query for filtering", async () => {

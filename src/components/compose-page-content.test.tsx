@@ -869,7 +869,7 @@ describe("ComposePageContent", () => {
   // EDGE CASE: Clipboard failure
   // ===================================================================
 
-  it("does not crash when clipboard write fails", async () => {
+  it("shows error toast when clipboard write fails", async () => {
     const user = userEvent.setup()
     setupHappyPath()
 
@@ -889,13 +889,13 @@ describe("ComposePageContent", () => {
       expect(screen.getByText(COMPOSE_RESPONSE.subject)).toBeInTheDocument()
     })
 
-    // This should not crash the component even though clipboard fails
-    // The handleCopy function doesn't have a try/catch, so it will throw
-    // but the component should survive the unhandled rejection
     const copyBtn = screen.getByRole("button", { name: /copy email/i })
-    await user.click(copyBtn).catch(() => {})
+    await user.click(copyBtn)
 
-    // Component still renders
+    // Should show error toast and component should still be usable
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Failed to copy")
+    })
     expect(screen.getByText(COMPOSE_RESPONSE.subject)).toBeInTheDocument()
   })
 

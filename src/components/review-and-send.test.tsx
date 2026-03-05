@@ -1378,4 +1378,144 @@ describe("ReviewAndSend", () => {
     const nameEl = screen.getByText("Jane Smith")
     expect(nameEl.closest("[data-state]") || nameEl.tagName).toBeTruthy()
   })
+
+  // ===================================================================
+  // Toast error paths
+  // ===================================================================
+
+  it("shows error toast when mark as sent fails", async () => {
+    mockUpdateStatus.mockRejectedValueOnce(new Error("Server error"))
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByRole("button", { name: /mark as sent/i }))
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Failed to mark as sent")
+    })
+  })
+
+  it("shows toast on bulk mark sent", async () => {
+    mockUpdateStatus.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    const items = [PENDING_ITEM, makeQueueItem({ id: "q-3", status: "pending_review" })]
+    render(<ReviewAndSend items={items} />)
+
+    // Select all
+    await user.click(screen.getByText(/select all/i))
+
+    // Click bulk Mark Sent
+    const bulkSentBtn = screen.getByRole("button", { name: /mark sent/i })
+    await user.click(bulkSentBtn)
+
+    // Confirm dialog
+    const confirmBtn = await screen.findByRole("button", { name: /mark sent/i })
+    await user.click(confirmBtn)
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringContaining("Marked"))
+    })
+  })
+
+  it("shows toast on bulk discard", async () => {
+    mockDeleteItems.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    const items = [PENDING_ITEM, makeQueueItem({ id: "q-3", status: "pending_review" })]
+    render(<ReviewAndSend items={items} />)
+
+    // Select all
+    await user.click(screen.getByText(/select all/i))
+
+    // Click the bulk Discard button (in the bulk action bar, contains "Discard" text)
+    const bulkDiscardBtns = screen.getAllByRole("button", { name: /discard/i })
+    // The bulk action discard is different from per-item discard buttons
+    const bulkBtn = bulkDiscardBtns.find(btn => btn.textContent?.includes("Discard"))!
+    await user.click(bulkBtn)
+
+    // Confirm dialog — find the confirm button in the alert dialog
+    const confirmBtn = await screen.findByRole("button", { name: /^discard$/i })
+    await user.click(confirmBtn)
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringContaining("Discarded"))
+    })
+  })
+
+  it("shows toast on swap anomaly success", async () => {
+    const user = userEvent.setup()
+
+    // Mock fetching applicable anomalies
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        anomalies: [
+          { result_id: 101, snippet: "Police overtime up", pct_change: 42, object_name: "Police OT", current: true },
+          { result_id: 102, snippet: "Park maintenance down", pct_change: -15, object_name: "Park maint", current: false },
+        ],
+      }),
+    })
+    // Mock swap API
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({}) })
+
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    // Open anomaly picker
+    await user.click(screen.getByRole("button", { name: /anomalies/i }))
+    await waitFor(() => {
+      expect(screen.getByText(/park maint/i)).toBeInTheDocument()
+    })
+
+    // Click the non-current anomaly to swap
+    await user.click(screen.getByText(/park maint/i))
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Anomaly swapped")
+    })
+  })
+
+  it("shows error toast on swap anomaly failure", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(console, "error").mockImplementation(() => {})
+
+    // Mock fetching applicable anomalies
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        anomalies: [
+          { result_id: 101, snippet: "Police overtime up", pct_change: 42, object_name: "Police OT", current: true },
+          { result_id: 102, snippet: "Park maintenance down", pct_change: -15, object_name: "Park maint", current: false },
+        ],
+      }),
+    })
+    // Swap fails
+    mockFetch.mockRejectedValueOnce(new Error("Swap error"))
+
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByRole("button", { name: /anomalies/i }))
+    await waitFor(() => {
+      expect(screen.getByText(/park maint/i)).toBeInTheDocument()
+    })
+    await user.click(screen.getByText(/park maint/i))
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Failed to swap anomaly")
+    })
+    vi.restoreAllMocks()
+  })
+
+  it("shows success toast on regenerate", async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ subject: "New subject", body: "New body" }),
+    })
+
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+    await user.click(screen.getByRole("button", { name: /regenerate/i }))
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Draft regenerated")
+    })
+  })
 })

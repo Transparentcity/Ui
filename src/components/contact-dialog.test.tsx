@@ -528,6 +528,30 @@ describe("ContactDialog – toast notifications", () => {
       expect(mockToastError).toHaveBeenCalledWith("Failed to create contact");
     });
   });
+
+  it("shows error toast when update fails", async () => {
+    const user = userEvent.setup();
+    (updateContact as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("DB error"));
+
+    render(
+      <ContactDialog contact={makeContact()} keywords={keywords}>
+        <button>Edit</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Edit"));
+
+    const nameInput = screen.getByLabelText(/name/i);
+    await user.clear(nameInput);
+    await user.type(nameInput, "Updated Name");
+
+    const saveBtn = screen.getByRole("button", { name: /save changes/i });
+    await user.click(saveBtn);
+
+    await vi.waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Failed to update contact");
+    });
+  });
 });
 
 describe("ContactDialog – keyboard shortcut", () => {
