@@ -407,8 +407,31 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
         </Button>
       </div>
 
+      {/* Generate drafts progress card */}
+      {isGenerating && (
+        <Card className="border-purple-100">
+          <CardContent className="p-5">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 text-sm">
+                <Loader2 className="w-4 h-4 animate-spin text-purple-500 shrink-0" />
+                <span className="text-gray-700">Scanning recent anomalies across cities...</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <div className="w-4 h-4 rounded-full border-2 border-gray-200 shrink-0" />
+                <span className="text-gray-300">Matching anomalies to contacts...</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <div className="w-4 h-4 rounded-full border-2 border-gray-200 shrink-0" />
+                <span className="text-gray-300">Generating personalized drafts...</span>
+              </div>
+              <p className="text-xs text-gray-400 pl-7">This may take a moment depending on how many contacts match.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Generate result banner */}
-      {generateResult && (
+      {generateResult && !isGenerating && (
         <div className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-700">
           <span>{generateResult}</span>
           <button onClick={() => setGenerateResult(null)} className="text-gray-400 hover:text-gray-600">

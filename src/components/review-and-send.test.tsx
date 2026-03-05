@@ -977,7 +977,7 @@ describe("ReviewAndSend", () => {
     consoleSpy.mockRestore()
   })
 
-  it("shows loading state while generating", async () => {
+  it("shows loading state and progress card while generating", async () => {
     const user = userEvent.setup()
     // Use a promise that won't resolve immediately
     let resolveFetch!: (v: any) => void
@@ -991,10 +991,58 @@ describe("ReviewAndSend", () => {
     // Button should show "Generating..." while in flight
     expect(screen.getByRole("button", { name: /generating/i })).toBeDisabled()
 
+    // Progress card should appear with step descriptions
+    expect(screen.getByText(/scanning recent anomalies across cities/i)).toBeInTheDocument()
+    expect(screen.getByText(/matching anomalies to contacts/i)).toBeInTheDocument()
+    expect(screen.getByText(/generating personalized drafts/i)).toBeInTheDocument()
+    expect(screen.getByText(/this may take a moment/i)).toBeInTheDocument()
+
     // Resolve to clean up
     resolveFetch({ ok: true, json: async () => ({ drafts_created: 0, anomalies_found: 0 }) })
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /generate drafts/i })).not.toBeDisabled()
+    })
+
+    // Progress card should disappear after completion
+    expect(screen.queryByText(/scanning recent anomalies across cities/i)).not.toBeInTheDocument()
+  })
+
+  it("hides result banner while generating (does not show stale result)", async () => {
+    const user = userEvent.setup()
+
+    // First generate succeeds
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "ok",
+        anomalies_found: 2,
+        drafts_created: 2,
+        cities_processed: 1,
+      }),
+    })
+
+    render(<ReviewAndSend items={[]} />)
+    await user.click(screen.getByRole("button", { name: /generate drafts/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Created 2 draft/)).toBeInTheDocument()
+    })
+
+    // Second generate - hangs
+    let resolveFetch!: (v: any) => void
+    mockFetch.mockReturnValueOnce(
+      new Promise((resolve) => { resolveFetch = resolve })
+    )
+
+    await user.click(screen.getByRole("button", { name: /generate drafts/i }))
+
+    // Old result banner should be hidden while progress card shows
+    expect(screen.queryByText(/Created 2 draft/)).not.toBeInTheDocument()
+    expect(screen.getByText(/scanning recent anomalies across cities/i)).toBeInTheDocument()
+
+    resolveFetch({ ok: true, json: async () => ({ drafts_created: 0, anomalies_found: 0 }) })
+    await waitFor(() => {
+      expect(screen.queryByText(/scanning recent anomalies/i)).not.toBeInTheDocument()
     })
   })
 

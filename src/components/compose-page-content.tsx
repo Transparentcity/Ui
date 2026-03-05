@@ -306,6 +306,12 @@ export function ComposePageContent({ contacts, keywords }: ComposePageContentPro
                   setContactSearch(e.target.value)
                   setShowContactResults(true)
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && filteredContacts.length > 0) {
+                    e.preventDefault()
+                    selectContact(filteredContacts[0])
+                  }
+                }}
                 onFocus={() => setShowContactResults(true)}
                 className="pl-9 h-12 text-base"
                 autoFocus
@@ -370,12 +376,41 @@ export function ComposePageContent({ contacts, keywords }: ComposePageContentPro
         </Card>
       )}
 
-      {/* Loading anomalies */}
-      {loadingAnomalies && (
-        <div className="flex items-center gap-3 text-sm text-gray-500 py-4 justify-center">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Finding anomalies and generating draft...
-        </div>
+      {/* Loading: anomalies + draft generation progress */}
+      {(loadingAnomalies || (isGenerating && !hasDraft)) && selectedContact && (
+        <Card className="border-purple-100">
+          <CardContent className="p-5">
+            <div className="space-y-3">
+              {/* Step 1: Finding anomalies */}
+              <div className="flex items-center gap-3 text-sm">
+                {!anomalies.length && loadingAnomalies ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-purple-500 shrink-0" />
+                ) : (
+                  <Check className="w-4 h-4 text-green-500 shrink-0" />
+                )}
+                <span className={!anomalies.length && loadingAnomalies ? "text-gray-700" : "text-gray-400"}>
+                  Finding anomalies for {selectedContact.city_name || "city"}...
+                </span>
+                {anomalies.length > 0 && (
+                  <Badge variant="outline" className="text-xs">{anomalies.length} found</Badge>
+                )}
+              </div>
+              {/* Step 2: Generating draft */}
+              <div className="flex items-center gap-3 text-sm">
+                {isGenerating ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-purple-500 shrink-0" />
+                ) : !anomalies.length && loadingAnomalies ? (
+                  <div className="w-4 h-4 rounded-full border-2 border-gray-200 shrink-0" />
+                ) : (
+                  <Check className="w-4 h-4 text-green-500 shrink-0" />
+                )}
+                <span className={isGenerating ? "text-gray-700" : !anomalies.length ? "text-gray-300" : "text-gray-400"}>
+                  Generating personalized email draft...
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* No anomalies found */}
