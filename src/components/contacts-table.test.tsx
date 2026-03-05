@@ -274,20 +274,18 @@ describe("ContactsTable", () => {
     const assignBtn = screen.getByRole("button", { name: /assign city/i })
     await user.click(assignBtn)
 
-    // Click pinned San Francisco
-    // There may be multiple "San Francisco" text nodes; find the one inside the picker button
+    // Click pinned San Francisco inside the picker dropdown
     const pickerButtons = screen.getAllByRole("button").filter(
       btn => btn.textContent?.includes("San Francisco") && btn.closest(".absolute")
     )
-    if (pickerButtons.length > 0) {
-      await user.click(pickerButtons[0])
-    }
+    expect(pickerButtons.length).toBeGreaterThan(0)
+    await user.click(pickerButtons[0])
 
     await waitFor(() => {
       expect(bulkUpdateCity).toHaveBeenCalledWith(
         ["c-3"],
-        1,
-        expect.any(String), // "San Francisco" or display_name
+        57260,
+        "San Francisco",
       )
     })
   })
