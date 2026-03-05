@@ -100,7 +100,7 @@ const ROADMAP_DETECTOR_NAMES = [
   "Entity Validation",
 ]
 
-function isOnRoadmap(finding: WasteFinding): boolean {
+export function isOnRoadmap(finding: WasteFinding): boolean {
   const re = /\(On Roadmap\)/i
   if (re.test(finding.tool) || re.test(finding.subcategory)) return true
   if (/\bOn Roadmap:/i.test(finding.description)) return true
@@ -217,7 +217,7 @@ function getDepartmentFilter(finding: WasteFinding): string {
   return escapeSoqlLike((finding.entity || "").split("(")[0].trim())
 }
 
-function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
+export function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
   const cat = finding.category.toLowerCase()
 
   // PAYROLL
