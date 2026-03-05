@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
   Plus, Search, Filter, Loader2, AlertTriangle, Pencil, Copy, ExternalLink, Mail,
@@ -10,6 +10,7 @@ import { useAuth0 } from "@auth0/auth0-react"
 import { getFoiaDashboard, listFoiaRequests } from "@/lib/foiaApiClient"
 import { RequestStatusBadge } from "@/components/foia/status-badge"
 import { NewRequestModal } from "@/components/foia/new-request-modal"
+import { datasetLabel } from "@/lib/foia/datasetLabels"
 import type { RequestStatus, FoiaRequest, FoiaDashboardSummary } from "@/lib/foia/types"
 import { formatDistanceToNow, differenceInDays } from "date-fns"
 
@@ -70,6 +71,9 @@ export function RequestsListContent() {
   const [showNewRequest, setShowNewRequest] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
   const [summary, setSummary] = useState<FoiaDashboardSummary | null>(null)
+  const [page, setPage] = useState(1)
+  const [sortField, setSortField] = useState<"city" | "status" | "deadline" | "days_open">("deadline")
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
 
   const loadRequests = useCallback(async () => {
     setLoading(true)
@@ -88,7 +92,8 @@ export function RequestsListContent() {
           {
             status: statusFilter === "all" ? undefined : statusFilter,
             q: search || undefined,
-            page_size: 100,
+            page_size: 25,
+            page,
           },
           token
         ),
@@ -105,7 +110,7 @@ export function RequestsListContent() {
     } finally {
       setLoading(false)
     }
-  }, [statusFilter, search, isAuthenticated, getAccessTokenSilently])
+  }, [statusFilter, search, page, isAuthenticated, getAccessTokenSilently])
 
   useEffect(() => {
     loadRequests()
@@ -114,6 +119,49 @@ export function RequestsListContent() {
   const openCount = requests.filter(
     (r) => !["fulfilled", "denied", "closed_incomplete"].includes(r.status)
   ).length
+
+  const totalPages = Math.max(1, Math.ceil(total / 25))
+
+  function toggleSort(field: typeof sortField) {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setSortField(field)
+      setSortDir("asc")
+    }
+  }
+
+  const sortIndicator = (field: typeof sortField) =>
+    sortField === field ? (sortDir === "asc" ? " ▲" : " ▼") : ""
+
+  const sortedRequests = useMemo(() => {
+    const sorted = [...requests]
+    sorted.sort((a, b) => {
+      let cmp = 0
+      switch (sortField) {
+        case "city":
+          cmp = (a.city?.name ?? "").localeCompare(b.city?.name ?? "")
+          break
+        case "status":
+          cmp = a.status.localeCompare(b.status)
+          break
+        case "deadline": {
+          const aD = a.deadline_at ? new Date(a.deadline_at).getTime() : Number.MAX_SAFE_INTEGER
+          const bD = b.deadline_at ? new Date(b.deadline_at).getTime() : Number.MAX_SAFE_INTEGER
+          cmp = aD - bD
+          break
+        }
+        case "days_open": {
+          const aO = differenceInDays(new Date(), new Date(a.created_at))
+          const bO = differenceInDays(new Date(), new Date(b.created_at))
+          cmp = aO - bO
+          break
+        }
+      }
+      return sortDir === "asc" ? cmp : -cmp
+    })
+    return sorted
+  }, [requests, sortField, sortDir])
 
   return (
     <div className="flex flex-col gap-6">
@@ -162,7 +210,7 @@ export function RequestsListContent() {
             type="text"
             placeholder="Search by city, dataset, or request number..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
             className="h-10 w-full rounded-lg border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
           />
         </div>
@@ -170,7 +218,7 @@ export function RequestsListContent() {
           <Filter className="h-4 w-4 text-gray-400" />
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as RequestStatus | "all")}
+            onChange={(e) => { setStatusFilter(e.target.value as RequestStatus | "all"); setPage(1) }}
             className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
           >
             {statusOptions.map((opt) => (
@@ -192,11 +240,17 @@ export function RequestsListContent() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  City / Dataset
+                <th
+                  className="cursor-pointer select-none px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 hover:text-gray-900"
+                  onClick={() => toggleSort("city")}
+                >
+                  City / Dataset{sortIndicator("city")}
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Status
+                <th
+                  className="cursor-pointer select-none px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 hover:text-gray-900"
+                  onClick={() => toggleSort("status")}
+                >
+                  Status{sortIndicator("status")}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Submit to
@@ -204,11 +258,17 @@ export function RequestsListContent() {
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Coverage
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Days Open
+                <th
+                  className="cursor-pointer select-none px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 hover:text-gray-900"
+                  onClick={() => toggleSort("days_open")}
+                >
+                  Days Open{sortIndicator("days_open")}
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Deadline
+                <th
+                  className="cursor-pointer select-none px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 hover:text-gray-900"
+                  onClick={() => toggleSort("deadline")}
+                >
+                  Deadline{sortIndicator("deadline")}
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Actions
@@ -216,20 +276,20 @@ export function RequestsListContent() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {requests.map((req) => {
+              {sortedRequests.map((req) => {
                 const daysOpen = differenceInDays(new Date(), new Date(req.created_at))
                 const isOverdue =
                   req.deadline_at &&
                   new Date(req.deadline_at) < new Date() &&
                   !["fulfilled", "denied", "closed_incomplete"].includes(req.status)
                 return (
-                  <tr key={req.id} className="transition-colors hover:bg-gray-50">
+                  <tr key={req.id} className={`transition-colors ${isOverdue ? "bg-red-50 dark:bg-red-950/20 hover:bg-red-100" : "hover:bg-gray-50"}`}>
                     <td className="px-6 py-4">
                       <Link href={`/foia/requests/${req.id}`} className="block">
                         <p className="text-sm font-medium text-gray-900 hover:text-purple-600">
                           {req.city?.name ?? "Unknown city"}
                         </p>
-                        <p className="text-xs text-gray-500">{req.dataset_type_id}</p>
+                        <p className="text-xs text-gray-500">{datasetLabel(req.dataset_type_id)}</p>
                         {req.department?.name && (
                           <p className="mt-0.5 text-xs text-gray-400">
                             Dept: {req.department.name}
@@ -275,7 +335,7 @@ export function RequestsListContent() {
                   </tr>
                 )
               })}
-              {requests.length === 0 && !loading && (
+              {sortedRequests.length === 0 && !loading && (
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-400">
                     {apiError ? "Requests could not be loaded. Check the message above." : "No requests match your filters."}
@@ -284,6 +344,31 @@ export function RequestsListContent() {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && total > 25 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-500">
+            Page {page} of {totalPages} ({total} total)
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
 

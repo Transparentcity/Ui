@@ -100,7 +100,7 @@ const ROADMAP_DETECTOR_NAMES = [
   "Entity Validation",
 ]
 
-function isOnRoadmap(finding: WasteFinding): boolean {
+export function isOnRoadmap(finding: WasteFinding): boolean {
   const re = /\(On Roadmap\)/i
   if (re.test(finding.tool) || re.test(finding.subcategory)) return true
   if (/\bOn Roadmap:/i.test(finding.description)) return true
@@ -217,7 +217,7 @@ function getDepartmentFilter(finding: WasteFinding): string {
   return escapeSoqlLike((finding.entity || "").split("(")[0].trim())
 }
 
-function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
+export function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
   const cat = finding.category.toLowerCase()
 
   // PAYROLL
@@ -566,11 +566,20 @@ export function WasteFindingCard({
   return (
     <div
       className={cn(
-        "border rounded-lg transition-all cursor-pointer",
+        "border rounded-lg transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-1 outline-none",
         isExpanded ? "shadow-sm border-gray-300" : "border-gray-200 hover:border-gray-300",
         finding.is_partial_data && "border-l-2 border-l-amber-400"
       )}
+      role="button"
+      tabIndex={0}
+      aria-expanded={isExpanded}
       onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onToggle()
+        }
+      }}
     >
       {/* Collapsed row */}
       <div className="flex items-center gap-3 px-4 py-3">
@@ -615,11 +624,11 @@ export function WasteFindingCard({
 
         {/* Confidence indicator (compact) */}
         <span className="hidden lg:inline-flex shrink-0" title={conf.label}>
-          <ConfIcon className={cn("w-3.5 h-3.5", conf.text)} />
+          <ConfIcon className={cn("w-3.5 h-3.5", conf.text)} aria-label={conf.label} />
         </span>
 
         {/* Entity tag */}
-        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded whitespace-nowrap hidden sm:inline-flex">
+        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded truncate max-w-[120px] sm:max-w-none sm:whitespace-nowrap inline-flex">
           {finding.entity}
         </span>
 
@@ -663,6 +672,7 @@ export function WasteFindingCard({
               <button
                 type="button"
                 onClick={handleToggleDetails}
+                aria-expanded={isDetailsOpen}
                 className="text-xs font-medium text-violet-700 hover:text-violet-800 underline"
               >
                 {isDetailsOpen ? "Hide details" : "Show details"}
@@ -672,7 +682,16 @@ export function WasteFindingCard({
                   {isDetailsLoading ? (
                     <p className="px-3 py-2 text-xs text-gray-500">Loading details...</p>
                   ) : detailsError ? (
-                    <p className="px-3 py-2 text-xs text-red-600">{detailsError}</p>
+                    <div className="px-3 py-2 flex items-center gap-2">
+                      <p className="text-xs text-red-600">{detailsError}</p>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); loadDetails() }}
+                        className="text-xs font-medium text-violet-700 hover:text-violet-800 underline shrink-0"
+                      >
+                        Retry
+                      </button>
+                    </div>
                   ) : (
                     renderDetailsTable()
                   )}

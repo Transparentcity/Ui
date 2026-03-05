@@ -66,27 +66,29 @@ export function WasteStatBar({ summary, isLoading }: WasteStatBarProps) {
     )
   }
 
+  const noData = !summary
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <StatItem
         label="Total Findings"
-        value={summary?.total_findings ?? 0}
+        value={noData ? "—" : (summary.total_findings ?? 0)}
         subtext="across all categories"
         icon={<Search className="w-5 h-5 text-gray-500" />}
         accentColor="#6366f1"
       />
       <StatItem
         label="Critical"
-        value={summary?.critical_count ?? 0}
+        value={noData ? "—" : (summary.critical_count ?? 0)}
         subtext="require immediate review"
         icon={<AlertTriangle className="w-5 h-5 text-red-500" />}
         accentColor="#ef4444"
       />
       <StatItem
         label="Estimated Exposure"
-        value={formatDollar(summary?.net_exposure ?? summary?.estimated_exposure)}
+        value={noData ? "—" : formatDollar(summary.net_exposure ?? summary.estimated_exposure)}
         subtext={
-          summary?.gross_exposure != null && summary?.net_exposure != null
+          !noData && summary.gross_exposure != null && summary.net_exposure != null
             ? `de-duplicated from ${formatDollar(summary.gross_exposure)} gross`
             : "in questionable patterns"
         }
@@ -95,7 +97,7 @@ export function WasteStatBar({ summary, isLoading }: WasteStatBarProps) {
       />
       <StatItem
         label="Depts Affected"
-        value={summary?.departments_affected ?? 0}
+        value={noData ? "—" : (summary.departments_affected ?? 0)}
         subtext="with 1+ findings"
         icon={<Building2 className="w-5 h-5 text-purple-500" />}
         accentColor="#8b5cf6"

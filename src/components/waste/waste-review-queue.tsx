@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
 import {
   useAssignWasteQueueItem,
   useBulkDisposeWasteFindings,
@@ -64,6 +66,7 @@ function QueueRow({
           type="checkbox"
           checked={isSelected}
           onChange={() => onToggleSelected(item.finding_id)}
+          aria-label={`Select ${item.finding_entity_name ?? `Finding #${item.finding_id}`}`}
           className="mt-1"
         />
         <div className="flex-1 min-w-0">
@@ -120,14 +123,24 @@ function QueueRow({
               variant="outline"
               disabled={!assignedTo || assignMutation.isPending}
               onClick={() =>
-                assignMutation.mutate({
-                  itemId: item.id,
-                  cityId,
-                  assignedTo,
-                })
+                assignMutation.mutate(
+                  {
+                    itemId: item.id,
+                    cityId,
+                    assignedTo,
+                  },
+                  {
+                    onSuccess: () => toast.success("Auditor assigned"),
+                    onError: () => toast.error("Failed to assign auditor"),
+                  }
+                )
               }
             >
-              Assign
+              {assignMutation.isPending ? (
+                <><Loader2 className="w-3 h-3 animate-spin mr-1" />Assigning…</>
+              ) : (
+                "Assign"
+              )}
             </Button>
           </div>
         </div>
@@ -162,18 +175,28 @@ function QueueRow({
               size="sm"
               disabled={dispositionMutation.isPending}
               onClick={() =>
-                dispositionMutation.mutate({
-                  findingId: item.finding_id,
-                  data: {
-                    city_id: cityId,
-                    disposition,
-                    notes: notes || undefined,
-                    evidence_links: [],
+                dispositionMutation.mutate(
+                  {
+                    findingId: item.finding_id,
+                    data: {
+                      city_id: cityId,
+                      disposition,
+                      notes: notes || undefined,
+                      evidence_links: [],
+                    },
                   },
-                })
+                  {
+                    onSuccess: () => toast.success("Disposition applied"),
+                    onError: () => toast.error("Failed to apply disposition"),
+                  }
+                )
               }
             >
-              Apply
+              {dispositionMutation.isPending ? (
+                <><Loader2 className="w-3 h-3 animate-spin mr-1" />Applying…</>
+              ) : (
+                "Apply"
+              )}
             </Button>
             <Button
               size="sm"
@@ -278,11 +301,12 @@ export function WasteReviewQueue({ cityId }: { cityId: number | null }) {
           "Queue updated. If no items appear, current filters may be excluding them."
         )
         setLastQueueRefreshAt(new Date().toISOString())
-      } catch {
+        toast.success("Queue updated")
+      } catch (err) {
         setRunSyncPhase("error")
-        setRunSyncMessage(
-          "Run + Sync failed. Please retry, then check browser console for API errors."
-        )
+        const msg = err instanceof Error ? err.message : "Unknown error"
+        setRunSyncMessage(`Run + Sync failed: ${msg}. Please retry.`)
+        toast.error("Analysis + sync failed")
       }
     },
     [cityId, runAnalysisMutation, queueQuery, latestRunQuery]
@@ -415,7 +439,15 @@ export function WasteReviewQueue({ cityId }: { cityId: number | null }) {
           </Button>
           <Button
             variant="outline"
-            onClick={() => syncQueueMutation.mutate({ city_id: cityId })}
+            onClick={() =>
+              syncQueueMutation.mutate(
+                { city_id: cityId },
+                {
+                  onSuccess: (data) => toast.success(`Synced ${data.processed} findings`),
+                  onError: () => toast.error("Queue sync failed"),
+                }
+              )
+            }
             disabled={syncQueueMutation.isPending || runAnalysisMutation.isPending}
           >
             {syncQueueMutation.isPending ? "Syncing…" : "Sync Queue"}
@@ -501,15 +533,25 @@ export function WasteReviewQueue({ cityId }: { cityId: number | null }) {
               selectedFindingIds.length === 0 || bulkDisposeMutation.isPending
             }
             onClick={() =>
-              bulkDisposeMutation.mutate({
-                city_id: cityId,
-                finding_ids: selectedFindingIds,
-                disposition: bulkDisposition,
-                notes: bulkNotes || undefined,
-              })
+              bulkDisposeMutation.mutate(
+                {
+                  city_id: cityId,
+                  finding_ids: selectedFindingIds,
+                  disposition: bulkDisposition,
+                  notes: bulkNotes || undefined,
+                },
+                {
+                  onSuccess: () => toast.success(`Bulk disposition applied to ${selectedFindingIds.length} findings`),
+                  onError: () => toast.error("Bulk disposition failed"),
+                }
+              )
             }
           >
-            Apply Bulk Disposition
+            {bulkDisposeMutation.isPending ? (
+              <><Loader2 className="w-3 h-3 animate-spin mr-1" />Applying…</>
+            ) : (
+              "Apply Bulk Disposition"
+            )}
           </Button>
         </div>
       </div>

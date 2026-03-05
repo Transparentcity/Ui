@@ -3,20 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useAuth0 } from "@auth0/auth0-react"
 import {
-  MessageCircle,
   Send,
   Loader2,
   Bot,
   User,
   ChevronDown,
   ChevronUp,
-  FileText,
-  Mail,
-  Search,
-  BarChart3,
-  Globe,
-  Database,
 } from "lucide-react"
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@/components/ui/collapsible"
 import { sendChatMessageStream, createNewSession } from "@/lib/apiClient"
 import type { ChatMessageRequest } from "@/lib/apiClient"
 
@@ -24,62 +22,15 @@ import type { ChatMessageRequest } from "@/lib/apiClient"
 // FOIA-relevant Seymour capabilities reference
 // ---------------------------------------------------------------------------
 
-interface ToolCard {
-  name: string
-  description: string
-  example: string
-  icon: React.ComponentType<{ className?: string }>
-}
-
-const foiaTools: ToolCard[] = [
-  {
-    name: "Classify FOIA Email",
-    description: "Classify an inbound email from a city agency. Identifies acknowledgments, clarifications, fee notices, denials, data deliveries, and more.",
-    example: "\"Classify this email from Oakland about our public records request.\"",
-    icon: Mail,
-  },
-  {
-    name: "Process FOIA Emails",
-    description: "Scan the inbox for FOIA-related emails. Classifies responses, matches them to requests, and creates tasks for your review.",
-    example: "\"Check the inbox for any new FOIA responses.\"",
-    icon: Mail,
-  },
-  {
-    name: "Search Datasets",
-    description: "Search city open data portals for datasets by keyword. Finds relevant datasets across all tracked cities.",
-    example: "\"Find crime data for Berkeley.\"",
-    icon: Search,
-  },
-  {
-    name: "Fetch Portal Data",
-    description: "Pull data from Socrata-based city data portals with SoQL queries. Works across all connected cities.",
-    example: "\"Get the latest 100 rows from SF's police incident data.\"",
-    icon: Database,
-  },
-  {
-    name: "Anomaly Detection",
-    description: "Scan metrics for unusual patterns. Compare recent data to historical averages and flag significant changes.",
-    example: "\"Are there any anomalies in crime data this month?\"",
-    icon: BarChart3,
-  },
-  {
-    name: "Web Research",
-    description: "Research city FOIA processes, portal URLs, contact information, and filing requirements.",
-    example: "\"Research how to file a FOIA request with the City of Chicago.\"",
-    icon: Globe,
-  },
-  {
-    name: "Send Email",
-    description: "Draft and send emails through the Seymour inbox. Supports threading with existing conversations via Message-ID headers.",
-    example: "\"Draft a follow-up email to Oakland about request #2024-1234.\"",
-    icon: Mail,
-  },
-  {
-    name: "Analyze Requests",
-    description: "Review the status of your FOIA requests, identify overdue items, and suggest next steps for stalled requests.",
-    example: "\"Which requests are overdue? What should I follow up on?\"",
-    icon: FileText,
-  },
+const foiaToolNames = [
+  "Classify FOIA Email",
+  "Process FOIA Emails",
+  "Search Datasets",
+  "Fetch Portal Data",
+  "Anomaly Detection",
+  "Web Research",
+  "Send Email",
+  "Analyze Requests",
 ]
 
 // ---------------------------------------------------------------------------
@@ -115,7 +66,7 @@ export function SeymourChatContent() {
   const [input, setInput] = useState("")
   const [sending, setSending] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
-  const [showTools, setShowTools] = useState(true)
+  const [showTools, setShowTools] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -242,45 +193,32 @@ export function SeymourChatContent() {
             <p className="text-sm text-gray-500">AI assistant for FOIA workflow</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowTools(!showTools)}
-          className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
-        >
-          {showTools ? "Hide" : "Show"} tools reference
-          {showTools ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-        </button>
       </div>
 
-      {/* Tools reference card */}
-      {showTools && messages.length === 0 && (
-        <div className="mb-4 overflow-auto">
-          <div className="rounded-xl border border-gray-200 bg-white">
-            <div className="border-b border-gray-100 px-5 py-3">
-              <h2 className="text-sm font-semibold text-gray-900">What Seymour can do</h2>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Ask Seymour in natural language. Here are the FOIA-related capabilities available:
-              </p>
-            </div>
-            <div className="grid gap-0 divide-y divide-gray-100 sm:grid-cols-2 sm:divide-y-0 sm:divide-x">
-              {foiaTools.map((tool, i) => (
-                <div
-                  key={tool.name}
-                  className={`px-5 py-3 ${i >= 2 ? "border-t border-gray-100" : ""}`}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <tool.icon className="h-3.5 w-3.5 text-purple-500" />
-                    <span className="text-sm font-medium text-gray-900">{tool.name}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 leading-relaxed">{tool.description}</p>
-                  <p className="mt-1 text-xs italic text-gray-400">{tool.example}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+      {/* Tools reference + quick prompts */}
+      {messages.length === 0 && (
+        <div className="mb-4">
+          <Collapsible open={showTools} onOpenChange={setShowTools}>
+            <CollapsibleTrigger className="flex w-full items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50">
+              Available commands
+              {showTools ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {foiaToolNames.map((name) => (
+                  <span
+                    key={name}
+                    className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600"
+                  >
+                    {name}
+                  </span>
+                ))}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
           {/* Quick prompts */}
-          <div className="mt-4">
+          <div className="mt-3">
             <p className="mb-2 text-xs font-medium text-gray-500">Quick start:</p>
             <div className="flex flex-wrap gap-2">
               {quickPrompts.map((prompt) => (
@@ -301,7 +239,7 @@ export function SeymourChatContent() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50 px-4 py-4">
-        {messages.length === 0 && !showTools && (
+        {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <Bot className="h-10 w-10 text-gray-300 mb-3" />
             <p className="text-sm text-gray-400">Send a message to start working with Seymour</p>

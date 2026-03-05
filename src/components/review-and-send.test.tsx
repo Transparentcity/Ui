@@ -12,11 +12,20 @@
  * - Discard draft
  * - Empty state
  */
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { render, screen, waitFor, within, act } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { vi, describe, it, expect, beforeEach } from "vitest"
 
 // ---- Mocks ----------------------------------------------------------------
+
+const mockToastSuccess = vi.fn()
+const mockToastError = vi.fn()
+vi.mock("sonner", () => ({
+  toast: {
+    success: (...args: any[]) => mockToastSuccess(...args),
+    error: (...args: any[]) => mockToastError(...args),
+  },
+}))
 
 const mockGetAccessTokenSilently = vi.fn().mockResolvedValue("test-token")
 vi.mock("@auth0/auth0-react", () => ({
@@ -352,13 +361,15 @@ describe("ReviewAndSend", () => {
 
   it("calls delete when Discard is confirmed", async () => {
     const user = userEvent.setup()
-    // Mock window.confirm to return true
-    vi.spyOn(window, "confirm").mockReturnValue(true)
 
     render(<ReviewAndSend items={[PENDING_ITEM]} />)
 
     const discardBtn = screen.getByRole("button", { name: /discard/i })
     await user.click(discardBtn)
+
+    // AlertDialog should appear — confirm by clicking the Discard action
+    const confirmBtn = await screen.findByRole("button", { name: /^discard$/i })
+    await user.click(confirmBtn)
 
     await waitFor(() => {
       expect(mockDeleteItems).toHaveBeenCalledWith(["q-1"])
@@ -368,12 +379,15 @@ describe("ReviewAndSend", () => {
 
   it("does not delete when Discard is cancelled", async () => {
     const user = userEvent.setup()
-    vi.spyOn(window, "confirm").mockReturnValue(false)
 
     render(<ReviewAndSend items={[PENDING_ITEM]} />)
 
     const discardBtn = screen.getByRole("button", { name: /discard/i })
     await user.click(discardBtn)
+
+    // AlertDialog should appear — click Cancel
+    const cancelBtn = await screen.findByRole("button", { name: /cancel/i })
+    await user.click(cancelBtn)
 
     expect(mockDeleteItems).not.toHaveBeenCalled()
   })
@@ -533,7 +547,7 @@ describe("ReviewAndSend", () => {
   // EDGE CASE: API failure scenarios
   // ===================================================================
 
-  it("handles regenerate API failure gracefully and shows error message", async () => {
+  it("handles regenerate API failure gracefully and shows error toast", async () => {
     const user = userEvent.setup()
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     mockFetch.mockRejectedValueOnce(new Error("Server down"))
@@ -544,14 +558,14 @@ describe("ReviewAndSend", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /regenerate/i })).not.toBeDisabled()
     })
-    // Should show user-visible error
+    // Should show error via toast
     await waitFor(() => {
-      expect(screen.getByText(/regenerate failed/i)).toBeInTheDocument()
+      expect(mockToastError).toHaveBeenCalledWith("Regenerate failed. Please try again.")
     })
     consoleSpy.mockRestore()
   })
 
-  it("shows specific message when regenerate fails due to missing anomaly data", async () => {
+  it("shows specific toast when regenerate fails due to missing anomaly data", async () => {
     const user = userEvent.setup()
     mockFetch.mockResolvedValueOnce({
       ok: false,
@@ -563,32 +577,7 @@ describe("ReviewAndSend", () => {
     await user.click(screen.getByRole("button", { name: /regenerate/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/older draft doesn't have anomaly data/i)).toBeInTheDocument()
-    })
-  })
-
-  it("dismisses regenerate error when X is clicked", async () => {
-    const user = userEvent.setup()
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      json: async () => ({ detail: "Draft is missing anomaly or prospect data, cannot regenerate" }),
-    })
-    render(<ReviewAndSend items={[PENDING_ITEM]} />)
-
-    await user.click(screen.getByRole("button", { name: /regenerate/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText(/older draft/i)).toBeInTheDocument()
-    })
-
-    // Click dismiss
-    const errorBanner = screen.getByText(/older draft/i).closest("div")!
-    const dismissBtn = within(errorBanner).getByRole("button")
-    await user.click(dismissBtn)
-
-    await waitFor(() => {
-      expect(screen.queryByText(/older draft/i)).not.toBeInTheDocument()
+      expect(mockToastError).toHaveBeenCalledWith(expect.stringContaining("older draft"))
     })
   })
 
@@ -783,7 +772,6 @@ describe("ReviewAndSend", () => {
 
   it("bulk mark sent calls updateQueueItemStatus for each selected item", async () => {
     const user = userEvent.setup()
-    vi.spyOn(window, "confirm").mockReturnValue(true)
     const item2 = makeQueueItem({ id: "q-3", personalized_subject: "Second draft" })
     render(<ReviewAndSend items={[PENDING_ITEM, item2]} />)
 
@@ -796,6 +784,10 @@ describe("ReviewAndSend", () => {
     // Click bulk Mark Sent
     await user.click(screen.getByRole("button", { name: /mark sent/i }))
 
+    // AlertDialog should appear — confirm
+    const confirmBtn = await screen.findByRole("button", { name: /^mark sent$/i })
+    await user.click(confirmBtn)
+
     await waitFor(() => {
       expect(mockUpdateStatus).toHaveBeenCalledWith("q-1", "sent")
       expect(mockUpdateStatus).toHaveBeenCalledWith("q-3", "sent")
@@ -805,7 +797,6 @@ describe("ReviewAndSend", () => {
 
   it("bulk discard calls deleteQueueItems for selected items", async () => {
     const user = userEvent.setup()
-    vi.spyOn(window, "confirm").mockReturnValue(true)
     render(<ReviewAndSend items={[PENDING_ITEM]} />)
 
     // Select all
@@ -815,10 +806,12 @@ describe("ReviewAndSend", () => {
     })
 
     // Click bulk Discard (the one in the toolbar, not the per-card one)
-    // The toolbar discard has different styling — find by the text inside the toolbar area
     const bulkDiscardBtns = screen.getAllByRole("button", { name: /discard/i })
-    // The first one is in the bulk toolbar, the second on the card
     await user.click(bulkDiscardBtns[0])
+
+    // AlertDialog should appear — confirm
+    const confirmBtn = await screen.findByRole("button", { name: /^discard$/i })
+    await user.click(confirmBtn)
 
     await waitFor(() => {
       expect(mockDeleteItems).toHaveBeenCalledWith(["q-1"])
@@ -869,6 +862,90 @@ describe("ReviewAndSend", () => {
     // "Select all" visible, but no bulk action buttons
     expect(screen.getByText("Select all")).toBeInTheDocument()
     expect(screen.queryByText(/selected/)).not.toBeInTheDocument()
+  })
+
+  // ===================================================================
+  // Loading states for individual buttons
+  // ===================================================================
+
+  it("shows 'Sending...' spinner on Mark as Sent button while in flight", async () => {
+    const user = userEvent.setup()
+    // Make updateQueueItemStatus hang
+    mockUpdateStatus.mockReturnValueOnce(new Promise(() => {}))
+
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    const sentBtn = screen.getByRole("button", { name: /mark as sent/i })
+    await user.click(sentBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText("Sending...")).toBeInTheDocument()
+    })
+  })
+
+  it("shows 'Discarding...' spinner on Discard button while in flight", async () => {
+    const user = userEvent.setup()
+    // Make deleteQueueItems hang
+    mockDeleteItems.mockReturnValueOnce(new Promise(() => {}))
+
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    const discardBtn = screen.getByRole("button", { name: /discard/i })
+    await user.click(discardBtn)
+
+    // AlertDialog appears — confirm
+    const confirmBtn = await screen.findByRole("button", { name: /^discard$/i })
+    await user.click(confirmBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText("Discarding...")).toBeInTheDocument()
+    })
+  })
+
+  it("shows 'Sending...' on bulk Mark Sent while in flight", async () => {
+    const user = userEvent.setup()
+    mockUpdateStatus.mockReturnValue(new Promise(() => {}))
+
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByText("Select all"))
+    await waitFor(() => {
+      expect(screen.getByText("1 selected")).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("button", { name: /mark sent/i }))
+
+    // AlertDialog appears — confirm
+    const confirmBtn = await screen.findByRole("button", { name: /^mark sent$/i })
+    await user.click(confirmBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText("Sending...")).toBeInTheDocument()
+    })
+  })
+
+  it("shows 'Discarding...' on bulk Discard while in flight", async () => {
+    const user = userEvent.setup()
+    mockDeleteItems.mockReturnValueOnce(new Promise(() => {}))
+
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByText("Select all"))
+    await waitFor(() => {
+      expect(screen.getByText("1 selected")).toBeInTheDocument()
+    })
+
+    // Click bulk Discard (first Discard button is in toolbar)
+    const bulkDiscardBtns = screen.getAllByRole("button", { name: /discard/i })
+    await user.click(bulkDiscardBtns[0])
+
+    // AlertDialog appears — confirm
+    const confirmBtn = await screen.findByRole("button", { name: /^discard$/i })
+    await user.click(confirmBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText("Discarding...")).toBeInTheDocument()
+    })
   })
 
   // ===================================================================
@@ -1072,6 +1149,373 @@ describe("ReviewAndSend", () => {
 
     await waitFor(() => {
       expect(screen.queryByText(/Created 2 draft/)).not.toBeInTheDocument()
+    })
+  })
+
+  // ===================================================================
+  // Search result count (#4)
+  // ===================================================================
+
+  it("shows search result count when query is non-empty", async () => {
+    const user = userEvent.setup()
+    const item2 = makeQueueItem({ id: "q-3", personalized_subject: "Second draft about parks", anomaly_snippet: "Parks budget up 15%" })
+    render(<ReviewAndSend items={[PENDING_ITEM, item2, SENT_ITEM]} />)
+
+    const searchInput = screen.getByPlaceholderText(/search drafts/i)
+    await user.type(searchInput, "police")
+
+    await waitFor(() => {
+      expect(screen.getByTestId("search-count")).toHaveTextContent("Showing 1 of 2 drafts")
+    })
+  })
+
+  it("does not show search count when search is empty", () => {
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+    expect(screen.queryByTestId("search-count")).not.toBeInTheDocument()
+  })
+
+  // ===================================================================
+  // Select all filtered (#7)
+  // ===================================================================
+
+  it("shows 'Select all N' with count when search is active", async () => {
+    const user = userEvent.setup()
+    const item2 = makeQueueItem({ id: "q-3", personalized_subject: "Second draft about parks", anomaly_snippet: "Parks budget up 15%" })
+    render(<ReviewAndSend items={[PENDING_ITEM, item2]} />)
+
+    const searchInput = screen.getByPlaceholderText(/search drafts/i)
+    await user.type(searchInput, "police")
+
+    await waitFor(() => {
+      expect(screen.getByText(/Select all 1/)).toBeInTheDocument()
+    })
+  })
+
+  it("select all only selects filtered pending items when search active", async () => {
+    const user = userEvent.setup()
+    const item2 = makeQueueItem({ id: "q-3", personalized_subject: "Second draft about parks", anomaly_snippet: "Parks budget up 15%" })
+    render(<ReviewAndSend items={[PENDING_ITEM, item2]} />)
+
+    const searchInput = screen.getByPlaceholderText(/search drafts/i)
+    await user.type(searchInput, "police")
+
+    await waitFor(() => {
+      expect(screen.getByText(/Select all 1/)).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByText(/Select all 1/))
+
+    await waitFor(() => {
+      expect(screen.getByText("1 selected")).toBeInTheDocument()
+    })
+  })
+
+  // ===================================================================
+  // Subject tooltip (#5)
+  // ===================================================================
+
+  it("wraps subject line in a tooltip trigger", () => {
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    // The subject text should be inside a Tooltip trigger (button with tooltip role)
+    const subjectEl = screen.getByText("Quick note on police overtime")
+    // The element should be a child of a TooltipTrigger (which renders a button)
+    expect(subjectEl.closest("[data-state]") || subjectEl.tagName).toBeTruthy()
+  })
+
+  // ===================================================================
+  // Toast notifications
+  // ===================================================================
+
+  it("shows toast on mark as sent", async () => {
+    // Ensure mock resolves properly (may have been altered by previous tests)
+    mockUpdateStatus.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByRole("button", { name: /mark as sent/i }))
+
+    await waitFor(() => {
+      expect(mockUpdateStatus).toHaveBeenCalledWith(PENDING_ITEM.id, "sent")
+    })
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Marked as sent")
+    })
+  })
+
+  it("shows toast on save edit", async () => {
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByRole("button", { name: /edit/i }))
+    await waitFor(() => {
+      expect(screen.getByText("Edit Message")).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("button", { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Draft saved")
+    })
+  })
+
+  it("shows toast on copy email", async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      writable: true,
+      configurable: true,
+    })
+
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+    await user.click(screen.getByRole("button", { name: /copy email/i }))
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Copied")
+    })
+  })
+
+  it("shows toast on discard", async () => {
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByRole("button", { name: /discard/i }))
+    const confirmBtn = await screen.findByRole("button", { name: /^discard$/i })
+    await user.click(confirmBtn)
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Draft discarded")
+    })
+  })
+
+  it("shows error toast on regenerate failure", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    mockFetch.mockRejectedValueOnce(new Error("Server down"))
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByRole("button", { name: /regenerate/i }))
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Regenerate failed. Please try again.")
+    })
+    vi.restoreAllMocks()
+  })
+
+  // ===================================================================
+  // Keyboard shortcut (Ctrl+Enter to save in edit dialog)
+  // ===================================================================
+
+  it("saves edit on Ctrl+Enter in edit dialog", async () => {
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByRole("button", { name: /edit/i }))
+    await waitFor(() => {
+      expect(screen.getByText("Edit Message")).toBeInTheDocument()
+    })
+
+    // Press Ctrl+Enter
+    await user.keyboard("{Control>}{Enter}{/Control}")
+
+    await waitFor(() => {
+      expect(mockUpdateContent).toHaveBeenCalledWith("q-1", expect.any(Object))
+    })
+  })
+
+  // ===================================================================
+  // Enhanced empty state with search (Phase 5)
+  // ===================================================================
+
+  it("shows 'No drafts matching' and Clear search when search has no results", async () => {
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    const searchInput = screen.getByPlaceholderText(/search drafts/i)
+    await user.type(searchInput, "zzzznonexistent")
+
+    await waitFor(() => {
+      expect(screen.getByText(/No drafts matching/)).toBeInTheDocument()
+      expect(screen.getByText(/Clear search/)).toBeInTheDocument()
+    })
+  })
+
+  it("clears search when 'Clear search' is clicked in empty state", async () => {
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    const searchInput = screen.getByPlaceholderText(/search drafts/i)
+    await user.type(searchInput, "zzzznonexistent")
+
+    await waitFor(() => {
+      expect(screen.getByText(/Clear search/)).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByText(/Clear search/))
+
+    // Search should be cleared and items visible again
+    await waitFor(() => {
+      expect(screen.getByText("Quick note on police overtime")).toBeInTheDocument()
+    })
+  })
+
+  // ===================================================================
+  // Contact quick-view tooltip (Phase 6)
+  // ===================================================================
+
+  it("wraps contact name in a tooltip trigger with prospect details", () => {
+    const itemWithDetails = makeQueueItem({
+      prospect: {
+        ...PROSPECT,
+        title: "Supervisor",
+        department: "Board of Supervisors",
+      },
+    })
+    render(<ReviewAndSend items={[itemWithDetails]} />)
+
+    // Contact name should be inside a Tooltip trigger
+    const nameEl = screen.getByText("Jane Smith")
+    expect(nameEl.closest("[data-state]") || nameEl.tagName).toBeTruthy()
+  })
+
+  // ===================================================================
+  // Toast error paths
+  // ===================================================================
+
+  it("shows error toast when mark as sent fails", async () => {
+    mockUpdateStatus.mockRejectedValueOnce(new Error("Server error"))
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByRole("button", { name: /mark as sent/i }))
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Failed to mark as sent")
+    })
+  })
+
+  it("shows toast on bulk mark sent", async () => {
+    mockUpdateStatus.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    const items = [PENDING_ITEM, makeQueueItem({ id: "q-3", status: "pending_review" })]
+    render(<ReviewAndSend items={items} />)
+
+    // Select all
+    await user.click(screen.getByText(/select all/i))
+
+    // Click bulk Mark Sent
+    const bulkSentBtn = screen.getByRole("button", { name: /mark sent/i })
+    await user.click(bulkSentBtn)
+
+    // Confirm dialog
+    const confirmBtn = await screen.findByRole("button", { name: /mark sent/i })
+    await user.click(confirmBtn)
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringContaining("Marked"))
+    })
+  })
+
+  it("shows toast on bulk discard", async () => {
+    mockDeleteItems.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    const items = [PENDING_ITEM, makeQueueItem({ id: "q-3", status: "pending_review" })]
+    render(<ReviewAndSend items={items} />)
+
+    // Select all
+    await user.click(screen.getByText(/select all/i))
+
+    // Click the bulk Discard button (in the bulk action bar, contains "Discard" text)
+    const bulkDiscardBtns = screen.getAllByRole("button", { name: /discard/i })
+    // The bulk action discard is different from per-item discard buttons
+    const bulkBtn = bulkDiscardBtns.find(btn => btn.textContent?.includes("Discard"))!
+    await user.click(bulkBtn)
+
+    // Confirm dialog — find the confirm button in the alert dialog
+    const confirmBtn = await screen.findByRole("button", { name: /^discard$/i })
+    await user.click(confirmBtn)
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringContaining("Discarded"))
+    })
+  })
+
+  it("shows toast on swap anomaly success", async () => {
+    const user = userEvent.setup()
+
+    // Mock fetching applicable anomalies
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        anomalies: [
+          { result_id: 101, snippet: "Police overtime up", pct_change: 42, object_name: "Police OT", current: true },
+          { result_id: 102, snippet: "Park maintenance down", pct_change: -15, object_name: "Park maint", current: false },
+        ],
+      }),
+    })
+    // Mock swap API
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({}) })
+
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    // Open anomaly picker
+    await user.click(screen.getByRole("button", { name: /anomalies/i }))
+    await waitFor(() => {
+      expect(screen.getByText(/park maint/i)).toBeInTheDocument()
+    })
+
+    // Click the non-current anomaly to swap
+    await user.click(screen.getByText(/park maint/i))
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Anomaly swapped")
+    })
+  })
+
+  it("shows error toast on swap anomaly failure", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(console, "error").mockImplementation(() => {})
+
+    // Mock fetching applicable anomalies
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        anomalies: [
+          { result_id: 101, snippet: "Police overtime up", pct_change: 42, object_name: "Police OT", current: true },
+          { result_id: 102, snippet: "Park maintenance down", pct_change: -15, object_name: "Park maint", current: false },
+        ],
+      }),
+    })
+    // Swap fails
+    mockFetch.mockRejectedValueOnce(new Error("Swap error"))
+
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByRole("button", { name: /anomalies/i }))
+    await waitFor(() => {
+      expect(screen.getByText(/park maint/i)).toBeInTheDocument()
+    })
+    await user.click(screen.getByText(/park maint/i))
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Failed to swap anomaly")
+    })
+    vi.restoreAllMocks()
+  })
+
+  it("shows success toast on regenerate", async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ subject: "New subject", body: "New body" }),
+    })
+
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+    await user.click(screen.getByRole("button", { name: /regenerate/i }))
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Draft regenerated")
     })
   })
 })

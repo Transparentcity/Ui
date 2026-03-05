@@ -91,8 +91,12 @@ export function AIEmailComposer({ contacts, anomalies, keywords }: AIEmailCompos
   
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false)
+  const [generationPhase, setGenerationPhase] = useState<
+    "idle" | "fetching" | "matching" | "generating" | "finalizing"
+  >("idle")
   const [generatedEmails, setGeneratedEmails] = useState<GeneratedEmail[]>([])
   const [generationError, setGenerationError] = useState<string | null>(null)
+  const [skippedContacts, setSkippedContacts] = useState<string[]>([])
   
   // Review state
   const [previewEmail, setPreviewEmail] = useState<GeneratedEmail | null>(null)
@@ -167,6 +171,15 @@ export function AIEmailComposer({ contacts, anomalies, keywords }: AIEmailCompos
     }
   }
 
+  // Phase display labels
+  const phaseLabels: Record<string, string> = {
+    idle: "",
+    fetching: "Fetching contact details...",
+    matching: "Matching anomalies to keywords...",
+    generating: `Generating ${selectedContacts.length} unique email variations...`,
+    finalizing: "Finalizing emails...",
+  }
+
   // Generate emails via API
   const handleGenerate = async () => {
     if (selectedContacts.length === 0) {
@@ -180,6 +193,15 @@ export function AIEmailComposer({ contacts, anomalies, keywords }: AIEmailCompos
 
     setIsGenerating(true)
     setGenerationError(null)
+    setSkippedContacts([])
+    setGenerationPhase("fetching")
+
+    // Advance phases on timers — the API does all steps in one call,
+    // but showing progress keeps the user informed.
+    const phaseTimers = [
+      setTimeout(() => setGenerationPhase("matching"), 1500),
+      setTimeout(() => setGenerationPhase("generating"), 3500),
+    ]
 
     try {
       const response = await fetch("/api/generate-emails", {
@@ -201,12 +223,32 @@ export function AIEmailComposer({ contacts, anomalies, keywords }: AIEmailCompos
         throw new Error(data.error || "Failed to generate emails")
       }
 
+      setGenerationPhase("finalizing")
+
+      // Check for skipped contacts
+      if (data.skippedContacts?.length > 0) {
+        setSkippedContacts(data.skippedContacts)
+      }
+
+      // Check if any selected contacts are missing from results
+      const returnedIds = (data.emails || []).map((e: GeneratedEmail) => e.contactId)
+      const missingIds = selectedContacts.filter(id => !returnedIds.includes(id))
+      if (missingIds.length > 0) {
+        const missingNames = missingIds
+          .map(id => contacts.find(c => c.id === id)?.name || id)
+        setSkippedContacts(prev => [...new Set([...prev, ...missingNames])])
+      }
+
       setGeneratedEmails(data.emails || [])
+      // Small delay so "Finalizing..." is visible
+      await new Promise(r => setTimeout(r, 500))
       setStep("review")
     } catch (error) {
       setGenerationError(error instanceof Error ? error.message : "Generation failed")
     } finally {
+      phaseTimers.forEach(clearTimeout)
       setIsGenerating(false)
+      setGenerationPhase("idle")
     }
   }
 
@@ -654,6 +696,44 @@ Transparent City`}
               </CollapsibleContent>
             </Collapsible>
 
+            {/* Generation progress indicator */}
+            {isGenerating && (
+              <div className="p-6 rounded-lg border" style={{ borderColor: 'var(--border-primary)', background: 'var(--bg-secondary, var(--bg-primary))' }}>
+                <div className="space-y-4">
+                  {(["fetching", "matching", "generating", "finalizing"] as const).map((phase, idx) => {
+                    const isActive = generationPhase === phase
+                    const phases = ["fetching", "matching", "generating", "finalizing"] as const
+                    const currentIdx = phases.indexOf(generationPhase as typeof phases[number])
+                    const isDone = currentIdx > idx
+                    return (
+                      <div key={phase} className="flex items-center gap-3">
+                        {isDone ? (
+                          <CheckCircle2 className="w-5 h-5 shrink-0" style={{ color: 'var(--brand-primary)' }} />
+                        ) : isActive ? (
+                          <Loader2 className="w-5 h-5 animate-spin shrink-0" style={{ color: 'var(--brand-primary)' }} />
+                        ) : (
+                          <div className="w-5 h-5 rounded-full border-2 shrink-0" style={{ borderColor: 'var(--border-primary)' }} />
+                        )}
+                        <span
+                          className="text-sm font-medium transition-colors"
+                          style={{
+                            color: isActive
+                              ? 'var(--text-primary)'
+                              : isDone
+                                ? 'var(--text-secondary)'
+                                : 'var(--text-muted, var(--text-secondary))',
+                            opacity: !isActive && !isDone ? 0.5 : 1,
+                          }}
+                        >
+                          {phaseLabels[phase]}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             {generationError && (
               <div className="p-4 rounded-lg bg-destructive/10 text-destructive border border-destructive/20">
                 {generationError}
@@ -661,9 +741,10 @@ Transparent City`}
             )}
 
             <div className="flex justify-between pt-4">
-              <button 
-                onClick={() => setStep("select")} 
-                className="transition-all"
+              <button
+                onClick={() => setStep("select")}
+                disabled={isGenerating}
+                className="transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
                   padding: '12px 20px',
                   background: 'var(--bg-primary)',
@@ -697,8 +778,8 @@ Transparent City`}
                   <Copy className="w-4 h-4 shrink-0" />
                   <span>Use Same Copy for All</span>
                 </button>
-                <button 
-                  onClick={handleGenerate} 
+                <button
+                  onClick={handleGenerate}
                   disabled={isGenerating}
                   className="flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{
@@ -715,7 +796,7 @@ Transparent City`}
                   {isGenerating ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                      <span>Generating {selectedContacts.length} Emails...</span>
+                      <span>Generating...</span>
                     </>
                   ) : (
                     <>
@@ -750,6 +831,20 @@ Transparent City`}
             </p>
           </div>
           <div className="px-6 pb-6 space-y-4">
+            {skippedContacts.length > 0 && (
+              <div className="p-4 rounded-lg border flex items-start gap-3" style={{ background: 'rgba(234, 179, 8, 0.08)', borderColor: 'rgba(234, 179, 8, 0.3)' }}>
+                <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" style={{ color: '#d97706' }} />
+                <div>
+                  <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                    {skippedContacts.length} contact{skippedContacts.length !== 1 ? "s" : ""} skipped
+                  </div>
+                  <div className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
+                    No email was generated for: <strong>{skippedContacts.join(", ")}</strong>.
+                    This can happen if the contact is no longer active or if AI generation failed for that contact.
+                  </div>
+                </div>
+              </div>
+            )}
             <ScrollArea className="h-[500px]">
               <div className="space-y-3 pr-4">
                 {generatedEmails.map((email, index) => {

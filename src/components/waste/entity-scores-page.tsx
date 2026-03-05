@@ -34,6 +34,7 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  Target,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { WasteEntityScore } from "@/lib/apiClient"
@@ -112,7 +113,10 @@ export function EntityScoresPage() {
     <button
       type="button"
       onClick={() => toggleSort(field)}
-      className="inline-flex items-center gap-1 hover:text-gray-900 transition-colors"
+      className={cn(
+        "inline-flex items-center gap-1 hover:text-gray-900 transition-colors",
+        sortBy === field && "text-purple-700 font-semibold"
+      )}
     >
       {children}
       <ArrowUpDown className={cn("w-3 h-3", sortBy === field ? "text-purple-600" : "text-gray-400")} />
@@ -197,16 +201,26 @@ export function EntityScoresPage() {
               ))
             ) : sortedItems.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12 text-gray-500">
-                  No entity scores found
+                <TableCell colSpan={7} className="text-center py-12">
+                  <Target className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500 mb-1">No entity scores found</p>
+                  <p className="text-xs text-gray-400">Run a waste analysis to generate entity risk scores.</p>
                 </TableCell>
               </TableRow>
             ) : (
               sortedItems.map((entity) => (
                 <TableRow
                   key={entity.id}
-                  className="cursor-pointer"
+                  tabIndex={0}
+                  role="button"
+                  className="cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-inset outline-none"
                   onClick={() => setSelectedEntity(entity)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      setSelectedEntity(entity)
+                    }
+                  }}
                 >
                   <TableCell className="font-medium">{entity.entity_name}</TableCell>
                   <TableCell className="capitalize text-gray-500">{entity.entity_type}</TableCell>

@@ -4,10 +4,12 @@ import { useState, useMemo, useCallback, useEffect } from "react"
 import { useWasteThresholds, useUpdateWasteThresholds } from "@/lib/hooks/useWaste"
 import { useCities } from "@/lib/hooks/useCities"
 import { WasteShell } from "./waste-shell"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Save, RotateCcw, Loader2, ShieldAlert } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import type { WasteThreshold, UpdateThresholdRequest } from "@/lib/apiClient"
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -31,6 +33,7 @@ export function ThresholdConfigPage() {
 
   const [localValues, setLocalValues] = useState<Record<string, number>>({})
   const [hasChanges, setHasChanges] = useState(false)
+  const [confirmResetAll, setConfirmResetAll] = useState(false)
 
   useEffect(() => {
     if (!thresholds) return
@@ -75,7 +78,13 @@ export function ThresholdConfigPage() {
     if (updates.length === 0) return
     updateMutation.mutate(
       { cityId: selectedCityId, updates },
-      { onSuccess: () => setHasChanges(false) }
+      {
+        onSuccess: () => {
+          setHasChanges(false)
+          toast.success("Thresholds saved")
+        },
+        onError: () => toast.error("Failed to save thresholds"),
+      }
     )
   }, [selectedCityId, thresholds, localValues, updateMutation])
 
@@ -99,7 +108,7 @@ export function ThresholdConfigPage() {
           <Button
             size="sm"
             variant="outline"
-            onClick={handleResetAll}
+            onClick={() => setConfirmResetAll(true)}
             disabled={!hasChanges}
           >
             <RotateCcw className="w-4 h-4 mr-1" /> Reset All
@@ -138,6 +147,13 @@ export function ThresholdConfigPage() {
       {updateMutation.isSuccess && (
         <div className="p-3 mb-6 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
           Thresholds saved successfully. Changes will apply on the next analysis run.
+        </div>
+      )}
+
+      {/* Save error */}
+      {updateMutation.isError && (
+        <div className="p-3 mb-6 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {updateMutation.error instanceof Error ? updateMutation.error.message : "Failed to save thresholds"}
         </div>
       )}
 
@@ -184,6 +200,7 @@ export function ThresholdConfigPage() {
                             <button
                               type="button"
                               onClick={() => handleReset(threshold.detector_key, threshold.default_value)}
+                              aria-label={`Reset ${threshold.detector_name} to ${threshold.default_value.toFixed(2)}`}
                               className="text-[11px] text-gray-400 hover:text-purple-600 transition-colors"
                             >
                               Reset ({threshold.default_value.toFixed(2)})
@@ -211,6 +228,19 @@ export function ThresholdConfigPage() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmResetAll}
+        onOpenChange={setConfirmResetAll}
+        title="Reset All Thresholds"
+        description="Reset all thresholds to their default values? You can still adjust individual thresholds before saving."
+        confirmLabel="Reset All"
+        variant="destructive"
+        onConfirm={() => {
+          handleResetAll()
+          setConfirmResetAll(false)
+        }}
+      />
     </WasteShell>
   )
 }

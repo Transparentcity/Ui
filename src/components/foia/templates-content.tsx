@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useState } from "react"
 import { Loader2, Plus, Edit3, Trash2, AlertTriangle } from "lucide-react"
 import { useAuth0 } from "@auth0/auth0-react"
+import { toast } from "sonner"
 import { listFoiaTemplates, deleteFoiaTemplate } from "@/lib/foiaApiClient"
 import { TemplateModal } from "@/components/foia/template-modal"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { datasetLabel } from "@/lib/foia/datasetLabels"
 import type { FoiaRequestTemplate } from "@/lib/foia/types"
 import { format } from "date-fns"
 
@@ -15,6 +18,8 @@ export function TemplatesContent() {
   const [showModal, setShowModal] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<FoiaRequestTemplate | null>(null)
   const [apiError, setApiError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     setApiError(null)
@@ -42,8 +47,8 @@ export function TemplatesContent() {
     load()
   }, [load])
 
-  async function handleDelete(id: number) {
-    if (!confirm("Delete this template?")) return
+  async function handleDeleteConfirm(id: number) {
+    setDeletingId(id)
     let token: string | undefined
     if (isAuthenticated) {
       try {
@@ -55,9 +60,13 @@ export function TemplatesContent() {
     try {
       await deleteFoiaTemplate(id, token)
       setTemplates((prev) => prev.filter((t) => t.id !== id))
+      setDeleteConfirmId(null)
+      toast.success("Template deleted")
     } catch (err) {
       console.error("Failed to delete template:", err)
-      alert(err instanceof Error ? err.message : "Failed to delete template")
+      toast.error(err instanceof Error ? err.message : "Failed to delete template")
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -129,7 +138,7 @@ export function TemplatesContent() {
                 <h3 className="text-sm font-semibold text-gray-900">{tmpl.name}</h3>
                 <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
                   {tmpl.jurisdiction_type && <span>Jurisdiction: {tmpl.jurisdiction_type}</span>}
-                  {tmpl.dataset_type_id && <span>Dataset: {tmpl.dataset_type_id}</span>}
+                  {tmpl.dataset_type_id && <span>Dataset: {datasetLabel(tmpl.dataset_type_id)}</span>}
                   <span>Updated {format(new Date(tmpl.updated_at), "MMM d, yyyy")}</span>
                 </div>
               </div>
@@ -137,16 +146,21 @@ export function TemplatesContent() {
                 <button
                   onClick={() => handleEdit(tmpl)}
                   className="rounded-lg border border-gray-200 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50"
-                  title="Edit"
+                  aria-label="Edit template"
                 >
                   <Edit3 className="h-4 w-4" />
                 </button>
                 <button
-                  onClick={() => handleDelete(tmpl.id)}
-                  className="rounded-lg border border-gray-200 p-2 text-gray-400 hover:text-red-600 hover:bg-red-50"
-                  title="Delete"
+                  onClick={() => setDeleteConfirmId(tmpl.id)}
+                  disabled={deletingId === tmpl.id}
+                  className="rounded-lg border border-gray-200 p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  aria-label="Delete template"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  {deletingId === tmpl.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
                 </button>
               </div>
             </div>
@@ -180,6 +194,17 @@ export function TemplatesContent() {
         }}
         onSaved={handleSaved}
         template={editingTemplate}
+      />
+
+      <ConfirmDialog
+        open={deleteConfirmId !== null}
+        onOpenChange={(open) => { if (!open) setDeleteConfirmId(null) }}
+        title="Delete template"
+        description="This template will be permanently removed. This cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={() => { if (deleteConfirmId !== null) handleDeleteConfirm(deleteConfirmId) }}
+        loading={deletingId !== null}
       />
     </div>
   )

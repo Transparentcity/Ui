@@ -22,6 +22,7 @@ import {
   Copy,
 } from "lucide-react"
 import { useAuth0 } from "@auth0/auth0-react"
+import { toast } from "sonner"
 import {
   getFoiaRequest,
   listFoiaMessages,
@@ -51,6 +52,15 @@ import {
   isNarrowingSignal,
 } from "@/lib/foia/followUpWorkflow"
 import { RequestStatusBadge, TaskStatusBadge } from "@/components/foia/status-badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { datasetLabel } from "@/lib/foia/datasetLabels"
 import { formatDistanceToNow, format } from "date-fns"
 import type {
   FoiaRequest,
@@ -135,6 +145,8 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
   const [showEditModal, setShowEditModal] = useState(false)
   const [showSubmitModal, setShowSubmitModal] = useState(false)
   const [submittedDate, setSubmittedDate] = useState(getTodayDateInput())
+  const [statusTransition, setStatusTransition] = useState<{ toStatus: RequestStatus; label: string } | null>(null)
+  const [transitionNotes, setTransitionNotes] = useState("")
 
   const loadData = useCallback(async () => {
     try {
@@ -183,15 +195,17 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
     router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname)
   }
 
-  async function handleStatusChange(toStatus: RequestStatus) {
-    const notes = prompt(`Notes for transition to "${toStatus.replace(/_/g, " ")}":`) ?? undefined
-    setShowStatusMenu(false)
+  async function handleStatusChangeConfirm() {
+    if (!statusTransition) return
     setActionLoading(true)
     try {
-      await updateRequestStatus(parseInt(requestId, 10), toStatus, "admin", notes || undefined)
+      await updateRequestStatus(parseInt(requestId, 10), statusTransition.toStatus, "admin", transitionNotes.trim() || undefined)
+      toast.success(`Status changed to ${statusTransition.label}`)
+      setStatusTransition(null)
+      setTransitionNotes("")
       await loadData()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Status change failed")
+      toast.error(err instanceof Error ? err.message : "Status change failed")
     } finally {
       setActionLoading(false)
     }
@@ -212,7 +226,7 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
         await loadData()
       }
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Rewrite failed")
+      toast.error(err instanceof Error ? err.message : "Rewrite failed")
     } finally {
       setActionLoading(false)
     }
@@ -228,7 +242,7 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
       closeEditModal()
       await loadData()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Update failed")
+      toast.error(err instanceof Error ? err.message : "Update failed")
     }
   }
 
@@ -250,7 +264,7 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
       setShowSubmitModal(false)
       router.push(`/foia/requests/${request.id}?external=1`)
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to mark submitted")
+      toast.error(err instanceof Error ? err.message : "Failed to mark submitted")
     } finally {
       setActionLoading(false)
     }
@@ -299,13 +313,13 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
             <h1 className="text-2xl font-semibold text-gray-900">
               {request.title?.trim()
                 ? request.title
-                : `${request.city?.name ?? "Unknown city"} - ${request.dataset_type_id}`}
+                : `${request.city?.name ?? "Unknown city"} - ${datasetLabel(request.dataset_type_id)}`}
             </h1>
             <RequestStatusBadge status={request.status} />
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-500">
-            <span>{request.city?.name ?? "Unknown city"}</span>
-            <span>{request.dataset_type_id}</span>
+            <Link href={`/foia/cities/${request.city_id}`} className="text-blue-600 hover:underline">{request.city?.name ?? "Unknown city"}</Link>
+            <span>{datasetLabel(request.dataset_type_id)}</span>
             {request.department?.name && <span>Dept: {request.department.name}</span>}
             {request.agency_request_number && <span>Ref: {request.agency_request_number}</span>}
             <span>Version {request.request_version}</span>
@@ -342,6 +356,8 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
               <button
                 onClick={() => setShowStatusMenu(!showStatusMenu)}
                 disabled={actionLoading}
+                aria-expanded={showStatusMenu}
+                aria-haspopup="menu"
                 className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
               >
                 Update Status
@@ -350,11 +366,16 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
               {showStatusMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowStatusMenu(false)} />
-                  <div className="absolute right-0 top-full z-20 mt-1 min-w-[200px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                  <div role="menu" className="absolute right-0 top-full z-20 mt-1 min-w-[200px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
                     {statusActions.map((action) => (
                       <button
                         key={action.to}
-                        onClick={() => handleStatusChange(action.to)}
+                        role="menuitem"
+                        onClick={() => {
+                          setShowStatusMenu(false)
+                          setStatusTransition({ toStatus: action.to, label: action.label })
+                          setTransitionNotes("")
+                        }}
                         className={`flex w-full items-center px-4 py-2 text-left text-sm hover:bg-gray-50 ${
                           action.variant === "destructive"
                             ? "text-red-600"
@@ -401,8 +422,49 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
         saving={actionLoading}
       />
 
+      <Dialog open={statusTransition !== null} onOpenChange={(open) => { if (!open) { setStatusTransition(null); setTransitionNotes("") } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{statusTransition?.label ?? "Update Status"}</DialogTitle>
+            <DialogDescription>Add optional notes for this status transition.</DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <label className="mb-1 block text-xs font-medium text-gray-700">Notes (optional)</label>
+            <textarea
+              value={transitionNotes}
+              onChange={(e) => setTransitionNotes(e.target.value)}
+              rows={3}
+              placeholder="Add any notes about this status change..."
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => { setStatusTransition(null); setTransitionNotes("") }}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleStatusChangeConfirm}
+              disabled={actionLoading}
+              className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+            >
+              {actionLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+              Confirm
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Workflow Progress */}
+      <WorkflowProgress status={request.status as RequestStatus} />
+
       {/* Quick Info Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:grid-cols-4">
         <InfoCard
           label="Submitted"
           value={request.submitted_at ? format(new Date(request.submitted_at), "MMM d, yyyy") : "Not submitted"}
@@ -443,12 +505,32 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
         />
       </div>
 
+      {/* Overdue follow-up banner */}
+      {request.next_followup_at &&
+        new Date(request.next_followup_at) < new Date() &&
+        !["fulfilled", "denied", "closed_incomplete"].includes(request.status) && (
+          <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-sm text-amber-800">
+              Follow-up was due {formatDistanceToNow(new Date(request.next_followup_at), { addSuffix: true })}. Consider sending a follow-up message.
+            </p>
+            <button
+              type="button"
+              onClick={() => setActiveTab("messages")}
+              className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700"
+            >
+              Create Follow-up
+            </button>
+          </div>
+        )}
+
       {/* Tabs */}
       <div className="border-b border-gray-200">
-        <div className="flex gap-0">
+        <div className="flex gap-0" role="tablist" aria-label="Request sections">
           {tabs.map((tab) => (
             <button
               key={tab.id}
+              role="tab"
+              aria-selected={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
                 activeTab === tab.id
@@ -495,6 +577,92 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
         />
       )}
       {activeTab === "events" && <EventsTab events={events} />}
+    </div>
+  )
+}
+
+const WORKFLOW_STEPS = [
+  { label: "Draft", key: "draft" },
+  { label: "Submitted", key: "submitted" },
+  { label: "Acknowledged", key: "acknowledged" },
+  { label: "In Progress", key: "in_progress" },
+  { label: "Fulfilled", key: "fulfilled" },
+] as const
+
+function getWorkflowStep(status: RequestStatus): { step: number; terminated: boolean } {
+  switch (status) {
+    case "draft":
+      return { step: 0, terminated: false }
+    case "submitted":
+    case "submitted_unacknowledged":
+      return { step: 1, terminated: false }
+    case "acknowledged":
+    case "clarification_requested":
+      return { step: 2, terminated: false }
+    case "partially_fulfilled":
+    case "fee_requested":
+    case "extension_claimed":
+      return { step: 3, terminated: false }
+    case "fulfilled":
+      return { step: 4, terminated: false }
+    case "denied":
+    case "closed_incomplete":
+      // Terminated - show at current logical position
+      if (status === "denied") return { step: 2, terminated: true }
+      return { step: 3, terminated: true }
+    default:
+      return { step: 0, terminated: false }
+  }
+}
+
+function WorkflowProgress({ status }: { status: RequestStatus }) {
+  const { step, terminated } = getWorkflowStep(status)
+  return (
+    <div className="flex items-center gap-0">
+      {WORKFLOW_STEPS.map((ws, i) => {
+        const isComplete = i <= step
+        const isCurrent = i === step
+        const isTerminated = isCurrent && terminated
+        return (
+          <React.Fragment key={ws.key}>
+            {i > 0 && (
+              <div
+                className={`h-0.5 flex-1 ${
+                  i <= step ? (isTerminated ? "bg-red-300" : "bg-purple-400") : "bg-gray-200"
+                }`}
+              />
+            )}
+            <div className="flex flex-col items-center gap-1">
+              <div
+                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
+                  isTerminated
+                    ? "bg-red-100 text-red-600 ring-2 ring-red-300"
+                    : isCurrent
+                    ? "bg-purple-600 text-white ring-2 ring-purple-300"
+                    : isComplete
+                    ? "bg-purple-100 text-purple-600"
+                    : "bg-gray-100 text-gray-400"
+                }`}
+              >
+                {isTerminated ? "✕" : i + 1}
+              </div>
+              <span
+                className={`text-[10px] font-medium whitespace-nowrap ${
+                  isTerminated
+                    ? "text-red-600"
+                    : isCurrent
+                    ? "text-purple-600"
+                    : isComplete
+                    ? "text-purple-500"
+                    : "text-gray-400"
+                }`}
+              >
+                {ws.label}
+              </span>
+            </div>
+          </React.Fragment>
+        )
+      })}
     </div>
   )
 }
@@ -610,7 +778,7 @@ function OverviewTab({
       await aiDraftFoiaRequest(request.id, "draft_request")
       await onTaskComplete()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to regenerate letter")
+      toast.error(err instanceof Error ? err.message : "Failed to regenerate letter")
     } finally {
       setRegenerating(false)
     }
@@ -622,7 +790,7 @@ function OverviewTab({
       await completeFoiaTask(taskId)
       await onTaskComplete()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to complete task")
+      toast.error(err instanceof Error ? err.message : "Failed to complete task")
     } finally {
       setCompleting(null)
     }
@@ -630,7 +798,7 @@ function OverviewTab({
 
   async function handleMarkExternallyFiled() {
     if (!externalId.trim()) {
-      alert("Please enter the portal confirmation number")
+      toast.warning("Please enter the portal confirmation number")
       return
     }
     setMarkingExternal(true)
@@ -646,7 +814,7 @@ function OverviewTab({
       setScreenshotUri("")
       await onTaskComplete()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to mark externally filed")
+      toast.error(err instanceof Error ? err.message : "Failed to mark externally filed")
     } finally {
       setMarkingExternal(false)
     }
@@ -657,7 +825,7 @@ function OverviewTab({
       key: "initial-request",
       type: "initial" as const,
       direction: "outbound" as const,
-      subject: request.title?.trim() || `Initial request - ${request.dataset_type_id}`,
+      subject: request.title?.trim() || `Initial request - ${datasetLabel(request.dataset_type_id)}`,
       body: "",
       created_at: request.created_at,
       classification: "initial_request",
@@ -1019,9 +1187,14 @@ function OverviewTab({
                     <button
                       onClick={() => handleComplete(task.id)}
                       disabled={completing === task.id}
-                      className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                      className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
                     >
-                      {completing === task.id ? "..." : "Complete"}
+                      {completing === task.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-3 w-3" />
+                      )}
+                      Complete
                     </button>
                   )}
                 </div>
@@ -1288,9 +1461,10 @@ function EditRequestModal({
               })
             }}
             disabled={saving}
-            className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
           >
-            {saving ? "Saving..." : "Save"}
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save
           </button>
         </div>
       </div>
@@ -1404,7 +1578,7 @@ function MessagesTab({
       )
       await onMessageSent()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to generate narrowed reply")
+      toast.error(err instanceof Error ? err.message : "Failed to generate narrowed reply")
     } finally {
       setSending(false)
     }
@@ -1473,7 +1647,7 @@ function MessagesTab({
       resetForm()
       await onMessageSent()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to save interaction")
+      toast.error(err instanceof Error ? err.message : "Failed to save interaction")
     } finally {
       setSending(false)
     }
@@ -1502,7 +1676,7 @@ function MessagesTab({
       setTimeout(() => setTaskCreatedFor(null), 3000)
       await onMessageSent()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to create task")
+      toast.error(err instanceof Error ? err.message : "Failed to create task")
     } finally {
       setCreatingTask(false)
     }
@@ -1559,8 +1733,9 @@ function MessagesTab({
               type="button"
               onClick={handleGenerateNarrowedReply}
               disabled={sending}
-              className="rounded-lg bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
             >
+              {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
               {sending ? "Generating..." : "Generate narrowed reply"}
             </button>
             <button
@@ -1591,7 +1766,7 @@ function MessagesTab({
 
           <div className="mt-4 flex flex-col gap-4">
             {/* Row 1: Direction + Channel + Classification */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-700">Direction</label>
                 <select
@@ -1641,7 +1816,7 @@ function MessagesTab({
             <div className="rounded-lg border border-gray-200 bg-white p-4">
               <p className="text-xs font-semibold text-gray-900">Contact Person</p>
               <p className="mt-0.5 text-xs text-gray-500">Who sent this or who did you speak with?</p>
-              <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-700">Name</label>
                   <input
@@ -1973,7 +2148,7 @@ function AttachmentsTab({
       onUploaded()
     } catch (err) {
       console.error("Upload failed:", err)
-      alert("Upload failed. Please try again.")
+      toast.error("Upload failed. Please try again.")
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ""

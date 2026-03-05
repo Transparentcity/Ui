@@ -369,18 +369,32 @@ export function WastePageContent() {
       onCategoryChange={handleCategoryChange}
       actions={
         isAnalysisView ? (
-          <Button
-            variant={isManualRefreshing ? "default" : "outline"}
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isManualRefreshing}
-            className={isManualRefreshing ? "bg-blue-600 text-white border-blue-600 cursor-wait" : ""}
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isManualRefreshing ? "animate-spin" : ""}`} />
-            {isManualRefreshing
-              ? `Analyzing… ${analysisProgress.progressPct}%`
-              : "Refresh"}
-          </Button>
+          <div className="flex items-center gap-3">
+            {isManualRefreshing && (
+              <div className="flex items-center gap-2 text-sm text-blue-700">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span className="tabular-nums">{analysisProgress.progressPct}%</span>
+                <div className="w-24 h-1.5 rounded-full bg-blue-100 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-blue-500 transition-all duration-500 ease-out"
+                    style={{ width: `${analysisProgress.progressPct}%` }}
+                  />
+                </div>
+              </div>
+            )}
+            <Button
+              variant={isManualRefreshing ? "default" : "outline"}
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isManualRefreshing}
+              className={isManualRefreshing ? "bg-blue-600 text-white border-blue-600 cursor-wait" : ""}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isManualRefreshing ? "animate-spin" : ""}`} />
+              {isManualRefreshing
+                ? `Analyzing…`
+                : "Refresh"}
+            </Button>
+          </div>
         ) : undefined
       }
     >
@@ -392,92 +406,7 @@ export function WastePageContent() {
         <WasteDetectorAccuracy cityId={selectedCityId} />
       ) : (
         <>
-          {isManualRefreshing && (
-            <div className="mb-6 p-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl shadow-sm">
-              <div className="flex items-center gap-3 mb-3">
-                <RefreshCw className="w-5 h-5 text-blue-600 animate-spin" />
-                <p className="text-base font-semibold text-blue-900">{analysisProgress.step}</p>
-              </div>
-              <div className="h-3 w-full rounded-full bg-blue-100 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500 ease-out"
-                  style={{ width: `${analysisProgress.progressPct}%` }}
-                />
-              </div>
-              <div className="flex items-center justify-between mt-2">
-                <p className="text-sm text-blue-700">
-                  {analysisProgress.etaLabel}
-                </p>
-                <p className="text-sm font-medium text-blue-800 tabular-nums">
-                  {analysisProgress.progressPct}% · {analysisElapsedSeconds}s elapsed
-                </p>
-              </div>
-              {analysisProgress.isLongRunning ? (
-                <p className="text-xs text-blue-600 mt-2">
-                  Taking longer than usual — the backend is still processing. If this exceeds 150s, use Refresh again.
-                </p>
-              ) : null}
-              {refreshTimedOut ? (
-                <p className="text-xs text-amber-700 mt-2 font-medium">
-                  This run is taking longer than expected. We are still waiting for the backend response.
-                </p>
-              ) : null}
-            </div>
-          )}
-
-          {!isManualRefreshing && refreshTimedOut ? (
-            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium text-amber-800">
-                  Last refresh took longer than expected.
-                </p>
-                <p className="text-xs text-amber-700 mt-1">
-                  Showing your most recent snapshot. You can retry now.
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                className="shrink-0 border-amber-300 text-amber-800 hover:bg-amber-100"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Try Again
-              </Button>
-            </div>
-          ) : null}
-
-          {!isManualRefreshing && displayData && !data && (
-            <div className="mb-6 p-5 bg-blue-50 border border-blue-200 rounded-lg flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold text-blue-900">
-                  Showing your previous analysis
-                  {displayData.analysis_timestamp && (
-                    <span className="font-normal text-blue-700">
-                      {" "}from {new Date(displayData.analysis_timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
-                      {" "}({formatAge(displayData.analysis_timestamp)})
-                    </span>
-                  )}
-                </p>
-                <p className="text-xs text-blue-600 mt-1">
-                  {displayData.summary?.total_findings
-                    ? `${displayData.summary.total_findings} findings across ${displayData.summary.categories?.length ?? 0} categories`
-                    : "Run a fresh analysis to check for the latest anomalies"}
-                  {displayData.cached ? " \u00b7 served from server cache" : ""}
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                className="shrink-0 border-blue-300 text-blue-800 hover:bg-blue-100"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Run Fresh Analysis
-              </Button>
-            </div>
-          )}
-
+          {/* Welcome empty state — only when no data at all */}
           {!isManualRefreshing && !displayData && !error && (
             <div className="mb-6 p-6 bg-indigo-50 border border-indigo-200 rounded-lg text-center">
               <p className="text-base font-semibold text-indigo-900">
@@ -498,7 +427,46 @@ export function WastePageContent() {
             </div>
           )}
 
-          {/* Error banner */}
+          {/* Compact status line: cached analysis notice or refresh status */}
+          {!isManualRefreshing && displayData && !data && displayData.analysis_timestamp && (
+            <p className="text-xs text-gray-500 mb-3 flex items-center gap-2 flex-wrap" data-testid="compact-status-line">
+              <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              <span>
+                Analysis from{" "}
+                {new Date(displayData.analysis_timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                {" "}({formatAge(displayData.analysis_timestamp)})
+                {displayData.summary?.total_findings
+                  ? ` · ${displayData.summary.total_findings} findings`
+                  : ""}
+                {displayData.cached ? " · cached" : ""}
+              </span>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                className="text-purple-600 hover:text-purple-700 underline text-xs font-medium"
+              >
+                Refresh
+              </button>
+            </p>
+          )}
+
+          {isManualRefreshing && (
+            <p className="text-xs text-blue-700 mb-3 flex items-center gap-2">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
+              <span>{analysisProgress.step}</span>
+              <span className="tabular-nums text-blue-500">
+                {analysisElapsedSeconds}s
+              </span>
+              {analysisProgress.isLongRunning && (
+                <span className="text-amber-600">— taking longer than usual</span>
+              )}
+            </p>
+          )}
+
+          {/* Zoom 1: Global Stats */}
+          <WasteStatBar summary={displayData?.summary} isLoading={showLoadingState} />
+
+          {/* Error banner — below stat bar */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
@@ -511,9 +479,24 @@ export function WastePageContent() {
             </div>
           )}
 
+          {/* Timeout banner */}
+          {!isManualRefreshing && refreshTimedOut && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between gap-3 text-sm">
+              <span className="text-amber-800">Last refresh timed out. Showing previous snapshot.</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                className="shrink-0 border-amber-300 text-amber-800 hover:bg-amber-100"
+              >
+                Retry
+              </Button>
+            </div>
+          )}
+
           {/* Partial errors from analysis */}
           {displayData?.errors && displayData.errors.length > 0 && (
-            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
               <p className="text-sm font-medium text-amber-800 mb-1">
                 Some detectors encountered issues:
               </p>
@@ -527,9 +510,6 @@ export function WastePageContent() {
           {displayData?.data_freshness && displayData.data_freshness.length > 0 && (
             <DataFreshnessBanner freshness={displayData.data_freshness} />
           )}
-
-          {/* Zoom 1: Global Stats */}
-          <WasteStatBar summary={displayData?.summary} isLoading={showLoadingState} />
 
           {/* Dashboard Widgets (shown on all analysis categories, deferred during refresh) */}
           {isAnalysisView ? (

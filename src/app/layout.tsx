@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { JobWebSocketProvider } from "@/contexts/JobWebSocketContext";
 import { getSiteOrigin } from "@/lib/siteUrl";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
+import { ToasterProvider } from "@/components/providers/toaster-provider";
 
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteOrigin()),
@@ -72,6 +73,7 @@ export default function RootLayout({
         />
       </head>
       <body>
+        <ToasterProvider />
         <GoogleAnalytics />
         <AuthProvider>
           <ThemeProvider>

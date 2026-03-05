@@ -20,10 +20,24 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover"
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command"
 import { Contact, Keyword } from "@/lib/types"
-import { createContact, updateContact } from "@/app/actions/contacts"
-import { X, MapPin } from "lucide-react"
+import { createContact, updateContact, checkDuplicateEmail } from "@/app/actions/contacts"
+import { X, MapPin, Plus } from "lucide-react"
 import { searchPublicCities } from "@/lib/publicApiClient"
+import { toast } from "sonner"
 
 // Pinned cities for quick selection (IDs must match the platform cities table)
 const PINNED_CITIES = [
@@ -52,6 +66,15 @@ export function ContactDialog({ contact, keywords, children }: ContactDialogProp
   )
   const articleUrls =
     (contact as ContactWithKeywords)?.article_links?.map((a) => a.url).join("\n") ?? ""
+
+  // Keyword popover state
+  const [keywordPopoverOpen, setKeywordPopoverOpen] = useState(false)
+
+  // Validation state (#9)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+
+  // Duplicate email detection state (#10)
+  const [emailWarning, setEmailWarning] = useState<string | null>(null)
 
   // City search state
   const [cityQuery, setCityQuery] = useState(contact?.city_name || "")
@@ -106,6 +129,57 @@ export function ContactDialog({ contact, keywords, children }: ContactDialogProp
     setCityResults([])
   }
 
+  // Validation helpers (#9)
+  const validateName = (value: string) => {
+    if (value.trim().length < 2) {
+      setErrors((prev) => ({ ...prev, name: "Name must be at least 2 characters" }))
+    } else {
+      setErrors((prev) => { const { name, ...rest } = prev; return rest })
+    }
+  }
+
+  const validateEmail = (value: string) => {
+    if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      setErrors((prev) => ({ ...prev, email: "Invalid email address" }))
+    } else {
+      setErrors((prev) => { const { email, ...rest } = prev; return rest })
+    }
+  }
+
+  const validatePhone = (value: string) => {
+    if (value) {
+      const digits = value.replace(/\D/g, "")
+      if (digits.length < 7) {
+        setErrors((prev) => ({ ...prev, phone: "Phone must have at least 7 digits" }))
+      } else {
+        setErrors((prev) => { const { phone, ...rest } = prev; return rest })
+      }
+    } else {
+      setErrors((prev) => { const { phone, ...rest } = prev; return rest })
+    }
+  }
+
+  // Duplicate email detection (#10)
+  const handleEmailBlur = async (value: string) => {
+    validateEmail(value)
+    if (!value || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      setEmailWarning(null)
+      return
+    }
+    try {
+      const result = await checkDuplicateEmail(value, contact?.id)
+      if (result.duplicate) {
+        setEmailWarning(`A contact named '${result.name}' already has this email`)
+      } else {
+        setEmailWarning(null)
+      }
+    } catch {
+      setEmailWarning(null)
+    }
+  }
+
+  const hasErrors = Object.keys(errors).length > 0
+
   const handleSubmit = async (formData: FormData) => {
     formData.append("contact_type", contactType)
     formData.append("keywords", JSON.stringify(selectedKeywords))
@@ -123,12 +197,18 @@ export function ContactDialog({ contact, keywords, children }: ContactDialogProp
     )
 
     startTransition(async () => {
-      if (contact) {
-        await updateContact(contact.id, formData)
-      } else {
-        await createContact(formData)
+      try {
+        if (contact) {
+          await updateContact(contact.id, formData)
+          toast.success("Contact updated")
+        } else {
+          await createContact(formData)
+          toast.success("Contact created")
+        }
+        setOpen(false)
+      } catch (err) {
+        toast.error(contact ? "Failed to update contact" : "Failed to create contact")
       }
-      setOpen(false)
     })
   }
 
@@ -149,7 +229,12 @@ export function ContactDialog({ contact, keywords, children }: ContactDialogProp
         <DialogHeader>
           <DialogTitle>{contact ? "Edit Contact" : "Add Contact"}</DialogTitle>
         </DialogHeader>
-        <form action={handleSubmit} className="space-y-6">
+        <form action={handleSubmit} className="space-y-6" onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !isPending && !hasErrors) {
+            e.preventDefault()
+            e.currentTarget.requestSubmit()
+          }
+        }}>
           <div className="space-y-2">
             <Label>Type</Label>
             <Select
@@ -181,7 +266,9 @@ export function ContactDialog({ contact, keywords, children }: ContactDialogProp
                 defaultValue={contact?.name}
                 required
                 placeholder={isMedia ? "Jane Reporter" : "John Smith"}
+                onBlur={(e) => validateName(e.target.value)}
               />
+              {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="title">Title</Label>
@@ -278,7 +365,12 @@ export function ContactDialog({ contact, keywords, children }: ContactDialogProp
                 type="email"
                 defaultValue={contact?.email ?? ""}
                 placeholder="email@example.com"
+                onBlur={(e) => handleEmailBlur(e.target.value)}
               />
+              {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
+              {emailWarning && !errors.email && (
+                <p className="text-xs text-amber-600">{emailWarning}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Phone</Label>
@@ -288,7 +380,9 @@ export function ContactDialog({ contact, keywords, children }: ContactDialogProp
                 type="tel"
                 defaultValue={contact?.phone ?? ""}
                 placeholder="(555) 123-4567"
+                onBlur={(e) => validatePhone(e.target.value)}
               />
+              {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
             </div>
           </div>
 
@@ -397,7 +491,7 @@ export function ContactDialog({ contact, keywords, children }: ContactDialogProp
 
           <div className="space-y-2">
             <Label>Keywords</Label>
-            <div className="flex flex-wrap gap-2 p-3 border border-[var(--border-primary)] rounded-md min-h-[60px] bg-[var(--bg-secondary)]">
+            <div className="flex flex-wrap gap-2 p-3 border border-[var(--border-primary)] rounded-md min-h-[42px] bg-[var(--bg-secondary)]">
               {selectedKeywords.length === 0 ? (
                 <p className="text-sm text-[var(--text-tertiary)]">No keywords selected</p>
               ) : (
@@ -417,20 +511,38 @@ export function ContactDialog({ contact, keywords, children }: ContactDialogProp
                 })
               )}
             </div>
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {keywords
-                .filter((k) => !selectedKeywords.includes(k.id))
-                .map((keyword) => (
-                  <Badge
-                    key={keyword.id}
-                    variant="outline"
-                    className="cursor-pointer hover:bg-[var(--brand-primary)]/10 hover:border-[var(--brand-primary)]/30 hover:text-[var(--brand-primary)]"
-                    onClick={() => toggleKeyword(keyword.id)}
-                  >
-                    + {keyword.name}
-                  </Badge>
-                ))}
-            </div>
+            <Popover open={keywordPopoverOpen} onOpenChange={setKeywordPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button type="button" variant="outline" size="sm" className="gap-1.5">
+                  <Plus className="w-3 h-3" />
+                  Add Keywords
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-0" align="start" portalled={false}>
+                <Command>
+                  <CommandInput placeholder="Search keywords..." />
+                  <CommandList>
+                    <CommandEmpty>No keywords found.</CommandEmpty>
+                    <CommandGroup>
+                      {keywords.map((keyword) => (
+                        <CommandItem
+                          key={keyword.id}
+                          value={keyword.name}
+                          onSelect={() => {
+                            toggleKeyword(keyword.id)
+                          }}
+                        >
+                          <span className="flex-1">{keyword.name}</span>
+                          {selectedKeywords.includes(keyword.id) && (
+                            <span className="text-xs text-purple-600 font-medium">Selected</span>
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {isMedia && (
@@ -461,7 +573,7 @@ export function ContactDialog({ contact, keywords, children }: ContactDialogProp
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending} className="min-w-[120px]">
+            <Button type="submit" disabled={isPending || hasErrors} className="min-w-[120px]">
               {isPending ? "Saving..." : contact ? "Save Changes" : "Add Contact"}
             </Button>
           </div>

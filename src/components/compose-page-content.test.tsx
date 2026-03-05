@@ -17,6 +17,15 @@ import { vi, describe, it, expect, beforeEach, type Mock } from "vitest"
 
 // ---- Mocks ----------------------------------------------------------------
 
+const mockToastSuccess = vi.fn()
+const mockToastError = vi.fn()
+vi.mock("sonner", () => ({
+  toast: {
+    success: (...args: any[]) => mockToastSuccess(...args),
+    error: (...args: any[]) => mockToastError(...args),
+  },
+}))
+
 // Mock Auth0
 const mockGetAccessTokenSilently = vi.fn().mockResolvedValue("test-token")
 vi.mock("@auth0/auth0-react", () => ({
@@ -519,8 +528,9 @@ describe("ComposePageContent", () => {
   // EDGE CASE: API failures & error resilience
   // ===================================================================
 
-  it("handles anomaly fetch failure gracefully (shows empty, no crash)", async () => {
+  it("handles anomaly fetch failure gracefully (shows error, no crash)", async () => {
     const user = userEvent.setup()
+    vi.spyOn(console, "error").mockImplementation(() => {})
     mockFetch.mockRejectedValueOnce(new Error("Network error"))
     renderCompose()
 
@@ -533,12 +543,15 @@ describe("ComposePageContent", () => {
     })
     // Component should still be usable (no crash), no draft shown
     expect(screen.queryByText(COMPOSE_RESPONSE.subject)).not.toBeInTheDocument()
-    // Should show no-anomalies state since fetched anomalies list is empty
-    expect(screen.getByText(/no recent anomalies found/i)).toBeInTheDocument()
+    // Should show error card with retry button
+    expect(screen.getByText(/Failed to fetch anomalies/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument()
+    vi.restoreAllMocks()
   })
 
   it("handles anomaly API returning HTTP 500 gracefully", async () => {
     const user = userEvent.setup()
+    vi.spyOn(console, "error").mockImplementation(() => {})
     mockFetch.mockResolvedValueOnce({ ok: false, status: 500 })
     renderCompose()
 
@@ -548,8 +561,10 @@ describe("ComposePageContent", () => {
     await waitFor(() => {
       expect(screen.queryByText(/finding anomalies/i)).not.toBeInTheDocument()
     })
-    // No crash, component still rendered
-    expect(screen.getByText(/no recent anomalies found/i)).toBeInTheDocument()
+    // No crash, component shows error card
+    expect(screen.getByText(/Failed to fetch anomalies/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument()
+    vi.restoreAllMocks()
   })
 
   it("handles compose/draft generation failure gracefully", async () => {
@@ -854,7 +869,7 @@ describe("ComposePageContent", () => {
   // EDGE CASE: Clipboard failure
   // ===================================================================
 
-  it("does not crash when clipboard write fails", async () => {
+  it("shows error toast when clipboard write fails", async () => {
     const user = userEvent.setup()
     setupHappyPath()
 
@@ -874,13 +889,197 @@ describe("ComposePageContent", () => {
       expect(screen.getByText(COMPOSE_RESPONSE.subject)).toBeInTheDocument()
     })
 
-    // This should not crash the component even though clipboard fails
-    // The handleCopy function doesn't have a try/catch, so it will throw
-    // but the component should survive the unhandled rejection
     const copyBtn = screen.getByRole("button", { name: /copy email/i })
-    await user.click(copyBtn).catch(() => {})
+    await user.click(copyBtn)
 
-    // Component still renders
+    // Should show error toast and component should still be usable
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Failed to copy")
+    })
     expect(screen.getByText(COMPOSE_RESPONSE.subject)).toBeInTheDocument()
+  })
+
+  // ===================================================================
+  // initialContactId auto-select (#11)
+  // ===================================================================
+
+  it("auto-selects contact when initialContactId matches", async () => {
+    setupHappyPath()
+    render(
+      <ComposePageContent
+        contacts={[SF_CONTACT, NO_CITY_CONTACT]}
+        keywords={KEYWORDS}
+        initialContactId="c-1"
+      />
+    )
+
+    // Should skip search and go straight to fetching anomalies for Jane
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled()
+    })
+
+    // Contact should be selected (no search input visible)
+    expect(screen.queryByPlaceholderText(/search contacts/i)).not.toBeInTheDocument()
+    expect(screen.getByText("Jane Smith")).toBeInTheDocument()
+  })
+
+  it("does nothing when initialContactId does not match any contact", () => {
+    render(
+      <ComposePageContent
+        contacts={[SF_CONTACT, NO_CITY_CONTACT]}
+        keywords={KEYWORDS}
+        initialContactId="nonexistent-id"
+      />
+    )
+
+    // Should remain on search screen
+    expect(screen.getByPlaceholderText(/search contacts/i)).toBeInTheDocument()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it("does nothing when initialContactId is null", () => {
+    render(
+      <ComposePageContent
+        contacts={[SF_CONTACT, NO_CITY_CONTACT]}
+        keywords={KEYWORDS}
+        initialContactId={null}
+      />
+    )
+
+    expect(screen.getByPlaceholderText(/search contacts/i)).toBeInTheDocument()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  // ===================================================================
+  // Toast notifications
+  // ===================================================================
+
+  it("shows success toast after draft generation", async () => {
+    const user = userEvent.setup()
+    setupHappyPath()
+    renderCompose()
+
+    await user.click(screen.getByPlaceholderText(/search contacts/i))
+    await user.click(screen.getByText("Jane Smith"))
+
+    await waitFor(() => {
+      expect(screen.getByText(COMPOSE_RESPONSE.subject)).toBeInTheDocument()
+    })
+
+    expect(mockToastSuccess).toHaveBeenCalledWith("Draft generated")
+  })
+
+  it("shows error toast on draft generation failure", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ANOMALIES_RESPONSE,
+      })
+      .mockRejectedValueOnce(new Error("LLM timeout"))
+    renderCompose()
+
+    await user.click(screen.getByPlaceholderText(/search contacts/i))
+    await user.click(screen.getByText("Jane Smith"))
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Failed to generate draft")
+    })
+    vi.restoreAllMocks()
+  })
+
+  it("shows error toast on anomaly fetch failure", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    mockFetch.mockRejectedValueOnce(new Error("Network error"))
+    renderCompose()
+
+    await user.click(screen.getByPlaceholderText(/search contacts/i))
+    await user.click(screen.getByText("Jane Smith"))
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Failed to fetch anomalies")
+    })
+    vi.restoreAllMocks()
+  })
+
+  it("shows success toast on copy", async () => {
+    const user = userEvent.setup()
+    setupHappyPath()
+
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      writable: true,
+      configurable: true,
+    })
+
+    renderCompose()
+    await user.click(screen.getByPlaceholderText(/search contacts/i))
+    await user.click(screen.getByText("Jane Smith"))
+
+    await waitFor(() => {
+      expect(screen.getByText(COMPOSE_RESPONSE.subject)).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("button", { name: /copy email/i }))
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Copied")
+    })
+  })
+
+  // ===================================================================
+  // Retry button (Phase 2)
+  // ===================================================================
+
+  it("shows Retry button after generation failure", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ANOMALIES_RESPONSE,
+      })
+      .mockRejectedValueOnce(new Error("LLM timeout"))
+    renderCompose()
+
+    await user.click(screen.getByPlaceholderText(/search contacts/i))
+    await user.click(screen.getByText("Jane Smith"))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to generate draft/)).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument()
+    })
+    vi.restoreAllMocks()
+  })
+
+  it("retries generation when Retry button is clicked", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ANOMALIES_RESPONSE,
+      })
+      .mockRejectedValueOnce(new Error("LLM timeout"))
+    renderCompose()
+
+    await user.click(screen.getByPlaceholderText(/search contacts/i))
+    await user.click(screen.getByText("Jane Smith"))
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument()
+    })
+
+    // Set up success for retry
+    setupHappyPath()
+    await user.click(screen.getByRole("button", { name: /retry/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(COMPOSE_RESPONSE.subject)).toBeInTheDocument()
+    })
+    vi.restoreAllMocks()
   })
 })
