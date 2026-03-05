@@ -25,9 +25,9 @@ import { createContact, updateContact } from "@/app/actions/contacts"
 import { X, MapPin } from "lucide-react"
 import { searchPublicCities } from "@/lib/publicApiClient"
 
-// Pinned cities for quick selection
+// Pinned cities for quick selection (IDs must match the platform cities table)
 const PINNED_CITIES = [
-  { id: 1, name: "San Francisco", state: "CA" },
+  { id: 57260, name: "San Francisco", state: "CA" },
 ]
 
 interface ContactWithKeywords extends Omit<Contact, "article_links"> {

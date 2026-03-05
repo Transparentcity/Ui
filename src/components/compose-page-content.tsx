@@ -384,7 +384,7 @@ export function ComposePageContent({ contacts, keywords }: ComposePageContentPro
           <CardContent className="p-6 text-center">
             <BarChart3 className="w-8 h-8 mx-auto text-gray-300 mb-3" />
             <p className="text-sm text-gray-500">
-              No recent anomalies found for {selectedContact.city_name || "this city"} in the last 14 days.
+              No recent anomalies found for {selectedContact.city_name || "this city"}.
             </p>
           </CardContent>
         </Card>

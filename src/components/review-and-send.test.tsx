@@ -54,7 +54,7 @@ const PROSPECT: Contact = {
   email: "jane.smith@sfgov.org",
   phone: null,
   jurisdiction: "District 5",
-  city_id: 1,
+  city_id: 57260,
   city_name: "San Francisco",
   priority: 1,
   status: "active",

@@ -63,7 +63,7 @@ const SF_CONTACT: ContactWithKeywords = {
   email: "jane.smith@sfgov.org",
   phone: null,
   jurisdiction: "District 5",
-  city_id: 1,
+  city_id: 57260,
   city_name: "San Francisco",
   priority: 1,
   status: "active",
@@ -109,7 +109,7 @@ const ANOMALIES_RESPONSE = {
     },
   ],
   total: 2,
-  city_id: 1,
+  city_id: 57260,
 }
 
 const COMPOSE_RESPONSE = {
