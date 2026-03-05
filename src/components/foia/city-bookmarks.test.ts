@@ -2,10 +2,21 @@
  * Tests for city selection typeahead and bookmark functionality
  * in the FOIA New Request modal.
  */
+import { beforeEach, describe, expect, it } from "vitest"
 
 // We test the bookmark logic by simulating localStorage
 // (the functions are module-private, so we re-implement the same logic here
 // to validate the contract the component depends on.)
+
+// Provide a working localStorage mock for jsdom
+const store: Record<string, string> = {}
+const localStorageMock = {
+  getItem: (key: string) => store[key] ?? null,
+  setItem: (key: string, value: string) => { store[key] = value },
+  removeItem: (key: string) => { delete store[key] },
+  clear: () => { for (const k of Object.keys(store)) delete store[k] },
+}
+Object.defineProperty(globalThis, "localStorage", { value: localStorageMock })
 
 interface CityOption {
   id: number
