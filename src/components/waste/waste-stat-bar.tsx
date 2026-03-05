@@ -30,7 +30,7 @@ function StatItem({ label, value, subtext, icon, accentColor }: StatItemProps) {
         className="absolute left-0 top-0 bottom-0 w-1"
         style={{ backgroundColor: accentColor }}
       />
-      <CardContent className="p-5 pl-4">
+      <CardContent className="p-3 pl-3">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
             <p className="text-sm font-medium text-muted-foreground">{label}</p>
@@ -54,7 +54,7 @@ interface WasteStatBarProps {
 export function WasteStatBar({ summary, isLoading }: WasteStatBarProps) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         {[...Array(4)].map((_, i) => (
           <Card key={i} className="animate-pulse">
             <CardContent className="p-5">
@@ -69,7 +69,7 @@ export function WasteStatBar({ summary, isLoading }: WasteStatBarProps) {
   const noData = !summary
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
       <StatItem
         label="Total Findings"
         value={noData ? "—" : (summary.total_findings ?? 0)}

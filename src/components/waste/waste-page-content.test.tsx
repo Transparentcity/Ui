@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { vi, describe, it, expect, beforeEach } from "vitest"
@@ -186,17 +187,17 @@ describe("WastePageContent", () => {
     })
     const { container } = render(<WastePageContent />)
     const statBar = container.querySelector("[data-testid='waste-stat-bar']")
-    const errorBanner = screen.getByText("Analysis Error").closest("div.mb-6")
+    const errorBanner = screen.getByText("Analysis Error").closest("div.mb-4")
     // Stat bar should come before error banner in DOM
     expect(statBar).toBeInTheDocument()
     expect(errorBanner).toBeInTheDocument()
     expect(statBar!.compareDocumentPosition(errorBanner!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
-  it("shows welcome empty state when no data or cache exists", () => {
+  it("renders without welcome box when no data or cache exists", () => {
     render(<WastePageContent />)
-    expect(screen.getByText("Welcome to Waste Detection")).toBeInTheDocument()
-    expect(screen.getByText("Run Analysis")).toBeInTheDocument()
+    expect(screen.queryByText("Welcome to Waste Detection")).not.toBeInTheDocument()
+    expect(screen.queryByText("Run Analysis")).not.toBeInTheDocument()
   })
 
   it("renders dashboard widgets when data is available", () => {
@@ -252,7 +253,7 @@ describe("WastePageContent", () => {
     })
     render(<WastePageContent />)
     expect(screen.getByText(/Analyzing/)).toBeInTheDocument()
-    // Welcome state should NOT be shown during analysis
+    // Welcome state was removed — verify it's not present
     expect(screen.queryByText("Welcome to Waste Detection")).not.toBeInTheDocument()
   })
 
@@ -326,11 +327,13 @@ describe("WastePageContent", () => {
     expect(screen.getByText("Retry")).toBeInTheDocument()
   })
 
-  it("calls startJob when Run Analysis button is clicked", async () => {
+  it("calls startJob when Refresh button is clicked", async () => {
     const user = userEvent.setup()
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cachedAnalysis))
     render(<WastePageContent />)
-    const runButton = screen.getByText("Run Analysis")
-    await user.click(runButton)
+    const refreshButtons = screen.getAllByRole("button", { name: /Refresh/ })
+    // Click the header Refresh button (last one, in the actions area)
+    await user.click(refreshButtons[refreshButtons.length - 1])
     expect(mockStartJob).toHaveBeenCalled()
   })
 
