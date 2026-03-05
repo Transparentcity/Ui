@@ -13,6 +13,7 @@ import {
   RefreshCw,
 } from "lucide-react"
 import { useAuth0 } from "@auth0/auth0-react"
+import { toast } from "sonner"
 import {
   listDatasetInstances,
   listFoiaRequests,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/foiaApiClient"
 import { uploadFoiaFile, rewriteFoiaRequest } from "@/app/actions/foia"
 import { API_BASE } from "@/lib/apiBase"
+import { datasetLabel } from "@/lib/foia/datasetLabels"
 import type { DatasetInstance, DatasetInstanceStatus, FoiaRequest } from "@/lib/foia/types"
 
 const statusConfig: Record<string, { label: string; color: string }> = {
@@ -99,7 +101,7 @@ export function DataReviewContent() {
       )
       await load()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to update status")
+      toast.error(err instanceof Error ? err.message : "Failed to update status")
     } finally {
       setActionLoading(null)
     }
@@ -218,7 +220,7 @@ export function DataReviewContent() {
                 actionLoading={actionLoading === inst.id}
                 onCreateRevisedRequest={() => {
                   if (!inst.request_id) {
-                    alert("No linked request to revise")
+                    toast.warning("No linked request to revise")
                     return
                   }
                   setActionLoading(inst.id)
@@ -231,7 +233,7 @@ export function DataReviewContent() {
                       else load()
                     })
                     .catch((err) =>
-                      alert(err instanceof Error ? err.message : "Failed to create revised request")
+                      toast.error(err instanceof Error ? err.message : "Failed to create revised request")
                     )
                     .finally(() => setActionLoading(null))
                 }}
@@ -278,7 +280,7 @@ function UploadSection({
       return
     const req = requests.find((r) => r.id === selectedRequestId)
     if (!req) {
-      alert("Selected request not found")
+      toast.warning("Selected request not found")
       return
     }
     let token: string | undefined
@@ -309,7 +311,7 @@ function UploadSection({
       }
       onUploaded()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Upload failed")
+      toast.error(err instanceof Error ? err.message : "Upload failed")
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
@@ -338,7 +340,7 @@ function UploadSection({
           <option value="">Select a request...</option>
           {requests.map((r) => (
             <option key={r.id} value={r.id}>
-              #{r.id} – {r.city?.name ?? `City ${r.city_id}`} – {r.dataset_type_id}
+              #{r.id} – {r.city?.name ?? `City ${r.city_id}`} – {datasetLabel(r.dataset_type_id)}
             </option>
           ))}
         </select>
@@ -498,7 +500,7 @@ function DataInstanceRow({
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-gray-900">
-            {instance.city?.name ?? `City #${instance.city_id}`} – {instance.dataset_type_id}
+            {instance.city?.name ?? `City #${instance.city_id}`} – {datasetLabel(instance.dataset_type_id)}
           </p>
           <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-gray-500">
             {instance.row_count != null && (

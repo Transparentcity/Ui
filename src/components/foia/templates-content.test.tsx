@@ -75,7 +75,7 @@ describe("TemplatesContent", () => {
     await waitFor(() => {
       expect(screen.getByText("CPRA Standard Request")).toBeInTheDocument()
     })
-    expect(screen.getByText(/police_incidents/)).toBeInTheDocument()
+    expect(screen.getByText(/Dataset: Police Incidents/)).toBeInTheDocument()
   })
 
   it("shows error banner when API fails", async () => {
@@ -99,55 +99,51 @@ describe("TemplatesContent", () => {
   // Delete button
   // -------------------------------------------------------------------------
 
-  it("shows spinner on delete button while deleting", async () => {
-    mockListFoiaTemplates.mockResolvedValue([makeTemplate({ id: 5 })])
-    // Make delete hang so we can observe spinner
-    mockDeleteFoiaTemplate.mockReturnValue(new Promise(() => {}))
-    vi.spyOn(window, "confirm").mockReturnValue(true)
-
-    render(<TemplatesContent />)
-    await waitFor(() => {
-      expect(screen.getByText("CPRA Standard Request")).toBeInTheDocument()
-    })
-
-    const deleteBtn = screen.getByTitle("Delete")
-    fireEvent.click(deleteBtn)
-
-    await waitFor(() => {
-      expect(deleteBtn).toBeDisabled()
-      const spinner = deleteBtn.querySelector(".animate-spin")
-      expect(spinner).toBeInTheDocument()
-    })
-  })
-
-  it("does not delete when confirm is cancelled", async () => {
-    mockListFoiaTemplates.mockResolvedValue([makeTemplate({ id: 5 })])
-    vi.spyOn(window, "confirm").mockReturnValue(false)
-
-    render(<TemplatesContent />)
-    await waitFor(() => {
-      expect(screen.getByText("CPRA Standard Request")).toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByTitle("Delete"))
-    expect(mockDeleteFoiaTemplate).not.toHaveBeenCalled()
-  })
-
-  it("calls delete API with correct template id", async () => {
+  it("shows confirm dialog and deletes when confirmed", async () => {
     mockListFoiaTemplates.mockResolvedValue([makeTemplate({ id: 5 })])
     mockDeleteFoiaTemplate.mockResolvedValue(undefined)
-    vi.spyOn(window, "confirm").mockReturnValue(true)
 
     render(<TemplatesContent />)
     await waitFor(() => {
       expect(screen.getByText("CPRA Standard Request")).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByTitle("Delete"))
+    // Click delete to open confirm dialog
+    fireEvent.click(screen.getByLabelText("Delete template"))
+
+    // Dialog should appear
+    await waitFor(() => {
+      expect(screen.getByText("Delete template")).toBeInTheDocument()
+      expect(screen.getByText(/permanently removed/)).toBeInTheDocument()
+    })
+
+    // Click the Delete button in the dialog
+    fireEvent.click(screen.getByRole("button", { name: /^Delete$/i }))
 
     await waitFor(() => {
       expect(mockDeleteFoiaTemplate).toHaveBeenCalledWith(5, undefined)
     })
+  })
+
+  it("does not delete when confirm dialog is cancelled", async () => {
+    mockListFoiaTemplates.mockResolvedValue([makeTemplate({ id: 5 })])
+
+    render(<TemplatesContent />)
+    await waitFor(() => {
+      expect(screen.getByText("CPRA Standard Request")).toBeInTheDocument()
+    })
+
+    // Click delete to open confirm dialog
+    fireEvent.click(screen.getByLabelText("Delete template"))
+
+    await waitFor(() => {
+      expect(screen.getByText("Delete template")).toBeInTheDocument()
+    })
+
+    // Click Cancel
+    fireEvent.click(screen.getByRole("button", { name: /Cancel/i }))
+
+    expect(mockDeleteFoiaTemplate).not.toHaveBeenCalled()
   })
 
   // -------------------------------------------------------------------------
@@ -182,10 +178,50 @@ describe("TemplatesContent", () => {
       expect(screen.getByText("CPRA Standard Request")).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByTitle("Edit"))
+    fireEvent.click(screen.getByLabelText("Edit template"))
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Save Changes/i })).toBeInTheDocument()
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Accessibility — aria-label on icon buttons
+  // -------------------------------------------------------------------------
+
+  it("has aria-label on Edit and Delete icon buttons", async () => {
+    mockListFoiaTemplates.mockResolvedValue([makeTemplate()])
+    render(<TemplatesContent />)
+    await waitFor(() => {
+      expect(screen.getByText("CPRA Standard Request")).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText("Edit template")).toBeInTheDocument()
+    expect(screen.getByLabelText("Delete template")).toBeInTheDocument()
+  })
+
+  // -------------------------------------------------------------------------
+  // Dataset label formatting
+  // -------------------------------------------------------------------------
+
+  it("displays human-readable dataset label instead of raw ID", async () => {
+    mockListFoiaTemplates.mockResolvedValue([
+      makeTemplate({ dataset_type_id: "use_of_force" }),
+    ])
+    render(<TemplatesContent />)
+    await waitFor(() => {
+      expect(screen.getByText(/Dataset: Use of Force/)).toBeInTheDocument()
+    })
+    // Raw ID should not appear
+    expect(screen.queryByText("use_of_force")).not.toBeInTheDocument()
+  })
+
+  it("falls back to title-cased label for unknown dataset types", async () => {
+    mockListFoiaTemplates.mockResolvedValue([
+      makeTemplate({ dataset_type_id: "fire_calls" }),
+    ])
+    render(<TemplatesContent />)
+    await waitFor(() => {
+      expect(screen.getByText(/Dataset: Fire Calls/)).toBeInTheDocument()
     })
   })
 })

@@ -283,6 +283,29 @@ export async function bulkUpdateType(
   return { updated, errors }
 }
 
+/** Check if an email already exists in the prospects table. */
+export async function checkDuplicateEmail(
+  email: string,
+  excludeId?: string
+): Promise<{ duplicate: boolean; name?: string }> {
+  if (!email?.trim()) return { duplicate: false }
+  const db = createClient()
+  let query = db
+    .from("prospects")
+    .select("id, name")
+    .ilike("email", email.trim())
+    .limit(1)
+  if (excludeId) {
+    query = query.neq("id", excludeId)
+  }
+  const { data } = await query
+  const rows = Array.isArray(data) ? data : []
+  if (rows.length > 0) {
+    return { duplicate: true, name: (rows[0] as { name: string }).name }
+  }
+  return { duplicate: false }
+}
+
 /** Lightweight list for pickers/typeaheads (client-side filtering). */
 export async function listActiveContactsLite(): Promise<
   Array<{

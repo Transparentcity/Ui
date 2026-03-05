@@ -187,24 +187,35 @@ describe("TasksContent", () => {
     expect(screen.queryByRole("button", { name: /^Assign$/i })).not.toBeInTheDocument()
   })
 
-  it("shows spinner on Assign button while assigning", async () => {
+  it("opens assign dialog and calls API when submitted", async () => {
     const task = makeTask({ id: 3, assigned_to: null })
     mockListFoiaTasks.mockResolvedValue([task])
-    mockAssignFoiaTask.mockReturnValue(new Promise(() => {}))
-    vi.spyOn(window, "prompt").mockReturnValue("admin")
+    mockAssignFoiaTask.mockResolvedValue({})
 
     render(<TasksContent />)
     await waitFor(() => {
       expect(screen.getByText("Review Oakland data")).toBeInTheDocument()
     })
 
-    const assignBtn = screen.getByRole("button", { name: /^Assign$/i })
-    fireEvent.click(assignBtn)
+    // Click Assign to open dialog
+    fireEvent.click(screen.getByRole("button", { name: /^Assign$/i }))
+
+    // Dialog should appear
+    await waitFor(() => {
+      expect(screen.getByText("Assign Task")).toBeInTheDocument()
+    })
+
+    // Type username
+    const input = screen.getByPlaceholderText("e.g. admin")
+    fireEvent.change(input, { target: { value: "admin" } })
+
+    // Click the dialog Assign button (not the row one)
+    const dialogBtns = screen.getAllByRole("button", { name: /^Assign$/i })
+    const dialogAssignBtn = dialogBtns.find((b) => b.className.includes("purple"))!
+    fireEvent.click(dialogAssignBtn)
 
     await waitFor(() => {
-      expect(assignBtn).toBeDisabled()
-      const spinner = assignBtn.querySelector(".animate-spin")
-      expect(spinner).toBeInTheDocument()
+      expect(mockAssignFoiaTask).toHaveBeenCalledWith(3, "admin")
     })
   })
 
@@ -314,5 +325,109 @@ describe("TasksContent", () => {
     })
     expect(findCompleteActionButton()).toBeNull()
     expect(screen.queryByRole("button", { name: /^Assign$/i })).not.toBeInTheDocument()
+  })
+
+  // -------------------------------------------------------------------------
+  // Accessibility — ARIA tablist / tab roles on filters
+  // -------------------------------------------------------------------------
+
+  it("filter buttons have tablist and tab roles", async () => {
+    mockListFoiaTasks.mockResolvedValue([])
+    render(<TasksContent />)
+    await waitFor(() => {
+      expect(screen.getByText("All")).toBeInTheDocument()
+    })
+
+    const tablist = screen.getByRole("tablist", { name: /filter tasks/i })
+    expect(tablist).toBeInTheDocument()
+
+    const tabs = within(tablist).getAllByRole("tab")
+    expect(tabs.length).toBe(6) // All, Pending, Assigned, In Progress, Completed, Cancelled
+  })
+
+  it("marks the active filter tab with aria-selected", async () => {
+    mockListFoiaTasks.mockResolvedValue([])
+    render(<TasksContent />)
+    await waitFor(() => {
+      expect(screen.getByText("All")).toBeInTheDocument()
+    })
+
+    // "All" should be selected initially
+    const allTab = screen.getByRole("tab", { name: "All" })
+    expect(allTab).toHaveAttribute("aria-selected", "true")
+
+    // Click Pending
+    const pendingTab = screen.getByRole("tab", { name: "Pending" })
+    expect(pendingTab).toHaveAttribute("aria-selected", "false")
+    fireEvent.click(pendingTab)
+
+    await waitFor(() => {
+      expect(pendingTab).toHaveAttribute("aria-selected", "true")
+      expect(allTab).toHaveAttribute("aria-selected", "false")
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Assign dialog — cancel
+  // -------------------------------------------------------------------------
+
+  it("closes assign dialog when Cancel is clicked without calling API", async () => {
+    mockListFoiaTasks.mockResolvedValue([makeTask({ id: 3, assigned_to: null })])
+    render(<TasksContent />)
+    await waitFor(() => {
+      expect(screen.getByText("Review Oakland data")).toBeInTheDocument()
+    })
+
+    // Open assign dialog
+    fireEvent.click(screen.getByRole("button", { name: /^Assign$/i }))
+    await waitFor(() => {
+      expect(screen.getByText("Assign Task")).toBeInTheDocument()
+    })
+
+    // Click Cancel in the dialog
+    fireEvent.click(screen.getByRole("button", { name: /Cancel/i }))
+
+    await waitFor(() => {
+      expect(screen.queryByText("Assign Task")).not.toBeInTheDocument()
+    })
+    expect(mockAssignFoiaTask).not.toHaveBeenCalled()
+  })
+
+  it("disables dialog Assign button when input is empty", async () => {
+    mockListFoiaTasks.mockResolvedValue([makeTask({ id: 3, assigned_to: null })])
+    render(<TasksContent />)
+    await waitFor(() => {
+      expect(screen.getByText("Review Oakland data")).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: /^Assign$/i }))
+    await waitFor(() => {
+      expect(screen.getByText("Assign Task")).toBeInTheDocument()
+    })
+
+    // The dialog Assign button (purple) should be disabled when input is empty
+    const dialogBtns = screen.getAllByRole("button", { name: /^Assign$/i })
+    const dialogAssignBtn = dialogBtns.find((b) => b.className.includes("purple"))!
+    expect(dialogAssignBtn).toBeDisabled()
+  })
+
+  // -------------------------------------------------------------------------
+  // Mobile responsive grid
+  // -------------------------------------------------------------------------
+
+  it("new task form grid has mobile-first responsive classes", async () => {
+    mockListFoiaTasks.mockResolvedValue([])
+    render(<TasksContent />)
+    await waitFor(() => {
+      expect(screen.getByText("No tasks match your filter.")).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: /New Task/i }))
+
+    // The grid containing Task Type and Assign To should have responsive classes
+    const taskTypeLabel = screen.getByText("Task Type")
+    const grid = taskTypeLabel.closest(".grid")
+    expect(grid?.className).toContain("grid-cols-1")
+    expect(grid?.className).toContain("sm:grid-cols-2")
   })
 })

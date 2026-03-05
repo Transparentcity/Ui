@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useCallback, useEffect, useMemo } from "react"
+import { useState, useTransition, useCallback, useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth0 } from "@auth0/auth0-react"
 import { Card, CardContent } from "@/components/ui/card"
@@ -50,6 +50,12 @@ import {
   Square,
   Search,
 } from "lucide-react"
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip"
 import type { SendQueueItem, Contact } from "@/lib/types"
 import {
   updateQueueItemContent,
@@ -358,15 +364,22 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
     () => items.filter((i) => i.status === "pending_review"),
     [items]
   )
+
+  // Filtered pending items: the subset of filteredItems that are pending
+  const filteredPendingItems = useMemo(
+    () => filteredItems.filter((i) => i.status === "pending_review"),
+    [filteredItems]
+  )
+
   const allPendingSelected =
-    pendingItems.length > 0 && pendingItems.every((i) => selectedIds.has(i.id))
+    filteredPendingItems.length > 0 && filteredPendingItems.every((i) => selectedIds.has(i.id))
   const somePendingSelected = selectedIds.size > 0
 
   const toggleSelectAll = () => {
     if (allPendingSelected) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(pendingItems.map((i) => i.id)))
+      setSelectedIds(new Set(filteredPendingItems.map((i) => i.id)))
     }
   }
 
@@ -431,6 +444,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   ]
 
   return (
+    <TooltipProvider>
     <div className="space-y-4">
       {/* Tabs + Generate button */}
       <div className="flex items-center justify-between border-b border-gray-200 pb-0">
@@ -495,14 +509,27 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
       )}
 
       {/* Search bar */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Search drafts..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9"
-        />
+      <div className="flex items-center gap-3">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search drafts..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        {searchQuery && (
+          <p className="text-sm text-muted-foreground" data-testid="search-count">
+            Showing {filteredItems.length} of{" "}
+            {activeTab === "pending"
+              ? pendingCount
+              : activeTab === "sent"
+                ? sentCount
+                : items.length}{" "}
+            drafts
+          </p>
+        )}
       </div>
 
       {/* Generate result banner */}
@@ -516,7 +543,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
       )}
 
       {/* Bulk action toolbar (pending tab only) */}
-      {activeTab === "pending" && pendingItems.length > 0 && (
+      {activeTab === "pending" && filteredPendingItems.length > 0 && (
         <div className="flex items-center gap-3 px-1">
           <button
             onClick={toggleSelectAll}
@@ -527,7 +554,11 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
             ) : (
               <Square className="w-4 h-4" />
             )}
-            {allPendingSelected ? "Deselect all" : "Select all"}
+            {allPendingSelected
+              ? "Deselect all"
+              : searchQuery
+                ? `Select all ${filteredPendingItems.length}`
+                : "Select all"}
           </button>
           {somePendingSelected && (
             <>
@@ -665,9 +696,16 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                   {/* Subject line */}
                   <div className="flex items-center gap-2">
                     <Mail className="w-4 h-4 text-gray-400 shrink-0" />
-                    <p className="font-medium text-gray-900 truncate">
-                      {item.personalized_subject || "(No subject)"}
-                    </p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <p className="font-medium text-gray-900 truncate">
+                          {item.personalized_subject || "(No subject)"}
+                        </p>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-sm">{item.personalized_subject || "(No subject)"}</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
 
                   {/* Body preview / expanded */}
@@ -1044,5 +1082,6 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </TooltipProvider>
   )
 }

@@ -36,9 +36,26 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
 
   const { data: keywordsData } = await db.from("keywords").select("*").order("name")
 
+  // Fetch send_queue counts grouped by prospect_id and status
+  const { data: draftCountsData } = await db
+    .from("send_queue")
+    .select("prospect_id, status")
+
   const contacts = Array.isArray(contactsData) ? contactsData : []
   const articleLinks = Array.isArray(articleLinksData) ? articleLinksData : []
   const keywords = Array.isArray(keywordsData) ? keywordsData : []
+  const draftRows = Array.isArray(draftCountsData) ? draftCountsData : []
+
+  // Build draft counts map: prospect_id -> { pending, sent }
+  const draftCountsMap = new Map<string, { pending: number; sent: number }>()
+  for (const row of draftRows) {
+    const pid = (row as { prospect_id: string }).prospect_id
+    const status = (row as { status: string }).status
+    const entry = draftCountsMap.get(pid) ?? { pending: 0, sent: 0 }
+    if (status === "pending_review") entry.pending++
+    else if (status === "sent") entry.sent++
+    draftCountsMap.set(pid, entry)
+  }
 
   const linksByProspect = new Map<string, (typeof articleLinks)[number][]>()
   for (const a of articleLinks) {
@@ -56,6 +73,7 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
         (ck) => ck.keyword
       ) ?? [],
     article_links: linksByProspect.get(contact.id as string) ?? [],
+    draftCounts: draftCountsMap.get(contact.id as string) ?? undefined,
   }))
 
   return (

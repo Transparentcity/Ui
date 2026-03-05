@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useCallback, useEffect } from "react"
+import { useState, useTransition, useCallback, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import {
   Table,
@@ -58,8 +58,21 @@ import {
   ArrowUpDown,
   Tag,
   Users,
+  ChevronsLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRight,
+  Sparkles,
+  History,
 } from "lucide-react"
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip"
 import { deleteContact, bulkUpdateCity, bulkAddKeywords, bulkUpdateType } from "@/app/actions/contacts"
+import { ContactActivityTimeline } from "./contact-activity-timeline"
 import { searchPublicCities, type PublicCitySearchResult } from "@/lib/publicApiClient"
 
 const PINNED_CITIES: PublicCitySearchResult[] = [
@@ -78,6 +91,7 @@ function getArticleLabel(url: string, title: string | null): string {
 interface ContactWithKeywords extends Omit<Contact, "article_links"> {
   keywords?: Keyword[]
   article_links?: Array<{ id: string; url: string; title?: string | null }>
+  draftCounts?: { pending: number; sent: number }
 }
 
 interface ContactsTableProps {
@@ -158,6 +172,9 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
   const [sortDir, setSortDir] = useState<SortDir>("asc")
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [cityFilter, setCityFilter] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 25
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -170,6 +187,10 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
 
   const filteredContacts = contacts.filter((contact) => {
     if (typeFilter !== "all" && (contact.contact_type as string) !== typeFilter) return false
+    if (cityFilter) {
+      const contactCity = contact.city_name || (contact.city_id ? `City #${contact.city_id}` : 'No city')
+      if (contactCity !== cityFilter) return false
+    }
     const search = searchQuery.toLowerCase()
     const c = contact as ContactWithKeywords
     return (
@@ -208,14 +229,26 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
       })
     : filteredContacts
 
-  const allSelected = sortedContacts.length > 0 && sortedContacts.every(c => selectedIds.has(c.id))
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(sortedContacts.length / pageSize))
+  const paginatedContacts = useMemo(
+    () => sortedContacts.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [sortedContacts, currentPage, pageSize]
+  )
+
+  // Reset page on filter/search/sort changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, typeFilter, cityFilter, sortKey, sortDir])
+
+  const allSelected = paginatedContacts.length > 0 && paginatedContacts.every(c => selectedIds.has(c.id))
   const someSelected = selectedIds.size > 0
 
   const toggleAll = () => {
     if (allSelected) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(sortedContacts.map(c => c.id)))
+      setSelectedIds(new Set(paginatedContacts.map(c => c.id)))
     }
   }
 
@@ -408,7 +441,12 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
             <Badge
               key={city}
               variant="outline"
-              className={`text-xs ${city === 'No city' ? 'border-amber-300 text-amber-700 bg-amber-50' : ''}`}
+              className={`text-xs cursor-pointer transition-all ${
+                cityFilter === city
+                  ? 'ring-2 ring-purple-500'
+                  : ''
+              } ${city === 'No city' ? 'border-amber-300 text-amber-700 bg-amber-50' : ''}`}
+              onClick={() => setCityFilter(prev => prev === city ? null : city)}
             >
               <MapPin className="w-3 h-3 mr-1" />
               {city}: {count}
@@ -624,16 +662,16 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedContacts.length === 0 ? (
+              {paginatedContacts.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
-                    {searchQuery || typeFilter !== "all"
+                    {searchQuery || typeFilter !== "all" || cityFilter
                       ? "No contacts found"
                       : "No contacts yet. Add your first contact to get started."}
                   </TableCell>
                 </TableRow>
               ) : (
-                sortedContacts.map((contact) => {
+                paginatedContacts.map((contact) => {
                   const isMedia = (contact.contact_type as string) === "media"
                   return (
                     <TableRow
@@ -657,7 +695,19 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{contact.name}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-medium">{contact.name}</p>
+                            {contact.draftCounts?.pending ? (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 bg-amber-50 text-amber-700 border-amber-200">
+                                {contact.draftCounts.pending} draft{contact.draftCounts.pending !== 1 ? 's' : ''}
+                              </Badge>
+                            ) : null}
+                            {contact.draftCounts?.sent ? (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 bg-green-50 text-green-700 border-green-200">
+                                {contact.draftCounts.sent} sent
+                              </Badge>
+                            ) : null}
+                          </div>
                           {contact.title && (
                             <p className="text-xs text-muted-foreground">{contact.title}</p>
                           )}
@@ -792,6 +842,34 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
                                 Edit
                               </DropdownMenuItem>
                             </ContactDialog>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div>
+                                    <DropdownMenuItem
+                                      disabled={!contact.city_id}
+                                      onSelect={() => {
+                                        router.push(`/compose?contactId=${contact.id}`)
+                                      }}
+                                    >
+                                      <Sparkles className="w-4 h-4 mr-2" />
+                                      Generate Draft
+                                    </DropdownMenuItem>
+                                  </div>
+                                </TooltipTrigger>
+                                {!contact.city_id && (
+                                  <TooltipContent>
+                                    <p>Assign a city to enable draft generation</p>
+                                  </TooltipContent>
+                                )}
+                              </Tooltip>
+                            </TooltipProvider>
+                            <ContactActivityTimeline contactId={contact.id} contactName={contact.name}>
+                              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                <History className="w-4 h-4 mr-2" />
+                                Activity
+                              </DropdownMenuItem>
+                            </ContactActivityTimeline>
                             <DropdownMenuItem
                               className="text-destructive"
                               disabled={deletingId === contact.id}
@@ -818,6 +896,53 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
           </Table>
         </CardContent>
       </Card>
+
+      {/* Pagination controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-2" data-testid="pagination-controls">
+          <p className="text-sm text-muted-foreground">
+            Page {currentPage} of {totalPages} ({sortedContacts.length} contacts)
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+            >
+              <ChevronsLeft className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronsRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null) }}>

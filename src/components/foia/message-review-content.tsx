@@ -23,6 +23,7 @@ import {
   AlertTriangle,
 } from "lucide-react"
 import { useAuth0 } from "@auth0/auth0-react"
+import { toast } from "sonner"
 import {
   listFoiaTasks,
   listFoiaMessages,
@@ -38,6 +39,7 @@ import {
   getFollowUpTaskSpec,
 } from "@/lib/foia/followUpWorkflow"
 import { TaskStatusBadge, RequestStatusBadge } from "@/components/foia/status-badge"
+import { datasetLabel } from "@/lib/foia/datasetLabels"
 import type { FoiaTask, FoiaRequest, FoiaMessage } from "@/lib/foia/types"
 import { formatDistanceToNow, format } from "date-fns"
 
@@ -398,7 +400,7 @@ export function FollowUpsContent() {
       )}
 
       {/* Filter tabs */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter by intent">
         {FILTER_TABS.map((tab) => {
           const count = counts[tab.id] ?? 0
           if (tab.id !== "all" && count === 0) return null
@@ -406,6 +408,8 @@ export function FollowUpsContent() {
           return (
             <button
               key={tab.id}
+              role="tab"
+              aria-selected={active}
               onClick={() => setActiveFilter(tab.id)}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
                 active
@@ -556,7 +560,7 @@ function FollowUpCard({
       await completeFoiaTask(task.id)
       await onRefresh()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to complete task")
+      toast.error(err instanceof Error ? err.message : "Failed to complete task")
     } finally {
       setCompleting(false)
     }
@@ -569,7 +573,7 @@ function FollowUpCard({
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      alert("Failed to copy to clipboard")
+      toast.error("Failed to copy to clipboard")
     }
   }
 
@@ -598,7 +602,7 @@ function FollowUpCard({
           <div className="mt-0.5 flex items-center gap-3 text-xs text-gray-500">
             {request && (
               <span className="truncate">
-                {request.city?.name ?? `City #${request.city_id}`} &middot; {request.dataset_type_id}
+                {request.city?.name ?? `City #${request.city_id}`} &middot; {datasetLabel(request.dataset_type_id)}
               </span>
             )}
             {task.due_at && (
@@ -896,6 +900,7 @@ function NewFollowUpForm({
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null)
   const [showRequestDropdown, setShowRequestDropdown] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(20)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const [form, setForm] = useState({
@@ -980,11 +985,11 @@ function NewFollowUpForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedRequestId) {
-      alert("Please select a request")
+      toast.warning("Please select a request")
       return
     }
     if (!form.email_snippet && !form.body && !form.notes) {
-      alert("Please provide at least a key quote, full message body, or notes describing the follow-up")
+      toast.warning("Please provide at least a key quote, full message body, or notes describing the follow-up")
       return
     }
 
@@ -1055,7 +1060,7 @@ function NewFollowUpForm({
 
       await onCreated()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to create follow-up")
+      toast.error(err instanceof Error ? err.message : "Failed to create follow-up")
     } finally {
       setSaving(false)
     }
@@ -1086,10 +1091,10 @@ function NewFollowUpForm({
                   <p className="text-sm font-medium text-gray-900 truncate">
                     #{selectedRequest.id} &middot;{" "}
                     {selectedRequest.title?.trim() ||
-                      `${selectedRequest.city?.name ?? `City #${selectedRequest.city_id}`} - ${selectedRequest.dataset_type_id}`}
+                      `${selectedRequest.city?.name ?? `City #${selectedRequest.city_id}`} - ${datasetLabel(selectedRequest.dataset_type_id)}`}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {selectedRequest.city?.name} &middot; {selectedRequest.dataset_type_id} &middot;{" "}
+                    {selectedRequest.city?.name} &middot; {datasetLabel(selectedRequest.dataset_type_id)} &middot;{" "}
                     <RequestStatusBadge status={selectedRequest.status} />
                   </p>
                 </div>
@@ -1114,10 +1119,14 @@ function NewFollowUpForm({
                     onChange={(e) => {
                       setSearchQuery(e.target.value)
                       setShowRequestDropdown(true)
+                      setVisibleCount(20)
                     }}
                     onFocus={() => setShowRequestDropdown(true)}
                     placeholder={loadingRequests ? "Loading requests..." : "Search by city, dataset, request #, or title..."}
                     disabled={loadingRequests}
+                    role="combobox"
+                    aria-expanded={showRequestDropdown}
+                    aria-autocomplete="list"
                     className="w-full rounded-lg border border-gray-200 pl-9 pr-3 py-2.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-50 disabled:text-gray-400"
                   />
                   {loadingRequests && (
@@ -1126,16 +1135,17 @@ function NewFollowUpForm({
                 </div>
 
                 {showRequestDropdown && !loadingRequests && (
-                  <div className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                  <div role="listbox" className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
                     {filteredRequests.length === 0 ? (
                       <p className="px-4 py-3 text-xs text-gray-400">
                         {searchQuery ? "No matching requests" : "No open requests"}
                       </p>
                     ) : (
-                      filteredRequests.slice(0, 20).map((r) => (
+                      filteredRequests.slice(0, visibleCount).map((r) => (
                         <button
                           key={r.id}
                           type="button"
+                          role="option"
                           onClick={() => {
                             setSelectedRequestId(r.id)
                             setShowRequestDropdown(false)
@@ -1146,19 +1156,23 @@ function NewFollowUpForm({
                           <span className="text-sm font-medium text-gray-900 truncate">
                             #{r.id} &middot;{" "}
                             {r.title?.trim() ||
-                              `${r.city?.name ?? `City #${r.city_id}`} - ${r.dataset_type_id}`}
+                              `${r.city?.name ?? `City #${r.city_id}`} - ${datasetLabel(r.dataset_type_id)}`}
                           </span>
                           <span className="mt-0.5 text-xs text-gray-500">
-                            {r.city?.name} &middot; {r.dataset_type_id} &middot; {r.status.replace(/_/g, " ")}
+                            {r.city?.name} &middot; {datasetLabel(r.dataset_type_id)} &middot; {r.status.replace(/_/g, " ")}
                             {r.agency_request_number ? ` · Ref: ${r.agency_request_number}` : ""}
                           </span>
                         </button>
                       ))
                     )}
-                    {filteredRequests.length > 20 && (
-                      <p className="px-4 py-2 text-xs text-gray-400">
-                        + {filteredRequests.length - 20} more — refine your search
-                      </p>
+                    {filteredRequests.length > visibleCount && (
+                      <button
+                        type="button"
+                        onClick={() => setVisibleCount((c) => c + 20)}
+                        className="w-full px-4 py-2 text-xs font-medium text-purple-600 hover:bg-purple-50"
+                      >
+                        Show more ({filteredRequests.length - visibleCount} remaining)
+                      </button>
                     )}
                   </div>
                 )}

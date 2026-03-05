@@ -18,6 +18,7 @@ import {
   Trash2,
   Clock,
 } from "lucide-react"
+import { toast } from "sonner"
 import {
   getCityFoiaProfile,
   updateCityFoiaProfile,
@@ -28,6 +29,7 @@ import {
   updateCityDepartment,
   deleteCityDepartment,
 } from "@/lib/foiaApiClient"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import type { CityFoiaProfile, CityDatasetTarget, FoiaCityDepartment, SubmissionMethod } from "@/lib/foia/types"
 
 const targetStatusColors: Record<string, string> = {
@@ -113,6 +115,7 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
   const [editingDept, setEditingDept] = useState<number | "new" | null>(null)
   const [deptForm, setDeptForm] = useState({ name: "", portal_routing_key: "", contact_email: "", contact_phone: "", notes: "" })
   const [savingDept, setSavingDept] = useState(false)
+  const [deleteDeptConfirmId, setDeleteDeptConfirmId] = useState<number | null>(null)
 
   const loadData = useCallback(async () => {
     try {
@@ -223,19 +226,21 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
       await loadData()
     } catch (err) {
       console.error("Failed to save department:", err)
-      alert("Failed to save department")
+      toast.error("Failed to save department")
     } finally {
       setSavingDept(false)
     }
   }
 
-  async function handleDeleteDept(deptId: number) {
-    if (!confirm("Delete this department?")) return
+  async function handleDeleteDeptConfirm(deptId: number) {
     try {
       await deleteCityDepartment(deptId)
+      setDeleteDeptConfirmId(null)
+      toast.success("Department deleted")
       await loadData()
     } catch (err) {
       console.error("Failed to delete department:", err)
+      toast.error("Failed to delete department")
     }
   }
 
@@ -791,9 +796,9 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
                 <button
-                  onClick={() => handleDeleteDept(dept.id)}
+                  onClick={() => setDeleteDeptConfirmId(dept.id)}
                   className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"
-                  title="Delete"
+                  aria-label="Delete department"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -840,6 +845,16 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteDeptConfirmId !== null}
+        onOpenChange={(open) => { if (!open) setDeleteDeptConfirmId(null) }}
+        title="Delete department"
+        description="This department will be permanently removed. This cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={() => { if (deleteDeptConfirmId !== null) handleDeleteDeptConfirm(deleteDeptConfirmId) }}
+      />
     </div>
   )
 }
