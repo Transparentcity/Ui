@@ -97,8 +97,8 @@ export function TemplateModal({ open, onClose, onSaved, template }: Props) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="max-h-[70vh] overflow-y-auto px-6 py-5">
-          <div className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col max-h-[70vh]">
+          <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-700">Template Name *</label>
               <input
@@ -174,7 +174,7 @@ export function TemplateModal({ open, onClose, onSaved, template }: Props) {
             )}
           </div>
 
-          <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4 shrink-0">
             <button
               type="button"
               onClick={onClose}

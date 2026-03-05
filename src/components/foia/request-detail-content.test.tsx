@@ -4,7 +4,7 @@
  * - Overdue follow-up banner (item 5)
  * - Workflow progress indicator (item 9)
  */
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, fireEvent } from "@testing-library/react"
 import { vi, describe, it, expect, beforeEach } from "vitest"
 
 // ---------------------------------------------------------------------------
@@ -37,11 +37,13 @@ vi.mock("@/lib/foiaApiClient", () => ({
   aiDraftFoiaRequest: vi.fn(),
 }))
 
+const mockSubmitFoiaRequest = vi.fn()
+
 vi.mock("@/app/actions/foia", () => ({
   createFoiaMessage: vi.fn(),
   completeFoiaTask: vi.fn(),
   createFoiaTask: vi.fn(),
-  submitFoiaRequest: vi.fn(),
+  submitFoiaRequest: (...args: unknown[]) => mockSubmitFoiaRequest(...args),
   updateRequestStatus: vi.fn(),
   uploadFoiaFile: vi.fn(),
   rewriteFoiaRequest: vi.fn(),
@@ -322,6 +324,38 @@ describe("RequestDetailContent", () => {
     render(<RequestDetailContent requestId="1" />)
     await waitFor(() => {
       expect(screen.getAllByText("Oakland Police Incidents").length).toBeGreaterThanOrEqual(1)
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // Bug fix: submittedDate is passed to submitFoiaRequest
+  // -----------------------------------------------------------------------
+
+  it("passes submitted_date when marking request as submitted", async () => {
+    setupMocks({ status: "draft" })
+    mockSubmitFoiaRequest.mockResolvedValue({})
+    render(<RequestDetailContent requestId="1" />)
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Mark Submitted/i })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: /Mark Submitted/i }))
+
+    // Submit modal should appear with "Save & Continue" button
+    await waitFor(() => {
+      expect(screen.getByText("Mark submitted")).toBeInTheDocument()
+    })
+
+    const saveContinueBtn = screen.getAllByRole("button").find(
+      (b) => b.textContent?.includes("Save & Continue")
+    )!
+    fireEvent.click(saveContinueBtn)
+
+    await waitFor(() => {
+      expect(mockSubmitFoiaRequest).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ submitted_date: expect.any(String) })
+      )
     })
   })
 })

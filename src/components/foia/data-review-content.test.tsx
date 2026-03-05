@@ -163,6 +163,46 @@ describe("DataReviewContent", () => {
     })
   })
 
+  it("calls updateDatasetInstance with incomplete status and closes modal", async () => {
+    const instance = makeInstance({ id: 7 })
+    mockListDatasetInstances.mockResolvedValue([instance])
+    mockUpdateDatasetInstance.mockResolvedValue({})
+    render(<DataReviewContent />)
+    await waitFor(() => {
+      expect(screen.getByText(/Oakland – Police Incidents/)).toBeInTheDocument()
+    })
+
+    // Find and click the Incomplete button
+    const allButtons = screen.getAllByRole("button")
+    const incompleteBtn = allButtons.find(
+      (b) => b.textContent?.trim() === "Incomplete" && b.className.includes("orange")
+    )
+    expect(incompleteBtn).toBeTruthy()
+    fireEvent.click(incompleteBtn!)
+
+    // Modal should open with "Mark Incomplete" heading
+    await waitFor(() => {
+      expect(screen.getByText(/Explain why the delivery is incomplete/)).toBeInTheDocument()
+    })
+
+    // Click the confirm button (orange bg-orange-600)
+    const confirmButtons = screen.getAllByRole("button")
+    const modalConfirmBtn = confirmButtons.find(
+      (b) => b.textContent?.includes("Mark Incomplete") && b.className.includes("bg-orange-600")
+    )
+    expect(modalConfirmBtn).toBeTruthy()
+    fireEvent.click(modalConfirmBtn!)
+
+    // The update should have been called with incomplete status
+    await waitFor(() => {
+      expect(mockUpdateDatasetInstance).toHaveBeenCalledWith(
+        7,
+        expect.objectContaining({ status: "incomplete" }),
+        undefined
+      )
+    })
+  })
+
   it("shows previous reviews section for accepted items", async () => {
     mockListDatasetInstances.mockResolvedValue([
       makeInstance({ id: 2, status: "accepted" }),

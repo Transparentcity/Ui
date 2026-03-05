@@ -458,7 +458,6 @@ function IncompleteModal({
             onClick={() => {
               onConfirm(reason.trim() || "Incomplete")
               setReason("")
-              onClose()
             }}
             disabled={loading}
             className="flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50"
@@ -501,6 +500,7 @@ function DataInstanceRow({
         onClose={() => setShowIncompleteModal(false)}
         onConfirm={(reason) => {
           onMarkIncomplete?.(reason)
+          setShowIncompleteModal(false)
         }}
         loading={!!actionLoading}
       />

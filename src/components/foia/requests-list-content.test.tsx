@@ -355,6 +355,44 @@ describe("RequestsListContent", () => {
   })
 
   // -----------------------------------------------------------------------
+  // Open count uses dashboard summary
+  // -----------------------------------------------------------------------
+
+  it("uses summary.open_requests for open count instead of local page count", async () => {
+    mockListFoiaRequests.mockResolvedValue({
+      items: [makeRequest({ status: "submitted" })],
+      total: 100,
+    })
+    mockGetFoiaDashboard.mockResolvedValue({
+      open_requests: 73,
+      unacknowledged: 0,
+      overdue_requests: 0,
+      tasks_due: 0,
+      messages_to_respond: 0,
+      pending_data_review: 0,
+    })
+    render(<RequestsListContent />)
+    await waitFor(() => {
+      expect(screen.getByText(/73 open/)).toBeInTheDocument()
+    })
+  })
+
+  it("falls back to local count when dashboard is null", async () => {
+    mockListFoiaRequests.mockResolvedValue({
+      items: [
+        makeRequest({ id: 1, status: "submitted" }),
+        makeRequest({ id: 2, status: "fulfilled" }),
+      ],
+      total: 2,
+    })
+    mockGetFoiaDashboard.mockResolvedValue(null)
+    render(<RequestsListContent />)
+    await waitFor(() => {
+      expect(screen.getByText(/1 open/)).toBeInTheDocument()
+    })
+  })
+
+  // -----------------------------------------------------------------------
   // Empty / error states
   // -----------------------------------------------------------------------
 

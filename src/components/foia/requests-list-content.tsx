@@ -116,7 +116,7 @@ export function RequestsListContent() {
     loadRequests()
   }, [loadRequests])
 
-  const openCount = requests.filter(
+  const openCount = summary?.open_requests ?? requests.filter(
     (r) => !["fulfilled", "denied", "closed_incomplete"].includes(r.status)
   ).length
 

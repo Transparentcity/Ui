@@ -259,7 +259,7 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
     if (!request) return
     setActionLoading(true)
     try {
-      await submitFoiaRequest(request.id)
+      await submitFoiaRequest(request.id, { submitted_date: submittedDate })
       await loadData()
       setShowSubmitModal(false)
       router.push(`/foia/requests/${request.id}?external=1`)
