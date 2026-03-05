@@ -364,14 +364,15 @@ export function WastePageContent() {
       actions={
         isAnalysisView ? (
           <Button
-            variant="outline"
+            variant={isManualRefreshing ? "default" : "outline"}
             size="sm"
             onClick={handleRefresh}
             disabled={isManualRefreshing}
+            className={isManualRefreshing ? "bg-blue-600 text-white border-blue-600 cursor-wait" : ""}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${isManualRefreshing ? "animate-spin" : ""}`} />
             {isManualRefreshing
-              ? `Analyzing (${analysisProgress.progressPct}% · ${analysisElapsedSeconds}s)`
+              ? `Analyzing… ${analysisProgress.progressPct}%`
               : "Refresh"}
           </Button>
         ) : undefined
@@ -386,24 +387,32 @@ export function WastePageContent() {
       ) : (
         <>
           {isManualRefreshing && (
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm font-medium text-blue-900">{analysisProgress.step}</p>
-              <div className="mt-2 h-2 w-full rounded-full bg-blue-100 overflow-hidden">
+            <div className="mb-6 p-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl shadow-sm">
+              <div className="flex items-center gap-3 mb-3">
+                <RefreshCw className="w-5 h-5 text-blue-600 animate-spin" />
+                <p className="text-base font-semibold text-blue-900">{analysisProgress.step}</p>
+              </div>
+              <div className="h-3 w-full rounded-full bg-blue-100 overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-blue-500 transition-all duration-500 ease-out"
+                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500 ease-out"
                   style={{ width: `${analysisProgress.progressPct}%` }}
                 />
               </div>
-              <p className="text-xs text-blue-700 mt-1">
-                {analysisProgress.etaLabel} · Typical analysis run: 60-120s
-              </p>
+              <div className="flex items-center justify-between mt-2">
+                <p className="text-sm text-blue-700">
+                  {analysisProgress.etaLabel}
+                </p>
+                <p className="text-sm font-medium text-blue-800 tabular-nums">
+                  {analysisProgress.progressPct}% · {analysisElapsedSeconds}s elapsed
+                </p>
+              </div>
               {analysisProgress.isLongRunning ? (
-                <p className="text-xs text-blue-700 mt-1">
-                  If this exceeds 150s, use Refresh again to re-request analysis.
+                <p className="text-xs text-blue-600 mt-2">
+                  Taking longer than usual — the backend is still processing. If this exceeds 150s, use Refresh again.
                 </p>
               ) : null}
               {refreshTimedOut ? (
-                <p className="text-xs text-amber-700 mt-2">
+                <p className="text-xs text-amber-700 mt-2 font-medium">
                   This run is taking longer than expected. We are still waiting for the backend response.
                 </p>
               ) : null}
@@ -516,13 +525,26 @@ export function WastePageContent() {
           {/* Zoom 1: Global Stats */}
           <WasteStatBar summary={displayData?.summary} isLoading={showLoadingState} />
 
-          {/* Dashboard Widgets (shown on all analysis categories) */}
+          {/* Dashboard Widgets (shown on all analysis categories, deferred during refresh) */}
           {isAnalysisView ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <SeverityDonut cityId={selectedCityId} />
-              <QueueStatus cityId={selectedCityId} />
-              <AccuracyBars cityId={selectedCityId} />
-              <InvestigationSummary cityId={selectedCityId} />
+              {isManualRefreshing ? (
+                <>
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="bg-white rounded-lg border border-gray-200 p-5">
+                      <div className="h-4 w-40 bg-gray-100 rounded animate-pulse mb-4" />
+                      <div className="h-44 bg-gray-50 rounded animate-pulse" />
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <SeverityDonut cityId={selectedCityId} />
+                  <QueueStatus cityId={selectedCityId} />
+                  <AccuracyBars cityId={selectedCityId} />
+                  <InvestigationSummary cityId={selectedCityId} />
+                </>
+              )}
             </div>
           ) : null}
 
