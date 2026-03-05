@@ -15,6 +15,7 @@ export function TemplatesContent() {
   const [showModal, setShowModal] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<FoiaRequestTemplate | null>(null)
   const [apiError, setApiError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     setApiError(null)
@@ -44,6 +45,7 @@ export function TemplatesContent() {
 
   async function handleDelete(id: number) {
     if (!confirm("Delete this template?")) return
+    setDeletingId(id)
     let token: string | undefined
     if (isAuthenticated) {
       try {
@@ -58,6 +60,8 @@ export function TemplatesContent() {
     } catch (err) {
       console.error("Failed to delete template:", err)
       alert(err instanceof Error ? err.message : "Failed to delete template")
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -143,10 +147,15 @@ export function TemplatesContent() {
                 </button>
                 <button
                   onClick={() => handleDelete(tmpl.id)}
-                  className="rounded-lg border border-gray-200 p-2 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                  disabled={deletingId === tmpl.id}
+                  className="rounded-lg border border-gray-200 p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50"
                   title="Delete"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  {deletingId === tmpl.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
                 </button>
               </div>
             </div>

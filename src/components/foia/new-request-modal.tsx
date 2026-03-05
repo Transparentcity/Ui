@@ -709,8 +709,9 @@ export function NewRequestModal({
                     type="button"
                     onClick={handleGenerateAndOpenSteps}
                     disabled={composingBlock || !form.city_id}
-                    className="rounded-md bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+                    className="flex items-center gap-1.5 rounded-md bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
                   >
+                    {composingBlock && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                     {composingBlock ? "Generating..." : "Generate"}
                   </button>
                   <button
@@ -875,8 +876,9 @@ export function NewRequestModal({
                           type="button"
                           onClick={handleSuggestDepartment}
                           disabled={suggestingDept || !form.city_id || !form.request_description.trim()}
-                          className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                          className="flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                         >
+                          {suggestingDept && <Loader2 className="h-3 w-3 animate-spin" />}
                           {suggestingDept ? "Suggesting..." : "Suggest"}
                         </button>
                       </div>

@@ -266,8 +266,11 @@ export function TasksContent() {
                     <button
                       onClick={() => handleAssign(task.id)}
                       disabled={actionLoading === task.id}
-                      className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      className="flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
                     >
+                      {actionLoading === task.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : null}
                       Assign
                     </button>
                   )}

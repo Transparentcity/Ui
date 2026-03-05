@@ -1019,9 +1019,14 @@ function OverviewTab({
                     <button
                       onClick={() => handleComplete(task.id)}
                       disabled={completing === task.id}
-                      className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                      className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
                     >
-                      {completing === task.id ? "..." : "Complete"}
+                      {completing === task.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-3 w-3" />
+                      )}
+                      Complete
                     </button>
                   )}
                 </div>
@@ -1288,9 +1293,10 @@ function EditRequestModal({
               })
             }}
             disabled={saving}
-            className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
           >
-            {saving ? "Saving..." : "Save"}
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save
           </button>
         </div>
       </div>
@@ -1559,8 +1565,9 @@ function MessagesTab({
               type="button"
               onClick={handleGenerateNarrowedReply}
               disabled={sending}
-              className="rounded-lg bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
             >
+              {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
               {sending ? "Generating..." : "Generate narrowed reply"}
             </button>
             <button
