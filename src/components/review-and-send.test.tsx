@@ -872,6 +872,81 @@ describe("ReviewAndSend", () => {
   })
 
   // ===================================================================
+  // Loading states for individual buttons
+  // ===================================================================
+
+  it("shows 'Sending...' spinner on Mark as Sent button while in flight", async () => {
+    const user = userEvent.setup()
+    // Make updateQueueItemStatus hang
+    mockUpdateStatus.mockReturnValueOnce(new Promise(() => {}))
+
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    const sentBtn = screen.getByRole("button", { name: /mark as sent/i })
+    await user.click(sentBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText("Sending...")).toBeInTheDocument()
+    })
+  })
+
+  it("shows 'Discarding...' spinner on Discard button while in flight", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, "confirm").mockReturnValue(true)
+    // Make deleteQueueItems hang
+    mockDeleteItems.mockReturnValueOnce(new Promise(() => {}))
+
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    const discardBtn = screen.getByRole("button", { name: /discard/i })
+    await user.click(discardBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText("Discarding...")).toBeInTheDocument()
+    })
+  })
+
+  it("shows 'Sending...' on bulk Mark Sent while in flight", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, "confirm").mockReturnValue(true)
+    mockUpdateStatus.mockReturnValue(new Promise(() => {}))
+
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByText("Select all"))
+    await waitFor(() => {
+      expect(screen.getByText("1 selected")).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("button", { name: /mark sent/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText("Sending...")).toBeInTheDocument()
+    })
+  })
+
+  it("shows 'Discarding...' on bulk Discard while in flight", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, "confirm").mockReturnValue(true)
+    mockDeleteItems.mockReturnValueOnce(new Promise(() => {}))
+
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByText("Select all"))
+    await waitFor(() => {
+      expect(screen.getByText("1 selected")).toBeInTheDocument()
+    })
+
+    // Click bulk Discard (first Discard button is in toolbar)
+    const bulkDiscardBtns = screen.getAllByRole("button", { name: /discard/i })
+    await user.click(bulkDiscardBtns[0])
+
+    await waitFor(() => {
+      expect(screen.getByText("Discarding...")).toBeInTheDocument()
+    })
+  })
+
+  // ===================================================================
   // Generate Drafts
   // ===================================================================
 

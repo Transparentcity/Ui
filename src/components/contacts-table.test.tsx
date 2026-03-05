@@ -15,6 +15,19 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { vi, describe, it, expect, beforeEach } from "vitest"
 
+// ---- Polyfills for Radix in JSDOM ------------------------------------------
+
+// Radix Select requires pointer capture APIs that JSDOM doesn't provide
+if (typeof Element.prototype.hasPointerCapture !== "function") {
+  Element.prototype.hasPointerCapture = () => false
+}
+if (typeof Element.prototype.setPointerCapture !== "function") {
+  Element.prototype.setPointerCapture = () => {}
+}
+if (typeof Element.prototype.releasePointerCapture !== "function") {
+  Element.prototype.releasePointerCapture = () => {}
+}
+
 // ---- Mocks ----------------------------------------------------------------
 
 const mockRefresh = vi.fn()
@@ -145,7 +158,7 @@ const KEYWORDS: Keyword[] = [
 // ---- Import under test (after mocks) --------------------------------------
 
 import { ContactsTable } from "./contacts-table"
-import { bulkUpdateCity, bulkAddKeywords, bulkUpdateType } from "@/app/actions/contacts"
+import { deleteContact, bulkUpdateCity, bulkAddKeywords, bulkUpdateType } from "@/app/actions/contacts"
 
 // ---- Tests -----------------------------------------------------------------
 
@@ -526,5 +539,139 @@ describe("ContactsTable", () => {
     // Open type picker — keyword picker should close
     await user.click(screen.getByRole("button", { name: /assign type/i }))
     expect(screen.queryByPlaceholderText(/search keywords/i)).not.toBeInTheDocument()
+  })
+
+  // ---------- Delete contact ----------
+
+  it("calls deleteContact and refreshes after confirming delete", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, "confirm").mockReturnValue(true)
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    // Open the dropdown menu for the first contact (MoreHorizontal icon button)
+    const moreButtons = screen.getAllByRole("button", { name: "" }).filter(
+      (btn) => btn.classList.contains("h-8") && btn.classList.contains("w-8")
+    )
+    await user.click(moreButtons[0])
+
+    // Wait for dropdown to open and click Delete
+    const deleteOption = await screen.findByRole("menuitem", { name: /delete/i })
+    await user.click(deleteOption)
+
+    await waitFor(() => {
+      expect(deleteContact).toHaveBeenCalledWith("c-1")
+    })
+    await waitFor(() => {
+      expect(mockRefresh).toHaveBeenCalled()
+    })
+  })
+
+  it("does not delete when confirm is cancelled", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, "confirm").mockReturnValue(false)
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    const moreButtons = screen.getAllByRole("button", { name: "" }).filter(
+      (btn) => btn.classList.contains("h-8") && btn.classList.contains("w-8")
+    )
+    await user.click(moreButtons[0])
+
+    const deleteOption = await screen.findByRole("menuitem", { name: /delete/i })
+    await user.click(deleteOption)
+
+    expect(deleteContact).not.toHaveBeenCalled()
+  })
+
+  // ---------- Export CSV ----------
+
+  it("triggers CSV download when Export CSV is clicked", async () => {
+    const user = userEvent.setup()
+    const createObjectURL = vi.fn().mockReturnValue("blob:test")
+    const revokeObjectURL = vi.fn()
+    global.URL.createObjectURL = createObjectURL
+    global.URL.revokeObjectURL = revokeObjectURL
+
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    const exportBtn = screen.getByRole("button", { name: /export csv/i })
+    await user.click(exportBtn)
+
+    // Verify a Blob was created and URL lifecycle was managed
+    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob))
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:test")
+  })
+
+  // ---------- Type filter dropdown ----------
+
+  it("renders the type filter dropdown", () => {
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    // The type filter is a Radix Select (combobox role) showing "All" by default
+    const typeSelect = screen.getAllByRole("combobox")[0]
+    expect(typeSelect).toHaveTextContent("All")
+  })
+
+  it("shows correct count when type filter is applied via initialTypeFilter", () => {
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} initialTypeFilter="city_staff" />)
+
+    // Only Bob should be visible (city_staff)
+    expect(screen.getByText("Bob Chen")).toBeInTheDocument()
+    expect(screen.queryByText("Alice Wong")).not.toBeInTheDocument()
+    // Count should show 1 contact
+    expect(screen.getByText("1 contact")).toBeInTheDocument()
+  })
+
+  // ---------- Column sorting ----------
+
+  it("sorts contacts by name when Name header is clicked", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    // The sort buttons are inside <th> elements. Find the one with "Name" text.
+    const headerButtons = screen.getAllByRole("button")
+    const nameHeader = headerButtons.find(
+      (btn) => btn.textContent === "Name" || btn.textContent?.startsWith("Name")
+    )!
+    expect(nameHeader).toBeDefined()
+    await user.click(nameHeader)
+
+    // After ascending sort: Alice, Bob, Carol
+    const rows = screen.getAllByRole("row")
+    // rows[0] is header, rows[1-3] are data
+    expect(rows[1]).toHaveTextContent(/Alice Wong/)
+    expect(rows[2]).toHaveTextContent(/Bob Chen/)
+    expect(rows[3]).toHaveTextContent(/Carol Martinez/)
+
+    // Click again for descending
+    await user.click(nameHeader)
+    const rowsDesc = screen.getAllByRole("row")
+    expect(rowsDesc[1]).toHaveTextContent(/Carol Martinez/)
+    expect(rowsDesc[3]).toHaveTextContent(/Alice Wong/)
+  })
+
+  // ---------- Empty state ----------
+
+  it("shows empty message when no contacts exist", () => {
+    render(<ContactsTable contacts={[]} keywords={KEYWORDS} />)
+    expect(screen.getByText(/No contacts yet/)).toBeInTheDocument()
+  })
+
+  it("shows 'No contacts found' when search matches nothing", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    const searchInput = screen.getByPlaceholderText(/search contacts/i)
+    await user.type(searchInput, "zzzznonexistent")
+
+    expect(screen.getByText(/No contacts found/)).toBeInTheDocument()
+  })
+
+  // ---------- Initial type filter from URL ----------
+
+  it("applies initialTypeFilter prop", () => {
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} initialTypeFilter="elected_official" />)
+
+    expect(screen.getByText("Alice Wong")).toBeInTheDocument()
+    expect(screen.queryByText("Bob Chen")).not.toBeInTheDocument()
   })
 })

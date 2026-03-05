@@ -17,9 +17,11 @@ vi.mock("@/lib/publicApiClient", () => ({
 
 // Must import after mocks
 import { ContactDialog } from "./contact-dialog";
+import { createContact, updateContact } from "@/app/actions/contacts";
 
 const keywords: Keyword[] = [
   { id: "kw-1", name: "Budget", description: null, category: null, created_at: "2026-01-01T00:00:00Z" },
+  { id: "kw-2", name: "Housing", description: null, category: null, created_at: "2026-01-01T00:00:00Z" },
 ];
 
 function makeContact(overrides: Record<string, unknown> = {}) {
@@ -102,5 +104,141 @@ describe("ContactDialog – contact_type field", () => {
     const triggers = screen.getAllByRole("combobox");
     const typeTrigger = triggers[0];
     expect(typeTrigger).toHaveTextContent("Press / Media");
+  });
+});
+
+describe("ContactDialog – save/submit", () => {
+  it("calls createContact when submitting a new contact form", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ContactDialog keywords={keywords}>
+        <button>Add Contact</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Add Contact"));
+
+    // Fill required name field
+    const nameInput = screen.getByLabelText(/name/i);
+    await user.type(nameInput, "Test Person");
+
+    // Fill email
+    const emailInput = screen.getByLabelText(/email/i);
+    await user.type(emailInput, "test@example.com");
+
+    // Submit
+    const submitBtn = screen.getByRole("button", { name: /add contact/i });
+    await user.click(submitBtn);
+
+    await vi.waitFor(() => {
+      expect(createContact).toHaveBeenCalled();
+    });
+  });
+
+  it("calls updateContact when editing an existing contact", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ContactDialog contact={makeContact()} keywords={keywords}>
+        <button>Edit</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Edit"));
+
+    // Modify name
+    const nameInput = screen.getByLabelText(/name/i);
+    await user.clear(nameInput);
+    await user.type(nameInput, "Updated Name");
+
+    // Submit
+    const saveBtn = screen.getByRole("button", { name: /save changes/i });
+    await user.click(saveBtn);
+
+    await vi.waitFor(() => {
+      expect(updateContact).toHaveBeenCalledWith("c-1", expect.any(FormData));
+    });
+  });
+
+  it("shows 'Saving...' text on submit button while pending", async () => {
+    const user = userEvent.setup();
+
+    // Make createContact hang
+    (createContact as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
+
+    render(
+      <ContactDialog keywords={keywords}>
+        <button>Add Contact</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Add Contact"));
+
+    const nameInput = screen.getByLabelText(/name/i);
+    await user.type(nameInput, "Test Person");
+
+    const submitBtn = screen.getByRole("button", { name: /add contact/i });
+    await user.click(submitBtn);
+
+    await vi.waitFor(() => {
+      expect(screen.getByText("Saving...")).toBeInTheDocument();
+    });
+  });
+
+  it("closes dialog after cancel button is clicked", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ContactDialog keywords={keywords}>
+        <button>Add Contact</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Add Contact"));
+    expect(screen.getByText("Type")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+
+    await vi.waitFor(() => {
+      expect(screen.queryByText("Type")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows media-specific fields when type is Press / Media", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ContactDialog contact={makeContact({ contact_type: "media" })} keywords={keywords}>
+        <button>Edit</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Edit"));
+
+    expect(screen.getByLabelText(/outlet/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/primary beat/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/primary city/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/article links/i)).toBeInTheDocument();
+  });
+
+  it("toggles keyword selection", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ContactDialog keywords={keywords}>
+        <button>Add Contact</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Add Contact"));
+
+    // Click a keyword to add it
+    const budgetBadge = screen.getByText("+ Budget");
+    await user.click(budgetBadge);
+
+    // Should now appear in the selected area (without the '+' prefix)
+    expect(screen.queryByText("+ Budget")).not.toBeInTheDocument();
+    expect(screen.getByText("Budget")).toBeInTheDocument();
   });
 });

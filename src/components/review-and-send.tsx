@@ -91,6 +91,11 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [generateResult, setGenerateResult] = useState<string | null>(null)
 
+  // Per-item loading states
+  const [markingSentId, setMarkingSentId] = useState<string | null>(null)
+  const [discardingId, setDiscardingId] = useState<string | null>(null)
+  const [bulkAction, setBulkAction] = useState<"sent" | "discard" | null>(null)
+
   // Per-item error feedback
   const [itemError, setItemError] = useState<{ id: string; message: string } | null>(null)
 
@@ -180,8 +185,10 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
 
   // Mark as sent
   const markAsSent = (id: string) => {
+    setMarkingSentId(id)
     startTransition(async () => {
       await updateQueueItemStatus(id, "sent")
+      setMarkingSentId(null)
       router.refresh()
     })
   }
@@ -198,8 +205,10 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   // Discard
   const discardItem = (id: string) => {
     if (!confirm("Discard this draft? It will be removed from the queue.")) return
+    setDiscardingId(id)
     startTransition(async () => {
       await deleteQueueItems([id])
+      setDiscardingId(null)
       router.refresh()
     })
   }
@@ -340,11 +349,13 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   const bulkMarkSent = () => {
     if (selectedIds.size === 0) return
     if (!confirm(`Mark ${selectedIds.size} item(s) as sent?`)) return
+    setBulkAction("sent")
     startTransition(async () => {
       await Promise.all(
         Array.from(selectedIds).map((id) => updateQueueItemStatus(id, "sent"))
       )
       setSelectedIds(new Set())
+      setBulkAction(null)
       router.refresh()
     })
   }
@@ -353,9 +364,11 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   const bulkDiscard = () => {
     if (selectedIds.size === 0) return
     if (!confirm(`Discard ${selectedIds.size} item(s)? They will be removed from the queue.`)) return
+    setBulkAction("discard")
     startTransition(async () => {
       await deleteQueueItems(Array.from(selectedIds))
       setSelectedIds(new Set())
+      setBulkAction(null)
       router.refresh()
     })
   }
@@ -463,21 +476,29 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                 size="sm"
                 variant="outline"
                 onClick={bulkMarkSent}
-                disabled={isPending}
+                disabled={isPending || bulkAction !== null}
                 className="gap-1.5 text-xs text-green-700 border-green-300 hover:bg-green-50"
               >
-                <SendHorizontal className="w-3.5 h-3.5" />
-                Mark Sent
+                {bulkAction === "sent" ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <SendHorizontal className="w-3.5 h-3.5" />
+                )}
+                {bulkAction === "sent" ? "Sending..." : "Mark Sent"}
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={bulkDiscard}
-                disabled={isPending}
+                disabled={isPending || bulkAction !== null}
                 className="gap-1.5 text-xs text-red-600 border-red-200 hover:bg-red-50"
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                Discard
+                {bulkAction === "discard" ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                {bulkAction === "discard" ? "Discarding..." : "Discard"}
               </Button>
             </>
           )}
@@ -754,20 +775,28 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                             variant="ghost"
                             size="sm"
                             onClick={() => discardItem(item.id)}
-                            disabled={isPending}
+                            disabled={isPending || discardingId === item.id}
                             className="gap-1.5 text-xs text-gray-400 hover:text-red-600"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            Discard
+                            {discardingId === item.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                            {discardingId === item.id ? "Discarding..." : "Discard"}
                           </Button>
                           <Button
                             size="sm"
                             onClick={() => markAsSent(item.id)}
-                            disabled={isPending}
+                            disabled={isPending || markingSentId === item.id}
                             className="gap-1.5 text-xs bg-green-600 hover:bg-green-700 text-white"
                           >
-                            <SendHorizontal className="w-3.5 h-3.5" />
-                            Mark as Sent
+                            {markingSentId === item.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <SendHorizontal className="w-3.5 h-3.5" />
+                            )}
+                            {markingSentId === item.id ? "Sending..." : "Mark as Sent"}
                           </Button>
                         </>
                       )}

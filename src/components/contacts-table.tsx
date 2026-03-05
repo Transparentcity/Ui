@@ -146,6 +146,7 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
   const [showTypePicker, setShowTypePicker] = useState(false)
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>("asc")
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -782,16 +783,27 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
                             </ContactDialog>
                             <DropdownMenuItem
                               className="text-destructive"
+                              disabled={deletingId === contact.id}
                               onClick={async () => {
                                 if (
                                   confirm("Are you sure you want to delete this contact?")
                                 ) {
-                                  await deleteContact(contact.id)
+                                  setDeletingId(contact.id)
+                                  try {
+                                    await deleteContact(contact.id)
+                                    router.refresh()
+                                  } finally {
+                                    setDeletingId(null)
+                                  }
                                 }
                               }}
                             >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
+                              {deletingId === contact.id ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4 mr-2" />
+                              )}
+                              {deletingId === contact.id ? "Deleting..." : "Delete"}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
