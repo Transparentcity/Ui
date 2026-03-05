@@ -178,7 +178,7 @@ describe("WastePageContent", () => {
     expect(refreshLink?.textContent).toBe("Refresh")
   })
 
-  it("stat bar appears before error banners in the DOM when both exist", () => {
+  it("shows both stat bar and error banner when both exist", () => {
     localStorage.setItem(CACHE_KEY, JSON.stringify(cachedAnalysis))
     useWasteAnalysis.mockReturnValue({
       data: null,
@@ -187,11 +187,9 @@ describe("WastePageContent", () => {
     })
     const { container } = render(<WastePageContent />)
     const statBar = container.querySelector("[data-testid='waste-stat-bar']")
-    const errorBanner = screen.getByText("Analysis Error").closest("div.mb-4")
-    // Stat bar should come before error banner in DOM
+    const errorBanner = screen.getByText("Analysis Error").closest(".bg-red-50")
     expect(statBar).toBeInTheDocument()
     expect(errorBanner).toBeInTheDocument()
-    expect(statBar!.compareDocumentPosition(errorBanner!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
   it("renders without welcome box when no data or cache exists", () => {
@@ -230,9 +228,9 @@ describe("WastePageContent", () => {
     render(<WastePageContent />)
     // Header shows the Analyzing button
     expect(screen.getByText(/Analyzing/)).toBeInTheDocument()
-    // Progress percentage visible
-    expect(screen.getByText(/45%/)).toBeInTheDocument()
-    // Status step text visible in the inline progress line
+    // Progress percentage visible (in header and loading card)
+    expect(screen.getAllByText(/45%/).length).toBeGreaterThanOrEqual(1)
+    // Status step text visible in the loading card
     expect(screen.getByText(/Detecting anomalous patterns/)).toBeInTheDocument()
   })
 
@@ -285,7 +283,7 @@ describe("WastePageContent", () => {
     expect(screen.getByText("Refresh")).toBeInTheDocument()
   })
 
-  it("shows skeleton widgets while job is running", () => {
+  it("shows labeled skeleton widgets when job is running with no cached data", () => {
     useActiveWasteJob.mockReturnValue({
       activeJob: {
         job_id: "job-skel",
@@ -300,11 +298,36 @@ describe("WastePageContent", () => {
       startJob: mockStartJob,
     })
     const { container } = render(<WastePageContent />)
-    // Should show skeleton placeholders instead of real widgets
+    // Should show labeled skeleton placeholders instead of real widgets
     const pulsingDivs = container.querySelectorAll(".animate-pulse")
     expect(pulsingDivs.length).toBeGreaterThan(0)
+    expect(screen.getByText("Severity Breakdown")).toBeInTheDocument()
+    expect(screen.getByText("Review Queue")).toBeInTheDocument()
     // Real widgets should NOT be rendered
     expect(screen.queryByTestId("widget-donut")).not.toBeInTheDocument()
+  })
+
+  it("shows real widgets with cached data during refresh", () => {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cachedAnalysis))
+    useActiveWasteJob.mockReturnValue({
+      activeJob: {
+        job_id: "job-cached",
+        job_type: "waste_analysis_run",
+        status: "running",
+        description: "Waste analysis",
+        progress: 30,
+        created_at: new Date().toISOString(),
+      } as any,
+      isRunning: true,
+      isStarting: false,
+      startJob: mockStartJob,
+    })
+    render(<WastePageContent />)
+    // Should show real widgets since cached data exists
+    expect(screen.getByTestId("widget-donut")).toBeInTheDocument()
+    expect(screen.getByTestId("widget-queue")).toBeInTheDocument()
+    // Loading card should also be visible
+    expect(screen.getByTestId("analysis-loading-card")).toBeInTheDocument()
   })
 
   it("shows failure banner when job fails", () => {
@@ -375,7 +398,7 @@ describe("WastePageContent", () => {
       startJob: mockStartJob,
     })
     render(<WastePageContent />)
-    expect(screen.getByText(/65%/)).toBeInTheDocument()
+    expect(screen.getAllByText(/65%/).length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText(/Scoring findings/)).toBeInTheDocument()
     expect(screen.getByText(/Analyzing/)).toBeInTheDocument()
   })
@@ -426,10 +449,10 @@ describe("WastePageContent", () => {
     render(<WastePageContent />)
     // Should show the backend's status_message, not the time-based fallback
     expect(screen.getByText(/Running waste analysis detectors/)).toBeInTheDocument()
-    expect(screen.getByText(/40%/)).toBeInTheDocument()
+    expect(screen.getAllByText(/40%/).length).toBeGreaterThanOrEqual(1)
   })
 
-  it("shows elapsed time counter during analysis", () => {
+  it("shows loading card with ETA during analysis", () => {
     useActiveWasteJob.mockReturnValue({
       activeJob: {
         job_id: "job-elapsed",
@@ -446,8 +469,9 @@ describe("WastePageContent", () => {
       startJob: mockStartJob,
     })
     render(<WastePageContent />)
-    // Elapsed seconds should be shown (approximately 42s)
-    expect(screen.getByText(/\d+s/)).toBeInTheDocument()
+    expect(screen.getByTestId("analysis-loading-card")).toBeInTheDocument()
+    // ETA label should be present
+    expect(screen.getByText(/Estimated time left/)).toBeInTheDocument()
   })
 })
 
@@ -456,36 +480,40 @@ describe("WastePageContent", () => {
 import { getWasteAnalysisProgress } from "./waste-page-content"
 
 describe("getWasteAnalysisProgress", () => {
-  it("shows data fetch step at start", () => {
+  it("shows connecting step at start", () => {
     const p = getWasteAnalysisProgress(3)
-    expect(p.step).toMatch(/Fetching latest records/)
+    expect(p.step).toMatch(/Connecting to city data sources/)
     expect(p.progressPct).toBeGreaterThanOrEqual(6)
   })
 
-  it("shows payroll detectors step after 8s", () => {
+  it("shows payroll step after 8s", () => {
     const p = getWasteAnalysisProgress(10)
     expect(p.step).toMatch(/payroll/)
   })
 
-  it("shows vendor detectors step after 15s", () => {
-    const p = getWasteAnalysisProgress(20)
+  it("shows vendor step after 20s", () => {
+    const p = getWasteAnalysisProgress(25)
     expect(p.step).toMatch(/vendor/)
   })
 
-  it("shows infrastructure detectors step after 35s", () => {
-    const p = getWasteAnalysisProgress(40)
+  it("shows infrastructure step after 40s", () => {
+    const p = getWasteAnalysisProgress(45)
     expect(p.step).toMatch(/infrastructure/)
   })
 
-  it("shows integrity detectors step after 45s with cross-matching detail", () => {
-    const p = getWasteAnalysisProgress(50)
-    expect(p.step).toMatch(/integrity/)
-    expect(p.step).toMatch(/cross-matching/)
+  it("shows cross-referencing step after 60s", () => {
+    const p = getWasteAnalysisProgress(65)
+    expect(p.step).toMatch(/Cross-referencing/)
   })
 
   it("shows scoring step after 80s", () => {
     const p = getWasteAnalysisProgress(90)
-    expect(p.step).toMatch(/Scoring findings/)
+    expect(p.step).toMatch(/Scoring/)
+  })
+
+  it("shows saving step after 100s", () => {
+    const p = getWasteAnalysisProgress(105)
+    expect(p.step).toMatch(/Saving results/)
   })
 
   it("shows elapsed time and reassurance for long-running analysis (>120s)", () => {

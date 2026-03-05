@@ -61,21 +61,24 @@ export function getWasteAnalysisProgress(elapsedSeconds: number): {
   progressPct: number
   isLongRunning: boolean
 } {
-  let step = "Fetching latest records from city datasets"
+  let step = "Connecting to city data sources..."
   if (elapsedSeconds > 8) {
-    step = "Running payroll and compensation detectors"
+    step = "Analyzing payroll and compensation patterns..."
   }
-  if (elapsedSeconds > 15) {
-    step = "Running vendor and contract detectors"
+  if (elapsedSeconds > 20) {
+    step = "Scanning vendor contracts for anomalies..."
   }
-  if (elapsedSeconds > 35) {
-    step = "Running infrastructure and services detectors"
+  if (elapsedSeconds > 40) {
+    step = "Checking infrastructure and service costs..."
   }
-  if (elapsedSeconds > 45) {
-    step = "Running influence and integrity detectors — cross-matching employee and vendor records"
+  if (elapsedSeconds > 60) {
+    step = "Cross-referencing employee and vendor records..."
   }
   if (elapsedSeconds > 80) {
-    step = "Scoring findings and preparing results"
+    step = "Scoring and prioritizing findings..."
+  }
+  if (elapsedSeconds > 100) {
+    step = "Saving results..."
   }
   if (elapsedSeconds > WASTE_ANALYSIS_ESTIMATED_SECONDS) {
     const mins = Math.floor(elapsedSeconds / 60)
@@ -237,10 +240,11 @@ export function WastePageContent() {
 
   const analysisProgress = useMemo(() => {
     // Prefer real job progress from backend; fall back to time-based estimate
-    const pct = jobProgress > 0 ? jobProgress : getWasteAnalysisProgress(analysisElapsedSeconds).progressPct
-    const step = jobStatusMessage || getWasteAnalysisProgress(analysisElapsedSeconds).step
+    const timeBased = getWasteAnalysisProgress(analysisElapsedSeconds)
+    const pct = jobProgress > 0 ? jobProgress : timeBased.progressPct
+    const step = jobStatusMessage || timeBased.step
     const isLongRunning = analysisElapsedSeconds > WASTE_ANALYSIS_ESTIMATED_SECONDS + 12
-    return { step, progressPct: Math.min(pct, 99), isLongRunning }
+    return { step, progressPct: Math.min(pct, 99), isLongRunning, etaLabel: timeBased.etaLabel }
   }, [jobProgress, jobStatusMessage, analysisElapsedSeconds])
 
   // Persist fresh data to localStorage cache
@@ -452,16 +456,30 @@ export function WastePageContent() {
           )}
 
           {isManualRefreshing && (
-            <p className="text-xs text-blue-700 mb-3 flex items-center gap-2">
-              <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
-              <span>{analysisProgress.step}</span>
-              <span className="tabular-nums text-blue-500">
-                {analysisElapsedSeconds}s
-              </span>
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg" data-testid="analysis-loading-card">
+              <div className="flex items-center gap-3 mb-3">
+                <RefreshCw className="w-5 h-5 text-blue-600 animate-spin shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-blue-800">{analysisProgress.step}</p>
+                  <p className="text-xs text-blue-500 mt-0.5">{analysisProgress.etaLabel}</p>
+                </div>
+                <span className="text-lg font-semibold text-blue-700 tabular-nums">
+                  {analysisProgress.progressPct}%
+                </span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-blue-100 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-blue-500 transition-all duration-500 ease-out"
+                  style={{ width: `${analysisProgress.progressPct}%` }}
+                />
+              </div>
               {analysisProgress.isLongRunning && (
-                <span className="text-amber-600">— taking longer than usual</span>
+                <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Taking longer than usual, but still processing in the background</span>
+                </div>
               )}
-            </p>
+            </div>
           )}
 
           {/* Error banner */}
@@ -518,11 +536,11 @@ export function WastePageContent() {
 
               {/* Dashboard Widgets */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                {isManualRefreshing ? (
+                {isManualRefreshing && !displayData ? (
                   <>
-                    {[1, 2, 3, 4].map((i) => (
-                      <div key={i} className="bg-white rounded-lg border border-gray-200 p-5">
-                        <div className="h-4 w-40 bg-gray-100 rounded animate-pulse mb-4" />
+                    {["Severity Breakdown", "Review Queue", "Detector Accuracy", "Investigations"].map((label) => (
+                      <div key={label} className="bg-white rounded-lg border border-gray-200 p-5">
+                        <div className="text-xs font-medium text-gray-400 mb-4">{label}</div>
                         <div className="h-44 bg-gray-50 rounded animate-pulse" />
                       </div>
                     ))}
