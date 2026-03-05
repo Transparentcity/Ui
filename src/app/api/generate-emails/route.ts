@@ -28,7 +28,8 @@ export async function POST(req: Request) {
 
     const db = createClient()
 
-    // Fetch contacts with their keywords
+    // Fetch contacts with their keywords — don't filter by status so we can
+    // report which contacts were skipped rather than silently dropping them.
     const { data: contacts, error: contactsError } = await db
       .from("prospects")
       .select(`
@@ -39,7 +40,6 @@ export async function POST(req: Request) {
         )
       `)
       .in("id", contactIds)
-      .eq("status", "active")
 
     if (contactsError) {
       console.error("[v0] Error fetching contacts:", contactsError)
@@ -47,7 +47,27 @@ export async function POST(req: Request) {
     }
 
     // Cast contacts to array for type safety
-    const contactsArr = Array.isArray(contacts) ? contacts : []
+    const allContacts = Array.isArray(contacts) ? contacts : []
+
+    // Separate active vs skipped contacts
+    const contactsArr = allContacts.filter((c: any) => c.status === "active")
+    const skippedContacts = allContacts
+      .filter((c: any) => c.status !== "active")
+      .map((c: any) => c.name || c.id)
+
+    // Also track contacts that weren't found in the DB at all
+    const foundIds = allContacts.map((c: any) => c.id)
+    const notFoundIds = contactIds.filter((id: string) => !foundIds.includes(id))
+    if (notFoundIds.length > 0) {
+      skippedContacts.push(...notFoundIds.map((id: string) => `Unknown (${id.slice(0, 8)}...)`))
+    }
+
+    if (contactsArr.length === 0) {
+      return Response.json(
+        { error: "No active contacts found. All selected contacts may be inactive.", skippedContacts },
+        { status: 400 }
+      )
+    }
 
     // Use anomalies from client (Platform API).
     const anomalies: any[] = includeAnomalies && Array.isArray(anomaliesFromClient)
@@ -300,6 +320,7 @@ Generate ${contactsArr.length} unique emails, one per contact. Return valid JSON
       emails: generatedEmails,
       contactCount: contactsArr.length,
       anomalyCount: anomalies.length,
+      skippedContacts,
     })
   } catch (error) {
     console.error("[v0] Error generating emails:", error)
