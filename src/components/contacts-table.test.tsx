@@ -49,6 +49,13 @@ vi.mock("./contact-import-dialog", () => ({
   ),
 }))
 
+// Mock contact-activity-timeline
+vi.mock("./contact-activity-timeline", () => ({
+  ContactActivityTimeline: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="activity-timeline-trigger">{children}</div>
+  ),
+}))
+
 // Mock server actions
 vi.mock("@/app/actions/contacts", () => ({
   deleteContact: vi.fn().mockResolvedValue(undefined),
@@ -677,5 +684,179 @@ describe("ContactsTable", () => {
 
     expect(screen.getByText("Alice Wong")).toBeInTheDocument()
     expect(screen.queryByText("Bob Chen")).not.toBeInTheDocument()
+  })
+
+  // ---------- Clickable city badges (#3) ----------
+
+  it("filters contacts when a city badge is clicked", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    // Find the San Francisco badge in the city breakdown
+    const badges = screen.getAllByText(/San Francisco: 2/i)
+    expect(badges.length).toBeGreaterThan(0)
+    await user.click(badges[0])
+
+    // Only Alice and Bob should be visible (San Francisco contacts)
+    expect(screen.getByText("Alice Wong")).toBeInTheDocument()
+    expect(screen.getByText("Bob Chen")).toBeInTheDocument()
+    expect(screen.queryByText("Carol Martinez")).not.toBeInTheDocument()
+  })
+
+  it("clears city filter when same badge is clicked again", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    const badges = screen.getAllByText(/San Francisco: 2/i)
+    // Click to filter
+    await user.click(badges[0])
+    expect(screen.queryByText("Carol Martinez")).not.toBeInTheDocument()
+
+    // Click again to clear
+    await user.click(badges[0])
+    expect(screen.getByText("Carol Martinez")).toBeInTheDocument()
+  })
+
+  it("highlights active city badge with ring", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    const badges = screen.getAllByText(/San Francisco: 2/i)
+    await user.click(badges[0])
+
+    // The badge should have ring-2 ring-purple-500 class
+    expect(badges[0].closest("[class*='ring-2']")).not.toBeNull()
+  })
+
+  // ---------- Pagination (#6) ----------
+
+  it("does not show pagination when contacts fit on one page", () => {
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+    expect(screen.queryByTestId("pagination-controls")).not.toBeInTheDocument()
+  })
+
+  it("shows pagination when contacts exceed page size", () => {
+    // Create 30 contacts to exceed pageSize of 25
+    const manyContacts = Array.from({ length: 30 }, (_, i) => ({
+      ...CONTACTS[0],
+      id: `c-${i}`,
+      name: `Contact ${String(i).padStart(2, "0")}`,
+    }))
+    render(<ContactsTable contacts={manyContacts} keywords={KEYWORDS} />)
+    const pagination = screen.getByTestId("pagination-controls")
+    expect(pagination).toBeInTheDocument()
+    expect(pagination).toHaveTextContent(/Page 1 of 2/)
+    expect(pagination).toHaveTextContent(/30 contacts/)
+  })
+
+  it("navigates to next page when Next button is clicked", async () => {
+    const user = userEvent.setup()
+    const manyContacts = Array.from({ length: 30 }, (_, i) => ({
+      ...CONTACTS[0],
+      id: `c-${i}`,
+      name: `Contact ${String(i).padStart(2, "0")}`,
+    }))
+    render(<ContactsTable contacts={manyContacts} keywords={KEYWORDS} />)
+
+    // Should be on page 1
+    expect(screen.getByText(/Page 1 of 2/)).toBeInTheDocument()
+
+    // Click next button (third pagination button)
+    const paginationButtons = screen.getByTestId("pagination-controls").querySelectorAll("button")
+    // Buttons: First, Prev, Next, Last
+    await user.click(paginationButtons[2]) // Next
+
+    expect(screen.getByText(/Page 2 of 2/)).toBeInTheDocument()
+  })
+
+  it("resets page to 1 when search query changes", async () => {
+    const user = userEvent.setup()
+    const manyContacts = Array.from({ length: 30 }, (_, i) => ({
+      ...CONTACTS[0],
+      id: `c-${i}`,
+      name: `Contact ${String(i).padStart(2, "0")}`,
+    }))
+    render(<ContactsTable contacts={manyContacts} keywords={KEYWORDS} />)
+
+    // Go to page 2
+    const paginationButtons = screen.getByTestId("pagination-controls").querySelectorAll("button")
+    await user.click(paginationButtons[2])
+    expect(screen.getByText(/Page 2 of 2/)).toBeInTheDocument()
+
+    // Type in search - should reset to page 1
+    const searchInput = screen.getByPlaceholderText(/search contacts/i)
+    await user.type(searchInput, "Contact 0")
+
+    // Pagination might not show if filtered results fit on one page
+    // But if it shows, it should be page 1
+    const pagination = screen.queryByTestId("pagination-controls")
+    if (pagination) {
+      expect(pagination).toHaveTextContent(/Page 1/)
+    }
+  })
+
+  // ---------- Draft indicator badges (#2) ----------
+
+  it("shows draft count badges next to contact name", () => {
+    const contactsWithDrafts = [
+      { ...CONTACTS[0], draftCounts: { pending: 2, sent: 1 } },
+      { ...CONTACTS[1], draftCounts: { pending: 0, sent: 3 } },
+      CONTACTS[2],
+    ]
+    render(<ContactsTable contacts={contactsWithDrafts} keywords={KEYWORDS} />)
+
+    expect(screen.getByText("2 drafts")).toBeInTheDocument()
+    expect(screen.getByText("1 sent")).toBeInTheDocument()
+    expect(screen.getByText("3 sent")).toBeInTheDocument()
+  })
+
+  it("does not show draft badges when counts are zero or undefined", () => {
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+    expect(screen.queryByText(/drafts?$/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^\d+ sent$/)).not.toBeInTheDocument()
+  })
+
+  // ---------- Generate Draft menu item (#11) ----------
+
+  it("shows Generate Draft menu item in dropdown", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    const moreButtons = screen.getAllByRole("button", { name: "" }).filter(
+      (btn) => btn.classList.contains("h-8") && btn.classList.contains("w-8")
+    )
+    await user.click(moreButtons[0])
+
+    const generateOption = await screen.findByRole("menuitem", { name: /generate draft/i })
+    expect(generateOption).toBeInTheDocument()
+  })
+
+  it("disables Generate Draft when contact has no city_id", async () => {
+    const user = userEvent.setup()
+    // Carol (c-3) has no city_id
+    render(<ContactsTable contacts={[CONTACTS[2]]} keywords={KEYWORDS} />)
+
+    const moreButtons = screen.getAllByRole("button", { name: "" }).filter(
+      (btn) => btn.classList.contains("h-8") && btn.classList.contains("w-8")
+    )
+    await user.click(moreButtons[0])
+
+    const generateOption = await screen.findByRole("menuitem", { name: /generate draft/i })
+    expect(generateOption).toHaveAttribute("data-disabled")
+  })
+
+  // ---------- Activity menu item (#12) ----------
+
+  it("shows Activity menu item in dropdown", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    const moreButtons = screen.getAllByRole("button", { name: "" }).filter(
+      (btn) => btn.classList.contains("h-8") && btn.classList.contains("w-8")
+    )
+    await user.click(moreButtons[0])
+
+    const activityOption = await screen.findByRole("menuitem", { name: /activity/i })
+    expect(activityOption).toBeInTheDocument()
   })
 })

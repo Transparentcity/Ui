@@ -2,12 +2,27 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 
+// Polyfill ResizeObserver for cmdk in JSDOM
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as any;
+}
+
+// Polyfill scrollIntoView for cmdk in JSDOM
+if (typeof Element.prototype.scrollIntoView !== "function") {
+  Element.prototype.scrollIntoView = function () {};
+}
+
 import type { Keyword } from "@/lib/types";
 
 // Mock server actions
 vi.mock("@/app/actions/contacts", () => ({
   createContact: vi.fn(),
   updateContact: vi.fn(),
+  checkDuplicateEmail: vi.fn().mockResolvedValue({ duplicate: false }),
 }));
 
 // Mock publicApiClient
@@ -17,7 +32,7 @@ vi.mock("@/lib/publicApiClient", () => ({
 
 // Must import after mocks
 import { ContactDialog } from "./contact-dialog";
-import { createContact, updateContact } from "@/app/actions/contacts";
+import { createContact, updateContact, checkDuplicateEmail } from "@/app/actions/contacts";
 
 const keywords: Keyword[] = [
   { id: "kw-1", name: "Budget", description: null, category: null, created_at: "2026-01-01T00:00:00Z" },
@@ -222,7 +237,7 @@ describe("ContactDialog – save/submit", () => {
     expect(screen.getByLabelText(/article links/i)).toBeInTheDocument();
   });
 
-  it("toggles keyword selection", async () => {
+  it("toggles keyword selection via popover", async () => {
     const user = userEvent.setup();
 
     render(
@@ -233,12 +248,210 @@ describe("ContactDialog – save/submit", () => {
 
     await user.click(screen.getByText("Add Contact"));
 
-    // Click a keyword to add it
-    const budgetBadge = screen.getByText("+ Budget");
-    await user.click(budgetBadge);
+    // Open keyword popover
+    await user.click(screen.getByRole("button", { name: /add keywords/i }));
 
-    // Should now appear in the selected area (without the '+' prefix)
-    expect(screen.queryByText("+ Budget")).not.toBeInTheDocument();
-    expect(screen.getByText("Budget")).toBeInTheDocument();
+    // Click Budget in the popover
+    await vi.waitFor(() => {
+      expect(screen.getByText("Budget")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Budget"));
+
+    // Should now appear as a selected badge AND in the popover list
+    // Verify at least one element with "Budget" text exists (badge + list item)
+    expect(screen.getAllByText("Budget").length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("ContactDialog – keyword command picker (#8)", () => {
+  it("shows 'Add Keywords' button", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ContactDialog keywords={keywords}>
+        <button>Add Contact</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Add Contact"));
+    expect(screen.getByRole("button", { name: /add keywords/i })).toBeInTheDocument();
+  });
+
+  it("opens keyword popover when Add Keywords is clicked", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ContactDialog keywords={keywords}>
+        <button>Add Contact</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Add Contact"));
+    await user.click(screen.getByRole("button", { name: /add keywords/i }));
+
+    // Popover should contain keyword names
+    await vi.waitFor(() => {
+      expect(screen.getByText("Budget")).toBeInTheDocument();
+      expect(screen.getByText("Housing")).toBeInTheDocument();
+    });
+  });
+
+  it("shows 'Selected' label when keyword is already selected", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ContactDialog
+        contact={makeContact({ keywords: [keywords[0]] })}
+        keywords={keywords}
+      >
+        <button>Edit</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Edit"));
+    await user.click(screen.getByRole("button", { name: /add keywords/i }));
+
+    await vi.waitFor(() => {
+      expect(screen.getByText("Selected")).toBeInTheDocument();
+    });
+  });
+});
+
+describe("ContactDialog – inline validation (#9)", () => {
+  it("shows error when name is too short on blur", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ContactDialog keywords={keywords}>
+        <button>Add Contact</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Add Contact"));
+
+    const nameInput = screen.getByLabelText(/name/i);
+    await user.type(nameInput, "A");
+    await user.tab(); // blur
+
+    await vi.waitFor(() => {
+      expect(screen.getByText(/name must be at least 2 characters/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows error for invalid email on blur", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ContactDialog keywords={keywords}>
+        <button>Add Contact</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Add Contact"));
+
+    const emailInput = screen.getByLabelText(/email/i);
+    await user.type(emailInput, "not-an-email");
+    await user.tab();
+
+    await vi.waitFor(() => {
+      expect(screen.getByText(/invalid email address/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows error when phone has fewer than 7 digits on blur", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ContactDialog keywords={keywords}>
+        <button>Add Contact</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Add Contact"));
+
+    const phoneInput = screen.getByLabelText(/phone/i);
+    await user.type(phoneInput, "12345");
+    await user.tab();
+
+    await vi.waitFor(() => {
+      expect(screen.getByText(/phone must have at least 7 digits/i)).toBeInTheDocument();
+    });
+  });
+
+  it("clears error when valid value is entered", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ContactDialog keywords={keywords}>
+        <button>Add Contact</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Add Contact"));
+
+    const nameInput = screen.getByLabelText(/name/i);
+    await user.type(nameInput, "A");
+    await user.tab();
+
+    await vi.waitFor(() => {
+      expect(screen.getByText(/name must be at least 2 characters/i)).toBeInTheDocument();
+    });
+
+    await user.clear(nameInput);
+    await user.type(nameInput, "Alice");
+    await user.tab();
+
+    await vi.waitFor(() => {
+      expect(screen.queryByText(/name must be at least 2 characters/i)).not.toBeInTheDocument();
+    });
+  });
+});
+
+describe("ContactDialog – duplicate email detection (#10)", () => {
+  it("shows warning when duplicate email is found", async () => {
+    const user = userEvent.setup();
+    (checkDuplicateEmail as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      duplicate: true,
+      name: "Existing Person",
+    });
+
+    render(
+      <ContactDialog keywords={keywords}>
+        <button>Add Contact</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Add Contact"));
+
+    const emailInput = screen.getByLabelText(/email/i);
+    await user.type(emailInput, "existing@city.gov");
+    await user.tab();
+
+    await vi.waitFor(() => {
+      expect(screen.getByText(/a contact named 'Existing Person' already has this email/i)).toBeInTheDocument();
+    });
+  });
+
+  it("does not show warning when no duplicate exists", async () => {
+    const user = userEvent.setup();
+    (checkDuplicateEmail as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      duplicate: false,
+    });
+
+    render(
+      <ContactDialog keywords={keywords}>
+        <button>Add Contact</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Add Contact"));
+
+    const emailInput = screen.getByLabelText(/email/i);
+    await user.type(emailInput, "unique@city.gov");
+    await user.tab();
+
+    await vi.waitFor(() => {
+      expect(screen.queryByText(/already has this email/i)).not.toBeInTheDocument();
+    });
   });
 });

@@ -883,4 +883,55 @@ describe("ComposePageContent", () => {
     // Component still renders
     expect(screen.getByText(COMPOSE_RESPONSE.subject)).toBeInTheDocument()
   })
+
+  // ===================================================================
+  // initialContactId auto-select (#11)
+  // ===================================================================
+
+  it("auto-selects contact when initialContactId matches", async () => {
+    setupHappyPath()
+    render(
+      <ComposePageContent
+        contacts={[SF_CONTACT, NO_CITY_CONTACT]}
+        keywords={KEYWORDS}
+        initialContactId="c-1"
+      />
+    )
+
+    // Should skip search and go straight to fetching anomalies for Jane
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled()
+    })
+
+    // Contact should be selected (no search input visible)
+    expect(screen.queryByPlaceholderText(/search contacts/i)).not.toBeInTheDocument()
+    expect(screen.getByText("Jane Smith")).toBeInTheDocument()
+  })
+
+  it("does nothing when initialContactId does not match any contact", () => {
+    render(
+      <ComposePageContent
+        contacts={[SF_CONTACT, NO_CITY_CONTACT]}
+        keywords={KEYWORDS}
+        initialContactId="nonexistent-id"
+      />
+    )
+
+    // Should remain on search screen
+    expect(screen.getByPlaceholderText(/search contacts/i)).toBeInTheDocument()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it("does nothing when initialContactId is null", () => {
+    render(
+      <ComposePageContent
+        contacts={[SF_CONTACT, NO_CITY_CONTACT]}
+        keywords={KEYWORDS}
+        initialContactId={null}
+      />
+    )
+
+    expect(screen.getByPlaceholderText(/search contacts/i)).toBeInTheDocument()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
 })
