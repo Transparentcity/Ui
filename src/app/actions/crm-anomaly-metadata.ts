@@ -17,11 +17,11 @@ export async function getOrCreateCrmMetadata(anomalyId: number): Promise<CrmAnom
     .select('*')
     .eq('anomaly_id', anomalyId)
     .single()
-  
+
   if (existing && !selectError) {
     return existing as CrmAnomalyMetadata
   }
-  
+
   // Create new metadata with defaults
   const { data: newMetadata, error: insertError } = await db
     .from('crm_anomaly_metadata')
@@ -88,7 +88,7 @@ export async function updateCrmStatus(
     .from('crm_anomaly_metadata')
     .update({ crm_status: status })
     .eq('anomaly_id', anomalyId)
-  
+
   if (error) {
     throw new Error(`Failed to update CRM status: ${error.message}`)
   }
@@ -114,7 +114,7 @@ export async function updateCrmSeverity(
     .from('crm_anomaly_metadata')
     .update({ severity })
     .eq('anomaly_id', anomalyId)
-  
+
   if (error) {
     throw new Error(`Failed to update CRM severity: ${error.message}`)
   }
@@ -143,7 +143,7 @@ export async function updateCrmDistrictLabel(
       is_citywide: isCitywide
     })
     .eq('anomaly_id', anomalyId)
-  
+
   if (error) {
     throw new Error(`Failed to update CRM district label: ${error.message}`)
   }
@@ -168,7 +168,7 @@ export async function updateCrmNotes(
     .from('crm_anomaly_metadata')
     .update({ notes })
     .eq('anomaly_id', anomalyId)
-  
+
   if (error) {
     throw new Error(`Failed to update CRM notes: ${error.message}`)
   }
@@ -189,17 +189,15 @@ export async function bulkUpdateCrmStatus(
   for (const anomalyId of anomalyIds) {
     await getOrCreateCrmMetadata(anomalyId)
   }
-  
-  // Bulk update using individual updates (Supabase doesn't support whereIn directly)
-  for (const anomalyId of anomalyIds) {
-    const { error } = await db
-      .from('crm_anomaly_metadata')
-      .update({ crm_status: status })
-      .eq('anomaly_id', anomalyId)
-    
-    if (error) {
-      console.error(`Failed to update anomaly ${anomalyId}:`, error)
-    }
+
+  // Bulk update all matching rows in a single query
+  const { error } = await db
+    .from('crm_anomaly_metadata')
+    .update({ crm_status: status })
+    .in('anomaly_id', anomalyIds)
+
+  if (error) {
+    console.error('Failed to bulk update CRM status:', error)
   }
   
   revalidatePath("/anomalies")
@@ -216,7 +214,7 @@ export async function deleteCrmMetadata(anomalyId: number): Promise<void> {
     .from('crm_anomaly_metadata')
     .delete()
     .eq('anomaly_id', anomalyId)
-  
+
   if (error) {
     throw new Error(`Failed to delete CRM metadata: ${error.message}`)
   }
