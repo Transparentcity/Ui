@@ -216,7 +216,7 @@ export function WastePageContent() {
 
   const { data, error } = useWasteAnalysis(undefined, true)
 
-  const { activeJob, isRunning: isManualRefreshing, startJob, retryCount } = useActiveWasteJob(selectedCityId)
+  const { activeJob, isRunning: isManualRefreshing, startJob, retryCount, lastDiagnostics } = useActiveWasteJob(selectedCityId)
 
   const displayData = data ?? cachedData
   const showLoadingState = isManualRefreshing && !displayData
@@ -501,20 +501,42 @@ export function WastePageContent() {
             </div>
           )}
 
-          {/* Timeout banner */}
+          {/* Timeout / failure banner with diagnostics */}
           {!isManualRefreshing && activeJob?.status === "failed" && (
-            <div className="mb-4 p-3 bg-amber-50 border-amber-200 rounded-lg flex items-center justify-between gap-3 text-sm">
-              <span className="text-amber-800">
-                {activeJob.error_message || "Analysis failed. Showing previous snapshot."}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                className="shrink-0 border-amber-300 text-amber-800 hover:bg-amber-100"
-              >
-                Retry
-              </Button>
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-amber-800">
+                  {activeJob.error_message || "Analysis failed. Showing previous snapshot."}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRefresh}
+                  className="shrink-0 border-amber-300 text-amber-800 hover:bg-amber-100"
+                >
+                  Retry
+                </Button>
+              </div>
+              {lastDiagnostics && (
+                <div className="mt-2 pt-2 border-t border-amber-200 text-xs text-amber-700 space-y-1" data-testid="failure-diagnostics">
+                  <p className="font-medium">Diagnostic details:</p>
+                  <p>
+                    Stuck at: <span className="font-mono">{lastDiagnostics.lastProgress}%</span>
+                    {lastDiagnostics.lastStatusMessage && (
+                      <> — &ldquo;{lastDiagnostics.lastStatusMessage}&rdquo;</>
+                    )}
+                  </p>
+                  {lastDiagnostics.startedAt && (
+                    <p>
+                      Job started: {new Date(lastDiagnostics.startedAt).toLocaleTimeString()}
+                    </p>
+                  )}
+                  <p>
+                    Last progress update: {new Date(lastDiagnostics.lastUpdateAt).toLocaleTimeString()}
+                  </p>
+                  <p className="font-mono text-amber-500">Job ID: {lastDiagnostics.jobId}</p>
+                </div>
+              )}
             </div>
           )}
 

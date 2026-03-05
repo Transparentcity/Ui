@@ -95,8 +95,18 @@ export function useActiveWasteJob(cityId: number | null) {
   const [activeJob, setActiveJob] = useState<Job | null>(null)
   const [isStarting, setIsStarting] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
+  const [lastDiagnostics, setLastDiagnostics] = useState<{
+    lastProgress: number
+    lastStatusMessage: string
+    lastUpdateAt: string
+    startedAt: string | null
+    jobId: string
+  } | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const retryCountRef = useRef(0)
+  const lastProgressSnapshotRef = useRef<{ progress: number; statusMessage: string; updatedAt: number }>({
+    progress: 0, statusMessage: "", updatedAt: Date.now(),
+  })
 
   const MAX_AUTO_RETRIES = 2
 
@@ -125,8 +135,27 @@ export function useActiveWasteJob(cityId: number | null) {
           (job.status === "running" || job.status === "pending") &&
           jobAgeMs > MAX_JOB_AGE_MS
 
+        // Track the last known progress for diagnostics
+        if (job.progress !== lastProgressSnapshotRef.current.progress ||
+            job.status_message !== lastProgressSnapshotRef.current.statusMessage) {
+          lastProgressSnapshotRef.current = {
+            progress: job.progress ?? 0,
+            statusMessage: job.status_message ?? "",
+            updatedAt: Date.now(),
+          }
+        }
+
         if (isStale) {
           shouldContinue = false
+          // Save diagnostics so the UI can show where it got stuck
+          const snap = lastProgressSnapshotRef.current
+          setLastDiagnostics({
+            lastProgress: snap.progress,
+            lastStatusMessage: snap.statusMessage,
+            lastUpdateAt: new Date(snap.updatedAt).toISOString(),
+            startedAt: job.started_at ?? null,
+            jobId,
+          })
           // Auto-retry if under the limit
           if (retryCountRef.current < MAX_AUTO_RETRIES && cityId && startNewJobRef.current) {
             retryCountRef.current += 1
@@ -166,6 +195,7 @@ export function useActiveWasteJob(cityId: number | null) {
           if (job.status === "completed") {
             retryCountRef.current = 0
             setRetryCount(0)
+            setLastDiagnostics(null)
             queryClient.invalidateQueries({ queryKey: ["waste", "analysis"] })
             queryClient.invalidateQueries({ queryKey: ["waste", "summary"] })
             queryClient.invalidateQueries({ queryKey: ["waste", "queue"] })
@@ -266,11 +296,13 @@ export function useActiveWasteJob(cityId: number | null) {
   // Keep the ref in sync so pollJob's auto-retry can call startJob
   startNewJobRef.current = startJob
 
-  /** User-initiated start resets retry counter */
+  /** User-initiated start resets retry counter and diagnostics */
   const startJobWithReset = useCallback(
     async (category?: string) => {
       retryCountRef.current = 0
       setRetryCount(0)
+      setLastDiagnostics(null)
+      lastProgressSnapshotRef.current = { progress: 0, statusMessage: "", updatedAt: Date.now() }
       return startJob(category)
     },
     [startJob]
@@ -281,7 +313,7 @@ export function useActiveWasteJob(cityId: number | null) {
     (activeJob != null &&
       (activeJob.status === "pending" || activeJob.status === "running"))
 
-  return { activeJob, isRunning, isStarting, startJob: startJobWithReset, retryCount }
+  return { activeJob, isRunning, isStarting, startJob: startJobWithReset, retryCount, lastDiagnostics }
 }
 
 /**
