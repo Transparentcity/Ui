@@ -70,7 +70,7 @@ export default function CityTypeahead({
   const getUserCountry = useMemo(() => {
     if (typeof window === "undefined") return null;
     try {
-      const locale = navigator.language || (navigator as unknown as { userLanguage?: string }).userLanguage;
+      const locale = navigator.language || (navigator as any).userLanguage;
       // Extract country code from locale (e.g., "en-US" -> "US")
       const countryCode = locale.split("-")[1]?.toUpperCase();
       
@@ -316,7 +316,7 @@ export default function CityTypeahead({
       }
       
       emitSavedCitiesChanged();
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error("Error toggling save city:", err);
       alert("Failed to update saved status. Please try again.");
     } finally {

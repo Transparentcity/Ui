@@ -9,7 +9,7 @@ import styles from "./TimeSeriesChart.module.css";
 const Plot = dynamic(
   () => import("react-plotly.js"),
   { ssr: false }
-) as React.ComponentType<import("react-plotly.js").PlotParams>;
+) as React.ComponentType<any>;
 
 export type PeriodType = "day" | "week" | "month" | "year" | "ytd";
 
@@ -580,7 +580,7 @@ export default function TimeSeriesChart({
       return [];
     }
 
-    const traces: Partial<import("plotly.js").Data>[] = [];
+    const traces: any[] = [];
 
     // Special handling for YTD - compare years by day-of-year
     if (periodType === "ytd") {

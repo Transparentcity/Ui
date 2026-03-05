@@ -176,7 +176,7 @@ export default function ScheduledJobsPanel({
       const currentToken = token || (await getAccessTokenSilently());
 
       const scheduleType = editForm.schedule_type;
-      const payload: Record<string, string | number | boolean | null | Record<string, unknown>> = {
+      const payload: any = {
         schedule_type: scheduleType,
         timezone: editForm.timezone || "UTC",
         max_concurrent_cities: Number(editForm.max_concurrent_cities || "2"),

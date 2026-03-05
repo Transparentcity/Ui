@@ -6,7 +6,7 @@ import "./MapTimeline.css";
 
 interface MapTimelineProps {
   features: Array<{
-    properties: Record<string, string | number | boolean | null | undefined>;
+    properties: Record<string, any>;
     geometry: { type: string; coordinates: [number, number] };
   }>;
   onDateSelect?: (selectedDate: string | null) => void;
@@ -36,7 +36,7 @@ const DATE_FIELDS = [
   "business_end_date",
 ];
 
-function parseDate(value: string | number | boolean | Date | null | undefined): Date | null {
+function parseDate(value: any): Date | null {
   if (!value) return null;
   if (value instanceof Date) return value;
   if (typeof value === "string") {
@@ -48,10 +48,7 @@ function parseDate(value: string | number | boolean | Date | null | undefined): 
   return null;
 }
 
-function getDateFromFeature(feature: {
-  properties: Record<string, string | number | boolean | null | undefined>;
-  geometry: { type: string; coordinates: [number, number] };
-}): Date | null {
+function getDateFromFeature(feature: any): Date | null {
   const props = feature.properties || {};
   
   // First check if we stored the date directly

@@ -91,7 +91,7 @@ export default function ResearchList({
     if (!isAuthenticated) return;
 
     const handler = (e: Event) => {
-      const ce = e as CustomEvent<{ job_id: string; data: Record<string, unknown> }>;
+      const ce = e as CustomEvent<{ job_id: string; data: any }>;
       const jobId = ce.detail?.job_id;
       const data = ce.detail?.data;
       
@@ -229,9 +229,9 @@ export default function ResearchList({
       
       // Reload research list
       await loadResearch();
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error("Failed to regenerate research:", err);
-      alert(err instanceof Error ? err.message : "Failed to regenerate research");
+      alert(err.message || "Failed to regenerate research");
       throw err; // Rethrow so modal knows it failed
     } finally {
       setRegeneratingId(null);
@@ -263,9 +263,9 @@ export default function ResearchList({
       
       // Reload research list
       await loadResearch();
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error("Failed to re-synthesize research:", err);
-      alert(err instanceof Error ? err.message : "Failed to re-synthesize research");
+      alert(err.message || "Failed to re-synthesize research");
       throw err; // Rethrow so modal knows it failed
     } finally {
       setRegeneratingId(null);

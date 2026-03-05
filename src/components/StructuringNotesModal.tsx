@@ -18,77 +18,6 @@ interface StructuringNotesModalProps {
   onClose: () => void;
 }
 
-/* ---------- structuring notes types ---------- */
-
-interface IssueAndResolution {
-  issue?: string;
-  resolution?: string;
-  resolved?: boolean;
-}
-
-interface ExecutionVerification {
-  data_points_returned?: number | null;
-  date_range_start?: string | null;
-  date_range_end?: string | null;
-  sample_values?: number[];
-  values_look_reasonable?: boolean;
-  notes?: string | null;
-}
-
-interface AgentObservations {
-  confidence?: number | null;
-  confidence_rationale?: string | null;
-  dataset_rationale?: string | null;
-  date_field_rationale?: string | null;
-  category_values_observed?: Record<string, string[]>;
-  issues_and_resolutions?: IssueAndResolution[];
-  execution_verification?: ExecutionVerification;
-  warnings?: string[];
-}
-
-interface FreshnessInfo {
-  assessment?: string | null;
-  lag_days?: number | null;
-  detected_frequency?: string | null;
-  last_data_date?: string | null;
-  earliest_data_date?: string | null;
-  notes?: string | null;
-}
-
-interface DateFieldInfo {
-  field_name?: string;
-  detection_method?: string;
-  rationale?: string;
-  alternatives_considered?: string[];
-  confidence?: number | null;
-}
-
-interface FieldSearchEntry {
-  field_type?: string;
-  searched_for?: string;
-  status?: string;
-  field_found?: string | null;
-  confidence?: number | null;
-  notes?: string | null;
-}
-
-interface ValidationHistoryEntry {
-  passed?: boolean;
-  phase?: string;
-  iteration?: number;
-  timestamp?: string | null;
-  issues?: string[];
-  suggestions?: string[];
-}
-
-interface TrialExecution {
-  success?: boolean;
-  job_id?: string | null;
-  rows_processed?: number | null;
-  execution_time_ms?: number | null;
-  error_message?: string | null;
-}
-
 /* ---------- tiny helpers ---------- */
 
 function formatDate(v?: string | null): string {
@@ -171,7 +100,7 @@ function Section({
 
 /* ---------- sub-components for each notes section ---------- */
 
-function AgentObservationsPanel({ obs }: { obs: AgentObservations }) {
+function AgentObservationsPanel({ obs }: { obs: Record<string, any> }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
       {/* Confidence */}
@@ -241,8 +170,8 @@ function AgentObservationsPanel({ obs }: { obs: AgentObservations }) {
                   <code style={codeStyle}>{field}</code>
                   <span style={{ fontSize: "12px", color: "var(--text-secondary)", marginLeft: "6px" }}>
                     →{" "}
-                    {values.slice(0, 10).join(", ")}
-                    {values.length > 10 && ` (+${values.length - 10} more)`}
+                    {(values as string[]).slice(0, 10).join(", ")}
+                    {(values as string[]).length > 10 && ` (+${(values as string[]).length - 10} more)`}
                   </span>
                 </div>
               )
@@ -255,7 +184,7 @@ function AgentObservationsPanel({ obs }: { obs: AgentObservations }) {
         <div>
           <div style={labelStyle}>Issues Encountered</div>
           {obs.issues_and_resolutions.map(
-            (item: IssueAndResolution, i: number) => (
+            (item: Record<string, any>, i: number) => (
               <div
                 key={i}
                 style={{
@@ -292,7 +221,7 @@ function AgentObservationsPanel({ obs }: { obs: AgentObservations }) {
       {obs.warnings && obs.warnings.length > 0 && (
         <div>
           <div style={labelStyle}>Agent Warnings</div>
-          {obs.warnings.map((w, i) => (
+          {obs.warnings.map((w: string, i: number) => (
             <div
               key={i}
               style={{
@@ -313,7 +242,7 @@ function AgentObservationsPanel({ obs }: { obs: AgentObservations }) {
   );
 }
 
-function ExecutionVerificationPanel({ ev }: { ev: ExecutionVerification }) {
+function ExecutionVerificationPanel({ ev }: { ev: Record<string, any> }) {
   return (
     <div>
       <div style={labelStyle}>Execution Verification</div>
@@ -327,7 +256,7 @@ function ExecutionVerificationPanel({ ev }: { ev: ExecutionVerification }) {
         {ev.sample_values && ev.sample_values.length > 0 && (
           <KV
             label="Sample Values"
-            value={ev.sample_values.map((v) => v.toLocaleString()).join(", ")}
+            value={ev.sample_values.map((v: number) => v.toLocaleString()).join(", ")}
           />
         )}
         <KV
@@ -344,7 +273,7 @@ function ExecutionVerificationPanel({ ev }: { ev: ExecutionVerification }) {
   );
 }
 
-function FreshnessPanel({ f }: { f: FreshnessInfo }) {
+function FreshnessPanel({ f }: { f: Record<string, any> }) {
   const assessmentColor: Record<string, string> = {
     fresh: "var(--color-success, #22c55e)",
     acceptable: "var(--color-warning, #eab308)",
@@ -379,11 +308,11 @@ function FreshnessPanel({ f }: { f: FreshnessInfo }) {
   );
 }
 
-function DateFieldPanel({ df }: { df: DateFieldInfo }) {
+function DateFieldPanel({ df }: { df: Record<string, any> }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "12px" }}>
-      <KV label="Field" value={df.field_name ?? "—"} />
-      <KV label="Detection" value={df.detection_method?.replace("_", " ") ?? "—"} />
+      <KV label="Field" value={df.field_name} />
+      <KV label="Detection" value={df.detection_method?.replace("_", " ")} />
       {df.rationale && <KV label="Rationale" value={df.rationale} />}
       {df.alternatives_considered?.length > 0 && (
         <KV label="Alternatives" value={df.alternatives_considered.join(", ")} />
@@ -399,7 +328,7 @@ function DateFieldPanel({ df }: { df: DateFieldInfo }) {
   );
 }
 
-function FieldSearchesPanel({ searches }: { searches: FieldSearchEntry[] }) {
+function FieldSearchesPanel({ searches }: { searches: Record<string, any>[] }) {
   return (
     <table className={styles.miniTable}>
       <thead>
@@ -449,7 +378,7 @@ function FieldSearchesPanel({ searches }: { searches: FieldSearchEntry[] }) {
 function ValidationHistoryPanel({
   history,
 }: {
-  history: ValidationHistoryEntry[];
+  history: Record<string, any>[];
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -479,14 +408,14 @@ function ValidationHistoryPanel({
           </div>
           {v.issues?.length > 0 && (
             <ul style={{ margin: "4px 0 0 16px", padding: 0, color: "var(--text-secondary)" }}>
-              {v.issues.map((issue, j) => (
+              {v.issues.map((issue: string, j: number) => (
                 <li key={j}>{issue}</li>
               ))}
             </ul>
           )}
           {v.suggestions?.length > 0 && (
             <ul style={{ margin: "2px 0 0 16px", padding: 0, color: "var(--text-tertiary)" }}>
-              {v.suggestions.map((s, j) => (
+              {v.suggestions.map((s: string, j: number) => (
                 <li key={j}>💡 {s}</li>
               ))}
             </ul>
@@ -497,7 +426,7 @@ function ValidationHistoryPanel({
   );
 }
 
-function TrialExecutionPanel({ te }: { te: TrialExecution }) {
+function TrialExecutionPanel({ te }: { te: Record<string, any> }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 16px", fontSize: "12px" }}>
       <KV

@@ -140,14 +140,14 @@ export default function MetricEditModal({
   });
 
   // Query and map config state
-  const [editQueryConfig, setEditQueryConfig] = useState<Record<string, unknown> | null>(null);
+  const [editQueryConfig, setEditQueryConfig] = useState<Record<string, any> | null>(null);
   const [showQueryConfig, setShowQueryConfig] = useState(false);
   const [editMapFields, setEditMapFields] = useState<{
     map_query: string | null;
-    map_filters: Record<string, unknown> | null;
-    map_config: Record<string, unknown> | null;
-    location_fields: unknown[] | null;
-    category_fields: unknown[] | null;
+    map_filters: Record<string, any> | null;
+    map_config: Record<string, any> | null;
+    location_fields: any[] | null;
+    category_fields: any[] | null;
   } | null>(null);
   const [showMapFields, setShowMapFields] = useState(false);
 
@@ -240,8 +240,8 @@ export default function MetricEditModal({
   const saveFields = () => {
     if (!metric) return;
 
-    let parsedLocation: unknown[] | null = [];
-    let parsedCategory: unknown[] | null = [];
+    let parsedLocation: any[] | null = [];
+    let parsedCategory: any[] | null = [];
 
     try {
       const trimmed = locationFields.trim();
@@ -1339,7 +1339,7 @@ export default function MetricEditModal({
                         </tr>
                       </thead>
                       <tbody>
-                        {cityStructure.geographic_structures.map((g: { structure_name?: string; structure_type?: string; identifier_field?: string; min_value?: number | null; max_value?: number | null }, idx: number) => (
+                        {cityStructure.geographic_structures.map((g: any, idx: number) => (
                           <tr key={idx}>
                             <td className={styles.miniTd}>{g.structure_name || g.structure_type || "—"}</td>
                             <td className={styles.miniTd}>{g.identifier_field || "—"}</td>

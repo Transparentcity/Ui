@@ -54,7 +54,7 @@ export default function DatasetsList({
       setError(null);
       const token = await getAccessTokenSilently();
 
-      const promises: Promise<DatasetStats | DatasetCategory[] | Dataset[] | CityListItem[]>[] = [
+      const promises: Promise<any>[] = [
         getDatasetCategories(token),
         listDatasets(token, {
           limit: 100,

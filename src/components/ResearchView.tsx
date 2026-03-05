@@ -25,39 +25,6 @@ import styles from "./ResearchView.module.css";
 
 type TabType = "report" | "agenda";
 
-/** Shape of a single agenda item (structured or legacy). */
-interface AgendaItem {
-  item_id?: string;
-  research_question: string;
-  why_this_matters?: string;
-  what_good_looks_like?: string | string[];
-}
-
-/** The agenda object stored on a ResearchReport. */
-interface ResearchAgenda {
-  structured_items?: AgendaItem[];
-  items?: AgendaItem[];
-}
-
-/** Payload delivered by the job:update CustomEvent. */
-interface JobUpdateData {
-  type?: string;
-  report_id?: number;
-  description?: string;
-}
-
-interface JobUpdateDetail {
-  job_id: string;
-  data?: JobUpdateData;
-}
-
-/** Helper to extract an error message from an unknown catch value. */
-function getErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === "string") return err;
-  return "An unknown error occurred";
-}
-
 interface ResearchViewProps {
   reportId: number;
   isAdmin?: boolean;
@@ -72,13 +39,13 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
   const [activeTab, setActiveTab] = useState<TabType>("report");
   const lastUpdateRef = useRef<number>(0);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
+  
   // Regenerate/Resynthesize state
   const [availableModels, setAvailableModels] = useState<ModelGroupInfo[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isResynthesizing, setIsResynthesizing] = useState(false);
-
+  
   // Feed stories state
   const [feedStoriesCount, setFeedStoriesCount] = useState<number | null>(null);
   const [isCheckingFeedStories, setIsCheckingFeedStories] = useState(false);
@@ -98,9 +65,9 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
       setResearch(report);
       setItems(itemsResp.items || []);
       setError(null);
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error("Failed to load research:", err);
-      setError(getErrorMessage(err));
+      setError(err.message || "Failed to load research");
     } finally {
       setLoading(false);
     }
@@ -137,7 +104,7 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
         setFeedStoriesCount(null);
         return;
       }
-
+      
       setIsCheckingFeedStories(true);
       try {
         const token = await getAccessTokenSilently();
@@ -153,7 +120,7 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
         setIsCheckingFeedStories(false);
       }
     };
-
+    
     void checkFeedStories();
   }, [research, reportId, getAccessTokenSilently]);
 
@@ -161,18 +128,18 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
   // Once agenda is ready or research is running, WebSocket handles updates
   useEffect(() => {
     if (!research) return;
-
+    
     // Only poll when research is waiting for agenda (draft status)
     // Once agenda_ready or running, WebSocket takes over
     const shouldPoll = research.status === "draft";
     if (!shouldPoll) {
       return;
     }
-
+    
     const pollInterval = setInterval(() => {
       void loadAll(true); // Skip loading state
     }, 3000); // Poll every 3 seconds when waiting for agenda
-
+    
     return () => {
       clearInterval(pollInterval);
     };
@@ -181,28 +148,28 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
   // Listen for job updates via WebSocket (no polling needed)
   // Use a ref to track current job_id to avoid stale closures
   const currentJobIdRef = useRef<string | null>(null);
-
+  
   // Update ref when research changes
   useEffect(() => {
     currentJobIdRef.current = research?.job_id ?? null;
   }, [research?.job_id]);
-
+  
   useEffect(() => {
     const handler = (e: Event) => {
-      const ce = e as CustomEvent<JobUpdateDetail>;
+      const ce = e as CustomEvent<{ job_id: string; data: any }>;
       const jobId = ce.detail?.job_id;
       const data = ce.detail?.data;
-
+      
       if (!jobId) return;
-
+      
       let shouldReload = false;
-
+      
       // Reload if this job matches our research's job_id (check ref for current value)
       const currentJobId = currentJobIdRef.current;
       if (currentJobId && jobId === currentJobId) {
         shouldReload = true;
       }
-
+      
       // Also check for research-specific updates (format: research_{report_id})
       if (!shouldReload && jobId.startsWith("research_")) {
         const reportIdFromJob = parseInt(jobId.replace("research_", ""));
@@ -210,14 +177,14 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
           shouldReload = true;
         }
       }
-
+      
       // Check for research_progress or research_item_update message types
       if (!shouldReload && data && (data.type === "research_progress" || data.type === "research_item_update")) {
         if (data.report_id === reportId) {
           shouldReload = true;
         }
       }
-
+      
       // Also check job description for research mentions
       if (!shouldReload && data?.description) {
         const desc = data.description.toLowerCase();
@@ -225,7 +192,7 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
           shouldReload = true;
         }
       }
-
+      
       // Debounce reloads to prevent rapid-fire requests (max once per 500ms)
       if (shouldReload) {
         const now = Date.now();
@@ -261,24 +228,24 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
     if (!research) return;
     try {
       const token = await getAccessTokenSilently();
-
+      
       // Optimistic update: show research as running immediately
       setResearch((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
-          status: "running",
+          status: "running" as any,
           job_id: prev.job_id, // Keep existing job_id if any
         };
       });
-
+      
       const resp = await runResearchFromAgenda(reportId, token);
-
+      
       // Ensure job badge starts tracking immediately
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("jobCreated", { detail: resp.job_id }));
       }
-
+      
       // Update with actual job_id from response
       setResearch((prev) => {
         if (!prev) return prev;
@@ -287,18 +254,18 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
           job_id: resp.job_id,
         };
       });
-
+      
       // Don't reload immediately - optimistic update is sufficient
       // WebSocket will handle subsequent updates automatically
       // Only do a delayed reload to catch any immediate server-side updates
       setTimeout(() => {
         void loadAll(true); // Skip loading state to avoid flicker
       }, 1000);
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error("Failed to start research run:", err);
       // Revert optimistic update on error
       void loadAll();
-      alert(getErrorMessage(err));
+      alert(err.message || "Failed to start research run");
     }
   };
 
@@ -314,20 +281,20 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
         window.dispatchEvent(new CustomEvent("research:invalidate"));
       }
       await loadAll();
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error("Failed to cancel research:", err);
-      alert(getErrorMessage(err));
+      alert(err.message || "Failed to cancel research");
     }
   };
 
   const handlePublish = async () => {
     if (!research) return;
-
+    
     try {
       const token = await getAccessTokenSilently();
       await publishResearch(reportId, !research.is_public, token);
       await loadAll(); // Reload to get updated state
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error("Failed to publish research:", err);
       alert("Failed to update research visibility");
     }
@@ -338,25 +305,25 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
     if (!confirm("Are you sure you want to regenerate this research? This will re-run the entire research with the selected model.")) {
       return;
     }
-
+    
     setIsRegenerating(true);
     try {
       const token = await getAccessTokenSilently();
       const modelKey = selectedModel || research.model_key || "claude-sonnet-4.6";
-
+      
       const response = await regenerateResearch(reportId, { model_key: modelKey }, token);
-
+      
       // Notify job system
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("jobCreated", { detail: response.job_id }));
         window.dispatchEvent(new CustomEvent("research:invalidate"));
       }
-
+      
       // Reload to show updated status
       await loadAll();
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error("Failed to regenerate research:", err);
-      alert(getErrorMessage(err));
+      alert(err.message || "Failed to regenerate research");
     } finally {
       setIsRegenerating(false);
     }
@@ -367,25 +334,25 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
     if (!confirm("Re-synthesize the final report from existing item results? This will NOT re-run research; it only rebuilds the final report with the selected model.")) {
       return;
     }
-
+    
     setIsResynthesizing(true);
     try {
       const token = await getAccessTokenSilently();
       const modelKey = selectedModel || research.model_key || "claude-sonnet-4.6";
-
+      
       const response = await resynthesizeResearch(reportId, { model_key: modelKey }, token);
-
+      
       // Notify job system
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("jobCreated", { detail: response.job_id }));
         window.dispatchEvent(new CustomEvent("research:invalidate"));
       }
-
+      
       // Reload to show updated status
       await loadAll();
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error("Failed to re-synthesize research:", err);
-      alert(getErrorMessage(err));
+      alert(err.message || "Failed to re-synthesize research");
     } finally {
       setIsResynthesizing(false);
     }
@@ -403,21 +370,21 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
 
   const handleGenerateFeedStories = async () => {
     if (!research) return;
-
+    
     setIsGeneratingFeedStories(true);
     try {
       const token = await getAccessTokenSilently();
-
+      
       // Extract city_id and district from research report
       const cityId = research.city_id;
       const district = research.district ? parseInt(research.district) : 0;
-      const frequency = (research as unknown as { metadata?: { frequency?: string } }).metadata?.frequency || "weekly";
-
+      const frequency = (research as any).metadata?.frequency || "weekly";
+      
       if (!cityId) {
         alert("Cannot generate feed stories: Research report missing city_id. Please provide city_id manually.");
         return;
       }
-
+      
       const response = await generateFeedStoriesFromResearch(
         reportId,
         {
@@ -428,14 +395,14 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
         },
         token
       );
-
+      
       // Update feed stories count
       setFeedStoriesCount(response.stories_created);
-
+      
       alert(`Successfully generated ${response.stories_created} feed stories!`);
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error("Failed to generate feed stories:", err);
-      alert(getErrorMessage(err));
+      alert(err.message || "Failed to generate feed stories");
     } finally {
       setIsGeneratingFeedStories(false);
     }
@@ -484,7 +451,7 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
             </button>
           )}
         </div>
-
+        
         <div className={styles.meta}>
           <span>Model: {research.model_key || "Not specified"}</span>
           {research.estimated_cost_usd && (
@@ -528,9 +495,9 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
           <div className={styles.section}>
             <h2>Agenda</h2>
             <div className={styles.agendaContainer}>
-              {Array.isArray((research.agenda as ResearchAgenda).structured_items) ? (
+              {Array.isArray((research.agenda as any).structured_items) ? (
                 <ol className={styles.agendaList}>
-                  {(research.agenda as ResearchAgenda).structured_items!.map((it: AgendaItem, idx: number) => (
+                  {(research.agenda as any).structured_items.map((it: any, idx: number) => (
                     <li key={idx} className={styles.agendaListItem}>
                       <div className={styles.agendaItemContent}>
                         <strong className={styles.agendaItemQuestion}>{it.research_question || it}</strong>
@@ -555,9 +522,9 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
                     </li>
                   ))}
                 </ol>
-              ) : Array.isArray((research.agenda as ResearchAgenda).items) ? (
+              ) : Array.isArray((research.agenda as any).items) ? (
                 <ol className={styles.agendaList}>
-                  {(research.agenda as ResearchAgenda).items!.map((it: AgendaItem) => (
+                  {(research.agenda as any).items.map((it: any) => (
                     <li key={it.item_id || it.research_question} className={styles.agendaListItem}>
                       <div className={styles.agendaItemContent}>
                         <strong className={styles.agendaItemQuestion}>{it.research_question}</strong>
@@ -587,9 +554,9 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
           <div className={styles.section}>
             <h2>Research Agenda</h2>
             <div className={styles.agendaContainer}>
-              {Array.isArray((research.agenda as ResearchAgenda).structured_items) ? (
+              {Array.isArray((research.agenda as any).structured_items) ? (
                 <ol className={styles.agendaList}>
-                  {(research.agenda as ResearchAgenda).structured_items!.map((it: AgendaItem, idx: number) => {
+                  {(research.agenda as any).structured_items.map((it: any, idx: number) => {
                     const matchingItem = items.find(
                       (item) => item.research_question === it.research_question
                     );
@@ -645,7 +612,7 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
                 </button>
               )}
             </div>
-
+            
             {activeTab === "report" && (
               <div className={styles.reportContent}>
                 <ReportContent
@@ -654,17 +621,17 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
                 />
               </div>
             )}
-
+            
             {activeTab === "agenda" && research.agenda && (
               <div className={styles.agendaContainer}>
-                {Array.isArray((research.agenda as ResearchAgenda).structured_items) ? (
+                {Array.isArray((research.agenda as any).structured_items) ? (
                   <ol className={styles.agendaList}>
-                    {(research.agenda as ResearchAgenda).structured_items!.map((it: AgendaItem, idx: number) => {
+                    {(research.agenda as any).structured_items.map((it: any, idx: number) => {
                       // Find matching research item by research_question
                       const matchingItem = items.find(
                         (item) => item.research_question === it.research_question
                       );
-
+                      
                       return (
                         <li key={idx} className={styles.agendaListItem}>
                           <div className={styles.agendaItemContent}>
@@ -686,19 +653,19 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
                                 ))}
                               </ul>
                             )}
-
+                            
                             {/* Show summary answer if item is completed */}
                             {matchingItem && matchingItem.status === "completed" && matchingItem.result && (
                               <div className={styles.agendaItemResult}>
                                 <strong>Summary Answer:</strong>
                                 <div className={styles.agendaItemResultText}>
-                                  {matchingItem.result.length > 500
-                                    ? `${matchingItem.result.substring(0, 500)}...`
+                                  {matchingItem.result.length > 500 
+                                    ? `${matchingItem.result.substring(0, 500)}...` 
                                     : matchingItem.result}
                                 </div>
                               </div>
                             )}
-
+                            
                             {/* Show status and session link */}
                             {matchingItem && (
                               <div className={styles.agendaItemMeta}>
@@ -721,14 +688,14 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
                       );
                     })}
                   </ol>
-                ) : Array.isArray((research.agenda as ResearchAgenda).items) ? (
+                ) : Array.isArray((research.agenda as any).items) ? (
                   <ol className={styles.agendaList}>
-                    {(research.agenda as ResearchAgenda).items!.map((it: AgendaItem) => {
+                    {(research.agenda as any).items.map((it: any) => {
                       // Find matching research item
                       const matchingItem = items.find(
                         (item) => item.research_question === it.research_question || item.item_id === it.item_id
                       );
-
+                      
                       return (
                         <li key={it.item_id || it.research_question} className={styles.agendaListItem}>
                           <div className={styles.agendaItemContent}>
@@ -740,19 +707,19 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
                                 ))}
                               </ul>
                             )}
-
+                            
                             {/* Show summary answer if item is completed */}
                             {matchingItem && matchingItem.status === "completed" && matchingItem.result && (
                               <div className={styles.agendaItemResult}>
                                 <strong>Summary Answer:</strong>
                                 <div className={styles.agendaItemResultText}>
-                                  {matchingItem.result.length > 500
-                                    ? `${matchingItem.result.substring(0, 500)}...`
+                                  {matchingItem.result.length > 500 
+                                    ? `${matchingItem.result.substring(0, 500)}...` 
                                     : matchingItem.result}
                                 </div>
                               </div>
                             )}
-
+                            
                             {/* Show status and session link */}
                             {matchingItem && (
                               <div className={styles.agendaItemMeta}>
@@ -882,3 +849,4 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
     </div>
   );
 }
+

@@ -8,154 +8,79 @@ import { API_BASE } from "@/lib/apiBase";
 import TimeSeriesChart from "./TimeSeriesChart";
 import Loader from "./Loader";
 
-type JSONValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JSONValue[]
-  | { [key: string]: JSONValue };
-
-interface MapData {
-  short_hash?: string;
-  title?: string;
-  point_count?: number;
-  map_type?: string;
-  is_public?: boolean;
-  view_url?: string;
-  data?: MapData;
-  [key: string]: JSONValue | undefined;
-}
-
-interface AnomalyData {
-  id?: string | number;
-  metric_name?: string;
-  period_type?: string;
-  is_anomaly?: boolean;
-  pct_change?: number;
-  view_url?: string;
-  embed_url?: string;
-  group_value?: string;
-  data?: AnomalyData;
-  [key: string]: JSONValue | undefined;
-}
-
-interface TimeSeriesResponseData {
-  chart_id?: string;
-  metric_name?: string;
-  period_type?: string;
-  data_point_count?: number;
-  view_url?: string;
-  group_field?: string;
-  group_value?: string;
-  data?: TimeSeriesResponseData;
-  [key: string]: JSONValue | undefined;
-}
-
-interface TimeSeriesDataPoint {
-  time_period: string;
-  numeric_value: number;
-  group_value?: string | null;
-}
-
-interface TimeSeriesChartResponse {
-  data: TimeSeriesDataPoint[];
-  metadata?: {
-    chart_title?: string;
-    caption?: string;
-    y_axis_label?: string;
-    object_name?: string;
-    field_name?: string;
-    period_type?: string;
-    district?: number | null;
-  };
-}
-
-type ToolResponseValue = string | number | boolean | null | Record<string, JSONValue> | JSONValue[];
-
 interface ToolCallProps {
   toolCall: {
     tool_id?: string;
     tool_name?: string;
     toolName?: string;
-    arguments?: Record<string, JSONValue>;
-    args?: Record<string, JSONValue>;
-    input?: Record<string, JSONValue>;
-    parameters?: Record<string, JSONValue>;
-    response?: ToolResponseValue;
-    result?: ToolResponseValue;
-    output?: ToolResponseValue;
+    arguments?: any;
+    args?: any;
+    input?: any;
+    parameters?: any;
+    response?: any;
+    result?: any;
+    output?: any;
     success?: boolean;
   };
 }
 
 // Try to parse response as JSON if it's a string
-function parseResponse(response: ToolResponseValue | undefined): Record<string, JSONValue> | null {
+function parseResponse(response: any): any {
   if (typeof response === "string") {
     try {
-      const parsed = JSON.parse(response);
-      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
-        return parsed as Record<string, JSONValue>;
-      }
-      return null;
+      return JSON.parse(response);
     } catch {
-      return null;
+      return response;
     }
   }
-  if (typeof response === "object" && response !== null && !Array.isArray(response)) {
-    return response as Record<string, JSONValue>;
-  }
-  return null;
+  return response;
 }
 
 // Check if this is a map result (only show_map, not generate_map)
-function isMapResult(toolName: string, response: ToolResponseValue | undefined): boolean {
+function isMapResult(toolName: string, response: any): boolean {
   const parsed = parseResponse(response);
   // Only show embedded map for show_map, not generate_map
   const isShowMapTool = toolName === "show_map";
-  const data = parsed?.data as Record<string, JSONValue> | undefined;
-  return isShowMapTool && !!(data?.short_hash || parsed?.short_hash);
+  return isShowMapTool && (parsed?.data?.short_hash || parsed?.short_hash);
 }
 
 // Check if this is an anomaly result (show_anomaly)
-function isAnomalyResult(toolName: string, response: ToolResponseValue | undefined): boolean {
+function isAnomalyResult(toolName: string, response: any): boolean {
   const parsed = parseResponse(response);
   const isAnomalyTool = toolName === "show_anomaly";
-  const data = parsed?.data as Record<string, JSONValue> | undefined;
-  return isAnomalyTool && !!(data?.id || parsed?.id);
+  return isAnomalyTool && (parsed?.data?.id || parsed?.id);
 }
 
 // Check if this is a time series result (show_time_series)
-function isTimeSeriesResult(toolName: string, response: ToolResponseValue | undefined): boolean {
+function isTimeSeriesResult(toolName: string, response: any): boolean {
   const parsed = parseResponse(response);
   const isTimeSeriesTool = toolName === "show_time_series";
-  const data = parsed?.data as Record<string, JSONValue> | undefined;
-  return isTimeSeriesTool && !!(data?.chart_id || parsed?.chart_id);
+  return isTimeSeriesTool && (parsed?.data?.chart_id || parsed?.chart_id);
 }
 
 // Get map data from response
-function getMapData(response: ToolResponseValue | undefined): MapData {
+function getMapData(response: any): any {
   const parsed = parseResponse(response);
   // Handle both formats: {data: {short_hash, ...}} and {short_hash, ...}
-  return (parsed?.data || parsed || {}) as MapData;
+  return parsed?.data || parsed;
 }
 
 // Get anomaly data from response
-function getAnomalyData(response: ToolResponseValue | undefined): AnomalyData {
+function getAnomalyData(response: any): any {
   const parsed = parseResponse(response);
   // Handle both formats: {data: {id, ...}} and {id, ...}
-  return (parsed?.data || parsed || {}) as AnomalyData;
+  return parsed?.data || parsed;
 }
 
 // Get time series data from response
-function getTimeSeriesData(response: ToolResponseValue | undefined): TimeSeriesResponseData {
+function getTimeSeriesData(response: any): any {
   const parsed = parseResponse(response);
   // Handle both formats: {data: {chart_id, ...}} and {chart_id, ...}
-  return (parsed?.data || parsed || {}) as TimeSeriesResponseData;
+  return parsed?.data || parsed;
 }
 
 // Render an embedded map with iframe
-function EmbeddedMapCard({ data }: { data: ToolResponseValue | undefined }) {
+function EmbeddedMapCard({ data }: { data: any }) {
   const [showEmbed, setShowEmbed] = useState(true);
   const mapData = getMapData(data);
   const shortHash = mapData.short_hash;
@@ -165,7 +90,7 @@ function EmbeddedMapCard({ data }: { data: ToolResponseValue | undefined }) {
   const isPublic = mapData.is_public;
   const viewUrl = mapData.view_url || `/m/${shortHash}`;
   const embedUrl = `${viewUrl}?embedded=true`;
-
+  
   return (
     <div className={styles.mapEmbed}>
       {/* Header bar */}
@@ -198,7 +123,7 @@ function EmbeddedMapCard({ data }: { data: ToolResponseValue | undefined }) {
           </Link>
         </div>
       </div>
-
+      
       {/* Embedded map iframe */}
       {showEmbed && (
         <div className={styles.mapEmbedContainer}>
@@ -216,7 +141,7 @@ function EmbeddedMapCard({ data }: { data: ToolResponseValue | undefined }) {
 }
 
 // Render an embedded anomaly chart with iframe
-function EmbeddedAnomalyCard({ data }: { data: ToolResponseValue | undefined }) {
+function EmbeddedAnomalyCard({ data }: { data: any }) {
   const [showEmbed, setShowEmbed] = useState(true);
   const anomalyData = getAnomalyData(data);
   const anomalyId = anomalyData.id;
@@ -226,11 +151,11 @@ function EmbeddedAnomalyCard({ data }: { data: ToolResponseValue | undefined }) 
   const pctChange = anomalyData.pct_change || 0;
   const viewUrl = anomalyData.view_url || `/a/${anomalyId}`;
   const embedUrl = anomalyData.embed_url || `${viewUrl}?embedded=true`;
-
+  
   // Build title with anomaly info
   const changeType = pctChange > 0 ? "Spike" : "Drop";
   const title = `${changeType}: ${metricName} (${periodType})`;
-
+  
   return (
     <div className={styles.mapEmbed}>
       {/* Header bar */}
@@ -256,8 +181,8 @@ function EmbeddedAnomalyCard({ data }: { data: ToolResponseValue | undefined }) 
           {pctChange !== 0 && (
             <>
               <span className={styles.mapPreviewDot}>•</span>
-              <span style={{
-                color: pctChange > 0 ? "var(--error-text, #ef4444)" : "var(--success-text, #10b981)"
+              <span style={{ 
+                color: pctChange > 0 ? "var(--error-text, #ef4444)" : "var(--success-text, #10b981)" 
               }}>
                 {pctChange > 0 ? "+" : ""}{Math.round(pctChange)}%
               </span>
@@ -277,7 +202,7 @@ function EmbeddedAnomalyCard({ data }: { data: ToolResponseValue | undefined }) 
           </Link>
         </div>
       </div>
-
+      
       {/* Embedded anomaly chart iframe */}
       {showEmbed && (
         <div className={styles.mapEmbedContainer}>
@@ -294,9 +219,9 @@ function EmbeddedAnomalyCard({ data }: { data: ToolResponseValue | undefined }) 
   );
 }
 
-function EmbeddedTimeSeriesCard({ data }: { data: ToolResponseValue | undefined }) {
+function EmbeddedTimeSeriesCard({ data }: { data: any }) {
   const [showEmbed, setShowEmbed] = useState(true);
-  const [chartData, setChartData] = useState<TimeSeriesChartResponse | null>(null);
+  const [chartData, setChartData] = useState<{ data: any[]; metadata?: any } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const timeSeriesData = getTimeSeriesData(data);
@@ -316,7 +241,7 @@ function EmbeddedTimeSeriesCard({ data }: { data: ToolResponseValue | undefined 
         if (!res.ok) throw new Error("Failed to load time series");
         return res.json();
       })
-      .then((res: TimeSeriesChartResponse) => {
+      .then((res) => {
         if (mounted) setChartData(res);
       })
       .catch(() => {
@@ -331,7 +256,7 @@ function EmbeddedTimeSeriesCard({ data }: { data: ToolResponseValue | undefined 
   const aggregated = useMemo(() => {
     if (!chartData?.data) return [];
     const map = new Map<string, { sum: number; count: number }>();
-    chartData.data.forEach((point: TimeSeriesDataPoint) => {
+    chartData.data.forEach((point: any) => {
       const key = `${point.time_period}|${point.group_value || ""}`;
       const existing = map.get(key) || { sum: 0, count: 0 };
       map.set(key, { sum: existing.sum + (point.numeric_value || 0), count: existing.count + 1 });
@@ -422,7 +347,7 @@ export default function ToolCall({ toolCall }: ToolCallProps) {
   const response =
     toolCall.response || toolCall.result || toolCall.output;
 
-  const formatJSON = (data: JSONValue | Record<string, JSONValue> | undefined): string => {
+  const formatJSON = (data: any): string => {
     if (data === null || data === undefined) return "";
     if (typeof data === "string") return data;
     try {
@@ -454,22 +379,22 @@ export default function ToolCall({ toolCall }: ToolCallProps) {
           {showMapPreview ? "🗺️" : showAnomalyPreview ? "📊" : showTimeSeriesPreview ? "📈" : "🔧"} {toolName}
         </div>
       </div>
-
+      
       {/* Show embedded map for generate_map tool */}
       {showMapPreview && (
         <EmbeddedMapCard data={response} />
       )}
-
+      
       {/* Show embedded anomaly chart for show_anomaly tool */}
       {showAnomalyPreview && (
         <EmbeddedAnomalyCard data={response} />
       )}
-
+      
       {/* Show embedded time series chart for show_time_series tool */}
       {showTimeSeriesPreview && (
         <EmbeddedTimeSeriesCard data={response} />
       )}
-
+      
       {showDetails && (
         <div className={styles.toolCallDetails}>
           <h4>Tool Call Details</h4>
@@ -524,3 +449,4 @@ export default function ToolCall({ toolCall }: ToolCallProps) {
     </div>
   );
 }
+

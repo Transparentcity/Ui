@@ -248,14 +248,14 @@ export default function MetricsAdmin() {
     endpoint: "",
     aggregation_type: "COUNT",
   });
-  const [editQueryConfig, setEditQueryConfig] = useState<Record<string, unknown> | null>(null);
+  const [editQueryConfig, setEditQueryConfig] = useState<Record<string, any> | null>(null);
   const [showQueryConfig, setShowQueryConfig] = useState(false);
   const [editMapFields, setEditMapFields] = useState<{
     map_query: string | null;
-    map_filters: Record<string, unknown> | null;
-    map_config: Record<string, unknown> | null;
-    location_fields: Record<string, unknown>[] | null;
-    category_fields: string[] | null;
+    map_filters: Record<string, any> | null;
+    map_config: Record<string, any> | null;
+    location_fields: any[] | null;
+    category_fields: any[] | null;
   } | null>(null);
   const [showMapFields, setShowMapFields] = useState(false);
   const [mapCacheInvalidating, setMapCacheInvalidating] = useState(false);

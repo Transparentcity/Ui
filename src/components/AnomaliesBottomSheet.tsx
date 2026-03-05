@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { useCityAnomalies, type AnomalyResult, type AnomalyChartPayload } from "@/lib/hooks/useAnomalies";
+import { useCityAnomalies, type AnomalyResult } from "@/lib/hooks/useAnomalies";
 import { useCityLeaders } from "@/lib/hooks/useCities";
 import { useCityMetricsForMap } from "@/lib/hooks/useMetrics";
 import AnomalySparkline from "./AnomalySparkline";
@@ -148,10 +148,10 @@ function formatPeriodTitle(periodType: string, dateStr: string | null | undefine
 // Helper to get period date from anomaly (checks period_date first, then chart_payload)
 function getAnomalyPeriodDate(anomaly: AnomalyResult): string | null {
   // First try period_date field
-  if (anomaly.period_date) {
-    return anomaly.period_date;
+  if ((anomaly as any).period_date) {
+    return (anomaly as any).period_date;
   }
-
+  
   // Then try chart_payload dates
   if (anomaly.chart_payload?.dates && Array.isArray(anomaly.chart_payload.dates)) {
     const dates = anomaly.chart_payload.dates;
@@ -201,18 +201,17 @@ function formatDateForDisplay(dateStr: string): string {
 }
 
 // Helper to extract date ranges from chart_payload
-function getDateRangeInfo(chartPayload: AnomalyChartPayload | null | undefined) {
+function getDateRangeInfo(chartPayload: Record<string, any> | null | undefined) {
   if (!chartPayload?.dates || !chartPayload?.periods) {
     return null;
   }
 
-  const dates = chartPayload.dates;
-  const periods = chartPayload.periods;
-  if (!dates || !periods) return null;
-
+  const dates = chartPayload.dates as string[];
+  const periods = chartPayload.periods as string[];
+  
   const recentDates: string[] = [];
   const comparisonDates: string[] = [];
-
+  
   dates.forEach((date, idx) => {
     const period = periods[idx];
     if (period === "recent") {
@@ -377,7 +376,7 @@ export default function AnomaliesBottomSheet({
     if (anomalies.length === 0) return null;
     const firstAnomaly = anomalies[0];
     const periodDate = getAnomalyPeriodDate(firstAnomaly);
-    const anomalyPeriodType = firstAnomaly.period_type || periodType;
+    const anomalyPeriodType = (firstAnomaly as any).period_type || periodType;
     return formatPeriodTitle(anomalyPeriodType, periodDate);
   }, [anomalies, periodType]);
 
@@ -442,7 +441,7 @@ export default function AnomaliesBottomSheet({
   if (!isExpanded && selectedAnomaly) {
     const info = getAnomalyDisplayInfo(selectedAnomaly);
     const selectedPeriodDate = getAnomalyPeriodDate(selectedAnomaly);
-    const selectedPeriodType = selectedAnomaly.period_type || periodType;
+    const selectedPeriodType = (selectedAnomaly as any).period_type || periodType;
     const selectedPeriodTitle = formatPeriodTitle(selectedPeriodType, selectedPeriodDate);
 
     return createPortal(

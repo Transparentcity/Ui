@@ -22,40 +22,12 @@ import {
   pickDefaultModelKey,
 } from "@/lib/modelDefaults";
 
-interface ToolCallData {
-  tool_id: string;
-  tool_name: string;
-  arguments?: string | Record<string, unknown>;
-  response?: string | Record<string, unknown>;
-  success?: boolean;
-}
-
-interface SessionData {
-  session_id: string;
-  title?: string;
-  messages?: Message[];
-  tool_calls?: ToolCallData[];
-  model_key?: string;
-  message_count?: number;
-  created_at?: string;
-  last_message_at?: string;
-  total_tokens_used?: number;
-  llm_call_count?: number;
-  total_execution_time_ms?: number;
-  intermediate_steps?: Array<{
-    type: string;
-    content?: string;
-    tool_id?: string;
-    timestamp?: string;
-  }>;
-}
-
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp?: string;
-  tool_calls?: ToolCallData[];
+  tool_calls?: any[];
   intermediate_events?: Array<{
     type: string;
     content?: string;
@@ -69,7 +41,7 @@ interface ChatViewProps {
   onSessionChange?: (sessionId: string | null) => void;
   initialPrompt?: string | null;
   onInitialPromptHandled?: () => void;
-  currentSession?: SessionData;
+  currentSession?: any; // Store session data for intermediate_steps
 }
 
 type ProviderKey = "anthropic" | "openai" | "google" | "grok" | "xai" | "unknown";
@@ -131,7 +103,7 @@ export default function ChatView({
     });
     setCurrentSessionIdInternal(newId);
   };
-  const [currentSession, setCurrentSession] = useState<SessionData | null>(null);
+  const [currentSession, setCurrentSession] = useState<any>(null);
   const [selectedModel, setSelectedModel] = useState<string>(
     PREFERRED_DEFAULT_MODEL_KEY
   );
@@ -175,8 +147,8 @@ export default function ChatView({
       tool_name?: string;
       timestamp?: string;
     }>;
-    toolCalls: ToolCallData[];
-    toolCallMap: Record<string, ToolCallData>;
+    toolCalls: any[];
+    toolCallMap: Record<string, any>;
   } | null>(null);
 
   // Update when sessionId prop changes
@@ -434,7 +406,7 @@ export default function ChatView({
     });
   }, [currentSessionId, isStreaming]);
 
-  const handleSessionLoaded = useCallback((session: SessionData) => {
+  const handleSessionLoaded = useCallback((session: any) => {
     console.log("📊 handleSessionLoaded called with session:", {
       session_id: session.session_id,
       has_tokens: session.total_tokens_used !== undefined,
@@ -691,6 +663,9 @@ export default function ChatView({
             streamingStateRef.current.toolCallMap[toolId] = {
               tool_id: toolId,
               tool_name: toolName,
+              arguments: null,
+              response: null,
+              success: null,
             };
 
             streamingStateRef.current.intermediateEvents.push({
@@ -930,32 +905,29 @@ export default function ChatView({
       
       console.log("✅ Finalized message with content length:", finalContent.length);
       console.log("✅ Final message preview:", finalContent.substring(0, 100));
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error("❌ Chat error:", error);
-      if (error instanceof Error) {
-        console.error("Error stack:", error.stack);
-      }
-
+      console.error("Error stack:", error.stack);
+      
       // Check if this is an abort/cancellation error (expected)
-      const isAbortError =
-        error instanceof Error &&
-        (error.name === "AbortError" ||
-         error.message?.includes("aborted") ||
+      const isAbortError = 
+        error instanceof Error && 
+        (error.name === "AbortError" || 
+         error.message?.includes("aborted") || 
          error.message?.includes("cancelled") ||
          error.message?.includes("Stream cancelled"));
-
+      
       if (isAbortError) {
         console.log("⏹️ Stream was cancelled, this is expected");
         // Don't show error message for cancellations - the partial response is fine
       } else {
         // Update assistant message with error for real errors
-        const errorMessage = error instanceof Error ? error.message : "Unknown error";
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === assistantMessageId
               ? {
                   ...msg,
-                  content: `${msg.content}\n\n⚠️ Error: ${errorMessage}. Please try again.`,
+                  content: `${msg.content}\n\n⚠️ Error: ${error.message || "Unknown error"}. Please try again.`,
                 }
               : msg
           )

@@ -29,7 +29,7 @@ interface PublicTimeSeriesPoint {
 
 interface PublicTimeSeriesResponse {
   count: number;
-  metadata?: Record<string, string | number | boolean | null | undefined>;
+  metadata?: Record<string, any>;
   data: PublicTimeSeriesPoint[];
 }
 

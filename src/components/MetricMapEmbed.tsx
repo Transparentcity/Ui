@@ -30,7 +30,7 @@ function previewToSavedMap(preview: MapPreviewResponse): SavedMap {
     title: preview.title,
     description: preview.description ?? null,
     map_type: preview.map_type as "point" | "choropleth" | "symbol" | "heatmap" | "multi_layer",
-    location_data: preview.location_data as Array<{ lat: number; lon: number; [key: string]: string | number | boolean | null | undefined }>,
+    location_data: preview.location_data as Array<{ lat: number; lon: number; [key: string]: any }>,
     map_config: preview.map_config,
     bounds: preview.bounds ?? null,
     center: preview.center ?? null,
@@ -59,7 +59,7 @@ export default function MetricMapEmbed({
   comparisonDateRange,
 }: MetricMapEmbedProps) {
   const [mapData, setMapData] = useState<SavedMap | null>(null);
-  const [comparisonLocationData, setComparisonLocationData] = useState<Array<Record<string, string | number | boolean | null | undefined>> | null>(null);
+  const [comparisonLocationData, setComparisonLocationData] = useState<Array<Record<string, any>> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mapNotAvailable, setMapNotAvailable] = useState(false);
@@ -107,7 +107,7 @@ export default function MetricMapEmbed({
       } catch (err) {
         if (mounted) {
           // Check if it's a 404 (map not available for this metric)
-          const is404 = (err as { status?: number })?.status === 404 ||
+          const is404 = (err as any)?.status === 404 || 
                        (err instanceof Error && (
                          err.message.includes("404") || 
                          err.message.includes("not available") ||
@@ -209,7 +209,7 @@ export default function MetricMapEmbed({
       if (first && (typeof first.value === "number" || typeof first.count === "number")) {
         const total = loc.reduce(
           (sum, p: Record<string, unknown>) =>
-            sum + (Number((p as Record<string, unknown>)?.value ?? (p as Record<string, unknown>)?.count ?? 0) || 0),
+            sum + (Number((p as any)?.value ?? (p as any)?.count ?? 0) || 0),
           0
         );
         if (total > 0) return total;
