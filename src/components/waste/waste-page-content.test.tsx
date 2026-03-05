@@ -88,11 +88,15 @@ vi.mock("@/components/Loader", () => ({
   default: () => <div>Loading...</div>,
 }))
 
-vi.mock("@/lib/hooks/useCities", () => ({
-  useCities: () => ({
-    data: [{ city_id: 1, name: "San Francisco", datasets_count: 5 }],
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: () => ({
+    data: [{ id: 1, name: "San Francisco", datasets_count: 5 }],
     isLoading: false,
   }),
+}))
+
+vi.mock("@/lib/publicApiClient", () => ({
+  listPublicCitiesForSitemap: vi.fn().mockResolvedValue([]),
 }))
 
 const mockStartJob = vi.fn()

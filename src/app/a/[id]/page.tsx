@@ -58,6 +58,10 @@ interface Anomaly {
   endpoint?: string;
   recent_window?: { label?: string; size?: number };
   comparison_window?: { label?: string; size?: number };
+  /** Start of the period for which this anomaly was calculated (ISO date). */
+  calculation_start_date?: string | null;
+  /** End of the period for which this anomaly was calculated (ISO date). */
+  calculation_end_date?: string | null;
 }
 
 
@@ -240,6 +244,8 @@ export default function AnomalyChartPage() {
             endpoint: result.endpoint,
             recent_window: result.recent_window,
             comparison_window: result.comparison_window,
+            calculation_start_date: result.calculation_start_date ?? null,
+            calculation_end_date: result.calculation_end_date ?? null,
           };
         } else {
           throw new Error("Invalid response format: missing anomaly data");
@@ -367,6 +373,33 @@ export default function AnomalyChartPage() {
     s.setDate(s.getDate() + 6);
     return s;
   };
+
+  // Single source of truth for the period the anomaly was calculated for (and for the map).
+  // Prefer API-provided calculation dates when present; otherwise derive from chart data.
+  const mapDateStart =
+    anomaly?.calculation_start_date ?? processedData?.mapStartDate ?? null;
+  const mapDateEnd =
+    anomaly?.calculation_end_date ?? processedData?.mapEndDate ?? null;
+
+  // Calculation date range label for display
+  const calculationDateRangeLabel =
+    mapDateStart && mapDateEnd
+      ? (() => {
+          const start = parseLocalDate(mapDateStart);
+          const end = parseLocalDate(mapDateEnd);
+          if (!start || !end) return null;
+          const startStr = start.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          });
+          const endStr = end.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          });
+          return `${startStr} – ${endStr}`;
+        })()
+      : null;
 
   // Format recent date for display
   const recentDateDisplay = processedData?.mostRecentDate
@@ -997,6 +1030,11 @@ export default function AnomalyChartPage() {
             {cityName ? `${cityName}, ` : ""}{locationLabel}
             {recentDateDisplay && ` • ${recentDateDisplay}`}
           </p>
+          {calculationDateRangeLabel && (
+            <p className="anomaly-calculation-range" aria-label="Date range for which this anomaly was calculated">
+              Calculated for the period: {calculationDateRangeLabel}
+            </p>
+          )}
         </div>
 
         {/* Section: Time Series Chart */}
@@ -1078,15 +1116,15 @@ export default function AnomalyChartPage() {
           </div>
         </section>
 
-        {/* Section: Location Map */}
-        {anomaly.metric_id && processedData?.mapStartDate && processedData?.mapEndDate && (
+        {/* Section: Location Map - uses same date range as "Calculated for the period" */}
+        {anomaly.metric_id && mapDateStart && mapDateEnd && (
           <section className="anomaly-section">
             <h2 className="section-header">Where did these {itemNoun} happen?</h2>
             
             <AnomalyMap
               metricId={anomaly.metric_id}
-              startDate={processedData.mapStartDate}
-              endDate={processedData.mapEndDate}
+              startDate={mapDateStart}
+              endDate={mapDateEnd}
               district={anomaly.district}
               groupField={anomaly.group_field}
               groupValue={anomaly.group_value}
@@ -1099,16 +1137,21 @@ export default function AnomalyChartPage() {
               })}
             />
 
-            {/* Map caption */}
+            {/* Map caption: same period as anomaly; note when filtered by group */}
             {mapData && mapData.location_data_count > 0 && (
               <div className="section-caption">
                 <p>
-                  This map shows <strong>{mapData.location_data_count.toLocaleString()} {itemNoun}</strong> recorded
-                  {mapData.period_start && mapData.period_end && (
-                    <> between {formatMapDate(mapData.period_start)} and {formatMapDate(mapData.period_end)}</>
+                  This map shows <strong>{mapData.location_data_count.toLocaleString()} {itemNoun}</strong>
+                  {calculationDateRangeLabel
+                    ? ` for the same period as above (${calculationDateRangeLabel}).`
+                    : mapData.period_start && mapData.period_end
+                      ? ` between ${formatMapDate(mapData.period_start)} and ${formatMapDate(mapData.period_end)}.`
+                      : "."}
+                  {anomaly.group_value && (
+                    <> Filtered to <strong>{anomaly.group_value}</strong> (same as the anomaly above).</>
                   )}
-                  {anomaly.district !== 0 && <> in District {anomaly.district}</>}.
-                  Each dot represents one {itemNoun.endsWith("s") ? itemNoun.slice(0, -1) : itemNoun}.
+                  {anomaly.district !== 0 && !anomaly.group_value && ` In District ${anomaly.district}.`}
+                  {" "}Each dot represents one {itemNoun.endsWith("s") ? itemNoun.slice(0, -1) : itemNoun}.
                 </p>
               </div>
             )}

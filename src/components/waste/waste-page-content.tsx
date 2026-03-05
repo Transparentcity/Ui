@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { useWasteAnalysis, useActiveWasteJob } from "@/lib/hooks/useWaste"
-import { useCities } from "@/lib/hooks/useCities"
+import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
 import { WasteShell } from "./waste-shell"
 import { Button } from "@/components/ui/button"
 import { RefreshCw, AlertTriangle, Clock, Database } from "lucide-react"
@@ -192,14 +193,19 @@ export function WastePageContent() {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
   })
 
-  const citiesQuery = useCities({ includeInactive: false })
+  // Use public API so the waste page works without auth (SSR-safe; no useAuth0)
+  const citiesQuery = useQuery({
+    queryKey: ["public", "cities", "sitemap"],
+    queryFn: listPublicCitiesForSitemap,
+    staleTime: 5 * 60 * 1000,
+  })
   const wasteEligibleCities = useMemo(
     () => (citiesQuery.data ?? []).filter((city) => (city.datasets_count ?? 0) > 0),
     [citiesQuery.data]
   )
   const selectedCityId = useMemo(() => {
     if (wasteEligibleCities.length > 0) {
-      return Number(wasteEligibleCities[0].city_id)
+      return Number(wasteEligibleCities[0].id)
     }
     return null
   }, [wasteEligibleCities])
