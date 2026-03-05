@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useAuth0 } from "@auth0/auth0-react"
 import {
@@ -9,6 +9,8 @@ import {
   closeInvestigation,
   createInvestigationAction,
   createWasteDisposition,
+  getJob,
+  listJobs,
   getWasteDetectorAccuracy,
   getWasteDispositions,
   getWasteAnalysis,
@@ -22,6 +24,7 @@ import {
   runWasteAnalysis,
   syncWasteReviewQueue,
   updateWasteThresholds,
+  type Job,
   type BulkDisposeWasteFindingsRequest,
   type CloseInvestigationRequest,
   type CreateInvestigationActionRequest,
@@ -52,27 +55,16 @@ import {
 export function useWasteAnalysis(
   category?: string,
   enabled: boolean = true,
-  cityId?: number | null,
-  persistOnForceRefresh: boolean = false
 ) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0()
   const forceRefreshRef = useRef(false)
 
   const query = useQuery<WasteAnalyzeResponse>({
-    queryKey: ["waste", "analysis", category ?? "all", cityId ?? "none"],
+    queryKey: ["waste", "analysis", category ?? "all"],
     queryFn: async () => {
       const token = await getAccessTokenSilently()
       const shouldForce = forceRefreshRef.current
       forceRefreshRef.current = false
-      if (shouldForce && persistOnForceRefresh && cityId) {
-        const payload: RunWasteAnalysisRequest = {
-          city_id: cityId,
-          category,
-          force_refresh: true,
-          persist: true,
-        }
-        return runWasteAnalysis(token, payload)
-      }
       return getWasteAnalysis(token, category, shouldForce)
     },
     enabled: isAuthenticated && enabled,
@@ -88,6 +80,170 @@ export function useWasteAnalysis(
   }, [query])
 
   return { ...query, forceRefetch }
+}
+
+/**
+ * Track active waste analysis jobs with polling.
+ *
+ * On mount, checks for any pending/running waste_analysis_run job.
+ * When `startJob` is called it POSTs to /run and begins polling.
+ * Returns live job progress so the page can show a real progress bar.
+ */
+export function useActiveWasteJob(cityId: number | null) {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
+  const queryClient = useQueryClient()
+  const [activeJob, setActiveJob] = useState<Job | null>(null)
+  const [isStarting, setIsStarting] = useState(false)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearTimeout(pollRef.current)
+      pollRef.current = null
+    }
+  }, [])
+
+  const pollJob = useCallback(
+    async (jobId: string) => {
+      let shouldContinue = true
+      try {
+        const token = await getAccessTokenSilently()
+        const job = await getJob(jobId, token)
+
+        // Detect stale jobs: if running/pending for > 10 min, treat as failed
+        const MAX_JOB_AGE_MS = 10 * 60 * 1000
+        const createdAt = new Date(job.created_at).getTime()
+        const jobAgeMs = Date.now() - createdAt
+        const isStale =
+          (job.status === "running" || job.status === "pending") &&
+          jobAgeMs > MAX_JOB_AGE_MS
+
+        if (isStale) {
+          const ageMin = Math.round(jobAgeMs / 60_000)
+          setActiveJob({
+            ...job,
+            status: "failed",
+            error_message:
+              `Analysis has been running for ${ageMin} minutes without completing. ` +
+              `The server may have restarted or a detector may be stuck. ` +
+              `Job ID: ${jobId}`,
+          })
+          shouldContinue = false
+          return
+        }
+
+        setActiveJob(job)
+        if (
+          job.status === "completed" ||
+          job.status === "failed" ||
+          job.status === "cancelled"
+        ) {
+          shouldContinue = false
+          // Refresh analysis data now that the job is done
+          if (job.status === "completed") {
+            queryClient.invalidateQueries({ queryKey: ["waste", "analysis"] })
+            queryClient.invalidateQueries({ queryKey: ["waste", "summary"] })
+            queryClient.invalidateQueries({ queryKey: ["waste", "queue"] })
+          }
+        }
+      } catch {
+        // network blip — keep polling
+      } finally {
+        // Chain next poll with setTimeout to prevent overlapping requests
+        if (shouldContinue && pollRef.current !== null) {
+          pollRef.current = setTimeout(() => pollJob(jobId), 3000)
+        }
+      }
+    },
+    [getAccessTokenSilently, queryClient]
+  )
+
+  const startPolling = useCallback(
+    (jobId: string) => {
+      stopPolling()
+      // Poll immediately, chain subsequent polls via setTimeout in pollJob
+      pollRef.current = -1 as unknown as ReturnType<typeof setTimeout> // sentinel: polling active
+      pollJob(jobId)
+    },
+    [pollJob, stopPolling]
+  )
+
+  // On mount, check for any active waste job
+  useEffect(() => {
+    if (!isAuthenticated) return
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        const token = await getAccessTokenSilently()
+        const result = await listJobs(token, 5, "running", undefined, "waste_analysis_run")
+        const running = result.jobs?.[0]
+        if (cancelled) return
+        if (running) {
+          setActiveJob(running)
+          startPolling(running.job_id)
+        } else {
+          // Also check pending
+          const pending = await listJobs(token, 5, "pending", undefined, "waste_analysis_run")
+          if (cancelled) return
+          const pendingJob = pending.jobs?.[0]
+          if (pendingJob) {
+            setActiveJob(pendingJob)
+            startPolling(pendingJob.job_id)
+          }
+        }
+      } catch {
+        // ignore
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      stopPolling()
+    }
+  }, [isAuthenticated]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Kick off a new waste analysis run and start polling it. */
+  const startJob = useCallback(
+    async (category?: string) => {
+      if (!cityId) return
+      setIsStarting(true)
+      try {
+        const token = await getAccessTokenSilently()
+        const result = await runWasteAnalysis(token, {
+          city_id: cityId,
+          category,
+          force_refresh: true,
+          persist: true,
+        })
+        // The /run endpoint returns {job_id, status, message} but is typed as WasteAnalyzeResponse
+        const resultRecord = result as unknown as Record<string, unknown>
+        const jobId: string | undefined =
+          (resultRecord?.job_id as string) ?? (resultRecord?.existing_job_id as string)
+        if (jobId) {
+          setActiveJob({
+            job_id: jobId,
+            job_type: "waste_analysis_run",
+            status: "pending",
+            description: "Waste analysis",
+            progress: 0,
+            created_at: new Date().toISOString(),
+          })
+          startPolling(jobId)
+        }
+      } finally {
+        setIsStarting(false)
+      }
+    },
+    [cityId, getAccessTokenSilently, startPolling]
+  )
+
+  const isRunning =
+    isStarting ||
+    (activeJob != null &&
+      (activeJob.status === "pending" || activeJob.status === "running"))
+
+  return { activeJob, isRunning, isStarting, startJob }
 }
 
 /**
