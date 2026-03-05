@@ -8,7 +8,7 @@ import styles from "./AnomalySparkline.module.css";
 const Plot = dynamic(
   () => import("react-plotly.js"),
   { ssr: false }
-) as React.ComponentType<any>;
+) as React.ComponentType<import("react-plotly.js").PlotParams>;
 
 export interface AnomalySparklineData {
   dates: string[];
@@ -124,8 +124,8 @@ export default function AnomalySparkline({
 
   // Prepare traces and annotations for Plotly
   const { traces, annotations } = useMemo(() => {
-    const traces: any[] = [];
-    const annotations: any[] = [];
+    const traces: Partial<import("plotly.js").Data>[] = [];
+    const annotations: Partial<import("plotly.js").Layout["annotations"] extends (infer U)[] | undefined ? U : never>[] = [];
 
     if (processedData.length === 0) {
       return { traces, annotations };

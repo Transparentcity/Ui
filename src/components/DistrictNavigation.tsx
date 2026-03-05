@@ -63,7 +63,7 @@ function findDistrictContainingPoint(
   lng: number,
   shapefiles: CityShapefile[],
   leaders?: CityLeader[]
-): { shapefile: CityShapefile; feature: any; identifier: string | number } | null {
+): { shapefile: CityShapefile; feature: { geometry: { type: string; coordinates: number[][][] | number[][][][] }; properties?: Record<string, string | number | null> }; identifier: string | number } | null {
   const point: [number, number] = [lng, lat];
   
   // Find the primary geographic structure (the one used by most leaders)
@@ -127,7 +127,7 @@ function findDistrictContainingPoint(
       if (feature.geometry.type === "Polygon") {
         rings = [feature.geometry.coordinates[0] as [number, number][]];
       } else if (feature.geometry.type === "MultiPolygon") {
-        rings = feature.geometry.coordinates.map((poly: any) => poly[0] as [number, number][]);
+        rings = feature.geometry.coordinates.map((poly: number[][][]) => poly[0] as [number, number][]);
       }
       
       for (const ring of rings) {

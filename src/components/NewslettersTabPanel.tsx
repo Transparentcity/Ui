@@ -46,9 +46,9 @@ export default function NewslettersTabPanel({
           token
         );
         setNewsletters(reports);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Failed to load newsletters:", err);
-        setError(err.message || "Failed to load newsletters");
+        setError(err instanceof Error ? err.message : "Failed to load newsletters");
       } finally {
         setLoading(false);
       }
@@ -139,9 +139,9 @@ Format as a newsletter-style summary that could be emailed to subscribers intere
       if (response.job_id) {
         notifyJobCreated(response.job_id);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to generate newsletter:", err);
-      setError(err.message || "Failed to generate newsletter");
+      setError(err instanceof Error ? err.message : "Failed to generate newsletter");
     } finally {
       setGenerating(false);
     }

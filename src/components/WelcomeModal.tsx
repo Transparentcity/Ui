@@ -129,7 +129,7 @@ async function findDistrictFromCoordinates(
         if (feature.geometry.type === "Polygon") {
           rings = [feature.geometry.coordinates[0] as [number, number][]];
         } else if (feature.geometry.type === "MultiPolygon") {
-          rings = feature.geometry.coordinates.map((poly: any) => poly[0] as [number, number][]);
+          rings = feature.geometry.coordinates.map((poly: [number, number][][]) => poly[0] as [number, number][]);
         }
         
         for (const ring of rings) {
@@ -566,13 +566,14 @@ export default function WelcomeModal({
 
       // Pass GPS coordinates to determine district
       await processLocationAndFindCity(cityName, stateName, countryName, null, { lat: latitude, lng: longitude });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("GPS error:", err);
-      if (err.code === 1) {
+      const geoErr = err as GeolocationPositionError;
+      if (geoErr.code === 1) {
         setError("Location access denied. Please enter your city manually.");
-      } else if (err.code === 2) {
+      } else if (geoErr.code === 2) {
         setError("Could not determine your location. Please enter your city.");
-      } else if (err.code === 3) {
+      } else if (geoErr.code === 3) {
         setError("Location request timed out. Please try again.");
       } else {
         setError("Failed to get your location. Please enter your city.");
@@ -1026,7 +1027,25 @@ export default function WelcomeModal({
       const districtToLoad = locationResult.councilMember?.district ?? locationResult.district ?? null;
       
       // Prepare preferences data
-      const preferencesData: any = {
+      const preferencesData: {
+        has_completed_onboarding: boolean;
+        extra: {
+          communication_preferences: {
+            personalized_email: boolean;
+            anomaly_alerts: boolean;
+            weekly_digest: boolean;
+            monthly_report: boolean;
+            report_scope: string | null;
+            newsletter_description: string | null;
+            newsletter_frequency: string | null;
+          };
+          home_location?: {
+            city_id: number;
+            district: number | null;
+            coordinates?: { lat: number; lng: number };
+          };
+        };
+      } = {
         has_completed_onboarding: true,
         extra: {
           communication_preferences: {

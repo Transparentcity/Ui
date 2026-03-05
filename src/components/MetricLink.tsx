@@ -87,7 +87,7 @@ export function MetricLink({
           ...style, 
           cursor: "pointer", 
         }}
-        {...(props as any)}
+        {...(props as React.HTMLAttributes<HTMLSpanElement>)}
       >
         {children}
       </span>

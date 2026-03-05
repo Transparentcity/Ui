@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useCityAnomalies, useAvailablePeriods, type AnomalyResult } from "@/lib/hooks/useAnomalies";
+import { useCityAnomalies, useAvailablePeriods, type AnomalyResult, type AnomalyChartPayload } from "@/lib/hooks/useAnomalies";
 import AnomalySparkline from "./AnomalySparkline";
 import Loader from "./Loader";
 import { MetricLink } from "./MetricLink";
@@ -125,16 +125,17 @@ function formatPeriodTypeLabel(periodType: string): string {
 
 // Get date range info from chart_payload
 function getDateRangeInfo(
-  chartPayload: Record<string, any> | null | undefined,
+  chartPayload: AnomalyChartPayload | null | undefined,
   periodType?: string
 ) {
   if (!chartPayload?.dates || !chartPayload?.periods) {
     return null;
   }
 
-  const dates = chartPayload.dates as string[];
-  const periods = chartPayload.periods as string[];
-  
+  const dates = chartPayload.dates;
+  const periods = chartPayload.periods;
+  if (!dates || !periods) return null;
+
   const recentDates: string[] = [];
   const comparisonDates: string[] = [];
   

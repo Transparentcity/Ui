@@ -107,10 +107,10 @@ function formatPeriodTitle(periodType: string, dateStr: string | null | undefine
 // Helper to get period date from anomaly (checks period_date first, then chart_payload)
 function getAnomalyPeriodDate(anomaly: AnomalyResult): string | null {
   // First try period_date field
-  if ((anomaly as any).period_date) {
-    return (anomaly as any).period_date;
+  if (anomaly.period_date) {
+    return anomaly.period_date;
   }
-  
+
   // Then try chart_payload dates
   if (anomaly.chart_payload?.dates && Array.isArray(anomaly.chart_payload.dates)) {
     const dates = anomaly.chart_payload.dates;
@@ -188,7 +188,7 @@ export default function AnomalyMapOverlay({
   // Get period title from anomaly
   const periodTitle = useMemo(() => {
     const periodDate = getAnomalyPeriodDate(anomaly);
-    const anomalyPeriodType = (anomaly as any).period_type || "month";
+    const anomalyPeriodType = anomaly.period_type || "month";
     return formatPeriodTitle(anomalyPeriodType, periodDate);
   }, [anomaly]);
 

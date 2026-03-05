@@ -4,8 +4,62 @@ import { useState, useEffect, useRef } from "react";
 import { getMetricMapPreview, type MapPreviewResponse } from "@/lib/publicApiClient";
 import "./AnomalyMap.css";
 
+/** Minimal Mapbox GL types used by this component */
+interface MapboxMap {
+  remove(): void;
+  on(event: string, callback: () => void): void;
+  addSource(id: string, source: Record<string, unknown>): void;
+  addLayer(layer: Record<string, unknown>): void;
+  addControl(control: unknown, position?: string): void;
+  fitBounds(bounds: [[number, number], [number, number]], options?: Record<string, unknown>): void;
+}
+
+interface MapboxGL {
+  accessToken: string;
+  Map: new (options: Record<string, unknown>) => MapboxMap;
+  NavigationControl: new (options?: Record<string, unknown>) => unknown;
+}
+
+interface WindowWithMapbox extends Window {
+  mapboxgl?: MapboxGL;
+}
+
+interface GeoJSONFeature {
+  geometry?: {
+    type?: string;
+    coordinates?: number[][][];
+  };
+  properties?: Record<string, unknown>;
+}
+
+interface GeoJSONFeatureCollection {
+  type: string;
+  features: GeoJSONFeature[];
+}
+
+interface CustomDimensionOverlay {
+  circles_geojson?: GeoJSONFeatureCollection;
+  [key: string]: unknown;
+}
+
+interface MapConfigWithOverlay {
+  custom_dimension_overlay?: CustomDimensionOverlay;
+  [key: string]: unknown;
+}
+
+interface ApiError extends Error {
+  status?: number;
+}
+
 function isFiniteNumber(value: number | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+/** Helper to extract the custom_dimension_overlay from map_config */
+function getOverlay(data: MapPreviewResponse | null): CustomDimensionOverlay | undefined {
+  if (!data) return undefined;
+  const config = data.map_config as MapConfigWithOverlay | null;
+  return config?.custom_dimension_overlay;
 }
 
 // Mapbox access token
@@ -34,7 +88,7 @@ interface AnomalyMapProps {
 
 /**
  * AnomalyMap - A simple point map showing location data for a metric's date range.
- * 
+ *
  * Uses the existing getMetricMapPreview API (same as metric detail pages).
  */
 export default function AnomalyMap({
@@ -54,8 +108,8 @@ export default function AnomalyMap({
   const [error, setError] = useState<string | null>(null);
   const [mapboxLoaded, setMapboxLoaded] = useState(false);
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  
+  const mapInstanceRef = useRef<MapboxMap | null>(null);
+
   // Store callback in ref to avoid triggering re-fetches
   const onLoadRef = useRef(onLoad);
   useEffect(() => { onLoadRef.current = onLoad; }, [onLoad]);
@@ -63,9 +117,9 @@ export default function AnomalyMap({
   // Load Mapbox GL JS
   useEffect(() => {
     if (typeof window === "undefined") return;
-    
+
     // Check if already loaded
-    if ((window as any).mapboxgl) {
+    if ((window as unknown as WindowWithMapbox).mapboxgl) {
       setMapboxLoaded(true);
       return;
     }
@@ -100,7 +154,7 @@ export default function AnomalyMap({
       try {
         setLoading(true);
         setError(null);
-        
+
         const response = await getMetricMapPreview(metricId, {
           start_date: startDate,
           end_date: endDate,
@@ -109,10 +163,10 @@ export default function AnomalyMap({
           group_field: groupField || undefined,
           group_value: groupValue || undefined,
         });
-        
+
         if (mounted) {
           setMapData(response);
-          
+
           // Calculate actual item count - if data is aggregated by district,
           // sum the 'count' or 'value' fields, otherwise use location_data_count
           let itemCount = response.location_data_count;
@@ -126,18 +180,19 @@ export default function AnomalyMap({
             }
           }
           setActualItemCount(itemCount);
-          
+
           onLoadRef.current?.({
             location_data_count: itemCount,
             period_start: startDate,
             period_end: endDate,
           });
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (mounted) {
-          const errorMessage = err.message || "Failed to load map data";
+          const apiError = err as ApiError;
+          const errorMessage = apiError.message || "Failed to load map data";
           // Don't show error for "no map_query" - just hide the map
-          if (errorMessage.includes("map_query") || errorMessage.includes("not available") || err.status === 404) {
+          if (errorMessage.includes("map_query") || errorMessage.includes("not available") || apiError.status === 404) {
             setError("unavailable");
           } else {
             setError(errorMessage);
@@ -151,7 +206,7 @@ export default function AnomalyMap({
     };
 
     fetchMapPreview();
-    
+
     return () => {
       mounted = false;
     };
@@ -160,7 +215,7 @@ export default function AnomalyMap({
   // Initialize map when both Mapbox and data are ready
   useEffect(() => {
     if (!mapboxLoaded || !mapData || !mapContainerRef.current) return;
-    const overlay = (mapData as any)?.map_config?.custom_dimension_overlay;
+    const overlay = getOverlay(mapData);
     const circlesGeojson = overlay?.circles_geojson;
     const hasCircles =
       circlesGeojson &&
@@ -174,7 +229,7 @@ export default function AnomalyMap({
 
     if (!hasPoints && !hasCircles) return;
 
-    const mapboxgl = (window as any).mapboxgl;
+    const mapboxgl = (window as unknown as WindowWithMapbox).mapboxgl;
     if (!mapboxgl) return;
 
     mapboxgl.accessToken = MAPBOX_TOKEN;
@@ -194,7 +249,7 @@ export default function AnomalyMap({
       const lons = mapData.location_data
         .map((p) => p.lon || p.lng)
         .filter(isFiniteNumber);
-      
+
       if (lats.length > 0 && lons.length > 0) {
         bounds = [
           [Math.min(...lons), Math.min(...lats)],
@@ -253,7 +308,7 @@ export default function AnomalyMap({
 
     map.on("load", () => {
       // Custom location dimension overlay (e.g. hotspot circles)
-      const overlay = (mapData as any)?.map_config?.custom_dimension_overlay;
+      const overlay = getOverlay(mapData);
       const circlesGeojson = overlay?.circles_geojson;
       if (circlesGeojson && circlesGeojson.type === "FeatureCollection") {
         map.addSource("custom-dimension-circles", {
@@ -320,7 +375,7 @@ export default function AnomalyMap({
 
       // Fit to bounds
       if (bounds) {
-        map.fitBounds(bounds as any, {
+        map.fitBounds(bounds, {
           padding: 40,
           maxZoom: 14,
           duration: 0,
@@ -368,7 +423,7 @@ export default function AnomalyMap({
   }
 
   // No data - don't render
-  const overlay = (mapData as any)?.map_config?.custom_dimension_overlay;
+  const overlay = getOverlay(mapData);
   const circlesGeojson = overlay?.circles_geojson;
   const hasCircles =
     circlesGeojson &&

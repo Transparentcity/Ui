@@ -14,7 +14,7 @@ interface MediaGalleryProps {
   onClose: () => void;
   viewMode?: MediaViewMode;
   onViewModeChange?: (mode: MediaViewMode) => void;
-  mapInstanceRef?: React.MutableRefObject<any>;
+  mapInstanceRef?: React.MutableRefObject<{ flyTo: (opts: { center: [number, number]; zoom: number; duration: number }) => void; getZoom: () => number } | null>;
   onNavigateToLocation?: (coordinates: [number, number]) => void;
 }
 

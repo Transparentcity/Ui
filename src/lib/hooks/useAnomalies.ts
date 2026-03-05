@@ -12,19 +12,20 @@ import {
   type RunAnomalyResponse,
   type ListAnomaliesResponse,
   type AnomalyResult,
+  type AnomalyChartPayload,
   type AvailablePeriod,
   type AvailablePeriodsResponse,
 } from "@/lib/apiClient";
 
 // Re-export types for consumers
-export type { AnomalyResult, AvailablePeriod };
+export type { AnomalyResult, AnomalyChartPayload, AvailablePeriod };
 
 // Query keys factory for anomalies
 export const anomalyKeys = {
   all: ["anomalies"] as const,
   lists: () => [...anomalyKeys.all, "list"] as const,
-  list: (filters?: Record<string, any>) => [...anomalyKeys.lists(), filters] as const,
-  city: (cityId: number | null, filters?: Record<string, any>) => 
+  list: (filters?: Record<string, unknown>) => [...anomalyKeys.lists(), filters] as const,
+  city: (cityId: number | null, filters?: Record<string, unknown>) =>
     [...anomalyKeys.all, "city", cityId, filters] as const,
   periods: (periodType: string, cityId?: number | null, district?: number | null) =>
     [...anomalyKeys.all, "periods", periodType, cityId, district] as const,
