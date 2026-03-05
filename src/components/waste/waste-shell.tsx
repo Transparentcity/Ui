@@ -9,11 +9,9 @@ import {
   DollarSign,
   Truck,
   Building2,
-  Scale,
   ArrowLeft,
   LogIn,
   Database,
-  ClipboardCheck,
   Gauge,
   Target,
   ListChecks,
@@ -33,102 +31,106 @@ type NavigationItem = {
   mode?: "category" | "link"
 }
 
-const navigation: NavigationItem[] = [
+type NavigationGroup = {
+  label: string
+  items: NavigationItem[]
+}
+
+const navigationGroups: NavigationGroup[] = [
   {
-    key: "overview",
-    name: "Overview",
-    href: "/waste",
-    icon: ShieldAlert,
-    description: "All anomalies",
-    mode: "category",
+    label: "Analysis",
+    items: [
+      {
+        key: "overview",
+        name: "Overview",
+        href: "/waste",
+        icon: ShieldAlert,
+        description: "Summary dashboard",
+        mode: "category",
+      },
+      {
+        key: "payroll",
+        name: "Payroll",
+        href: "/waste#payroll",
+        icon: DollarSign,
+        description: "Compensation & personnel",
+        mode: "category",
+      },
+      {
+        key: "contracts",
+        name: "Contracts",
+        href: "/waste#contracts",
+        icon: Truck,
+        description: "Procurement & vendors",
+        mode: "category",
+      },
+      {
+        key: "infrastructure",
+        name: "Infrastructure",
+        href: "/waste#infrastructure",
+        icon: Building2,
+        description: "311 & city services",
+        mode: "category",
+      },
+    ],
   },
   {
-    key: "payroll",
-    name: "Payroll",
-    href: "/waste#payroll",
-    icon: DollarSign,
-    description: "Compensation analysis",
-    mode: "category",
+    label: "Tools",
+    items: [
+      {
+        key: "queue-page",
+        name: "Review Workbench",
+        href: "/waste/queue",
+        icon: ListChecks,
+        description: "Auditor triage",
+        mode: "link",
+      },
+      {
+        key: "investigations",
+        name: "Investigations",
+        href: "/waste/investigations",
+        icon: Search,
+        description: "Active investigations",
+        mode: "link",
+      },
+      {
+        key: "scores",
+        name: "Entity Scores",
+        href: "/waste/scores",
+        icon: Target,
+        description: "Risk score rankings",
+        mode: "link",
+      },
+    ],
   },
   {
-    key: "contracts",
-    name: "Contracts",
-    href: "/waste#contracts",
-    icon: Truck,
-    description: "Procurement analysis",
-    mode: "category",
-  },
-  {
-    key: "infrastructure",
-    name: "Infrastructure",
-    href: "/waste#infrastructure",
-    icon: Building2,
-    description: "311 & services",
-    mode: "category",
-  },
-  {
-    key: "detectors",
-    name: "Detectors & Data",
-    href: "/waste#detectors",
-    icon: Database,
-    description: "Algorithms & datasets",
-    mode: "category",
-  },
-  {
-    key: "review",
-    name: "Queue Overview",
-    href: "/waste#review",
-    icon: ClipboardCheck,
-    description: "Quick triage view",
-    mode: "category",
-  },
-  {
-    key: "accuracy",
-    name: "Detector Accuracy",
-    href: "/waste#accuracy",
-    icon: Gauge,
-    description: "Precision feedback",
-    mode: "category",
-  },
-  {
-    key: "scores",
-    name: "Entity Scores",
-    href: "/waste/scores",
-    icon: Target,
-    description: "Risk score rankings",
-    mode: "link",
-  },
-  {
-    key: "queue-page",
-    name: "Review Workbench",
-    href: "/waste/queue",
-    icon: ListChecks,
-    description: "Full auditor workbench",
-    mode: "link",
-  },
-  {
-    key: "investigations",
-    name: "Investigations",
-    href: "/waste/investigations",
-    icon: Search,
-    description: "Active investigations",
-    mode: "link",
-  },
-  {
-    key: "thresholds",
-    name: "Thresholds",
-    href: "/waste/settings/thresholds",
-    icon: SlidersHorizontal,
-    description: "Detector sensitivity",
-    mode: "link",
-  },
-  {
-    key: "analysis",
-    name: "Analysis",
-    href: "/analysis",
-    icon: Scale,
-    description: "Auditor reports",
-    mode: "link",
+    label: "Settings",
+    items: [
+      {
+        key: "detectors",
+        name: "Detectors & Data",
+        href: "/waste#detectors",
+        icon: Database,
+        description: "Algorithms & datasets",
+        mode: "category",
+      },
+      {
+        key: "accuracy",
+        name: "Detector Accuracy",
+        href: "/waste#accuracy",
+        icon: Gauge,
+        description: "Precision tracking",
+        mode: "category",
+      },
+      {
+        key: "thresholds",
+        name: "Thresholds",
+        href: "/waste/settings/thresholds",
+        icon: SlidersHorizontal,
+        description: "Detector sensitivity",
+        mode: "link",
+      },
+    ],
   },
 ]
 
@@ -255,69 +257,80 @@ export function WasteShell({
 
         {/* Navigation */}
         <nav className="flex-1 py-2 overflow-y-auto">
-          <ul className="list-none m-0 p-0">
-            {navigation.map((item) => {
-              const isLinkItem = item.mode === "link"
-              const isActive = isLinkItem
-                ? pathname === item.href || pathname.startsWith(`${item.href}/`)
-                : activeCategory
-                  ? item.key === activeCategory
-                  : item.href === "/waste"
-                    ? pathname === "/waste"
-                    : pathname.startsWith(item.href.split("#")[0]) &&
-                      item.href !== "/waste"
+          {navigationGroups.map((group, groupIdx) => {
+            return (
+              <div key={group.label}>
+                {groupIdx > 0 && (
+                  <div className="mx-4 my-2 border-t border-gray-100" />
+                )}
+                <div className="px-4 pt-2 pb-1">
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                    {group.label}
+                  </span>
+                </div>
+                <ul className="list-none m-0 p-0">
+                  {group.items.map((item) => {
+                    const isLinkItem = item.mode === "link"
+                    const isActive = isLinkItem
+                      ? pathname === item.href || pathname.startsWith(`${item.href}/`)
+                      : activeCategory
+                        ? item.key === activeCategory
+                        : item.href === "/waste"
+                          ? pathname === "/waste"
+                          : pathname.startsWith(item.href.split("#")[0]) &&
+                            item.href !== "/waste"
 
-              return (
-                <li key={item.name}>
-                  {onCategoryChange && !isLinkItem ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onCategoryChange(item.key)
-                        handleNavClick()
-                      }}
-                      className={cn(
-                        "w-full text-left flex items-center gap-3 px-4 py-2.5 text-sm no-underline transition-all border-l-[3px]",
-                        isActive
-                          ? "text-purple-600 font-semibold bg-gray-100 border-l-purple-600"
-                          : "text-gray-600 font-normal bg-transparent border-l-transparent hover:bg-gray-50 hover:text-gray-900"
-                      )}
-                    >
-                      <item.icon className="w-[18px] h-[18px]" />
-                      <div className="flex-1">
-                        <span className="block">{item.name}</span>
-                        <span className="block text-[11px] text-gray-400 font-normal">
-                          {item.description}
-                        </span>
-                      </div>
-                    </button>
-                  ) : (
-                    <Link
-                      href={item.href}
-                      onClick={handleNavClick}
-                      className={cn(
-                        "flex items-center gap-3 px-4 py-2.5 text-sm no-underline transition-all border-l-[3px]",
-                        isActive
-                          ? "text-purple-600 font-semibold bg-gray-100 border-l-purple-600"
-                          : "text-gray-600 font-normal bg-transparent border-l-transparent hover:bg-gray-50 hover:text-gray-900"
-                      )}
-                    >
-                      <item.icon className="w-[18px] h-[18px]" />
-                      <div className="flex-1">
-                        <span className="block">{item.name}</span>
-                        <span className="block text-[11px] text-gray-400 font-normal">
-                          {item.description}
-                        </span>
-                      </div>
-                    </Link>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-
-          {/* Divider */}
-          <div className="mx-4 my-3 border-t border-gray-100" />
+                    return (
+                      <li key={item.name}>
+                        {onCategoryChange && !isLinkItem ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onCategoryChange(item.key)
+                              handleNavClick()
+                            }}
+                            className={cn(
+                              "w-full text-left flex items-center gap-3 px-4 py-2 text-sm no-underline transition-all border-l-[3px]",
+                              isActive
+                                ? "text-purple-600 font-semibold bg-gray-100 border-l-purple-600"
+                                : "text-gray-600 font-normal bg-transparent border-l-transparent hover:bg-gray-50 hover:text-gray-900"
+                            )}
+                          >
+                            <item.icon className="w-[18px] h-[18px]" />
+                            <div className="flex-1">
+                              <span className="block">{item.name}</span>
+                              <span className="block text-[11px] text-gray-400 font-normal">
+                                {item.description}
+                              </span>
+                            </div>
+                          </button>
+                        ) : (
+                          <Link
+                            href={item.href}
+                            onClick={handleNavClick}
+                            className={cn(
+                              "flex items-center gap-3 px-4 py-2 text-sm no-underline transition-all border-l-[3px]",
+                              isActive
+                                ? "text-purple-600 font-semibold bg-gray-100 border-l-purple-600"
+                                : "text-gray-600 font-normal bg-transparent border-l-transparent hover:bg-gray-50 hover:text-gray-900"
+                            )}
+                          >
+                            <item.icon className="w-[18px] h-[18px]" />
+                            <div className="flex-1">
+                              <span className="block">{item.name}</span>
+                              <span className="block text-[11px] text-gray-400 font-normal">
+                                {item.description}
+                              </span>
+                            </div>
+                          </Link>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )
+          })}
 
           {/* Info section */}
           <div className="px-4 py-2">
@@ -340,7 +353,7 @@ export function WasteShell({
       {/* Main content */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="flex items-center justify-between px-4 lg:px-8 py-5 bg-white border-b border-gray-200 min-h-16 gap-4 flex-wrap">
+        <header className="flex items-center justify-between px-4 lg:px-5 py-3 bg-white border-b border-gray-200 min-h-12 gap-3 flex-wrap">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -363,7 +376,7 @@ export function WasteShell({
         </header>
 
         {/* Content */}
-        <div className="flex-1 p-4 lg:p-8 overflow-y-auto">{children}</div>
+        <div className="flex-1 p-3 lg:p-5 overflow-y-auto">{children}</div>
       </main>
     </div>
   )

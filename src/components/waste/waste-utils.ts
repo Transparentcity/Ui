@@ -3,6 +3,7 @@ import type { WasteAnalyzeResponse } from "@/lib/apiClient"
 // ── Category normalization ──────────────────────────────────────────────────
 
 export type WasteCategoryKey =
+  | "overview"
   | "payroll"
   | "contracts"
   | "infrastructure"
@@ -23,6 +24,7 @@ export function normalizeWasteCategory(category: string): WasteCategoryKey {
     .replace(/_+/g, "_")
     .replace(/^_|_$/g, "")
 
+  if (key === "overview") return "overview"
   if (key === "payroll" || key.includes("payroll") || key === "payroll_compensation") return "payroll"
 
   // Map integrity/personnel to payroll

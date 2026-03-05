@@ -32,6 +32,7 @@ import { AccuracyBars } from "./widgets/accuracy-bars"
 import { InvestigationSummary } from "./widgets/investigation-summary"
 import {
   normalizeWasteCategory,
+  formatDollar,
   safeSetCache,
   WASTE_ANALYSIS_CACHE_KEY,
   type WasteCategoryKey,
@@ -110,7 +111,7 @@ function DataFreshnessBanner({ freshness }: { freshness: WasteDataFreshness[] })
 
   return (
     <div
-      className={`mb-6 p-4 rounded-lg border flex items-start gap-3 ${
+      className={`mb-4 p-3 rounded-lg border flex items-start gap-3 ${
         anyStale
           ? "bg-amber-50 border-amber-200"
           : "bg-blue-50 border-blue-200"
@@ -163,7 +164,7 @@ function DataFreshnessBanner({ freshness }: { freshness: WasteDataFreshness[] })
 }
 
 export function WastePageContent() {
-  const [activeCategory, setActiveCategory] = useState<WasteCategoryKey>("payroll")
+  const [activeCategory, setActiveCategory] = useState<WasteCategoryKey>("overview")
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
   const [seymourRequest, setSeymourRequest] = useState<WasteSeymourRequest | null>(null)
   const [cachedData] = useState<WasteAnalyzeResponse | null>(() => {
@@ -330,7 +331,16 @@ export function WastePageContent() {
   const isDetectorsView = activeCategory === "detectors"
   const isReviewView = activeCategory === "review"
   const isAccuracyView = activeCategory === "accuracy"
-  const isAnalysisView = !isDetectorsView && !isReviewView && !isAccuracyView
+  const isOverviewView = activeCategory === "overview"
+  const isCategoryView = !isDetectorsView && !isReviewView && !isAccuracyView && !isOverviewView
+
+  // Category-specific summary for the active category
+  const activeCategorySummary = useMemo(() => {
+    if (!displayData?.summary?.categories) return null
+    return displayData.summary.categories.find(
+      (c) => normalizeWasteCategory(c.category) === activeCategory
+    ) ?? null
+  }, [displayData, activeCategory])
 
   return (
     <WasteShell
@@ -338,10 +348,18 @@ export function WastePageContent() {
         isDetectorsView
           ? "Detectors & Data"
           : isReviewView
-            ? "Queue Overview"
+            ? "Review Workbench"
             : isAccuracyView
               ? "Detector Accuracy"
-              : "Waste Detection"
+              : isOverviewView
+                ? "Overview"
+                : activeCategory === "payroll"
+                  ? "Payroll & Personnel"
+                  : activeCategory === "contracts"
+                    ? "Contracts & Procurement"
+                    : activeCategory === "infrastructure"
+                      ? "Infrastructure & Services"
+                      : "Waste Detection"
       }
       description={
         isDetectorsView
@@ -350,12 +368,20 @@ export function WastePageContent() {
             ? "Disposition workflow for auditor triage and assignment."
             : isAccuracyView
               ? "Precision tracking from auditor feedback."
-              : "Anomaly detection across payroll, contracts, and city services"
+              : isOverviewView
+                ? "Summary across all waste detection modules"
+                : activeCategory === "payroll"
+                  ? "Overtime, compensation anomalies, and personnel integrity"
+                  : activeCategory === "contracts"
+                    ? "Vendor concentration, procurement patterns, and influence"
+                    : activeCategory === "infrastructure"
+                      ? "311 service clusters and infrastructure patterns"
+                      : "Anomaly detection across payroll, contracts, and city services"
       }
       activeCategory={activeCategory}
       onCategoryChange={handleCategoryChange}
       actions={
-        isAnalysisView ? (
+        (isOverviewView || isCategoryView) ? (
           <div className="flex items-center gap-3">
             {isManualRefreshing && (
               <div className="flex items-center gap-2 text-sm text-blue-700">
@@ -368,6 +394,15 @@ export function WastePageContent() {
                   />
                 </div>
               </div>
+            )}
+            {!isManualRefreshing && displayData?.analysis_timestamp && (
+              <span className="text-xs text-gray-400">
+                Last run{" "}
+                {new Date(displayData.analysis_timestamp).toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </span>
             )}
             <Button
               variant={isManualRefreshing ? "default" : "outline"}
@@ -393,28 +428,7 @@ export function WastePageContent() {
         <WasteDetectorAccuracy cityId={selectedCityId} />
       ) : (
         <>
-          {/* Welcome empty state — only when no data at all */}
-          {!isManualRefreshing && !displayData && !error && (
-            <div className="mb-6 p-6 bg-indigo-50 border border-indigo-200 rounded-lg text-center">
-              <p className="text-base font-semibold text-indigo-900">
-                Welcome to Waste Detection
-              </p>
-              <p className="text-sm text-indigo-700 mt-1">
-                Run your first analysis to detect anomalies across payroll, contracts, and city services.
-              </p>
-              <Button
-                variant="outline"
-                size="default"
-                onClick={handleRefresh}
-                className="mt-4 border-indigo-300 text-indigo-800 hover:bg-indigo-100"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Run Analysis
-              </Button>
-            </div>
-          )}
-
-          {/* Compact status line: cached analysis notice or refresh status */}
+          {/* Shared status banners */}
           {!isManualRefreshing && displayData && !data && displayData.analysis_timestamp && (
             <p className="text-xs text-gray-500 mb-3 flex items-center gap-2 flex-wrap" data-testid="compact-status-line">
               <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
@@ -450,12 +464,9 @@ export function WastePageContent() {
             </p>
           )}
 
-          {/* Zoom 1: Global Stats */}
-          <WasteStatBar summary={displayData?.summary} isLoading={showLoadingState} />
-
-          {/* Error banner — below stat bar */}
+          {/* Error banner */}
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-medium text-red-800">Analysis Error</p>
@@ -468,7 +479,7 @@ export function WastePageContent() {
 
           {/* Timeout banner */}
           {!isManualRefreshing && activeJob?.status === "failed" && (
-            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between gap-3 text-sm">
+            <div className="mb-4 p-3 bg-amber-50 border-amber-200 rounded-lg flex items-center justify-between gap-3 text-sm">
               <span className="text-amber-800">
                 {activeJob.error_message || "Analysis failed. Showing previous snapshot."}
               </span>
@@ -483,7 +494,7 @@ export function WastePageContent() {
             </div>
           )}
 
-          {/* Partial errors from analysis */}
+          {/* Partial errors */}
           {displayData?.errors && displayData.errors.length > 0 && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
               <p className="text-sm font-medium text-amber-800 mb-1">
@@ -495,84 +506,110 @@ export function WastePageContent() {
             </div>
           )}
 
-          {/* Data freshness / staleness banner */}
+          {/* Data freshness */}
           {displayData?.data_freshness && displayData.data_freshness.length > 0 && (
             <DataFreshnessBanner freshness={displayData.data_freshness} />
           )}
 
-          {/* Dashboard Widgets (shown on all analysis categories, deferred during refresh) */}
-          {isAnalysisView ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              {isManualRefreshing ? (
-                <>
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="bg-white rounded-lg border border-gray-200 p-5">
-                      <div className="h-4 w-40 bg-gray-100 rounded animate-pulse mb-4" />
-                      <div className="h-44 bg-gray-50 rounded animate-pulse" />
-                    </div>
-                  ))}
-                </>
-              ) : (
-                <>
-                  <SeverityDonut cityId={selectedCityId} />
-                  <QueueStatus cityId={selectedCityId} />
-                  <AccuracyBars cityId={selectedCityId} />
-                  <InvestigationSummary cityId={selectedCityId} />
-                </>
-              )}
-            </div>
-          ) : null}
+          {/* ─── OVERVIEW: summary only, no individual findings ─── */}
+          {isOverviewView && (
+            <>
+              <WasteStatBar summary={displayData?.summary} isLoading={showLoadingState} />
 
-          {/* Zoom 2: Category Tabs */}
-          <WasteCategoryTabs
-            activeCategory={activeCategory}
-            onCategoryChange={handleCategoryChange}
-            categorySummaries={displayData?.summary?.categories ?? []}
-          />
+              {/* Dashboard Widgets */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                {isManualRefreshing ? (
+                  <>
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="bg-white rounded-lg border border-gray-200 p-5">
+                        <div className="h-4 w-40 bg-gray-100 rounded animate-pulse mb-4" />
+                        <div className="h-44 bg-gray-50 rounded animate-pulse" />
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    <SeverityDonut cityId={selectedCityId} />
+                    <QueueStatus cityId={selectedCityId} />
+                    <AccuracyBars cityId={selectedCityId} />
+                    <InvestigationSummary cityId={selectedCityId} />
+                  </>
+                )}
+              </div>
 
-          {/* Filter row */}
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <WasteSeverityFilter
-              findings={categoryFindings}
-              activeFilter={severityFilter}
-              onFilterChange={setSeverityFilter}
-            />
-            <WasteExport category={activeCategory} />
-          </div>
-
-          {/* Cluster map for infrastructure tab */}
-          {activeCategory === "infrastructure" && infraFindings.length > 0 && (
-            <WasteClusterMap findings={infraFindings} />
+              {/* Category summary cards — click to navigate */}
+              <WasteCategoryTabs
+                activeCategory={activeCategory}
+                onCategoryChange={handleCategoryChange}
+                categorySummaries={displayData?.summary?.categories ?? []}
+              />
+            </>
           )}
 
-          {/* Zoom 3 & 4: Findings List */}
-          {showLoadingState ? (
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="h-14 bg-gray-100 rounded-lg animate-pulse" />
-              ))}
-            </div>
-          ) : (
-            <WasteFindingsList
-              findings={filteredFindings}
-              onAskSeymour={handleAskSeymour}
-            />
+          {/* ─── CATEGORY VIEW: summary header + findings ─── */}
+          {isCategoryView && (
+            <>
+              {/* Category summary stats */}
+              {activeCategorySummary && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                  <div className="bg-white rounded-lg border border-gray-200 p-3">
+                    <p className="text-xs text-gray-500">Findings</p>
+                    <p className="text-2xl font-bold">{activeCategorySummary.finding_count}</p>
+                  </div>
+                  <div className="bg-white rounded-lg border border-gray-200 p-3">
+                    <p className="text-xs text-gray-500">Critical</p>
+                    <p className="text-2xl font-bold text-red-600">{activeCategorySummary.critical_count}</p>
+                  </div>
+                  <div className="bg-white rounded-lg border border-gray-200 p-3">
+                    <p className="text-xs text-gray-500">High</p>
+                    <p className="text-2xl font-bold text-amber-600">{activeCategorySummary.high_count}</p>
+                  </div>
+                  <div className="bg-white rounded-lg border border-gray-200 p-3">
+                    <p className="text-xs text-gray-500">Exposure</p>
+                    <p className="text-2xl font-bold">{formatDollar(activeCategorySummary.total_amount)}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Filter row */}
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <WasteSeverityFilter
+                  findings={categoryFindings}
+                  activeFilter={severityFilter}
+                  onFilterChange={setSeverityFilter}
+                />
+                <WasteExport category={activeCategory} />
+              </div>
+
+              {/* Cluster map for infrastructure */}
+              {activeCategory === "infrastructure" && infraFindings.length > 0 && (
+                <WasteClusterMap findings={infraFindings} />
+              )}
+
+              {/* Findings List */}
+              {showLoadingState ? (
+                <div className="space-y-3">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="h-14 bg-gray-100 rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              ) : (
+                <WasteFindingsList
+                  findings={filteredFindings}
+                  onAskSeymour={handleAskSeymour}
+                />
+              )}
+            </>
           )}
 
           {/* Footer */}
-          <div className="mt-8 pt-4 border-t border-gray-200">
+          <div className="mt-5 pt-3 border-t border-gray-200">
             <p className="text-xs text-gray-500 text-center mb-1">
               Seymour tokens used today in Waste: {todaySeymourTokens.toLocaleString()}
             </p>
             <p className="text-xs text-gray-400 text-center">
               Data: DataSF Open Data Portal &middot; Anomalies &ne; confirmed fraud &middot; Sorted by confidence &amp; priority
             </p>
-            {displayData?.analysis_timestamp && (
-              <p className="text-xs text-gray-400 text-center mt-1">
-                Last analyzed: {new Date(displayData.analysis_timestamp).toLocaleString()}
-                {displayData.cached && " (cached)"}
-              </p>
-            )}
           </div>
 
           <WasteSeymourPanel
