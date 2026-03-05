@@ -236,9 +236,16 @@ export function WastePageContent() {
   }, [isManualRefreshing])
 
   const analysisProgress = useMemo(() => {
-    // Prefer real job progress from backend; fall back to time-based estimate
-    const pct = jobProgress > 0 ? jobProgress : getWasteAnalysisProgress(analysisElapsedSeconds).progressPct
-    const step = jobStatusMessage || getWasteAnalysisProgress(analysisElapsedSeconds).step
+    const timeBased = getWasteAnalysisProgress(analysisElapsedSeconds)
+    // Use whichever is higher: backend progress or time-based estimate.
+    // Backend only reports 10% and 90%, so time-based fills the gap.
+    const pct = Math.max(jobProgress, timeBased.progressPct)
+    // Use backend message when it's ahead of time-based (e.g. resuming a job),
+    // or at 90%+. Otherwise use time-based steps which are more granular.
+    const backendAhead = jobProgress > timeBased.progressPct + 5
+    const step = (backendAhead || jobProgress >= 90) && jobStatusMessage
+      ? jobStatusMessage
+      : timeBased.step
     const isLongRunning = analysisElapsedSeconds > WASTE_ANALYSIS_ESTIMATED_SECONDS + 12
     return { step, progressPct: Math.min(pct, 99), isLongRunning }
   }, [jobProgress, jobStatusMessage, analysisElapsedSeconds])

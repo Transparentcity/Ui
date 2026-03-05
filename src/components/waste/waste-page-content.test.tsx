@@ -407,7 +407,7 @@ describe("WastePageContent", () => {
     expect(screen.queryByText(/Analyzing/)).not.toBeInTheDocument()
   })
 
-  it("shows backend status_message when available instead of time-based step", () => {
+  it("shows backend status_message when backend progress is ahead of time-based", () => {
     useActiveWasteJob.mockReturnValue({
       activeJob: {
         job_id: "job-msg",
@@ -424,9 +424,51 @@ describe("WastePageContent", () => {
       startJob: mockStartJob,
     })
     render(<WastePageContent />)
-    // Should show the backend's status_message, not the time-based fallback
+    // Backend is ahead (40% vs ~6% time-based at 0s elapsed), so backend message is used
     expect(screen.getByText(/Running waste analysis detectors/)).toBeInTheDocument()
     expect(screen.getByText(/40%/)).toBeInTheDocument()
+  })
+
+  it("prefers time-based step when time catches up to backend progress", () => {
+    // When backend reports 10% and time-based is also around 10%, use granular time-based steps
+    useActiveWasteJob.mockReturnValue({
+      activeJob: {
+        job_id: "job-even",
+        job_type: "waste_analysis_run",
+        status: "running",
+        description: "Waste analysis",
+        progress: 10,
+        status_message: "Running waste analysis detectors...",
+        created_at: new Date(Date.now() - 15_000).toISOString(),
+        started_at: new Date(Date.now() - 13_000).toISOString(),
+      } as any,
+      isRunning: true,
+      isStarting: false,
+      startJob: mockStartJob,
+    })
+    render(<WastePageContent />)
+    // Time-based at 0s elapsed = 6%, backend = 10%, diff <= 5 → time-based step used
+    expect(screen.getByText(/Fetching latest records/)).toBeInTheDocument()
+  })
+
+  it("shows backend status_message at 90%+ progress", () => {
+    useActiveWasteJob.mockReturnValue({
+      activeJob: {
+        job_id: "job-final",
+        job_type: "waste_analysis_run",
+        status: "running",
+        description: "Waste analysis",
+        progress: 90,
+        status_message: "Finalizing run artifacts...",
+        created_at: new Date(Date.now() - 100_000).toISOString(),
+        started_at: new Date(Date.now() - 98_000).toISOString(),
+      } as any,
+      isRunning: true,
+      isStarting: false,
+      startJob: mockStartJob,
+    })
+    render(<WastePageContent />)
+    expect(screen.getByText(/Finalizing run artifacts/)).toBeInTheDocument()
   })
 
   it("shows elapsed time counter during analysis", () => {
