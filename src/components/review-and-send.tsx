@@ -17,6 +17,16 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog"
+import {
   Check,
   X,
   Pencil,
@@ -38,6 +48,7 @@ import {
   ArrowRightLeft,
   CheckSquare,
   Square,
+  Search,
 } from "lucide-react"
 import type { SendQueueItem, Contact } from "@/lib/types"
 import {
@@ -67,6 +78,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   const router = useRouter()
   const { getAccessTokenSilently } = useAuth0()
   const [activeTab, setActiveTab] = useState<TabKey>("pending")
+  const [searchQuery, setSearchQuery] = useState("")
   const [editingItem, setEditingItem] = useState<SendQueueItem | null>(null)
   const [editSubject, setEditSubject] = useState("")
   const [editBody, setEditBody] = useState("")
@@ -96,6 +108,15 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   const [discardingId, setDiscardingId] = useState<string | null>(null)
   const [bulkAction, setBulkAction] = useState<"sent" | "discard" | null>(null)
 
+  // Confirm dialog state (replaces window.confirm)
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string
+    description: string
+    action: () => void
+    actionLabel: string
+    variant: "destructive" | "default"
+  } | null>(null)
+
   // Per-item error feedback
   const [itemError, setItemError] = useState<{ id: string; message: string } | null>(null)
 
@@ -112,10 +133,19 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
     return headers
   }, [getAccessTokenSilently])
 
-  // Filter items by tab
+  // Filter items by tab and search
   const filteredItems = items.filter((item) => {
-    if (activeTab === "pending") return item.status === "pending_review"
-    if (activeTab === "sent") return item.status === "sent"
+    if (activeTab === "pending" && item.status !== "pending_review") return false
+    if (activeTab === "sent" && item.status !== "sent") return false
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      const name = item.prospect?.name?.toLowerCase() || ""
+      const email = item.prospect?.email?.toLowerCase() || ""
+      const city = (item.prospect as any)?.city_name?.toLowerCase() || ""
+      const subject = item.personalized_subject?.toLowerCase() || ""
+      const snippet = item.anomaly_snippet?.toLowerCase() || ""
+      if (!name.includes(q) && !email.includes(q) && !city.includes(q) && !subject.includes(q) && !snippet.includes(q)) return false
+    }
     return true
   })
 
@@ -204,12 +234,19 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
 
   // Discard
   const discardItem = (id: string) => {
-    if (!confirm("Discard this draft? It will be removed from the queue.")) return
-    setDiscardingId(id)
-    startTransition(async () => {
-      await deleteQueueItems([id])
-      setDiscardingId(null)
-      router.refresh()
+    setConfirmDialog({
+      title: "Discard draft?",
+      description: "This draft will be permanently removed from the queue.",
+      actionLabel: "Discard",
+      variant: "destructive",
+      action: () => {
+        setDiscardingId(id)
+        startTransition(async () => {
+          await deleteQueueItems([id])
+          setDiscardingId(null)
+          router.refresh()
+        })
+      },
     })
   }
 
@@ -348,28 +385,42 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   // Bulk mark as sent
   const bulkMarkSent = () => {
     if (selectedIds.size === 0) return
-    if (!confirm(`Mark ${selectedIds.size} item(s) as sent?`)) return
-    setBulkAction("sent")
-    startTransition(async () => {
-      await Promise.all(
-        Array.from(selectedIds).map((id) => updateQueueItemStatus(id, "sent"))
-      )
-      setSelectedIds(new Set())
-      setBulkAction(null)
-      router.refresh()
+    setConfirmDialog({
+      title: `Mark ${selectedIds.size} item(s) as sent?`,
+      description: "These drafts will be moved to the Sent tab.",
+      actionLabel: "Mark Sent",
+      variant: "default",
+      action: () => {
+        setBulkAction("sent")
+        startTransition(async () => {
+          await Promise.all(
+            Array.from(selectedIds).map((id) => updateQueueItemStatus(id, "sent"))
+          )
+          setSelectedIds(new Set())
+          setBulkAction(null)
+          router.refresh()
+        })
+      },
     })
   }
 
   // Bulk discard
   const bulkDiscard = () => {
     if (selectedIds.size === 0) return
-    if (!confirm(`Discard ${selectedIds.size} item(s)? They will be removed from the queue.`)) return
-    setBulkAction("discard")
-    startTransition(async () => {
-      await deleteQueueItems(Array.from(selectedIds))
-      setSelectedIds(new Set())
-      setBulkAction(null)
-      router.refresh()
+    setConfirmDialog({
+      title: `Discard ${selectedIds.size} item(s)?`,
+      description: "These drafts will be permanently removed from the queue.",
+      actionLabel: "Discard",
+      variant: "destructive",
+      action: () => {
+        setBulkAction("discard")
+        startTransition(async () => {
+          await deleteQueueItems(Array.from(selectedIds))
+          setSelectedIds(new Set())
+          setBulkAction(null)
+          router.refresh()
+        })
+      },
     })
   }
 
@@ -442,6 +493,17 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
           </CardContent>
         </Card>
       )}
+
+      {/* Search bar */}
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder="Search drafts..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-9"
+        />
+      </div>
 
       {/* Generate result banner */}
       {generateResult && !isGenerating && (
@@ -810,7 +872,23 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
       </div>
 
       {/* Edit Dialog */}
-      <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
+      <Dialog open={!!editingItem} onOpenChange={(open) => {
+        if (!open && editingItem) {
+          const subjectChanged = editSubject !== (editingItem.personalized_subject || "")
+          const bodyChanged = editBody !== (editingItem.personalized_body || "")
+          if (subjectChanged || bodyChanged) {
+            setConfirmDialog({
+              title: "Discard unsaved changes?",
+              description: "You have unsaved edits to this draft. Closing will discard them.",
+              actionLabel: "Discard changes",
+              variant: "destructive",
+              action: () => setEditingItem(null),
+            })
+            return
+          }
+        }
+        if (!open) setEditingItem(null)
+      }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit Message</DialogTitle>
@@ -943,6 +1021,28 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm Dialog (replaces window.confirm) */}
+      <AlertDialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) setConfirmDialog(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmDialog?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmDialog?.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { confirmDialog?.action(); setConfirmDialog(null) }}
+              className={confirmDialog?.variant === "destructive"
+                ? "bg-red-600 text-white hover:bg-red-700"
+                : "bg-purple-600 text-white hover:bg-purple-700"
+              }
+            >
+              {confirmDialog?.actionLabel}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

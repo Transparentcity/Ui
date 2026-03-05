@@ -352,13 +352,15 @@ describe("ReviewAndSend", () => {
 
   it("calls delete when Discard is confirmed", async () => {
     const user = userEvent.setup()
-    // Mock window.confirm to return true
-    vi.spyOn(window, "confirm").mockReturnValue(true)
 
     render(<ReviewAndSend items={[PENDING_ITEM]} />)
 
     const discardBtn = screen.getByRole("button", { name: /discard/i })
     await user.click(discardBtn)
+
+    // AlertDialog should appear — confirm by clicking the Discard action
+    const confirmBtn = await screen.findByRole("button", { name: /^discard$/i })
+    await user.click(confirmBtn)
 
     await waitFor(() => {
       expect(mockDeleteItems).toHaveBeenCalledWith(["q-1"])
@@ -368,12 +370,15 @@ describe("ReviewAndSend", () => {
 
   it("does not delete when Discard is cancelled", async () => {
     const user = userEvent.setup()
-    vi.spyOn(window, "confirm").mockReturnValue(false)
 
     render(<ReviewAndSend items={[PENDING_ITEM]} />)
 
     const discardBtn = screen.getByRole("button", { name: /discard/i })
     await user.click(discardBtn)
+
+    // AlertDialog should appear — click Cancel
+    const cancelBtn = await screen.findByRole("button", { name: /cancel/i })
+    await user.click(cancelBtn)
 
     expect(mockDeleteItems).not.toHaveBeenCalled()
   })
@@ -783,7 +788,6 @@ describe("ReviewAndSend", () => {
 
   it("bulk mark sent calls updateQueueItemStatus for each selected item", async () => {
     const user = userEvent.setup()
-    vi.spyOn(window, "confirm").mockReturnValue(true)
     const item2 = makeQueueItem({ id: "q-3", personalized_subject: "Second draft" })
     render(<ReviewAndSend items={[PENDING_ITEM, item2]} />)
 
@@ -796,6 +800,10 @@ describe("ReviewAndSend", () => {
     // Click bulk Mark Sent
     await user.click(screen.getByRole("button", { name: /mark sent/i }))
 
+    // AlertDialog should appear — confirm
+    const confirmBtn = await screen.findByRole("button", { name: /^mark sent$/i })
+    await user.click(confirmBtn)
+
     await waitFor(() => {
       expect(mockUpdateStatus).toHaveBeenCalledWith("q-1", "sent")
       expect(mockUpdateStatus).toHaveBeenCalledWith("q-3", "sent")
@@ -805,7 +813,6 @@ describe("ReviewAndSend", () => {
 
   it("bulk discard calls deleteQueueItems for selected items", async () => {
     const user = userEvent.setup()
-    vi.spyOn(window, "confirm").mockReturnValue(true)
     render(<ReviewAndSend items={[PENDING_ITEM]} />)
 
     // Select all
@@ -815,10 +822,12 @@ describe("ReviewAndSend", () => {
     })
 
     // Click bulk Discard (the one in the toolbar, not the per-card one)
-    // The toolbar discard has different styling — find by the text inside the toolbar area
     const bulkDiscardBtns = screen.getAllByRole("button", { name: /discard/i })
-    // The first one is in the bulk toolbar, the second on the card
     await user.click(bulkDiscardBtns[0])
+
+    // AlertDialog should appear — confirm
+    const confirmBtn = await screen.findByRole("button", { name: /^discard$/i })
+    await user.click(confirmBtn)
 
     await waitFor(() => {
       expect(mockDeleteItems).toHaveBeenCalledWith(["q-1"])
@@ -892,7 +901,6 @@ describe("ReviewAndSend", () => {
 
   it("shows 'Discarding...' spinner on Discard button while in flight", async () => {
     const user = userEvent.setup()
-    vi.spyOn(window, "confirm").mockReturnValue(true)
     // Make deleteQueueItems hang
     mockDeleteItems.mockReturnValueOnce(new Promise(() => {}))
 
@@ -901,6 +909,10 @@ describe("ReviewAndSend", () => {
     const discardBtn = screen.getByRole("button", { name: /discard/i })
     await user.click(discardBtn)
 
+    // AlertDialog appears — confirm
+    const confirmBtn = await screen.findByRole("button", { name: /^discard$/i })
+    await user.click(confirmBtn)
+
     await waitFor(() => {
       expect(screen.getByText("Discarding...")).toBeInTheDocument()
     })
@@ -908,7 +920,6 @@ describe("ReviewAndSend", () => {
 
   it("shows 'Sending...' on bulk Mark Sent while in flight", async () => {
     const user = userEvent.setup()
-    vi.spyOn(window, "confirm").mockReturnValue(true)
     mockUpdateStatus.mockReturnValue(new Promise(() => {}))
 
     render(<ReviewAndSend items={[PENDING_ITEM]} />)
@@ -920,6 +931,10 @@ describe("ReviewAndSend", () => {
 
     await user.click(screen.getByRole("button", { name: /mark sent/i }))
 
+    // AlertDialog appears — confirm
+    const confirmBtn = await screen.findByRole("button", { name: /^mark sent$/i })
+    await user.click(confirmBtn)
+
     await waitFor(() => {
       expect(screen.getByText("Sending...")).toBeInTheDocument()
     })
@@ -927,7 +942,6 @@ describe("ReviewAndSend", () => {
 
   it("shows 'Discarding...' on bulk Discard while in flight", async () => {
     const user = userEvent.setup()
-    vi.spyOn(window, "confirm").mockReturnValue(true)
     mockDeleteItems.mockReturnValueOnce(new Promise(() => {}))
 
     render(<ReviewAndSend items={[PENDING_ITEM]} />)
@@ -940,6 +954,10 @@ describe("ReviewAndSend", () => {
     // Click bulk Discard (first Discard button is in toolbar)
     const bulkDiscardBtns = screen.getAllByRole("button", { name: /discard/i })
     await user.click(bulkDiscardBtns[0])
+
+    // AlertDialog appears — confirm
+    const confirmBtn = await screen.findByRole("button", { name: /^discard$/i })
+    await user.click(confirmBtn)
 
     await waitFor(() => {
       expect(screen.getByText("Discarding...")).toBeInTheDocument()

@@ -545,7 +545,6 @@ describe("ContactsTable", () => {
 
   it("calls deleteContact and refreshes after confirming delete", async () => {
     const user = userEvent.setup()
-    vi.spyOn(window, "confirm").mockReturnValue(true)
     render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
 
     // Open the dropdown menu for the first contact (MoreHorizontal icon button)
@@ -558,6 +557,10 @@ describe("ContactsTable", () => {
     const deleteOption = await screen.findByRole("menuitem", { name: /delete/i })
     await user.click(deleteOption)
 
+    // AlertDialog should appear — confirm by clicking the Delete button
+    const confirmBtn = await screen.findByRole("button", { name: /^delete$/i })
+    await user.click(confirmBtn)
+
     await waitFor(() => {
       expect(deleteContact).toHaveBeenCalledWith("c-1")
     })
@@ -568,7 +571,6 @@ describe("ContactsTable", () => {
 
   it("does not delete when confirm is cancelled", async () => {
     const user = userEvent.setup()
-    vi.spyOn(window, "confirm").mockReturnValue(false)
     render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
 
     const moreButtons = screen.getAllByRole("button", { name: "" }).filter(
@@ -578,6 +580,10 @@ describe("ContactsTable", () => {
 
     const deleteOption = await screen.findByRole("menuitem", { name: /delete/i })
     await user.click(deleteOption)
+
+    // AlertDialog should appear — click Cancel
+    const cancelBtn = await screen.findByRole("button", { name: /cancel/i })
+    await user.click(cancelBtn)
 
     expect(deleteContact).not.toHaveBeenCalled()
   })

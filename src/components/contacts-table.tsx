@@ -28,6 +28,16 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog"
 import { Contact, Keyword } from "@/lib/types"
 import { ContactDialog } from "./contact-dialog"
 import { ContactImportDialog } from "./contact-import-dialog"
@@ -147,6 +157,7 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>("asc")
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -784,18 +795,9 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
                             <DropdownMenuItem
                               className="text-destructive"
                               disabled={deletingId === contact.id}
-                              onClick={async () => {
-                                if (
-                                  confirm("Are you sure you want to delete this contact?")
-                                ) {
-                                  setDeletingId(contact.id)
-                                  try {
-                                    await deleteContact(contact.id)
-                                    router.refresh()
-                                  } finally {
-                                    setDeletingId(null)
-                                  }
-                                }
+                              onSelect={(e) => {
+                                e.preventDefault()
+                                setDeleteConfirmId(contact.id)
                               }}
                             >
                               {deletingId === contact.id ? (
@@ -816,6 +818,42 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
           </Table>
         </CardContent>
       </Card>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete contact?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove{" "}
+              <span className="font-medium text-gray-900">
+                {contacts.find(c => c.id === deleteConfirmId)?.name}
+              </span>{" "}
+              from your contacts. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={async () => {
+                if (!deleteConfirmId) return
+                const id = deleteConfirmId
+                setDeleteConfirmId(null)
+                setDeletingId(id)
+                try {
+                  await deleteContact(id)
+                  router.refresh()
+                } finally {
+                  setDeletingId(null)
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
