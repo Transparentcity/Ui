@@ -7,6 +7,7 @@ import {
   getCityFoiaProfileAndTargets,
   getRequesterProfile,
   listCityFoiaDepartments,
+  listFoiaRequests,
   suggestCityFoiaDepartment,
   composeCityFoiaRequestBlock,
   markFoiaExternallyFiled,
@@ -15,7 +16,7 @@ import { API_BASE } from "@/lib/apiBase"
 import { toast } from "sonner"
 import { datasetLabel } from "@/lib/foia/datasetLabels"
 import { useRouter } from "next/navigation"
-import type { CityFoiaProfile, CityDatasetTarget, FoiaCityDepartment, FoiaRequesterProfile } from "@/lib/foia/types"
+import type { CityFoiaProfile, CityDatasetTarget, FoiaCityDepartment, FoiaRequest, FoiaRequesterProfile } from "@/lib/foia/types"
 
 interface CityOption {
   id: number
@@ -107,6 +108,7 @@ export function NewRequestModal({
   const [openRecordsCategory, setOpenRecordsCategory] = useState<string>("")
   const [openRecordsAgency, setOpenRecordsAgency] = useState<string>("")
   const [bookmarkedCities, setBookmarkedCities] = useState<CityOption[]>([])
+  const [duplicateWarning, setDuplicateWarning] = useState<{ count: number; requests: FoiaRequest[] } | null>(null)
   const cityInputRef = useRef<HTMLInputElement>(null)
 
   // Load bookmarks from localStorage on mount
@@ -176,6 +178,37 @@ export function NewRequestModal({
     }, 300)
     return () => clearTimeout(timer)
   }, [citySearch, bookmarkedCities])
+
+  // Check for duplicate requests when city + dataset type change
+  useEffect(() => {
+    const effectiveDatasetType =
+      form.dataset_type_id === "__custom__" ? customDatasetTypeId.trim() : form.dataset_type_id.trim()
+    if (!form.city_id || !effectiveDatasetType) {
+      setDuplicateWarning(null)
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      try {
+        const res = await listFoiaRequests({
+          city_id: form.city_id,
+          dataset_id: effectiveDatasetType,
+          page_size: 5,
+        })
+        if (!cancelled && res.items.length > 0) {
+          setDuplicateWarning({ count: res.total, requests: res.items })
+        } else if (!cancelled) {
+          setDuplicateWarning(null)
+        }
+      } catch {
+        if (!cancelled) setDuplicateWarning(null)
+      }
+    }, 400)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [form.city_id, form.dataset_type_id, customDatasetTypeId])
 
   async function selectCity(city: CityOption) {
     setForm((f) => ({ ...f, city_id: city.id, city_name: `${city.name}, ${city.state}` }))
@@ -1015,6 +1048,20 @@ export function NewRequestModal({
                           placeholder="e.g. sfpd_drone_flight_logs"
                           className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                         />
+                      </div>
+                    )}
+
+                    {duplicateWarning && (
+                      <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        <span>⚠ {duplicateWarning.count} existing request{duplicateWarning.count !== 1 ? "s" : ""} for {datasetLabel(form.dataset_type_id === "__custom__" ? customDatasetTypeId : form.dataset_type_id)} in {form.city_name || "this city"}</span>
+                        <a
+                          href={`/foia/requests?city_id=${form.city_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0 font-medium text-amber-700 underline hover:text-amber-900"
+                        >
+                          View
+                        </a>
                       </div>
                     )}
                   </div>

@@ -119,7 +119,7 @@ describe("TasksContent", () => {
     mockListFoiaTasks.mockResolvedValue([])
     render(<TasksContent />)
     await waitFor(() => {
-      expect(screen.getByText("No tasks match your filter.")).toBeInTheDocument()
+      expect(screen.getByText("No tasks yet")).toBeInTheDocument()
     })
   })
 
@@ -227,7 +227,7 @@ describe("TasksContent", () => {
     mockListFoiaTasks.mockResolvedValue([])
     render(<TasksContent />)
     await waitFor(() => {
-      expect(screen.getByText("No tasks match your filter.")).toBeInTheDocument()
+      expect(screen.getByText("No tasks yet")).toBeInTheDocument()
     })
 
     // Click New Task
@@ -245,7 +245,7 @@ describe("TasksContent", () => {
 
     render(<TasksContent />)
     await waitFor(() => {
-      expect(screen.getByText("No tasks match your filter.")).toBeInTheDocument()
+      expect(screen.getByText("No tasks yet")).toBeInTheDocument()
     })
 
     // Open form
@@ -419,7 +419,7 @@ describe("TasksContent", () => {
     mockListFoiaTasks.mockResolvedValue([])
     render(<TasksContent />)
     await waitFor(() => {
-      expect(screen.getByText("No tasks match your filter.")).toBeInTheDocument()
+      expect(screen.getByText("No tasks yet")).toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByRole("button", { name: /New Task/i }))

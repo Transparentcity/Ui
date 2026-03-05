@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   FileText,
+  FileSearch,
   Upload,
   X,
   RefreshCw,
@@ -23,6 +24,12 @@ import {
 import { uploadFoiaFile, rewriteFoiaRequest } from "@/app/actions/foia"
 import { API_BASE } from "@/lib/apiBase"
 import { datasetLabel } from "@/lib/foia/datasetLabels"
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip"
 import type { DatasetInstance, DatasetInstanceStatus, FoiaRequest } from "@/lib/foia/types"
 
 const statusConfig: Record<string, { label: string; color: string }> = {
@@ -99,6 +106,7 @@ export function DataReviewContent() {
         },
         token
       )
+      toast.success("Review status updated")
       await load()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update status")
@@ -194,8 +202,10 @@ export function DataReviewContent() {
             />
           ))}
           {pendingReview.length === 0 && (
-            <div className="px-6 py-8 text-center text-sm text-gray-400">
-              No data deliveries pending review.
+            <div className="flex flex-col items-center justify-center px-6 py-8 text-center">
+              <FileSearch className="h-10 w-10 text-gray-300" />
+              <p className="mt-3 text-sm font-medium text-gray-500">No data to review</p>
+              <p className="mt-1 text-xs text-gray-400">Data review items will appear when responses are received.</p>
             </div>
           )}
         </div>
@@ -542,41 +552,63 @@ function DataInstanceRow({
           {cfg.label}
         </span>
         {instance.status === "pending_review" && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              onClick={onMarkComplete}
-              disabled={actionLoading}
-              className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-            >
-              {actionLoading ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <CheckCircle2 className="h-3 w-3" />
-              )}
-              Complete
-            </button>
-            <button
-              onClick={() => setShowIncompleteModal(true)}
-              disabled={actionLoading}
-              className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-100 disabled:opacity-50"
-            >
-              Incomplete
-            </button>
-            <button
-              onClick={onNeedsMapping}
-              disabled={actionLoading}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-violet-600 hover:bg-violet-50 disabled:opacity-50"
-            >
-              Needs Mapping
-            </button>
-            <button
-              onClick={onReject}
-              disabled={actionLoading}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-            >
-              Reject
-            </button>
-          </div>
+          <TooltipProvider>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onMarkComplete}
+                    disabled={actionLoading}
+                    className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {actionLoading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-3 w-3" />
+                    )}
+                    Complete
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Data is accurate and ready for use</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setShowIncompleteModal(true)}
+                    disabled={actionLoading}
+                    className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-100 disabled:opacity-50"
+                  >
+                    Incomplete
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Data has missing fields or records</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onNeedsMapping}
+                    disabled={actionLoading}
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-violet-600 hover:bg-violet-50 disabled:opacity-50"
+                  >
+                    Needs Mapping
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Column names need to be mapped to standard schema</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onReject}
+                    disabled={actionLoading}
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                  >
+                    Reject
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Data is unusable or wrong dataset</TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
         )}
         {instance.status === "incomplete" && instance.request_id && onCreateRevisedRequest && (
           <button

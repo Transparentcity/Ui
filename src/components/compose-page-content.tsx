@@ -35,6 +35,7 @@ import { mapApiAnomaliesToCrm } from "@/lib/anomalyMapper"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { AIEmailComposer } from "@/components/ai-email-composer"
 import type { ContactWithKeywords, Keyword, Anomaly } from "@/lib/types"
+import { toast } from "sonner"
 
 interface AnomalyOption {
   result_id: number
@@ -109,6 +110,7 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
   const [refinement, setRefinement] = useState("")
   const [copied, setCopied] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [generationError, setGenerationError] = useState<string | null>(null)
 
   const activeContacts = contacts.filter((c) => c.status === "active")
 
@@ -138,6 +140,7 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
     setSelectedAnomaly(null)
     setAnomalies([])
     setSaved(false)
+    setGenerationError(null)
 
     if (!contact.city_id) {
       return // No city, can't fetch anomalies
@@ -161,6 +164,8 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
       }
     } catch (err) {
       console.error("Fetch anomalies error:", err)
+      toast.error("Failed to fetch anomalies")
+      setGenerationError("Failed to fetch anomalies. Please try again.")
     } finally {
       setLoadingAnomalies(false)
     }
@@ -197,6 +202,7 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
   ) => {
     setIsGenerating(true)
     setSaved(false)
+    setGenerationError(null)
     try {
       const composeHeaders = await getAuthHeaders(true)
       const resp = await fetch(`${API_BASE}/api/crm/compose`, {
@@ -216,8 +222,11 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
       setChartUrl(data.chart_url)
       setQueueItemId(data.queue_item_id)
       setSaved(true)
+      toast.success("Draft generated")
     } catch (err) {
       console.error("Compose error:", err)
+      toast.error("Failed to generate draft")
+      setGenerationError("Failed to generate draft. Please try again.")
     } finally {
       setIsGenerating(false)
     }
@@ -252,9 +261,10 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
       const text = `Subject: ${draftSubject}\n\n${draftBody}`
       await navigator.clipboard.writeText(text)
       setCopied(true)
+      toast.success("Copied")
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
-      console.error("Copy failed:", err)
+      toast.error("Failed to copy")
     }
   }
 
@@ -427,13 +437,31 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
       )}
 
       {/* No anomalies found */}
-      {selectedContact && selectedContact.city_id && !loadingAnomalies && anomalies.length === 0 && !isGenerating && (
+      {selectedContact && selectedContact.city_id && !loadingAnomalies && anomalies.length === 0 && !isGenerating && !generationError && (
         <Card className="border-gray-200">
           <CardContent className="p-6 text-center">
             <BarChart3 className="w-8 h-8 mx-auto text-gray-300 mb-3" />
             <p className="text-sm text-gray-500">
               No recent anomalies found for {selectedContact.city_name || "this city"}.
             </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Generation error with retry (Phase 2) */}
+      {generationError && !isGenerating && !loadingAnomalies && selectedContact && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-5 text-center space-y-3">
+            <p className="text-sm text-red-700">{generationError}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => selectContact(selectedContact)}
+              className="gap-1.5 text-red-700 border-red-300 hover:bg-red-100"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Retry
+            </Button>
           </CardContent>
         </Card>
       )}

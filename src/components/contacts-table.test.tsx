@@ -30,6 +30,15 @@ if (typeof Element.prototype.releasePointerCapture !== "function") {
 
 // ---- Mocks ----------------------------------------------------------------
 
+const mockToastSuccess = vi.fn()
+const mockToastError = vi.fn()
+vi.mock("sonner", () => ({
+  toast: {
+    success: (...args: any[]) => mockToastSuccess(...args),
+    error: (...args: any[]) => mockToastError(...args),
+  },
+}))
+
 const mockRefresh = vi.fn()
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: mockRefresh }),
@@ -207,9 +216,11 @@ describe("ContactsTable", () => {
     const searchInput = screen.getByPlaceholderText(/search contacts/i)
     await user.type(searchInput, "alice")
 
-    expect(screen.getByText("Alice Wong")).toBeInTheDocument()
-    expect(screen.queryByText("Bob Chen")).not.toBeInTheDocument()
-    expect(screen.queryByText("Carol Martinez")).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText("Alice Wong")).toBeInTheDocument()
+      expect(screen.queryByText("Bob Chen")).not.toBeInTheDocument()
+      expect(screen.queryByText("Carol Martinez")).not.toBeInTheDocument()
+    })
   })
 
   it("filters contacts by email", async () => {
@@ -219,8 +230,10 @@ describe("ContactsTable", () => {
     const searchInput = screen.getByPlaceholderText(/search contacts/i)
     await user.type(searchInput, "oakland")
 
-    expect(screen.getByText("Carol Martinez")).toBeInTheDocument()
-    expect(screen.queryByText("Alice Wong")).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText("Carol Martinez")).toBeInTheDocument()
+      expect(screen.queryByText("Alice Wong")).not.toBeInTheDocument()
+    })
   })
 
   // ---------- Checkbox selection ----------
@@ -363,9 +376,11 @@ describe("ContactsTable", () => {
     const searchInput = screen.getByPlaceholderText(/search contacts/i)
     await user.type(searchInput, "Elected")
 
-    expect(screen.getByText("Alice Wong")).toBeInTheDocument()
-    expect(screen.queryByText("Bob Chen")).not.toBeInTheDocument()
-    expect(screen.queryByText("Carol Martinez")).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText("Alice Wong")).toBeInTheDocument()
+      expect(screen.queryByText("Bob Chen")).not.toBeInTheDocument()
+      expect(screen.queryByText("Carol Martinez")).not.toBeInTheDocument()
+    })
   })
 
   // ---------- Bulk keyword assignment ----------
@@ -674,7 +689,9 @@ describe("ContactsTable", () => {
     const searchInput = screen.getByPlaceholderText(/search contacts/i)
     await user.type(searchInput, "zzzznonexistent")
 
-    expect(screen.getByText(/No contacts found/)).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText(/No contacts found/)).toBeInTheDocument()
+    })
   })
 
   // ---------- Initial type filter from URL ----------
@@ -787,12 +804,13 @@ describe("ContactsTable", () => {
     const searchInput = screen.getByPlaceholderText(/search contacts/i)
     await user.type(searchInput, "Contact 0")
 
-    // Pagination might not show if filtered results fit on one page
-    // But if it shows, it should be page 1
-    const pagination = screen.queryByTestId("pagination-controls")
-    if (pagination) {
-      expect(pagination).toHaveTextContent(/Page 1/)
-    }
+    // Wait for debounce to apply, then check pagination reset
+    await waitFor(() => {
+      const pagination = screen.queryByTestId("pagination-controls")
+      if (pagination) {
+        expect(pagination).toHaveTextContent(/Page 1/)
+      }
+    })
   })
 
   // ---------- Draft indicator badges (#2) ----------
@@ -858,5 +876,98 @@ describe("ContactsTable", () => {
 
     const activityOption = await screen.findByRole("menuitem", { name: /activity/i })
     expect(activityOption).toBeInTheDocument()
+  })
+
+  // ---------- Toast notifications ----------
+
+  it("shows toast on bulk city assignment", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    await user.click(screen.getAllByRole("checkbox")[3]) // Carol
+    const assignBtn = screen.getByRole("button", { name: /assign city/i })
+    await user.click(assignBtn)
+
+    const pickerButtons = screen.getAllByRole("button").filter(
+      btn => btn.textContent?.includes("San Francisco") && btn.closest(".absolute")
+    )
+    await user.click(pickerButtons[0])
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringContaining("Assigned"))
+    })
+  })
+
+  it("shows toast on delete contact", async () => {
+    const user = userEvent.setup()
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    const moreButtons = screen.getAllByRole("button", { name: "" }).filter(
+      (btn) => btn.classList.contains("h-8") && btn.classList.contains("w-8")
+    )
+    await user.click(moreButtons[0])
+    const deleteOption = await screen.findByRole("menuitem", { name: /delete/i })
+    await user.click(deleteOption)
+    const confirmBtn = await screen.findByRole("button", { name: /^delete$/i })
+    await user.click(confirmBtn)
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Contact deleted")
+    })
+  })
+
+  it("shows toast on CSV export", async () => {
+    const user = userEvent.setup()
+    global.URL.createObjectURL = vi.fn().mockReturnValue("blob:test")
+    global.URL.revokeObjectURL = vi.fn()
+
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+    await user.click(screen.getByRole("button", { name: /export csv/i }))
+
+    expect(mockToastSuccess).toHaveBeenCalledWith("CSV exported")
+  })
+
+  it("shows error toast when bulk operation fails", async () => {
+    const user = userEvent.setup()
+    ;(bulkUpdateCity as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Server error"))
+
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    await user.click(screen.getAllByRole("checkbox")[3])
+    const assignBtn = screen.getByRole("button", { name: /assign city/i })
+    await user.click(assignBtn)
+
+    const pickerButtons = screen.getAllByRole("button").filter(
+      btn => btn.textContent?.includes("San Francisco") && btn.closest(".absolute")
+    )
+    await user.click(pickerButtons[0])
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Failed to assign city")
+    })
+  })
+
+  // ---------- Debounced search ----------
+
+  it("debounces search query for filtering", async () => {
+    const user = userEvent.setup()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+
+    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
+
+    const searchInput = screen.getByPlaceholderText(/search contacts/i)
+    await user.type(searchInput, "alice")
+
+    // Before debounce fires, all contacts should still be visible
+    // (searchQuery updates instantly for input, but filtering uses debouncedSearchQuery)
+    // Advance timers past debounce delay
+    vi.advanceTimersByTime(250)
+
+    await waitFor(() => {
+      expect(screen.getByText("Alice Wong")).toBeInTheDocument()
+      expect(screen.queryByText("Bob Chen")).not.toBeInTheDocument()
+    })
+
+    vi.useRealTimers()
   })
 })

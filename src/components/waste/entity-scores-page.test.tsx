@@ -168,4 +168,26 @@ describe("EntityScoresPage", () => {
     render(<EntityScoresPage />)
     expect(screen.getByText("Page 1 of 2")).toBeInTheDocument()
   })
+
+  // ── Keyboard navigation ─────────────────────────────────────────────────────
+
+  it("table rows have tabIndex=0 and role='button', and Enter opens detail dialog", () => {
+    render(<EntityScoresPage />)
+    const row = screen.getByText("Acme Corp").closest("tr")!
+    expect(row).toHaveAttribute("tabindex", "0")
+    expect(row).toHaveAttribute("role", "button")
+
+    fireEvent.keyDown(row, { key: "Enter" })
+    expect(screen.getByText("Signal Breakdown")).toBeInTheDocument()
+  })
+
+  // ── Empty state guidance text ───────────────────────────────────────────────
+
+  it("shows guidance text when no entities exist", () => {
+    useWasteEntityScores.mockReturnValue(
+      makeMockQuery({ items: [], total: 0, page: 1, per_page: 25 }) as ReturnType<typeof _useWasteEntityScores>
+    )
+    render(<EntityScoresPage />)
+    expect(screen.getByText(/Run a waste analysis/)).toBeInTheDocument()
+  })
 })

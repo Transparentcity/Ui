@@ -7,6 +7,7 @@ import {
   useCloseInvestigation,
 } from "@/lib/hooks/useWaste"
 import { useAuth0 } from "@auth0/auth0-react"
+import { toast } from "sonner"
 import { WasteShell } from "./waste-shell"
 import { SeverityBadge } from "./severity-badge"
 import { ScoreBar } from "./score-bar"
@@ -28,6 +29,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
 import {
@@ -107,7 +109,9 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
           setActionAssignee("")
           setActionDue("")
           setActionType("note")
+          toast.success("Action added")
         },
+        onError: () => toast.error("Failed to add action"),
       }
     )
   }, [investigationId, actionType, actionTitle, actionDesc, actionAssignee, actionDue, addActionMutation])
@@ -116,7 +120,14 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
     if (!closeDisposition) return
     closeMutation.mutate(
       { investigationId, data: { final_disposition: closeDisposition } },
-      { onSuccess: () => { setShowClose(false); setCloseDisposition(undefined) } }
+      {
+        onSuccess: () => {
+          setShowClose(false)
+          setCloseDisposition(undefined)
+          toast.success("Investigation closed")
+        },
+        onError: () => toast.error("Failed to close investigation"),
+      }
     )
   }, [investigationId, closeDisposition, closeMutation])
 
@@ -131,8 +142,9 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
       a.download = `investigation-${investigationId}-evidence.pdf`
       a.click()
       URL.revokeObjectURL(url)
+      toast.success("Evidence exported")
     } catch {
-      // silent
+      toast.error("Failed to export evidence")
     } finally {
       setExporting(false)
     }
@@ -366,6 +378,9 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Close Investigation</DialogTitle>
+            <DialogDescription>
+              Closing &ldquo;{investigation.title}&rdquo;. Select a final disposition.
+            </DialogDescription>
           </DialogHeader>
           <div className="mt-2">
             <Label className="text-xs">Final Disposition</Label>

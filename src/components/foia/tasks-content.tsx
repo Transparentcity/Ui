@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { Loader2, Plus, X, CheckCircle2, AlertTriangle } from "lucide-react"
+import { Loader2, Plus, X, CheckCircle2, AlertTriangle, ClipboardList } from "lucide-react"
 import { useAuth0 } from "@auth0/auth0-react"
 import { toast } from "sonner"
 import { listFoiaTasks } from "@/lib/foiaApiClient"
@@ -308,8 +308,16 @@ export function TasksContent() {
             </div>
           ))}
           {tasks.length === 0 && !loading && (
-            <div className="px-6 py-12 text-center text-sm text-gray-400">
-              {apiError ? "Tasks could not be loaded. Check the message above." : "No tasks match your filter."}
+            <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
+              {apiError ? (
+                <p className="text-sm text-gray-400">Tasks could not be loaded. Check the message above.</p>
+              ) : (
+                <>
+                  <ClipboardList className="h-10 w-10 text-gray-300" />
+                  <p className="mt-3 text-sm font-medium text-gray-500">No tasks yet</p>
+                  <p className="mt-1 text-xs text-gray-400">Tasks will appear here when FOIA requests need action.</p>
+                </>
+              )}
             </div>
           )}
         </div>

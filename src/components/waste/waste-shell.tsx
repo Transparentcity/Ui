@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useAuth0 } from "@auth0/auth0-react"
@@ -19,6 +19,7 @@ import {
   ListChecks,
   Search,
   SlidersHorizontal,
+  Menu,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Loader from "@/components/Loader"
@@ -150,6 +151,7 @@ export function WasteShell({
 }: WasteShellProps) {
   const pathname = usePathname()
   const { isAuthenticated, isLoading: authLoading, loginWithRedirect } = useAuth0()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Handle auth: redirect to login if not authenticated
   if (authLoading) {
@@ -183,15 +185,35 @@ export function WasteShell({
     )
   }
 
+  const handleNavClick = () => {
+    setSidebarOpen(false)
+  }
+
   return (
     <div className="flex min-h-screen bg-gray-50">
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-[260px] min-w-[260px] h-screen bg-white border-r border-gray-200 flex flex-col sticky top-0 left-0 z-50">
+      <aside
+        className={cn(
+          "w-[260px] min-w-[260px] h-screen bg-white border-r border-gray-200 flex-col sticky top-0 left-0 z-50",
+          sidebarOpen
+            ? "fixed flex lg:sticky"
+            : "hidden lg:flex"
+        )}
+      >
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 min-h-16">
           <Link
             href="/dashboard"
             className="flex items-center gap-2.5 text-inherit no-underline flex-1"
+            onClick={handleNavClick}
           >
             <div className="w-5 h-5 shrink-0">
               <svg
@@ -224,6 +246,7 @@ export function WasteShell({
           <Link
             href="/dashboard"
             className="flex items-center gap-1 text-xs text-gray-400 no-underline hover:text-purple-600 transition-colors"
+            onClick={handleNavClick}
           >
             <ArrowLeft className="w-3 h-3" />
             Main App
@@ -249,7 +272,10 @@ export function WasteShell({
                   {onCategoryChange && !isLinkItem ? (
                     <button
                       type="button"
-                      onClick={() => onCategoryChange(item.key)}
+                      onClick={() => {
+                        onCategoryChange(item.key)
+                        handleNavClick()
+                      }}
                       className={cn(
                         "w-full text-left flex items-center gap-3 px-4 py-2.5 text-sm no-underline transition-all border-l-[3px]",
                         isActive
@@ -268,6 +294,7 @@ export function WasteShell({
                   ) : (
                     <Link
                       href={item.href}
+                      onClick={handleNavClick}
                       className={cn(
                         "flex items-center gap-3 px-4 py-2.5 text-sm no-underline transition-all border-l-[3px]",
                         isActive
@@ -313,20 +340,30 @@ export function WasteShell({
       {/* Main content */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="flex items-center justify-between px-8 py-5 bg-white border-b border-gray-200 min-h-16 gap-4 flex-wrap">
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900 tracking-tight">
-              {title}
-            </h1>
-            {description && (
-              <p className="mt-1 text-sm text-gray-500">{description}</p>
-            )}
+        <header className="flex items-center justify-between px-4 lg:px-8 py-5 bg-white border-b border-gray-200 min-h-16 gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden inline-flex items-center justify-center h-9 w-9 rounded-md hover:bg-gray-100 text-gray-600"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-xl font-semibold text-gray-900 tracking-tight">
+                {title}
+              </h1>
+              {description && (
+                <p className="mt-1 text-sm text-gray-500">{description}</p>
+              )}
+            </div>
           </div>
           {actions && <div className="flex items-center gap-3">{actions}</div>}
         </header>
 
         {/* Content */}
-        <div className="flex-1 p-8 overflow-y-auto">{children}</div>
+        <div className="flex-1 p-4 lg:p-8 overflow-y-auto">{children}</div>
       </main>
     </div>
   )

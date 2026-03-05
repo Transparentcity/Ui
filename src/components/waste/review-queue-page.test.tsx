@@ -42,6 +42,9 @@ vi.mock("@/lib/hooks/useWaste", () => ({
   useCreateWasteDisposition: vi.fn(),
 }))
 
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+
+import { toast } from "sonner"
 import { useCities as _useCities } from "@/lib/hooks/useCities"
 import {
   useWasteReviewQueue as _useWasteReviewQueue,
@@ -210,5 +213,41 @@ describe("ReviewQueuePage", () => {
     } as ReturnType<typeof _useWasteReviewQueue>)
     render(<ReviewQueuePage />)
     expect(screen.getByText("Server error")).toBeInTheDocument()
+  })
+
+  // ── Clear selection aria-label ─────────────────────────────────────────────
+
+  it("clear selection button has aria-label", () => {
+    render(<ReviewQueuePage />)
+    const checkboxes = screen.getAllByRole("checkbox")
+    fireEvent.click(checkboxes[1])
+    expect(screen.getByLabelText("Clear selection")).toBeInTheDocument()
+  })
+
+  // ── Empty state guidance ──────────────────────────────────────────────────
+
+  it("empty state shows guidance text", () => {
+    useWasteReviewQueue.mockReturnValue(
+      makeMockQuery({ items: [], total: 0, page: 1, per_page: 25 }) as ReturnType<typeof _useWasteReviewQueue>
+    )
+    render(<ReviewQueuePage />)
+    expect(screen.getByText(/Run an analysis or adjust filters/)).toBeInTheDocument()
+  })
+
+  // ── Bulk assign toast ─────────────────────────────────────────────────────
+
+  it("shows success toast on bulk assign", () => {
+    const mutate = vi.fn()
+    useAssignWasteQueueItem.mockReturnValue(
+      makeMockMutation({ mutate }) as ReturnType<typeof _useAssignWasteQueueItem>
+    )
+    render(<ReviewQueuePage />)
+    const checkboxes = screen.getAllByRole("checkbox")
+    fireEvent.click(checkboxes[1])
+    // Fill in assign input and click Assign
+    const input = screen.getByPlaceholderText("Assign to…")
+    fireEvent.change(input, { target: { value: "auditor@city.gov" } })
+    fireEvent.click(screen.getByText("Assign").closest("button")!)
+    expect(vi.mocked(toast).success).toHaveBeenCalledWith("1 items assigned")
   })
 })

@@ -103,7 +103,7 @@ describe("DataReviewContent", () => {
   it("shows empty state for pending review when no instances", async () => {
     render(<DataReviewContent />)
     await waitFor(() => {
-      expect(screen.getByText("No data deliveries pending review.")).toBeInTheDocument()
+      expect(screen.getByText("No data to review")).toBeInTheDocument()
     })
   })
 

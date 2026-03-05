@@ -37,6 +37,7 @@ import { Contact, Keyword } from "@/lib/types"
 import { createContact, updateContact, checkDuplicateEmail } from "@/app/actions/contacts"
 import { X, MapPin, Plus } from "lucide-react"
 import { searchPublicCities } from "@/lib/publicApiClient"
+import { toast } from "sonner"
 
 // Pinned cities for quick selection (IDs must match the platform cities table)
 const PINNED_CITIES = [
@@ -196,12 +197,18 @@ export function ContactDialog({ contact, keywords, children }: ContactDialogProp
     )
 
     startTransition(async () => {
-      if (contact) {
-        await updateContact(contact.id, formData)
-      } else {
-        await createContact(formData)
+      try {
+        if (contact) {
+          await updateContact(contact.id, formData)
+          toast.success("Contact updated")
+        } else {
+          await createContact(formData)
+          toast.success("Contact created")
+        }
+        setOpen(false)
+      } catch (err) {
+        toast.error(contact ? "Failed to update contact" : "Failed to create contact")
       }
-      setOpen(false)
     })
   }
 
@@ -222,7 +229,12 @@ export function ContactDialog({ contact, keywords, children }: ContactDialogProp
         <DialogHeader>
           <DialogTitle>{contact ? "Edit Contact" : "Add Contact"}</DialogTitle>
         </DialogHeader>
-        <form action={handleSubmit} className="space-y-6">
+        <form action={handleSubmit} className="space-y-6" onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !isPending && !hasErrors) {
+            e.preventDefault()
+            e.currentTarget.requestSubmit()
+          }
+        }}>
           <div className="space-y-2">
             <Label>Type</Label>
             <Select

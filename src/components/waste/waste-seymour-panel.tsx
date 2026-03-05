@@ -289,11 +289,16 @@ export function WasteSeymourPanel({
 
   return (
     <aside
-      className={`fixed right-4 top-20 bottom-4 z-40 max-w-[calc(100vw-2rem)] rounded-xl border border-purple-200 bg-white shadow-2xl flex flex-col ${
+      className={`fixed right-0 sm:right-4 top-0 sm:top-20 bottom-0 sm:bottom-4 z-40 w-full sm:w-auto sm:max-w-[calc(100vw-2rem)] sm:rounded-xl border border-purple-200 bg-white shadow-2xl flex flex-col ${
         isResizing ? "select-none" : ""
       }`}
-      style={{ width: `${panelWidth}px` }}
+      style={{
+        // On sm+ we use panelWidth; on mobile the w-full class handles it
+        "--panel-width": `${panelWidth}px`,
+        minWidth: `min(360px, 100vw)`,
+      } as React.CSSProperties}
     >
+      <style>{`@media (min-width: 640px) { aside[style*="--panel-width"] { width: var(--panel-width) !important; } }`}</style>
       <div
         className="absolute left-0 top-0 bottom-0 w-3 -translate-x-1.5 cursor-col-resize group"
         onPointerDown={handleResizeStart}
@@ -369,8 +374,9 @@ export function WasteSeymourPanel({
           {isAnalyzing ? (
             <div className="mt-3">
               <div className="h-2 w-full rounded-full bg-purple-100 overflow-hidden">
-                <div className="h-full w-1/2 rounded-full bg-purple-500 animate-pulse" />
+                <div className="h-full w-1/3 rounded-full bg-purple-500 seymour-indeterminate" />
               </div>
+              <style>{`@keyframes seymour-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } } .seymour-indeterminate { animation: seymour-slide 1.5s ease-in-out infinite; }`}</style>
               <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 Request in progress. Complex analyses may take up to 2-3 minutes.

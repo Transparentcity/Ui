@@ -40,6 +40,8 @@ vi.mock("@/lib/hooks/useWaste", () => ({
   useCloseInvestigation: vi.fn(),
 }))
 
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+
 vi.mock("@/lib/apiClient", async (importOriginal) => {
   const actual = await importOriginal() as Record<string, unknown>
   return {
@@ -54,6 +56,7 @@ import {
   useCloseInvestigation as _useCloseInvestigation,
 } from "@/lib/hooks/useWaste"
 import { exportInvestigationEvidence } from "@/lib/apiClient"
+import { toast } from "sonner"
 
 const useWasteInvestigation = vi.mocked(_useWasteInvestigation)
 const useCreateInvestigationAction = vi.mocked(_useCreateInvestigationAction)
@@ -187,5 +190,52 @@ describe("InvestigationDetailPage", () => {
   it("shows Add Action button for open investigations", () => {
     render(<InvestigationDetailPage investigationId="inv-1" />)
     expect(screen.getByText("Add Action")).toBeInTheDocument()
+  })
+
+  // ── Export error toast ──────────────────────────────────────────────────────
+
+  it("shows error toast when export fails", async () => {
+    mockExportEvidence.mockRejectedValue(new Error("network error"))
+    render(<InvestigationDetailPage investigationId="inv-1" />)
+    fireEvent.click(screen.getByText("Export Evidence"))
+
+    await waitFor(() => {
+      expect(vi.mocked(toast).error).toHaveBeenCalledWith("Failed to export evidence")
+    })
+  })
+
+  // ── Add action success toast ────────────────────────────────────────────────
+
+  it("shows success toast when add action succeeds", async () => {
+    const mutate = vi.fn().mockImplementation((_args: unknown, opts: { onSuccess?: () => void }) => {
+      opts.onSuccess?.()
+    })
+    useCreateInvestigationAction.mockReturnValue(
+      makeMockMutation({ mutate }) as ReturnType<typeof _useCreateInvestigationAction>
+    )
+
+    render(<InvestigationDetailPage investigationId="inv-1" />)
+    // Open add action dialog
+    fireEvent.click(screen.getByText("Add Action"))
+    // Fill in the required title field
+    const titleInput = screen.getByPlaceholderText("Action title")
+    fireEvent.change(titleInput, { target: { value: "Follow up call" } })
+    // Submit via the dialog's Add Action button
+    const addButtons = screen.getAllByText("Add Action")
+    const dialogAddButton = addButtons[addButtons.length - 1]
+    fireEvent.click(dialogAddButton)
+
+    await waitFor(() => {
+      expect(vi.mocked(toast).success).toHaveBeenCalledWith("Action added")
+    })
+  })
+
+  // ── Close dialog shows investigation title ──────────────────────────────────
+
+  it("shows investigation title in close dialog description", () => {
+    render(<InvestigationDetailPage investigationId="inv-1" />)
+    fireEvent.click(screen.getByText("Close Investigation"))
+    // The dialog description contains the investigation title in curly quotes
+    expect(screen.getByText(/Closing.*Fire Dept Overtime Investigation/)).toBeInTheDocument()
   })
 })

@@ -16,6 +16,8 @@ vi.mock("@/lib/hooks/useWaste", () => ({
   useLatestWasteRun: vi.fn(),
 }))
 
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+
 import {
   useWasteReviewQueue as _useWasteReviewQueue,
   useAssignWasteQueueItem as _useAssignWasteQueueItem,
@@ -119,7 +121,7 @@ describe("WasteReviewQueue", () => {
     useSyncWasteReviewQueue.mockReturnValue(makeMockMutation({ mutate }) as ReturnType<typeof _useSyncWasteReviewQueue>)
     render(<WasteReviewQueue cityId={1} />)
     fireEvent.click(screen.getByText("Sync Queue"))
-    expect(mutate).toHaveBeenCalledWith({ city_id: 1 })
+    expect(mutate).toHaveBeenCalledWith({ city_id: 1 }, expect.any(Object))
   })
 
   it("shows 'Syncing…' text when sync is pending", () => {
@@ -162,7 +164,8 @@ describe("WasteReviewQueue", () => {
     fireEvent.click(assignButtons[0])
 
     expect(mutate).toHaveBeenCalledWith(
-      expect.objectContaining({ assignedTo: "user123", cityId: 1 })
+      expect.objectContaining({ assignedTo: "user123", cityId: 1 }),
+      expect.any(Object)
     )
   })
 
@@ -181,7 +184,8 @@ describe("WasteReviewQueue", () => {
     const applyButtons = screen.getAllByText("Apply")
     fireEvent.click(applyButtons[0])
     expect(mutate).toHaveBeenCalledWith(
-      expect.objectContaining({ findingId: 100 })
+      expect.objectContaining({ findingId: 100 }),
+      expect.any(Object)
     )
   })
 
@@ -225,5 +229,48 @@ describe("WasteReviewQueue", () => {
   it("shows page info text", () => {
     render(<WasteReviewQueue cityId={1} />)
     expect(screen.getByText(/Page 1 of 1/)).toBeInTheDocument()
+  })
+
+  // ── Error message wording ─────────────────────────────────────────────────
+
+  it("error message no longer says 'console'", async () => {
+    // Simulate a failed run+sync by making the analysis mutation reject
+    const mutateAsync = vi.fn().mockRejectedValue(new Error("API timeout"))
+    useRunWasteAnalysis.mockReturnValue(
+      makeMockMutation({ mutateAsync }) as ReturnType<typeof _useRunWasteAnalysis>
+    )
+    render(<WasteReviewQueue cityId={1} />)
+    fireEvent.click(screen.getByText("Run Fresh Analysis"))
+
+    // Wait for the error message to appear
+    const errorMsg = await screen.findByText(/Run \+ Sync failed/)
+    expect(errorMsg.textContent).not.toMatch(/console/)
+  })
+
+  // ── Assign shows spinner ──────────────────────────────────────────────────
+
+  it("assign shows spinner when pending", () => {
+    useAssignWasteQueueItem.mockReturnValue(
+      makeMockMutationPending() as ReturnType<typeof _useAssignWasteQueueItem>
+    )
+    render(<WasteReviewQueue cityId={1} />)
+    expect(screen.getAllByText("Assigning…").length).toBeGreaterThan(0)
+  })
+
+  // ── Dispose shows spinner ─────────────────────────────────────────────────
+
+  it("dispose shows spinner when pending", () => {
+    useCreateWasteDisposition.mockReturnValue(
+      makeMockMutationPending() as ReturnType<typeof _useCreateWasteDisposition>
+    )
+    render(<WasteReviewQueue cityId={1} />)
+    expect(screen.getAllByText("Applying…").length).toBeGreaterThan(0)
+  })
+
+  // ── Checkbox accessibility ────────────────────────────────────────────────
+
+  it("checkbox has aria-label with entity name", () => {
+    render(<WasteReviewQueue cityId={1} />)
+    expect(screen.getByLabelText(/Select Fire Department/)).toBeInTheDocument()
   })
 })

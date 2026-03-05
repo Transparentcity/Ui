@@ -318,7 +318,7 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
             <RequestStatusBadge status={request.status} />
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-500">
-            <span>{request.city?.name ?? "Unknown city"}</span>
+            <Link href={`/foia/cities/${request.city_id}`} className="text-blue-600 hover:underline">{request.city?.name ?? "Unknown city"}</Link>
             <span>{datasetLabel(request.dataset_type_id)}</span>
             {request.department?.name && <span>Dept: {request.department.name}</span>}
             {request.agency_request_number && <span>Ref: {request.agency_request_number}</span>}
@@ -460,6 +460,9 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
         </DialogContent>
       </Dialog>
 
+      {/* Workflow Progress */}
+      <WorkflowProgress status={request.status as RequestStatus} />
+
       {/* Quick Info Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:grid-cols-4">
         <InfoCard
@@ -501,6 +504,24 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
           icon={AlertTriangle}
         />
       </div>
+
+      {/* Overdue follow-up banner */}
+      {request.next_followup_at &&
+        new Date(request.next_followup_at) < new Date() &&
+        !["fulfilled", "denied", "closed_incomplete"].includes(request.status) && (
+          <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-sm text-amber-800">
+              Follow-up was due {formatDistanceToNow(new Date(request.next_followup_at), { addSuffix: true })}. Consider sending a follow-up message.
+            </p>
+            <button
+              type="button"
+              onClick={() => setActiveTab("messages")}
+              className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700"
+            >
+              Create Follow-up
+            </button>
+          </div>
+        )}
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
@@ -556,6 +577,92 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
         />
       )}
       {activeTab === "events" && <EventsTab events={events} />}
+    </div>
+  )
+}
+
+const WORKFLOW_STEPS = [
+  { label: "Draft", key: "draft" },
+  { label: "Submitted", key: "submitted" },
+  { label: "Acknowledged", key: "acknowledged" },
+  { label: "In Progress", key: "in_progress" },
+  { label: "Fulfilled", key: "fulfilled" },
+] as const
+
+function getWorkflowStep(status: RequestStatus): { step: number; terminated: boolean } {
+  switch (status) {
+    case "draft":
+      return { step: 0, terminated: false }
+    case "submitted":
+    case "submitted_unacknowledged":
+      return { step: 1, terminated: false }
+    case "acknowledged":
+    case "clarification_requested":
+      return { step: 2, terminated: false }
+    case "partially_fulfilled":
+    case "fee_requested":
+    case "extension_claimed":
+      return { step: 3, terminated: false }
+    case "fulfilled":
+      return { step: 4, terminated: false }
+    case "denied":
+    case "closed_incomplete":
+      // Terminated - show at current logical position
+      if (status === "denied") return { step: 2, terminated: true }
+      return { step: 3, terminated: true }
+    default:
+      return { step: 0, terminated: false }
+  }
+}
+
+function WorkflowProgress({ status }: { status: RequestStatus }) {
+  const { step, terminated } = getWorkflowStep(status)
+  return (
+    <div className="flex items-center gap-0">
+      {WORKFLOW_STEPS.map((ws, i) => {
+        const isComplete = i <= step
+        const isCurrent = i === step
+        const isTerminated = isCurrent && terminated
+        return (
+          <React.Fragment key={ws.key}>
+            {i > 0 && (
+              <div
+                className={`h-0.5 flex-1 ${
+                  i <= step ? (isTerminated ? "bg-red-300" : "bg-purple-400") : "bg-gray-200"
+                }`}
+              />
+            )}
+            <div className="flex flex-col items-center gap-1">
+              <div
+                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
+                  isTerminated
+                    ? "bg-red-100 text-red-600 ring-2 ring-red-300"
+                    : isCurrent
+                    ? "bg-purple-600 text-white ring-2 ring-purple-300"
+                    : isComplete
+                    ? "bg-purple-100 text-purple-600"
+                    : "bg-gray-100 text-gray-400"
+                }`}
+              >
+                {isTerminated ? "✕" : i + 1}
+              </div>
+              <span
+                className={`text-[10px] font-medium whitespace-nowrap ${
+                  isTerminated
+                    ? "text-red-600"
+                    : isCurrent
+                    ? "text-purple-600"
+                    : isComplete
+                    ? "text-purple-500"
+                    : "text-gray-400"
+                }`}
+              >
+                {ws.label}
+              </span>
+            </div>
+          </React.Fragment>
+        )
+      })}
     </div>
   )
 }

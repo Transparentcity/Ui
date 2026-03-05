@@ -208,4 +208,53 @@ describe("WasteDetectorAccuracy", () => {
     render(<WasteDetectorAccuracy cityId={1} />)
     expect(screen.getByText("n/a")).toBeInTheDocument()
   })
+
+  // ── Sort columns ───────────────────────────────────────────────────────
+
+  it("sortable columns toggle - Precision header is clickable and highlights", () => {
+    useWasteDetectorAccuracy.mockReturnValue(
+      makeMockQuery([makeAccuracyRow()]) as ReturnType<typeof _useWasteDetectorAccuracy>
+    )
+    render(<WasteDetectorAccuracy cityId={1} />)
+
+    const precisionButton = screen.getByRole("button", { name: /Precision/ })
+    expect(precisionButton).toBeInTheDocument()
+
+    fireEvent.click(precisionButton)
+
+    // After clicking, the button should have the purple highlight class
+    expect(precisionButton.className).toMatch(/text-purple-700/)
+  })
+
+  it("sorted order changes when Precision header is clicked", () => {
+    useWasteDetectorAccuracy.mockReturnValue(
+      makeMockQuery([
+        makeAccuracyRow({ id: "da-1", detector_key: "low_precision", precision_rate: 0.5 }),
+        makeAccuracyRow({ id: "da-2", detector_key: "high_precision", precision_rate: 0.9 }),
+      ]) as ReturnType<typeof _useWasteDetectorAccuracy>
+    )
+    render(<WasteDetectorAccuracy cityId={1} />)
+
+    // Before sorting, rows appear in their original order
+    const rowsBefore = screen.getAllByRole("row")
+    // rowsBefore[0] is the header row; data rows start at index 1
+    expect(rowsBefore[1]).toHaveTextContent("low_precision")
+    expect(rowsBefore[2]).toHaveTextContent("high_precision")
+
+    // Click Precision header to sort descending (default first click)
+    fireEvent.click(screen.getByRole("button", { name: /Precision/ }))
+
+    const rowsAfterDesc = screen.getAllByRole("row")
+    // Descending: high precision first
+    expect(rowsAfterDesc[1]).toHaveTextContent("high_precision")
+    expect(rowsAfterDesc[2]).toHaveTextContent("low_precision")
+
+    // Click again to toggle to ascending
+    fireEvent.click(screen.getByRole("button", { name: /Precision/ }))
+
+    const rowsAfterAsc = screen.getAllByRole("row")
+    // Ascending: low precision first
+    expect(rowsAfterAsc[1]).toHaveTextContent("low_precision")
+    expect(rowsAfterAsc[2]).toHaveTextContent("high_precision")
+  })
 })

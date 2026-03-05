@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useCallback, useEffect, useMemo } from "react"
+import { useState, useTransition, useCallback, useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import {
   Table,
@@ -74,6 +74,7 @@ import {
 import { deleteContact, bulkUpdateCity, bulkAddKeywords, bulkUpdateType } from "@/app/actions/contacts"
 import { ContactActivityTimeline } from "./contact-activity-timeline"
 import { searchPublicCities, type PublicCitySearchResult } from "@/lib/publicApiClient"
+import { toast } from "sonner"
 
 const PINNED_CITIES: PublicCitySearchResult[] = [
   { id: 57260, name: "San Francisco", state: "CA", display_name: "San Francisco" },
@@ -163,7 +164,6 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
   const [citySearch, setCitySearch] = useState("")
   const [cityResults, setCityResults] = useState<PublicCitySearchResult[]>([])
   const [citySearching, setCitySearching] = useState(false)
-  const [bulkMessage, setBulkMessage] = useState<string | null>(null)
   const [showKeywordPicker, setShowKeywordPicker] = useState(false)
   const [keywordSearch, setKeywordSearch] = useState("")
   const [selectedKeywordIds, setSelectedKeywordIds] = useState<Set<string>>(new Set())
@@ -176,6 +176,13 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 25
 
+  // Debounced search for filtering (Phase 4)
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchQuery(searchQuery), 200)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir(prev => prev === "asc" ? "desc" : "asc")
@@ -185,13 +192,13 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
     }
   }
 
-  const filteredContacts = contacts.filter((contact) => {
+  const filteredContacts = useMemo(() => contacts.filter((contact) => {
     if (typeFilter !== "all" && (contact.contact_type as string) !== typeFilter) return false
     if (cityFilter) {
       const contactCity = contact.city_name || (contact.city_id ? `City #${contact.city_id}` : 'No city')
       if (contactCity !== cityFilter) return false
     }
-    const search = searchQuery.toLowerCase()
+    const search = debouncedSearchQuery.toLowerCase()
     const c = contact as ContactWithKeywords
     return (
       c.name.toLowerCase().includes(search) ||
@@ -206,7 +213,7 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
       (c.contact_type && CONTACT_TYPE_LABELS[c.contact_type as string]?.toLowerCase().includes(search)) ||
       c.keywords?.some((k) => k.name.toLowerCase().includes(search))
     )
-  })
+  }), [contacts, typeFilter, cityFilter, debouncedSearchQuery])
 
   const sortedContacts = sortKey
     ? [...filteredContacts].sort((a, b) => {
@@ -239,7 +246,7 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
   // Reset page on filter/search/sort changes
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, typeFilter, cityFilter, sortKey, sortDir])
+  }, [debouncedSearchQuery, typeFilter, cityFilter, sortKey, sortDir])
 
   const allSelected = paginatedContacts.length > 0 && paginatedContacts.every(c => selectedIds.has(c.id))
   const someSelected = selectedIds.size > 0
@@ -282,25 +289,31 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
   const handleBulkAssignCity = useCallback((city: PublicCitySearchResult) => {
     const ids = Array.from(selectedIds)
     startTransition(async () => {
-      const result = await bulkUpdateCity(ids, city.id, city.display_name || city.name)
-      setBulkMessage(`Assigned "${city.display_name || city.name}" to ${result.updated} contact${result.updated !== 1 ? 's' : ''}`)
-      setSelectedIds(new Set())
-      setShowCityPicker(false)
-      setCitySearch("")
-      router.refresh()
-      setTimeout(() => setBulkMessage(null), 4000)
+      try {
+        const result = await bulkUpdateCity(ids, city.id, city.display_name || city.name)
+        toast.success(`Assigned "${city.display_name || city.name}" to ${result.updated} contact${result.updated !== 1 ? 's' : ''}`)
+        setSelectedIds(new Set())
+        setShowCityPicker(false)
+        setCitySearch("")
+        router.refresh()
+      } catch (err) {
+        toast.error("Failed to assign city")
+      }
     })
   }, [selectedIds, router])
 
   const handleBulkClearCity = useCallback(() => {
     const ids = Array.from(selectedIds)
     startTransition(async () => {
-      const result = await bulkUpdateCity(ids, null, null)
-      setBulkMessage(`Cleared city from ${result.updated} contact${result.updated !== 1 ? 's' : ''}`)
-      setSelectedIds(new Set())
-      setShowCityPicker(false)
-      router.refresh()
-      setTimeout(() => setBulkMessage(null), 4000)
+      try {
+        const result = await bulkUpdateCity(ids, null, null)
+        toast.success(`Cleared city from ${result.updated} contact${result.updated !== 1 ? 's' : ''}`)
+        setSelectedIds(new Set())
+        setShowCityPicker(false)
+        router.refresh()
+      } catch (err) {
+        toast.error("Failed to clear city")
+      }
     })
   }, [selectedIds, router])
 
@@ -309,27 +322,33 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
     const ids = Array.from(selectedIds)
     const kwIds = Array.from(selectedKeywordIds)
     startTransition(async () => {
-      const result = await bulkAddKeywords(ids, kwIds)
-      setBulkMessage(`Added ${kwIds.length} keyword${kwIds.length !== 1 ? 's' : ''} to ${result.updated} contact${result.updated !== 1 ? 's' : ''}`)
-      setSelectedIds(new Set())
-      setShowKeywordPicker(false)
-      setSelectedKeywordIds(new Set())
-      setKeywordSearch("")
-      router.refresh()
-      setTimeout(() => setBulkMessage(null), 4000)
+      try {
+        const result = await bulkAddKeywords(ids, kwIds)
+        toast.success(`Added ${kwIds.length} keyword${kwIds.length !== 1 ? 's' : ''} to ${result.updated} contact${result.updated !== 1 ? 's' : ''}`)
+        setSelectedIds(new Set())
+        setShowKeywordPicker(false)
+        setSelectedKeywordIds(new Set())
+        setKeywordSearch("")
+        router.refresh()
+      } catch (err) {
+        toast.error("Failed to assign keywords")
+      }
     })
   }, [selectedIds, selectedKeywordIds, router])
 
   const handleBulkAssignType = useCallback((type: string) => {
     const ids = Array.from(selectedIds)
     startTransition(async () => {
-      const result = await bulkUpdateType(ids, type)
-      const label = CONTACT_TYPE_LABELS[type] || type
-      setBulkMessage(`Set type to "${label}" for ${result.updated} contact${result.updated !== 1 ? 's' : ''}`)
-      setSelectedIds(new Set())
-      setShowTypePicker(false)
-      router.refresh()
-      setTimeout(() => setBulkMessage(null), 4000)
+      try {
+        const result = await bulkUpdateType(ids, type)
+        const label = CONTACT_TYPE_LABELS[type] || type
+        toast.success(`Set type to "${label}" for ${result.updated} contact${result.updated !== 1 ? 's' : ''}`)
+        setSelectedIds(new Set())
+        setShowTypePicker(false)
+        router.refresh()
+      } catch (err) {
+        toast.error("Failed to assign type")
+      }
     })
   }, [selectedIds, router])
 
@@ -393,6 +412,7 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
     a.download = `contacts-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
+    toast.success("CSV exported")
   }, [filteredContacts])
 
   return (
@@ -617,13 +637,6 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
           >
             Clear selection
           </Button>
-        </div>
-      )}
-
-      {/* Success message */}
-      {bulkMessage && (
-        <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-sm text-green-800">
-          {bulkMessage}
         </div>
       )}
 
@@ -968,7 +981,10 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
                 setDeletingId(id)
                 try {
                   await deleteContact(id)
+                  toast.success("Contact deleted")
                   router.refresh()
+                } catch (err) {
+                  toast.error("Failed to delete contact")
                 } finally {
                   setDeletingId(null)
                 }

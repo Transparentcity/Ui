@@ -32,6 +32,8 @@ vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }))
 
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+
 vi.mock("@/lib/hooks/useCities", () => ({
   useCities: vi.fn(),
 }))
@@ -148,5 +150,36 @@ describe("ThresholdConfigPage", () => {
     render(<ThresholdConfigPage />)
     // overtime_hours is at default (40) → no Reset button
     expect(screen.queryByText("Reset (40.00)")).not.toBeInTheDocument()
+  })
+
+  // ── Reset All confirm dialog ────────────────────────────────────────────────
+
+  it("opens confirm dialog when Reset All is clicked after a change", () => {
+    render(<ThresholdConfigPage />)
+    // First make a change so Reset All is enabled (click per-detector reset to modify a value)
+    fireEvent.click(screen.getByText("Reset (0.80)"))
+    // Now click Reset All
+    fireEvent.click(screen.getByText("Reset All"))
+    // Confirm dialog should appear with the title text
+    expect(screen.getByText("Reset All Thresholds")).toBeInTheDocument()
+  })
+
+  // ── Save error displayed ────────────────────────────────────────────────────
+
+  it("shows error message when save mutation fails", () => {
+    useUpdateWasteThresholds.mockReturnValue(
+      makeMockMutation({ isError: true, error: new Error("Save failed") }) as ReturnType<typeof _useUpdateWasteThresholds>
+    )
+    render(<ThresholdConfigPage />)
+    expect(screen.getByText("Save failed")).toBeInTheDocument()
+  })
+
+  // ── Per-detector reset aria-label ───────────────────────────────────────────
+
+  it("per-detector Reset button has aria-label containing detector name", () => {
+    render(<ThresholdConfigPage />)
+    // Vendor Duplicates has current_value 0.85, default_value 0.80 → shows Reset button
+    const resetButton = screen.getByLabelText("Reset Vendor Duplicates to 0.80")
+    expect(resetButton).toBeInTheDocument()
   })
 })

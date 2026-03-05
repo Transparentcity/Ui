@@ -126,4 +126,59 @@ describe("WasteFindingCard", () => {
     )
     expect(screen.queryByText("Ask Seymour for analysis")).not.toBeInTheDocument()
   })
+
+  // ── Keyboard & Accessibility ──────────────────────────────────────────────
+
+  it("toggles when Enter key is pressed on the card", () => {
+    const toggle = vi.fn()
+    render(<WasteFindingCard finding={makeFinding()} isExpanded={false} onToggle={toggle} />)
+    const card = screen.getByRole("button", { expanded: false })
+    fireEvent.keyDown(card, { key: "Enter" })
+    expect(toggle).toHaveBeenCalledTimes(1)
+  })
+
+  it("toggles when Space key is pressed on the card", () => {
+    const toggle = vi.fn()
+    render(<WasteFindingCard finding={makeFinding()} isExpanded={false} onToggle={toggle} />)
+    const card = screen.getByRole("button", { expanded: false })
+    fireEvent.keyDown(card, { key: " " })
+    expect(toggle).toHaveBeenCalledTimes(1)
+  })
+
+  it("sets aria-expanded true when expanded and false when collapsed", () => {
+    const finding = makeFinding()
+
+    const { container, rerender } = render(
+      <WasteFindingCard finding={finding} isExpanded={true} onToggle={onToggle} />
+    )
+    // The outer card div is the first child of the container and has tabIndex=0
+    const card = container.firstElementChild as HTMLElement
+    expect(card).toHaveAttribute("aria-expanded", "true")
+
+    rerender(<WasteFindingCard finding={finding} isExpanded={false} onToggle={onToggle} />)
+    expect(card).toHaveAttribute("aria-expanded", "false")
+  })
+
+  // ── Retry on details error ────────────────────────────────────────────────
+
+  it("shows a Retry button when details fetch fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network error"))
+    const finding = makeFinding({ category: "Payroll", entity: "Fire Department" })
+    render(<WasteFindingCard finding={finding} isExpanded={true} onToggle={onToggle} />)
+
+    fireEvent.click(screen.getByText("Show details"))
+    await waitFor(() => {
+      expect(screen.getByText("Retry")).toBeInTheDocument()
+    })
+  })
+
+  // ── Entity visibility ─────────────────────────────────────────────────────
+
+  it("renders entity tag visibly (not hidden) on all screen sizes", () => {
+    const finding = makeFinding({ entity: "Fire Department" })
+    render(<WasteFindingCard finding={finding} isExpanded={false} onToggle={onToggle} />)
+    const entityEl = screen.getByText("Fire Department")
+    expect(entityEl).toBeInTheDocument()
+    expect(entityEl).toBeVisible()
+  })
 })

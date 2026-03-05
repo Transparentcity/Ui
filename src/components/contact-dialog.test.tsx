@@ -18,6 +18,15 @@ if (typeof Element.prototype.scrollIntoView !== "function") {
 
 import type { Keyword } from "@/lib/types";
 
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+vi.mock("sonner", () => ({
+  toast: {
+    success: (...args: any[]) => mockToastSuccess(...args),
+    error: (...args: any[]) => mockToastError(...args),
+  },
+}));
+
 // Mock server actions
 vi.mock("@/app/actions/contacts", () => ({
   createContact: vi.fn(),
@@ -452,6 +461,95 @@ describe("ContactDialog – duplicate email detection (#10)", () => {
 
     await vi.waitFor(() => {
       expect(screen.queryByText(/already has this email/i)).not.toBeInTheDocument();
+    });
+  });
+});
+
+describe("ContactDialog – toast notifications", () => {
+  it("shows success toast when creating a contact", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ContactDialog keywords={keywords}>
+        <button>Add Contact</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Add Contact"));
+
+    const nameInput = screen.getByLabelText(/name/i);
+    await user.type(nameInput, "Test Person");
+
+    const submitBtn = screen.getByRole("button", { name: /add contact/i });
+    await user.click(submitBtn);
+
+    await vi.waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Contact created");
+    });
+  });
+
+  it("shows success toast when updating a contact", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ContactDialog contact={makeContact()} keywords={keywords}>
+        <button>Edit</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Edit"));
+    const saveBtn = screen.getByRole("button", { name: /save changes/i });
+    await user.click(saveBtn);
+
+    await vi.waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Contact updated");
+    });
+  });
+
+  it("shows error toast when create fails", async () => {
+    const user = userEvent.setup();
+    (createContact as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("DB error"));
+
+    render(
+      <ContactDialog keywords={keywords}>
+        <button>Add Contact</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Add Contact"));
+
+    const nameInput = screen.getByLabelText(/name/i);
+    await user.type(nameInput, "Test Person");
+
+    const submitBtn = screen.getByRole("button", { name: /add contact/i });
+    await user.click(submitBtn);
+
+    await vi.waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Failed to create contact");
+    });
+  });
+});
+
+describe("ContactDialog – keyboard shortcut", () => {
+  it("submits form on Ctrl+Enter", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ContactDialog keywords={keywords}>
+        <button>Add Contact</button>
+      </ContactDialog>
+    );
+
+    await user.click(screen.getByText("Add Contact"));
+
+    const nameInput = screen.getByLabelText(/name/i);
+    await user.type(nameInput, "Test Person");
+
+    // Press Ctrl+Enter while focused in the form
+    await user.keyboard("{Control>}{Enter}{/Control}");
+
+    await vi.waitFor(() => {
+      expect(createContact).toHaveBeenCalled();
     });
   });
 });

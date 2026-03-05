@@ -106,10 +106,16 @@ describe("WasteStatBar", () => {
 
   // ── Defaults for undefined summary ────────────────────────────────────
 
-  it("shows 0 for all counts when summary is undefined", () => {
+  it("shows dashes for all counts when summary is undefined", () => {
     render(<WasteStatBar summary={undefined} isLoading={false} />)
-    // All counts default to 0
-    const zeros = screen.getAllByText("0")
-    expect(zeros.length).toBeGreaterThanOrEqual(3) // total, critical, depts
+    // All counts default to dashes
+    const dashes = screen.getAllByText("—")
+    expect(dashes.length).toBeGreaterThanOrEqual(3) // total, critical, depts
+  })
+
+  it("shows dashes for all values when summary is undefined", () => {
+    render(<WasteStatBar summary={undefined} isLoading={false} />)
+    const dashes = screen.getAllByText("—")
+    expect(dashes.length).toBeGreaterThanOrEqual(3)
   })
 })

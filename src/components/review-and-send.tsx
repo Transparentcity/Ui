@@ -63,6 +63,7 @@ import {
   deleteQueueItems,
 } from "@/app/actions/send-queue"
 import { API_BASE } from "@/lib/apiBase"
+import { toast } from "sonner"
 
 type TabKey = "pending" | "sent" | "all"
 
@@ -123,9 +124,6 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
     variant: "destructive" | "default"
   } | null>(null)
 
-  // Per-item error feedback
-  const [itemError, setItemError] = useState<{ id: string; message: string } | null>(null)
-
   // Helper to get auth headers for API calls
   const getAuthHeaders = useCallback(async (contentType?: boolean) => {
     const headers: Record<string, string> = {}
@@ -173,9 +171,10 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
       await navigator.clipboard.writeText(text)
       setCopiedId(item.id)
       setCopiedField("full")
+      toast.success("Copied")
       setTimeout(() => { setCopiedId(null); setCopiedField(null) }, 2000)
     } catch (err) {
-      console.error("Copy failed:", err)
+      toast.error("Failed to copy")
     }
   }
 
@@ -183,9 +182,10 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
     try {
       await navigator.clipboard.writeText(text)
       setCopiedField("body")
+      toast.success("Copied")
       setTimeout(() => setCopiedField(null), 2000)
     } catch (err) {
-      console.error("Copy failed:", err)
+      toast.error("Failed to copy")
     }
   }
 
@@ -193,9 +193,10 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
     try {
       await navigator.clipboard.writeText(text)
       setCopiedField("subject")
+      toast.success("Copied")
       setTimeout(() => setCopiedField(null), 2000)
     } catch (err) {
-      console.error("Copy failed:", err)
+      toast.error("Failed to copy")
     }
   }
 
@@ -210,12 +211,17 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   const saveEdit = () => {
     if (!editingItem) return
     startTransition(async () => {
-      await updateQueueItemContent(editingItem.id, {
-        personalized_subject: editSubject,
-        personalized_body: editBody,
-      })
-      setEditingItem(null)
-      router.refresh()
+      try {
+        await updateQueueItemContent(editingItem.id, {
+          personalized_subject: editSubject,
+          personalized_body: editBody,
+        })
+        toast.success("Draft saved")
+        setEditingItem(null)
+        router.refresh()
+      } catch (err) {
+        toast.error("Failed to save draft")
+      }
     })
   }
 
@@ -223,18 +229,29 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   const markAsSent = (id: string) => {
     setMarkingSentId(id)
     startTransition(async () => {
-      await updateQueueItemStatus(id, "sent")
-      setMarkingSentId(null)
-      router.refresh()
+      try {
+        await updateQueueItemStatus(id, "sent")
+        toast.success("Marked as sent")
+        setMarkingSentId(null)
+        router.refresh()
+      } catch (err) {
+        toast.error("Failed to mark as sent")
+        setMarkingSentId(null)
+      }
     })
   }
 
   const markAsSentFromDialog = () => {
     if (!editingItem) return
     startTransition(async () => {
-      await updateQueueItemStatus(editingItem.id, "sent")
-      setEditingItem(null)
-      router.refresh()
+      try {
+        await updateQueueItemStatus(editingItem.id, "sent")
+        toast.success("Marked as sent")
+        setEditingItem(null)
+        router.refresh()
+      } catch (err) {
+        toast.error("Failed to mark as sent")
+      }
     })
   }
 
@@ -248,9 +265,15 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
       action: () => {
         setDiscardingId(id)
         startTransition(async () => {
-          await deleteQueueItems([id])
-          setDiscardingId(null)
-          router.refresh()
+          try {
+            await deleteQueueItems([id])
+            toast.success("Draft discarded")
+            setDiscardingId(null)
+            router.refresh()
+          } catch (err) {
+            toast.error("Failed to discard draft")
+            setDiscardingId(null)
+          }
         })
       },
     })
@@ -259,7 +282,6 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   // Regenerate draft text (keep same anomaly, new LLM variation)
   const regenerateDraft = useCallback(async (draftId: string) => {
     setRegeneratingId(draftId)
-    setItemError(null)
     try {
       const headers = await getAuthHeaders(true)
       const resp = await fetch(`${API_BASE}/api/crm/drafts/${draftId}/regenerate`, {
@@ -270,16 +292,17 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
         const data = await resp.json().catch(() => ({}))
         const detail = data.detail || ""
         if (detail.includes("missing anomaly") || resp.status === 400) {
-          setItemError({ id: draftId, message: "Can't regenerate — this older draft doesn't have anomaly data linked. Use AI Compose to create a new draft for this contact." })
+          toast.error("Can't regenerate — this older draft doesn't have anomaly data linked. Use AI Compose to create a new draft for this contact.")
         } else {
-          setItemError({ id: draftId, message: "Regenerate failed. Please try again." })
+          toast.error("Regenerate failed. Please try again.")
         }
         return
       }
+      toast.success("Draft regenerated")
       router.refresh()
     } catch (err) {
       console.error("Regenerate error:", err)
-      setItemError({ id: draftId, message: "Regenerate failed. Please try again." })
+      toast.error("Regenerate failed. Please try again.")
     } finally {
       setRegeneratingId(null)
     }
@@ -320,11 +343,13 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
         body: JSON.stringify({ anomaly_result_id: resultId }),
       })
       if (!resp.ok) throw new Error("Swap failed")
+      toast.success("Anomaly swapped")
       setAnomalyPickerDraftId(null)
       setApplicableAnomalies([])
       router.refresh()
     } catch (err) {
       console.error("Swap anomaly error:", err)
+      toast.error("Failed to swap anomaly")
     } finally {
       setSwappingAnomalyId(null)
     }
@@ -406,12 +431,18 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
       action: () => {
         setBulkAction("sent")
         startTransition(async () => {
-          await Promise.all(
-            Array.from(selectedIds).map((id) => updateQueueItemStatus(id, "sent"))
-          )
-          setSelectedIds(new Set())
-          setBulkAction(null)
-          router.refresh()
+          try {
+            await Promise.all(
+              Array.from(selectedIds).map((id) => updateQueueItemStatus(id, "sent"))
+            )
+            toast.success(`Marked ${selectedIds.size} draft${selectedIds.size !== 1 ? 's' : ''} as sent`)
+            setSelectedIds(new Set())
+            setBulkAction(null)
+            router.refresh()
+          } catch (err) {
+            toast.error("Failed to mark drafts as sent")
+            setBulkAction(null)
+          }
         })
       },
     })
@@ -428,10 +459,16 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
       action: () => {
         setBulkAction("discard")
         startTransition(async () => {
-          await deleteQueueItems(Array.from(selectedIds))
-          setSelectedIds(new Set())
-          setBulkAction(null)
-          router.refresh()
+          try {
+            await deleteQueueItems(Array.from(selectedIds))
+            toast.success(`Discarded ${selectedIds.size} draft${selectedIds.size !== 1 ? 's' : ''}`)
+            setSelectedIds(new Set())
+            setBulkAction(null)
+            router.refresh()
+          } catch (err) {
+            toast.error("Failed to discard drafts")
+            setBulkAction(null)
+          }
         })
       },
     })
@@ -603,13 +640,25 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
         <Card>
           <CardContent className="py-12 text-center">
             <CheckCircle2 className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-500">
-              {activeTab === "pending"
-                ? "No messages pending review. Use AI Compose to generate drafts."
-                : activeTab === "sent"
-                ? "No sent messages yet."
-                : "No messages in the queue."}
-            </p>
+            {searchQuery ? (
+              <p className="text-gray-500">
+                No drafts matching &ldquo;{searchQuery}&rdquo;.{" "}
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="text-purple-600 hover:text-purple-800 underline"
+                >
+                  Clear search
+                </button>
+              </p>
+            ) : (
+              <p className="text-gray-500">
+                {activeTab === "pending"
+                  ? "No messages pending review. Use AI Compose to generate drafts."
+                  : activeTab === "sent"
+                  ? "No sent messages yet."
+                  : "No messages in the queue."}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
@@ -649,9 +698,21 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                       )}
                       <div className="flex items-center gap-1.5">
                         <User className="w-4 h-4 text-gray-400" />
-                        <span className="font-medium text-gray-900">
-                          {item.prospect?.name || "Unknown"}
-                        </span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="font-medium text-gray-900 cursor-default">
+                              {item.prospect?.name || "Unknown"}
+                            </span>
+                          </TooltipTrigger>
+                          {item.prospect && (
+                            <TooltipContent side="bottom" className="text-xs space-y-0.5 max-w-xs">
+                              {item.prospect.title && <p>{item.prospect.title}</p>}
+                              {item.prospect.department && <p>{item.prospect.department}</p>}
+                              {(item.prospect as any)?.city_name && <p>{(item.prospect as any).city_name}</p>}
+                              {item.prospect.jurisdiction && <p>{item.prospect.jurisdiction}</p>}
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
                       </div>
                       {item.prospect?.email && (
                         <span className="text-gray-500">{item.prospect.email}</span>
@@ -799,16 +860,6 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                     </div>
                   )}
 
-                  {/* Error feedback */}
-                  {itemError?.id === item.id && (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
-                      <span className="flex-1">{itemError.message}</span>
-                      <button onClick={() => setItemError(null)} className="text-amber-500 hover:text-amber-700 shrink-0">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
-
                   {/* Action buttons */}
                   <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                     <div className="flex items-center gap-2">
@@ -927,7 +978,12 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
         }
         if (!open) setEditingItem(null)
       }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl" onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+            e.preventDefault()
+            saveEdit()
+          }
+        }}>
           <DialogHeader>
             <DialogTitle>Edit Message</DialogTitle>
           </DialogHeader>

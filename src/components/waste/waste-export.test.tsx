@@ -15,6 +15,10 @@ vi.mock("@/lib/apiClient", () => ({
   exportAuditorReport: vi.fn(),
 }))
 
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+import { toast } from "sonner"
+const mockToast = vi.mocked(toast)
+
 import { exportWasteFindings, exportAuditorReport } from "@/lib/apiClient"
 
 const mockExportFindings = vi.mocked(exportWasteFindings)
@@ -49,7 +53,7 @@ describe("WasteExport", () => {
     fireEvent.click(screen.getByText("Excel"))
 
     await waitFor(() => {
-      expect(screen.getByText("...")).toBeInTheDocument()
+      expect(document.querySelector(".animate-spin")).toBeInTheDocument()
     })
 
     // Other buttons should be disabled
@@ -106,6 +110,47 @@ describe("WasteExport", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Excel").closest("button")).not.toBeDisabled()
+    })
+  })
+
+  // ── Spinner / toast tests ───────────────────────────────────────────────
+
+  it("spinner renders during export", async () => {
+    let resolveExport!: (v: Blob) => void
+    mockExportFindings.mockImplementation(
+      () => new Promise((res) => { resolveExport = res })
+    )
+    render(<WasteExport category="payroll" />)
+
+    fireEvent.click(screen.getByText("CSV"))
+
+    await waitFor(() => {
+      expect(document.querySelector(".animate-spin")).toBeInTheDocument()
+    })
+
+    resolveExport(new Blob(["csv-data"]))
+    await waitFor(() => {
+      expect(document.querySelector(".animate-spin")).not.toBeInTheDocument()
+    })
+  })
+
+  it("toast.success called on successful export", async () => {
+    mockExportFindings.mockResolvedValue(new Blob(["csv-data"]))
+    render(<WasteExport category="payroll" />)
+    fireEvent.click(screen.getByText("CSV"))
+
+    await waitFor(() => {
+      expect(mockToast.success).toHaveBeenCalled()
+    })
+  })
+
+  it("toast.error called on failed export", async () => {
+    mockExportFindings.mockRejectedValue(new Error("Network error"))
+    render(<WasteExport category="payroll" />)
+    fireEvent.click(screen.getByText("CSV"))
+
+    await waitFor(() => {
+      expect(mockToast.error).toHaveBeenCalled()
     })
   })
 })

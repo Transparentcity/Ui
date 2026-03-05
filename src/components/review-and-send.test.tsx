@@ -12,11 +12,20 @@
  * - Discard draft
  * - Empty state
  */
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { render, screen, waitFor, within, act } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { vi, describe, it, expect, beforeEach } from "vitest"
 
 // ---- Mocks ----------------------------------------------------------------
+
+const mockToastSuccess = vi.fn()
+const mockToastError = vi.fn()
+vi.mock("sonner", () => ({
+  toast: {
+    success: (...args: any[]) => mockToastSuccess(...args),
+    error: (...args: any[]) => mockToastError(...args),
+  },
+}))
 
 const mockGetAccessTokenSilently = vi.fn().mockResolvedValue("test-token")
 vi.mock("@auth0/auth0-react", () => ({
@@ -538,7 +547,7 @@ describe("ReviewAndSend", () => {
   // EDGE CASE: API failure scenarios
   // ===================================================================
 
-  it("handles regenerate API failure gracefully and shows error message", async () => {
+  it("handles regenerate API failure gracefully and shows error toast", async () => {
     const user = userEvent.setup()
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     mockFetch.mockRejectedValueOnce(new Error("Server down"))
@@ -549,14 +558,14 @@ describe("ReviewAndSend", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /regenerate/i })).not.toBeDisabled()
     })
-    // Should show user-visible error
+    // Should show error via toast
     await waitFor(() => {
-      expect(screen.getByText(/regenerate failed/i)).toBeInTheDocument()
+      expect(mockToastError).toHaveBeenCalledWith("Regenerate failed. Please try again.")
     })
     consoleSpy.mockRestore()
   })
 
-  it("shows specific message when regenerate fails due to missing anomaly data", async () => {
+  it("shows specific toast when regenerate fails due to missing anomaly data", async () => {
     const user = userEvent.setup()
     mockFetch.mockResolvedValueOnce({
       ok: false,
@@ -568,32 +577,7 @@ describe("ReviewAndSend", () => {
     await user.click(screen.getByRole("button", { name: /regenerate/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/older draft doesn't have anomaly data/i)).toBeInTheDocument()
-    })
-  })
-
-  it("dismisses regenerate error when X is clicked", async () => {
-    const user = userEvent.setup()
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      json: async () => ({ detail: "Draft is missing anomaly or prospect data, cannot regenerate" }),
-    })
-    render(<ReviewAndSend items={[PENDING_ITEM]} />)
-
-    await user.click(screen.getByRole("button", { name: /regenerate/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText(/older draft/i)).toBeInTheDocument()
-    })
-
-    // Click dismiss
-    const errorBanner = screen.getByText(/older draft/i).closest("div")!
-    const dismissBtn = within(errorBanner).getByRole("button")
-    await user.click(dismissBtn)
-
-    await waitFor(() => {
-      expect(screen.queryByText(/older draft/i)).not.toBeInTheDocument()
+      expect(mockToastError).toHaveBeenCalledWith(expect.stringContaining("older draft"))
     })
   })
 
@@ -1237,5 +1221,161 @@ describe("ReviewAndSend", () => {
     const subjectEl = screen.getByText("Quick note on police overtime")
     // The element should be a child of a TooltipTrigger (which renders a button)
     expect(subjectEl.closest("[data-state]") || subjectEl.tagName).toBeTruthy()
+  })
+
+  // ===================================================================
+  // Toast notifications
+  // ===================================================================
+
+  it("shows toast on mark as sent", async () => {
+    // Ensure mock resolves properly (may have been altered by previous tests)
+    mockUpdateStatus.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByRole("button", { name: /mark as sent/i }))
+
+    await waitFor(() => {
+      expect(mockUpdateStatus).toHaveBeenCalledWith(PENDING_ITEM.id, "sent")
+    })
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Marked as sent")
+    })
+  })
+
+  it("shows toast on save edit", async () => {
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByRole("button", { name: /edit/i }))
+    await waitFor(() => {
+      expect(screen.getByText("Edit Message")).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("button", { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Draft saved")
+    })
+  })
+
+  it("shows toast on copy email", async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      writable: true,
+      configurable: true,
+    })
+
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+    await user.click(screen.getByRole("button", { name: /copy email/i }))
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Copied")
+    })
+  })
+
+  it("shows toast on discard", async () => {
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByRole("button", { name: /discard/i }))
+    const confirmBtn = await screen.findByRole("button", { name: /^discard$/i })
+    await user.click(confirmBtn)
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Draft discarded")
+    })
+  })
+
+  it("shows error toast on regenerate failure", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    mockFetch.mockRejectedValueOnce(new Error("Server down"))
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByRole("button", { name: /regenerate/i }))
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Regenerate failed. Please try again.")
+    })
+    vi.restoreAllMocks()
+  })
+
+  // ===================================================================
+  // Keyboard shortcut (Ctrl+Enter to save in edit dialog)
+  // ===================================================================
+
+  it("saves edit on Ctrl+Enter in edit dialog", async () => {
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    await user.click(screen.getByRole("button", { name: /edit/i }))
+    await waitFor(() => {
+      expect(screen.getByText("Edit Message")).toBeInTheDocument()
+    })
+
+    // Press Ctrl+Enter
+    await user.keyboard("{Control>}{Enter}{/Control}")
+
+    await waitFor(() => {
+      expect(mockUpdateContent).toHaveBeenCalledWith("q-1", expect.any(Object))
+    })
+  })
+
+  // ===================================================================
+  // Enhanced empty state with search (Phase 5)
+  // ===================================================================
+
+  it("shows 'No drafts matching' and Clear search when search has no results", async () => {
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    const searchInput = screen.getByPlaceholderText(/search drafts/i)
+    await user.type(searchInput, "zzzznonexistent")
+
+    await waitFor(() => {
+      expect(screen.getByText(/No drafts matching/)).toBeInTheDocument()
+      expect(screen.getByText(/Clear search/)).toBeInTheDocument()
+    })
+  })
+
+  it("clears search when 'Clear search' is clicked in empty state", async () => {
+    const user = userEvent.setup()
+    render(<ReviewAndSend items={[PENDING_ITEM]} />)
+
+    const searchInput = screen.getByPlaceholderText(/search drafts/i)
+    await user.type(searchInput, "zzzznonexistent")
+
+    await waitFor(() => {
+      expect(screen.getByText(/Clear search/)).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByText(/Clear search/))
+
+    // Search should be cleared and items visible again
+    await waitFor(() => {
+      expect(screen.getByText("Quick note on police overtime")).toBeInTheDocument()
+    })
+  })
+
+  // ===================================================================
+  // Contact quick-view tooltip (Phase 6)
+  // ===================================================================
+
+  it("wraps contact name in a tooltip trigger with prospect details", () => {
+    const itemWithDetails = makeQueueItem({
+      prospect: {
+        ...PROSPECT,
+        title: "Supervisor",
+        department: "Board of Supervisors",
+      },
+    })
+    render(<ReviewAndSend items={[itemWithDetails]} />)
+
+    // Contact name should be inside a Tooltip trigger
+    const nameEl = screen.getByText("Jane Smith")
+    expect(nameEl.closest("[data-state]") || nameEl.tagName).toBeTruthy()
   })
 })

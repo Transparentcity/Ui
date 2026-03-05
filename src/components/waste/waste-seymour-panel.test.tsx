@@ -94,11 +94,11 @@ describe("WasteSeymourPanel", () => {
       <WasteSeymourPanel request={makeRequest()} onClose={onClose} />
     )
     const aside = container.querySelector("aside")!
-    const initialWidth = aside.style.width
+    const initialWidth = parseInt(aside.style.getPropertyValue("--panel-width"))
 
     fireEvent.click(screen.getByLabelText("Make Seymour panel narrower"))
-    const newWidth = aside.style.width
-    expect(parseInt(newWidth)).toBeLessThan(parseInt(initialWidth))
+    const newWidth = parseInt(aside.style.getPropertyValue("--panel-width"))
+    expect(newWidth).toBeLessThan(initialWidth)
   })
 
   it("widens the panel when wider button is clicked", () => {
@@ -106,11 +106,11 @@ describe("WasteSeymourPanel", () => {
       <WasteSeymourPanel request={makeRequest()} onClose={onClose} />
     )
     const aside = container.querySelector("aside")!
-    const initialWidth = aside.style.width
+    const initialWidth = parseInt(aside.style.getPropertyValue("--panel-width"))
 
     fireEvent.click(screen.getByLabelText("Make Seymour panel wider"))
-    const newWidth = aside.style.width
-    expect(parseInt(newWidth)).toBeGreaterThan(parseInt(initialWidth))
+    const newWidth = parseInt(aside.style.getPropertyValue("--panel-width"))
+    expect(newWidth).toBeGreaterThan(initialWidth)
   })
 
   // ── Open full chat button ──────────────────────────────────────────────────
@@ -185,6 +185,25 @@ describe("WasteSeymourPanel", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/elapsed/)).toBeInTheDocument()
+    })
+  })
+
+  // ── Indeterminate progress animation class ──────────────────────────────────
+
+  it("uses seymour-indeterminate class on progress bar while analyzing", async () => {
+    mockGetJob.mockResolvedValue({ status: "running" } as any)
+
+    const { container } = render(
+      <WasteSeymourPanel request={makeRequest()} onClose={onClose} />
+    )
+
+    await vi.advanceTimersByTimeAsync(3000)
+
+    await waitFor(() => {
+      const progressBar = container.querySelector(".seymour-indeterminate")
+      expect(progressBar).toBeInTheDocument()
+      // Should NOT use animate-pulse
+      expect(progressBar).not.toHaveClass("animate-pulse")
     })
   })
 })
