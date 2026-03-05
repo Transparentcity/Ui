@@ -216,7 +216,7 @@ export function WastePageContent() {
 
   const { data, error } = useWasteAnalysis(undefined, true)
 
-  const { activeJob, isRunning: isManualRefreshing, startJob } = useActiveWasteJob(selectedCityId)
+  const { activeJob, isRunning: isManualRefreshing, startJob, retryCount } = useActiveWasteJob(selectedCityId)
 
   const displayData = data ?? cachedData
   const showLoadingState = isManualRefreshing && !displayData
@@ -473,10 +473,16 @@ export function WastePageContent() {
                   style={{ width: `${analysisProgress.progressPct}%` }}
                 />
               </div>
-              {analysisProgress.isLongRunning && (
+              {retryCount > 0 && (
+                <div className="mt-3 flex items-center gap-2 text-xs text-blue-700 bg-blue-100 border border-blue-200 rounded p-2">
+                  <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+                  <span>Auto-retrying after timeout (attempt {retryCount + 1} of 3)</span>
+                </div>
+              )}
+              {analysisProgress.isLongRunning && retryCount === 0 && (
                 <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
                   <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                  <span>Taking longer than usual, but still processing in the background</span>
+                  <span>Taking longer than usual — will auto-retry if it times out</span>
                 </div>
               )}
             </div>

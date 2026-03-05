@@ -94,7 +94,11 @@ export function useActiveWasteJob(cityId: number | null) {
   const queryClient = useQueryClient()
   const [activeJob, setActiveJob] = useState<Job | null>(null)
   const [isStarting, setIsStarting] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const retryCountRef = useRef(0)
+
+  const MAX_AUTO_RETRIES = 2
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -102,6 +106,9 @@ export function useActiveWasteJob(cityId: number | null) {
       pollRef.current = null
     }
   }, [])
+
+  // Forward declaration — startNewJob needs pollJob and vice versa
+  const startNewJobRef = useRef<((category?: string) => Promise<void>) | null>(null)
 
   const pollJob = useCallback(
     async (jobId: string) => {
@@ -119,16 +126,32 @@ export function useActiveWasteJob(cityId: number | null) {
           jobAgeMs > MAX_JOB_AGE_MS
 
         if (isStale) {
-          const ageMin = Math.round(jobAgeMs / 60_000)
-          setActiveJob({
-            ...job,
-            status: "failed",
-            error_message:
-              `Analysis has been running for ${ageMin} minutes without completing. ` +
-              `The server may have restarted or a detector may be stuck. ` +
-              `Job ID: ${jobId}`,
-          })
           shouldContinue = false
+          // Auto-retry if under the limit
+          if (retryCountRef.current < MAX_AUTO_RETRIES && cityId && startNewJobRef.current) {
+            retryCountRef.current += 1
+            setRetryCount(retryCountRef.current)
+            setActiveJob({
+              ...job,
+              status: "pending",
+              status_message: `Previous attempt timed out — retrying (attempt ${retryCountRef.current + 1} of ${MAX_AUTO_RETRIES + 1})...`,
+              progress: 0,
+            })
+            // Small delay before retrying to let the server settle
+            await new Promise((r) => setTimeout(r, 2000))
+            await startNewJobRef.current()
+          } else {
+            const ageMin = Math.round(jobAgeMs / 60_000)
+            setActiveJob({
+              ...job,
+              status: "failed",
+              error_message:
+                `Analysis has been running for ${ageMin} minutes without completing` +
+                (retryCountRef.current > 0 ? ` (after ${retryCountRef.current + 1} attempts)` : "") +
+                `. The server may have restarted or a detector may be stuck. ` +
+                `Job ID: ${jobId}`,
+            })
+          }
           return
         }
 
@@ -141,6 +164,8 @@ export function useActiveWasteJob(cityId: number | null) {
           shouldContinue = false
           // Refresh analysis data now that the job is done
           if (job.status === "completed") {
+            retryCountRef.current = 0
+            setRetryCount(0)
             queryClient.invalidateQueries({ queryKey: ["waste", "analysis"] })
             queryClient.invalidateQueries({ queryKey: ["waste", "summary"] })
             queryClient.invalidateQueries({ queryKey: ["waste", "queue"] })
@@ -155,7 +180,7 @@ export function useActiveWasteJob(cityId: number | null) {
         }
       }
     },
-    [getAccessTokenSilently, queryClient]
+    [getAccessTokenSilently, queryClient, cityId]
   )
 
   const startPolling = useCallback(
@@ -238,12 +263,25 @@ export function useActiveWasteJob(cityId: number | null) {
     [cityId, getAccessTokenSilently, startPolling]
   )
 
+  // Keep the ref in sync so pollJob's auto-retry can call startJob
+  startNewJobRef.current = startJob
+
+  /** User-initiated start resets retry counter */
+  const startJobWithReset = useCallback(
+    async (category?: string) => {
+      retryCountRef.current = 0
+      setRetryCount(0)
+      return startJob(category)
+    },
+    [startJob]
+  )
+
   const isRunning =
     isStarting ||
     (activeJob != null &&
       (activeJob.status === "pending" || activeJob.status === "running"))
 
-  return { activeJob, isRunning, isStarting, startJob }
+  return { activeJob, isRunning, isStarting, startJob: startJobWithReset, retryCount }
 }
 
 /**
