@@ -14,6 +14,7 @@ import {
   getWasteDetectorAccuracy,
   getWasteDispositions,
   getWasteAnalysis,
+  getWasteRunResult,
   getWasteEntityScores,
   getWasteInvestigation,
   getWasteInvestigations,
@@ -205,6 +206,7 @@ export function useActiveWasteJob(cityId: number | null) {
             setRetryCount(0)
             setLastDiagnostics(null)
             queryClient.invalidateQueries({ queryKey: ["waste", "analysis"] })
+            queryClient.invalidateQueries({ queryKey: ["waste", "persisted"] })
             queryClient.invalidateQueries({ queryKey: ["waste", "summary"] })
             queryClient.invalidateQueries({ queryKey: ["waste", "queue"] })
           }
@@ -369,6 +371,35 @@ export function useLatestWasteRun(
     },
     enabled: isAuthenticated && !!cityId && enabled,
     staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
+  })
+}
+
+/**
+ * Load the latest *completed* persisted run result from the database.
+ * This is fast (DB read, no analysis) and gives the user instant data
+ * even when a fresh analysis would time out.
+ */
+export function useLatestPersistedWasteResult(cityId: number | null) {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
+
+  return useQuery<WasteAnalyzeResponse | null>({
+    queryKey: ["waste", "persisted", cityId],
+    queryFn: async () => {
+      if (!cityId) return null
+      const token = await getAccessTokenSilently()
+      // Find the latest completed run (filter server-side)
+      const runs = await listWasteRuns(token, cityId, undefined, 1, "completed")
+      const latestRun = runs[0]
+      if (!latestRun) return null
+      try {
+        return await getWasteRunResult(token, Number(latestRun.id), cityId)
+      } catch {
+        return null
+      }
+    },
+    enabled: isAuthenticated && !!cityId,
+    staleTime: 10 * 60 * 1000, // 10 min — persisted data doesn't change often
     refetchOnWindowFocus: false,
   })
 }

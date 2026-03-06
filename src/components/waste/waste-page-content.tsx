@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { useWasteAnalysis, useActiveWasteJob } from "@/lib/hooks/useWaste"
+import { useWasteAnalysis, useActiveWasteJob, useLatestPersistedWasteResult } from "@/lib/hooks/useWaste"
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
 import { WasteShell } from "./waste-shell"
 import { Button } from "@/components/ui/button"
@@ -219,9 +219,13 @@ export function WastePageContent() {
 
   const { data, error } = useWasteAnalysis(undefined, true)
 
+  // Load last persisted run from DB — instant data even when live analysis times out
+  const { data: persistedData } = useLatestPersistedWasteResult(selectedCityId)
+
   const { activeJob, isRunning: isManualRefreshing, startJob, startError, retryCount, lastDiagnostics } = useActiveWasteJob(selectedCityId)
 
-  const displayData = data ?? cachedData
+  // Fallback chain: fresh API data → localStorage cache → persisted DB run
+  const displayData = data ?? cachedData ?? persistedData
   const showLoadingState = isManualRefreshing && !displayData
 
   // Derive progress from the live job data
@@ -257,7 +261,14 @@ export function WastePageContent() {
   }, [data])
 
   const handleRefresh = () => {
-    startJob()
+    // On a category tab, refresh only that category (much faster, less likely to timeout)
+    // On overview, refresh all categories
+    const isOnCategoryTab = activeCategory === "payroll" || activeCategory === "contracts" || activeCategory === "infrastructure"
+    if (isOnCategoryTab) {
+      startJob(activeCategory)
+    } else {
+      startJob()
+    }
   }
 
   // Keep category state in sync with hash navigation from the sidebar.
@@ -421,7 +432,9 @@ export function WastePageContent() {
               <RefreshCw className={`w-4 h-4 mr-2 ${isManualRefreshing ? "animate-spin" : ""}`} />
               {isManualRefreshing
                 ? `Analyzing…`
-                : "Refresh"}
+                : isCategoryView
+                  ? `Refresh ${activeCategory}`
+                  : "Refresh all"}
             </Button>
           </div>
         ) : undefined

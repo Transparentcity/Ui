@@ -216,16 +216,32 @@ export function getWasteSummary(
   return request<WasteSummaryResponse>("/api/waste/summary", "GET", undefined, token);
 }
 
+export function getWasteRunResult(
+  token: string,
+  runId: number,
+  cityId: number
+): Promise<WasteAnalyzeResponse> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  return request<WasteAnalyzeResponse>(
+    `/api/waste/runs/${runId}/result?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
 export function listWasteRuns(
   token: string,
   cityId: number,
   category?: string,
-  limit: number = 1
+  limit: number = 1,
+  status?: string
 ): Promise<WasteRun[]> {
   const query = new URLSearchParams();
   query.set("city_id", String(cityId));
   query.set("limit", String(limit));
   if (category) query.set("category", category);
+  if (status) query.set("status", status);
   return request<WasteRun[]>(
     `/api/waste/runs?${query.toString()}`,
     "GET",
