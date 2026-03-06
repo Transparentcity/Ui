@@ -184,10 +184,21 @@ describe("WastePageContent", () => {
     expect(errorBanner).toBeInTheDocument()
   })
 
-  it("renders without welcome box when no data or cache exists", () => {
+  it("shows empty state CTA when no data or cache exists", () => {
     render(<WastePageContent />)
-    expect(screen.queryByText("Welcome to Waste Detection")).not.toBeInTheDocument()
-    expect(screen.queryByText("Run Analysis")).not.toBeInTheDocument()
+    expect(screen.getByTestId("empty-state")).toBeInTheDocument()
+    expect(screen.getByText("Run Waste Analysis")).toBeInTheDocument()
+  })
+
+  it("shows stale data nudge when persisted data is older than 7 days", () => {
+    const staleAnalysis = {
+      ...cachedAnalysis,
+      analysis_timestamp: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    }
+    localStorage.setItem(CACHE_KEY, JSON.stringify(staleAnalysis))
+    render(<WastePageContent />)
+    expect(screen.getByText(/Results are from/)).toBeInTheDocument()
+    expect(screen.getByText(/Run a fresh analysis/)).toBeInTheDocument()
   })
 
   // ── Loading indicator / job progress tests ────────────────────────────────

@@ -6,7 +6,7 @@ import { useWasteAnalysis, useActiveWasteJob, useLatestPersistedWasteResult } fr
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
 import { WasteShell } from "./waste-shell"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, AlertTriangle, Clock, Database, Square } from "lucide-react"
+import { RefreshCw, AlertTriangle, Clock, Database, Square, ShieldAlert } from "lucide-react"
 import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import type {
   WasteAnalyzeResponse,
@@ -38,7 +38,7 @@ import {
 type SeverityFilter = "all" | "critical" | "high" | "medium"
 
 const WASTE_ANALYSIS_ESTIMATED_SECONDS = 120
-// (timeout constant removed — job polling handles lifecycle)
+const STALE_DATA_WARNING_DAYS = 7
 
 function formatAge(isoDate: string): string {
   const date = new Date(isoDate)
@@ -226,6 +226,15 @@ export function WastePageContent() {
   // Fallback chain: fresh API data → localStorage cache → persisted DB run
   const displayData = data ?? cachedData ?? persistedData
   const showLoadingState = isManualRefreshing && !displayData
+
+  // Auto-trigger refresh if persisted data is very stale
+  const analysisTimestamp = displayData?.analysis_timestamp
+  const isDataStale = useMemo(() => {
+    if (!analysisTimestamp) return false
+    const ageMs = new Date().getTime() - new Date(analysisTimestamp).getTime()
+    return ageMs > STALE_DATA_WARNING_DAYS * 24 * 60 * 60 * 1000
+  }, [analysisTimestamp])
+  const hasNoData = !displayData && !isManualRefreshing && !error
 
   // Derive progress from the live job data
   const jobProgress = activeJob?.progress ?? 0
@@ -466,6 +475,22 @@ export function WastePageContent() {
         <WasteDetectorAccuracy cityId={selectedCityId} />
       ) : (
         <>
+          {/* Empty state — no data at all, prompt user to run */}
+          {hasNoData && !showLoadingState && (
+            <div className="flex flex-col items-center justify-center py-16 text-center" data-testid="empty-state">
+              <ShieldAlert className="w-12 h-12 text-gray-300 mb-4" />
+              <h2 className="text-lg font-semibold text-gray-700 mb-2">No analysis data yet</h2>
+              <p className="text-sm text-gray-500 mb-6 max-w-md">
+                Run a waste analysis to scan public city data for anomalies in payroll, contracts, and infrastructure spending.
+              </p>
+              <Button onClick={handleRefresh} size="lg">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Run Waste Analysis
+              </Button>
+              <p className="text-xs text-gray-400 mt-3">Takes about 2 minutes</p>
+            </div>
+          )}
+
           {/* Shared status banners */}
           {!isManualRefreshing && displayData && !data && displayData.analysis_timestamp && (
             <p className="text-xs text-gray-500 mb-3 flex items-center gap-2 flex-wrap" data-testid="compact-status-line">
@@ -517,7 +542,15 @@ export function WastePageContent() {
                 <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
                   <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                   <span>Taking longer than usual — will auto-retry if it times out</span>
+                  {!isManualRefreshing && displayData && (
+                    <span className="ml-auto text-amber-500">Showing previous results while running</span>
+                  )}
                 </div>
+              )}
+              {isManualRefreshing && displayData && (
+                <p className="mt-2 text-xs text-blue-500">
+                  Previous results are shown below while the new analysis runs.
+                </p>
               )}
             </div>
           )}
@@ -608,6 +641,31 @@ export function WastePageContent() {
                 ))}
               </div>
             </details>
+          )}
+
+          {/* Stale data nudge — data older than 7 days */}
+          {!isManualRefreshing && isDataStale && displayData?.analysis_timestamp && (
+            <div className="mb-4 p-3 rounded-lg border bg-purple-50 border-purple-200 flex items-center gap-3">
+              <Clock className="w-5 h-5 text-purple-500 shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-purple-800">
+                  Results are from {formatAge(displayData.analysis_timestamp)}
+                </p>
+                <p className="text-xs text-purple-600 mt-0.5">
+                  Run a fresh analysis to check for new anomalies.
+                  {isCategoryView && " Refreshing just this category is faster (~30s)."}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                className="shrink-0 border-purple-300 text-purple-700 hover:bg-purple-100"
+              >
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                {isCategoryView ? `Refresh ${activeCategory}` : "Refresh all"}
+              </Button>
+            </div>
           )}
 
           {/* Data freshness */}

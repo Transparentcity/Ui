@@ -71,7 +71,8 @@ export function useWasteAnalysis(
       return getWasteAnalysis(token, category, shouldForce)
     },
     enabled: isAuthenticated && enabled,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 10 * 60 * 1000, // 10 minutes — analysis is expensive
+    gcTime: 30 * 60 * 1000, // keep in cache 30 min to avoid re-fetching on navigation
     retry: 1,
     refetchOnWindowFocus: false,
   })
@@ -145,7 +146,7 @@ export function useActiveWasteJob(cityId: number | null) {
         // 1) Total age > 6 min (backend hard-kills at 5 min, so 6 = safe margin)
         // 2) Progress hasn't changed in 3 min (job is stuck even if young)
         const MAX_JOB_AGE_MS = 6 * 60 * 1000
-        const PROGRESS_STALL_MS = 3 * 60 * 1000
+        const PROGRESS_STALL_MS = 2.5 * 60 * 1000 // slightly under backend's 2-min detector timeout
         const createdAt = new Date(job.created_at).getTime()
         const jobAgeMs = Date.now() - createdAt
         const progressStallMs = Date.now() - lastProgressSnapshotRef.current.updatedAt
