@@ -27,10 +27,6 @@ import {
 import { WasteDetectorsData } from "./waste-detectors-data"
 import { WasteReviewQueue } from "./waste-review-queue"
 import { WasteDetectorAccuracy } from "./waste-detector-accuracy"
-import { SeverityDonut } from "./widgets/severity-donut"
-import { QueueStatus } from "./widgets/queue-status"
-import { AccuracyBars } from "./widgets/accuracy-bars"
-import { InvestigationSummary } from "./widgets/investigation-summary"
 import {
   normalizeWasteCategory,
   formatDollar,
@@ -617,27 +613,6 @@ export function WastePageContent() {
           {isOverviewView && (
             <>
               <WasteStatBar summary={displayData?.summary} isLoading={showLoadingState} />
-
-              {/* Dashboard Widgets */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                {isManualRefreshing && !displayData ? (
-                  <>
-                    {["Severity Breakdown", "Review Queue", "Detector Accuracy", "Investigations"].map((label) => (
-                      <div key={label} className="bg-white rounded-lg border border-gray-200 p-5">
-                        <div className="text-xs font-medium text-gray-400 mb-4">{label}</div>
-                        <div className="h-44 bg-gray-50 rounded animate-pulse" />
-                      </div>
-                    ))}
-                  </>
-                ) : (
-                  <>
-                    <SeverityDonut cityId={selectedCityId} />
-                    <QueueStatus cityId={selectedCityId} />
-                    <AccuracyBars cityId={selectedCityId} />
-                    <InvestigationSummary cityId={selectedCityId} />
-                  </>
-                )}
-              </div>
 
               {/* Category summary cards — click to navigate */}
               <WasteCategoryTabs

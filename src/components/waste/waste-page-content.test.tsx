@@ -51,18 +51,6 @@ vi.mock("./waste-review-queue", () => ({
 vi.mock("./waste-detector-accuracy", () => ({
   WasteDetectorAccuracy: () => <div>accuracy</div>,
 }))
-vi.mock("./widgets/severity-donut", () => ({
-  SeverityDonut: () => <div data-testid="widget-donut">donut</div>,
-}))
-vi.mock("./widgets/queue-status", () => ({
-  QueueStatus: () => <div data-testid="widget-queue">queue</div>,
-}))
-vi.mock("./widgets/accuracy-bars", () => ({
-  AccuracyBars: () => <div data-testid="widget-accuracy">accuracy</div>,
-}))
-vi.mock("./widgets/investigation-summary", () => ({
-  InvestigationSummary: () => <div data-testid="widget-inv">inv</div>,
-}))
 
 // ── Mock infrastructure ────────────────────────────────────────────────────
 
@@ -113,6 +101,10 @@ vi.mock("@/lib/hooks/useWaste", () => ({
     isRunning: false,
     isStarting: false,
     startJob: vi.fn(),
+  }),
+  useLatestPersistedWasteResult: vi.fn().mockReturnValue({
+    data: null,
+    isLoading: false,
   }),
 }))
 
@@ -187,7 +179,7 @@ describe("WastePageContent", () => {
     })
     const { container } = render(<WastePageContent />)
     const statBar = container.querySelector("[data-testid='waste-stat-bar']")
-    const errorBanner = screen.getByText("Analysis Error").closest(".bg-red-50")
+    const errorBanner = screen.getByText("Analysis error").closest(".bg-red-50")
     expect(statBar).toBeInTheDocument()
     expect(errorBanner).toBeInTheDocument()
   })
@@ -196,15 +188,6 @@ describe("WastePageContent", () => {
     render(<WastePageContent />)
     expect(screen.queryByText("Welcome to Waste Detection")).not.toBeInTheDocument()
     expect(screen.queryByText("Run Analysis")).not.toBeInTheDocument()
-  })
-
-  it("renders dashboard widgets when data is available", () => {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cachedAnalysis))
-    render(<WastePageContent />)
-    expect(screen.getByTestId("widget-donut")).toBeInTheDocument()
-    expect(screen.getByTestId("widget-queue")).toBeInTheDocument()
-    expect(screen.getByTestId("widget-accuracy")).toBeInTheDocument()
-    expect(screen.getByTestId("widget-inv")).toBeInTheDocument()
   })
 
   // ── Loading indicator / job progress tests ────────────────────────────────
@@ -280,54 +263,7 @@ describe("WastePageContent", () => {
     // Analyzing button should NOT be present
     expect(screen.queryByText(/Analyzing/)).not.toBeInTheDocument()
     // The Refresh button should be present (not disabled)
-    expect(screen.getByText("Refresh")).toBeInTheDocument()
-  })
-
-  it("shows labeled skeleton widgets when job is running with no cached data", () => {
-    useActiveWasteJob.mockReturnValue({
-      activeJob: {
-        job_id: "job-skel",
-        job_type: "waste_analysis_run",
-        status: "running",
-        description: "Waste analysis",
-        progress: 20,
-        created_at: new Date().toISOString(),
-      } as any,
-      isRunning: true,
-      isStarting: false,
-      startJob: mockStartJob,
-    })
-    const { container } = render(<WastePageContent />)
-    // Should show labeled skeleton placeholders instead of real widgets
-    const pulsingDivs = container.querySelectorAll(".animate-pulse")
-    expect(pulsingDivs.length).toBeGreaterThan(0)
-    expect(screen.getByText("Severity Breakdown")).toBeInTheDocument()
-    expect(screen.getByText("Review Queue")).toBeInTheDocument()
-    // Real widgets should NOT be rendered
-    expect(screen.queryByTestId("widget-donut")).not.toBeInTheDocument()
-  })
-
-  it("shows real widgets with cached data during refresh", () => {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cachedAnalysis))
-    useActiveWasteJob.mockReturnValue({
-      activeJob: {
-        job_id: "job-cached",
-        job_type: "waste_analysis_run",
-        status: "running",
-        description: "Waste analysis",
-        progress: 30,
-        created_at: new Date().toISOString(),
-      } as any,
-      isRunning: true,
-      isStarting: false,
-      startJob: mockStartJob,
-    })
-    render(<WastePageContent />)
-    // Should show real widgets since cached data exists
-    expect(screen.getByTestId("widget-donut")).toBeInTheDocument()
-    expect(screen.getByTestId("widget-queue")).toBeInTheDocument()
-    // Loading card should also be visible
-    expect(screen.getByTestId("analysis-loading-card")).toBeInTheDocument()
+    expect(screen.getByText("Refresh all")).toBeInTheDocument()
   })
 
   it("shows failure banner when job fails", () => {
