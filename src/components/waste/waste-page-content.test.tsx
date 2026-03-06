@@ -274,7 +274,7 @@ describe("WastePageContent", () => {
     // Analyzing button should NOT be present
     expect(screen.queryByText(/Analyzing/)).not.toBeInTheDocument()
     // The Refresh button should be present (not disabled)
-    expect(screen.getByText("Refresh all")).toBeInTheDocument()
+    expect(screen.getByText("Refresh")).toBeInTheDocument()
   })
 
   it("shows failure banner when job fails", () => {

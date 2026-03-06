@@ -223,8 +223,10 @@ export function WastePageContent() {
 
   const { activeJob, isRunning: isManualRefreshing, startJob, cancelJob: cancelActiveJob, startError, retryCount, lastDiagnostics } = useActiveWasteJob(selectedCityId)
 
-  // Fallback chain: fresh API data → localStorage cache → persisted DB run
-  const displayData = data ?? cachedData ?? persistedData
+  // Fallback chain: fresh API data → persisted DB run → localStorage cache
+  // persistedData must beat cachedData so that completed refresh jobs actually
+  // update the display (cachedData is a stale localStorage snapshot from mount).
+  const displayData = data ?? persistedData ?? cachedData
   const showLoadingState = isManualRefreshing && !displayData
 
   // Auto-trigger refresh if persisted data is very stale
@@ -268,15 +270,17 @@ export function WastePageContent() {
     safeSetCache(WASTE_ANALYSIS_CACHE_KEY, data)
   }, [data])
 
+  // Keep localStorage in sync when persisted data loads so the next page
+  // visit shows fresh data instantly (not a stale cache from a prior session).
+  useEffect(() => {
+    if (!persistedData || typeof window === "undefined") return
+    safeSetCache(WASTE_ANALYSIS_CACHE_KEY, persistedData)
+  }, [persistedData])
+
   const handleRefresh = () => {
-    // On a category tab, refresh only that category (much faster, less likely to timeout)
-    // On overview, refresh all categories
-    const isOnCategoryTab = activeCategory === "payroll" || activeCategory === "contracts" || activeCategory === "infrastructure"
-    if (isOnCategoryTab) {
-      startJob(activeCategory)
-    } else {
-      startJob()
-    }
+    // Always run all categories so a single-category run doesn't replace
+    // the full persisted dataset (which would make other tabs show 0 findings).
+    startJob()
   }
 
   // Keep category state in sync with hash navigation from the sidebar.
@@ -458,9 +462,7 @@ export function WastePageContent() {
                 onClick={handleRefresh}
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
-                {isCategoryView
-                  ? `Refresh ${activeCategory}`
-                  : "Refresh all"}
+                Refresh
               </Button>
             )}
           </div>
@@ -653,7 +655,6 @@ export function WastePageContent() {
                 </p>
                 <p className="text-xs text-purple-600 mt-0.5">
                   Run a fresh analysis to check for new anomalies.
-                  {isCategoryView && " Refreshing just this category is faster (~30s)."}
                 </p>
               </div>
               <Button
@@ -663,7 +664,7 @@ export function WastePageContent() {
                 className="shrink-0 border-purple-300 text-purple-700 hover:bg-purple-100"
               >
                 <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                {isCategoryView ? `Refresh ${activeCategory}` : "Refresh all"}
+                Refresh
               </Button>
             </div>
           )}
