@@ -196,11 +196,18 @@ export function getWasteAnalysis(
   return request<WasteAnalyzeResponse>(path, "GET", undefined, token);
 }
 
+export interface WasteRunJobResponse {
+  job_id: string;
+  existing_job_id?: string;
+  status: string;
+  message?: string;
+}
+
 export function runWasteAnalysis(
   token: string,
   payload: RunWasteAnalysisRequest
-): Promise<WasteAnalyzeResponse> {
-  return request<WasteAnalyzeResponse>("/api/waste/run", "POST", payload, token);
+): Promise<WasteRunJobResponse> {
+  return request<WasteRunJobResponse>("/api/waste/run", "POST", payload, token);
 }
 
 export function getWasteSummary(

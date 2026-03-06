@@ -40,6 +40,7 @@ import {
   type WasteReviewQueuePage,
   type WasteAnalyzeResponse,
   type WasteRun,
+  type WasteRunJobResponse,
   type WasteSummaryResponse,
   type WasteThreshold,
 } from "@/lib/apiClient"
@@ -94,6 +95,7 @@ export function useActiveWasteJob(cityId: number | null) {
   const queryClient = useQueryClient()
   const [activeJob, setActiveJob] = useState<Job | null>(null)
   const [isStarting, setIsStarting] = useState(false)
+  const [startError, setStartError] = useState<string | null>(null)
   const [retryCount, setRetryCount] = useState(0)
   const [lastDiagnostics, setLastDiagnostics] = useState<{
     lastProgress: number
@@ -261,20 +263,22 @@ export function useActiveWasteJob(cityId: number | null) {
   /** Kick off a new waste analysis run and start polling it. */
   const startJob = useCallback(
     async (category?: string) => {
-      if (!cityId) return
+      if (!cityId) {
+        console.error("[useActiveWasteJob] Cannot start job: cityId is null")
+        setStartError("No city selected. Please wait for city data to load or reload the page.")
+        return
+      }
       setIsStarting(true)
+      setStartError(null)
       try {
         const token = await getAccessTokenSilently()
-        const result = await runWasteAnalysis(token, {
+        const result: WasteRunJobResponse = await runWasteAnalysis(token, {
           city_id: cityId,
           category,
           force_refresh: true,
           persist: true,
         })
-        // The /run endpoint returns {job_id, status, message} but is typed as WasteAnalyzeResponse
-        const resultRecord = result as unknown as Record<string, unknown>
-        const jobId: string | undefined =
-          (resultRecord?.job_id as string) ?? (resultRecord?.existing_job_id as string)
+        const jobId = result.job_id ?? result.existing_job_id
         if (jobId) {
           setActiveJob({
             job_id: jobId,
@@ -285,7 +289,14 @@ export function useActiveWasteJob(cityId: number | null) {
             created_at: new Date().toISOString(),
           })
           startPolling(jobId)
+        } else {
+          console.error("[useActiveWasteJob] No job_id in response:", result)
+          setStartError("Server did not return a job ID. Check the backend logs.")
         }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error("[useActiveWasteJob] Failed to start job:", msg)
+        setStartError(`Failed to start analysis: ${msg}`)
       } finally {
         setIsStarting(false)
       }
@@ -302,6 +313,7 @@ export function useActiveWasteJob(cityId: number | null) {
       retryCountRef.current = 0
       setRetryCount(0)
       setLastDiagnostics(null)
+      setStartError(null)
       lastProgressSnapshotRef.current = { progress: 0, statusMessage: "", updatedAt: Date.now() }
       return startJob(category)
     },
@@ -313,7 +325,7 @@ export function useActiveWasteJob(cityId: number | null) {
     (activeJob != null &&
       (activeJob.status === "pending" || activeJob.status === "running"))
 
-  return { activeJob, isRunning, isStarting, startJob: startJobWithReset, retryCount, lastDiagnostics }
+  return { activeJob, isRunning, isStarting, startJob: startJobWithReset, startError, retryCount, lastDiagnostics }
 }
 
 /**

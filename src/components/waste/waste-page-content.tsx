@@ -7,6 +7,7 @@ import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
 import { WasteShell } from "./waste-shell"
 import { Button } from "@/components/ui/button"
 import { RefreshCw, AlertTriangle, Clock, Database } from "lucide-react"
+import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import type {
   WasteAnalyzeResponse,
   WasteDataFreshness,
@@ -211,12 +212,14 @@ export function WastePageContent() {
     if (wasteEligibleCities.length > 0) {
       return Number(wasteEligibleCities[0].id)
     }
-    return null
+    // Fall back to the configured default city so the Refresh button works
+    // even if the public cities API is slow or returns no eligible cities
+    return CRM_DEFAULT_CITY_ID
   }, [wasteEligibleCities])
 
   const { data, error } = useWasteAnalysis(undefined, true)
 
-  const { activeJob, isRunning: isManualRefreshing, startJob, retryCount, lastDiagnostics } = useActiveWasteJob(selectedCityId)
+  const { activeJob, isRunning: isManualRefreshing, startJob, startError, retryCount, lastDiagnostics } = useActiveWasteJob(selectedCityId)
 
   const displayData = data ?? cachedData
   const showLoadingState = isManualRefreshing && !displayData
@@ -498,6 +501,20 @@ export function WastePageContent() {
                   {error instanceof Error ? error.message : "Failed to load waste analysis"}
                 </p>
               </div>
+            </div>
+          )}
+
+          {/* Start job error banner */}
+          {startError && !isManualRefreshing && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-800">Could not start analysis</p>
+                <p className="text-sm text-red-600 mt-1">{startError}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleRefresh} className="shrink-0 border-red-300 text-red-800 hover:bg-red-100">
+                Retry
+              </Button>
             </div>
           )}
 
