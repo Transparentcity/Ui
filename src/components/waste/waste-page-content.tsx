@@ -523,38 +523,45 @@ export function WastePageContent() {
             </div>
           )}
 
-          {/* Error banner */}
+          {/* Error banner — compact */}
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-red-800">Analysis Error</p>
-                <p className="text-sm text-red-600 mt-1">
-                  {error instanceof Error ? error.message : "Failed to load waste analysis"}
-                </p>
-              </div>
-            </div>
+            <details className="mb-4 bg-red-50 border border-red-200 rounded-lg group">
+              <summary className="flex items-center gap-2 p-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                <span className="text-xs font-medium text-red-800">Analysis error</span>
+                <span className="text-xs text-red-400 group-open:hidden ml-auto">Show</span>
+                <span className="text-xs text-red-400 hidden group-open:inline ml-auto">Hide</span>
+              </summary>
+              <p className="px-2.5 pb-2.5 text-xs text-red-600 break-all">
+                {error instanceof Error ? error.message : "Failed to load waste analysis"}
+              </p>
+            </details>
           )}
 
-          {/* Start job error banner */}
+          {/* Start job error banner — compact with expandable details */}
           {startError && !isManualRefreshing && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-red-800">Could not start analysis</p>
-                <p className="text-sm text-red-600 mt-1">{startError}</p>
+            <details className="mb-4 bg-red-50 border border-red-200 rounded-lg group">
+              <summary className="flex items-center gap-3 p-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+                <span className="text-sm font-medium text-red-800 flex-1">Could not start analysis</span>
+                <span className="text-xs text-red-400 group-open:hidden">Show details</span>
+                <span className="text-xs text-red-400 hidden group-open:inline">Hide details</span>
+                <Button variant="outline" size="sm" onClick={handleRefresh} className="shrink-0 border-red-300 text-red-800 hover:bg-red-100 ml-2">
+                  Retry
+                </Button>
+              </summary>
+              <div className="px-3 pb-3 pt-0">
+                <p className="text-xs text-red-600 font-mono whitespace-pre-wrap break-all max-h-32 overflow-y-auto bg-red-100/50 rounded p-2">{startError}</p>
               </div>
-              <Button variant="outline" size="sm" onClick={handleRefresh} className="shrink-0 border-red-300 text-red-800 hover:bg-red-100">
-                Retry
-              </Button>
-            </div>
+            </details>
           )}
 
-          {/* Timeout / failure banner with diagnostics */}
+          {/* Timeout / failure banner with collapsible diagnostics */}
           {!isManualRefreshing && activeJob?.status === "failed" && (
-            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-amber-800">
+            <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+              <div className="flex items-center justify-between gap-3 p-3">
+                <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                <span className="text-amber-800 flex-1">
                   {activeJob.error_message || "Analysis failed. Showing previous snapshot."}
                 </span>
                 <Button
@@ -567,38 +574,38 @@ export function WastePageContent() {
                 </Button>
               </div>
               {lastDiagnostics && (
-                <div className="mt-2 pt-2 border-t border-amber-200 text-xs text-amber-700 space-y-1" data-testid="failure-diagnostics">
-                  <p className="font-medium">Diagnostic details:</p>
-                  <p>
-                    Stuck at: <span className="font-mono">{lastDiagnostics.lastProgress}%</span>
-                    {lastDiagnostics.lastStatusMessage && (
-                      <> — &ldquo;{lastDiagnostics.lastStatusMessage}&rdquo;</>
-                    )}
-                  </p>
-                  {lastDiagnostics.startedAt && (
-                    <p>
-                      Job started: {new Date(lastDiagnostics.startedAt).toLocaleTimeString()}
-                    </p>
-                  )}
-                  <p>
-                    Last progress update: {new Date(lastDiagnostics.lastUpdateAt).toLocaleTimeString()}
-                  </p>
-                  <p className="font-mono text-amber-500">Job ID: {lastDiagnostics.jobId}</p>
-                </div>
+                <details className="border-t border-amber-200">
+                  <summary className="px-3 py-1.5 text-xs text-amber-600 cursor-pointer list-none [&::-webkit-details-marker]:hidden hover:text-amber-800">
+                    Diagnostics
+                  </summary>
+                  <div className="px-3 pb-2 text-xs text-amber-700 space-y-0.5 font-mono" data-testid="failure-diagnostics">
+                    <p>Stuck at: {lastDiagnostics.lastProgress}%{lastDiagnostics.lastStatusMessage && ` — "${lastDiagnostics.lastStatusMessage}"`}</p>
+                    {lastDiagnostics.startedAt && <p>Started: {new Date(lastDiagnostics.startedAt).toLocaleTimeString()}</p>}
+                    <p>Last update: {new Date(lastDiagnostics.lastUpdateAt).toLocaleTimeString()}</p>
+                    <p className="text-amber-500">Job: {lastDiagnostics.jobId}</p>
+                  </div>
+                </details>
               )}
             </div>
           )}
 
-          {/* Partial errors */}
+          {/* Partial errors — collapsed by default */}
           {displayData?.errors && displayData.errors.length > 0 && (
-            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-sm font-medium text-amber-800 mb-1">
-                Some detectors encountered issues:
-              </p>
-              {displayData.errors.map((err, i) => (
-                <p key={i} className="text-xs text-amber-600">{err}</p>
-              ))}
-            </div>
+            <details className="mb-4 bg-amber-50 border border-amber-200 rounded-lg group">
+              <summary className="flex items-center gap-2 p-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span className="text-xs font-medium text-amber-800">
+                  {displayData.errors.length} detector{displayData.errors.length !== 1 ? "s" : ""} had issues
+                </span>
+                <span className="text-xs text-amber-400 group-open:hidden ml-auto">Show</span>
+                <span className="text-xs text-amber-400 hidden group-open:inline ml-auto">Hide</span>
+              </summary>
+              <div className="px-2.5 pb-2.5 space-y-1">
+                {displayData.errors.map((err, i) => (
+                  <p key={i} className="text-xs text-amber-600">{err}</p>
+                ))}
+              </div>
+            </details>
           )}
 
           {/* Data freshness */}
