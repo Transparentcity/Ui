@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { render, screen, fireEvent } from "@testing-library/react"
 import { vi, describe, it, expect, beforeEach } from "vitest"
 import { EntityScoresPage } from "./entity-scores-page"
@@ -5,7 +6,6 @@ import {
   makeMockQuery,
   makeMockQueryLoading,
   makeMockQueryError,
-  makeMockMutation,
   makeEntityScore,
   installResizeObserver,
 } from "./test-utils"
@@ -31,24 +31,34 @@ vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }))
 
-vi.mock("@/lib/hooks/useCities", () => ({
-  useCities: vi.fn(),
+vi.mock("@tanstack/react-query", async () => {
+  const actual = await vi.importActual("@tanstack/react-query") as Record<string, unknown>
+  return {
+    ...actual,
+    useQuery: (opts: any) => {
+      // For the public cities sitemap query, return mock cities
+      if (opts.queryKey?.[0] === "public" && opts.queryKey?.[1] === "cities") {
+        return { data: [{ id: 1, name: "San Francisco", datasets_count: 5 }], isLoading: false }
+      }
+      // Fallback (shouldn't be hit)
+      return { data: undefined, isLoading: false }
+    },
+  }
+})
+
+vi.mock("@/lib/publicApiClient", () => ({
+  listPublicCitiesForSitemap: vi.fn().mockResolvedValue([]),
 }))
 
 vi.mock("@/lib/hooks/useWaste", () => ({
   useWasteEntityScores: vi.fn(),
 }))
 
-import { useCities as _useCities } from "@/lib/hooks/useCities"
 import { useWasteEntityScores as _useWasteEntityScores } from "@/lib/hooks/useWaste"
 
-const useCities = vi.mocked(_useCities)
 const useWasteEntityScores = vi.mocked(_useWasteEntityScores)
 
 function setupDefaultMocks() {
-  useCities.mockReturnValue(
-    makeMockQuery([{ city_id: 1, name: "San Francisco", datasets_count: 5 }]) as ReturnType<typeof _useCities>
-  )
   const items = [
     makeEntityScore({ id: "es-1", entity_name: "Acme Corp", composite_score: 92, severity_tier: "critical", signal_count: 8 }),
     makeEntityScore({ id: "es-2", entity_name: "Bob's Plumbing", composite_score: 65, severity_tier: "high", signal_count: 3 }),

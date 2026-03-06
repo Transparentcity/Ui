@@ -2,7 +2,9 @@
 
 import { useState, useMemo, useCallback } from "react"
 import { useWasteEntityScores } from "@/lib/hooks/useWaste"
-import { useCities } from "@/lib/hooks/useCities"
+import { useQuery } from "@tanstack/react-query"
+import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
+import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import { WasteShell } from "./waste-shell"
 import { SeverityBadge } from "./severity-badge"
 import { ScoreBar } from "./score-bar"
@@ -49,6 +51,32 @@ const SEVERITY_ORDER: Record<string, number> = {
   info: 4,
 }
 
+function SortHeader({
+  field,
+  activeField,
+  onToggle,
+  children,
+}: {
+  field: SortField
+  activeField: SortField
+  onToggle: (field: SortField) => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(field)}
+      className={cn(
+        "inline-flex items-center gap-1 hover:text-gray-900 transition-colors",
+        activeField === field && "text-purple-700 font-semibold"
+      )}
+    >
+      {children}
+      <ArrowUpDown className={cn("w-3 h-3", activeField === field ? "text-purple-600" : "text-gray-400")} />
+    </button>
+  )
+}
+
 export function EntityScoresPage() {
   const [page, setPage] = useState(1)
   const [perPage] = useState(25)
@@ -58,10 +86,15 @@ export function EntityScoresPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
   const [selectedEntity, setSelectedEntity] = useState<WasteEntityScore | null>(null)
 
-  const citiesQuery = useCities({ includeInactive: false })
+  const citiesQuery = useQuery({
+    queryKey: ["public", "cities", "sitemap"],
+    queryFn: listPublicCitiesForSitemap,
+    staleTime: 5 * 60 * 1000,
+  })
   const selectedCityId = useMemo(() => {
     const eligible = (citiesQuery.data ?? []).filter((c) => (c.datasets_count ?? 0) > 0)
-    return eligible.length > 0 ? Number(eligible[0].city_id) : null
+    if (eligible.length > 0) return Number(eligible[0].id)
+    return CRM_DEFAULT_CITY_ID
   }, [citiesQuery.data])
 
   const { data, isLoading, error } = useWasteEntityScores({
@@ -89,10 +122,11 @@ export function EntityScoresPage() {
 
   const totalPages = data ? Math.ceil(data.total / perPage) : 0
 
+  const items = data?.items
   const sortedItems = useMemo(() => {
-    if (!data?.items) return []
-    const items = [...data.items]
-    items.sort((a, b) => {
+    if (!items) return []
+    const sorted = [...items]
+    sorted.sort((a, b) => {
       let cmp = 0
       if (sortBy === "composite_score") cmp = a.composite_score - b.composite_score
       else if (sortBy === "signal_count") cmp = a.signal_count - b.signal_count
@@ -100,28 +134,8 @@ export function EntityScoresPage() {
         cmp = (SEVERITY_ORDER[a.severity_tier] ?? 4) - (SEVERITY_ORDER[b.severity_tier] ?? 4)
       return sortDir === "desc" ? -cmp : cmp
     })
-    return items
-  }, [data?.items, sortBy, sortDir])
-
-  const SortHeader = ({
-    field,
-    children,
-  }: {
-    field: SortField
-    children: React.ReactNode
-  }) => (
-    <button
-      type="button"
-      onClick={() => toggleSort(field)}
-      className={cn(
-        "inline-flex items-center gap-1 hover:text-gray-900 transition-colors",
-        sortBy === field && "text-purple-700 font-semibold"
-      )}
-    >
-      {children}
-      <ArrowUpDown className={cn("w-3 h-3", sortBy === field ? "text-purple-600" : "text-gray-400")} />
-    </button>
-  )
+    return sorted
+  }, [items, sortBy, sortDir])
 
   return (
     <WasteShell title="Entity Risk Scores" description="Composite risk scores across all monitored entities">
@@ -176,13 +190,13 @@ export function EntityScoresPage() {
               <TableHead>Entity Name</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>
-                <SortHeader field="composite_score">Score</SortHeader>
+                <SortHeader field="composite_score" activeField={sortBy} onToggle={toggleSort}>Score</SortHeader>
               </TableHead>
               <TableHead>
-                <SortHeader field="severity_tier">Severity</SortHeader>
+                <SortHeader field="severity_tier" activeField={sortBy} onToggle={toggleSort}>Severity</SortHeader>
               </TableHead>
               <TableHead>
-                <SortHeader field="signal_count">Signals</SortHeader>
+                <SortHeader field="signal_count" activeField={sortBy} onToggle={toggleSort}>Signals</SortHeader>
               </TableHead>
               <TableHead>Top Detector</TableHead>
               <TableHead>Last Scored</TableHead>
