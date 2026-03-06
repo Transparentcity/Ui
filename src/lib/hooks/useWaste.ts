@@ -108,6 +108,7 @@ export function useActiveWasteJob(cityId: number | null) {
     jobId: string
   } | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const isStartingRef = useRef(false)
   const retryCountRef = useRef(0)
   const lastProgressSnapshotRef = useRef<{ progress: number; statusMessage: string; updatedAt: number }>({
     progress: 0, statusMessage: "", updatedAt: Date.now(),
@@ -179,6 +180,7 @@ export function useActiveWasteJob(cityId: number | null) {
             })
             // Small delay before retrying to let the server settle
             await new Promise((r) => setTimeout(r, 2000))
+            isStartingRef.current = false // reset lock so the auto-retry can proceed
             await startNewJobRef.current()
           } else {
             const ageMin = Math.round(jobAgeMs / 60_000)
@@ -285,11 +287,17 @@ export function useActiveWasteJob(cityId: number | null) {
    *  Auto-retries up to 2 times on gateway errors (502/503/504) with backoff. */
   const startJob = useCallback(
     async (category?: string) => {
+      // Concurrency guard: prevent multiple parallel startJob invocations
+      if (isStartingRef.current) {
+        console.warn("[useActiveWasteJob] startJob already in progress, skipping duplicate call")
+        return
+      }
       if (!cityId) {
         console.error("[useActiveWasteJob] Cannot start job: cityId is null")
         setStartError("No city selected. Please wait for city data to load or reload the page.")
         return
       }
+      isStartingRef.current = true
       setIsStarting(true)
       setStartError(null)
 
@@ -320,6 +328,7 @@ export function useActiveWasteJob(cityId: number | null) {
             console.error("[useActiveWasteJob] No job_id in response:", result)
             setStartError("Server did not return a job ID. Check the backend logs.")
           }
+          isStartingRef.current = false
           setIsStarting(false)
           return
         } catch (err) {
@@ -343,10 +352,12 @@ export function useActiveWasteJob(cityId: number | null) {
           console.error("[useActiveWasteJob] Failed to start job:", msg)
           setStartError(`Failed to start analysis: ${msg}`)
           setActiveJob(null)
+          isStartingRef.current = false
           setIsStarting(false)
           return
         }
       }
+      isStartingRef.current = false
       setIsStarting(false)
     },
     [cityId, getAccessTokenSilently, startPolling]
@@ -359,6 +370,7 @@ export function useActiveWasteJob(cityId: number | null) {
   const startJobWithReset = useCallback(
     async (category?: string) => {
       retryCountRef.current = 0
+      isStartingRef.current = false // allow user-initiated restart even if prior call is "stuck"
       setRetryCount(0)
       setLastDiagnostics(null)
       setStartError(null)
@@ -372,6 +384,7 @@ export function useActiveWasteJob(cityId: number | null) {
   const cancelActiveJob = useCallback(async () => {
     if (!activeJob?.job_id) return
     stopPolling()
+    isStartingRef.current = false // allow a fresh start after cancel
     try {
       const token = await getAccessTokenSilently()
       await cancelJob(activeJob.job_id, token)
