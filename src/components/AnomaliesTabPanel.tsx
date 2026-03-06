@@ -24,6 +24,8 @@ interface AnomaliesTabPanelProps {
   initialDistrict?: number | null;
   selectedPlaceId?: number | null;
   userPlaces?: Array<{ id: number; label: string; city_id: number }>;
+  /** When true, hide the panel's own "Anomaly Alerts" heading (e.g. when used under city view section title). */
+  hideSectionTitle?: boolean;
   onMetricClick?: (metricId: number, district?: number | null) => void;
 }
 
@@ -397,6 +399,7 @@ export default function AnomaliesTabPanel({
   initialDistrict,
   selectedPlaceId = null,
   userPlaces = [],
+  hideSectionTitle = false,
   onMetricClick,
 }: AnomaliesTabPanelProps) {
   const [expandedMetricIds, setExpandedMetricIds] = useState<Set<number>>(new Set());
@@ -667,12 +670,14 @@ export default function AnomaliesTabPanel({
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <h2 className={styles.title}>
-          <i className="fas fa-bell" style={{ marginRight: "8px" }} />
-          Anomaly Alerts
-        </h2>
-      </div>
+      {!hideSectionTitle && (
+        <div className={styles.header}>
+          <h2 className={styles.title}>
+            <i className="fas fa-bell" style={{ marginRight: "8px" }} />
+            Anomaly Alerts
+          </h2>
+        </div>
+      )}
 
       <div className={styles.filtersBar}>
         <div className={styles.filterGroup}>

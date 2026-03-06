@@ -750,6 +750,32 @@ export default function DistrictNavigation({
                   </div>
                 )}
 
+                {/* My block (user places) – shown first */}
+                {!trimmed && userPlaces.length > 0 && (
+                  <div className="district-navigation-results">
+                    <div className="district-navigation-results-header">
+                      My block:
+                    </div>
+                    {userPlaces.map((place) => {
+                      const isSelected = selectedPlaceId === place.id;
+                      return (
+                        <button
+                          key={place.id}
+                          className={`district-navigation-result-item ${isSelected ? "selected" : ""}`}
+                          onClick={() => handlePlaceSelect(place.id)}
+                        >
+                          <div className="district-navigation-result-name">
+                            {place.label}
+                          </div>
+                          <div className="district-navigation-result-district">
+                            Block
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {/* All Districts (when no query) */}
                 {!trimmed && districtOptions.length > 0 && (
                   <div className="district-navigation-results">
@@ -778,32 +804,6 @@ export default function DistrictNavigation({
                                 {(leaderFollowerCounts[String(option.district)] ?? 0)} followers
                               </div>
                             )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* My block (user places) */}
-                {!trimmed && userPlaces.length > 0 && (
-                  <div className="district-navigation-results">
-                    <div className="district-navigation-results-header">
-                      My block:
-                    </div>
-                    {userPlaces.map((place) => {
-                      const isSelected = selectedPlaceId === place.id;
-                      return (
-                        <button
-                          key={place.id}
-                          className={`district-navigation-result-item ${isSelected ? "selected" : ""}`}
-                          onClick={() => handlePlaceSelect(place.id)}
-                        >
-                          <div className="district-navigation-result-name">
-                            {place.label}
-                          </div>
-                          <div className="district-navigation-result-district">
-                            Block
-                          </div>
                         </button>
                       );
                     })}

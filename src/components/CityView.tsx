@@ -498,32 +498,39 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     return () => { cancelled = true; };
   }, [selectedPlaceId, getAccessTokenSilently]);
 
-  const refreshPlaceData = useCallback(async () => {
-    if (!selectedPlaceId || !getAccessTokenSilently) return;
-    setPlaceRunLoading(true);
-    try {
-      const token = await getAccessTokenSilently();
-      const { job_id } = await runPlaceMetricsAndAnomaliesAsJob(selectedPlaceId, token);
-      const pollIntervalMs = 2000;
-      const maxWaitMs = 300000; // 5 min
-      const start = Date.now();
-      while (Date.now() - start < maxWaitMs) {
-        const job = await getJob(job_id, token);
-        if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
-          break;
+  /** Refresh metrics and anomalies for a single place only (the one passed in). */
+  const refreshPlaceData = useCallback(
+    async (placeId: number) => {
+      if (!placeId || !getAccessTokenSilently) return;
+      setPlaceRunLoading(true);
+      try {
+        const token = await getAccessTokenSilently();
+        const { job_id } = await runPlaceMetricsAndAnomaliesAsJob(placeId, token);
+        const pollIntervalMs = 2000;
+        const maxWaitMs = 300000; // 5 min
+        const start = Date.now();
+        while (Date.now() - start < maxWaitMs) {
+          const job = await getJob(job_id, token);
+          if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
+            break;
+          }
+          await new Promise((r) => setTimeout(r, pollIntervalMs));
         }
-        await new Promise((r) => setTimeout(r, pollIntervalMs));
+        // Only update state if we're still viewing this place (user didn't switch)
+        if (selectedPlaceId !== placeId) return;
+        const [metricsRes, anomaliesRes] = await Promise.all([
+          getPlaceMetrics(placeId, token),
+          getPlaceAnomalies(placeId, token),
+        ]);
+        if (selectedPlaceId !== placeId) return;
+        setPlaceTimeSeries(metricsRes?.time_series ?? []);
+        setPlaceAnomalies(anomaliesRes?.anomalies ?? []);
+      } finally {
+        setPlaceRunLoading(false);
       }
-      const [metricsRes, anomaliesRes] = await Promise.all([
-        getPlaceMetrics(selectedPlaceId, token),
-        getPlaceAnomalies(selectedPlaceId, token),
-      ]);
-      setPlaceTimeSeries(metricsRes?.time_series ?? []);
-      setPlaceAnomalies(anomaliesRes?.anomalies ?? []);
-    } finally {
-      setPlaceRunLoading(false);
-    }
-  }, [selectedPlaceId, getAccessTokenSilently]);
+    },
+    [selectedPlaceId, getAccessTokenSilently]
+  );
 
   // New state for explicit period selection
   type CurrentPeriodType = 'this_year' | 'this_month';
@@ -1445,10 +1452,10 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
               <button
                 type="button"
                 className="dashboard-header-customize-btn"
-                onClick={refreshPlaceData}
+                onClick={() => refreshPlaceData(selectedPlaceId!)}
                 disabled={placeRunLoading || placeDataLoading}
               >
-                {placeRunLoading ? "Running…" : "Refresh metrics"}
+                {placeRunLoading ? "Running…" : "Refresh metrics for this place"}
               </button>
             </div>
           </>
@@ -1471,10 +1478,10 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                 <button
                   type="button"
                   className="dashboard-header-customize-btn"
-                  onClick={refreshPlaceData}
+                  onClick={() => refreshPlaceData(selectedPlaceId!)}
                   disabled={placeRunLoading}
                 >
-                  Refresh metrics
+                  Refresh metrics for this place
                 </button>
               </>
             )}
@@ -2087,6 +2094,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             <>
         {/* Map section - fixed height, last 7 days default */}
         <section ref={mapSectionRef} className="city-view-map-section" id="map-section" aria-label="Map">
+          <h2 className="city-view-section-title city-view-map-section-label">Map</h2>
           <CityMapView
             cityId={cityId}
             isAdmin={isAdmin}
@@ -2120,6 +2128,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
 
         {/* Dashboard section - YTD default, no DistrictNavigation (uses sticky selector) */}
         <section className="city-view-dashboard-section" aria-label="Dashboard">
+          <h2 className="city-view-section-title">Dashboard</h2>
           <DashboardMetricsSection
             metrics={cityData.metrics || []}
             cityId={cityId}
@@ -2152,8 +2161,9 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
           />
         </section>
 
-        {/* Alerts section - lazy-mounted when in viewport */}
-        <section ref={alertsSectionRef} className="city-view-alerts-section" aria-label="Alerts">
+        {/* Anomalies section - lazy-mounted when in viewport */}
+        <section ref={alertsSectionRef} className="city-view-alerts-section" aria-label="Anomalies">
+          <h2 className="city-view-section-title">Anomalies</h2>
           {alertsSectionVisible ? (
             <AnomaliesTabPanel
               cityId={cityId}
@@ -2162,6 +2172,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
               initialDistrict={selectedDistrict}
               selectedPlaceId={selectedPlaceId}
               userPlaces={userPlaces}
+              hideSectionTitle
               onMetricClick={(metricId, district) => {
                 setSelectedMetricId(metricId);
                 setSelectedMetricDistrict(district ?? selectedDistrict);
@@ -2169,7 +2180,6 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             />
           ) : (
             <div className="city-view-alerts-placeholder">
-              <h2 className="city-view-alerts-placeholder-title">Alerts</h2>
               <div className="city-view-alerts-placeholder-loading">
                 <Loader size="sm" color="dark" />
                 <span>Loading…</span>

@@ -5,6 +5,14 @@
   font-size: 13px;
 }
 
+/* Wrapper for city row so the main action is a button (one-tap selection) */
+.itemRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .item {
   padding: var(--space-xs) var(--space-lg);
   cursor: pointer;
@@ -14,6 +22,18 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+/* Button used as list item: reset defaults so it matches .item appearance */
+.itemButton {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  border-radius: 0;
 }
 
 .itemMenuOpen {
@@ -83,7 +103,8 @@
   pointer-events: none;
 }
 
-.item:hover .menuBtn {
+.item:hover .menuBtn,
+.itemRow:hover .menuBtn {
   opacity: 1;
   pointer-events: auto;
 }
@@ -175,6 +196,14 @@
   border-left: 3px solid transparent;
   text-decoration: none;
   color: inherit;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  border-top: none;
+  border-right: none;
+  border-bottom: none;
+  background: none;
+  border-radius: 0;
 }
 
 .districtSubItem:hover {
@@ -223,6 +252,14 @@
   border-left: 3px solid transparent;
   text-decoration: none;
   color: inherit;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  border-top: none;
+  border-right: none;
+  border-bottom: none;
+  background: none;
+  border-radius: 0;
 }
 
 .placeSubItem:hover {

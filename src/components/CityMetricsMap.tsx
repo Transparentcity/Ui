@@ -90,7 +90,7 @@ export default function CityMetricsMap({
   /** When set, only this series is shown on the map and in the legend; tap series again to clear */
   const [focusedLegendMetricId, setFocusedLegendMetricId] = useState<string | null>(null);
   const [legendMinimized, setLegendMinimized] = useState(false);
-  const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [isPanelOpen, setIsPanelOpen] = useState(true); // Open (popped out) by default
   const [error, setError] = useState<string | null>(null);
   const [selectedTimelineDate, setSelectedTimelineDate] = useState<string | null>(null);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
@@ -338,10 +338,10 @@ export default function CityMetricsMap({
     [metricsWithMapCapability]
   );
 
-  // Default layer selection: Place view = all place metrics on; Citywide/District = 311 + crime template metrics. When switching out of Place, reset to that default.
+  // Default layer selection: Place view = place metrics only, all on; Citywide/District = all off. When switching view we apply the same default once.
   useEffect(() => {
     if (placeCircle) {
-      // Place view (My Block): only metrics with working map/location, all default to on
+      // Place view (My Block): limit to place metrics only and turn them all on by default
       if (metricsWithMapCapability.length > 0) {
         const newIds = new Set(metricsWithMapCapability.map((m) => String(m.id)));
         setSelectedMetricIds((prev) => {
@@ -360,7 +360,7 @@ export default function CityMetricsMap({
       return;
     }
 
-    // Citywide or District view: default 311 + crime template metrics (on first load or when switching out of Place view)
+    // Citywide or District view: all metrics off by default (on first load or when switching out of Place view)
     blockDefaultsSetRef.current = false;
     const shouldApplyCityDefault =
       previousPlaceCircleRef.current || !defaultMetricsSetRef.current;
@@ -370,26 +370,8 @@ export default function CityMetricsMap({
       return;
     }
 
-    // Turn on 311 and crime metrics by default for city and district map view
-    const defaultSubcategories = ["311"];
-    const metricsToEnable = availableMetrics.filter((m) => {
-      if (!m.is_active) return false;
-      const templateConfig = m.template_id ? getTemplateConfig(m.template_id) : null;
-      const sub = templateConfig?.subcategory?.toLowerCase();
-      const is311 = sub != null && defaultSubcategories.includes(sub);
-      // Crime: from template config or API category so crime is on by default even if template IDs differ per env
-      const isCrime =
-        templateConfig?.category?.toLowerCase() === "crime" ||
-        (m.category != null && String(m.category).toLowerCase() === "crime");
-      return is311 || isCrime;
-    });
-
-    setSelectedMetricIds(
-      metricsToEnable.length > 0
-        ? new Set(metricsToEnable.map((m) => String(m.id)))
-        : new Set()
-    );
-    setHiddenLayers(new Set());
+    setSelectedMetricIds((prev) => (prev.size > 0 ? new Set() : prev));
+    setHiddenLayers((prev) => (prev.size > 0 ? new Set() : prev));
     defaultMetricsSetRef.current = true;
   // Depend on stable keys so we don't re-run when object/array refs change; metricsWithMapCapability is read from closure when effect runs
   }, [availableMetrics, placeCircleKey, mapCapableIdsKey, placeCircle]);

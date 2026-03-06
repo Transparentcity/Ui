@@ -195,19 +195,25 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
               return (
                 <div key={city.id}>
                   <div
-                    className={`${styles.item} ${activeCityId === city.id && !activeDistrict && !activePlaceId ? styles.itemActive : ""}`}
+                    className={styles.itemRow}
                     data-city-id={city.id}
-                    onMouseEnter={() => handleCityHover(city.id)}
-                    onClick={() => handleCityClick(city.id)}
                   >
-                    <div className={styles.content}>
-                      <div className={styles.myCitiesItemWrapper}>
-                        {city.emoji && (
-                          <span className={styles.myCitiesEmoji}>{city.emoji}</span>
-                        )}
+                    <button
+                      type="button"
+                      className={`${styles.item} ${styles.itemButton} ${activeCityId === city.id && !activeDistrict && !activePlaceId ? styles.itemActive : ""}`}
+                      onMouseEnter={() => handleCityHover(city.id)}
+                      onClick={() => handleCityClick(city.id)}
+                      aria-label={`Select city ${city.display_name}`}
+                    >
+                      <div className={styles.content}>
+                        <div className={styles.myCitiesItemWrapper}>
+                          {city.emoji && (
+                            <span className={styles.myCitiesEmoji}>{city.emoji}</span>
+                          )}
                         <div className={styles.myCitiesName}>{city.display_name}</div>
                       </div>
                     </div>
+                    </button>
                     <button
                       className={styles.menuBtn}
                       onClick={(e) => handleMenuToggle(e, city.id)}
@@ -238,14 +244,17 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
                         const isDistrictActive =
                           activeCityId === d.city_id && String(activeDistrict) === d.district;
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={`${d.city_id}-${d.district}`}
                             className={`${styles.districtSubItem} ${isDistrictActive ? styles.districtSubItemActive : ""}`}
                             onClick={() => onDistrictClick?.(d.city_id, d.district)}
+                            aria-label={`Select District ${d.district}, ${d.display_name}`}
+                            aria-current={isDistrictActive ? "true" : undefined}
                           >
                             <span className={styles.districtNumber}>D{d.district}</span>
                             <span className={styles.districtName}>{d.display_name}</span>
-                          </div>
+                          </button>
                         );
                       })}
                     </div>
@@ -255,10 +264,13 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
                       {placesByCityId[city.id].map((place) => {
                         const isPlaceActive = activeCityId === city.id && activePlaceId === place.id;
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={`place-${place.id}`}
                             className={`${styles.placeSubItem} ${isPlaceActive ? styles.placeSubItemActive : ""}`}
                             onClick={() => onPlaceClick?.(city.id, place.id)}
+                            aria-label={`Select place ${place.label}`}
+                            aria-current={isPlaceActive ? "true" : undefined}
                           >
                             <span className={styles.placeSubItemIcon} aria-hidden title="Saved place">
                               <svg width="12" height="14" viewBox="0 0 12 14" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Place">
@@ -266,7 +278,7 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
                               </svg>
                             </span>
                             <span className={styles.placeSubItemLabel}>{place.label}</span>
-                          </div>
+                          </button>
                         );
                       })}
                     </div>

@@ -17,6 +17,7 @@ import Loader from "./Loader";
 import CityMetricsMap from "./CityMetricsMap";
 import "./CityMapView.css";
 import { LAYER_COLOR_PALETTE, type LayerColor } from "@/lib/layerColors";
+import { getInitialMapView, INITIAL_ZOOM_CITYWIDE } from "@/lib/mapUtils";
 import type { MetricDateRange } from "@/lib/dateRange";
 import type { AnomalyResult } from "@/lib/hooks/useAnomalies";
 
@@ -246,8 +247,8 @@ function zoomToGPSLocation(
   map.flyTo({
     center: [lng, lat],
     zoom,
-    duration: 1000, // Smooth animation
-    essential: true, // Important animation, don't skip
+    duration: 0, // Recenter ASAP
+    essential: true,
   });
 }
 
@@ -289,8 +290,8 @@ function zoomToDistrictWithGPS(
     // This ensures we see the district context but can still zoom in close
     map.fitBounds(bounds, {
       padding: { top: 100, bottom: 100, left: 50, right: 50 },
-      maxZoom: 18, // Allow closer zoom than before (was 15)
-      duration: 1000,
+      maxZoom: 18,
+      duration: 0, // Recenter ASAP
     });
   } else {
     // Fallback to direct GPS zoom if bounds couldn't be calculated
@@ -413,8 +414,6 @@ export default function CityMapView({
 
         if (cancelled) return;
 
-        console.log("Loading data for cityId:", cityId, "isAdmin:", isAdmin, "hasPropCityData:", !!propCityData, "hasCityData:", !!cityData);
-
         // Only fetch city data if not provided as prop
         const cityPromise = (propCityData || cityData)
           ? Promise.resolve(propCityData || cityData)
@@ -428,11 +427,7 @@ export default function CityMapView({
         // Set city data immediately so UI can render
         setCityData(city);
 
-        // Don't set default center yet - wait for shapefiles to calculate proper center
-        // This ensures the map is centered on the actual city, not the middle of the country
-
-        // Load structure data in background (heavy operation)
-        // For non-admin users, we still need elected officials for map labels/popups
+        // Wait for structure and shapefiles so we have the location's actual center before showing the map.
         let structureData = null;
         try {
           structureData = await getCityStructure(cityId, token).catch((err) => {
@@ -445,14 +440,9 @@ export default function CityMapView({
 
         if (cancelled) return;
 
-        // Extract leaders from structure data (used for popups and defaults)
         const leadersData = structureData?.leaders || [];
         let layersData: CityShapeLayerListItem[] = [];
         try {
-          // Always load geometry - we need it to calculate map center
-          // Even if we don't need it for display (choropleth), we need it for proper map centering
-          // The performance impact is acceptable since we need accurate city centering
-          console.log(`Loading shape layers for city ${cityId} with geometry (needed for map centering)`);
           layersData = await getCityShapeLayers(cityId, token, true);
         } catch (err) {
           console.error("Failed to load city shape layers:", err);
@@ -467,17 +457,6 @@ export default function CityMapView({
         // For non-admins, shape layers won't be shown at all
         const defaultEnabled = new Set<number>();
 
-        console.log("Loaded data - city:", city?.name, "leaders:", leadersData.length, "shapefiles:", shapefilesData.length);
-        console.log("Shapefiles details:", shapefilesData.map((sf: any) => ({
-          id: sf.id,
-          shapefile_name: sf.shapefile_name,
-          structure_type: sf.structure_type,
-          feature_count: sf.feature_count
-        })));
-        console.log("City structure:", structureData);
-        console.log("Geographic structures:", structureData?.geographic_structures?.length || 0);
-        console.log("Query configs:", structureData?.query_configs?.length || 0);
-        
         if (shapefilesData.length === 0 && isAdmin) {
           const geoStructures = structureData?.geographic_structures || [];
           const queryConfigs = structureData?.query_configs || [];
@@ -582,27 +561,21 @@ export default function CityMapView({
         if (calculatedCenter) {
           setMapCenter(calculatedCenter);
           setMapZoom(calculatedZoom);
-          // Update existing map if it's already initialized
-          if (mapInstanceRef.current && mapInstanceRef.current.loaded()) {
+          if (mapInstanceRef.current?.loaded()) {
             mapInstanceRef.current.flyTo({
               center: calculatedCenter,
               zoom: calculatedZoom,
-              duration: 1000,
+              duration: 0, // Recenter ASAP
             });
           }
         } else {
-          // If we couldn't calculate center from shapefiles, use a fallback
-          // Try to use city structure data if available, otherwise use a reasonable default
-          // For now, we'll use a default but this should be rare if shapefiles are loaded
-          console.warn(`Could not calculate center from shapefiles for city ${cityId}, using fallback`);
-          const fallbackCenter: [number, number] = city?.country === "United States" || !city?.country
-            ? [-98.5795, 39.8283] // Center of US (fallback)
-            : [-98.5795, 39.8283]; // Generic default (fallback)
-          setMapCenter(fallbackCenter);
-          setMapZoom(10);
+          const fallback = city
+            ? getInitialMapView(city)
+            : { center: [-98.5795, 39.8283] as [number, number], zoom: INITIAL_ZOOM_CITYWIDE };
+          setMapCenter(fallback.center);
+          setMapZoom(fallback.zoom);
         }
-        
-        // Mark structure data as ready - this allows map to initialize
+
         setStructureDataReady(true);
         
         // Reset default structure flag when city changes
@@ -628,10 +601,9 @@ export default function CityMapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cityId, isAdmin]); // Only depend on cityId and isAdmin - propCityData is handled separately
 
-  // Initialize Mapbox map - wait for structure data to be ready
-  // This ensures we have the correct center before initializing
+  // Initialize Mapbox map as soon as we have a container and initial center (no data required).
   useEffect(() => {
-    if (!mapContainerRef.current || loading || !structureDataReady) return;
+    if (!mapContainerRef.current || loading || !mapCenter) return;
 
     const loadMapbox = async () => {
       try {
@@ -807,7 +779,7 @@ export default function CityMapView({
         map.flyTo({
           center: mapCenter,
           zoom: mapZoom,
-          duration: 1000,
+          duration: 0, // Recenter ASAP
           essential: true,
         });
       }
@@ -1258,7 +1230,7 @@ export default function CityMapView({
     map.flyTo({
       center: mapCenter,
       zoom: mapZoom,
-      duration: 1000,
+      duration: 0, // Recenter ASAP
       essential: true,
     });
   }, [selectedDistrict, placeCircleKey, mapCenter, mapZoom]);
@@ -1319,7 +1291,7 @@ export default function CityMapView({
       map.fitBounds(bounds, {
         padding: { top: 100, bottom: 100, left: 50, right: 50 },
         maxZoom: 14,
-        duration: 1000,
+        duration: 0, // Recenter ASAP
       });
     }
   }, [selectedDistrict, shapefiles, placeCircleKey]);

@@ -4839,6 +4839,13 @@ export interface WasteAnalyzeResponse {
   data_freshness: WasteDataFreshness[];
 }
 
+export interface WasteRunJobResponse {
+  job_id: string;
+  existing_job_id?: string;
+  status: string;
+  message?: string;
+}
+
 export type WasteDispositionType =
   | "confirmed_fraud"
   | "confirmed_waste"
@@ -4969,8 +4976,8 @@ export function getWasteAnalysis(
 export function runWasteAnalysis(
   token: string,
   payload: RunWasteAnalysisRequest
-): Promise<WasteAnalyzeResponse> {
-  return request<WasteAnalyzeResponse>("/api/waste/run", "POST", payload, token);
+): Promise<WasteRunJobResponse> {
+  return request<WasteRunJobResponse>("/api/waste/run", "POST", payload, token);
 }
 
 export function getWasteSummary(
@@ -4979,16 +4986,32 @@ export function getWasteSummary(
   return request<WasteSummaryResponse>("/api/waste/summary", "GET", undefined, token);
 }
 
+export function getWasteRunResult(
+  token: string,
+  runId: number,
+  cityId: number
+): Promise<WasteAnalyzeResponse> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  return request<WasteAnalyzeResponse>(
+    `/api/waste/runs/${runId}/result?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
 export function listWasteRuns(
   token: string,
   cityId: number,
   category?: string,
-  limit: number = 1
+  limit: number = 1,
+  status?: string
 ): Promise<WasteRun[]> {
   const query = new URLSearchParams();
   query.set("city_id", String(cityId));
   query.set("limit", String(limit));
   if (category) query.set("category", category);
+  if (status) query.set("status", status);
   return request<WasteRun[]>(
     `/api/waste/runs?${query.toString()}`,
     "GET",
