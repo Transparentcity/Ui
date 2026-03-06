@@ -2,11 +2,20 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { Loader2, Plus, X, CheckCircle2, AlertTriangle } from "lucide-react"
+import { Loader2, Plus, X, CheckCircle2, AlertTriangle, ClipboardList } from "lucide-react"
 import { useAuth0 } from "@auth0/auth0-react"
+import { toast } from "sonner"
 import { listFoiaTasks } from "@/lib/foiaApiClient"
 import { assignFoiaTask, completeFoiaTask, createFoiaTask } from "@/app/actions/foia"
 import { TaskStatusBadge } from "@/components/foia/status-badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import type { FoiaTask, TaskStatus, TaskType } from "@/lib/foia/types"
 import { formatDistanceToNow } from "date-fns"
 
@@ -44,6 +53,8 @@ export function TasksContent() {
     assigned_to: "",
   })
   const [creating, setCreating] = useState(false)
+  const [assignDialogTaskId, setAssignDialogTaskId] = useState<number | null>(null)
+  const [assignInput, setAssignInput] = useState("")
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -79,23 +90,26 @@ export function TasksContent() {
     setActionLoading(taskId)
     try {
       await completeFoiaTask(taskId)
+      toast.success("Task completed")
       await load()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to complete task")
+      toast.error(err instanceof Error ? err.message : "Failed to complete task")
     } finally {
       setActionLoading(null)
     }
   }
 
-  async function handleAssign(taskId: number) {
-    const assignee = prompt("Assign to (username):")
-    if (!assignee) return
-    setActionLoading(taskId)
+  async function handleAssignConfirm() {
+    if (!assignDialogTaskId || !assignInput.trim()) return
+    setActionLoading(assignDialogTaskId)
     try {
-      await assignFoiaTask(taskId, assignee)
+      await assignFoiaTask(assignDialogTaskId, assignInput.trim())
+      toast.success("Task assigned")
+      setAssignDialogTaskId(null)
+      setAssignInput("")
       await load()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to assign task")
+      toast.error(err instanceof Error ? err.message : "Failed to assign task")
     } finally {
       setActionLoading(null)
     }
@@ -114,9 +128,10 @@ export function TasksContent() {
       })
       setShowNewTask(false)
       setNewTask({ type: "review_delivery", title: "", description: "", assigned_to: "" })
+      toast.success("Task created")
       await load()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to create task")
+      toast.error(err instanceof Error ? err.message : "Failed to create task")
     } finally {
       setCreating(false)
     }
@@ -162,7 +177,7 @@ export function TasksContent() {
       {showNewTask && (
         <form onSubmit={handleCreateTask} className="rounded-xl border border-purple-200 bg-purple-50/30 p-5">
           <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-700">Task Type</label>
                 <select
@@ -219,10 +234,12 @@ export function TasksContent() {
         </form>
       )}
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" role="tablist" aria-label="Filter tasks by status">
         {statusOptions.map((opt) => (
           <button
             key={opt.value}
+            role="tab"
+            aria-selected={filter === opt.value}
             onClick={() => setFilter(opt.value)}
             className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
               filter === opt.value
@@ -264,10 +281,13 @@ export function TasksContent() {
                 <div className="flex items-center gap-1.5">
                   {!task.assigned_to && (
                     <button
-                      onClick={() => handleAssign(task.id)}
+                      onClick={() => { setAssignDialogTaskId(task.id); setAssignInput("") }}
                       disabled={actionLoading === task.id}
-                      className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      className="flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
                     >
+                      {actionLoading === task.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : null}
                       Assign
                     </button>
                   )}
@@ -288,12 +308,59 @@ export function TasksContent() {
             </div>
           ))}
           {tasks.length === 0 && !loading && (
-            <div className="px-6 py-12 text-center text-sm text-gray-400">
-              {apiError ? "Tasks could not be loaded. Check the message above." : "No tasks match your filter."}
+            <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
+              {apiError ? (
+                <p className="text-sm text-gray-400">Tasks could not be loaded. Check the message above.</p>
+              ) : (
+                <>
+                  <ClipboardList className="h-10 w-10 text-gray-300" />
+                  <p className="mt-3 text-sm font-medium text-gray-500">No tasks yet</p>
+                  <p className="mt-1 text-xs text-gray-400">Tasks will appear here when FOIA requests need action.</p>
+                </>
+              )}
             </div>
           )}
         </div>
       )}
+
+      <Dialog open={assignDialogTaskId !== null} onOpenChange={(open) => { if (!open) { setAssignDialogTaskId(null); setAssignInput("") } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign Task</DialogTitle>
+            <DialogDescription>Enter a username to assign this task to.</DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <label className="mb-1 block text-xs font-medium text-gray-700">Username</label>
+            <input
+              type="text"
+              value={assignInput}
+              onChange={(e) => setAssignInput(e.target.value)}
+              placeholder="e.g. admin"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAssignConfirm() } }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => { setAssignDialogTaskId(null); setAssignInput("") }}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleAssignConfirm}
+              disabled={!assignInput.trim() || actionLoading !== null}
+              className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+            >
+              {actionLoading !== null && <Loader2 className="h-4 w-4 animate-spin" />}
+              Assign
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
+import { useAuth0 } from "@auth0/auth0-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,6 +35,7 @@ import { mapApiAnomaliesToCrm } from "@/lib/anomalyMapper"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { AIEmailComposer } from "@/components/ai-email-composer"
 import type { ContactWithKeywords, Keyword, Anomaly } from "@/lib/types"
+import { toast } from "sonner"
 
 interface AnomalyOption {
   result_id: number
@@ -62,10 +64,25 @@ interface ComposeResult {
 interface ComposePageContentProps {
   contacts: ContactWithKeywords[]
   keywords: Keyword[]
+  initialContactId?: string | null
 }
 
-export function ComposePageContent({ contacts, keywords }: ComposePageContentProps) {
+export function ComposePageContent({ contacts, keywords, initialContactId }: ComposePageContentProps) {
   const router = useRouter()
+  const { getAccessTokenSilently } = useAuth0()
+
+  const getAuthHeaders = useCallback(async (contentType?: boolean) => {
+    const headers: Record<string, string> = {}
+    try {
+      const token = await getAccessTokenSilently()
+      headers["Authorization"] = `Bearer ${token}`
+    } catch {
+      // In dev mode, auth may not be configured
+    }
+    if (contentType) headers["Content-Type"] = "application/json"
+    return headers
+  }, [getAccessTokenSilently])
+
   const { data, isLoading } = useAnomalies({
     is_anomaly: true,
     limit: 500,
@@ -93,6 +110,7 @@ export function ComposePageContent({ contacts, keywords }: ComposePageContentPro
   const [refinement, setRefinement] = useState("")
   const [copied, setCopied] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [generationError, setGenerationError] = useState<string | null>(null)
 
   const activeContacts = contacts.filter((c) => c.status === "active")
 
@@ -109,17 +127,6 @@ export function ComposePageContent({ contacts, keywords }: ComposePageContentPro
       }).slice(0, 8)
     : activeContacts.slice(0, 8)
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setShowContactResults(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClick)
-    return () => document.removeEventListener("mousedown", handleClick)
-  }, [])
-
   // When a contact is selected, fetch anomalies for their city
   const selectContact = useCallback(async (contact: ContactWithKeywords) => {
     setSelectedContact(contact)
@@ -133,6 +140,7 @@ export function ComposePageContent({ contacts, keywords }: ComposePageContentPro
     setSelectedAnomaly(null)
     setAnomalies([])
     setSaved(false)
+    setGenerationError(null)
 
     if (!contact.city_id) {
       return // No city, can't fetch anomalies
@@ -140,7 +148,8 @@ export function ComposePageContent({ contacts, keywords }: ComposePageContentPro
 
     setLoadingAnomalies(true)
     try {
-      const resp = await fetch(`${API_BASE}/api/crm/cities/${contact.city_id}/anomalies?lookback_days=14&limit=30`)
+      const headers = await getAuthHeaders()
+      const resp = await fetch(`${API_BASE}/api/crm/cities/${contact.city_id}/anomalies?lookback_days=90&limit=30`, { headers })
       if (!resp.ok) throw new Error("Failed to fetch anomalies")
       const data = await resp.json()
       const fetched: AnomalyOption[] = data.anomalies || []
@@ -155,9 +164,34 @@ export function ComposePageContent({ contacts, keywords }: ComposePageContentPro
       }
     } catch (err) {
       console.error("Fetch anomalies error:", err)
+      toast.error("Failed to fetch anomalies")
+      setGenerationError("Failed to fetch anomalies. Please try again.")
     } finally {
       setLoadingAnomalies(false)
     }
+  }, [])
+
+  // Auto-select contact from URL param
+  const initialContactHandled = useRef(false)
+  useEffect(() => {
+    if (initialContactId && !initialContactHandled.current && !selectedContact) {
+      initialContactHandled.current = true
+      const match = contacts.find((c) => c.id === initialContactId)
+      if (match) {
+        selectContact(match)
+      }
+    }
+  }, [initialContactId, contacts, selectedContact, selectContact])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowContactResults(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
   }, [])
 
   // Generate a draft
@@ -168,10 +202,12 @@ export function ComposePageContent({ contacts, keywords }: ComposePageContentPro
   ) => {
     setIsGenerating(true)
     setSaved(false)
+    setGenerationError(null)
     try {
+      const composeHeaders = await getAuthHeaders(true)
       const resp = await fetch(`${API_BASE}/api/crm/compose`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: composeHeaders,
         body: JSON.stringify({
           prospect_id: contact.id,
           anomaly_result_id: anomaly.result_id,
@@ -186,8 +222,11 @@ export function ComposePageContent({ contacts, keywords }: ComposePageContentPro
       setChartUrl(data.chart_url)
       setQueueItemId(data.queue_item_id)
       setSaved(true)
+      toast.success("Draft generated")
     } catch (err) {
       console.error("Compose error:", err)
+      toast.error("Failed to generate draft")
+      setGenerationError("Failed to generate draft. Please try again.")
     } finally {
       setIsGenerating(false)
     }
@@ -222,9 +261,10 @@ export function ComposePageContent({ contacts, keywords }: ComposePageContentPro
       const text = `Subject: ${draftSubject}\n\n${draftBody}`
       await navigator.clipboard.writeText(text)
       setCopied(true)
+      toast.success("Copied")
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
-      console.error("Copy failed:", err)
+      toast.error("Failed to copy")
     }
   }
 
@@ -288,6 +328,12 @@ export function ComposePageContent({ contacts, keywords }: ComposePageContentPro
                 onChange={(e) => {
                   setContactSearch(e.target.value)
                   setShowContactResults(true)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && filteredContacts.length > 0) {
+                    e.preventDefault()
+                    selectContact(filteredContacts[0])
+                  }
                 }}
                 onFocus={() => setShowContactResults(true)}
                 className="pl-9 h-12 text-base"
@@ -353,22 +399,69 @@ export function ComposePageContent({ contacts, keywords }: ComposePageContentPro
         </Card>
       )}
 
-      {/* Loading anomalies */}
-      {loadingAnomalies && (
-        <div className="flex items-center gap-3 text-sm text-gray-500 py-4 justify-center">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Finding anomalies and generating draft...
-        </div>
+      {/* Loading: anomalies + draft generation progress */}
+      {(loadingAnomalies || (isGenerating && !hasDraft)) && selectedContact && (
+        <Card className="border-purple-100">
+          <CardContent className="p-5">
+            <div className="space-y-3">
+              {/* Step 1: Finding anomalies */}
+              <div className="flex items-center gap-3 text-sm">
+                {!anomalies.length && loadingAnomalies ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-purple-500 shrink-0" />
+                ) : (
+                  <Check className="w-4 h-4 text-green-500 shrink-0" />
+                )}
+                <span className={!anomalies.length && loadingAnomalies ? "text-gray-700" : "text-gray-400"}>
+                  Finding anomalies for {selectedContact.city_name || "city"}...
+                </span>
+                {anomalies.length > 0 && (
+                  <Badge variant="outline" className="text-xs">{anomalies.length} found</Badge>
+                )}
+              </div>
+              {/* Step 2: Generating draft */}
+              <div className="flex items-center gap-3 text-sm">
+                {isGenerating ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-purple-500 shrink-0" />
+                ) : !anomalies.length && loadingAnomalies ? (
+                  <div className="w-4 h-4 rounded-full border-2 border-gray-200 shrink-0" />
+                ) : (
+                  <Check className="w-4 h-4 text-green-500 shrink-0" />
+                )}
+                <span className={isGenerating ? "text-gray-700" : !anomalies.length ? "text-gray-300" : "text-gray-400"}>
+                  Generating personalized email draft...
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* No anomalies found */}
-      {selectedContact && selectedContact.city_id && !loadingAnomalies && anomalies.length === 0 && !isGenerating && (
+      {selectedContact && selectedContact.city_id && !loadingAnomalies && anomalies.length === 0 && !isGenerating && !generationError && (
         <Card className="border-gray-200">
           <CardContent className="p-6 text-center">
             <BarChart3 className="w-8 h-8 mx-auto text-gray-300 mb-3" />
             <p className="text-sm text-gray-500">
-              No recent anomalies found for {selectedContact.city_name || "this city"} in the last 14 days.
+              No recent anomalies found for {selectedContact.city_name || "this city"}.
             </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Generation error with retry (Phase 2) */}
+      {generationError && !isGenerating && !loadingAnomalies && selectedContact && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-5 text-center space-y-3">
+            <p className="text-sm text-red-700">{generationError}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => selectContact(selectedContact)}
+              className="gap-1.5 text-red-700 border-red-300 hover:bg-red-100"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Retry
+            </Button>
           </CardContent>
         </Card>
       )}

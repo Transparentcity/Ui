@@ -26,8 +26,10 @@ export function CitiesContent() {
     }
     try {
       const rows = await listAdminFoiaCities(token)
-      // Show curated FOIA cities only (not the full master city table).
-      const curated = rows.filter((c) => (c.total_datasets ?? 0) > 0)
+      // Show cities that have datasets OR a FOIA profile (submission_method set).
+      const curated = rows.filter(
+        (c) => (c.total_datasets ?? 0) > 0 || c.submission_method
+      )
       setCities(curated.length > 0 ? curated : rows.slice(0, 25))
     } catch (err) {
       console.error("Failed to load city profiles:", err)
@@ -62,7 +64,7 @@ export function CitiesContent() {
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">City Profiles</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Curated FOIA city set (not full city master list)
+          Cities with FOIA profiles or active datasets
         </p>
       </div>
 
@@ -97,7 +99,7 @@ export function CitiesContent() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-900">{city.name}</p>
               <p className="text-xs text-gray-500">
-                {city.state ?? ""}{city.total_datasets ? ` · ${city.total_datasets} datasets` : ""}
+                {city.state ?? ""}{city.total_datasets ? ` · ${city.total_datasets} datasets` : city.submission_method ? ` · ${city.submission_method}` : ""}
               </p>
             </div>
             <ArrowRight className="h-4 w-4 text-gray-300" />

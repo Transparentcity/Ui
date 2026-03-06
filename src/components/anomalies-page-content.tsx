@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useAnomaliesPublic } from "@/lib/hooks/useAnomaliesPublic"
+import { useAnomalies } from "@/lib/hooks/useAnomalies"
 import { mapApiAnomaliesToCrm } from "@/lib/anomalyMapper"
 import type { Anomaly, Keyword } from "@/lib/types"
 import { DashboardShell } from "@/components/dashboard-shell"
@@ -19,8 +19,7 @@ interface AnomaliesPageContentProps {
 
 export function AnomaliesPageContent({ keywords }: AnomaliesPageContentProps) {
   // Backend enforces max limit of 200
-  // Using public hook (no Auth0 required) for CRM pages
-  const { data, isLoading, error } = useAnomaliesPublic({
+  const { data, isLoading, error } = useAnomalies({
     is_anomaly: true,
     limit: 200,
     city_id: CRM_DEFAULT_CITY_ID,

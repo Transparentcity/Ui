@@ -7,6 +7,7 @@ import type {
   PublicMapListItem,
 } from "@/lib/publicApiClient";
 import "@/components/CityView.css";
+import { formatMetricValue, formatPeriodDate } from "@/lib/formatters";
 import DistrictListWithFollow from "./DistrictListWithFollow";
 
 /** Optional ordering: when provided, categories and metrics are sorted by it. */
@@ -37,65 +38,6 @@ type CityDashboardSectionProps = {
   cityId?: number;
   leaders?: PublicLeader[] | null;
 };
-
-/**
- * Format a metric value based on its display unit.
- * Matches CityView's formatMetricValue.
- */
-function formatMetricValue(
-  value: number | null | undefined,
-  displayUnit?: string | null
-): string {
-  if (value === null || value === undefined) {
-    return "No data";
-  }
-
-  if (displayUnit === "percentage") {
-    return `${Math.round(value)}%`;
-  }
-
-  const absValue = Math.abs(value);
-  const sign = value < 0 ? "-" : "";
-  const formatWithSuffix = (scaled: number, suffix: string) =>
-    `${scaled.toFixed(1).replace(/\.0$/, "")}${suffix}`;
-
-  const compact =
-    absValue >= 1e9
-      ? formatWithSuffix(absValue / 1e9, "B")
-      : absValue >= 1e6
-        ? formatWithSuffix(absValue / 1e6, "M")
-        : absValue >= 1e3
-          ? formatWithSuffix(absValue / 1e3, "k")
-          : `${Math.round(absValue * 10) / 10}`;
-
-  if (displayUnit === "currency") {
-    return `${sign}$${compact}`;
-  }
-
-  return `${sign}${compact}`;
-}
-
-function formatPeriodDate(start?: string | null, end?: string | null): string | null {
-  if (!start || !end) return null;
-  try {
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    // Use UTC timezone to avoid off-by-one date issues with server dates
-    const startStr = startDate.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      timeZone: "UTC",
-    });
-    const endStr = endDate.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      timeZone: "UTC",
-    });
-    return `${startStr} - ${endStr}`;
-  } catch {
-    return null;
-  }
-}
 
 export default function CityDashboardSection({
   cityDisplayName,

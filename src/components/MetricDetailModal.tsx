@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { formatDateRangeFromStrings } from "@/lib/formatters";
 import { usePublicMetric, usePublicMetricComparisons, usePublicMetricTimeSeriesSummary } from "@/lib/hooks/usePublicMetric";
 import {
   getPublicCityDetail,
@@ -263,18 +264,8 @@ export default function MetricDetailModal({
     return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
   };
 
-  const formatDateRange = (start: string | null | undefined, end: string | null | undefined, loading?: boolean): string => {
-    if (loading) return "Loading...";
-    if (!start || !end) return "—";
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-      return "—";
-    }
-    const startStr = startDate.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-    const endStr = endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-    return `${startStr} – ${endStr}`;
-  };
+  const formatDateRange = (start: string | null | undefined, end: string | null | undefined, loading?: boolean): string =>
+    formatDateRangeFromStrings(start, end, { loading });
 
   const formatBreakdownNum = (n: number | null | undefined): string =>
     n != null ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "—";

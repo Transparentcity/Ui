@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { formatDateRangeFromStrings } from "@/lib/formatters";
 import type { PublicMetricDetail, PublicMetricComparison } from "@/lib/publicApiClient";
 import "./MetricHero.css";
 
@@ -69,21 +70,8 @@ export default function MetricHero({
     });
   };
 
-  const formatDateRange = (start: string | null, end: string | null): string => {
-    if (!start || !end) return "";
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    const startStr = startDate.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    });
-    const endStr = endDate.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-    return `${startStr} - ${endStr}`;
-  };
+  const formatDateRange = (start: string | null, end: string | null): string =>
+    formatDateRangeFromStrings(start, end, { fallback: "" });
 
   return (
     <div className="metric-hero">

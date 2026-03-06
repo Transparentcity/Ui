@@ -55,8 +55,8 @@ export async function createFoiaRequest(data: {
   submission_email_address?: string
 }) {
   const result = await apiRequest("POST", "/api/foia/requests", data)
-  revalidatePath("/foia")
   revalidatePath("/foia/requests")
+  revalidatePath("/foia/messages")
   return result
 }
 
@@ -67,7 +67,6 @@ export async function submitFoiaRequest(
   }
 ) {
   const result = await apiRequest("POST", `/api/foia/requests/${requestId}/submit`, data)
-  revalidatePath("/foia")
   revalidatePath("/foia/requests")
   revalidatePath(`/foia/requests/${requestId}`)
   return result
@@ -84,7 +83,6 @@ export async function rewriteFoiaRequest(
   }
 ) {
   const result = await apiRequest("POST", `/api/foia/requests/${requestId}/rewrite`, data)
-  revalidatePath("/foia")
   revalidatePath("/foia/requests")
   return result
 }
@@ -100,7 +98,6 @@ export async function updateRequestStatus(
     actor: actor ?? "admin",
     notes,
   })
-  revalidatePath("/foia")
   revalidatePath("/foia/requests")
   revalidatePath(`/foia/requests/${requestId}`)
   return result
@@ -186,7 +183,7 @@ export async function createFoiaTask(data: {
   due_at?: string
 }) {
   const result = await apiRequest("POST", "/api/foia/tasks", data)
-  revalidatePath("/foia")
+  revalidatePath("/foia/requests")
   revalidatePath("/foia/messages")
   return result
 }
@@ -201,8 +198,8 @@ export async function assignFoiaTask(taskId: number, assignedTo: string) {
 
 export async function completeFoiaTask(taskId: number) {
   const result = await apiRequest("POST", `/api/foia/tasks/${taskId}/complete`)
-  revalidatePath("/foia")
   revalidatePath("/foia/messages")
+  revalidatePath("/foia/tasks")
   return result
 }
 

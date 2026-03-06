@@ -51,7 +51,7 @@ export async function createContact(formData: FormData) {
     email: email || null,
     phone: phone || null,
     jurisdiction: jurisdiction || null,
-    contact_type,
+    contact_type: contact_type || null,
     city_id: city_id,
     city_name: city_name || null,
     priority,
@@ -128,7 +128,7 @@ export async function updateContact(id: string, formData: FormData) {
     email: email || null,
     phone: phone || null,
     jurisdiction: jurisdiction || null,
-    contact_type,
+    contact_type: contact_type || null,
     city_id: city_id,
     city_name: city_name || null,
     priority,
@@ -217,6 +217,95 @@ export async function bulkUpdateCity(
   return { updated, errors }
 }
 
+// Bulk add keywords to multiple contacts (adds without removing existing)
+export async function bulkAddKeywords(
+  contactIds: string[],
+  keywordIds: string[]
+): Promise<{ updated: number; errors: string[] }> {
+  const db = createClient()
+  const errors: string[] = []
+  let updated = 0
+
+  for (const contactId of contactIds) {
+    // Fetch existing keyword links to avoid duplicates
+    const { data: existing } = await db
+      .from("prospect_keywords")
+      .select("keyword_id")
+      .eq("prospect_id", contactId)
+    const existingIds = new Set(
+      (existing as { keyword_id: string }[] | null)?.map((r) => r.keyword_id) ?? []
+    )
+    const newLinks = keywordIds
+      .filter((kid) => !existingIds.has(kid))
+      .map((kid) => ({ prospect_id: contactId, keyword_id: kid }))
+
+    if (newLinks.length > 0) {
+      const { error } = await db.from("prospect_keywords").insert(newLinks)
+      if (error) {
+        errors.push(`Contact ${contactId}: ${error.message}`)
+        continue
+      }
+    }
+    updated++
+  }
+
+  revalidatePath("/contacts")
+  revalidatePath("/")
+  return { updated, errors }
+}
+
+// Bulk update contact type on multiple contacts
+export async function bulkUpdateType(
+  contactIds: string[],
+  contactType: string
+): Promise<{ updated: number; errors: string[] }> {
+  const db = createClient()
+  const errors: string[] = []
+  let updated = 0
+
+  const batchSize = 50
+  for (let i = 0; i < contactIds.length; i += batchSize) {
+    const batch = contactIds.slice(i, i + batchSize)
+    for (const id of batch) {
+      const { error } = await db
+        .from("prospects")
+        .update({ contact_type: contactType })
+        .eq("id", id)
+      if (error) {
+        errors.push(`Contact ${id}: ${error.message}`)
+      } else {
+        updated++
+      }
+    }
+  }
+  revalidatePath("/contacts")
+  revalidatePath("/")
+  return { updated, errors }
+}
+
+/** Check if an email already exists in the prospects table. */
+export async function checkDuplicateEmail(
+  email: string,
+  excludeId?: string
+): Promise<{ duplicate: boolean; name?: string }> {
+  if (!email?.trim()) return { duplicate: false }
+  const db = createClient()
+  let query = db
+    .from("prospects")
+    .select("id, name")
+    .ilike("email", email.trim())
+    .limit(1)
+  if (excludeId) {
+    query = query.neq("id", excludeId)
+  }
+  const { data } = await query
+  const rows = Array.isArray(data) ? data : []
+  if (rows.length > 0) {
+    return { duplicate: true, name: (rows[0] as { name: string }).name }
+  }
+  return { duplicate: false }
+}
+
 /** Lightweight list for pickers/typeaheads (client-side filtering). */
 export async function listActiveContactsLite(): Promise<
   Array<{
@@ -240,6 +329,72 @@ export async function listActiveContactsLite(): Promise<
   }
   const arr = Array.isArray(data) ? data : []
   return arr.filter((c: { status?: string }) => (c?.status || "active") === "active")
+}
+
+/** Get activity timeline events for a contact. */
+export async function getContactActivity(
+  contactId: string
+): Promise<Array<{ type: string; date: string; detail: string }>> {
+  const db = createClient()
+  const events: Array<{ type: string; date: string; detail: string }> = []
+
+  // Get contact creation/update dates
+  const { data: contact } = await db
+    .from("prospects")
+    .select("created_at, updated_at, name")
+    .eq("id", contactId)
+    .single()
+
+  if (contact) {
+    const c = contact as { created_at: string; updated_at: string; name: string }
+    events.push({
+      type: "contact_created",
+      date: c.created_at,
+      detail: `Contact "${c.name}" was created`,
+    })
+    if (c.updated_at && c.updated_at !== c.created_at) {
+      events.push({
+        type: "contact_updated",
+        date: c.updated_at,
+        detail: `Contact info was updated`,
+      })
+    }
+  }
+
+  // Get send_queue events
+  const { data: queueItems } = await db
+    .from("send_queue")
+    .select("id, status, created_at, sent_at, personalized_subject")
+    .eq("prospect_id", contactId)
+    .order("created_at", { ascending: false })
+
+  const items = Array.isArray(queueItems) ? queueItems : []
+  for (const item of items) {
+    const q = item as {
+      id: string
+      status: string
+      created_at: string
+      sent_at: string | null
+      personalized_subject: string | null
+    }
+    events.push({
+      type: "draft_generated",
+      date: q.created_at,
+      detail: `Draft generated: "${q.personalized_subject || "(No subject)"}"`,
+    })
+    if (q.status === "sent" && q.sent_at) {
+      events.push({
+        type: "email_sent",
+        date: q.sent_at,
+        detail: `Email sent: "${q.personalized_subject || "(No subject)"}"`,
+      })
+    }
+  }
+
+  // Sort chronologically (newest first)
+  events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+  return events
 }
 
 // Bulk import contacts from CSV

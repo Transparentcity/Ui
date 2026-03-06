@@ -186,35 +186,6 @@ export function ContactImportDialog({ keywords, children }: ContactImportDialogP
     return mapping
   }, [])
 
-  // Handle file upload
-  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0]
-    if (!selectedFile) return
-
-    setFile(selectedFile)
-    setParseError(null)
-
-    try {
-      const text = await selectedFile.text()
-      const { headers: csvHeaders, rows } = parseCSV(text)
-      
-      if (csvHeaders.length === 0) {
-        throw new Error("No headers found in CSV")
-      }
-      
-      if (rows.length === 0) {
-        throw new Error("No data rows found in CSV")
-      }
-
-      setHeaders(csvHeaders)
-      setRawRows(rows)
-      setFieldMapping(autoDetectMappings(csvHeaders))
-      setStep("map")
-    } catch (err) {
-      setParseError(err instanceof Error ? err.message : "Failed to parse CSV file")
-    }
-  }, [parseCSV, autoDetectMappings])
-
   // Update field mapping
   const updateMapping = useCallback((field: ContactFieldKey, csvHeader: string | null) => {
     setFieldMapping(prev => ({ ...prev, [field]: csvHeader }))
@@ -331,6 +302,70 @@ export function ContactImportDialog({ keywords, children }: ContactImportDialogP
     })
   }, [parsedRows, keywords, startTransition])
 
+  // Drag-and-drop state
+  const [isDragging, setIsDragging] = useState(false)
+
+  const processFile = useCallback(async (selectedFile: File) => {
+    setFile(selectedFile)
+    setParseError(null)
+
+    try {
+      const text = await selectedFile.text()
+      const { headers: csvHeaders, rows } = parseCSV(text)
+
+      if (csvHeaders.length === 0) {
+        throw new Error("No headers found in CSV")
+      }
+
+      if (rows.length === 0) {
+        throw new Error("No data rows found in CSV")
+      }
+
+      setHeaders(csvHeaders)
+      setRawRows(rows)
+      setFieldMapping(autoDetectMappings(csvHeaders))
+      setStep("map")
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : "Failed to parse CSV file")
+    }
+  }, [parseCSV, autoDetectMappings])
+
+  // Handle file upload via input
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0]
+    if (!selectedFile) return
+    await processFile(selectedFile)
+  }, [processFile])
+
+  // Handle drag-and-drop
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }, [])
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    const droppedFile = e.dataTransfer.files[0]
+    if (!droppedFile) return
+
+    if (!droppedFile.name.endsWith(".csv") && droppedFile.type !== "text/csv") {
+      setParseError("Please upload a CSV file")
+      return
+    }
+
+    await processFile(droppedFile)
+  }, [processFile])
+
   // Reset dialog
   const handleReset = useCallback(() => {
     setStep("upload")
@@ -442,25 +477,32 @@ export function ContactImportDialog({ keywords, children }: ContactImportDialogP
           <TabsContent value="upload" className="flex-1 overflow-auto">
             <div className="space-y-6 py-6">
               {/* Upload Area */}
-              <label 
-                htmlFor="csv-upload" 
+              <label
+                htmlFor="csv-upload"
                 className="flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-12 cursor-pointer transition-all"
-                style={{ 
-                  borderColor: 'var(--border-primary)',
-                  backgroundColor: 'var(--bg-secondary)',
+                style={{
+                  borderColor: isDragging ? 'var(--brand-primary)' : 'var(--border-primary)',
+                  backgroundColor: isDragging ? 'rgba(138, 79, 255, 0.08)' : 'var(--bg-secondary)',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--brand-primary)'
-                  e.currentTarget.style.backgroundColor = 'rgba(138, 79, 255, 0.05)'
+                  if (!isDragging) {
+                    e.currentTarget.style.borderColor = 'var(--brand-primary)'
+                    e.currentTarget.style.backgroundColor = 'rgba(138, 79, 255, 0.05)'
+                  }
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--border-primary)'
-                  e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'
+                  if (!isDragging) {
+                    e.currentTarget.style.borderColor = 'var(--border-primary)'
+                    e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'
+                  }
                 }}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
               >
-                <Upload className="w-12 h-12 mb-4" style={{ color: 'var(--text-tertiary)' }} />
+                <Upload className="w-12 h-12 mb-4" style={{ color: isDragging ? 'var(--brand-primary)' : 'var(--text-tertiary)' }} />
                 <span className="text-lg font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
-                  Click to upload CSV file
+                  {isDragging ? "Drop CSV file here" : "Click to upload CSV file"}
                 </span>
                 <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
                   or drag and drop

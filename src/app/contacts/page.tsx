@@ -2,9 +2,8 @@ import { createClient } from "@/lib/db"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { ContactsTable } from "@/components/contacts-table"
 import { ContactDialog } from "@/components/contact-dialog"
-import { ContactImportDialog } from "@/components/contact-import-dialog"
 import { Button } from "@/components/ui/button"
-import { Plus, Upload } from "lucide-react"
+import { Plus } from "lucide-react"
 
 export const dynamic = "force-dynamic"
 
@@ -37,9 +36,26 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
 
   const { data: keywordsData } = await db.from("keywords").select("*").order("name")
 
+  // Fetch send_queue counts grouped by prospect_id and status
+  const { data: draftCountsData } = await db
+    .from("send_queue")
+    .select("prospect_id, status")
+
   const contacts = Array.isArray(contactsData) ? contactsData : []
   const articleLinks = Array.isArray(articleLinksData) ? articleLinksData : []
   const keywords = Array.isArray(keywordsData) ? keywordsData : []
+  const draftRows = Array.isArray(draftCountsData) ? draftCountsData : []
+
+  // Build draft counts map: prospect_id -> { pending, sent }
+  const draftCountsMap = new Map<string, { pending: number; sent: number }>()
+  for (const row of draftRows) {
+    const pid = (row as { prospect_id: string }).prospect_id
+    const status = (row as { status: string }).status
+    const entry = draftCountsMap.get(pid) ?? { pending: 0, sent: 0 }
+    if (status === "pending_review") entry.pending++
+    else if (status === "sent") entry.sent++
+    draftCountsMap.set(pid, entry)
+  }
 
   const linksByProspect = new Map<string, (typeof articleLinks)[number][]>()
   for (const a of articleLinks) {
@@ -57,6 +73,7 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
         (ck) => ck.keyword
       ) ?? [],
     article_links: linksByProspect.get(contact.id as string) ?? [],
+    draftCounts: draftCountsMap.get(contact.id as string) ?? undefined,
   }))
 
   return (
@@ -64,20 +81,12 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
       title="Contacts"
       description="City staff and media prospects"
       actions={
-        <div className="flex items-center gap-2">
-          <ContactImportDialog keywords={keywords as any}>
-            <Button variant="outline">
-              <Upload className="w-4 h-4 mr-2" />
-              Import CSV
-            </Button>
-          </ContactImportDialog>
-          <ContactDialog keywords={keywords as any}>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Contact
-            </Button>
-          </ContactDialog>
-        </div>
+        <ContactDialog keywords={keywords as any}>
+          <Button>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Contact
+          </Button>
+        </ContactDialog>
       }
     >
       <ContactsTable

@@ -40,6 +40,7 @@ export interface QueryBuilder {
   gte: (column: string, value: unknown) => QueryBuilder
   lt: (column: string, value: unknown) => QueryBuilder
   lte: (column: string, value: unknown) => QueryBuilder
+  ilike: (column: string, pattern: string) => QueryBuilder
   in: (column: string, values: unknown[]) => QueryBuilder
   is: (column: string, value: null | boolean) => QueryBuilder
   order: (column: string, options?: { ascending?: boolean }) => QueryBuilder
@@ -260,6 +261,11 @@ function createQueryBuilder(tableName: string, dbPool: Pool): QueryBuilder {
 
     lte(column, value) {
       state.filters.push({ column, operator: '<=', value })
+      return builder
+    },
+
+    ilike(column, pattern) {
+      state.filters.push({ column, operator: 'ILIKE', value: pattern })
       return builder
     },
 

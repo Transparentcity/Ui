@@ -7,13 +7,16 @@ import {
   getCityFoiaProfileAndTargets,
   getRequesterProfile,
   listCityFoiaDepartments,
+  listFoiaRequests,
   suggestCityFoiaDepartment,
   composeCityFoiaRequestBlock,
   markFoiaExternallyFiled,
 } from "@/lib/foiaApiClient"
 import { API_BASE } from "@/lib/apiBase"
+import { toast } from "sonner"
+import { datasetLabel } from "@/lib/foia/datasetLabels"
 import { useRouter } from "next/navigation"
-import type { CityFoiaProfile, CityDatasetTarget, FoiaCityDepartment, FoiaRequesterProfile } from "@/lib/foia/types"
+import type { CityFoiaProfile, CityDatasetTarget, FoiaCityDepartment, FoiaRequest, FoiaRequesterProfile } from "@/lib/foia/types"
 
 interface CityOption {
   id: number
@@ -105,6 +108,7 @@ export function NewRequestModal({
   const [openRecordsCategory, setOpenRecordsCategory] = useState<string>("")
   const [openRecordsAgency, setOpenRecordsAgency] = useState<string>("")
   const [bookmarkedCities, setBookmarkedCities] = useState<CityOption[]>([])
+  const [duplicateWarning, setDuplicateWarning] = useState<{ count: number; requests: FoiaRequest[] } | null>(null)
   const cityInputRef = useRef<HTMLInputElement>(null)
 
   // Load bookmarks from localStorage on mount
@@ -174,6 +178,37 @@ export function NewRequestModal({
     }, 300)
     return () => clearTimeout(timer)
   }, [citySearch, bookmarkedCities])
+
+  // Check for duplicate requests when city + dataset type change
+  useEffect(() => {
+    const effectiveDatasetType =
+      form.dataset_type_id === "__custom__" ? customDatasetTypeId.trim() : form.dataset_type_id.trim()
+    if (!form.city_id || !effectiveDatasetType) {
+      setDuplicateWarning(null)
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      try {
+        const res = await listFoiaRequests({
+          city_id: form.city_id,
+          dataset_id: effectiveDatasetType,
+          page_size: 5,
+        })
+        if (!cancelled && res.items.length > 0) {
+          setDuplicateWarning({ count: res.total, requests: res.items })
+        } else if (!cancelled) {
+          setDuplicateWarning(null)
+        }
+      } catch {
+        if (!cancelled) setDuplicateWarning(null)
+      }
+    }, 400)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [form.city_id, form.dataset_type_id, customDatasetTypeId])
 
   async function selectCity(city: CityOption) {
     setForm((f) => ({ ...f, city_id: city.id, city_name: `${city.name}, ${city.state}` }))
@@ -331,13 +366,13 @@ export function NewRequestModal({
 
   async function copyText(label: string, text: string) {
     if (!text.trim()) {
-      alert(`Nothing to copy for: ${label}`)
+      toast.warning(`Nothing to copy for: ${label}`)
       return
     }
     try {
       await navigator.clipboard.writeText(text)
     } catch {
-      alert(`Failed to copy: ${label}`)
+      toast.error(`Failed to copy: ${label}`)
     }
   }
 
@@ -614,10 +649,13 @@ export function NewRequestModal({
                       setTimeout(() => setShowCityDropdown(false), 200)
                     }}
                     placeholder={bookmarkedCities.length > 0 ? "Search or pick a starred city above..." : "Start typing a city name..."}
+                    role="combobox"
+                    aria-expanded={showCityDropdown && cities.length > 0}
+                    aria-autocomplete="list"
                     className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                   />
                   {showCityDropdown && cities.length > 0 && (
-                    <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                    <div role="listbox" className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                       {citySearch.length < 2 && bookmarkedCities.length > 0 && (
                         <div className="border-b border-gray-100 px-3 py-1.5 text-[11px] font-medium text-gray-400">
                           Starred cities
@@ -629,6 +667,7 @@ export function NewRequestModal({
                           <button
                             key={c.id}
                             type="button"
+                            role="option"
                             onMouseDown={(e) => {
                               e.preventDefault() // prevent input blur
                               selectCity(c)
@@ -709,8 +748,9 @@ export function NewRequestModal({
                     type="button"
                     onClick={handleGenerateAndOpenSteps}
                     disabled={composingBlock || !form.city_id}
-                    className="rounded-md bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+                    className="flex items-center gap-1.5 rounded-md bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
                   >
+                    {composingBlock && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                     {composingBlock ? "Generating..." : "Generate"}
                   </button>
                   <button
@@ -875,8 +915,9 @@ export function NewRequestModal({
                           type="button"
                           onClick={handleSuggestDepartment}
                           disabled={suggestingDept || !form.city_id || !form.request_description.trim()}
-                          className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                          className="flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                         >
+                          {suggestingDept && <Loader2 className="h-3 w-3 animate-spin" />}
                           {suggestingDept ? "Suggesting..." : "Suggest"}
                         </button>
                       </div>
@@ -985,7 +1026,7 @@ export function NewRequestModal({
                           )
                         }
                         const target = datasetTargets.find((t) => t.dataset_type_id === dt)
-                        const label = dt.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+                        const label = datasetLabel(dt)
                         const suffix = target?.status === "potentially_obtainable" ? " (open data)" : ""
                         return (
                           <option key={dt} value={dt}>
@@ -1007,6 +1048,20 @@ export function NewRequestModal({
                           placeholder="e.g. sfpd_drone_flight_logs"
                           className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                         />
+                      </div>
+                    )}
+
+                    {duplicateWarning && (
+                      <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        <span>⚠ {duplicateWarning.count} existing request{duplicateWarning.count !== 1 ? "s" : ""} for {datasetLabel(form.dataset_type_id === "__custom__" ? customDatasetTypeId : form.dataset_type_id)} in {form.city_name || "this city"}</span>
+                        <a
+                          href={`/foia/requests?city_id=${form.city_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0 font-medium text-amber-700 underline hover:text-amber-900"
+                        >
+                          View
+                        </a>
                       </div>
                     )}
                   </div>
@@ -1493,7 +1548,7 @@ function SubmissionStepsModal({
                 onClick={async () => {
                   const code = confirmationCode.trim()
                   if (!code) {
-                    alert("Please paste a confirmation code first.")
+                    toast.warning("Please paste a confirmation code first.")
                     return
                   }
                   try {

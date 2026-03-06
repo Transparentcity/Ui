@@ -8,11 +8,13 @@ import {
   CheckCircle2,
   AlertTriangle,
   FileText,
+  FileSearch,
   Upload,
   X,
   RefreshCw,
 } from "lucide-react"
 import { useAuth0 } from "@auth0/auth0-react"
+import { toast } from "sonner"
 import {
   listDatasetInstances,
   listFoiaRequests,
@@ -21,6 +23,13 @@ import {
 } from "@/lib/foiaApiClient"
 import { uploadFoiaFile, rewriteFoiaRequest } from "@/app/actions/foia"
 import { API_BASE } from "@/lib/apiBase"
+import { datasetLabel } from "@/lib/foia/datasetLabels"
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip"
 import type { DatasetInstance, DatasetInstanceStatus, FoiaRequest } from "@/lib/foia/types"
 
 const statusConfig: Record<string, { label: string; color: string }> = {
@@ -97,9 +106,10 @@ export function DataReviewContent() {
         },
         token
       )
+      toast.success("Review status updated")
       await load()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to update status")
+      toast.error(err instanceof Error ? err.message : "Failed to update status")
     } finally {
       setActionLoading(null)
     }
@@ -192,8 +202,10 @@ export function DataReviewContent() {
             />
           ))}
           {pendingReview.length === 0 && (
-            <div className="px-6 py-8 text-center text-sm text-gray-400">
-              No data deliveries pending review.
+            <div className="flex flex-col items-center justify-center px-6 py-8 text-center">
+              <FileSearch className="h-10 w-10 text-gray-300" />
+              <p className="mt-3 text-sm font-medium text-gray-500">No data to review</p>
+              <p className="mt-1 text-xs text-gray-400">Data review items will appear when responses are received.</p>
             </div>
           )}
         </div>
@@ -218,7 +230,7 @@ export function DataReviewContent() {
                 actionLoading={actionLoading === inst.id}
                 onCreateRevisedRequest={() => {
                   if (!inst.request_id) {
-                    alert("No linked request to revise")
+                    toast.warning("No linked request to revise")
                     return
                   }
                   setActionLoading(inst.id)
@@ -231,7 +243,7 @@ export function DataReviewContent() {
                       else load()
                     })
                     .catch((err) =>
-                      alert(err instanceof Error ? err.message : "Failed to create revised request")
+                      toast.error(err instanceof Error ? err.message : "Failed to create revised request")
                     )
                     .finally(() => setActionLoading(null))
                 }}
@@ -278,7 +290,7 @@ function UploadSection({
       return
     const req = requests.find((r) => r.id === selectedRequestId)
     if (!req) {
-      alert("Selected request not found")
+      toast.warning("Selected request not found")
       return
     }
     let token: string | undefined
@@ -309,7 +321,7 @@ function UploadSection({
       }
       onUploaded()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Upload failed")
+      toast.error(err instanceof Error ? err.message : "Upload failed")
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
@@ -338,7 +350,7 @@ function UploadSection({
           <option value="">Select a request...</option>
           {requests.map((r) => (
             <option key={r.id} value={r.id}>
-              #{r.id} – {r.city?.name ?? `City ${r.city_id}`} – {r.dataset_type_id}
+              #{r.id} – {r.city?.name ?? `City ${r.city_id}`} – {datasetLabel(r.dataset_type_id)}
             </option>
           ))}
         </select>
@@ -446,7 +458,6 @@ function IncompleteModal({
             onClick={() => {
               onConfirm(reason.trim() || "Incomplete")
               setReason("")
-              onClose()
             }}
             disabled={loading}
             className="flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50"
@@ -489,6 +500,7 @@ function DataInstanceRow({
         onClose={() => setShowIncompleteModal(false)}
         onConfirm={(reason) => {
           onMarkIncomplete?.(reason)
+          setShowIncompleteModal(false)
         }}
         loading={!!actionLoading}
       />
@@ -498,7 +510,7 @@ function DataInstanceRow({
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-gray-900">
-            {instance.city?.name ?? `City #${instance.city_id}`} – {instance.dataset_type_id}
+            {instance.city?.name ?? `City #${instance.city_id}`} – {datasetLabel(instance.dataset_type_id)}
           </p>
           <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-gray-500">
             {instance.row_count != null && (
@@ -540,41 +552,63 @@ function DataInstanceRow({
           {cfg.label}
         </span>
         {instance.status === "pending_review" && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              onClick={onMarkComplete}
-              disabled={actionLoading}
-              className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-            >
-              {actionLoading ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <CheckCircle2 className="h-3 w-3" />
-              )}
-              Complete
-            </button>
-            <button
-              onClick={() => setShowIncompleteModal(true)}
-              disabled={actionLoading}
-              className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-100 disabled:opacity-50"
-            >
-              Incomplete
-            </button>
-            <button
-              onClick={onNeedsMapping}
-              disabled={actionLoading}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-violet-600 hover:bg-violet-50 disabled:opacity-50"
-            >
-              Needs Mapping
-            </button>
-            <button
-              onClick={onReject}
-              disabled={actionLoading}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-            >
-              Reject
-            </button>
-          </div>
+          <TooltipProvider>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onMarkComplete}
+                    disabled={actionLoading}
+                    className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {actionLoading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-3 w-3" />
+                    )}
+                    Complete
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Data is accurate and ready for use</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setShowIncompleteModal(true)}
+                    disabled={actionLoading}
+                    className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-100 disabled:opacity-50"
+                  >
+                    Incomplete
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Data has missing fields or records</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onNeedsMapping}
+                    disabled={actionLoading}
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-violet-600 hover:bg-violet-50 disabled:opacity-50"
+                  >
+                    Needs Mapping
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Column names need to be mapped to standard schema</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onReject}
+                    disabled={actionLoading}
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                  >
+                    Reject
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Data is unusable or wrong dataset</TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
         )}
         {instance.status === "incomplete" && instance.request_id && onCreateRevisedRequest && (
           <button

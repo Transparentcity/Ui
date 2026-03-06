@@ -12,6 +12,7 @@ import { WasteShell } from "./waste-shell"
 import { SeverityBadge } from "./severity-badge"
 import { ScoreBar } from "./score-bar"
 import { DispositionSelect } from "./disposition-select"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -26,11 +27,13 @@ import {
   ChevronLeft,
   ChevronRight,
   UserPlus,
-  Trash2,
+  X,
   CheckCircle2,
   Loader2,
+  ClipboardList,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import type { WasteDispositionType, WasteReviewQueueItem } from "@/lib/apiClient"
 
 export function ReviewQueuePage() {
@@ -41,6 +44,11 @@ export function ReviewQueuePage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkDisposition, setBulkDisposition] = useState<WasteDispositionType | undefined>()
   const [assignTarget, setAssignTarget] = useState("")
+  const [confirmBulk, setConfirmBulk] = useState(false)
+  const [quickDisposeTarget, setQuickDisposeTarget] = useState<{
+    item: WasteReviewQueueItem
+    disposition: WasteDispositionType
+  } | null>(null)
 
   const citiesQuery = useCities({ includeInactive: false })
   const selectedCityId = useMemo(() => {
@@ -80,15 +88,34 @@ export function ReviewQueuePage() {
   const handleQuickDispose = useCallback(
     (item: WasteReviewQueueItem, disposition: WasteDispositionType) => {
       if (!selectedCityId) return
-      disposeMutation.mutate({
-        findingId: item.finding_id,
-        data: { city_id: selectedCityId, disposition },
-      })
+      setQuickDisposeTarget({ item, disposition })
     },
-    [selectedCityId, disposeMutation]
+    [selectedCityId]
   )
 
+  const confirmQuickDispose = useCallback(() => {
+    if (!selectedCityId || !quickDisposeTarget) return
+    disposeMutation.mutate(
+      {
+        findingId: quickDisposeTarget.item.finding_id,
+        data: { city_id: selectedCityId, disposition: quickDisposeTarget.disposition },
+      },
+      {
+        onSuccess: () => {
+          toast.success("Finding disposed")
+          setQuickDisposeTarget(null)
+        },
+        onError: () => toast.error("Failed to dispose finding"),
+      }
+    )
+  }, [selectedCityId, quickDisposeTarget, disposeMutation])
+
   const handleBulkDispose = useCallback(() => {
+    if (!selectedCityId || !bulkDisposition || selected.size === 0) return
+    setConfirmBulk(true)
+  }, [selectedCityId, bulkDisposition, selected.size])
+
+  const confirmBulkDispose = useCallback(() => {
     if (!selectedCityId || !bulkDisposition || selected.size === 0) return
     const findingIds = data?.items
       .filter((i) => selected.has(i.id))
@@ -96,7 +123,15 @@ export function ReviewQueuePage() {
     if (findingIds.length === 0) return
     bulkDisposeMutation.mutate(
       { city_id: selectedCityId, finding_ids: findingIds, disposition: bulkDisposition },
-      { onSuccess: () => { setSelected(new Set()); setBulkDisposition(undefined) } }
+      {
+        onSuccess: () => {
+          setSelected(new Set())
+          setBulkDisposition(undefined)
+          setConfirmBulk(false)
+          toast.success(`${findingIds.length} findings disposed`)
+        },
+        onError: () => toast.error("Bulk dispose failed"),
+      }
     )
   }, [selectedCityId, bulkDisposition, selected, data?.items, bulkDisposeMutation])
 
@@ -110,6 +145,7 @@ export function ReviewQueuePage() {
         assignedTo: assignTarget.trim(),
       })
     })
+    toast.success(`${items.length} items assigned`)
     setSelected(new Set())
     setAssignTarget("")
   }, [selectedCityId, assignTarget, selected, data?.items, assignMutation])
@@ -193,8 +229,8 @@ export function ReviewQueuePage() {
               Assign
             </Button>
           </div>
-          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
-            <Trash2 className="w-4 h-4" />
+          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())} aria-label="Clear selection">
+            <X className="w-4 h-4" />
           </Button>
         </div>
       )}
@@ -225,8 +261,10 @@ export function ReviewQueuePage() {
             ))
           : data?.items.length === 0
             ? (
-                <div className="text-center py-16 text-gray-500 text-sm">
-                  No items in the review queue
+                <div className="text-center py-16">
+                  <ClipboardList className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500 mb-1">No items in the review queue</p>
+                  <p className="text-xs text-gray-400">Run an analysis or adjust filters to see findings here.</p>
                 </div>
               )
             : data?.items.map((item) => (
@@ -306,6 +344,26 @@ export function ReviewQueuePage() {
           </div>
         </div>
       )}
+      {/* Confirm dialogs */}
+      <ConfirmDialog
+        open={confirmBulk}
+        onOpenChange={setConfirmBulk}
+        title="Bulk Dispose Findings"
+        description={`Dispose ${selected.size} finding${selected.size === 1 ? "" : "s"} as ${bulkDisposition?.replace(/_/g, " ") ?? ""}?`}
+        confirmLabel="Dispose"
+        onConfirm={confirmBulkDispose}
+        loading={bulkDisposeMutation.isPending}
+      />
+
+      <ConfirmDialog
+        open={!!quickDisposeTarget}
+        onOpenChange={(open) => { if (!open) setQuickDisposeTarget(null) }}
+        title="Dispose Finding"
+        description={`Dispose this finding as ${quickDisposeTarget?.disposition.replace(/_/g, " ") ?? ""}?`}
+        confirmLabel="Dispose"
+        onConfirm={confirmQuickDispose}
+        loading={disposeMutation.isPending}
+      />
     </WasteShell>
   )
 }

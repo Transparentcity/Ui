@@ -26,16 +26,13 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
-    // Proxy specific API paths to the backend in both dev and production.
-    // Keeps /api/geocode, /api/research, /api/research-media, /api/reverse-geocode
-    // as Next.js Route Handlers; only /api/maps, /api/public, and /api/shape-layers go to the backend.
+    // Proxy all /api/* calls to the backend, avoiding browser CORS issues.
+    // Next.js filesystem API routes (geocode, research, cityreadiness, etc.)
+    // take priority over rewrites automatically, so the catch-all is safe.
     const apiBase =
       process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
     return [
-      { source: "/api/maps/:path*", destination: `${apiBase}/api/maps/:path*` },
-      { source: "/api/public/:path*", destination: `${apiBase}/api/public/:path*` },
-      { source: "/api/shape-layers/:path*", destination: `${apiBase}/api/shape-layers/:path*` },
-      { source: "/api/feed/:path*", destination: `${apiBase}/api/feed/:path*` },
+      { source: "/api/:path*", destination: `${apiBase}/api/:path*` },
     ];
   },
 };

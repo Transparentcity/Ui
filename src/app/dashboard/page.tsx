@@ -13,7 +13,7 @@ import {
   getUserPreferences,
   updateUserPreferences,
   getCity,
-  generateSampleNewsletter,
+  createResearch,
   saveUserMetricOrdering,
   recordSignupIntent,
   getGovernmentVerificationStatus,
@@ -76,11 +76,12 @@ const UserManagement = dynamic(() => import("@/components/UserManagement"), { ss
 const ClaimsAdmin = dynamic(() => import("@/components/ClaimsAdmin"), { ssr: false });
 const JobLogsViewer = dynamic(() => import("@/components/JobLogsViewer"), { ssr: false });
 const EmailAdmin = dynamic(() => import("@/components/EmailAdmin"), { ssr: false });
+const DataCompletenessAdmin = dynamic(() => import("@/components/DataCompletenessAdmin"), { ssr: false });
 
 // Dynamically import NewResearchPage to avoid SSR issues
 const NewResearchPage = dynamic(() => import("../research/new/page"), { ssr: false });
 
-type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "claims-admin" | "metrics-admin" | "datasets-admin" | "email-admin" | "city" | "metric" | "job-logs" | "research" | "research-new" | "feed";
+type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "claims-admin" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "data-completeness" | "city" | "metric" | "job-logs" | "research" | "research-new" | "feed";
 
 // Mobile breakpoint (matches CSS media query)
 const MOBILE_BREAKPOINT = 768;
@@ -138,7 +139,7 @@ export default function DashboardPage() {
   const [editableNewsletterDescription, setEditableNewsletterDescription] = useState("");
   const [editableNewsletterFrequency, setEditableNewsletterFrequency] = useState<"weekly" | "monthly">("weekly");
   const [generatingSampleNewsletter, setGeneratingSampleNewsletter] = useState(false);
-  const [sampleNewsletterPreview, setSampleNewsletterPreview] = useState<{ html: string; title: string } | null>(null);
+  const [sampleNewsletterReportUrl, setSampleNewsletterReportUrl] = useState<string | null>(null);
   const [showEditHomeLocationModal, setShowEditHomeLocationModal] = useState(false);
 
   useEffect(() => {
@@ -715,54 +716,48 @@ export default function DashboardPage() {
     }
   };
 
-  const slugifyCityName = (name: string) =>
-    (name || "")
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/[\s_-]+/g, "-")
-      .trim();
-
   const handleGenerateSampleNewsletter = async () => {
-    const token = await getAccessTokenSilently();
-    const promptOverride = editableNewsletterDescription.trim() || null;
-    const payload: Parameters<typeof generateSampleNewsletter>[0] = {
-      frequency: editableNewsletterFrequency,
-      prompt_override: promptOverride,
-    };
-
-    // Prefer city_slug from home city so it works in any environment (e.g. local DB has different IDs)
-    if (homeCity?.name || homeCity?.display_name) {
-      payload.city_slug = slugifyCityName(homeCity.display_name || homeCity.name);
-    } else {
-      const homeCityId = userPreferences?.extra?.home_location?.city_id;
-      if (homeCityId != null) {
-        payload.city_id = homeCityId;
-      } else if (activeCityId != null) {
-        payload.city_id = activeCityId;
-      } else {
-        alert("Set a home city first, or open a city from the sidebar, then generate a sample.");
-        return;
-      }
+    const homeLocation = userPreferences?.extra?.home_location;
+    const cityId = homeLocation?.city_id;
+    const district = homeLocation?.district ?? 0;
+    if (!cityId) {
+      alert("Set a home city first (complete onboarding or save a city as home).");
+      return;
     }
+    const cityName = homeCity?.name || homeCity?.display_name || "Your city";
+    const districtLabel = district ? `District ${district}` : "citywide";
+    const defaultPrompt =
+      "Create a weekly newsletter report for this city and district. Focus on recent changes and trends in key metrics (crime, housing, permits, 311 calls), notable anomalies, comparative analysis (this period vs. previous, district vs. city-wide), and actionable insights for residents. Be data-driven with specific numbers; highlight both positive and concerning trends.";
+    const prompt = editableNewsletterDescription.trim() || defaultPrompt;
+    const fullPrompt = `For ${cityName} (${districtLabel}). ${prompt}`;
 
     setGeneratingSampleNewsletter(true);
-    setSampleNewsletterPreview(null);
+    setSampleNewsletterReportUrl(null);
     try {
-      const res = await generateSampleNewsletter(payload, token);
-      if (res?.html != null) {
-        setSampleNewsletterPreview({ html: res.html, title: res.title || "Sample newsletter" });
+      const token = await getAccessTokenSilently();
+      const res = await createResearch(
+        {
+          prompt: fullPrompt,
+          city_id: cityId,
+          district: district ? String(district) : null,
+          max_iterations: 1,
+          max_subquestions: 2,
+          is_newsletter: true,
+          newsletter_frequency: editableNewsletterFrequency,
+          generate_feed_stories: true,
+          feed_story_count: 2,
+          feed_story_frequency: editableNewsletterFrequency,
+          feed_story_category: "personal_newsletter",
+          use_low_cost_model: true,
+        },
+        token
+      );
+      if (res?.public_url) {
+        setSampleNewsletterReportUrl(res.public_url);
       }
     } catch (err) {
       console.error("Error generating sample newsletter:", err);
-      const is404 =
-        (err as any)?.status === 404 ||
-        (err instanceof Error && err.message.includes("404") && err.message.toLowerCase().includes("not found"));
-      const message = is404
-        ? "That city wasn't found in this environment. Open a city from the sidebar (or set a home city that exists here) and try again."
-        : err instanceof Error
-          ? err.message
-          : "Failed to generate sample newsletter. Please try again.";
-      alert(message);
+      alert("Failed to generate sample newsletter. Please try again.");
     } finally {
       setGeneratingSampleNewsletter(false);
     }
@@ -1105,8 +1100,8 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {currentView === "email-admin" && (isAdmin || cityLeadCityIds.length > 0) && (
-            <div id="email-admin-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
+          {currentView === "feed-stories-admin" && (isAdmin || cityLeadCityIds.length > 0) && (
+            <div id="feed-stories-admin-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
               <div className={styles.adminContainer}>
                 <h2 style={{ margin: "0 0 8px 0", padding: 0, color: "var(--text-primary)", fontSize: "18px" }}>
                   Seymour&apos;s inbox
@@ -1116,14 +1111,20 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {currentView === "data-completeness" && isAdmin && (
+            <div id="data-completeness-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
+              <div className={styles.adminContainer}>
+                <h2 style={{ margin: "0 0 8px 0", padding: 0, color: "var(--text-primary)", fontSize: "18px" }}>
+                  Data Completeness
+                </h2>
+                <DataCompletenessAdmin />
+              </div>
+            </div>
+          )}
+
           {currentView === "feed" && (
             <div id="feed-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
-              <FeedView
-                cityId={null}
-                district={null}
-                isAdmin={isAdmin}
-                cityLeadCityIds={cityLeadCityIds}
-              />
+              <FeedView cityId={null} district={null} />
             </div>
           )}
         </div>
@@ -1560,26 +1561,13 @@ export default function DashboardPage() {
                           "Generate example newsletter"
                         )}
                       </button>
-                      {sampleNewsletterPreview && (
-                        <div style={{ marginTop: "12px" }}>
-                          <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "8px" }}>
-                            Sample generated. Preview below (same email one-shot as the scheduled newsletter).
-                          </p>
-                          <div
-                            style={{
-                              border: "1px solid var(--border-primary)",
-                              borderRadius: "8px",
-                              padding: "16px",
-                              background: "var(--bg-primary)",
-                              maxHeight: "400px",
-                              overflow: "auto",
-                              fontSize: "14px",
-                              lineHeight: 1.5,
-                            }}
-                            className="newsletter-preview"
-                            dangerouslySetInnerHTML={{ __html: sampleNewsletterPreview.html }}
-                          />
-                        </div>
+                      {sampleNewsletterReportUrl && (
+                        <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "12px", padding: "10px", background: "var(--bg-secondary)", borderRadius: "6px" }}>
+                          Sample is being generated. It will appear under <strong>Personal newsletter</strong> in your feed when ready.{" "}
+                          <a href={sampleNewsletterReportUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand-primary, #ad35fa)" }}>
+                            View report
+                          </a>
+                        </p>
                       )}
                     </div>
                   </div>

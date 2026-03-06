@@ -22,6 +22,7 @@ import { MetricLink } from "@/components/MetricLink";
 import MetricDetailModal from "@/components/MetricDetailModal";
 import UserMetricOrderDialog from "@/components/UserMetricOrderDialog";
 import { slugify } from "@/lib/utils";
+import { formatMetricValue } from "@/lib/formatters";
 import "./CityView.css";
 
 interface CityViewProps {
@@ -67,46 +68,6 @@ interface MetricWithYTD {
   staleComparisonDataEnd?: string;
   /** For derived metrics: A/B=C breakdown for tooltip (hover shows formula) */
   calculationBreakdown?: import("@/lib/apiClient").CalculationBreakdown | null;
-}
-
-/**
- * Format a metric value based on its display unit.
- * - percentage: Show as "49%" (rounded to nearest percent)
- * - currency: Show with $ prefix
- * - default: Show as locale string (e.g., "1,234")
- */
-function formatMetricValue(
-  value: number | null | undefined,
-  displayUnit?: string | null
-): string {
-  if (value === null || value === undefined) {
-    return "No data";
-  }
-
-  if (displayUnit === "percentage") {
-    // For percentages, round to nearest percent
-    return `${Math.round(value)}%`;
-  }
-
-  const absValue = Math.abs(value);
-  const sign = value < 0 ? "-" : "";
-  const formatWithSuffix = (scaled: number, suffix: string) =>
-    `${scaled.toFixed(1).replace(/\.0$/, "")}${suffix}`;
-
-  const compact =
-    absValue >= 1e9
-      ? formatWithSuffix(absValue / 1e9, "B")
-      : absValue >= 1e6
-        ? formatWithSuffix(absValue / 1e6, "M")
-        : absValue >= 1e3
-          ? formatWithSuffix(absValue / 1e3, "k")
-          : `${Math.round(absValue * 10) / 10}`;
-
-  if (displayUnit === "currency") {
-    return `${sign}$${compact}`;
-  }
-
-  return `${sign}${compact}`;
 }
 
 /** Minimal place for Official Selector "My block" */

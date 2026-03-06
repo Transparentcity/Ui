@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { useWasteAnalysis } from "@/lib/hooks/useWaste"
+import { useWasteAnalysis, useActiveWasteJob, useLatestPersistedWasteResult } from "@/lib/hooks/useWaste"
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
 import { WasteShell } from "./waste-shell"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, AlertTriangle, Clock, Database } from "lucide-react"
+import { RefreshCw, AlertTriangle, Clock, Database, Square, ShieldAlert } from "lucide-react"
+import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import type {
   WasteAnalyzeResponse,
   WasteDataFreshness,
@@ -26,21 +27,20 @@ import {
 import { WasteDetectorsData } from "./waste-detectors-data"
 import { WasteReviewQueue } from "./waste-review-queue"
 import { WasteDetectorAccuracy } from "./waste-detector-accuracy"
-import { SeverityDonut } from "./widgets/severity-donut"
-import { QueueStatus } from "./widgets/queue-status"
-import { AccuracyBars } from "./widgets/accuracy-bars"
-import { InvestigationSummary } from "./widgets/investigation-summary"
 import {
   normalizeWasteCategory,
+  formatDollar,
   safeSetCache,
+  loadCachedAnalysis,
   WASTE_ANALYSIS_CACHE_KEY,
+  WASTE_ANALYSIS_BACKUP_KEY,
   type WasteCategoryKey,
 } from "./waste-utils"
 
 type SeverityFilter = "all" | "critical" | "high" | "medium"
 
 const WASTE_ANALYSIS_ESTIMATED_SECONDS = 120
-const WASTE_REFRESH_TIMEOUT_MS = 120_000
+const STALE_DATA_WARNING_DAYS = 7
 
 function formatAge(isoDate: string): string {
   const date = new Date(isoDate)
@@ -54,21 +54,38 @@ function formatAge(isoDate: string): string {
   return `${diffMonths} month${diffMonths > 1 ? "s" : ""} ago`
 }
 
-function getWasteAnalysisProgress(elapsedSeconds: number): {
+export function getWasteAnalysisProgress(elapsedSeconds: number): {
   step: string
   etaLabel: string
   progressPct: number
   isLongRunning: boolean
 } {
-  let step = "Fetching latest records from city datasets"
+  let step = "Connecting to city data sources..."
   if (elapsedSeconds > 8) {
-    step = "Detecting anomalous patterns across payroll, contracts, and infrastructure"
+    step = "Analyzing payroll and compensation patterns..."
   }
   if (elapsedSeconds > 20) {
-    step = "Scoring findings for confidence and priority"
+    step = "Scanning vendor contracts for anomalies..."
   }
-  if (elapsedSeconds > 35) {
-    step = "Finalizing results and preparing report output"
+  if (elapsedSeconds > 40) {
+    step = "Checking infrastructure and service costs..."
+  }
+  if (elapsedSeconds > 60) {
+    step = "Cross-referencing employee and vendor records..."
+  }
+  if (elapsedSeconds > 80) {
+    step = "Scoring and prioritizing findings..."
+  }
+  if (elapsedSeconds > 100) {
+    step = "Saving results..."
+  }
+  if (elapsedSeconds > WASTE_ANALYSIS_ESTIMATED_SECONDS) {
+    const mins = Math.floor(elapsedSeconds / 60)
+    step = `Still processing (${mins}m ${elapsedSeconds % 60}s) — large datasets can take several minutes`
+  }
+  if (elapsedSeconds > 300) {
+    const mins = Math.floor(elapsedSeconds / 60)
+    step = `Running longer than expected (${mins}m) — checking server status`
   }
 
   const remaining = Math.max(0, WASTE_ANALYSIS_ESTIMATED_SECONDS - elapsedSeconds)
@@ -96,7 +113,7 @@ function DataFreshnessBanner({ freshness }: { freshness: WasteDataFreshness[] })
 
   return (
     <div
-      className={`mb-6 p-4 rounded-lg border flex items-start gap-3 ${
+      className={`mb-4 p-3 rounded-lg border flex items-start gap-3 ${
         anyStale
           ? "bg-amber-50 border-amber-200"
           : "bg-blue-50 border-blue-200"
@@ -149,29 +166,11 @@ function DataFreshnessBanner({ freshness }: { freshness: WasteDataFreshness[] })
 }
 
 export function WastePageContent() {
-  const [activeCategory, setActiveCategory] = useState<WasteCategoryKey>("payroll")
+  const [activeCategory, setActiveCategory] = useState<WasteCategoryKey>("overview")
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
-  const [allowAutoFetch, setAllowAutoFetch] = useState(false)
-  const [isManualRefreshing, setIsManualRefreshing] = useState(false)
-  const [refreshTimedOut, setRefreshTimedOut] = useState(false)
   const [seymourRequest, setSeymourRequest] = useState<WasteSeymourRequest | null>(null)
-  const [cachedData, setCachedData] = useState<WasteAnalyzeResponse | null>(() => {
-    if (typeof window === "undefined") return null
-    try {
-      const raw = window.localStorage.getItem(WASTE_ANALYSIS_CACHE_KEY)
-      if (!raw) return null
-      if (raw.length > 4_000_000) {
-        window.localStorage.removeItem(WASTE_ANALYSIS_CACHE_KEY)
-        return null
-      }
-      return JSON.parse(raw) as WasteAnalyzeResponse
-    } catch {
-      try { window.localStorage.removeItem(WASTE_ANALYSIS_CACHE_KEY) } catch { /* noop */ }
-      return null
-    }
-  })
-  const [analysisStartedAt, setAnalysisStartedAt] = useState<number | null>(null)
-  const [analysisElapsedSeconds, setAnalysisElapsedSeconds] = useState(0)
+  const [cachedData] = useState<WasteAnalyzeResponse | null>(() => loadCachedAnalysis())
+  const [restoredData, setRestoredData] = useState<WasteAnalyzeResponse | null>(null)
   const now = new Date()
   const localDateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
     now.getDate()
@@ -198,71 +197,85 @@ export function WastePageContent() {
     if (wasteEligibleCities.length > 0) {
       return Number(wasteEligibleCities[0].id)
     }
-    return null
+    // Fall back to the configured default city so the Refresh button works
+    // even if the public cities API is slow or returns no eligible cities
+    return CRM_DEFAULT_CITY_ID
   }, [wasteEligibleCities])
 
-  const { data, error, forceRefetch } = useWasteAnalysis(
-    undefined,
-    allowAutoFetch,
-    selectedCityId,
-    true
-  )
+  // Load last persisted run from DB — instant data even when live analysis times out
+  const { data: persistedData } = useLatestPersistedWasteResult(selectedCityId)
 
-  const displayData = data ?? cachedData
+  // Only auto-fetch live analysis if we have NO fallback data (cache or persisted).
+  // This avoids hammering a struggling backend when we already have good data to show.
+  const hasFallbackData = !!(cachedData || persistedData)
+  const { data, error } = useWasteAnalysis(undefined, !hasFallbackData)
+
+  const { activeJob, isRunning: isManualRefreshing, startJob, cancelJob: cancelActiveJob, startError, retryCount, lastDiagnostics } = useActiveWasteJob(selectedCityId)
+
+  // Fallback chain: fresh API data → persisted DB run → restored data → localStorage cache.
+  // persistedData must beat cachedData so that completed refresh jobs actually
+  // update the display (cachedData is a stale localStorage snapshot from mount).
+  // restoredData is set when the user clicks "Restore previous results" after a failure.
+  const displayData = data ?? persistedData ?? restoredData ?? cachedData
   const showLoadingState = isManualRefreshing && !displayData
 
-  useEffect(() => {
-    if (!data) return
-    setCachedData(data)
-    if (typeof window !== "undefined") {
-      safeSetCache(WASTE_ANALYSIS_CACHE_KEY, data)
-    }
-  }, [data])
+  // Auto-trigger refresh if persisted data is very stale
+  const analysisTimestamp = displayData?.analysis_timestamp
+  const isDataStale = useMemo(() => {
+    if (!analysisTimestamp) return false
+    const ageMs = new Date().getTime() - new Date(analysisTimestamp).getTime()
+    return ageMs > STALE_DATA_WARNING_DAYS * 24 * 60 * 60 * 1000
+  }, [analysisTimestamp])
+  const hasNoData = !displayData && !isManualRefreshing && !error
 
-  useEffect(() => {
-    if (isManualRefreshing) {
-      setAnalysisStartedAt((prev) => prev ?? Date.now())
-      return
-    }
-    setAnalysisStartedAt(null)
-    setAnalysisElapsedSeconds(0)
-  }, [isManualRefreshing])
+  // Derive progress from the live job data
+  const jobProgress = activeJob?.progress ?? 0
+  const jobStatusMessage = activeJob?.status_message ?? ""
 
-  useEffect(() => {
-    if (!isManualRefreshing || analysisStartedAt == null) return
-    setAnalysisElapsedSeconds(
-      Math.max(0, Math.floor((Date.now() - analysisStartedAt) / 1000))
-    )
-    const interval = window.setInterval(() => {
-      setAnalysisElapsedSeconds(
-        Math.max(0, Math.floor((Date.now() - analysisStartedAt) / 1000))
-      )
-    }, 1000)
-    return () => window.clearInterval(interval)
-  }, [isManualRefreshing, analysisStartedAt])
-
+  // Track elapsed seconds; interval callbacks are fine for setState
+  const [analysisElapsedSeconds, setAnalysisElapsedSeconds] = useState(0)
   useEffect(() => {
     if (!isManualRefreshing) return
-    const timeout = window.setTimeout(() => {
-      setRefreshTimedOut(true)
-    }, WASTE_REFRESH_TIMEOUT_MS)
-    return () => window.clearTimeout(timeout)
+    const interval = window.setInterval(() => {
+      setAnalysisElapsedSeconds((t) => t + 1)
+    }, 1000)
+    return () => {
+      window.clearInterval(interval)
+      setAnalysisElapsedSeconds(0)
+    }
   }, [isManualRefreshing])
 
-  const analysisProgress = getWasteAnalysisProgress(analysisElapsedSeconds)
+  const analysisProgress = useMemo(() => {
+    // Prefer real job progress from backend; fall back to time-based estimate
+    const timeBased = getWasteAnalysisProgress(analysisElapsedSeconds)
+    const pct = jobProgress > 0 ? jobProgress : timeBased.progressPct
+    const step = jobStatusMessage || timeBased.step
+    const isLongRunning = analysisElapsedSeconds > WASTE_ANALYSIS_ESTIMATED_SECONDS + 12
+    return { step, progressPct: Math.min(pct, 99), isLongRunning, etaLabel: timeBased.etaLabel }
+  }, [jobProgress, jobStatusMessage, analysisElapsedSeconds])
 
-  const handleRefresh = async () => {
-    setAllowAutoFetch(true)
-    setRefreshTimedOut(false)
-    setIsManualRefreshing(true)
-    try {
-      const result = await forceRefetch()
-      if (!result.error) {
-        setRefreshTimedOut(false)
-      }
-    } finally {
-      setIsManualRefreshing(false)
-    }
+  // Persist fresh data to localStorage cache
+  useEffect(() => {
+    if (!data || typeof window === "undefined") return
+    safeSetCache(WASTE_ANALYSIS_CACHE_KEY, data)
+  }, [data])
+
+  // Keep localStorage in sync when persisted data loads so the next page
+  // visit shows fresh data instantly (not a stale cache from a prior session).
+  // safeSetCache already guards against overwriting good data with empty data,
+  // but we add an explicit check here for clarity.
+  useEffect(() => {
+    if (!persistedData || typeof window === "undefined") return
+    if ((persistedData.findings?.length ?? 0) === 0) return // don't overwrite cache with empty persisted data
+    safeSetCache(WASTE_ANALYSIS_CACHE_KEY, persistedData)
+  }, [persistedData])
+
+  const handleRefresh = () => {
+    // Clear any manually-restored snapshot so it doesn't shadow fresh results
+    setRestoredData(null)
+    // Always run all categories so a single-category run doesn't replace
+    // the full persisted dataset (which would make other tabs show 0 findings).
+    startJob()
   }
 
   // Keep category state in sync with hash navigation from the sidebar.
@@ -343,7 +356,16 @@ export function WastePageContent() {
   const isDetectorsView = activeCategory === "detectors"
   const isReviewView = activeCategory === "review"
   const isAccuracyView = activeCategory === "accuracy"
-  const isAnalysisView = !isDetectorsView && !isReviewView && !isAccuracyView
+  const isOverviewView = activeCategory === "overview"
+  const isCategoryView = !isDetectorsView && !isReviewView && !isAccuracyView && !isOverviewView
+
+  // Category-specific summary for the active category
+  const activeCategorySummary = useMemo(() => {
+    if (!displayData?.summary?.categories) return null
+    return displayData.summary.categories.find(
+      (c) => normalizeWasteCategory(c.category) === activeCategory
+    ) ?? null
+  }, [displayData, activeCategory])
 
   return (
     <WasteShell
@@ -351,10 +373,18 @@ export function WastePageContent() {
         isDetectorsView
           ? "Detectors & Data"
           : isReviewView
-            ? "Queue Overview"
+            ? "Review Workbench"
             : isAccuracyView
               ? "Detector Accuracy"
-              : "Waste Detection"
+              : isOverviewView
+                ? "Overview"
+                : activeCategory === "payroll"
+                  ? "Payroll & Personnel"
+                  : activeCategory === "contracts"
+                    ? "Contracts & Procurement"
+                    : activeCategory === "infrastructure"
+                      ? "Infrastructure & Services"
+                      : "Waste Detection"
       }
       description={
         isDetectorsView
@@ -363,23 +393,74 @@ export function WastePageContent() {
             ? "Disposition workflow for auditor triage and assignment."
             : isAccuracyView
               ? "Precision tracking from auditor feedback."
-              : "Anomaly detection across payroll, contracts, and city services"
+              : isOverviewView
+                ? "Summary across all waste detection modules"
+                : activeCategory === "payroll"
+                  ? "Overtime, compensation anomalies, and personnel integrity"
+                  : activeCategory === "contracts"
+                    ? "Vendor concentration, procurement patterns, and influence"
+                    : activeCategory === "infrastructure"
+                      ? "311 service clusters and infrastructure patterns"
+                      : "Anomaly detection across payroll, contracts, and city services"
       }
       activeCategory={activeCategory}
       onCategoryChange={handleCategoryChange}
       actions={
-        isAnalysisView ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isManualRefreshing}
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isManualRefreshing ? "animate-spin" : ""}`} />
-            {isManualRefreshing
-              ? `Analyzing (${analysisProgress.progressPct}% · ${analysisElapsedSeconds}s)`
-              : "Refresh"}
-          </Button>
+        (isOverviewView || isCategoryView) ? (
+          <div className="flex items-center gap-3">
+            {isManualRefreshing && (
+              <div className="flex items-center gap-2 text-sm text-blue-700">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span className="tabular-nums">{analysisProgress.progressPct}%</span>
+                <div className="w-24 h-1.5 rounded-full bg-blue-100 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-blue-500 transition-all duration-500 ease-out"
+                    style={{ width: `${analysisProgress.progressPct}%` }}
+                  />
+                </div>
+              </div>
+            )}
+            {!isManualRefreshing && displayData?.analysis_timestamp && (
+              <span className="text-xs text-gray-400">
+                Last run{" "}
+                {new Date(displayData.analysis_timestamp).toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </span>
+            )}
+            {isManualRefreshing ? (
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="default"
+                  size="sm"
+                  disabled
+                  className="bg-blue-600 text-white border-blue-600 cursor-wait"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Analyzing…
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={cancelActiveJob}
+                  className="border-red-300 text-red-700 hover:bg-red-50"
+                >
+                  <Square className="w-3.5 h-3.5 mr-1.5" />
+                  Stop
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
+              </Button>
+            )}
+          </div>
         ) : undefined
       }
     >
@@ -391,197 +472,353 @@ export function WastePageContent() {
         <WasteDetectorAccuracy cityId={selectedCityId} />
       ) : (
         <>
+          {/* Empty state — no data at all, prompt user to run */}
+          {hasNoData && !showLoadingState && (
+            <div className="flex flex-col items-center justify-center py-16 text-center" data-testid="empty-state">
+              <ShieldAlert className="w-12 h-12 text-gray-300 mb-4" />
+              <h2 className="text-lg font-semibold text-gray-700 mb-2">No analysis data yet</h2>
+              <p className="text-sm text-gray-500 mb-6 max-w-md">
+                Run a waste analysis to scan public city data for anomalies in payroll, contracts, and infrastructure spending.
+              </p>
+              <Button onClick={handleRefresh} size="lg">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Run Waste Analysis
+              </Button>
+              <p className="text-xs text-gray-400 mt-3">Takes about 2 minutes</p>
+            </div>
+          )}
+
+          {/* Shared status banners */}
+          {!isManualRefreshing && displayData && !data && displayData.analysis_timestamp && (
+            <p className="text-xs text-gray-500 mb-3 flex items-center gap-2 flex-wrap" data-testid="compact-status-line">
+              <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              <span>
+                Analysis from{" "}
+                {new Date(displayData.analysis_timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                {" "}({formatAge(displayData.analysis_timestamp)})
+                {displayData.summary?.total_findings
+                  ? ` · ${displayData.summary.total_findings} findings`
+                  : ""}
+                {displayData.cached ? " · cached" : ""}
+              </span>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                className="text-purple-600 hover:text-purple-700 underline text-xs font-medium"
+              >
+                Refresh
+              </button>
+            </p>
+          )}
+
           {isManualRefreshing && (
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm font-medium text-blue-900">{analysisProgress.step}</p>
-              <div className="mt-2 h-2 w-full rounded-full bg-blue-100 overflow-hidden">
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg" data-testid="analysis-loading-card">
+              <div className="flex items-center gap-3 mb-3">
+                <RefreshCw className="w-5 h-5 text-blue-600 animate-spin shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-blue-800">{analysisProgress.step}</p>
+                  <p className="text-xs text-blue-500 mt-0.5">{analysisProgress.etaLabel}</p>
+                </div>
+                <span className="text-lg font-semibold text-blue-700 tabular-nums">
+                  {analysisProgress.progressPct}%
+                </span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-blue-100 overflow-hidden">
                 <div
                   className="h-full rounded-full bg-blue-500 transition-all duration-500 ease-out"
                   style={{ width: `${analysisProgress.progressPct}%` }}
                 />
               </div>
-              <p className="text-xs text-blue-700 mt-1">
-                {analysisProgress.etaLabel} · Typical analysis run: 60-120s
-              </p>
-              {analysisProgress.isLongRunning ? (
-                <p className="text-xs text-blue-700 mt-1">
-                  If this exceeds 150s, use Refresh again to re-request analysis.
-                </p>
-              ) : null}
-              {refreshTimedOut ? (
-                <p className="text-xs text-amber-700 mt-2">
-                  This run is taking longer than expected. We are still waiting for the backend response.
-                </p>
-              ) : null}
-            </div>
-          )}
-
-          {!isManualRefreshing && refreshTimedOut ? (
-            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium text-amber-800">
-                  Last refresh took longer than expected.
-                </p>
-                <p className="text-xs text-amber-700 mt-1">
-                  Showing your most recent snapshot. You can retry now.
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                className="shrink-0 border-amber-300 text-amber-800 hover:bg-amber-100"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Try Again
-              </Button>
-            </div>
-          ) : null}
-
-          {!isManualRefreshing && displayData && !data && (
-            <div className="mb-6 p-5 bg-blue-50 border border-blue-200 rounded-lg flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold text-blue-900">
-                  Showing your previous analysis
-                  {displayData.analysis_timestamp && (
-                    <span className="font-normal text-blue-700">
-                      {" "}from {new Date(displayData.analysis_timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
-                      {" "}({formatAge(displayData.analysis_timestamp)})
-                    </span>
+              {retryCount > 0 && (
+                <div className="mt-3 flex items-center gap-2 text-xs text-blue-700 bg-blue-100 border border-blue-200 rounded p-2">
+                  <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+                  <span>Auto-retrying after timeout (attempt {retryCount + 1} of 2)</span>
+                </div>
+              )}
+              {analysisProgress.isLongRunning && retryCount === 0 && (
+                <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Taking longer than usual — will auto-retry if it times out</span>
+                  {!isManualRefreshing && displayData && (
+                    <span className="ml-auto text-amber-500">Showing previous results while running</span>
                   )}
+                </div>
+              )}
+              {isManualRefreshing && displayData && (
+                <p className="mt-2 text-xs text-blue-500">
+                  Previous results are shown below while the new analysis runs.
                 </p>
-                <p className="text-xs text-blue-600 mt-1">
-                  {displayData.summary?.total_findings
-                    ? `${displayData.summary.total_findings} findings across ${displayData.summary.categories?.length ?? 0} categories`
-                    : "Run a fresh analysis to check for the latest anomalies"}
-                  {displayData.cached ? " \u00b7 served from server cache" : ""}
+              )}
+            </div>
+          )}
+
+          {/* Error banner — hidden while refresh is running or when the more specific
+              timeout/failure banner is already shown (avoids two amber banners). */}
+          {error && !isManualRefreshing && !(activeJob?.status === "failed") && (
+            <details className={`mb-4 rounded-lg group ${displayData ? "bg-amber-50 border border-amber-200" : "bg-red-50 border border-red-200"}`}>
+              <summary className="flex items-center gap-2 p-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${displayData ? "text-amber-500" : "text-red-500"}`} />
+                <span className={`text-xs font-medium ${displayData ? "text-amber-800" : "text-red-800"}`}>
+                  {displayData ? "Live analysis unavailable — showing previous results" : "Analysis error"}
+                </span>
+                <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                  {!displayData && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const backup = loadCachedAnalysis()
+                        if (backup) setRestoredData(backup)
+                      }}
+                      className="text-xs border-red-300 text-red-800 hover:bg-red-100"
+                    >
+                      <Database className="w-3 h-3 mr-1" />
+                      Restore previous
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" onClick={handleRefresh} className={`text-xs ${displayData ? "border-amber-300 text-amber-800 hover:bg-amber-100" : "border-red-300 text-red-800 hover:bg-red-100"}`}>
+                    Retry
+                  </Button>
+                </div>
+              </summary>
+              <p className={`px-2.5 pb-2.5 text-xs break-all ${displayData ? "text-amber-600" : "text-red-600"}`}>
+                {error instanceof Error ? error.message : "Failed to load waste analysis"}
+              </p>
+            </details>
+          )}
+
+          {/* Start job error banner — hidden when timeout banner already visible */}
+          {startError && !isManualRefreshing && !(activeJob?.status === "failed") && (
+            <details className={`mb-4 rounded-lg group ${displayData ? "bg-amber-50 border border-amber-200" : "bg-red-50 border border-red-200"}`}>
+              <summary className="flex items-center gap-3 p-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                <AlertTriangle className={`w-4 h-4 shrink-0 ${displayData ? "text-amber-500" : "text-red-500"}`} />
+                <span className={`text-sm font-medium flex-1 ${displayData ? "text-amber-800" : "text-red-800"}`}>
+                  {displayData ? "Refresh failed — showing previous results" : "Could not start analysis"}
+                </span>
+                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                  {!displayData && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const backup = loadCachedAnalysis()
+                        if (backup) setRestoredData(backup)
+                      }}
+                      className={`${displayData ? "border-amber-300 text-amber-800 hover:bg-amber-100" : "border-red-300 text-red-800 hover:bg-red-100"}`}
+                    >
+                      <Database className="w-3 h-3 mr-1" />
+                      Restore previous
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" onClick={handleRefresh} className={`${displayData ? "border-amber-300 text-amber-800 hover:bg-amber-100" : "border-red-300 text-red-800 hover:bg-red-100"}`}>
+                    Retry
+                  </Button>
+                </div>
+              </summary>
+              <div className="px-3 pb-3 pt-0">
+                <p className={`text-xs font-mono whitespace-pre-wrap break-all max-h-32 overflow-y-auto rounded p-2 ${displayData ? "text-amber-600 bg-amber-100/50" : "text-red-600 bg-red-100/50"}`}>{startError}</p>
+              </div>
+            </details>
+          )}
+
+          {/* Timeout / failure banner with collapsible diagnostics */}
+          {!isManualRefreshing && activeJob?.status === "failed" && (
+            <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+              <div className="flex items-center justify-between gap-3 p-3">
+                <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                <span className="text-amber-800 flex-1">
+                  {activeJob.error_message || "Analysis failed. Showing previous snapshot."}
+                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {!displayData && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const backup = loadCachedAnalysis()
+                        if (backup) setRestoredData(backup)
+                      }}
+                      className="border-amber-300 text-amber-800 hover:bg-amber-100"
+                    >
+                      <Database className="w-3 h-3 mr-1" />
+                      Restore previous
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRefresh}
+                    className="border-amber-300 text-amber-800 hover:bg-amber-100"
+                  >
+                    Retry
+                  </Button>
+                </div>
+              </div>
+              {lastDiagnostics && (
+                <details className="border-t border-amber-200">
+                  <summary className="px-3 py-1.5 text-xs text-amber-600 cursor-pointer list-none [&::-webkit-details-marker]:hidden hover:text-amber-800">
+                    Diagnostics
+                  </summary>
+                  <div className="px-3 pb-2 text-xs text-amber-700 space-y-0.5 font-mono" data-testid="failure-diagnostics">
+                    <p>Stuck at: {lastDiagnostics.lastProgress}%{lastDiagnostics.lastStatusMessage && ` — "${lastDiagnostics.lastStatusMessage}"`}</p>
+                    {lastDiagnostics.startedAt && <p>Started: {new Date(lastDiagnostics.startedAt).toLocaleTimeString()}</p>}
+                    <p>Last update: {new Date(lastDiagnostics.lastUpdateAt).toLocaleTimeString()}</p>
+                    <p className="text-amber-500">Job: {lastDiagnostics.jobId}</p>
+                  </div>
+                </details>
+              )}
+            </div>
+          )}
+
+          {/* Partial errors — collapsed by default */}
+          {displayData?.errors && displayData.errors.length > 0 && (
+            <details className="mb-4 bg-amber-50 border border-amber-200 rounded-lg group">
+              <summary className="flex items-center gap-2 p-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span className="text-xs font-medium text-amber-800">
+                  {displayData.errors.length} detector{displayData.errors.length !== 1 ? "s" : ""} had issues
+                </span>
+                <span className="text-xs text-amber-400 group-open:hidden ml-auto">Show</span>
+                <span className="text-xs text-amber-400 hidden group-open:inline ml-auto">Hide</span>
+              </summary>
+              <div className="px-2.5 pb-2.5 space-y-1">
+                {displayData.errors.map((err, i) => (
+                  <p key={i} className="text-xs text-amber-600">{err}</p>
+                ))}
+              </div>
+            </details>
+          )}
+
+          {/* Stale data nudge — data older than 7 days */}
+          {!isManualRefreshing && isDataStale && displayData?.analysis_timestamp && (
+            <div className="mb-4 p-3 rounded-lg border bg-purple-50 border-purple-200 flex items-center gap-3">
+              <Clock className="w-5 h-5 text-purple-500 shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-purple-800">
+                  Results are from {formatAge(displayData.analysis_timestamp)}
+                </p>
+                <p className="text-xs text-purple-600 mt-0.5">
+                  Run a fresh analysis to check for new anomalies.
                 </p>
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleRefresh}
-                className="shrink-0 border-blue-300 text-blue-800 hover:bg-blue-100"
+                className="shrink-0 border-purple-300 text-purple-700 hover:bg-purple-100"
               >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Run Fresh Analysis
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                Refresh
               </Button>
             </div>
           )}
 
-          {!isManualRefreshing && !displayData && !error && (
-            <div className="mb-6 p-6 bg-indigo-50 border border-indigo-200 rounded-lg text-center">
-              <p className="text-base font-semibold text-indigo-900">
-                Welcome to Waste Detection
-              </p>
-              <p className="text-sm text-indigo-700 mt-1">
-                Run your first analysis to detect anomalies across payroll, contracts, and city services.
-              </p>
-              <Button
-                variant="outline"
-                size="default"
-                onClick={handleRefresh}
-                className="mt-4 border-indigo-300 text-indigo-800 hover:bg-indigo-100"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Run Analysis
-              </Button>
-            </div>
-          )}
-
-          {/* Error banner */}
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-red-800">Analysis Error</p>
-                <p className="text-sm text-red-600 mt-1">
-                  {error instanceof Error ? error.message : "Failed to load waste analysis"}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Partial errors from analysis */}
-          {displayData?.errors && displayData.errors.length > 0 && (
-            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-sm font-medium text-amber-800 mb-1">
-                Some detectors encountered issues:
-              </p>
-              {displayData.errors.map((err, i) => (
-                <p key={i} className="text-xs text-amber-600">{err}</p>
-              ))}
-            </div>
-          )}
-
-          {/* Data freshness / staleness banner */}
+          {/* Data freshness */}
           {displayData?.data_freshness && displayData.data_freshness.length > 0 && (
             <DataFreshnessBanner freshness={displayData.data_freshness} />
           )}
 
-          {/* Zoom 1: Global Stats */}
-          <WasteStatBar summary={displayData?.summary} isLoading={showLoadingState} />
+          {/* ─── OVERVIEW: summary only, no individual findings ─── */}
+          {isOverviewView && (
+            <>
+              <WasteStatBar summary={displayData?.summary} isLoading={showLoadingState || (isManualRefreshing && !displayData)} />
 
-          {/* Dashboard Widgets (shown on all analysis categories) */}
-          {isAnalysisView ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <SeverityDonut cityId={selectedCityId} />
-              <QueueStatus cityId={selectedCityId} />
-              <AccuracyBars cityId={selectedCityId} />
-              <InvestigationSummary cityId={selectedCityId} />
-            </div>
-          ) : null}
-
-          {/* Zoom 2: Category Tabs */}
-          <WasteCategoryTabs
-            activeCategory={activeCategory}
-            onCategoryChange={handleCategoryChange}
-            categorySummaries={displayData?.summary?.categories ?? []}
-          />
-
-          {/* Filter row */}
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <WasteSeverityFilter
-              findings={categoryFindings}
-              activeFilter={severityFilter}
-              onFilterChange={setSeverityFilter}
-            />
-            <WasteExport category={activeCategory} />
-          </div>
-
-          {/* Cluster map for infrastructure tab */}
-          {activeCategory === "infrastructure" && infraFindings.length > 0 && (
-            <WasteClusterMap findings={infraFindings} />
+              {/* Category summary cards — click to navigate */}
+              <WasteCategoryTabs
+                activeCategory={activeCategory}
+                onCategoryChange={handleCategoryChange}
+                categorySummaries={displayData?.summary?.categories ?? []}
+                isLoading={isManualRefreshing && !displayData}
+              />
+            </>
           )}
 
-          {/* Zoom 3 & 4: Findings List */}
-          {showLoadingState ? (
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="h-14 bg-gray-100 rounded-lg animate-pulse" />
-              ))}
-            </div>
-          ) : (
-            <WasteFindingsList
-              findings={filteredFindings}
-              onAskSeymour={handleAskSeymour}
-            />
+          {/* ─── CATEGORY VIEW: summary header + findings ─── */}
+          {isCategoryView && (
+            <>
+              {/* Category summary stats — derived from actual findings array
+                  so counts always match the list below (prevents stale summary
+                  showing "131 findings" when localStorage trimmed them away). */}
+              {categoryFindings.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                  <div className="bg-white rounded-lg border border-gray-200 p-3">
+                    <p className="text-xs text-gray-500">Findings</p>
+                    <p className="text-2xl font-bold">{categoryFindings.length}</p>
+                  </div>
+                  <div className="bg-white rounded-lg border border-gray-200 p-3">
+                    <p className="text-xs text-gray-500">Critical</p>
+                    <p className="text-2xl font-bold text-red-600">{categoryFindings.filter(f => f.severity?.toLowerCase() === "critical").length}</p>
+                  </div>
+                  <div className="bg-white rounded-lg border border-gray-200 p-3">
+                    <p className="text-xs text-gray-500">High</p>
+                    <p className="text-2xl font-bold text-amber-600">{categoryFindings.filter(f => f.severity?.toLowerCase() === "high").length}</p>
+                  </div>
+                  <div className="bg-white rounded-lg border border-gray-200 p-3">
+                    <p className="text-xs text-gray-500">Exposure</p>
+                    <p className="text-2xl font-bold">{formatDollar(categoryFindings.reduce((sum, f) => sum + (f.amount ?? 0), 0) || null)}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Warn when summary reports findings but they're missing from the array
+                  (happens when localStorage cache was trimmed or persisted data incomplete) */}
+              {categoryFindings.length === 0 && activeCategorySummary && activeCategorySummary.finding_count > 0 && !showLoadingState && (
+                <div className="mb-4 p-3 rounded-lg border bg-amber-50 border-amber-200 flex items-center gap-3">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-amber-800">
+                      {activeCategorySummary.finding_count} findings expected but not loaded
+                    </p>
+                    <p className="text-xs text-amber-600 mt-0.5">
+                      Cached data may be incomplete. Run a fresh analysis to load all findings.
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={handleRefresh} className="shrink-0 border-amber-300 text-amber-700 hover:bg-amber-100">
+                    <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                    Refresh
+                  </Button>
+                </div>
+              )}
+
+              {/* Filter row */}
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <WasteSeverityFilter
+                  findings={categoryFindings}
+                  activeFilter={severityFilter}
+                  onFilterChange={setSeverityFilter}
+                />
+                <WasteExport category={activeCategory} />
+              </div>
+
+              {/* Cluster map for infrastructure */}
+              {activeCategory === "infrastructure" && infraFindings.length > 0 && (
+                <WasteClusterMap findings={infraFindings} />
+              )}
+
+              {/* Findings List */}
+              {showLoadingState ? (
+                <div className="space-y-3">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="h-14 bg-gray-100 rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              ) : (
+                <WasteFindingsList
+                  findings={filteredFindings}
+                  onAskSeymour={handleAskSeymour}
+                />
+              )}
+            </>
           )}
 
           {/* Footer */}
-          <div className="mt-8 pt-4 border-t border-gray-200">
+          <div className="mt-5 pt-3 border-t border-gray-200">
             <p className="text-xs text-gray-500 text-center mb-1">
               Seymour tokens used today in Waste: {todaySeymourTokens.toLocaleString()}
             </p>
             <p className="text-xs text-gray-400 text-center">
               Data: DataSF Open Data Portal &middot; Anomalies &ne; confirmed fraud &middot; Sorted by confidence &amp; priority
             </p>
-            {displayData?.analysis_timestamp && (
-              <p className="text-xs text-gray-400 text-center mt-1">
-                Last analyzed: {new Date(displayData.analysis_timestamp).toLocaleString()}
-                {displayData.cached && " (cached)"}
-              </p>
-            )}
           </div>
 
           <WasteSeymourPanel

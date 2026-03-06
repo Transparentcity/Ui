@@ -362,6 +362,7 @@ export type AdminFoiaCityListItem = {
   total_datasets: number
   main_domain?: string | null
   main_portal_url?: string | null
+  submission_method?: string | null
 }
 
 export function listAdminFoiaCities(token?: FoiaAuthToken): Promise<AdminFoiaCityListItem[]> {

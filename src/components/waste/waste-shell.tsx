@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useAuth0 } from "@auth0/auth0-react"
@@ -9,16 +9,15 @@ import {
   DollarSign,
   Truck,
   Building2,
-  Scale,
   ArrowLeft,
   LogIn,
   Database,
-  ClipboardCheck,
   Gauge,
   Target,
   ListChecks,
   Search,
   SlidersHorizontal,
+  Menu,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Loader from "@/components/Loader"
@@ -32,102 +31,106 @@ type NavigationItem = {
   mode?: "category" | "link"
 }
 
-const navigation: NavigationItem[] = [
+type NavigationGroup = {
+  label: string
+  items: NavigationItem[]
+}
+
+const navigationGroups: NavigationGroup[] = [
   {
-    key: "overview",
-    name: "Overview",
-    href: "/waste",
-    icon: ShieldAlert,
-    description: "All anomalies",
-    mode: "category",
+    label: "Analysis",
+    items: [
+      {
+        key: "overview",
+        name: "Overview",
+        href: "/waste",
+        icon: ShieldAlert,
+        description: "Summary dashboard",
+        mode: "category",
+      },
+      {
+        key: "payroll",
+        name: "Payroll",
+        href: "/waste#payroll",
+        icon: DollarSign,
+        description: "Compensation & personnel",
+        mode: "category",
+      },
+      {
+        key: "contracts",
+        name: "Contracts",
+        href: "/waste#contracts",
+        icon: Truck,
+        description: "Procurement & vendors",
+        mode: "category",
+      },
+      {
+        key: "infrastructure",
+        name: "Infrastructure",
+        href: "/waste#infrastructure",
+        icon: Building2,
+        description: "311 & city services",
+        mode: "category",
+      },
+    ],
   },
   {
-    key: "payroll",
-    name: "Payroll",
-    href: "/waste#payroll",
-    icon: DollarSign,
-    description: "Compensation analysis",
-    mode: "category",
+    label: "Tools",
+    items: [
+      {
+        key: "queue-page",
+        name: "Review Workbench",
+        href: "/waste/queue",
+        icon: ListChecks,
+        description: "Auditor triage",
+        mode: "link",
+      },
+      {
+        key: "investigations",
+        name: "Investigations",
+        href: "/waste/investigations",
+        icon: Search,
+        description: "Active investigations",
+        mode: "link",
+      },
+      {
+        key: "scores",
+        name: "Entity Scores",
+        href: "/waste/scores",
+        icon: Target,
+        description: "Risk score rankings",
+        mode: "link",
+      },
+    ],
   },
   {
-    key: "contracts",
-    name: "Contracts",
-    href: "/waste#contracts",
-    icon: Truck,
-    description: "Procurement analysis",
-    mode: "category",
-  },
-  {
-    key: "infrastructure",
-    name: "Infrastructure",
-    href: "/waste#infrastructure",
-    icon: Building2,
-    description: "311 & services",
-    mode: "category",
-  },
-  {
-    key: "detectors",
-    name: "Detectors & Data",
-    href: "/waste#detectors",
-    icon: Database,
-    description: "Algorithms & datasets",
-    mode: "category",
-  },
-  {
-    key: "review",
-    name: "Queue Overview",
-    href: "/waste#review",
-    icon: ClipboardCheck,
-    description: "Quick triage view",
-    mode: "category",
-  },
-  {
-    key: "accuracy",
-    name: "Detector Accuracy",
-    href: "/waste#accuracy",
-    icon: Gauge,
-    description: "Precision feedback",
-    mode: "category",
-  },
-  {
-    key: "scores",
-    name: "Entity Scores",
-    href: "/waste/scores",
-    icon: Target,
-    description: "Risk score rankings",
-    mode: "link",
-  },
-  {
-    key: "queue-page",
-    name: "Review Workbench",
-    href: "/waste/queue",
-    icon: ListChecks,
-    description: "Full auditor workbench",
-    mode: "link",
-  },
-  {
-    key: "investigations",
-    name: "Investigations",
-    href: "/waste/investigations",
-    icon: Search,
-    description: "Active investigations",
-    mode: "link",
-  },
-  {
-    key: "thresholds",
-    name: "Thresholds",
-    href: "/waste/settings/thresholds",
-    icon: SlidersHorizontal,
-    description: "Detector sensitivity",
-    mode: "link",
-  },
-  {
-    key: "analysis",
-    name: "Analysis",
-    href: "/analysis",
-    icon: Scale,
-    description: "Auditor reports",
-    mode: "link",
+    label: "Settings",
+    items: [
+      {
+        key: "detectors",
+        name: "Detectors & Data",
+        href: "/waste#detectors",
+        icon: Database,
+        description: "Algorithms & datasets",
+        mode: "category",
+      },
+      {
+        key: "accuracy",
+        name: "Detector Accuracy",
+        href: "/waste#accuracy",
+        icon: Gauge,
+        description: "Precision tracking",
+        mode: "category",
+      },
+      {
+        key: "thresholds",
+        name: "Thresholds",
+        href: "/waste/settings/thresholds",
+        icon: SlidersHorizontal,
+        description: "Detector sensitivity",
+        mode: "link",
+      },
+    ],
   },
 ]
 
@@ -150,6 +153,7 @@ export function WasteShell({
 }: WasteShellProps) {
   const pathname = usePathname()
   const { isAuthenticated, isLoading: authLoading, loginWithRedirect } = useAuth0()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Handle auth: redirect to login if not authenticated
   if (authLoading) {
@@ -183,15 +187,35 @@ export function WasteShell({
     )
   }
 
+  const handleNavClick = () => {
+    setSidebarOpen(false)
+  }
+
   return (
     <div className="flex min-h-screen bg-gray-50">
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-[260px] min-w-[260px] h-screen bg-white border-r border-gray-200 flex flex-col sticky top-0 left-0 z-50">
+      <aside
+        className={cn(
+          "w-[260px] min-w-[260px] h-screen bg-white border-r border-gray-200 flex-col sticky top-0 left-0 z-50",
+          sidebarOpen
+            ? "fixed flex lg:sticky"
+            : "hidden lg:flex"
+        )}
+      >
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 min-h-16">
           <Link
             href="/dashboard"
             className="flex items-center gap-2.5 text-inherit no-underline flex-1"
+            onClick={handleNavClick}
           >
             <div className="w-5 h-5 shrink-0">
               <svg
@@ -224,6 +248,7 @@ export function WasteShell({
           <Link
             href="/dashboard"
             className="flex items-center gap-1 text-xs text-gray-400 no-underline hover:text-purple-600 transition-colors"
+            onClick={handleNavClick}
           >
             <ArrowLeft className="w-3 h-3" />
             Main App
@@ -232,65 +257,80 @@ export function WasteShell({
 
         {/* Navigation */}
         <nav className="flex-1 py-2 overflow-y-auto">
-          <ul className="list-none m-0 p-0">
-            {navigation.map((item) => {
-              const isLinkItem = item.mode === "link"
-              const isActive = isLinkItem
-                ? pathname === item.href || pathname.startsWith(`${item.href}/`)
-                : activeCategory
-                  ? item.key === activeCategory
-                  : item.href === "/waste"
-                    ? pathname === "/waste"
-                    : pathname.startsWith(item.href.split("#")[0]) &&
-                      item.href !== "/waste"
+          {navigationGroups.map((group, groupIdx) => {
+            return (
+              <div key={group.label}>
+                {groupIdx > 0 && (
+                  <div className="mx-4 my-2 border-t border-gray-100" />
+                )}
+                <div className="px-4 pt-2 pb-1">
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                    {group.label}
+                  </span>
+                </div>
+                <ul className="list-none m-0 p-0">
+                  {group.items.map((item) => {
+                    const isLinkItem = item.mode === "link"
+                    const isActive = isLinkItem
+                      ? pathname === item.href || pathname.startsWith(`${item.href}/`)
+                      : activeCategory
+                        ? item.key === activeCategory
+                        : item.href === "/waste"
+                          ? pathname === "/waste"
+                          : pathname.startsWith(item.href.split("#")[0]) &&
+                            item.href !== "/waste"
 
-              return (
-                <li key={item.name}>
-                  {onCategoryChange && !isLinkItem ? (
-                    <button
-                      type="button"
-                      onClick={() => onCategoryChange(item.key)}
-                      className={cn(
-                        "w-full text-left flex items-center gap-3 px-4 py-2.5 text-sm no-underline transition-all border-l-[3px]",
-                        isActive
-                          ? "text-purple-600 font-semibold bg-gray-100 border-l-purple-600"
-                          : "text-gray-600 font-normal bg-transparent border-l-transparent hover:bg-gray-50 hover:text-gray-900"
-                      )}
-                    >
-                      <item.icon className="w-[18px] h-[18px]" />
-                      <div className="flex-1">
-                        <span className="block">{item.name}</span>
-                        <span className="block text-[11px] text-gray-400 font-normal">
-                          {item.description}
-                        </span>
-                      </div>
-                    </button>
-                  ) : (
-                    <Link
-                      href={item.href}
-                      className={cn(
-                        "flex items-center gap-3 px-4 py-2.5 text-sm no-underline transition-all border-l-[3px]",
-                        isActive
-                          ? "text-purple-600 font-semibold bg-gray-100 border-l-purple-600"
-                          : "text-gray-600 font-normal bg-transparent border-l-transparent hover:bg-gray-50 hover:text-gray-900"
-                      )}
-                    >
-                      <item.icon className="w-[18px] h-[18px]" />
-                      <div className="flex-1">
-                        <span className="block">{item.name}</span>
-                        <span className="block text-[11px] text-gray-400 font-normal">
-                          {item.description}
-                        </span>
-                      </div>
-                    </Link>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-
-          {/* Divider */}
-          <div className="mx-4 my-3 border-t border-gray-100" />
+                    return (
+                      <li key={item.name}>
+                        {onCategoryChange && !isLinkItem ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onCategoryChange(item.key)
+                              handleNavClick()
+                            }}
+                            className={cn(
+                              "w-full text-left flex items-center gap-3 px-4 py-2 text-sm no-underline transition-all border-l-[3px]",
+                              isActive
+                                ? "text-purple-600 font-semibold bg-gray-100 border-l-purple-600"
+                                : "text-gray-600 font-normal bg-transparent border-l-transparent hover:bg-gray-50 hover:text-gray-900"
+                            )}
+                          >
+                            <item.icon className="w-[18px] h-[18px]" />
+                            <div className="flex-1">
+                              <span className="block">{item.name}</span>
+                              <span className="block text-[11px] text-gray-400 font-normal">
+                                {item.description}
+                              </span>
+                            </div>
+                          </button>
+                        ) : (
+                          <Link
+                            href={item.href}
+                            onClick={handleNavClick}
+                            className={cn(
+                              "flex items-center gap-3 px-4 py-2 text-sm no-underline transition-all border-l-[3px]",
+                              isActive
+                                ? "text-purple-600 font-semibold bg-gray-100 border-l-purple-600"
+                                : "text-gray-600 font-normal bg-transparent border-l-transparent hover:bg-gray-50 hover:text-gray-900"
+                            )}
+                          >
+                            <item.icon className="w-[18px] h-[18px]" />
+                            <div className="flex-1">
+                              <span className="block">{item.name}</span>
+                              <span className="block text-[11px] text-gray-400 font-normal">
+                                {item.description}
+                              </span>
+                            </div>
+                          </Link>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )
+          })}
 
           {/* Info section */}
           <div className="px-4 py-2">
@@ -313,20 +353,30 @@ export function WasteShell({
       {/* Main content */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="flex items-center justify-between px-8 py-5 bg-white border-b border-gray-200 min-h-16 gap-4 flex-wrap">
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900 tracking-tight">
-              {title}
-            </h1>
-            {description && (
-              <p className="mt-1 text-sm text-gray-500">{description}</p>
-            )}
+        <header className="flex items-center justify-between px-4 lg:px-5 py-3 bg-white border-b border-gray-200 min-h-12 gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden inline-flex items-center justify-center h-9 w-9 rounded-md hover:bg-gray-100 text-gray-600"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-xl font-semibold text-gray-900 tracking-tight">
+                {title}
+              </h1>
+              {description && (
+                <p className="mt-1 text-sm text-gray-500">{description}</p>
+              )}
+            </div>
           </div>
           {actions && <div className="flex items-center gap-3">{actions}</div>}
         </header>
 
         {/* Content */}
-        <div className="flex-1 p-8 overflow-y-auto">{children}</div>
+        <div className="flex-1 p-3 lg:p-5 overflow-y-auto">{children}</div>
       </main>
     </div>
   )

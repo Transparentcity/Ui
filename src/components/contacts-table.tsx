@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useCallback, useEffect } from "react"
+import { useState, useTransition, useCallback, useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import {
   Table,
@@ -28,8 +28,19 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog"
 import { Contact, Keyword } from "@/lib/types"
 import { ContactDialog } from "./contact-dialog"
+import { ContactImportDialog } from "./contact-import-dialog"
 import {
   MoreHorizontal,
   Search,
@@ -40,12 +51,33 @@ import {
   MapPin,
   Loader2,
   ExternalLink,
+  Download,
+  Upload,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  Tag,
+  Users,
+  ChevronsLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRight,
+  Sparkles,
+  History,
 } from "lucide-react"
-import { deleteContact, bulkUpdateCity } from "@/app/actions/contacts"
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip"
+import { deleteContact, bulkUpdateCity, bulkAddKeywords, bulkUpdateType } from "@/app/actions/contacts"
+import { ContactActivityTimeline } from "./contact-activity-timeline"
 import { searchPublicCities, type PublicCitySearchResult } from "@/lib/publicApiClient"
+import { toast } from "sonner"
 
 const PINNED_CITIES: PublicCitySearchResult[] = [
-  { id: 1, name: "San Francisco", state: "CA", display_name: "San Francisco" },
+  { id: 57260, name: "San Francisco", state: "CA", display_name: "San Francisco" },
 ]
 
 function getArticleLabel(url: string, title: string | null): string {
@@ -60,6 +92,7 @@ function getArticleLabel(url: string, title: string | null): string {
 interface ContactWithKeywords extends Omit<Contact, "article_links"> {
   keywords?: Keyword[]
   article_links?: Array<{ id: string; url: string; title?: string | null }>
+  draftCounts?: { pending: number; sent: number }
 }
 
 interface ContactsTableProps {
@@ -69,7 +102,10 @@ interface ContactsTableProps {
   initialTypeFilter?: TypeFilter
 }
 
-type TypeFilter = "all" | "city_staff" | "media"
+type TypeFilter = "all" | "elected_official" | "city_staff" | "media" | "academic" | "nonprofit" | "lobbyist" | "community_leader"
+
+type SortKey = "name" | "type" | "city" | "district" | "email" | "keywords" | "articles"
+type SortDir = "asc" | "desc"
 
 function getPriorityLabel(priority: number) {
   const labels = ["", "Critical", "High", "Medium", "Low", "Minimal"]
@@ -95,6 +131,29 @@ function getStatusColor(status: string) {
   }
 }
 
+const CONTACT_TYPE_LABELS: Record<string, string> = {
+  elected_official: 'Elected Official',
+  city_staff: 'City Staff',
+  media: 'Press',
+  academic: 'Academic',
+  nonprofit: 'Nonprofit',
+  lobbyist: 'Lobbyist',
+  community_leader: 'Community Leader',
+}
+
+function getContactTypeColor(type: string) {
+  switch (type) {
+    case 'elected_official': return 'bg-blue-100 text-blue-800 border-blue-200'
+    case 'city_staff': return 'bg-indigo-100 text-indigo-800 border-indigo-200'
+    case 'media': return 'bg-pink-100 text-pink-800 border-pink-200'
+    case 'academic': return 'bg-cyan-100 text-cyan-800 border-cyan-200'
+    case 'nonprofit': return 'bg-emerald-100 text-emerald-800 border-emerald-200'
+    case 'lobbyist': return 'bg-orange-100 text-orange-800 border-orange-200'
+    case 'community_leader': return 'bg-violet-100 text-violet-800 border-violet-200'
+    default: return 'bg-muted text-muted-foreground border-muted'
+  }
+}
+
 export function ContactsTable({ contacts, keywords, initialTypeFilter }: ContactsTableProps) {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
@@ -105,11 +164,41 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
   const [citySearch, setCitySearch] = useState("")
   const [cityResults, setCityResults] = useState<PublicCitySearchResult[]>([])
   const [citySearching, setCitySearching] = useState(false)
-  const [bulkMessage, setBulkMessage] = useState<string | null>(null)
+  const [showKeywordPicker, setShowKeywordPicker] = useState(false)
+  const [keywordSearch, setKeywordSearch] = useState("")
+  const [selectedKeywordIds, setSelectedKeywordIds] = useState<Set<string>>(new Set())
+  const [showTypePicker, setShowTypePicker] = useState(false)
+  const [sortKey, setSortKey] = useState<SortKey | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>("asc")
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [cityFilter, setCityFilter] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 25
 
-  const filteredContacts = contacts.filter((contact) => {
+  // Debounced search for filtering (Phase 4)
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchQuery(searchQuery), 200)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(prev => prev === "asc" ? "desc" : "asc")
+    } else {
+      setSortKey(key)
+      setSortDir("asc")
+    }
+  }
+
+  const filteredContacts = useMemo(() => contacts.filter((contact) => {
     if (typeFilter !== "all" && (contact.contact_type as string) !== typeFilter) return false
-    const search = searchQuery.toLowerCase()
+    if (cityFilter) {
+      const contactCity = contact.city_name || (contact.city_id ? `City #${contact.city_id}` : 'No city')
+      if (contactCity !== cityFilter) return false
+    }
+    const search = debouncedSearchQuery.toLowerCase()
     const c = contact as ContactWithKeywords
     return (
       c.name.toLowerCase().includes(search) ||
@@ -121,18 +210,52 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
       (c.outlet_platform ?? "").toLowerCase().includes(search) ||
       (c.primary_city ?? "").toLowerCase().includes(search) ||
       (c.primary_beat ?? "").toLowerCase().includes(search) ||
+      (c.contact_type && CONTACT_TYPE_LABELS[c.contact_type as string]?.toLowerCase().includes(search)) ||
       c.keywords?.some((k) => k.name.toLowerCase().includes(search))
     )
-  })
+  }), [contacts, typeFilter, cityFilter, debouncedSearchQuery])
 
-  const allSelected = filteredContacts.length > 0 && filteredContacts.every(c => selectedIds.has(c.id))
+  const sortedContacts = sortKey
+    ? [...filteredContacts].sort((a, b) => {
+        const dir = sortDir === "asc" ? 1 : -1
+        const str = (v: string | null | undefined) => (v ?? "").toLowerCase()
+        switch (sortKey) {
+          case "name": return dir * str(a.name).localeCompare(str(b.name))
+          case "type": return dir * str(CONTACT_TYPE_LABELS[(a.contact_type as string) ?? ""] ?? a.contact_type as string).localeCompare(str(CONTACT_TYPE_LABELS[(b.contact_type as string) ?? ""] ?? b.contact_type as string))
+          case "city": return dir * str(a.city_name).localeCompare(str(b.city_name))
+          case "district": {
+            const aVal = (a.contact_type as string) === "media" ? a.outlet_platform : a.jurisdiction
+            const bVal = (b.contact_type as string) === "media" ? b.outlet_platform : b.jurisdiction
+            return dir * str(aVal).localeCompare(str(bVal))
+          }
+          case "email": return dir * str(a.email).localeCompare(str(b.email))
+          case "keywords": return dir * ((a.keywords?.length ?? 0) - (b.keywords?.length ?? 0))
+          case "articles": return dir * (((a as ContactWithKeywords).article_links?.length ?? 0) - ((b as ContactWithKeywords).article_links?.length ?? 0))
+          default: return 0
+        }
+      })
+    : filteredContacts
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(sortedContacts.length / pageSize))
+  const paginatedContacts = useMemo(
+    () => sortedContacts.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [sortedContacts, currentPage, pageSize]
+  )
+
+  // Reset page on filter/search/sort changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [debouncedSearchQuery, typeFilter, cityFilter, sortKey, sortDir])
+
+  const allSelected = paginatedContacts.length > 0 && paginatedContacts.every(c => selectedIds.has(c.id))
   const someSelected = selectedIds.size > 0
 
   const toggleAll = () => {
     if (allSelected) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(filteredContacts.map(c => c.id)))
+      setSelectedIds(new Set(paginatedContacts.map(c => c.id)))
     }
   }
 
@@ -166,33 +289,131 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
   const handleBulkAssignCity = useCallback((city: PublicCitySearchResult) => {
     const ids = Array.from(selectedIds)
     startTransition(async () => {
-      const result = await bulkUpdateCity(ids, city.id, city.display_name || city.name)
-      setBulkMessage(`Assigned "${city.display_name || city.name}" to ${result.updated} contact${result.updated !== 1 ? 's' : ''}`)
-      setSelectedIds(new Set())
-      setShowCityPicker(false)
-      setCitySearch("")
-      router.refresh()
-      setTimeout(() => setBulkMessage(null), 4000)
+      try {
+        const result = await bulkUpdateCity(ids, city.id, city.display_name || city.name)
+        toast.success(`Assigned "${city.display_name || city.name}" to ${result.updated} contact${result.updated !== 1 ? 's' : ''}`)
+        setSelectedIds(new Set())
+        setShowCityPicker(false)
+        setCitySearch("")
+        router.refresh()
+      } catch (err) {
+        toast.error("Failed to assign city")
+      }
     })
   }, [selectedIds, router])
 
   const handleBulkClearCity = useCallback(() => {
     const ids = Array.from(selectedIds)
     startTransition(async () => {
-      const result = await bulkUpdateCity(ids, null, null)
-      setBulkMessage(`Cleared city from ${result.updated} contact${result.updated !== 1 ? 's' : ''}`)
-      setSelectedIds(new Set())
-      setShowCityPicker(false)
-      router.refresh()
-      setTimeout(() => setBulkMessage(null), 4000)
+      try {
+        const result = await bulkUpdateCity(ids, null, null)
+        toast.success(`Cleared city from ${result.updated} contact${result.updated !== 1 ? 's' : ''}`)
+        setSelectedIds(new Set())
+        setShowCityPicker(false)
+        router.refresh()
+      } catch (err) {
+        toast.error("Failed to clear city")
+      }
     })
   }, [selectedIds, router])
+
+  const handleBulkAssignKeywords = useCallback(() => {
+    if (selectedKeywordIds.size === 0) return
+    const ids = Array.from(selectedIds)
+    const kwIds = Array.from(selectedKeywordIds)
+    startTransition(async () => {
+      try {
+        const result = await bulkAddKeywords(ids, kwIds)
+        toast.success(`Added ${kwIds.length} keyword${kwIds.length !== 1 ? 's' : ''} to ${result.updated} contact${result.updated !== 1 ? 's' : ''}`)
+        setSelectedIds(new Set())
+        setShowKeywordPicker(false)
+        setSelectedKeywordIds(new Set())
+        setKeywordSearch("")
+        router.refresh()
+      } catch (err) {
+        toast.error("Failed to assign keywords")
+      }
+    })
+  }, [selectedIds, selectedKeywordIds, router])
+
+  const handleBulkAssignType = useCallback((type: string) => {
+    const ids = Array.from(selectedIds)
+    startTransition(async () => {
+      try {
+        const result = await bulkUpdateType(ids, type)
+        const label = CONTACT_TYPE_LABELS[type] || type
+        toast.success(`Set type to "${label}" for ${result.updated} contact${result.updated !== 1 ? 's' : ''}`)
+        setSelectedIds(new Set())
+        setShowTypePicker(false)
+        router.refresh()
+      } catch (err) {
+        toast.error("Failed to assign type")
+      }
+    })
+  }, [selectedIds, router])
+
+  const filteredKeywords = keywords.filter((k) =>
+    k.name.toLowerCase().includes(keywordSearch.toLowerCase())
+  )
 
   const cityBreakdown = contacts.reduce<Record<string, number>>((acc, c) => {
     const key = c.city_name || (c.city_id ? `City #${c.city_id}` : 'No city')
     acc[key] = (acc[key] || 0) + 1
     return acc
   }, {})
+
+  const handleExportCsv = useCallback(() => {
+    const headers = [
+      "Name", "Email", "Phone", "Title", "Organization", "Department",
+      "Contact Type", "City", "Jurisdiction", "Priority", "Status",
+      "Notes", "Keywords", "Created", "Updated",
+      "Outlet/Platform", "Primary Beat", "Primary City",
+    ]
+
+    const escapeCsv = (value: string | null | undefined): string => {
+      if (value == null) return ""
+      const str = String(value)
+      if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+        return `"${str.replace(/"/g, '""')}"`
+      }
+      return str
+    }
+
+    const rows = filteredContacts.map((c) => [
+      c.name,
+      c.email,
+      c.phone,
+      c.title,
+      c.organization,
+      c.department,
+      c.contact_type ? (CONTACT_TYPE_LABELS[c.contact_type as string] || c.contact_type) : "",
+      c.city_name,
+      c.jurisdiction,
+      getPriorityLabel(c.priority),
+      c.status,
+      c.notes,
+      c.keywords?.map((k) => k.name).join("; "),
+      c.created_at ? new Date(c.created_at).toLocaleDateString() : "",
+      c.updated_at ? new Date(c.updated_at).toLocaleDateString() : "",
+      c.outlet_platform,
+      c.primary_beat,
+      c.primary_city,
+    ])
+
+    const csvContent = [
+      headers.map(escapeCsv).join(","),
+      ...rows.map((row) => row.map(escapeCsv).join(",")),
+    ].join("\n")
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `contacts-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success("CSV exported")
+  }, [filteredContacts])
 
   return (
     <div className="space-y-4">
@@ -212,20 +433,40 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All</SelectItem>
-            <SelectItem value="city_staff">City staff</SelectItem>
-            <SelectItem value="media">Media</SelectItem>
+            <SelectItem value="elected_official">Elected Official</SelectItem>
+            <SelectItem value="city_staff">City Staff</SelectItem>
+            <SelectItem value="media">Press</SelectItem>
+            <SelectItem value="academic">Academic</SelectItem>
+            <SelectItem value="nonprofit">Nonprofit</SelectItem>
+            <SelectItem value="lobbyist">Lobbyist</SelectItem>
+            <SelectItem value="community_leader">Community Leader</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-sm text-muted-foreground">
           {filteredContacts.length} contact{filteredContacts.length !== 1 ? "s" : ""}
         </p>
+        <ContactImportDialog keywords={keywords}>
+          <Button variant="outline" size="sm" className="gap-1.5">
+            <Upload className="w-4 h-4" />
+            Import CSV
+          </Button>
+        </ContactImportDialog>
+        <Button variant="outline" size="sm" onClick={handleExportCsv} className="gap-1.5">
+          <Download className="w-4 h-4" />
+          Export CSV
+        </Button>
         {/* City breakdown badges */}
         <div className="flex items-center gap-1.5 flex-wrap">
           {Object.entries(cityBreakdown).map(([city, count]) => (
             <Badge
               key={city}
               variant="outline"
-              className={`text-xs ${city === 'No city' ? 'border-amber-300 text-amber-700 bg-amber-50' : ''}`}
+              className={`text-xs cursor-pointer transition-all ${
+                cityFilter === city
+                  ? 'ring-2 ring-purple-500'
+                  : ''
+              } ${city === 'No city' ? 'border-amber-300 text-amber-700 bg-amber-50' : ''}`}
+              onClick={() => setCityFilter(prev => prev === city ? null : city)}
             >
               <MapPin className="w-3 h-3 mr-1" />
               {city}: {count}
@@ -244,7 +485,7 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowCityPicker(!showCityPicker)}
+              onClick={() => { setShowCityPicker(!showCityPicker); setShowKeywordPicker(false); setShowTypePicker(false) }}
               disabled={isPending}
               className="gap-1.5 text-xs"
             >
@@ -305,21 +546,97 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
               </div>
             )}
           </div>
+          {/* Keyword picker */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setShowKeywordPicker(!showKeywordPicker); setShowCityPicker(false); setShowTypePicker(false) }}
+              disabled={isPending}
+              className="gap-1.5 text-xs"
+            >
+              {isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Tag className="w-3 h-3" />}
+              Assign Keywords
+            </Button>
+            {showKeywordPicker && (
+              <div className="absolute top-full left-0 mt-1 w-72 bg-white rounded-lg shadow-lg border z-50 p-2 max-h-80 flex flex-col">
+                <Input
+                  placeholder="Search keywords..."
+                  value={keywordSearch}
+                  onChange={(e) => setKeywordSearch(e.target.value)}
+                  className="mb-2"
+                  autoFocus
+                />
+                <div className="overflow-y-auto flex-1 space-y-0.5">
+                  {filteredKeywords.length === 0 ? (
+                    <p className="text-sm text-gray-500 p-2">No keywords found</p>
+                  ) : (
+                    filteredKeywords.map((kw) => (
+                      <label
+                        key={kw.id}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm rounded hover:bg-purple-50 transition-colors cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={selectedKeywordIds.has(kw.id)}
+                          onCheckedChange={() => {
+                            const next = new Set(selectedKeywordIds)
+                            if (next.has(kw.id)) next.delete(kw.id)
+                            else next.add(kw.id)
+                            setSelectedKeywordIds(next)
+                          }}
+                        />
+                        <span>{kw.name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+                {selectedKeywordIds.size > 0 && (
+                  <div className="border-t mt-1 pt-2 flex justify-between items-center">
+                    <span className="text-xs text-gray-500">{selectedKeywordIds.size} selected</span>
+                    <Button size="sm" className="text-xs h-7" onClick={handleBulkAssignKeywords}>
+                      Apply
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          {/* Type picker */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setShowTypePicker(!showTypePicker); setShowCityPicker(false); setShowKeywordPicker(false) }}
+              disabled={isPending}
+              className="gap-1.5 text-xs"
+            >
+              {isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Users className="w-3 h-3" />}
+              Assign Type
+            </Button>
+            {showTypePicker && (
+              <div className="absolute top-full left-0 mt-1 w-56 bg-white rounded-lg shadow-lg border z-50 p-1">
+                {Object.entries(CONTACT_TYPE_LABELS).map(([value, label]) => (
+                  <button
+                    key={value}
+                    onClick={() => handleBulkAssignType(value)}
+                    className="w-full text-left px-3 py-2 text-sm rounded hover:bg-purple-50 transition-colors flex items-center gap-2"
+                  >
+                    <Badge variant="outline" className={`text-xs ${getContactTypeColor(value)}`}>
+                      {label}
+                    </Badge>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => { setSelectedIds(new Set()); setShowCityPicker(false) }}
+            onClick={() => { setSelectedIds(new Set()); setShowCityPicker(false); setShowKeywordPicker(false); setShowTypePicker(false) }}
             className="text-xs text-gray-500"
           >
             Clear selection
           </Button>
-        </div>
-      )}
-
-      {/* Success message */}
-      {bulkMessage && (
-        <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-sm text-green-800">
-          {bulkMessage}
         </div>
       )}
 
@@ -331,29 +648,43 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
                 <TableHead className="w-10">
                   <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
                 </TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>City</TableHead>
-                <TableHead>District / Outlet</TableHead>
-                <TableHead>Contact Info</TableHead>
-                <TableHead>Keywords</TableHead>
-                <TableHead>Articles</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Status</TableHead>
+                {([
+                  ["type", "Type"],
+                  ["name", "Name"],
+                  ["city", "City"],
+                  ["district", "District / Outlet"],
+                  ["email", "Contact Info"],
+                  ["keywords", "Keywords"],
+                  ["articles", "Articles"],
+                ] as [SortKey, string][]).map(([key, label]) => (
+                  <TableHead key={key}>
+                    <button
+                      className="flex items-center gap-1 hover:text-foreground transition-colors"
+                      onClick={() => toggleSort(key)}
+                    >
+                      {label}
+                      {sortKey === key ? (
+                        sortDir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-30" />
+                      )}
+                    </button>
+                  </TableHead>
+                ))}
                 <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredContacts.length === 0 ? (
+              {paginatedContacts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="h-32 text-center text-muted-foreground">
-                    {searchQuery || typeFilter !== "all"
+                  <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
+                    {searchQuery || typeFilter !== "all" || cityFilter
                       ? "No contacts found"
                       : "No contacts yet. Add your first contact to get started."}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredContacts.map((contact) => {
+                paginatedContacts.map((contact) => {
                   const isMedia = (contact.contact_type as string) === "media"
                   return (
                     <TableRow
@@ -367,13 +698,29 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
                         />
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {isMedia ? "Media" : "City staff"}
-                        </Badge>
+                        {contact.contact_type ? (
+                          <Badge variant="outline" className={`text-xs ${getContactTypeColor(contact.contact_type as string)}`}>
+                            {CONTACT_TYPE_LABELS[contact.contact_type as string] || contact.contact_type}
+                          </Badge>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{contact.name}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-medium">{contact.name}</p>
+                            {contact.draftCounts?.pending ? (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 bg-amber-50 text-amber-700 border-amber-200">
+                                {contact.draftCounts.pending} draft{contact.draftCounts.pending !== 1 ? 's' : ''}
+                              </Badge>
+                            ) : null}
+                            {contact.draftCounts?.sent ? (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 bg-green-50 text-green-700 border-green-200">
+                                {contact.draftCounts.sent} sent
+                              </Badge>
+                            ) : null}
+                          </div>
                           {contact.title && (
                             <p className="text-xs text-muted-foreground">{contact.title}</p>
                           )}
@@ -495,16 +842,6 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={getPriorityColor(contact.priority)}>
-                          {getPriorityLabel(contact.priority)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={getStatusColor(contact.status)}>
-                          {contact.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -518,18 +855,48 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
                                 Edit
                               </DropdownMenuItem>
                             </ContactDialog>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div>
+                                    <DropdownMenuItem
+                                      disabled={!contact.city_id}
+                                      onSelect={() => {
+                                        router.push(`/compose?contactId=${contact.id}`)
+                                      }}
+                                    >
+                                      <Sparkles className="w-4 h-4 mr-2" />
+                                      Generate Draft
+                                    </DropdownMenuItem>
+                                  </div>
+                                </TooltipTrigger>
+                                {!contact.city_id && (
+                                  <TooltipContent>
+                                    <p>Assign a city to enable draft generation</p>
+                                  </TooltipContent>
+                                )}
+                              </Tooltip>
+                            </TooltipProvider>
+                            <ContactActivityTimeline contactId={contact.id} contactName={contact.name}>
+                              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                <History className="w-4 h-4 mr-2" />
+                                Activity
+                              </DropdownMenuItem>
+                            </ContactActivityTimeline>
                             <DropdownMenuItem
                               className="text-destructive"
-                              onClick={async () => {
-                                if (
-                                  confirm("Are you sure you want to delete this contact?")
-                                ) {
-                                  await deleteContact(contact.id)
-                                }
+                              disabled={deletingId === contact.id}
+                              onSelect={(e) => {
+                                e.preventDefault()
+                                setDeleteConfirmId(contact.id)
                               }}
                             >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
+                              {deletingId === contact.id ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4 mr-2" />
+                              )}
+                              {deletingId === contact.id ? "Deleting..." : "Delete"}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -542,6 +909,92 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
           </Table>
         </CardContent>
       </Card>
+
+      {/* Pagination controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-2" data-testid="pagination-controls">
+          <p className="text-sm text-muted-foreground">
+            Page {currentPage} of {totalPages} ({sortedContacts.length} contacts)
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+            >
+              <ChevronsLeft className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronsRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete contact?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove{" "}
+              <span className="font-medium text-gray-900">
+                {contacts.find(c => c.id === deleteConfirmId)?.name}
+              </span>{" "}
+              from your contacts. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={async () => {
+                if (!deleteConfirmId) return
+                const id = deleteConfirmId
+                setDeleteConfirmId(null)
+                setDeletingId(id)
+                try {
+                  await deleteContact(id)
+                  toast.success("Contact deleted")
+                  router.refresh()
+                } catch (err) {
+                  toast.error("Failed to delete contact")
+                } finally {
+                  setDeletingId(null)
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
