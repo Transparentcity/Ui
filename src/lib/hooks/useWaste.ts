@@ -110,7 +110,7 @@ export function useActiveWasteJob(cityId: number | null) {
     progress: 0, statusMessage: "", updatedAt: Date.now(),
   })
 
-  const MAX_AUTO_RETRIES = 2
+  const MAX_AUTO_RETRIES = 1
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -129,14 +129,6 @@ export function useActiveWasteJob(cityId: number | null) {
         const token = await getAccessTokenSilently()
         const job = await getJob(jobId, token)
 
-        // Detect stale jobs: if running/pending for > 10 min, treat as failed
-        const MAX_JOB_AGE_MS = 10 * 60 * 1000
-        const createdAt = new Date(job.created_at).getTime()
-        const jobAgeMs = Date.now() - createdAt
-        const isStale =
-          (job.status === "running" || job.status === "pending") &&
-          jobAgeMs > MAX_JOB_AGE_MS
-
         // Track the last known progress for diagnostics
         if (job.progress !== lastProgressSnapshotRef.current.progress ||
             job.status_message !== lastProgressSnapshotRef.current.statusMessage) {
@@ -146,6 +138,20 @@ export function useActiveWasteJob(cityId: number | null) {
             updatedAt: Date.now(),
           }
         }
+
+        // Detect stale jobs via two signals:
+        // 1) Total age > 6 min (backend hard-kills at 5 min, so 6 = safe margin)
+        // 2) Progress hasn't changed in 3 min (job is stuck even if young)
+        const MAX_JOB_AGE_MS = 6 * 60 * 1000
+        const PROGRESS_STALL_MS = 3 * 60 * 1000
+        const createdAt = new Date(job.created_at).getTime()
+        const jobAgeMs = Date.now() - createdAt
+        const progressStallMs = Date.now() - lastProgressSnapshotRef.current.updatedAt
+        const isActiveStatus = job.status === "running" || job.status === "pending"
+        const isStale = isActiveStatus && (
+          jobAgeMs > MAX_JOB_AGE_MS ||
+          (progressStallMs > PROGRESS_STALL_MS && jobAgeMs > 60_000) // only after 1 min to avoid false positives on startup
+        )
 
         if (isStale) {
           shouldContinue = false

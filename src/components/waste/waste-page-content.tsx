@@ -479,7 +479,7 @@ export function WastePageContent() {
               {retryCount > 0 && (
                 <div className="mt-3 flex items-center gap-2 text-xs text-blue-700 bg-blue-100 border border-blue-200 rounded p-2">
                   <RefreshCw className="w-3.5 h-3.5 shrink-0" />
-                  <span>Auto-retrying after timeout (attempt {retryCount + 1} of 3)</span>
+                  <span>Auto-retrying after timeout (attempt {retryCount + 1} of 2)</span>
                 </div>
               )}
               {analysisProgress.isLongRunning && retryCount === 0 && (
