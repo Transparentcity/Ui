@@ -113,7 +113,7 @@ export function useActiveWasteJob(cityId: number | null) {
     progress: 0, statusMessage: "", updatedAt: Date.now(),
   })
 
-  const MAX_AUTO_RETRIES = 1
+  const MAX_AUTO_RETRIES = 2
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -282,8 +282,8 @@ export function useActiveWasteJob(cityId: number | null) {
       setIsStarting(true)
       setStartError(null)
 
-      const MAX_START_RETRIES = 2
-      const RETRY_DELAYS = [3000, 6000] // backoff: 3s, 6s
+      const MAX_START_RETRIES = 3
+      const RETRY_DELAYS = [3000, 6000, 12000] // exponential backoff: 3s, 6s, 12s
 
       for (let attempt = 0; attempt <= MAX_START_RETRIES; attempt++) {
         try {

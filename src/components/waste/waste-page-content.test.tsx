@@ -124,7 +124,14 @@ const cachedAnalysis = {
     departments_affected: 3,
     categories: [],
   },
-  findings: [],
+  findings: Array.from({ length: 42 }, (_, i) => ({
+    id: `finding-${i}`,
+    title: `Test Finding ${i}`,
+    severity: i < 5 ? "critical" : "high",
+    category: "payroll",
+    department: "HR",
+    estimated_amount: 10000,
+  })),
   errors: [],
   data_freshness: [],
 }

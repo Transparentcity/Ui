@@ -30,7 +30,8 @@ export async function request<T>(
   path: string,
   method: HttpMethod = "GET",
   body?: unknown,
-  token?: string
+  token?: string,
+  options?: { signal?: AbortSignal; timeoutMs?: number }
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
 
@@ -46,12 +47,36 @@ export async function request<T>(
     headers["Content-Type"] = "application/json";
   }
 
-  const res = await fetch(url, {
-    method,
-    credentials: "include",
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  // Support caller-provided signal, auto-timeout, or both
+  let signal = options?.signal;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  if (!signal && options?.timeoutMs) {
+    const controller = new AbortController();
+    signal = controller.signal;
+    timeoutId = setTimeout(() => controller.abort(), options.timeoutMs);
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      credentials: "include",
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal,
+    });
+  } catch (err) {
+    if (timeoutId) clearTimeout(timeoutId);
+    if (err instanceof DOMException && err.name === "AbortError") {
+      const error: Error & { status?: number } = new Error(
+        `Request timed out after ${Math.round((options?.timeoutMs ?? 0) / 1000)}s — the server may be overloaded`
+      );
+      error.status = 504; // treat as gateway timeout for retry logic
+      throw error;
+    }
+    throw err;
+  }
+  if (timeoutId) clearTimeout(timeoutId);
 
   if (!res.ok) {
     const rawText = await res.text().catch(() => "");

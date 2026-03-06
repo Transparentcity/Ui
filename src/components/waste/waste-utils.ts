@@ -91,8 +91,57 @@ export function formatDollar(amount: number | null | undefined): string {
 // ── localStorage cache helper ───────────────────────────────────────────────
 
 export const WASTE_ANALYSIS_CACHE_KEY = "waste:last-analysis:v1"
+export const WASTE_ANALYSIS_BACKUP_KEY = "waste:last-good-analysis:v1"
 
+/** Count findings in a response (0 if missing). */
+function findingCount(data: WasteAnalyzeResponse | null | undefined): number {
+  return data?.findings?.length ?? 0
+}
+
+/** Read the current primary cache without parsing errors bubbling up. */
+function readCachedFindings(): number {
+  try {
+    const raw = window.localStorage.getItem(WASTE_ANALYSIS_CACHE_KEY)
+    if (!raw) return 0
+    const parsed = JSON.parse(raw) as WasteAnalyzeResponse
+    return findingCount(parsed)
+  } catch {
+    return 0
+  }
+}
+
+/**
+ * Write data to localStorage, but only if the new data is at least as good
+ * as what is already cached (measured by finding count). This prevents a
+ * failed or partial analysis run from wiping out yesterday's good results.
+ *
+ * Also maintains a separate backup key that is only written when the data
+ * has a meaningful number of findings (> 0), providing a last-resort
+ * recovery option.
+ */
 export function safeSetCache(key: string, data: WasteAnalyzeResponse): void {
+  const newCount = findingCount(data)
+
+  // Guard: never overwrite good cached data with empty/degraded data
+  if (key === WASTE_ANALYSIS_CACHE_KEY) {
+    const existingCount = readCachedFindings()
+    if (newCount === 0 && existingCount > 0) {
+      // New data is empty but cache has good data; skip the write
+      return
+    }
+  }
+
+  // Write the primary cache
+  _writeToStorage(key, data)
+
+  // If the data has findings, also update the backup key as a safety net
+  if (newCount > 0) {
+    _writeToStorage(WASTE_ANALYSIS_BACKUP_KEY, data)
+  }
+}
+
+/** Low-level localStorage writer with progressive truncation on quota errors. */
+function _writeToStorage(key: string, data: WasteAnalyzeResponse): void {
   try {
     window.localStorage.setItem(key, JSON.stringify(data))
   } catch {
@@ -110,12 +159,33 @@ export function safeSetCache(key: string, data: WasteAnalyzeResponse): void {
         continue
       }
     }
+    // Don't remove the key on failure; better to keep stale data than nothing
+  }
+}
+
+/**
+ * Load cached analysis from localStorage with backup fallback.
+ * Tries the primary cache first, then falls back to the backup key
+ * if the primary is missing or has zero findings.
+ */
+export function loadCachedAnalysis(): WasteAnalyzeResponse | null {
+  if (typeof window === "undefined") return null
+
+  for (const key of [WASTE_ANALYSIS_CACHE_KEY, WASTE_ANALYSIS_BACKUP_KEY]) {
     try {
-      window.localStorage.removeItem(key)
+      const raw = window.localStorage.getItem(key)
+      if (!raw) continue
+      if (raw.length > 4_000_000) {
+        // Corrupted or oversized entry; skip but don't delete (might be the only copy)
+        continue
+      }
+      const parsed = JSON.parse(raw) as WasteAnalyzeResponse
+      if (findingCount(parsed) > 0) return parsed
     } catch {
-      // localStorage completely unavailable - silently give up
+      continue
     }
   }
+  return null
 }
 
 // ── HTML sanitization ───────────────────────────────────────────────────────

@@ -31,7 +31,9 @@ import {
   normalizeWasteCategory,
   formatDollar,
   safeSetCache,
+  loadCachedAnalysis,
   WASTE_ANALYSIS_CACHE_KEY,
+  WASTE_ANALYSIS_BACKUP_KEY,
   type WasteCategoryKey,
 } from "./waste-utils"
 
@@ -167,21 +169,8 @@ export function WastePageContent() {
   const [activeCategory, setActiveCategory] = useState<WasteCategoryKey>("overview")
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
   const [seymourRequest, setSeymourRequest] = useState<WasteSeymourRequest | null>(null)
-  const [cachedData] = useState<WasteAnalyzeResponse | null>(() => {
-    if (typeof window === "undefined") return null
-    try {
-      const raw = window.localStorage.getItem(WASTE_ANALYSIS_CACHE_KEY)
-      if (!raw) return null
-      if (raw.length > 4_000_000) {
-        window.localStorage.removeItem(WASTE_ANALYSIS_CACHE_KEY)
-        return null
-      }
-      return JSON.parse(raw) as WasteAnalyzeResponse
-    } catch {
-      try { window.localStorage.removeItem(WASTE_ANALYSIS_CACHE_KEY) } catch { /* noop */ }
-      return null
-    }
-  })
+  const [cachedData] = useState<WasteAnalyzeResponse | null>(() => loadCachedAnalysis())
+  const [restoredData, setRestoredData] = useState<WasteAnalyzeResponse | null>(null)
   const now = new Date()
   const localDateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
     now.getDate()
@@ -223,10 +212,11 @@ export function WastePageContent() {
 
   const { activeJob, isRunning: isManualRefreshing, startJob, cancelJob: cancelActiveJob, startError, retryCount, lastDiagnostics } = useActiveWasteJob(selectedCityId)
 
-  // Fallback chain: fresh API data → persisted DB run → localStorage cache
+  // Fallback chain: fresh API data → persisted DB run → restored data → localStorage cache.
   // persistedData must beat cachedData so that completed refresh jobs actually
   // update the display (cachedData is a stale localStorage snapshot from mount).
-  const displayData = data ?? persistedData ?? cachedData
+  // restoredData is set when the user clicks "Restore previous results" after a failure.
+  const displayData = data ?? persistedData ?? restoredData ?? cachedData
   const showLoadingState = isManualRefreshing && !displayData
 
   // Auto-trigger refresh if persisted data is very stale
@@ -272,8 +262,11 @@ export function WastePageContent() {
 
   // Keep localStorage in sync when persisted data loads so the next page
   // visit shows fresh data instantly (not a stale cache from a prior session).
+  // safeSetCache already guards against overwriting good data with empty data,
+  // but we add an explicit check here for clarity.
   useEffect(() => {
     if (!persistedData || typeof window === "undefined") return
+    if ((persistedData.findings?.length ?? 0) === 0) return // don't overwrite cache with empty persisted data
     safeSetCache(WASTE_ANALYSIS_CACHE_KEY, persistedData)
   }, [persistedData])
 
@@ -557,17 +550,33 @@ export function WastePageContent() {
             </div>
           )}
 
-          {/* Error banner — downgraded to amber when fallback data is visible */}
-          {error && (
+          {/* Error banner — hidden while a refresh is running (stale from prior attempt) */}
+          {error && !isManualRefreshing && (
             <details className={`mb-4 rounded-lg group ${displayData ? "bg-amber-50 border border-amber-200" : "bg-red-50 border border-red-200"}`}>
               <summary className="flex items-center gap-2 p-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                 <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${displayData ? "text-amber-500" : "text-red-500"}`} />
                 <span className={`text-xs font-medium ${displayData ? "text-amber-800" : "text-red-800"}`}>
                   {displayData ? "Live analysis unavailable — showing previous results" : "Analysis error"}
                 </span>
-                <Button variant="outline" size="sm" onClick={handleRefresh} className={`shrink-0 ml-auto text-xs ${displayData ? "border-amber-300 text-amber-800 hover:bg-amber-100" : "border-red-300 text-red-800 hover:bg-red-100"}`}>
-                  Retry
-                </Button>
+                <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                  {!displayData && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const backup = loadCachedAnalysis()
+                        if (backup) setRestoredData(backup)
+                      }}
+                      className="text-xs border-red-300 text-red-800 hover:bg-red-100"
+                    >
+                      <Database className="w-3 h-3 mr-1" />
+                      Restore previous
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" onClick={handleRefresh} className={`text-xs ${displayData ? "border-amber-300 text-amber-800 hover:bg-amber-100" : "border-red-300 text-red-800 hover:bg-red-100"}`}>
+                    Retry
+                  </Button>
+                </div>
               </summary>
               <p className={`px-2.5 pb-2.5 text-xs break-all ${displayData ? "text-amber-600" : "text-red-600"}`}>
                 {error instanceof Error ? error.message : "Failed to load waste analysis"}
@@ -583,9 +592,25 @@ export function WastePageContent() {
                 <span className={`text-sm font-medium flex-1 ${displayData ? "text-amber-800" : "text-red-800"}`}>
                   {displayData ? "Refresh failed — showing previous results" : "Could not start analysis"}
                 </span>
-                <Button variant="outline" size="sm" onClick={handleRefresh} className={`shrink-0 ml-2 ${displayData ? "border-amber-300 text-amber-800 hover:bg-amber-100" : "border-red-300 text-red-800 hover:bg-red-100"}`}>
-                  Retry
-                </Button>
+                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                  {!displayData && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const backup = loadCachedAnalysis()
+                        if (backup) setRestoredData(backup)
+                      }}
+                      className={`${displayData ? "border-amber-300 text-amber-800 hover:bg-amber-100" : "border-red-300 text-red-800 hover:bg-red-100"}`}
+                    >
+                      <Database className="w-3 h-3 mr-1" />
+                      Restore previous
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" onClick={handleRefresh} className={`${displayData ? "border-amber-300 text-amber-800 hover:bg-amber-100" : "border-red-300 text-red-800 hover:bg-red-100"}`}>
+                    Retry
+                  </Button>
+                </div>
               </summary>
               <div className="px-3 pb-3 pt-0">
                 <p className={`text-xs font-mono whitespace-pre-wrap break-all max-h-32 overflow-y-auto rounded p-2 ${displayData ? "text-amber-600 bg-amber-100/50" : "text-red-600 bg-red-100/50"}`}>{startError}</p>
@@ -601,14 +626,30 @@ export function WastePageContent() {
                 <span className="text-amber-800 flex-1">
                   {activeJob.error_message || "Analysis failed. Showing previous snapshot."}
                 </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRefresh}
-                  className="shrink-0 border-amber-300 text-amber-800 hover:bg-amber-100"
-                >
-                  Retry
-                </Button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {!displayData && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const backup = loadCachedAnalysis()
+                        if (backup) setRestoredData(backup)
+                      }}
+                      className="border-amber-300 text-amber-800 hover:bg-amber-100"
+                    >
+                      <Database className="w-3 h-3 mr-1" />
+                      Restore previous
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRefresh}
+                    className="border-amber-300 text-amber-800 hover:bg-amber-100"
+                  >
+                    Retry
+                  </Button>
+                </div>
               </div>
               {lastDiagnostics && (
                 <details className="border-t border-amber-200">
@@ -677,13 +718,14 @@ export function WastePageContent() {
           {/* ─── OVERVIEW: summary only, no individual findings ─── */}
           {isOverviewView && (
             <>
-              <WasteStatBar summary={displayData?.summary} isLoading={showLoadingState} />
+              <WasteStatBar summary={displayData?.summary} isLoading={showLoadingState || (isManualRefreshing && !displayData)} />
 
               {/* Category summary cards — click to navigate */}
               <WasteCategoryTabs
                 activeCategory={activeCategory}
                 onCategoryChange={handleCategoryChange}
                 categorySummaries={displayData?.summary?.categories ?? []}
+                isLoading={isManualRefreshing && !displayData}
               />
             </>
           )}

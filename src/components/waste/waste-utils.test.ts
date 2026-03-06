@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
+import type { WasteAnalyzeResponse } from "@/lib/apiClient"
 import {
   formatDollar,
   normalizeWasteCategory,
@@ -233,51 +234,71 @@ describe("escapeHtml", () => {
 
 describe("safeSetCache", () => {
   let setItemMock: ReturnType<typeof vi.fn>
+  let getItemMock: ReturnType<typeof vi.fn>
   let removeItemMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     setItemMock = vi.fn()
+    getItemMock = vi.fn().mockReturnValue(null)
     removeItemMock = vi.fn()
     Object.defineProperty(window, "localStorage", {
-      value: { setItem: setItemMock, removeItem: removeItemMock },
+      value: { setItem: setItemMock, getItem: getItemMock, removeItem: removeItemMock },
       writable: true,
     })
   })
 
   it("stores data in localStorage on success", () => {
-    const data = { findings: [{ id: "f1" }], summary: {} } as any
+    const data = { findings: [{ id: "f1" }], summary: {} } as unknown as WasteAnalyzeResponse
     safeSetCache(WASTE_ANALYSIS_CACHE_KEY, data)
+    // Primary cache write + backup key write (since findings > 0)
     expect(setItemMock).toHaveBeenCalledWith(
       WASTE_ANALYSIS_CACHE_KEY,
       JSON.stringify(data)
     )
   })
 
+  it("does not overwrite good cached data with empty data", () => {
+    const cachedData = { findings: [{ id: "f1" }], summary: {} } as unknown as WasteAnalyzeResponse
+    getItemMock.mockReturnValue(JSON.stringify(cachedData))
+
+    const emptyData = { findings: [], summary: {} } as unknown as WasteAnalyzeResponse
+    safeSetCache(WASTE_ANALYSIS_CACHE_KEY, emptyData)
+
+    // Should not have written to primary cache (empty data, good cache exists)
+    expect(setItemMock).not.toHaveBeenCalled()
+  })
+
   it("trims findings progressively when localStorage is full", () => {
     const findings = Array.from({ length: 600 }, (_, i) => ({ id: `f-${i}` }))
-    const data = { findings, summary: {} } as any
+    const data = { findings, summary: {} } as unknown as WasteAnalyzeResponse
 
     // First call throws (full data), second call succeeds (trimmed to 500)
-    setItemMock
-      .mockImplementationOnce(() => { throw new Error("QuotaExceeded") })
-      .mockImplementation(() => {})
+    // After that, backup key also writes (2 more calls: full + trimmed)
+    let callCount = 0
+    setItemMock.mockImplementation(() => {
+      callCount++
+      if (callCount === 1) throw new Error("QuotaExceeded")
+      // All subsequent calls succeed
+    })
 
     safeSetCache(WASTE_ANALYSIS_CACHE_KEY, data)
 
-    // Second call should have trimmed findings to 500
-    expect(setItemMock).toHaveBeenCalledTimes(2)
-    const stored = JSON.parse(setItemMock.mock.calls[1][1])
+    // Verify the primary cache was written with trimmed data
+    const primaryCalls = setItemMock.mock.calls.filter(
+      (c: [string, string]) => c[0] === WASTE_ANALYSIS_CACHE_KEY
+    )
+    expect(primaryCalls.length).toBeGreaterThanOrEqual(1)
+    const stored = JSON.parse(primaryCalls[primaryCalls.length - 1][1])
     expect(stored.findings.length).toBe(500)
   })
 
-  it("falls through to removeItem when all trims fail", () => {
-    const data = { findings: [{ id: "f1" }], summary: {} } as any
+  it("does not remove cache key when all trims fail", () => {
+    const data = { findings: [{ id: "f1" }], summary: {} } as unknown as WasteAnalyzeResponse
     setItemMock.mockImplementation(() => { throw new Error("QuotaExceeded") })
 
     safeSetCache(WASTE_ANALYSIS_CACHE_KEY, data)
 
-    // 1 initial + 3 trim attempts + 1 removeItem
-    expect(setItemMock).toHaveBeenCalledTimes(4) // initial + 500 + 300 + 150
-    expect(removeItemMock).toHaveBeenCalledWith(WASTE_ANALYSIS_CACHE_KEY)
+    // Should NOT remove the key (better to keep stale data than nothing)
+    expect(removeItemMock).not.toHaveBeenCalled()
   })
 })

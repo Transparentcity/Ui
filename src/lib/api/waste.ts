@@ -193,7 +193,10 @@ export function getWasteAnalysis(
   if (forceRefresh) params.append("force_refresh", "true");
   const query = params.toString();
   const path = `/api/waste/analyze${query ? `?${query}` : ""}`;
-  return request<WasteAnalyzeResponse>(path, "GET", undefined, token);
+  // 45s timeout for the direct analysis endpoint (longer since it does the work inline)
+  return request<WasteAnalyzeResponse>(path, "GET", undefined, token, {
+    timeoutMs: 45_000,
+  });
 }
 
 export interface WasteRunJobResponse {
@@ -207,7 +210,10 @@ export function runWasteAnalysis(
   token: string,
   payload: RunWasteAnalysisRequest
 ): Promise<WasteRunJobResponse> {
-  return request<WasteRunJobResponse>("/api/waste/run", "POST", payload, token);
+  // 30s timeout: if the server hasn't accepted the job by then, let retry logic kick in
+  return request<WasteRunJobResponse>("/api/waste/run", "POST", payload, token, {
+    timeoutMs: 30_000,
+  });
 }
 
 export function getWasteSummary(

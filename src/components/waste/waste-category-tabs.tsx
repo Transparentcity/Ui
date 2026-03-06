@@ -22,15 +22,19 @@ interface WasteCategoryTabsProps {
   activeCategory: string
   onCategoryChange: (category: string) => void
   categorySummaries: WasteCategorySummary[]
+  isLoading?: boolean
 }
 
 export function WasteCategoryTabs({
   activeCategory,
   onCategoryChange,
   categorySummaries,
+  isLoading,
 }: WasteCategoryTabsProps) {
   const getSummary = (key: string) =>
     categorySummaries.find((c) => normalizeWasteCategory(c.category) === key)
+
+  const noData = !isLoading && categorySummaries.length === 0
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
@@ -57,20 +61,28 @@ export function WasteCategoryTabs({
               {cat.icon}
               <span className="text-sm font-medium">{cat.label}</span>
             </div>
-            <div className="flex items-baseline gap-3">
-              <span className="text-3xl font-bold text-gray-900">
-                {findingCount}
-              </span>
-              {criticalCount > 0 && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
-                  {criticalCount} crit
-                </span>
-              )}
-            </div>
-            {totalAmount != null && totalAmount > 0 && (
-              <span className="text-sm text-gray-500">
-                {formatDollar(totalAmount)} exposure
-              </span>
+            {isLoading ? (
+              <div className="flex items-baseline gap-3">
+                <div className="h-9 w-12 bg-gray-100 rounded animate-pulse" />
+              </div>
+            ) : (
+              <>
+                <div className="flex items-baseline gap-3">
+                  <span className="text-3xl font-bold text-gray-900">
+                    {noData ? "—" : findingCount}
+                  </span>
+                  {criticalCount > 0 && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                      {criticalCount} crit
+                    </span>
+                  )}
+                </div>
+                {totalAmount != null && totalAmount > 0 && (
+                  <span className="text-sm text-gray-500">
+                    {formatDollar(totalAmount)} exposure
+                  </span>
+                )}
+              </>
             )}
           </button>
         )
