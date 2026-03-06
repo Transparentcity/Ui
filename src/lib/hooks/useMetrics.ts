@@ -27,6 +27,7 @@ import {
   getStructuringNotes,
   getTemplateStructuringNotes,
   getBatchComparisons,
+  getPlaceComparisonsBatch,
   type AdminMetricListItem,
   type AdminMetricDetail,
   type AdminMetricSummary,
@@ -43,6 +44,7 @@ import {
   type MapData,
   type ComparisonType,
   type BatchComparisonsRequest,
+  type PlaceComparisonsBatchRequest,
 } from "@/lib/apiClient";
 
 // Query keys factory for metrics
@@ -66,6 +68,8 @@ export const metricKeys = {
     [...metricKeys.all, "comparison", id, type, district] as const,
   batchComparisons: (request: BatchComparisonsRequest) =>
     [...metricKeys.all, "batch-comparisons", request] as const,
+  placeBatchComparisons: (placeId: number, request: PlaceComparisonsBatchRequest) =>
+    [...metricKeys.all, "place-batch-comparisons", placeId, request] as const,
   cityStructure: (id: number) => [...metricKeys.all, "city-structure", id] as const,
   mapData: (metricId: number, startDate?: string | null, endDate?: string | null, districts?: number[] | null) =>
     [...metricKeys.all, "map-data", metricId, startDate, endDate, districts] as const,
@@ -79,6 +83,10 @@ export interface UseMetricsOptions {
   metric_type?: string;
   is_active?: boolean;
   city_id?: number;
+  /** Filter by last run status: failed, completed, cancelled, timeout, or never */
+  last_execution_status?: string;
+  /** Include record counts (slower). Omit or false for fast list load. */
+  include_record_counts?: boolean;
   force_refresh?: boolean;
 }
 
@@ -87,7 +95,7 @@ export interface UseMetricsOptions {
  * Cache time: 2 minutes (metrics change frequently)
  */
 export function useMetrics(options: UseMetricsOptions = {}) {
-  const { getAccessTokenSilently } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
 
   return useQuery({
     queryKey: metricKeys.list(options),
@@ -96,7 +104,7 @@ export function useMetrics(options: UseMetricsOptions = {}) {
       return listAdminMetrics(token, options);
     },
     staleTime: 2 * 60 * 1000, // 2 minutes - metrics can change frequently
-    enabled: true,
+    enabled: !!isAuthenticated,
   });
 }
 
@@ -157,7 +165,7 @@ export function useTemplateStructuringNotes(
  * Cache time: 1 minute (summary changes frequently)
  */
 export function useMetricsSummary() {
-  const { getAccessTokenSilently } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
 
   return useQuery({
     queryKey: metricKeys.summary(),
@@ -166,6 +174,7 @@ export function useMetricsSummary() {
       return getAdminMetricsSummary(token);
     },
     staleTime: 1 * 60 * 1000, // 1 minute
+    enabled: !!isAuthenticated,
   });
 }
 
@@ -174,7 +183,7 @@ export function useMetricsSummary() {
  * Cache time: 10 minutes (categories change rarely)
  */
 export function useMetricCategories() {
-  const { getAccessTokenSilently } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
 
   return useQuery({
     queryKey: metricKeys.categories(),
@@ -183,6 +192,7 @@ export function useMetricCategories() {
       return listAdminMetricCategories(token);
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
+    enabled: !!isAuthenticated,
   });
 }
 
@@ -191,7 +201,7 @@ export function useMetricCategories() {
  * Cache time: 10 minutes (types change rarely)
  */
 export function useMetricTypes() {
-  const { getAccessTokenSilently } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
 
   return useQuery({
     queryKey: metricKeys.types(),
@@ -200,6 +210,7 @@ export function useMetricTypes() {
       return listAdminMetricTypes(token);
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
+    enabled: !!isAuthenticated,
   });
 }
 
@@ -208,7 +219,7 @@ export function useMetricTypes() {
  * Cache time: 5 minutes
  */
 export function useMetricCities() {
-  const { getAccessTokenSilently } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
 
   return useQuery({
     queryKey: metricKeys.cities(),
@@ -217,6 +228,7 @@ export function useMetricCities() {
       return listAdminMetricCities(token);
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled: !!isAuthenticated,
   });
 }
 
@@ -561,7 +573,7 @@ export function useMetricComparisons(
 }
 
 /**
- * Hook to get comparisons for multiple metrics in batch.
+ * Hook to get comparisons for multiple metrics in batch (city/district).
  */
 export function useBatchComparisons(request: BatchComparisonsRequest | null) {
   const { getAccessTokenSilently } = useAuth0();
@@ -586,6 +598,37 @@ export function useBatchComparisons(request: BatchComparisonsRequest | null) {
     gcTime: 30 * 60 * 1000, // 30 minutes
     retry: 1, // Only retry once on failure
     retryDelay: 1000, // Wait 1 second before retry
+  });
+}
+
+/**
+ * Hook to get place comparisons for multiple metrics (same response shape as batch comparisons for dashboard parity).
+ */
+export function usePlaceBatchComparisons(
+  placeId: number | null,
+  request: PlaceComparisonsBatchRequest | null
+) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: metricKeys.placeBatchComparisons(placeId ?? 0, request ?? { metric_ids: [] }),
+    queryFn: async () => {
+      if (!placeId || !request || !request.metric_ids || request.metric_ids.length === 0) {
+        return {};
+      }
+      try {
+        const token = await getAccessTokenSilently();
+        return await getPlaceComparisonsBatch(placeId, request, token);
+      } catch (error) {
+        console.error('Error fetching place batch comparisons:', error);
+        return {};
+      }
+    },
+    enabled: !!placeId && !!request && !!request.metric_ids && request.metric_ids.length > 0,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    retry: 1,
+    retryDelay: 1000,
   });
 }
 

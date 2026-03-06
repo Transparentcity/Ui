@@ -109,7 +109,7 @@ export function getNextAvailableSendTime(settings: Partial<ThrottleSettings>, ti
   const startHour = settings.active_hours_start ?? DEFAULT_THROTTLE_SETTINGS.active_hours_start
   const activeDays = settings.active_days ?? DEFAULT_THROTTLE_SETTINGS.active_days
   
-  let target = new Date(now)
+  const target = new Date(now)
   
   // If not within active hours, find next active window
   for (let i = 0; i < 8; i++) { // Check up to 8 days ahead

@@ -240,7 +240,7 @@ export default function MapTimeline({
 
   return (
     <>
-      {/* Clock icon button - lower left */}
+      {/* Clock icon button - bottom left */}
       <button
         className={`map-timeline-toggle ${isOpen ? "open" : ""}`}
         onClick={(e) => {

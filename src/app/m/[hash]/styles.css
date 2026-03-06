@@ -308,13 +308,19 @@
   position: absolute;
   left: 16px;
   top: 16px;
-  background: var(--bg-secondary);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(10px);
   border: 1px solid var(--border-primary);
   border-radius: 12px;
   padding: 10px 12px;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   max-width: 280px;
   z-index: 10;
+}
+
+[data-theme="dark"] .map-legend,
+.dark .map-legend {
+  background: rgba(30, 30, 30, 0.72);
 }
 
 .map-legend-title {
@@ -353,6 +359,70 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Multi-layer map: layer visibility toggles (same position as MapLayerPanel) */
+.multi-layer-panel {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  width: 280px;
+  max-width: 85vw;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-primary, rgba(0, 0, 0, 0.1));
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  padding: 10px 12px;
+  pointer-events: auto;
+}
+
+[data-theme="dark"] .multi-layer-panel,
+.dark .multi-layer-panel {
+  background: rgba(30, 30, 30, 0.5);
+  border-color: var(--border-primary, rgba(255, 255, 255, 0.1));
+}
+
+.multi-layer-panel-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.multi-layer-panel-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.multi-layer-panel-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--brand-primary, #2563eb);
+  cursor: pointer;
+}
+
+.multi-layer-panel-item .multi-layer-panel-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .multi-layer-panel-item .multi-layer-panel-swatch,
+.dark .multi-layer-panel-item .multi-layer-panel-swatch {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.multi-layer-panel-item span:last-child {
+  flex: 1;
 }
 
 .map-overlay-button {

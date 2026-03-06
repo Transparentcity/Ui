@@ -348,7 +348,7 @@ export default function ChatView({
     // Fetch stats (will update if they've changed, but won't clear if fetch fails)
     fetchStats();
     // Remove sessionStats from deps to prevent infinite loops
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentSessionId, isStreaming, sessionId, getAccessTokenSilently, selectedModel]);
 
   const handleMessagesLoaded = useCallback((loadedMessages: Message[]) => {
@@ -1013,7 +1013,7 @@ export default function ChatView({
     // Check if we have intermediate events for chronological rendering
     // Only use message-level events - session-level events contain ALL events from all messages
     // which would cause tool calls to appear at the top incorrectly
-    let intermediateEvents = msg.intermediate_events || [];
+    const intermediateEvents = msg.intermediate_events || [];
     
     // Don't fall back to session-level intermediate_steps as they contain events from all messages
     // This would cause incorrect chronological ordering

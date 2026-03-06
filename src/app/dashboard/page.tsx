@@ -1,21 +1,10 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import TitleBar from "@/components/TitleBar";
 import Sidebar from "@/components/Sidebar";
-import ChatView from "@/components/ChatView";
-import CityDataAdmin from "@/components/CityDataAdmin";
-import CityDataTable from "@/components/CityDataTable";
-import CityView from "@/components/CityView";
-import ResearchView from "@/components/ResearchView";
-import DatasetsAdmin from "@/components/DatasetsAdmin";
-import MetricsAdmin from "@/components/MetricsAdmin";
-import UserManagement from "@/components/UserManagement";
-import ClaimsAdmin from "@/components/ClaimsAdmin";
-import JobLogsViewer from "@/components/JobLogsViewer";
-import EmailAdmin from "@/components/EmailAdmin";
 import FeedView from "@/components/FeedView";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
@@ -29,13 +18,16 @@ import {
   recordSignupIntent,
   getGovernmentVerificationStatus,
   updateGovernmentVerification,
+  listMyPlaces,
   type ClaimContext,
   type GovernmentVerificationStatus,
+  type UserPlace,
 } from "@/lib/apiClient";
 import { PENDING_ORDER_STORAGE_KEY_PREFIX } from "@/components/MetricOrderEditor";
 import Loader from "@/components/Loader";
 import WelcomeModal from "@/components/WelcomeModal";
 import GovernmentOnboardingModal from "@/components/GovernmentOnboardingModal";
+import EditHomeLocationModal from "@/components/EditHomeLocationModal";
 import RedisStatusIndicator from "@/components/RedisStatusIndicator";
 import {
   trackSignupComplete,
@@ -47,6 +39,43 @@ import {
 } from "@/lib/analytics";
 import styles from "./page.module.css";
 import dynamic from "next/dynamic";
+
+// Lazy-load heavy views so dashboard shell and default Feed paint immediately
+const ChatView = dynamic(() => import("@/components/ChatView"), {
+  ssr: false,
+  loading: () => (
+    <div className={`${styles.contentView} tc-loading-state`} style={{ alignItems: "center", justifyContent: "center" }}>
+      <Loader size="sm" color="dark" />
+      <span>Loading…</span>
+    </div>
+  ),
+});
+const CityView = dynamic(() => import("@/components/CityView"), {
+  ssr: false,
+  loading: () => (
+    <div className={`${styles.contentView} tc-loading-state`} style={{ alignItems: "center", justifyContent: "center" }}>
+      <Loader size="sm" color="dark" />
+      <span>Loading…</span>
+    </div>
+  ),
+});
+const ResearchView = dynamic(() => import("@/components/ResearchView"), {
+  ssr: false,
+  loading: () => (
+    <div className={`${styles.contentView} tc-loading-state`} style={{ alignItems: "center", justifyContent: "center" }}>
+      <Loader size="sm" color="dark" />
+      <span>Loading…</span>
+    </div>
+  ),
+});
+const CityDataAdmin = dynamic(() => import("@/components/CityDataAdmin"), { ssr: false });
+const CityDataTable = dynamic(() => import("@/components/CityDataTable"), { ssr: false });
+const DatasetsAdmin = dynamic(() => import("@/components/DatasetsAdmin"), { ssr: false });
+const MetricsAdmin = dynamic(() => import("@/components/MetricsAdmin"), { ssr: false });
+const UserManagement = dynamic(() => import("@/components/UserManagement"), { ssr: false });
+const ClaimsAdmin = dynamic(() => import("@/components/ClaimsAdmin"), { ssr: false });
+const JobLogsViewer = dynamic(() => import("@/components/JobLogsViewer"), { ssr: false });
+const EmailAdmin = dynamic(() => import("@/components/EmailAdmin"), { ssr: false });
 
 // Dynamically import NewResearchPage to avoid SSR issues
 const NewResearchPage = dynamic(() => import("../research/new/page"), { ssr: false });
@@ -83,6 +112,11 @@ export default function DashboardPage() {
   const [currentResearchId, setCurrentResearchId] = useState<number | null>(null);
   const [initialChatPrompt, setInitialChatPrompt] = useState<string | null>(null);
   const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [requestOpenDistrictModal, setRequestOpenDistrictModal] = useState<number | null>(null);
+  const [initialPlaceId, setInitialPlaceId] = useState<number | null>(null);
+  /** Official Selector selection (district / place) so left nav can stay in sync; only when currentView === "city". */
+  const [citySelection, setCitySelection] = useState<{ district: number | null; placeId: number | null }>({ district: null, placeId: null });
+  const [allUserPlaces, setAllUserPlaces] = useState<UserPlace[]>([]);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showGovernmentOnboardingModal, setShowGovernmentOnboardingModal] = useState(false);
   const [governmentClaimContext, setGovernmentClaimContext] = useState<ClaimContext | null>(null);
@@ -105,6 +139,7 @@ export default function DashboardPage() {
   const [editableNewsletterFrequency, setEditableNewsletterFrequency] = useState<"weekly" | "monthly">("weekly");
   const [generatingSampleNewsletter, setGeneratingSampleNewsletter] = useState(false);
   const [sampleNewsletterPreview, setSampleNewsletterPreview] = useState<{ html: string; title: string } | null>(null);
+  const [showEditHomeLocationModal, setShowEditHomeLocationModal] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -142,23 +177,6 @@ export default function DashboardPage() {
       trackDashboardView();
     }
   }, [isAuthenticated, isLoading]);
-
-  // Load government verification status for sidebar logo (and keep in sync when settings load it)
-  useEffect(() => {
-    if (!isAuthenticated || isLoading) return;
-    let cancelled = false;
-    getAccessTokenSilently()
-      .then((token) => getGovernmentVerificationStatus(token))
-      .then((status) => {
-        if (!cancelled) setGovVerificationStatus(status);
-      })
-      .catch(() => {
-        if (!cancelled) setGovVerificationStatus(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated, isLoading, getAccessTokenSilently]);
 
   // Track signup completion and login
   useEffect(() => {
@@ -211,6 +229,24 @@ export default function DashboardPage() {
     migratePendingMetricOrder();
   }, [isAuthenticated, isLoading]);
 
+  // Load all user places for sidebar (My Cities list)
+  useEffect(() => {
+    if (!isAuthenticated || isLoading) {
+      setAllUserPlaces([]);
+      return;
+    }
+    let cancelled = false;
+    getAccessTokenSilently()
+      .then((token) => listMyPlaces(token))
+      .then((list) => {
+        if (!cancelled) setAllUserPlaces(list);
+      })
+      .catch(() => {
+        if (!cancelled) setAllUserPlaces([]);
+      });
+    return () => { cancelled = true; };
+  }, [isAuthenticated, isLoading, getAccessTokenSilently]);
+
   // Reload preferences when settings view becomes active
   useEffect(() => {
     if (currentView === "system-stats" && isAuthenticated && !isLoading && !loadingPreferences) {
@@ -251,32 +287,43 @@ export default function DashboardPage() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // Load permissions and government verification in parallel (single round-trip for sidebar state)
   useEffect(() => {
-    const checkAdminStatus = async () => {
-      if (!isAuthenticated || !user) {
-        setIsCheckingAdmin(false);
-        return;
-      }
+    if (!isAuthenticated || !user) {
+      setIsCheckingAdmin(false);
+      return;
+    }
 
+    let cancelled = false;
+
+    const loadPermissionsAndGov = async () => {
       try {
         const token = await getAccessTokenSilently();
-        const permissions = await getMyPermissions(token);
+        const [permissions, govStatus] = await Promise.all([
+          getMyPermissions(token),
+          getGovernmentVerificationStatus(token).catch(() => null),
+        ]);
+        if (cancelled) return;
         setIsAdmin(permissions.is_admin || false);
         setCityLeadCityIds(permissions.city_lead_city_ids || []);
+        setGovVerificationStatus(govStatus ?? null);
         console.log("Admin status checked:", { isAdmin: permissions.is_admin, role: permissions.role });
-        setIsCheckingAdmin(false);
       } catch (error) {
         console.error("Error checking admin status:", error);
-        // On error, default to false (non-admin)
-        setIsAdmin(false);
-        setCityLeadCityIds([]);
-        setIsCheckingAdmin(false);
+        if (!cancelled) {
+          setIsAdmin(false);
+          setCityLeadCityIds([]);
+          setGovVerificationStatus(null);
+        }
+      } finally {
+        if (!cancelled) setIsCheckingAdmin(false);
       }
     };
 
-    if (isAuthenticated) {
-      checkAdminStatus();
-    }
+    loadPermissionsAndGov();
+    return () => {
+      cancelled = true;
+    };
   }, [isAuthenticated, user, getAccessTokenSilently]);
 
   // Check if user needs onboarding (first-time user check)
@@ -423,6 +470,12 @@ export default function DashboardPage() {
     setSidebarOpen(!sidebarOpen);
   };
 
+  // Stable callback so CityView's useEffect doesn't re-run every render (avoids max update depth)
+  const onOfficialSelectionChange = useCallback(
+    (s: { district: number | null; placeId: number | null }) => setCitySelection(s),
+    []
+  );
+
   const handleNewChat = () => {
     setCurrentView("chat");
     setCurrentSessionId(null); // Reset to new chat
@@ -457,7 +510,13 @@ export default function DashboardPage() {
 
   const handleSearchCities = () => {
     // City search is now handled by the CityTypeahead component in the Sidebar
-    // This function is kept for backward compatibility but is no longer needed
+  };
+
+  const handleOpenFindDistrict = () => {
+    if (activeCityId != null) {
+      setRequestOpenDistrictModal(activeCityId);
+      setCurrentView("city");
+    }
   };
 
   const handleViewChange = (view: string) => {
@@ -478,13 +537,33 @@ export default function DashboardPage() {
 
   const handleCityClick = (cityId: number) => {
     setActiveCityId(cityId);
-    setInitialDistrict(null); // Clear initial district when manually selecting
+    setInitialDistrict(null);
+    setInitialPlaceId(null);
+    setCitySelection({ district: null, placeId: null });
     setCurrentView("city");
-    setCurrentSessionId(null); // Clear chat session when selecting a city
+    setCurrentSessionId(null);
     setIsCurrentSessionJobSession(false);
-    setCurrentResearchId(null); // Clear research when selecting a city
-    // Clear GPS location when city is selected via sidebar
+    setCurrentResearchId(null);
     setGpsLocation(null);
+  };
+
+  const handlePlaceClick = (cityId: number, placeId: number) => {
+    setActiveCityId(cityId);
+    setInitialDistrict(null);
+    setInitialPlaceId(placeId);
+    setCitySelection({ district: null, placeId });
+    setCurrentView("city");
+    setCurrentSessionId(null);
+    setIsCurrentSessionJobSession(false);
+    setCurrentResearchId(null);
+    setGpsLocation(null);
+  };
+
+  const handlePlaceSaved = () => {
+    getAccessTokenSilently()
+      .then((token) => listMyPlaces(token))
+      .then(setAllUserPlaces)
+      .catch(() => setAllUserPlaces([]));
   };
 
   const handleOpenSettings = async () => {
@@ -689,14 +768,21 @@ export default function DashboardPage() {
     }
   };
 
-  const handleWelcomeCitySelected = (cityId: number, district?: number | null) => {
+  const handleWelcomeCitySelected = (cityId: number, district?: number | null, placeId?: number | null) => {
     setActiveCityId(cityId);
-    // If district is provided, set it; otherwise keep null (will default to citywide/0 in CityView)
     setInitialDistrict(district !== undefined && district !== null ? district : null);
+    setInitialPlaceId(placeId ?? null);
     setCurrentView("city");
     setCurrentSessionId(null);
     setCurrentResearchId(null);
     hasAutoSelectedCity.current = true;
+    // Refresh My Places so the new block appears in the sidebar
+    if (placeId != null) {
+      getAccessTokenSilently()
+        .then((token) => listMyPlaces(token))
+        .then(setAllUserPlaces)
+        .catch(() => {});
+    }
   };
 
   const handleWelcomeComplete = () => {
@@ -797,11 +883,12 @@ export default function DashboardPage() {
     }
   };
 
-  if (isLoading || isCheckingAdmin) {
+  // Only block on Auth0; show shell + feed immediately. Admin/gov state fills in when ready.
+  if (isLoading) {
     return (
-      <div className={styles.dashboardLoading}>
+      <div className={`${styles.dashboardLoading} tc-loading-state`}>
         <Loader size="sm" color="dark" />
-        <span>Loading...</span>
+        <span>Loading…</span>
       </div>
     );
   }
@@ -841,13 +928,27 @@ export default function DashboardPage() {
         onCityClick={handleCityClick}
         onDistrictClick={(cityId, district) => {
           setActiveCityId(cityId);
-          setInitialDistrict(district);
+          const districtNum = typeof district === "string" ? parseInt(district, 10) : district;
+          setInitialDistrict(districtNum);
+          setInitialPlaceId(null);
+          setCitySelection({ district: Number.isNaN(districtNum) ? null : districtNum, placeId: null });
           setCurrentView("city");
           setCurrentSessionId(null);
           setIsCurrentSessionJobSession(false);
           setCurrentResearchId(null);
           setGpsLocation(null);
         }}
+        userPlaces={allUserPlaces}
+        activePlaceId={currentView === "city" ? citySelection.placeId : null}
+        activeDistrict={
+          currentView === "city"
+            ? citySelection.placeId != null
+              ? undefined
+              : citySelection.district
+            : undefined
+        }
+        onPlaceClick={handlePlaceClick}
+        onPlaceSaved={handlePlaceSaved}
         activeCityId={activeCityId}
         onResearchClick={(reportId) => {
           setCurrentResearchId(reportId);
@@ -865,6 +966,8 @@ export default function DashboardPage() {
         onCitySelect={(cityId) => {
           setActiveCityId(cityId);
           setInitialDistrict(null); // Clear initial district when manually selecting
+          setInitialPlaceId(null);
+          setCitySelection({ district: null, placeId: null });
           setCurrentView("city");
           setCurrentSessionId(null); // Clear chat session when selecting a city
           setIsCurrentSessionJobSession(false);
@@ -872,11 +975,9 @@ export default function DashboardPage() {
           // selects a city from the sidebar list (via handleCityClick)
         }}
         onGPSLocation={(location) => {
-          // Set or clear GPS location
-          // If location is null, clear GPS (remove marker and zoom out)
-          // Otherwise, set GPS location for map zooming
           setGpsLocation(location);
         }}
+        onOpenFindDistrict={handleOpenFindDistrict}
       />
 
       <main className={`${styles.mainContent} ${sidebarOpen ? "" : styles.mainContentCollapsed}`} id="main-content">
@@ -973,10 +1074,15 @@ export default function DashboardPage() {
             <div id="city-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
               <div className={`${styles.adminContainer} ${styles.cityViewContainer}`}>
                 <CityView
+                  key={activeCityId}
                   cityId={activeCityId}
                   isAdmin={isAdmin || cityLeadCityIds.includes(activeCityId)}
                   gpsLocation={gpsLocation}
                   initialDistrict={initialDistrict}
+                  initialPlaceId={initialPlaceId}
+                  requestOpenDistrictModal={requestOpenDistrictModal}
+                  onClearDistrictModalRequest={() => setRequestOpenDistrictModal(null)}
+                  onOfficialSelectionChange={onOfficialSelectionChange}
                 />
               </div>
             </div>
@@ -1094,9 +1200,9 @@ export default function DashboardPage() {
                 </button>
               </div>
               {loadingPreferences ? (
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "16px" }}>
+                <div className="tc-loading-state" style={{ marginTop: "16px" }}>
                   <Loader size="sm" color="dark" />
-                  <span style={{ color: "var(--text-secondary)" }}>Loading preferences...</span>
+                  <span>Loading preferences…</span>
                 </div>
               ) : (
                 <div style={{ marginTop: "16px" }}>
@@ -1134,29 +1240,29 @@ export default function DashboardPage() {
                       </div>
                     )}
 
-                    {userPreferences?.extra?.home_location && (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "12px 0",
-                          borderBottom: "1px solid var(--border-primary)",
-                          gap: "16px",
-                        }}
-                      >
-                        <div>
-                          <div
-                            style={{
-                              fontWeight: 600,
-                              color: "var(--text-primary)",
-                              marginBottom: "4px",
-                            }}
-                          >
-                            Home Location
-                          </div>
-                          <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                            {homeCity ? (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "12px 0",
+                        borderBottom: "1px solid var(--border-primary)",
+                        gap: "16px",
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            color: "var(--text-primary)",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          Home Location
+                        </div>
+                        <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
+                          {userPreferences?.extra?.home_location ? (
+                            homeCity ? (
                               <>
                                 {homeCity.emoji && <span style={{ marginRight: "6px" }}>{homeCity.emoji}</span>}
                                 {homeCity.display_name || homeCity.name}
@@ -1170,11 +1276,33 @@ export default function DashboardPage() {
                                   ? ` • District ${userPreferences.extra.home_location.district}`
                                   : ""
                               }`
-                            )}
-                          </div>
+                            )
+                          ) : (
+                            "Not set"
+                          )}
                         </div>
                       </div>
-                    )}
+                      <button
+                        type="button"
+                        style={{
+                          ...buttonStyle,
+                          flexShrink: 0,
+                        }}
+                        onMouseEnter={(e) => buttonHover(e, true)}
+                        onMouseLeave={(e) => buttonHover(e, false)}
+                        onClick={() => setShowEditHomeLocationModal(true)}
+                      >
+                        {userPreferences?.extra?.home_location ? "Edit" : "Set location"}
+                      </button>
+                    </div>
+                    <EditHomeLocationModal
+                      open={showEditHomeLocationModal}
+                      onClose={() => setShowEditHomeLocationModal(false)}
+                      onSaved={async () => {
+                        await loadUserSettings();
+                        handlePlaceSaved();
+                      }}
+                    />
                   </div>
 
                   {/* Communication Preferences Section */}

@@ -115,7 +115,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   if (!domain || !clientId || !audience) {
     if (typeof window !== "undefined") {
-      // eslint-disable-next-line no-console
+       
       console.warn(
         "Auth0 environment variables are not fully configured. " +
           "Set NEXT_PUBLIC_AUTH0_DOMAIN, NEXT_PUBLIC_AUTH0_CLIENT_ID, " +
@@ -138,12 +138,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   return (
     <Auth0Provider
-      domain={domain || "example.us.auth0.com"}
+      domain={domain || "auth.transparent.city"}
       clientId={clientId || "example-client-id"}
       authorizationParams={{
         redirect_uri:
           typeof window !== "undefined" ? window.location.origin : undefined,
-        audience: audience || "https://api.transparentcity.app",
+        audience: audience || "https://api.transparent.city/api",
         scope: "openid profile email offline_access",
       }}
       cacheLocation="localstorage"

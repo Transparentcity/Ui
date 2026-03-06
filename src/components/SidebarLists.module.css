@@ -207,6 +207,66 @@
   color: var(--text-primary);
 }
 
+/* Saved places under same city (same hierarchy as districts, subtle difference) */
+.placeSubList {
+  display: flex;
+  flex-direction: column;
+}
+
+.placeSubItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px var(--space-lg) 4px calc(var(--space-lg) + 28px);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  border-left: 3px solid transparent;
+  text-decoration: none;
+  color: inherit;
+}
+
+.placeSubItem:hover {
+  background: var(--bg-tertiary);
+}
+
+.placeSubItemActive {
+  background: var(--bg-tertiary);
+  border-left-color: var(--brand-primary);
+}
+
+.placeSubItemIcon {
+  flex-shrink: 0;
+  width: 12px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary, #999);
+  opacity: 0.7;
+}
+
+.placeSubItemIcon svg {
+  display: block;
+}
+
+.placeSubItemActive .placeSubItemIcon {
+  color: var(--text-secondary);
+  opacity: 0.85;
+}
+
+.placeSubItemLabel {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.placeSubItem:hover .placeSubItemLabel,
+.placeSubItemActive .placeSubItemLabel {
+  color: var(--text-primary);
+}
+
 .sectionHeader {
   padding: var(--space-md) var(--space-lg);
   font-size: 11px;

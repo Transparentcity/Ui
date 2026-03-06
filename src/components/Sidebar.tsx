@@ -31,11 +31,23 @@ interface SidebarProps {
   onCityClick?: (cityId: number) => void;
   onDistrictClick?: (cityId: number, district: number) => void;
   activeCityId?: number | null;
+  /** Active district when viewing a city (for highlighting in My Cities). */
+  activeDistrict?: string | number | null;
+  /** User's saved places (for My Cities list). When set, shown under each city. */
+  userPlaces?: Array<{ id: number; city_id: number; label: string }>;
+  /** Currently selected place id (for active state in sidebar). */
+  activePlaceId?: number | null;
+  /** Called when user clicks a saved place in My Cities: open city with this place selected. */
+  onPlaceClick?: (cityId: number, placeId: number) => void;
   onResearchClick?: (reportId: number) => void;
   currentResearchId?: number | null;
   onResearchDeleted?: (reportId: number) => void;
   onCitySelect?: (cityId: number) => void;
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void;
+  /** Called after user saves a personalized place from Search Cities (so parent can refetch places). */
+  onPlaceSaved?: (place: { id: number }) => void;
+  /** Called when user clicks "Find your district" in Search Cities; e.g. open district modal when a city is selected. */
+  onOpenFindDistrict?: () => void;
   onMenuToggle?: () => void;
   currentView?: string;
 }
@@ -70,11 +82,17 @@ export default function Sidebar({
   onCityClick,
   onDistrictClick,
   activeCityId,
+  activeDistrict,
+  userPlaces = [],
+  activePlaceId,
+  onPlaceClick,
   onResearchClick,
   currentResearchId,
   onResearchDeleted,
   onCitySelect,
   onGPSLocation,
+  onPlaceSaved,
+  onOpenFindDistrict,
   onMenuToggle,
   currentView,
 }: SidebarProps) {
@@ -350,51 +368,18 @@ export default function Sidebar({
             <span>Feed</span>
           </button>
 
-          {/* FOIA / Public Records - Admin only */}
-          {isAdmin && (
-            <Link
-              href="/foia"
-              className={`${styles.navItem} ${styles.newChatBtn}`}
-              id="foia-btn"
-              onClick={() => {
-                if (isNarrowScreen() && onClose) {
-                  onClose();
-                }
-              }}
-            >
-              <span className={styles.navIcon}>
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                  <line x1="16" y1="13" x2="8" y2="13"></line>
-                  <line x1="16" y1="17" x2="8" y2="17"></line>
-                  <polyline points="10 9 9 9 8 9"></polyline>
-                </svg>
-              </span>
-              <span>Public Records</span>
-            </Link>
-          )}
-
           {/* City Search */}
           {onCitySelect && (
             <SidebarCitySearch
               onCitySelect={(cityId) => {
                 onCitySelect(cityId);
-                // Auto-close sidebar in narrow mode after city selection
                 if (isNarrowScreen() && onClose) {
                   onClose();
                 }
               }}
               onGPSLocation={onGPSLocation}
+              onPlaceSaved={onPlaceSaved}
+              onFindDistrict={onOpenFindDistrict}
             />
           )}
 
@@ -425,7 +410,21 @@ export default function Sidebar({
                 onClose();
               }
             }}
+            userPlaces={userPlaces}
+            activePlaceId={activePlaceId}
+            onPlaceClick={(cityId, placeId) => {
+              if (onPlaceClick) {
+                onPlaceClick(cityId, placeId);
+              }
+              if (onViewChange) {
+                onViewChange("city");
+              }
+              if (isNarrowScreen() && onClose) {
+                onClose();
+              }
+            }}
             activeCityId={activeCityId}
+            activeDistrict={activeDistrict != null ? String(activeDistrict) : undefined}
           />
 
           {/* Spacing */}

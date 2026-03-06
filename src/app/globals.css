@@ -125,3 +125,29 @@ a {
 .text-muted-foreground {
   color: #6b7280;
 }
+
+/* Shared default loading treatment across dashboard/map/anomaly surfaces */
+.tc-loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-secondary, #6b7280);
+  font-family: var(
+    --font-body,
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif
+  );
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.tc-loading-state--stacked {
+  flex-direction: column;
+}

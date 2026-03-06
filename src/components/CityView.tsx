@@ -7,15 +7,16 @@ import CityHeader from "@/components/CityHeader";
 import MetricDateRangeSelector from "@/components/MetricDateRangeSelector";
 import DistrictNavigation from "@/components/DistrictNavigation";
 import AnomaliesTabPanel from "@/components/AnomaliesTabPanel";
-import { useCity, useSavedCities, useSaveCity, useUnsaveCity, useCityLeaders, useRepresentativeFollowerCounts, usePublicCityDistricts } from "@/lib/hooks/useCities";
+import { useCity, useSavedCities, useSaveCity, useUnsaveCity, useCityLeaders, useRepresentativeFollowerCounts, usePublicCityDistricts, useRepresentativeFollows, useFollowRepresentative, useUnfollowRepresentative } from "@/lib/hooks/useCities";
 import type { CityLeader } from "@/lib/apiClient";
+import { listMyPlaces, getPlaceMetrics, getPlaceAnomalies, runPlaceMetricsAndAnomaliesAsJob, getJob, type PlaceTimeSeriesPoint, type PlaceAnomaly } from "@/lib/apiClient";
 import { useUserMetricOrdering } from "@/lib/hooks/useCityAdmin";
 import { emitSavedCitiesChanged, SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEvents";
 import { getPresetMetricDateRange, getDefaultDateRangeFromMetrics, type MetricDateRange } from "@/lib/dateRange";
 import type { AnomalyResult } from "@/lib/hooks/useAnomalies";
 import { useAuth0 } from "@auth0/auth0-react";
 import { getAdminMetricTimeSeries, getAdminMetricTimeSeriesDetail, type BatchComparisonsResponse, type ComparisonType, type ComparisonResponse } from "@/lib/apiClient";
-import { useMetricComparisons, useBatchComparisons } from "@/lib/hooks/useMetrics";
+import { useMetricComparisons, useBatchComparisons, usePlaceBatchComparisons } from "@/lib/hooks/useMetrics";
 import Loader from "@/components/Loader";
 import { MetricLink } from "@/components/MetricLink";
 import MetricDetailModal from "@/components/MetricDetailModal";
@@ -26,11 +27,16 @@ import "./CityView.css";
 interface CityViewProps {
   cityId: number;
   isAdmin: boolean;
-  gpsLocation?: { lat: number; lng: number } | null; // GPS coordinates to zoom to
-  initialDistrict?: number | null; // Initial district to select when loading
+  gpsLocation?: { lat: number; lng: number } | null;
+  initialDistrict?: number | null;
+  /** When set, select this saved place in the dashboard scope (e.g. from sidebar My Cities). */
+  initialPlaceId?: number | null;
+  /** When set to this cityId, open the Find Your District modal (e.g. from Search Cities). */
+  requestOpenDistrictModal?: number | null;
+  onClearDistrictModalRequest?: () => void;
+  /** Called when the Official Selector selection changes so the left nav can stay in sync. */
+  onOfficialSelectionChange?: (selection: { district: number | null; placeId: number | null }) => void;
 }
-
-type TabType = "map" | "dashboard" | "anomalies" | "admin";
 
 interface MetricWithYTD {
   id: number;
@@ -103,6 +109,14 @@ function formatMetricValue(
   return `${sign}${compact}`;
 }
 
+/** Minimal place for Official Selector "My block" */
+interface UserPlaceForSelector {
+  id: number;
+  label: string;
+  city_id: number;
+  radius_m?: number;
+}
+
 interface DashboardMetricsSectionProps {
   metrics: any[];
   cityId: number;
@@ -116,6 +130,14 @@ interface DashboardMetricsSectionProps {
   leaderFollowerCounts?: Record<string, number>; // Follower counts per district ("0"=mayor) for Official Selector
   newsletterQueriesEnabled?: boolean; // When false, defers newsletter/follow API calls (slow-connection UX)
   onCustomizeMetricsClick?: () => void; // Opens user metric order dialog
+  /** User's saved places for "My block" selector */
+  userPlaces?: UserPlaceForSelector[];
+  selectedPlaceId?: number | null;
+  onPlaceSelect?: (placeId: number | null) => void;
+  /** Called after user saves a new place from the location dialog; parent should refetch places. */
+  onPlaceSaved?: () => void;
+  /** When this value changes and is > 0, open the Find Your District modal (e.g. from Search Cities). */
+  openDistrictTrigger?: number;
 }
 
 // Time series data point for sparkline
@@ -476,9 +498,72 @@ const YTDSparkline = React.memo(function YTDSparkline({
   );
 });
 
-function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts, newsletterQueriesEnabled, onCustomizeMetricsClick }: DashboardMetricsSectionProps) {
+function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts, newsletterQueriesEnabled, onCustomizeMetricsClick, userPlaces = [], selectedPlaceId = null, onPlaceSelect, onPlaceSaved, openDistrictTrigger }: DashboardMetricsSectionProps) {
   const { getAccessTokenSilently } = useAuth0();
-  
+
+  // Block (place) scope: metrics and anomalies for selected place
+  const [placeTimeSeries, setPlaceTimeSeries] = useState<PlaceTimeSeriesPoint[]>([]);
+  const [placeAnomalies, setPlaceAnomalies] = useState<PlaceAnomaly[]>([]);
+  const [placeDataLoading, setPlaceDataLoading] = useState(false);
+  const [placeRunLoading, setPlaceRunLoading] = useState(false);
+  const selectedPlace = selectedPlaceId != null ? userPlaces.find((p) => p.id === selectedPlaceId) : null;
+
+  useEffect(() => {
+    if (!selectedPlaceId || !getAccessTokenSilently) return;
+    let cancelled = false;
+    setPlaceDataLoading(true);
+    getAccessTokenSilently()
+      .then((token) =>
+        Promise.all([
+          getPlaceMetrics(selectedPlaceId, token),
+          getPlaceAnomalies(selectedPlaceId, token),
+        ])
+      )
+      .then(([metricsRes, anomaliesRes]) => {
+        if (!cancelled) {
+          setPlaceTimeSeries(metricsRes?.time_series ?? []);
+          setPlaceAnomalies(anomaliesRes?.anomalies ?? []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPlaceTimeSeries([]);
+          setPlaceAnomalies([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPlaceDataLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [selectedPlaceId, getAccessTokenSilently]);
+
+  const refreshPlaceData = useCallback(async () => {
+    if (!selectedPlaceId || !getAccessTokenSilently) return;
+    setPlaceRunLoading(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const { job_id } = await runPlaceMetricsAndAnomaliesAsJob(selectedPlaceId, token);
+      const pollIntervalMs = 2000;
+      const maxWaitMs = 300000; // 5 min
+      const start = Date.now();
+      while (Date.now() - start < maxWaitMs) {
+        const job = await getJob(job_id, token);
+        if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
+          break;
+        }
+        await new Promise((r) => setTimeout(r, pollIntervalMs));
+      }
+      const [metricsRes, anomaliesRes] = await Promise.all([
+        getPlaceMetrics(selectedPlaceId, token),
+        getPlaceAnomalies(selectedPlaceId, token),
+      ]);
+      setPlaceTimeSeries(metricsRes?.time_series ?? []);
+      setPlaceAnomalies(anomaliesRes?.anomalies ?? []);
+    } finally {
+      setPlaceRunLoading(false);
+    }
+  }, [selectedPlaceId, getAccessTokenSilently]);
+
   // New state for explicit period selection
   type CurrentPeriodType = 'this_year' | 'this_month';
   type ComparisonPeriodType = 'last_year' | 'last_month';
@@ -631,27 +716,41 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     return { grouped: result, sortedCategories };
   }, [metricsToShow, ytdData, orderingMap]);
 
-  // Fetch precomputed comparisons for all metrics using batch endpoint
+  // Fetch precomputed comparisons for all metrics (city/district vs place)
   const metricIds = useMemo(() => 
     metricsToShow.map((m) => m.id).filter((id): id is number => !!id),
     [metricsToShow]
   );
-  
+  const batchRequest = useMemo(() => {
+    if (selectedPlaceId || metricIds.length === 0) return null;
+    return {
+      metric_ids: metricIds,
+      district: district === 0 ? null : district,
+      comparison_types: [selectedComparisonType],
+    };
+  }, [selectedPlaceId, metricIds, district, selectedComparisonType]);
+  const placeRequest = useMemo(() => {
+    if (!selectedPlaceId || metricIds.length === 0) return null;
+    return { metric_ids: metricIds, comparison_types: [selectedComparisonType] };
+  }, [selectedPlaceId, metricIds, selectedComparisonType]);
+
   const { 
     data: batchComparisons, 
     isLoading: comparisonsLoading,
     isError: comparisonsError,
     error: comparisonsErrorDetail
-  } = useBatchComparisons(
-    metricIds.length > 0
-      ? {
-          metric_ids: metricIds,
-          // Send null for citywide (district=0), backend stores citywide as district=NULL
-          district: district === 0 ? null : district,
-          comparison_types: [selectedComparisonType],
-        }
-      : null
-  );
+  } = useBatchComparisons(batchRequest);
+
+  const {
+    data: placeComparisons,
+    isLoading: placeComparisonsLoading,
+    isError: placeComparisonsError,
+  } = usePlaceBatchComparisons(selectedPlaceId ?? null, placeRequest);
+
+  const isPlaceScope = !!selectedPlaceId;
+  const comparisonsData = isPlaceScope ? placeComparisons : batchComparisons;
+  const comparisonsLoadingState = isPlaceScope ? placeComparisonsLoading : comparisonsLoading;
+  const comparisonsErrorState = isPlaceScope ? placeComparisonsError : comparisonsError;
 
   // Load sparkline data for metrics (still need time series for sparklines)
   const loadSparklineData = useCallback(async (metricId: number) => {
@@ -994,7 +1093,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     if (visibleMetricIds.size === 0) return;
     
     // Skip individual calculations if we have batch comparison data or it's loading
-    if (batchComparisons || comparisonsLoading) return;
+    if (comparisonsData || comparisonsLoadingState) return;
     
     // Only calculate individually if batch comparisons failed
     if (!comparisonsError) return;
@@ -1021,18 +1120,18 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
         });
       }, batchIndex * 100); // 100ms delay between batches
     });
-  }, [visibleMetricIds, calculateYTD, batchComparisons, comparisonsLoading, comparisonsError]);
+  }, [visibleMetricIds, calculateYTD, comparisonsData, comparisonsLoadingState, comparisonsErrorState, isPlaceScope]);
 
-  // Clear data when district or comparison type changes so we reload with the correct data
+  // Clear data when district, place, or comparison type changes so we reload with the correct data
   useEffect(() => {
     setYtdData({});
     setVisibleMetricIds(new Set());
-  }, [district, selectedComparisonType]);
+  }, [district, selectedComparisonType, selectedPlaceId]);
 
-  // If batch comparisons become available, use them to update the data
+  // If batch or place comparisons become available, merge into ytdData (same shape for dashboard parity)
   // For metrics with no current-year data (stale), shift: show "No data" for this year and last available year in comparison column with correct year label
   useEffect(() => {
-    if (!batchComparisons || Object.keys(batchComparisons).length === 0) return;
+    if (!comparisonsData || Object.keys(comparisonsData).length === 0) return;
 
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -1040,7 +1139,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     
     const updates: Record<number, Partial<typeof ytdData[number]>> = {};
     
-    Object.entries(batchComparisons).forEach(([metricIdStr, comparisons]) => {
+    Object.entries(comparisonsData).forEach(([metricIdStr, comparisons]) => {
       const metricId = parseInt(metricIdStr, 10);
       const comparisonsTyped = comparisons as Record<ComparisonType, ComparisonResponse>;
       const comparison = comparisonsTyped[selectedComparisonType];
@@ -1107,7 +1206,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
         return updated;
       });
     }
-  }, [batchComparisons, selectedComparisonType]);
+  }, [comparisonsData, selectedComparisonType]);
 
   // Determine the most common years from loaded data for column headers
   // Always display current calendar year vs prior year
@@ -1146,8 +1245,11 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     return leaders.find(l => l.district === district) || null;
   }, [leaders, district]);
 
-  // Build the dashboard title based on selected leader
+  // Build the dashboard title based on selected leader or place
   const dashboardTitle = useMemo(() => {
+    if (selectedPlaceId && selectedPlace) {
+      return `${selectedPlace.label} (${selectedPlace.radius_m}M radius) personalized dashboard`;
+    }
     if (selectedLeader) {
       const districtText = selectedLeader.district 
         ? `District ${selectedLeader.district}` 
@@ -1158,7 +1260,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
       return "Citywide Dashboard";
     }
     return `District ${district} Dashboard`;
-  }, [selectedLeader, district]);
+  }, [selectedPlaceId, selectedPlace, selectedLeader, district]);
 
   // Get label for comparison type
   const getComparisonTypeLabel = (type: ComparisonType): string => {
@@ -1272,81 +1374,157 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
 
   return (
     <div className="dashboard-section">
-      {/* Single row: official selector (left), Compare dropdowns (middle), Customize (right) */}
+      {/* Single row: context label (place/scope is set in sticky header), Compare dropdowns (middle), Customize (right) */}
       <div className="dashboard-header dashboard-header-single-row">
         <div className="dashboard-header-left">
-          {leaders && leaders.length > 0 && onDistrictChange ? (
-            <div className="dashboard-district-navigation">
-              <DistrictNavigation
-                selectedDistrict={district}
-                leaders={leaders}
-                shapefiles={shapefiles}
-                onDistrictSelect={(newDistrict) => {
-                  onDistrictChange(newDistrict);
+          <span className="dashboard-scope-label" aria-hidden="true">
+            {selectedPlaceId && selectedPlace
+              ? selectedPlace.label
+              : district === 0 || district === null
+                ? "Citywide"
+                : `District ${district}`}
+          </span>
+        </div>
+        {!selectedPlaceId && (
+          <>
+            <div className="dashboard-header-compare">
+              <span className="comparison-selector-label">Compare</span>
+              <select
+                className="comparison-selector-dropdown"
+                value={currentPeriodType}
+                onChange={(e) => {
+                  const newCurrent = e.target.value as CurrentPeriodType;
+                  setCurrentPeriodType(newCurrent);
+                  if (newCurrent === 'this_year' && comparisonPeriodType === 'last_month') {
+                    setComparisonPeriodType('last_year');
+                  }
                 }}
-                onGPSLocation={onGPSLocation}
-                leaderFollowerCounts={leaderFollowerCounts}
-                cityId={cityId}
-                publicPagePath={cityName ? `/c/${slugify(cityName)}` : undefined}
-                newsletterQueriesEnabled={newsletterQueriesEnabled}
-              />
+                aria-label="Select current period"
+              >
+                {currentPeriodOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <span className="comparison-selector-label">to</span>
+              <select
+                className="comparison-selector-dropdown"
+                value={comparisonPeriodType}
+                onChange={(e) => {
+                  const newComparison = e.target.value as ComparisonPeriodType;
+                  setComparisonPeriodType(newComparison);
+                  if (currentPeriodType === 'this_year' && newComparison === 'last_month') {
+                    setCurrentPeriodType('this_month');
+                  }
+                }}
+                aria-label="Select comparison period"
+              >
+                {comparisonPeriodOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
-          ) : (
-            <h2 className="dashboard-title">{dashboardTitle}</h2>
-          )}
-        </div>
-        <div className="dashboard-header-compare">
-          <span className="comparison-selector-label">Compare</span>
-          <select
-            className="comparison-selector-dropdown"
-            value={currentPeriodType}
-            onChange={(e) => {
-              const newCurrent = e.target.value as CurrentPeriodType;
-              setCurrentPeriodType(newCurrent);
-              if (newCurrent === 'this_year' && comparisonPeriodType === 'last_month') {
-                setComparisonPeriodType('last_year');
-              }
-            }}
-            aria-label="Select current period"
-          >
-            {currentPeriodOptions.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <span className="comparison-selector-label">to</span>
-          <select
-            className="comparison-selector-dropdown"
-            value={comparisonPeriodType}
-            onChange={(e) => {
-              const newComparison = e.target.value as ComparisonPeriodType;
-              setComparisonPeriodType(newComparison);
-              if (currentPeriodType === 'this_year' && newComparison === 'last_month') {
-                setCurrentPeriodType('this_month');
-              }
-            }}
-            aria-label="Select comparison period"
-          >
-            {comparisonPeriodOptions.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        {onCustomizeMetricsClick && (
-          <button
-            type="button"
-            className="dashboard-header-customize-btn"
-            onClick={onCustomizeMetricsClick}
-          >
-            Customize metrics
-          </button>
+            {onCustomizeMetricsClick && (
+              <button
+                type="button"
+                className="dashboard-header-customize-btn"
+                onClick={onCustomizeMetricsClick}
+              >
+                Customize metrics
+              </button>
+            )}
+          </>
+        )}
+        {selectedPlaceId && selectedPlace && (
+          <>
+            <div className="dashboard-header-compare">
+              <span className="comparison-selector-label">Compare</span>
+              <select
+                className="comparison-selector-dropdown"
+                value={currentPeriodType}
+                onChange={(e) => {
+                  const newCurrent = e.target.value as CurrentPeriodType;
+                  setCurrentPeriodType(newCurrent);
+                  if (newCurrent === "this_year" && comparisonPeriodType === "last_month") {
+                    setComparisonPeriodType("last_year");
+                  }
+                }}
+                aria-label="Select current period"
+              >
+                {currentPeriodOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <span className="comparison-selector-label">to</span>
+              <select
+                className="comparison-selector-dropdown"
+                value={comparisonPeriodType}
+                onChange={(e) => {
+                  const newComparison = e.target.value as ComparisonPeriodType;
+                  setComparisonPeriodType(newComparison);
+                  if (currentPeriodType === "this_year" && newComparison === "last_month") {
+                    setCurrentPeriodType("this_month");
+                  }
+                }}
+                aria-label="Select comparison period"
+              >
+                {comparisonPeriodOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="dashboard-header-block-actions">
+              <button
+                type="button"
+                className="dashboard-header-customize-btn"
+                onClick={refreshPlaceData}
+                disabled={placeRunLoading || placeDataLoading}
+              >
+                {placeRunLoading ? "Running…" : "Refresh metrics"}
+              </button>
+            </div>
+          </>
         )}
       </div>
 
       <div className="metrics-table-container">
+        {selectedPlaceId && selectedPlace && placeDataLoading && !comparisonsData ? (
+          <div className="dashboard-metrics-loading tc-loading-state" style={{ padding: "48px 24px" }}>
+            <Loader size="sm" color="dark" />
+            <span>Loading personalized dashboard…</span>
+          </div>
+        ) : selectedPlaceId && selectedPlace && !placeDataLoading && !comparisonsLoadingState && (!comparisonsData || Object.keys(comparisonsData).length === 0) && placeAnomalies.length === 0 ? (
+          <div className="block-dashboard-empty block-dashboard-empty--dark">
+            {placeRunLoading ? (
+              <p className="block-dashboard-empty-message">Refreshing metrics…</p>
+            ) : (
+              <>
+                <p className="block-dashboard-empty-message">No data yet — refresh metrics for this place.</p>
+                <button
+                  type="button"
+                  className="dashboard-header-customize-btn"
+                  onClick={refreshPlaceData}
+                  disabled={placeRunLoading}
+                >
+                  Refresh metrics
+                </button>
+              </>
+            )}
+          </div>
+        ) : comparisonsLoadingState ? (
+          <div className="dashboard-metrics-loading tc-loading-state" style={{ padding: "48px 24px" }}>
+            <Loader size="sm" color="dark" />
+            <span>Loading metrics…</span>
+          </div>
+        ) : (
+        <>
         {groupedMetrics.sortedCategories.map((category) => {
           // Filter metrics with valid data
           const metricsWithData = groupedMetrics.grouped[category].filter((metric) => {
@@ -1570,16 +1748,49 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
             </div>
           );
         })}
+        {selectedPlaceId && (() => {
+          const alertAnomalies = placeAnomalies.filter((a) => a.is_anomaly === true);
+          const formatPeriod = (tp: string | null): string => {
+            if (!tp) return "";
+            try {
+              const d = new Date(tp + "T12:00:00");
+              if (Number.isNaN(d.getTime())) return tp;
+              return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+            } catch {
+              return tp;
+            }
+          };
+          const formatChange = (a: PlaceAnomaly): string => {
+            if (a.pct_change == null) return "Anomaly";
+            if (a.pct_change === 0) return "No change vs prior period";
+            return `${a.pct_change > 0 ? "+" : ""}${a.pct_change.toFixed(1)}% vs prior period`;
+          };
+          return alertAnomalies.length > 0 ? (
+            <div className="block-anomalies-list" style={{ marginTop: "24px", paddingTop: "16px", borderTop: "1px solid var(--border-color, #e5e5e5)" }}>
+              <h3 style={{ marginBottom: "8px", fontSize: "1rem" }}>Alerts</h3>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {alertAnomalies.map((a, i) => (
+                  <li key={a.id ?? i} style={{ padding: "6px 0", borderBottom: "1px solid var(--border-color, #eee)" }}>
+                    <span className="block-anomaly-period" style={{ marginRight: "8px", color: "var(--text-secondary)" }}>{formatPeriod(a.time_period)}</span>
+                    <span className="block-anomaly-message">{formatChange(a)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null;
+        })()}
+        </>
+        )}
       </div>
     </div>
   );
 }
 
-export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict }: CityViewProps) {
-  const [activeTab, setActiveTab] = useState<TabType>("dashboard"); // Default to dashboard tab
+export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict, initialPlaceId, requestOpenDistrictModal, onClearDistrictModalRequest, onOfficialSelectionChange }: CityViewProps) {
+  const [adminDrawerOpen, setAdminDrawerOpen] = useState(false);
+  const [alertsSectionVisible, setAlertsSectionVisible] = useState(false);
+  const [openDistrictTrigger, setOpenDistrictTrigger] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [headerVisible, setHeaderVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
   const [metricDateRange, setMetricDateRange] = useState<MetricDateRange>(
     getPresetMetricDateRange("last_week")
   );
@@ -1588,6 +1799,9 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
   const [selectedDistrict, setSelectedDistrict] = useState<number | null>(
     initialDistrict !== undefined && initialDistrict !== null ? initialDistrict : 0
   );
+  const [selectedPlaceId, setSelectedPlaceId] = useState<number | null>(null);
+  const [userPlaces, setUserPlaces] = useState<{ id: number; label: string; city_id: number; lat?: number; lng?: number; radius_m?: number }[]>([]);
+  const [placesRefreshKey, setPlacesRefreshKey] = useState(0);
   const [districtGPSLocation, setDistrictGPSLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [mapLeaders, setMapLeaders] = useState<any[]>([]);
   const [mapShapefiles, setMapShapefiles] = useState<any[]>([]);
@@ -1595,24 +1809,35 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
   const [selectedMetricId, setSelectedMetricId] = useState<number | null>(null);
   const [selectedMetricDistrict, setSelectedMetricDistrict] = useState<number | null>(null);
   const [userOrderDialogOpen, setUserOrderDialogOpen] = useState(false);
-  const mapTabRef = useRef<HTMLDivElement | null>(null);
+  const mapSectionRef = useRef<HTMLDivElement | null>(null);
+  const alertsSectionRef = useRef<HTMLDivElement | null>(null);
   const [isCityDataReady, setIsCityDataReady] = useState(false);
   const previousCityIdRef = useRef<number | null>(null);
 
-  // Anomaly selection handler - accepts null to clear selection
+  useEffect(() => {
+    if (requestOpenDistrictModal != null && requestOpenDistrictModal === cityId) {
+      setOpenDistrictTrigger((t) => t + 1);
+      onClearDistrictModalRequest?.();
+    }
+  }, [requestOpenDistrictModal, cityId, onClearDistrictModalRequest]);
+
+  // Anomaly selection handler - scroll to map section and set selection
   const handleAnomalySelect = useCallback((anomaly: AnomalyResult | null) => {
     setSelectedAnomaly(anomaly);
-    // If selecting an anomaly and not on map tab, switch to it
-    if (anomaly && activeTab !== "map") {
-      setActiveTab("map");
+    if (anomaly && mapSectionRef.current) {
+      mapSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  }, [activeTab]);
+  }, []);
 
-  // Use React Query hooks for data fetching - these handle caching automatically
+  // Use React Query hooks for data fetching - dashboard first: city + metrics, then non-critical data
   const { data: cityData, isLoading: loadingCity, error: cityError, isSuccess: cityLoaded } = useCity(cityId);
-  const { data: savedCities = [], isLoading: loadingSaved } = useSavedCities();
+  // Defer saved cities until after city has loaded so dashboard can show first
+  const { data: savedCities = [], isLoading: loadingSaved } = useSavedCities({ enabled: cityLoaded });
   // Defer newsletter/follower requests until city has loaded to avoid blocking on slow connections
   const { data: leaderFollowerCounts } = useRepresentativeFollowerCounts(cityId, { enabled: cityLoaded });
+  const { data: followedDistricts = {} } = useRepresentativeFollows(cityId ?? null, { enabled: cityLoaded });
+  const followMutation = useFollowRepresentative(cityId ?? null);
+  const unfollowMutation = useUnfollowRepresentative(cityId ?? null);
   const { data: publicCityDistricts = [] } = usePublicCityDistricts(cityId, { enabled: !!cityId && cityLoaded });
 
   // When city has district-level data but no leaders in structure (e.g. Chicago, Oakland), build synthetic leaders so district nav still shows
@@ -1639,10 +1864,54 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
   const saveCityMutation = useSaveCity();
   const unsaveCityMutation = useUnsaveCity();
 
-  // Determine if current city is saved
+  // Auth for user places (My block)
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  useEffect(() => {
+    if (!cityId || !cityLoaded || !isAuthenticated) {
+      setUserPlaces([]);
+      return;
+    }
+    let cancelled = false;
+    getAccessTokenSilently()
+      .then((token) => listMyPlaces(token, { city_id: cityId }))
+      .then((list) => {
+        if (!cancelled) {
+          setUserPlaces(
+            list.map((p) => ({
+              id: p.id,
+              label: p.label,
+              city_id: p.city_id,
+              lat: p.lat,
+              lng: p.lng,
+              radius_m: p.radius_m,
+            }))
+          );
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setUserPlaces([]);
+      });
+    return () => { cancelled = true; };
+  }, [cityId, cityLoaded, isAuthenticated, getAccessTokenSilently, placesRefreshKey]);
+
+  // Determine if current city is saved (still used for sidebar/onboarding, not header)
   const isCitySaved = useMemo(() => {
     return savedCities.some((city) => city.id === cityId);
   }, [savedCities, cityId]);
+
+  // Follow state for header: current selected district (0 = citywide)
+  const headerDistrictStr = String(selectedDistrict ?? 0);
+  const isFollowed = !!(followedDistricts[headerDistrictStr]);
+  const followPending = followMutation.isPending || unfollowMutation.isPending;
+  const headerFollowerCount = leaderFollowerCounts?.[headerDistrictStr];
+  const handleHeaderFollowToggle = useCallback(() => {
+    if (followPending) return;
+    if (isFollowed) {
+      unfollowMutation.mutate(headerDistrictStr);
+    } else {
+      followMutation.mutate(headerDistrictStr);
+    }
+  }, [followPending, isFollowed, unfollowMutation, followMutation, headerDistrictStr]);
 
   // Set default date range when city data loads
   // Default to "last week" for Map Panel instead of calculating from metrics
@@ -1677,6 +1946,25 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
     }
   }, [cityId, initialDistrict]);
 
+  // When initialPlaceId changes (e.g. from sidebar): select that place, or clear place when switching to a district
+  useEffect(() => {
+    if (initialPlaceId != null) {
+      setSelectedPlaceId(initialPlaceId);
+      setSelectedDistrict(0); // Place scope; district nav shows "My block" etc.
+    } else {
+      // User clicked a district in the sidebar (initialPlaceId was set to null) — clear place so district selection sticks
+      setSelectedPlaceId(null);
+    }
+  }, [cityId, initialPlaceId]);
+
+  // Sync Official Selector selection to parent so the left nav can highlight the matching item
+  useEffect(() => {
+    onOfficialSelectionChange?.({
+      district: selectedDistrict,
+      placeId: selectedPlaceId,
+    });
+  }, [selectedDistrict, selectedPlaceId, onOfficialSelectionChange]);
+
   // Listen for saved cities changes (from other components)
   useEffect(() => {
     const handleSavedCitiesChanged = () => {
@@ -1690,36 +1978,29 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
     };
   }, []);
 
-  // Handle scroll to hide/show header on mobile in map view
+  // Lazy-mount Alerts section when it enters viewport (top-first loading)
   useEffect(() => {
-    if (activeTab !== "map" || !mapTabRef.current) return;
+    const el = alertsSectionRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) setAlertsSectionVisible(true);
+      },
+      { rootMargin: "200px", threshold: 0 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [cityData]);
 
-    const handleScroll = () => {
-      // Only apply scroll behavior on narrow screens (mobile)
-      if (window.innerWidth > 768) {
-        setHeaderVisible(true);
-        return;
-      }
-
-      const currentScrollY = window.scrollY;
-      const scrollThreshold = 10; // Small threshold to prevent jitter
-
-      if (currentScrollY > lastScrollY && currentScrollY > scrollThreshold) {
-        // Scrolling down - hide header
-        setHeaderVisible(false);
-      } else if (currentScrollY < lastScrollY) {
-        // Scrolling up - show header
-        setHeaderVisible(true);
-      }
-
-      setLastScrollY(currentScrollY);
+  // Close admin drawer on Escape
+  useEffect(() => {
+    if (!adminDrawerOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setAdminDrawerOpen(false);
     };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-    };
-  }, [activeTab, lastScrollY]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [adminDrawerOpen]);
 
   const handleToggleSave = async () => {
     try {
@@ -1741,14 +2022,15 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
     }
   };
 
-  const loading = loadingCity || loadingSaved;
+  // Only block on city + metrics so dashboard can show first; saved cities load in background
+  const loading = loadingCity;
   const error = cityError ? (cityError as Error).message : null;
 
   if (loading) {
     return (
-      <div className="city-view-loading" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", padding: "40px" }}>
+      <div className="city-view-loading tc-loading-state" style={{ padding: "40px" }}>
         <Loader size="sm" color="dark" />
-        <span>Loading city data...</span>
+        <span>Loading dashboard…</span>
       </div>
     );
   }
@@ -1769,20 +2051,94 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
   }
 
   return (
-    <div className={`city-view ${activeTab === "map" ? "map-view-active" : "tab-view-active"}`}>
-      {/* Map Tab - Full Screen with Overlays */}
-      {activeTab === "map" && (
-        <div 
-          ref={mapTabRef}
-          className={`tab-content active map-tab-fullscreen ${headerVisible ? "header-visible" : "header-hidden"}`}
-          id="map-tab"
-        >
+    <div className="city-view city-view-single-page">
+      {/* Scrollable body: hero header scrolls away, then Official/Location selector sticks; map and content scroll under it */}
+      <main className="city-view-scroll-body">
+        {/* Hero header (city name, icon, follow, admin) – scrolls up and off */}
+        <div className="city-view-hero-header">
+          <CityHeader
+            emoji={cityData.emoji || undefined}
+            name={cityData.name}
+            metricDateRange={metricDateRange}
+            onMetricDateRangeChange={setMetricDateRange}
+            variant="overlay"
+            visible={true}
+            showDateRange={false}
+            cityId={cityId}
+            selectedDistrict={selectedDistrict}
+            isFollowed={isFollowed}
+            followPending={followPending}
+            followerCount={headerFollowerCount}
+            onFollowToggle={handleHeaderFollowToggle}
+            showAdminIcon={isAdmin}
+            onAdminClick={() => setAdminDrawerOpen(true)}
+          />
+        </div>
+
+        {/* Pinned bar: Official / Location selector – becomes sticky as content scrolls up under it */}
+        <header className="city-view-sticky-header">
+          {isCityDataReady && effectiveLeaders.length > 0 ? (
+            <div className="city-view-place-selector-row">
+              <DistrictNavigation
+                selectedDistrict={selectedDistrict}
+                leaders={effectiveLeaders}
+                shapefiles={mapShapefiles}
+                onDistrictSelect={(district) => {
+                  setSelectedDistrict(district);
+                  setSelectedPlaceId(null);
+                  setDistrictGPSLocation(null);
+                }}
+                onGPSLocation={(location) => setDistrictGPSLocation(location)}
+                leaderFollowerCounts={leaderFollowerCounts}
+                cityId={cityId}
+                publicPagePath={cityData?.name ? `/c/${slugify(cityData.name)}` : undefined}
+                newsletterQueriesEnabled={cityLoaded}
+                userPlaces={userPlaces}
+                selectedPlaceId={selectedPlaceId}
+                onPlaceSelect={(id) => {
+                  setSelectedPlaceId(id);
+                  if (id != null) {
+                    setSelectedDistrict(null);
+                  }
+                }}
+                onPlaceSaved={() => setPlacesRefreshKey((k) => k + 1)}
+                openTrigger={openDistrictTrigger}
+              />
+            </div>
+          ) : (
+            <div className="city-view-place-selector-row city-view-place-selector-fallback">
+              <span className="city-view-place-selector-label">Citywide</span>
+            </div>
+          )}
+        </header>
+        {(() => {
+          const selectedPlace =
+            selectedPlaceId != null
+              ? userPlaces.find((p) => p.id === selectedPlaceId)
+              : null;
+          const selectedPlaceGps =
+            selectedPlace?.lat != null && selectedPlace?.lng != null
+              ? { lat: selectedPlace.lat, lng: selectedPlace.lng }
+              : undefined;
+          const selectedPlaceRadiusM = selectedPlace?.radius_m ?? undefined;
+
+          return (
+            <>
+        {/* Map section - fixed height, last 7 days default */}
+        <section ref={mapSectionRef} className="city-view-map-section" id="map-section" aria-label="Map">
           <CityMapView
             cityId={cityId}
             isAdmin={isAdmin}
             cityData={cityData}
             metricDateRange={metricDateRange}
-            gpsLocation={districtGPSLocation || gpsLocation}
+            gpsLocation={
+              selectedPlaceId != null
+                ? selectedPlaceGps ?? ((districtGPSLocation || gpsLocation) ?? undefined)
+                : selectedDistrict != null && selectedDistrict !== 0
+                  ? undefined
+                  : (districtGPSLocation || gpsLocation) ?? undefined
+            }
+            selectedPlaceRadiusM={selectedPlaceId != null ? selectedPlaceRadiusM : undefined}
             selectedDistrict={selectedDistrict}
             onDistrictChange={setSelectedDistrict}
             onDataReady={(data) => {
@@ -1793,181 +2149,105 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             selectedAnomaly={selectedAnomaly}
             onAnomalyClear={() => setSelectedAnomaly(null)}
           />
-          
-          {/* Header Overlay */}
-          <CityHeader
-            emoji={cityData.emoji || undefined}
-            name={cityData.name}
-            isCitySaved={isCitySaved}
-            saving={saving}
-            onToggleSave={handleToggleSave}
-            metricDateRange={metricDateRange}
-            onMetricDateRangeChange={setMetricDateRange}
-            variant="overlay"
-            visible={headerVisible}
-            showDateRange={false}
-            cityId={cityId}
-            selectedDistrict={selectedDistrict}
-            selectedAnomaly={selectedAnomaly}
-            onAnomalySelect={handleAnomalySelect}
-            mapOnly={true}
-          />
-
-          {/* Tabs Overlay */}
-          <div className={`tabs-container-overlay ${headerVisible ? "visible" : "hidden"}`}>
-            <button
-              className="tab-btn active"
-              onClick={() => setActiveTab("map")}
-            >
-              Map
-            </button>
-            <button
-              className="tab-btn"
-              onClick={() => setActiveTab("dashboard")}
-            >
-              Dashboard
-            </button>
-            <button
-              className="tab-btn"
-              onClick={() => setActiveTab("anomalies")}
-            >
-              Alerts
-            </button>
-            {isAdmin && (
-              <button
-                className="tab-btn"
-                onClick={() => setActiveTab("admin")}
-              >
-                Admin
-              </button>
-            )}
-          </div>
-
-          {/* District Navigation - Above Date Range - Only show when data is ready */}
-          {isCityDataReady && effectiveLeaders.length > 0 && (
-            <div className={`map-district-navigation-overlay ${headerVisible ? "visible" : "hidden"}`}>
-              <DistrictNavigation
-                selectedDistrict={selectedDistrict}
-                leaders={effectiveLeaders}
-                shapefiles={mapShapefiles}
-                onDistrictSelect={(district) => {
-                  setSelectedDistrict(district);
-                  setDistrictGPSLocation(null); // Clear GPS when manually selecting district
-                }}
-                onGPSLocation={(location) => {
-                  setDistrictGPSLocation(location);
-                }}
-                leaderFollowerCounts={leaderFollowerCounts}
-                cityId={cityId}
-                publicPagePath={cityData?.name ? `/c/${slugify(cityData.name)}` : undefined}
-                newsletterQueriesEnabled={cityLoaded}
-              />
-            </div>
-          )}
-
-          {/* Date Range Selector - Top Left, below district navigation */}
-          <div className={`map-date-range-overlay ${headerVisible ? "visible" : "hidden"}`}>
+          <div className="city-view-map-date-overlay">
             <MetricDateRangeSelector
               value={metricDateRange}
               onChange={setMetricDateRange}
             />
           </div>
-        </div>
-      )}
+        </section>
 
-      {/* Non-Map Tabs - Full Width Layout with Attached Header */}
-      {activeTab !== "map" && (
-        <div className={`tab-content-wrapper ${activeTab === "dashboard" ? "dashboard-tab" : activeTab === "anomalies" ? "anomalies-tab" : "admin-tab"}`}>
-          {/* Header - Attached to top */}
-          <CityHeader
-            emoji={cityData.emoji || undefined}
-            name={cityData.name}
-            isCitySaved={isCitySaved}
-            saving={saving}
-            onToggleSave={handleToggleSave}
-            metricDateRange={metricDateRange}
-            onMetricDateRangeChange={setMetricDateRange}
-            variant="overlay"
-            visible={true}
-            showDateRange={false}
+        {/* Dashboard section - YTD default, no DistrictNavigation (uses sticky selector) */}
+        <section className="city-view-dashboard-section" aria-label="Dashboard">
+          <DashboardMetricsSection
+            metrics={cityData.metrics || []}
             cityId={cityId}
+            cityName={cityData.name}
             selectedDistrict={selectedDistrict}
-            selectedAnomaly={selectedAnomaly}
-            onAnomalySelect={handleAnomalySelect}
+            leaders={isCityDataReady ? effectiveLeaders : []}
+            shapefiles={isCityDataReady ? mapShapefiles : []}
+            onDistrictChange={(d) => {
+              setSelectedDistrict(d);
+              setSelectedPlaceId(null);
+            }}
+            onGPSLocation={setDistrictGPSLocation}
+            onMetricClick={(metricId: number, district?: number | null) => {
+              setSelectedMetricId(metricId);
+              setSelectedMetricDistrict(district ?? selectedDistrict);
+            }}
+            leaderFollowerCounts={leaderFollowerCounts}
+            newsletterQueriesEnabled={cityLoaded}
+            onCustomizeMetricsClick={() => setUserOrderDialogOpen(true)}
+            userPlaces={userPlaces}
+            selectedPlaceId={selectedPlaceId}
+            onPlaceSelect={(id) => {
+              setSelectedPlaceId(id);
+              if (id != null) {
+                setSelectedDistrict(null);
+              }
+            }}
+            onPlaceSaved={() => setPlacesRefreshKey((k) => k + 1)}
+            openDistrictTrigger={openDistrictTrigger}
           />
+        </section>
 
-          {/* Tabs - Below header */}
-          <div className="tabs-container-overlay">
-            <button
-              className="tab-btn"
-              onClick={() => setActiveTab("map")}
-            >
-              Map
-            </button>
-            <button
-              className={`tab-btn ${activeTab === "dashboard" ? "active" : ""}`}
-              onClick={() => setActiveTab("dashboard")}
-            >
-              Dashboard
-            </button>
-            <button
-              className={`tab-btn ${activeTab === "anomalies" ? "active" : ""}`}
-              onClick={() => setActiveTab("anomalies")}
-            >
-              Alerts
-            </button>
-            {isAdmin && (
+        {/* Alerts section - lazy-mounted when in viewport */}
+        <section ref={alertsSectionRef} className="city-view-alerts-section" aria-label="Alerts">
+          {alertsSectionVisible ? (
+            <AnomaliesTabPanel
+              cityId={cityId}
+              cityName={cityData.name}
+              metrics={cityData.metrics || []}
+              initialDistrict={selectedDistrict}
+              selectedPlaceId={selectedPlaceId}
+              userPlaces={userPlaces}
+              onMetricClick={(metricId, district) => {
+                setSelectedMetricId(metricId);
+                setSelectedMetricDistrict(district ?? selectedDistrict);
+              }}
+            />
+          ) : (
+            <div className="city-view-alerts-placeholder">
+              <h2 className="city-view-alerts-placeholder-title">Alerts</h2>
+              <div className="city-view-alerts-placeholder-loading">
+                <Loader size="sm" color="dark" />
+                <span>Loading…</span>
+              </div>
+            </div>
+          )}
+        </section>
+            </>
+          );
+        })()}
+      </main>
+
+      {/* Admin drawer - slide-over with CityDataAdmin */}
+      {adminDrawerOpen && (
+        <div className="city-view-admin-drawer-overlay" aria-modal="true" role="dialog">
+          <button
+            type="button"
+            className="city-view-admin-drawer-backdrop"
+            onClick={() => setAdminDrawerOpen(false)}
+            aria-label="Close admin panel"
+            tabIndex={0}
+          />
+          <div className="city-view-admin-drawer-panel">
+            <div className="city-view-admin-drawer-header">
+              <h2 className="city-view-admin-drawer-title">City data admin</h2>
               <button
-                className={`tab-btn ${activeTab === "admin" ? "active" : ""}`}
-                onClick={() => setActiveTab("admin")}
+                type="button"
+                className="city-view-admin-drawer-close"
+                onClick={() => setAdminDrawerOpen(false)}
+                aria-label="Close admin panel"
               >
-                Admin
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
               </button>
-            )}
-          </div>
-
-          {/* Tab Content */}
-          <div className={`tab-content active ${activeTab}-content`}>
-            {activeTab === "dashboard" && (
-              <DashboardMetricsSection 
-                metrics={cityData.metrics || []} 
-                cityId={cityId}
-                cityName={cityData.name}
-                selectedDistrict={selectedDistrict}
-                leaders={isCityDataReady ? effectiveLeaders : []}
-                shapefiles={isCityDataReady ? mapShapefiles : []}
-                onDistrictChange={setSelectedDistrict}
-                onGPSLocation={setDistrictGPSLocation}
-                onMetricClick={(metricId: number, district?: number | null) => {
-                  setSelectedMetricId(metricId);
-                  setSelectedMetricDistrict(district ?? selectedDistrict);
-                }}
-                leaderFollowerCounts={leaderFollowerCounts}
-                newsletterQueriesEnabled={cityLoaded}
-                onCustomizeMetricsClick={() => setUserOrderDialogOpen(true)}
-              />
-            )}
-
-            {activeTab === "anomalies" && (
-              <div className="anomalies-section">
-                <AnomaliesTabPanel
-                  cityId={cityId}
-                  cityName={cityData.name}
-                  metrics={cityData.metrics || []}
-                  initialDistrict={selectedDistrict}
-                  onMetricClick={(metricId, district) => {
-                  setSelectedMetricId(metricId);
-                  setSelectedMetricDistrict(district ?? selectedDistrict);
-                }}
-                />
-              </div>
-            )}
-
-            {activeTab === "admin" && isAdmin && (
-              <div className="admin-section">
-                <CityDataAdmin cityId={cityId} embedded />
-              </div>
-            )}
+            </div>
+            <div className="city-view-admin-drawer-content">
+              <CityDataAdmin cityId={cityId} embedded />
+            </div>
           </div>
         </div>
       )}

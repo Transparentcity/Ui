@@ -1,8 +1,8 @@
-/* Timeline toggle button - lower left */
+/* Timeline toggle button - bottom left of map view (absolute so it stays within map container) */
 .map-timeline-toggle {
-  position: fixed;
-  bottom: 20px;
-  left: 20px;
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
   width: 48px;
   height: 48px;
   background: rgba(255, 255, 255, 0.9);
@@ -30,7 +30,6 @@
   background: var(--brand-primary, #ad35fa);
   color: white;
   border-color: var(--brand-primary, #ad35fa);
-  bottom: 260px; /* Move up when panel is open (240px panel + 20px spacing) */
 }
 
 [data-theme="dark"] .map-timeline-toggle,
@@ -51,9 +50,9 @@
   color: white;
 }
 
-/* Timeline panel */
+/* Timeline panel - anchored to bottom of map view */
 .map-timeline-panel {
-  position: fixed;
+  position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
@@ -307,14 +306,10 @@
   }
   
   .map-timeline-toggle {
-    bottom: 16px;
-    left: 16px;
+    bottom: 12px;
+    left: 12px;
     width: 44px;
     height: 44px;
-  }
-  
-  .map-timeline-toggle.open {
-    bottom: 300px; /* Move up when panel is open on mobile (280px panel + 20px spacing) */
   }
 }
 

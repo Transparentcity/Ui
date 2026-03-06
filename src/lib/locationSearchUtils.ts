@@ -175,7 +175,7 @@ export async function resolveCityFromGeocode(
   }
 
   // Try searching with state first, then just city name
-  let cityQuery = stateName ? `${cityName}, ${stateName}` : cityName;
+  const cityQuery = stateName ? `${cityName}, ${stateName}` : cityName;
   let cityResults = await searchPublicCities(cityQuery, 10);
   
   // If no results and we have state, try just the city name

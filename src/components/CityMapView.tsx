@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
   getCity,
@@ -159,13 +159,93 @@ function addGPSMarker(map: any, lat: number, lng: number, markerRef: React.Mutab
   return marker;
 }
 
+// Create a GeoJSON polygon approximating a circle (center lat/lng, radius in meters)
+function circleToPolygon(
+  lat: number,
+  lng: number,
+  radiusMeters: number,
+  points = 64
+): { type: "Polygon"; coordinates: [number, number][][] } {
+  const coords: [number, number][] = [];
+  const latRad = (lat * Math.PI) / 180;
+  const mPerDegLat = 111320;
+  const mPerDegLng = (111320 * Math.cos(latRad)) || 0.0001;
+  for (let i = 0; i <= points; i++) {
+    const angle = (i / points) * 2 * Math.PI;
+    const dy = (radiusMeters / mPerDegLat) * Math.cos(angle);
+    const dx = (radiusMeters / mPerDegLng) * Math.sin(angle);
+    coords.push([lng + dx, lat + dy]);
+  }
+  return { type: "Polygon", coordinates: [coords] };
+}
+
+const PLACE_RADIUS_SOURCE_ID = "place-radius-source";
+const PLACE_RADIUS_LAYER_ID = "place-radius-fill";
+
+function addPlaceRadiusCircle(
+  map: any,
+  lat: number,
+  lng: number,
+  radiusMeters: number
+): void {
+  try {
+    if (map.getLayer(PLACE_RADIUS_LAYER_ID)) map.removeLayer(PLACE_RADIUS_LAYER_ID);
+    if (map.getSource(PLACE_RADIUS_SOURCE_ID)) map.removeSource(PLACE_RADIUS_SOURCE_ID);
+  } catch {
+    // ignore
+  }
+  const polygon = circleToPolygon(lat, lng, radiusMeters);
+  map.addSource(PLACE_RADIUS_SOURCE_ID, {
+    type: "geojson",
+    data: { type: "Feature", properties: {}, geometry: polygon },
+  });
+  map.addLayer({
+    id: PLACE_RADIUS_LAYER_ID,
+    type: "fill",
+    source: PLACE_RADIUS_SOURCE_ID,
+    paint: {
+      "fill-color": "#ad35fa",
+      "fill-opacity": 0.15,
+      "fill-outline-color": "#ad35fa",
+    },
+  });
+}
+
+function removePlaceRadiusCircle(map: any): void {
+  try {
+    if (map.getLayer(PLACE_RADIUS_LAYER_ID)) map.removeLayer(PLACE_RADIUS_LAYER_ID);
+    if (map.getSource(PLACE_RADIUS_SOURCE_ID)) map.removeSource(PLACE_RADIUS_SOURCE_ID);
+  } catch {
+    // ignore
+  }
+}
+
 // Helper function to zoom map to a GPS location - zooms in close by default
-function zoomToGPSLocation(map: any, lat: number, lng: number) {
-  // Zoom directly to the GPS point at a high zoom level (18 = street level)
-  // This provides a close-up view without constraining queries to a radius
+function zoomToGPSLocation(
+  map: any,
+  lat: number,
+  lng: number,
+  radiusMeters?: number | null
+) {
+  // Default close-up zoom when no place radius is provided.
+  let zoom = 18;
+  if (radiusMeters != null && Number.isFinite(radiusMeters) && radiusMeters > 0) {
+    const latRad = (lat * Math.PI) / 180;
+    const containerWidth =
+      map?.getContainer?.()?.clientWidth && map.getContainer().clientWidth > 0
+        ? map.getContainer().clientWidth
+        : 1024;
+    const targetDiameterPx = Math.max(220, Math.min(containerWidth * 0.7, 720));
+    // Use 1.5x the diameter so the circle fits with padding and stays on screen (zoom out a bit)
+    const diameterMeters = radiusMeters * 2 * 1.5;
+    const metersPerPixel = diameterMeters / targetDiameterPx;
+    const computed =
+      Math.log2((156543.03392 * Math.cos(latRad)) / Math.max(metersPerPixel, 0.0001));
+    zoom = Math.max(9, Math.min(19, computed));
+  }
   map.flyTo({
     center: [lng, lat],
-    zoom: 18, // High zoom level for close-up view
+    zoom,
     duration: 1000, // Smooth animation
     essential: true, // Important animation, don't skip
   });
@@ -224,6 +304,7 @@ interface CityMapViewProps {
   cityData?: CityDetail | null; // Optional city data to avoid duplicate API calls
   metricDateRange?: MetricDateRange;
   gpsLocation?: { lat: number; lng: number } | null; // GPS coordinates to zoom to
+  selectedPlaceRadiusM?: number | null;
   selectedDistrict?: number | null; // Selected district number
   onDistrictChange?: (district: number | null) => void; // Callback when district changes
   onDataReady?: (data: { leaders: CityLeader[]; shapefiles: CityShapefile[] }) => void; // Callback when leaders and shapefiles are loaded
@@ -237,6 +318,7 @@ export default function CityMapView({
   cityData: propCityData,
   metricDateRange,
   gpsLocation,
+  selectedPlaceRadiusM,
   selectedDistrict,
   onDistrictChange,
   onDataReady,
@@ -269,7 +351,17 @@ export default function CityMapView({
   const leadersRef = useRef<CityLeader[]>([]);
   const updateMapWithEnabledLayersRef = useRef<(map: any) => void>(() => {});
   const gpsMarkerRef = useRef<any>(null);
-  
+  const gpsLocationRef = useRef<{ lat: number; lng: number } | null>(null);
+  const selectedPlaceRadiusMRef = useRef<number | null>(null);
+
+  gpsLocationRef.current = gpsLocation ?? null;
+  selectedPlaceRadiusMRef.current = selectedPlaceRadiusM ?? null;
+
+  const placeCircle = useMemo(() => {
+    if (!gpsLocation || selectedPlaceRadiusM == null || selectedPlaceRadiusM <= 0) return null;
+    return { lat: gpsLocation.lat, lng: gpsLocation.lng, radius_m: selectedPlaceRadiusM };
+  }, [gpsLocation, selectedPlaceRadiusM]);
+
   // Update cityData when prop changes
   useEffect(() => {
     if (propCityData) {
@@ -652,7 +744,7 @@ export default function CityMapView({
         
         // Zoom to GPS location if provided
         if (gpsLocation) {
-          zoomToGPSLocation(map, gpsLocation.lat, gpsLocation.lng);
+          zoomToGPSLocation(map, gpsLocation.lat, gpsLocation.lng, selectedPlaceRadiusM);
         }
       });
 
@@ -661,6 +753,11 @@ export default function CityMapView({
         try {
           if (shapefilesRef.current.length > 0) {
             updateMapWithEnabledLayersRef.current(map);
+          }
+          const loc = gpsLocationRef.current;
+          const radius = selectedPlaceRadiusMRef.current;
+          if (loc && radius != null && radius > 0) {
+            addPlaceRadiusCircle(map, loc.lat, loc.lng, radius);
           }
         } finally {
           setMapStyleVersion((v) => v + 1);
@@ -687,22 +784,25 @@ export default function CityMapView({
     };
   }, []);
 
-  // Handle GPS location: add marker, find district, zoom to it
-  // This effect runs whenever gpsLocation changes, including when it's cleared (null)
-  useEffect(() => {
+  // Handle GPS location: add marker, place radius circle (My Block), find district, zoom.
+  // useLayoutEffect so we re-zoom immediately when map refresh starts (before paint).
+  useLayoutEffect(() => {
     if (!mapInstanceRef.current) return;
-    
+
     const map = mapInstanceRef.current;
-    
-    // If GPS location is null, remove marker and zoom back to city default view
+
+    // If GPS location is null, remove marker and place circle
     if (!gpsLocation) {
-      // Remove GPS marker if it exists
       if (gpsMarkerRef.current) {
         gpsMarkerRef.current.remove();
         gpsMarkerRef.current = null;
       }
-      
-      // Zoom back to city's default view (mapCenter and mapZoom)
+      removePlaceRadiusCircle(map);
+      // Only zoom to city default when no district is selected (e.g. citywide).
+      // When switching from My Block to a district, let the district zoom effect handle recentering.
+      if (selectedDistrict != null && selectedDistrict !== 0) {
+        return;
+      }
       if (mapCenter && mapZoom !== null) {
         map.flyTo({
           center: mapCenter,
@@ -713,26 +813,33 @@ export default function CityMapView({
       }
       return;
     }
-    
-    // GPS location is set - add marker and zoom to it
+
+    const lat = gpsLocation.lat;
+    const lng = gpsLocation.lng;
+    const radiusM = selectedPlaceRadiusM ?? null;
+
     const handleGPSLocation = () => {
-      // Always add/update blue dot marker at GPS location (blinking indicator)
-      addGPSMarker(map, gpsLocation.lat, gpsLocation.lng, gpsMarkerRef);
-      
-      // Find which district contains the GPS location
-      // Prioritize shapefiles that match the primary geographic structure (supervisor districts)
+      addGPSMarker(map, lat, lng, gpsMarkerRef);
+
+      // My Block: show radius circle, center and zoom to fit the circle
+      if (radiusM != null && radiusM > 0) {
+        addPlaceRadiusCircle(map, lat, lng, radiusM);
+        zoomToGPSLocation(map, lat, lng, radiusM);
+        return;
+      }
+
+      removePlaceRadiusCircle(map);
+
       const district = findDistrictContainingPoint(
-        gpsLocation.lat,
-        gpsLocation.lng,
+        lat,
+        lng,
         shapefilesRef.current,
         cityStructureRef.current,
         leadersRef.current
       );
-      
+
       if (district) {
         console.log("GPS location is in district:", district.identifier, "shapefile:", district.shapefile.shapefile_name);
-        
-        // Convert district identifier to number
         let districtNum: number | null = null;
         if (typeof district.identifier === "number") {
           districtNum = district.identifier;
@@ -742,22 +849,16 @@ export default function CityMapView({
             districtNum = parsed;
           }
         }
-        
-        // Set the selected district to filter data to this district
         if (districtNum !== null && onDistrictChange) {
           onDistrictChange(districtNum);
         }
-        
-        // Zoom to district bounds (not just GPS point) to show the full district context
-        zoomToDistrictWithGPS(map, gpsLocation.lat, gpsLocation.lng, district.feature);
+        zoomToDistrictWithGPS(map, lat, lng, district.feature);
       } else {
         console.log("GPS location is not within any known district - zooming to location");
-        // No district found, just zoom to the GPS location
-        zoomToGPSLocation(map, gpsLocation.lat, gpsLocation.lng);
+        zoomToGPSLocation(map, lat, lng, radiusM);
       }
     };
-    
-    // Wait for map to be fully loaded, then handle GPS location
+
     if (map.loaded()) {
       handleGPSLocation();
     } else {
@@ -765,7 +866,29 @@ export default function CityMapView({
         handleGPSLocation();
       });
     }
-  }, [gpsLocation, mapCenter, mapZoom]);
+  }, [gpsLocation, mapCenter, mapZoom, selectedPlaceRadiusM, selectedDistrict]);
+
+  const placeCircleKey = placeCircle
+    ? `${placeCircle.lat},${placeCircle.lng},${placeCircle.radius_m}`
+    : null;
+  // When My Block is selected (placeCircle set), re-zoom to center immediately when map refresh starts.
+  useLayoutEffect(() => {
+    if (!placeCircleKey || !placeCircle || !mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+    const { lat, lng, radius_m } = placeCircle;
+    const runZoom = () => {
+      if (!mapInstanceRef.current) return;
+      const m = mapInstanceRef.current;
+      addGPSMarker(m, lat, lng, gpsMarkerRef);
+      addPlaceRadiusCircle(m, lat, lng, radius_m);
+      zoomToGPSLocation(m, lat, lng, radius_m);
+    };
+    if (map.loaded()) {
+      runZoom();
+    } else {
+      map.once("load", runZoom);
+    }
+  }, [placeCircleKey, placeCircle]);
   
   // Cleanup GPS marker on unmount
   useEffect(() => {
@@ -1110,31 +1233,43 @@ export default function CityMapView({
 
   // Update map when enabled layers change
   useEffect(() => {
-    if (!mapInstanceRef.current) {
-      console.log("Map instance not ready yet");
-      return;
-    }
-    
+    if (!mapInstanceRef.current) return;
+
     if (!mapInstanceRef.current.loaded()) {
-      console.log("Map not loaded yet, waiting...");
-      // Wait for map to load
       const checkMapLoaded = setInterval(() => {
         if (mapInstanceRef.current && mapInstanceRef.current.loaded()) {
           clearInterval(checkMapLoaded);
           updateMapWithEnabledLayers(mapInstanceRef.current);
         }
       }, 100);
-      
       return () => clearInterval(checkMapLoaded);
     }
 
     updateMapWithEnabledLayers(mapInstanceRef.current);
   }, [enabledLayerInstanceIds, shapefiles, removeAllShapefileLayers, updateMapWithEnabledLayers]);
 
-  // Zoom to selected district when it changes (skip district 0 which is citywide)
-  useEffect(() => {
+  // When switching to city (district 0 or null), re-zoom to city default immediately so the map doesn't wait for points to load.
+  useLayoutEffect(() => {
+    const isCitywide = selectedDistrict === null || selectedDistrict === 0;
+    if (!isCitywide || placeCircleKey || !mapInstanceRef.current?.loaded()) return;
+    if (!mapCenter || mapZoom == null) return;
+
+    const map = mapInstanceRef.current;
+    map.flyTo({
+      center: mapCenter,
+      zoom: mapZoom,
+      duration: 1000,
+      essential: true,
+    });
+  }, [selectedDistrict, placeCircleKey, mapCenter, mapZoom]);
+
+  // Zoom to selected district when it changes (skip district 0 which is citywide).
+  // Re-zoom immediately when map refresh starts so the view updates before points load.
+  useLayoutEffect(() => {
     if (!mapInstanceRef.current || !mapInstanceRef.current.loaded() || selectedDistrict === null || selectedDistrict === 0) {
-      // For district 0 (citywide/mayor), don't zoom to a specific district - show the whole city
+      return;
+    }
+    if (placeCircleKey) {
       return;
     }
 
@@ -1142,79 +1277,52 @@ export default function CityMapView({
     const mapboxgl = (window as any).mapboxgl;
     if (!mapboxgl) return;
 
-    // Find the district feature in shapefiles
+    // Find the district feature in shapefiles and fit bounds synchronously
     let districtFeature: any = null;
-    let districtShapefile: CityShapefile | null = null;
 
     for (const shapefile of shapefiles) {
       let geometryData = shapefile.geometry_data;
-      
-      // Handle case where geometry_data might be a string
-      if (typeof geometryData === 'string') {
+
+      if (typeof geometryData === "string") {
         try {
           geometryData = JSON.parse(geometryData);
         } catch (e) {
-          console.error("Failed to parse geometry_data as JSON:", e);
           continue;
         }
       }
-      
       if (!geometryData || geometryData.type !== "FeatureCollection") continue;
 
       for (const feature of geometryData.features) {
         const identifier = feature.properties?.[shapefile.identifier_field || ""];
         let districtNum: number | null = null;
-
-        if (typeof identifier === "number") {
-          districtNum = identifier;
-        } else if (typeof identifier === "string") {
+        if (typeof identifier === "number") districtNum = identifier;
+        else if (typeof identifier === "string") {
           const parsed = parseInt(identifier, 10);
-          if (!isNaN(parsed)) {
-            districtNum = parsed;
-          }
+          if (!isNaN(parsed)) districtNum = parsed;
         }
-
         if (districtNum === selectedDistrict) {
           districtFeature = feature;
-          districtShapefile = shapefile;
           break;
         }
       }
-
       if (districtFeature) break;
     }
 
-    if (districtFeature && districtFeature.geometry && districtFeature.geometry.coordinates) {
+    if (districtFeature?.geometry?.coordinates) {
       const bounds = new mapboxgl.LngLatBounds();
-      let hasBounds = false;
-
       const coords = districtFeature.geometry.coordinates;
       if (districtFeature.geometry.type === "Polygon") {
-        coords[0].forEach((coord: [number, number]) => {
-          bounds.extend(coord);
-          hasBounds = true;
-        });
+        coords[0].forEach((coord: [number, number]) => bounds.extend(coord));
       } else if (districtFeature.geometry.type === "MultiPolygon") {
-        coords.forEach((polygon: any) => {
-          polygon[0].forEach((coord: [number, number]) => {
-            bounds.extend(coord);
-            hasBounds = true;
-          });
-        });
+        coords.forEach((polygon: any) => polygon[0].forEach((coord: [number, number]) => bounds.extend(coord)));
       }
-
-      if (hasBounds) {
-        // Just zoom to district bounds - don't automatically enable shapefile layer
-        // User can manually enable shapefile layers if they want to see the boundaries
-        // Note: Use fitBounds() not flyTo() - flyTo() doesn't support bounds parameter
-        map.fitBounds(bounds, {
-          padding: { top: 100, bottom: 100, left: 50, right: 50 },
-          maxZoom: 14,
-          duration: 1000,
-        });
-      }
+      map.fitBounds(bounds, {
+        padding: { top: 100, bottom: 100, left: 50, right: 50 },
+        maxZoom: 14,
+        duration: 1000,
+      });
     }
-  }, [selectedDistrict, shapefiles, mapInstanceRef, enabledLayerInstanceIds]);
+  }, [selectedDistrict, shapefiles, placeCircleKey]);
 
   // Only show shape layers for admins; non-admins won't see them at all
   const availableShapeLayerInstances = isAdmin
@@ -1336,6 +1444,7 @@ export default function CityMapView({
           metricDateRange={metricDateRange}
           gpsLocation={gpsLocation}
           selectedDistrict={selectedDistrict}
+          placeCircle={placeCircle}
           selectedAnomaly={selectedAnomaly}
           onAnomalyClear={onAnomalyClear}
           />

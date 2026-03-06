@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useAuth0 } from "@auth0/auth0-react";
 
 import {
   searchPublicCities,
@@ -17,18 +18,28 @@ import {
   resolveCityFromGeocode,
   type GeocodeResult,
 } from "@/lib/locationSearchUtils";
+import { saveCity, createPlace } from "@/lib/apiClient";
+import LocationMapSave from "@/components/LocationMapSave";
+import { DEFAULT_PLACE_RADIUS_M } from "@/lib/mapUtils";
 
 import styles from "./SidebarCitySearch.module.css";
 
 export default function SidebarCitySearch({
   onCitySelect,
   onGPSLocation,
+  onFindDistrict,
+  onPlaceSaved,
   placeholder = "Search cities…",
 }: {
   onCitySelect: (cityId: number) => void;
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void;
+  /** Called when user clicks "Find your district" from the null state; parent may open district modal if a city is selected. */
+  onFindDistrict?: () => void;
+  /** Called after user saves a personalized place from the map step (so parent can refetch places). */
+  onPlaceSaved?: (place: { id: number }) => void;
   placeholder?: string;
 }) {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PublicCitySearchResult[]>([]);
@@ -39,6 +50,12 @@ export default function SidebarCitySearch({
   const [mounted, setMounted] = useState(false);
   const [storedGPSLocation, setStoredGPSLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsActive, setGpsActive] = useState(false);
+  /** When set, user resolved city + coordinates (GPS or address); show map save step before opening city. */
+  const [pendingCityAndCoords, setPendingCityAndCoords] = useState<{
+    city: PublicCitySearchResult;
+    coords: { lat: number; lng: number };
+  } | null>(null);
+  const [savePlaceLoading, setSavePlaceLoading] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const lastRequestIdRef = useRef(0);
@@ -87,13 +104,11 @@ export default function SidebarCitySearch({
     setResults([]);
     setError(null);
     setSelectedIndex(-1);
-    // Reset GPS loading state when modal closes to prevent stuck states
+    setPendingCityAndCoords(null);
     if (geoLoading) {
       setGeoLoading(false);
     }
     setGpsActive(false);
-    
-    // Clear any GPS timeout
     if (geoLoadingTimeoutRef.current) {
       window.clearTimeout(geoLoadingTimeoutRef.current);
       geoLoadingTimeoutRef.current = null;
@@ -146,9 +161,42 @@ export default function SidebarCitySearch({
 
   const selectCity = (city: PublicCitySearchResult, fromGPS: boolean = false) => {
     closeModal();
-    // If selecting from GPS, we'll preserve GPS location in the dashboard
-    // If selecting manually, GPS location should be cleared (handled by dashboard)
     onCitySelect(city.id);
+  };
+
+  const showMapSaveStep = (city: PublicCitySearchResult, coords: { lat: number; lng: number }) => {
+    setPendingCityAndCoords({ city, coords });
+    setError(null);
+  };
+
+  const handleSavePlaceAndOpen = async (opts: { label: string; radius_m: number }) => {
+    if (!pendingCityAndCoords || !isAuthenticated) return;
+    setSavePlaceLoading(true);
+    setError(null);
+    try {
+      const token = await getAccessTokenSilently();
+      await saveCity(pendingCityAndCoords.city.id, token);
+      const place = await createPlace(token, {
+        city_id: pendingCityAndCoords.city.id,
+        label: opts.label.trim() || "My block",
+        lat: pendingCityAndCoords.coords.lat,
+        lng: pendingCityAndCoords.coords.lng,
+        radius_m: opts.radius_m,
+      });
+      onPlaceSaved?.(place);
+      onCitySelect(pendingCityAndCoords.city.id);
+      closeModal();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save place");
+    } finally {
+      setSavePlaceLoading(false);
+    }
+  };
+
+  const handleJustOpenCity = () => {
+    if (!pendingCityAndCoords) return;
+    onCitySelect(pendingCityAndCoords.city.id);
+    closeModal();
   };
 
   const handleGeocodeQuery = async () => {
@@ -159,16 +207,17 @@ export default function SidebarCitySearch({
     try {
       const geo = await geocodeQuery(s);
       const { city, coordinates } = await resolveCityFromGeocode(geo, searchPublicCities);
-      
-      // Store GPS location if we have coordinates
       if (coordinates) {
         setStoredGPSLocation(coordinates);
-        if (onGPSLocation) {
-          onGPSLocation(coordinates);
+        if (onGPSLocation) onGPSLocation(coordinates);
+        if (isAuthenticated) {
+          showMapSaveStep(city, coordinates);
+        } else {
+          selectCity(city, true);
         }
+      } else {
+        selectCity(city, true);
       }
-      
-      selectCity(city, true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Geocoding failed");
     } finally {
@@ -237,13 +286,13 @@ export default function SidebarCitySearch({
         onGPSLocation(location);
       }
       
-      // Reverse geocode to get city
       const geo = await reverseGeocode(location.lat, location.lng);
       const { city } = await resolveCityFromGeocode(geo, searchPublicCities);
-      
-      selectCity(city, true);
-      
-      // Reset states after city is resolved
+      if (isAuthenticated) {
+        showMapSaveStep(city, location);
+      } else {
+        selectCity(city, true);
+      }
       setGeoLoading(false);
       setGpsActive(false);
       
@@ -314,7 +363,9 @@ export default function SidebarCitySearch({
     <div className={styles.modalOverlay} onClick={closeModal}>
       <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
-          <h2 className={styles.modalTitle}>Search Cities</h2>
+          <h2 className={styles.modalTitle}>
+            {pendingCityAndCoords ? "Save a personalized location" : "Search Cities"}
+          </h2>
           <button
             type="button"
             className={styles.modalClose}
@@ -337,6 +388,28 @@ export default function SidebarCitySearch({
           </button>
         </div>
 
+        {pendingCityAndCoords ? (
+          <div className={styles.modalMapSaveStep}>
+            <p className={styles.modalMapSaveCity}>
+              {pendingCityAndCoords.city.emoji && (
+                <span className={styles.modalMapSaveEmoji}>{pendingCityAndCoords.city.emoji}</span>
+              )}
+              {pendingCityAndCoords.city.display_name}
+            </p>
+            {error && <div className={styles.resultError} style={{ marginBottom: 12 }}><span>{error}</span></div>}
+            <LocationMapSave
+              cityId={pendingCityAndCoords.city.id}
+              lat={pendingCityAndCoords.coords.lat}
+              lng={pendingCityAndCoords.coords.lng}
+              defaultRadiusM={DEFAULT_PLACE_RADIUS_M}
+              onSave={handleSavePlaceAndOpen}
+              saving={savePlaceLoading}
+              saveButtonLabel="Save & open city"
+              onCancel={handleJustOpenCity}
+            />
+          </div>
+        ) : (
+        <>
         <div className={styles.modalSearch}>
           <div className={styles.inputWrap}>
             <svg
@@ -472,11 +545,28 @@ export default function SidebarCitySearch({
             )}
 
           {!geoLoading && !error && !loading && trimmed.length < 2 && (
-            <div className={styles.resultItem}>
-              <span className={styles.resultHint}>Type to search for cities, or enter a ZIP code</span>
-            </div>
+            <>
+              <div className={styles.resultItem}>
+                <span className={styles.resultHint}>Type to search for cities, or enter a ZIP code</span>
+              </div>
+              {onFindDistrict && (
+                <button
+                  type="button"
+                  className={styles.resultBtn}
+                  onClick={() => {
+                    closeModal();
+                    onFindDistrict();
+                  }}
+                >
+                  <span>Find your district</span>
+                  <span className={styles.resultMeta}>Address, ZIP, or GPS →</span>
+                </button>
+              )}
+            </>
           )}
         </div>
+        </>
+        )}
       </div>
     </div>
   );

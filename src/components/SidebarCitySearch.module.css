@@ -380,3 +380,22 @@
     padding: 10px 12px;
   }
 }
+
+/* Map save step (same experience as onboarding and official selector) */
+.modalMapSaveStep {
+  padding: 14px 16px 20px;
+}
+
+.modalMapSaveCity {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.modalMapSaveEmoji {
+  font-size: 1.2em;
+}

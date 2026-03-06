@@ -1,24 +1,24 @@
 .district-navigation-header {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.5); /* More transparent to show map */
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(229, 231, 235, 0.5); /* Semi-transparent border */
+  border: 1px solid rgba(229, 231, 235, 0.6);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
-  font-size: 0.875rem; /* Reduced from 1rem (14px instead of 16px) */
+  font-size: 0.8125rem;
   font-weight: 600;
-  margin-bottom: 8px;
-  box-shadow: none; /* Removed shadow for more transparency */
-  width: 100%; /* Ensure full width */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  width: 100%;
+  gap: 10px;
 }
 
 .district-navigation-header:hover {
-  background: rgba(255, 255, 255, 0.7); /* Slightly more opaque on hover */
+  background: rgba(255, 255, 255, 0.95);
   border-color: var(--brand-primary, #ad35fa);
-  box-shadow: 0 2px 6px rgba(173, 53, 250, 0.15);
+  box-shadow: 0 2px 6px rgba(173, 53, 250, 0.12);
 }
 
 .district-navigation-header:focus {
@@ -29,20 +29,23 @@
 .district-navigation-label {
   color: var(--text-secondary, #666);
   font-weight: 500;
-  font-size: 0.875rem; /* Match reduced header font size */
+  font-size: 0.8125rem;
 }
 
 .district-navigation-name {
   color: var(--text-primary, #000);
-  font-size: 0.875rem; /* Match reduced header font size */
-  font-weight: 700; /* Bold name for "Title: Name" display */
+  font-size: 0.8125rem;
+  font-weight: 700;
 }
 
 .district-navigation-content {
   flex: 1;
+  min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 .district-navigation-title-row {
@@ -53,21 +56,26 @@
 }
 
 .district-navigation-follow-row {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .district-navigation-subscribers {
-  font-size: 0.75rem;
-  color: var(--text-secondary, #666);
+  font-size: 0.7rem;
   font-weight: 500;
+  color: var(--text-secondary, #666);
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
 .district-navigation-subscribe {
-  padding: 4px 10px;
+  padding: 3px 8px;
   font: inherit;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
   color: var(--brand-primary, #ad35fa);
   background: transparent;
@@ -75,10 +83,20 @@
   border-radius: 6px;
   text-decoration: none;
   white-space: nowrap;
-  margin: 0 4px 0 0;
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
+}
+
+.district-navigation-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.district-navigation-chevron {
+  opacity: 0.6;
 }
 
 .district-navigation-subscribe:hover {
@@ -106,7 +124,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 8px;
+  padding: 3px 8px;
   font: inherit;
   font-size: 0.7rem;
   font-weight: 500;
@@ -132,13 +150,13 @@
 }
 
 .district-navigation-share-text {
-  margin-right: 4px;
+  margin-right: 2px;
 }
 
 @media (max-width: 640px) {
   .district-navigation-share {
-    padding: 6px 8px;
-    min-width: 32px;
+    padding: 4px 6px;
+    min-width: 28px;
   }
   .district-navigation-share-text {
     display: none;
@@ -147,29 +165,46 @@
     margin-right: 0;
   }
 
-  /* Compact district header so it fits on one row with Customize */
   .district-navigation-header {
-    padding: 8px 10px;
-    margin-bottom: 0;
-    font-size: 0.8125rem;
+    padding: 6px 10px;
+    gap: 8px;
   }
   .district-navigation-content {
-    gap: 2px;
+    gap: 6px;
   }
   .district-navigation-label,
   .district-navigation-name {
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
   }
   .district-navigation-follow-row {
-    gap: 6px;
+    gap: 4px;
   }
   .district-navigation-subscribers {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
+    padding: 2px 6px;
   }
   .district-navigation-subscribe {
-    padding: 4px 8px;
-    font-size: 0.7rem;
+    padding: 2px 6px;
+    font-size: 0.65rem;
   }
+}
+
+[data-theme="dark"] .district-navigation-header,
+.dark .district-navigation-header {
+  background: rgba(30, 30, 30, 0.9);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="dark"] .district-navigation-header:hover,
+.dark .district-navigation-header:hover {
+  background: rgba(45, 45, 45, 0.95);
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+[data-theme="dark"] .district-navigation-subscribers,
+.dark .district-navigation-subscribers {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
 }
 
 [data-theme="dark"] .district-navigation-subscribe,
@@ -346,6 +381,65 @@
   border-radius: 8px;
   margin-bottom: 16px;
   font-size: 0.9rem;
+}
+
+.district-navigation-location-map-save {
+  margin-top: 16px;
+}
+
+.district-navigation-save-block {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--bg-secondary, #f9fafb);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.district-navigation-save-block-header {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary, #111);
+}
+
+.district-navigation-save-block-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #666);
+}
+
+.district-navigation-save-block-slider {
+  width: 100%;
+  accent-color: var(--brand-primary, #ad35fa);
+}
+
+.district-navigation-save-block-input {
+  padding: 8px 12px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.district-navigation-save-block-btn {
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--brand-primary, #ad35fa);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.district-navigation-save-block-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.district-navigation-save-block-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .district-navigation-results {

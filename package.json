@@ -7,8 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "type-check": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "verify-auth0": "node scripts/verify-auth0-config.js",
+    "auth0-callback-url": "node scripts/print-auth0-callback-url.js"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.35",

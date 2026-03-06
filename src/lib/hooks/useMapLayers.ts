@@ -19,8 +19,18 @@ export const mapLayerKeys = {
     metricId: number,
     startDate?: string | null,
     endDate?: string | null,
-    districts?: number[] | null
-  ) => [...mapLayerKeys.all, "layer", metricId, startDate ?? null, endDate ?? null, districts ?? null] as const,
+    districts?: number[] | null,
+    placeCircle?: { lat: number; lng: number; radius_m: number } | null
+  ) =>
+    [
+      ...mapLayerKeys.all,
+      "layer",
+      metricId,
+      startDate ?? null,
+      endDate ?? null,
+      districts ?? null,
+      placeCircle ? `${placeCircle.lat},${placeCircle.lng},${placeCircle.radius_m}` : null,
+    ] as const,
 };
 
 /**
@@ -47,6 +57,8 @@ export interface MapLayerParams {
   startDate?: string | null;
   endDate?: string | null;
   districts?: number[] | null;
+  /** When set (e.g. My Block), map data is limited to points within this radius of the center */
+  placeCircle?: { lat: number; lng: number; radius_m: number } | null;
 }
 
 /**
@@ -68,7 +80,8 @@ export function useMapLayerData(
           params.metricId,
           params.startDate,
           params.endDate,
-          params.districts
+          params.districts,
+          params.placeCircle ?? null
         )
       : ["mapLayers", "disabled"],
     queryFn: async () => {
@@ -79,6 +92,9 @@ export function useMapLayerData(
         start_date: params.startDate ?? null,
         end_date: params.endDate ?? null,
         districts: params.districts,
+        center_lat: params.placeCircle?.lat ?? null,
+        center_lon: params.placeCircle?.lng ?? null,
+        radius_m: params.placeCircle?.radius_m ?? null,
       };
       const response = await getMetricMapData(request, token);
       if (response.status === "success" && response.map_data) {
@@ -116,7 +132,8 @@ export function useMapLayersData(
         metricId,
         params.startDate,
         params.endDate,
-        params.districts
+        params.districts,
+        params.placeCircle ?? null
       ),
       queryFn: async () => {
         const token = await getAccessTokenSilently();
@@ -125,6 +142,9 @@ export function useMapLayersData(
           start_date: params.startDate ?? null,
           end_date: params.endDate ?? null,
           districts: params.districts,
+          center_lat: params.placeCircle?.lat ?? null,
+          center_lon: params.placeCircle?.lng ?? null,
+          radius_m: params.placeCircle?.radius_m ?? null,
         };
         const response = await getMetricMapData(request, token);
         if (response.status === "success" && response.map_data) {

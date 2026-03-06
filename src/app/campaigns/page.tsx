@@ -28,7 +28,7 @@ export default async function CampaignsPage() {
   const contacts = Array.isArray(contactsResult.data) ? contactsResult.data : []
   
   const campaignIds = campaigns.map((c: any) => c.id)
-  let prospectsByCampaign: Record<string, string[]> = {}
+  const prospectsByCampaign: Record<string, string[]> = {}
   if (campaignIds.length > 0) {
     try {
       const prospectsResult = await new Promise<{ data: { campaign_id: string; prospect_id: string }[] | null; error: Error | null }>((resolve) => {

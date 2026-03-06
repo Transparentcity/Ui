@@ -11,6 +11,9 @@ import {
   clearCityStructureCache,
   getPopulationSource,
   refreshPopulation,
+  syncPopulationToMetric,
+  lookupCensusGeoid,
+  getPopulationMetricId,
   type PopulationSourceConfig,
 } from "@/lib/apiClient";
 import {
@@ -465,6 +468,7 @@ export default function CityDataAdmin({
     state: "",
     country: "",
     population: "",
+    census_place_geoid: "",
     main_domain: "",
     main_portal_url: "",
     all_portal_urls: "",
@@ -514,6 +518,15 @@ export default function CityDataAdmin({
   const [populationSource, setPopulationSource] = useState<PopulationSourceConfig | null | "none">(null);
   const [populationRefreshLoading, setPopulationRefreshLoading] = useState(false);
   const [populationRefreshError, setPopulationRefreshError] = useState<string | null>(null);
+  const [populationSyncLoading, setPopulationSyncLoading] = useState(false);
+  const [populationSyncError, setPopulationSyncError] = useState<string | null>(null);
+  const [lookupGeoidLoading, setLookupGeoidLoading] = useState(false);
+  const [lookupGeoidResult, setLookupGeoidResult] = useState<{
+    census_place_geoid: string | null;
+    updated?: boolean;
+    message?: string;
+  } | null>(null);
+  const [populationMetricId, setPopulationMetricId] = useState<number | null>(null);
 
   // Clear running template job state when job completes/fails (so refetched status shows and Run is enabled again)
   useEffect(() => {
@@ -610,12 +623,20 @@ export default function CityDataAdmin({
     getAccessTokenSilently()
       .then((token) => getPopulationSource(cityId, token))
       .then((config) => {
-        if (!cancelled) setPopulationSource(config);
+        if (!cancelled) {
+          if (config.configured === false) {
+            setPopulationSource("none");
+            setPopulationMetricId(null);
+          } else {
+            setPopulationSource(config);
+            setPopulationMetricId(config.population_metric_id ?? null);
+          }
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          const msg = err instanceof Error ? err.message : String(err);
-          setPopulationSource(msg.includes("404") ? "none" : null);
+          setPopulationSource("none");
+          setPopulationMetricId(null);
         }
       });
     return () => {
@@ -634,7 +655,11 @@ export default function CityDataAdmin({
           ? `Ingested ${result.rows_written} district-level value(s) from ${result.source_name ?? "source"}.`
           : "Refresh completed.";
         alert(msg);
-        getAccessTokenSilently().then((t) => getPopulationSource(cityId, t).then(setPopulationSource));
+        getAccessTokenSilently().then((t) =>
+          getPopulationSource(cityId, t).then((c) =>
+            setPopulationSource(c.configured === false ? "none" : c)
+          )
+        );
       } else {
         setPopulationRefreshError(result.error ?? "Refresh failed");
       }
@@ -643,6 +668,60 @@ export default function CityDataAdmin({
       setPopulationRefreshError(message);
     } finally {
       setPopulationRefreshLoading(false);
+    }
+  };
+
+  const handleSyncPopulationToMetric = async () => {
+    setPopulationSyncError(null);
+    setPopulationSyncLoading(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const result = await syncPopulationToMetric(cityId, token);
+      if (result.success) {
+        const msg = result.charts_updated != null
+          ? `Synced population to metric (${result.charts_updated} chart(s) updated).`
+          : "Sync completed.";
+        alert(msg);
+      } else {
+        setPopulationSyncError(result.error ?? "Sync failed");
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setPopulationSyncError(message);
+    } finally {
+      setPopulationSyncLoading(false);
+    }
+  };
+
+  const handleLookupCensusGeoid = async (updateCity: boolean) => {
+    setLookupGeoidResult(null);
+    setLookupGeoidLoading(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const result = await lookupCensusGeoid(cityId, token, {
+        update_city: updateCity,
+        ensure_acs_source: updateCity,
+      });
+      setLookupGeoidResult({
+        census_place_geoid: result.census_place_geoid,
+        updated: result.updated,
+        message: result.message,
+      });
+      if (result.updated && result.census_place_geoid) {
+        setFormData((prev) => ({ ...prev, census_place_geoid: result.census_place_geoid ?? "" }));
+        refetchCity();
+        // Refetch population source so Data tab shows ACS source immediately
+        if (updateCity) {
+          getPopulationSource(cityId, token).then((c) =>
+            setPopulationSource(c.configured === false ? "none" : c)
+          );
+        }
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setLookupGeoidResult({ census_place_geoid: null, message: message });
+    } finally {
+      setLookupGeoidLoading(false);
     }
   };
 
@@ -885,11 +964,13 @@ export default function CityDataAdmin({
   // Initialize form data when city data loads
   useEffect(() => {
     if (cityData) {
+      const cd = cityData as { census_place_geoid?: string | null };
       setFormData({
         name: cityData.city_name || cityData.name || "",
         state: cityData.state || "",
         country: cityData.country || "",
         population: cityData.population?.toString() || "",
+        census_place_geoid: cd.census_place_geoid ?? "",
         main_domain: cityData.main_domain || "",
         main_portal_url: cityData.main_portal_url || "",
         all_portal_urls: JSON.stringify(cityData.all_portal_urls || [], null, 2),
@@ -966,6 +1047,7 @@ export default function CityDataAdmin({
         state: formData.state.trim() || null,
         country: formData.country.trim() || null,
         population: formData.population ? parseInt(formData.population) : null,
+        census_place_geoid: formData.census_place_geoid.trim() || null,
         main_domain: formData.main_domain.trim() || null,
         main_portal_url: formData.main_portal_url.trim() || null,
         all_portal_urls: allUrls,
@@ -1510,6 +1592,37 @@ export default function CityDataAdmin({
                       fontWeight: 600,
                     }}
                   >
+                    Census place GEOID
+                  </th>
+                  <td style={{ padding: "12px", borderBottom: "1px solid var(--border-primary)" }}>
+                    <input
+                      type="text"
+                      value={formData.census_place_geoid}
+                      onChange={(e) => setFormData({ ...formData, census_place_geoid: e.target.value })}
+                      placeholder="e.g. 0667000 (2-digit state FIPS + 5-digit place FIPS)"
+                      style={{
+                        width: "100%",
+                        padding: "6px",
+                        border: "1px solid var(--border-primary)",
+                        borderRadius: "4px",
+                        background: "var(--bg-tertiary)",
+                        color: "var(--text-primary)",
+                      }}
+                    />
+                    <p style={{ margin: "4px 0 0", fontSize: "12px", color: "var(--text-secondary)" }}>
+                      Required for ACS population source. Use &quot;Lookup GEOID &amp; set ACS source&quot; below to resolve from city name + state and enable &quot;Refresh ACS&quot; from the cities table.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th
+                    style={{
+                      textAlign: "left",
+                      padding: "12px",
+                      background: "var(--bg-secondary)",
+                      fontWeight: 600,
+                    }}
+                  >
                     Main Domain
                   </th>
                   <td style={{ padding: "12px", borderBottom: "1px solid var(--border-primary)" }}>
@@ -1762,24 +1875,77 @@ export default function CityDataAdmin({
               }}
             >
               <h3 style={{ margin: 0 }}>Population by district</h3>
-              {populationSource != null && populationSource !== "none" && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+                {populationSource != null && populationSource !== "none" && (
+                  <>
+                    <button
+                      onClick={handleRefreshPopulation}
+                      disabled={populationRefreshLoading}
+                      style={{
+                        padding: "8px 16px",
+                        background: "var(--brand-primary)",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: populationRefreshLoading ? "not-allowed" : "pointer",
+                        fontWeight: 500,
+                        opacity: populationRefreshLoading ? 0.6 : 1,
+                      }}
+                    >
+                      {populationRefreshLoading ? "Refreshing…" : "Refresh from source"}
+                    </button>
+                    <button
+                      onClick={handleSyncPopulationToMetric}
+                      disabled={populationSyncLoading}
+                      style={{
+                        padding: "8px 16px",
+                        background: "#0ea5e9",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: populationSyncLoading ? "not-allowed" : "pointer",
+                        fontWeight: 500,
+                        opacity: populationSyncLoading ? 0.6 : 1,
+                      }}
+                    >
+                      {populationSyncLoading ? "Syncing…" : "Sync to metric"}
+                    </button>
+                  </>
+                )}
                 <button
-                  onClick={handleRefreshPopulation}
-                  disabled={populationRefreshLoading}
+                  onClick={() => handleLookupCensusGeoid(false)}
+                  disabled={lookupGeoidLoading}
                   style={{
                     padding: "8px 16px",
-                    background: "var(--brand-primary)",
+                    background: "#64748b",
                     color: "white",
                     border: "none",
                     borderRadius: "4px",
-                    cursor: populationRefreshLoading ? "not-allowed" : "pointer",
+                    cursor: lookupGeoidLoading ? "not-allowed" : "pointer",
                     fontWeight: 500,
-                    opacity: populationRefreshLoading ? 0.6 : 1,
+                    opacity: lookupGeoidLoading ? 0.6 : 1,
                   }}
                 >
-                  {populationRefreshLoading ? "Refreshing…" : "Refresh from source"}
+                  {lookupGeoidLoading ? "Looking up…" : "Lookup Census GEOID"}
                 </button>
-              )}
+                <button
+                  onClick={() => handleLookupCensusGeoid(true)}
+                  disabled={lookupGeoidLoading}
+                  style={{
+                    padding: "8px 16px",
+                    background: "#0f766e",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: lookupGeoidLoading ? "not-allowed" : "pointer",
+                    fontWeight: 500,
+                    opacity: lookupGeoidLoading ? 0.6 : 1,
+                  }}
+                  title="Sets Census GEOID and population source to ACS so 'Refresh ACS' works from the cities table"
+                >
+                  {lookupGeoidLoading ? "…" : "Lookup GEOID & set ACS source"}
+                </button>
+              </div>
             </div>
             {populationRefreshError && (
               <div
@@ -1795,6 +1961,36 @@ export default function CityDataAdmin({
                 {populationRefreshError}
               </div>
             )}
+            {populationSyncError && (
+              <div
+                style={{
+                  padding: "12px",
+                  marginBottom: "12px",
+                  background: "#fee2e2",
+                  color: "#991b1b",
+                  borderRadius: "4px",
+                  fontSize: "14px",
+                }}
+              >
+                {populationSyncError}
+              </div>
+            )}
+            {lookupGeoidResult && (
+              <div
+                style={{
+                  padding: "12px",
+                  marginBottom: "12px",
+                  background: lookupGeoidResult.census_place_geoid ? "#d1fae5" : "#fef3c7",
+                  color: lookupGeoidResult.census_place_geoid ? "#065f46" : "#92400e",
+                  borderRadius: "4px",
+                  fontSize: "14px",
+                }}
+              >
+                {lookupGeoidResult.census_place_geoid
+                  ? `Census place GEOID: ${lookupGeoidResult.census_place_geoid}${lookupGeoidResult.updated ? " (city updated)" : ""}`
+                  : lookupGeoidResult.message ?? "No matching Census place found."}
+              </div>
+            )}
             {populationSource === null && (
               <p style={{ color: "var(--text-secondary)", margin: 0 }}>Loading…</p>
             )}
@@ -1802,7 +1998,7 @@ export default function CityDataAdmin({
               <p style={{ color: "var(--text-secondary)", margin: 0 }}>
                 No population source configured for this city. Configure one via the API (PUT{" "}
                 <code>/api/admin/population/sources/{cityId}</code>) to pull district-level population from
-                Socrata, a URL, or manual entry. Then you can run initial ingestion here.
+                Socrata, direct URL, manual entry, or ACS. Then you can run refresh and sync here.
               </p>
             )}
             {populationSource != null && populationSource !== "none" && (
@@ -1898,6 +2094,26 @@ export default function CityDataAdmin({
                         }}
                       >
                         {populationSource.last_refresh_error}
+                      </td>
+                    </tr>
+                  )}
+                  {populationMetricId != null && (
+                    <tr>
+                      <th
+                        style={{
+                          textAlign: "left",
+                          padding: "12px",
+                          background: "var(--bg-secondary)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Population metric ID
+                      </th>
+                      <td style={{ padding: "12px", borderBottom: "1px solid var(--border-primary)" }}>
+                        <code style={{ background: "var(--bg-tertiary)", padding: "2px 6px", borderRadius: "4px" }}>{populationMetricId}</code>
+                        <span style={{ marginLeft: "8px", fontSize: "12px", color: "var(--text-secondary)" }}>
+                          Use as denominator_metric_id in derived metrics (e.g. per capita).
+                        </span>
                       </td>
                     </tr>
                   )}
@@ -2777,7 +2993,7 @@ export default function CityDataAdmin({
                               
                               // Extract title: use explicit title field only - NO INFERENCE
                               // If no title available, it will be null and backend will handle it
-                              let officialTitle = official.title || official.position || null;
+                              const officialTitle = official.title || official.position || null;
                               
                               if (!officialName) continue;
                               
@@ -3006,7 +3222,7 @@ export default function CityDataAdmin({
                             
                             // If not found, try with title if we have one
                             if (!storedLeader) {
-                              let officialTitle = official.title || official.position || null;
+                              const officialTitle = official.title || official.position || null;
                               if (officialTitle) {
                                 const normalizedTitle = (officialTitle || "").trim().toLowerCase();
                                 const keyWithTitle = `${normalizedName}_${normalizedTitle}_${districtValue}`;
@@ -3054,7 +3270,7 @@ export default function CityDataAdmin({
 
                             // Extract title: use stored leader's title (from database) or explicit title field from query output
                             // NO INFERENCE - just use what's available or show N/A
-                            let officialTitle = storedLeader?.title || official.title || official.position || null;
+                            const officialTitle = storedLeader?.title || official.title || official.position || null;
                             
                             const isStored = !!storedLeader;
                             

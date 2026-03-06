@@ -25,6 +25,42 @@ interface AvailableView {
   is_city_district?: boolean;
 }
 
+/** Category order matching dashboard (CityMapView): governance first, then neighborhood, planning, then other. */
+function getCategoryRank(category?: string | null, displayName?: string, layerKey?: string): number {
+  const c = (category || "").toLowerCase();
+  const name = (displayName || "").toLowerCase();
+  const key = (layerKey || "").toLowerCase();
+  if (c === "governance" || name.includes("district") || name.includes("ward") || key.includes("district") || key.includes("ward")) return 0;
+  if (c === "neighborhood" || name.includes("neighborhood") || key.includes("neighborhood")) return 1;
+  if (c === "planning") return 2;
+  return 3;
+}
+
+/** Governance-type order within governance category: district first, then ward, precinct. */
+function getGovernanceTypeRank(displayName?: string, layerKey?: string): number {
+  const name = (displayName || "").toLowerCase();
+  const key = (layerKey || "").toLowerCase();
+  if (name.includes("district") || key.includes("district")) return 0;
+  if (name.includes("ward") || key.includes("ward")) return 1;
+  if (name.includes("precinct") || key.includes("precinct")) return 2;
+  return 99;
+}
+
+/** Sort shape layers the same way as the dashboard (CityMapView): category, then governance type, then name. */
+function sortShapeLayersLikeDashboard<T extends { display_name: string; category?: string; layer_key?: string }>(layers: T[]): T[] {
+  return [...layers].sort((a, b) => {
+    const ar = getCategoryRank(a.category, a.display_name, a.layer_key);
+    const br = getCategoryRank(b.category, b.display_name, b.layer_key);
+    if (ar !== br) return ar - br;
+    if (ar === 0) {
+      const at = getGovernanceTypeRank(a.display_name, a.layer_key);
+      const bt = getGovernanceTypeRank(b.display_name, b.layer_key);
+      if (at !== bt) return at - bt;
+    }
+    return (a.display_name || "").localeCompare(b.display_name || "");
+  });
+}
+
 interface MapLayerPanelProps {
   /** Legacy: list of shape layers. Ignored when availableViews is provided. */
   availableShapeLayers: ShapeLayer[];
@@ -107,7 +143,8 @@ export default function MapLayerPanel({
     availableViews && availableViews.length > 0
       ? deriveShapeLayersFromViews(availableViews)
       : availableShapeLayers;
-  const hasShapeLayers = shapeLayers.length > 0;
+  const sortedShapeLayers = sortShapeLayersLikeDashboard(shapeLayers);
+  const hasShapeLayers = sortedShapeLayers.length > 0;
   const hasContent = hasShapeLayers || canShowDots;
 
   if (!hasContent) {
@@ -140,7 +177,7 @@ export default function MapLayerPanel({
             setIsOpen(!isOpen);
           }}
         >
-          {isOpen ? "→" : "←"}
+          {isOpen ? "←" : "→"}
         </button>
         {isOpen && (
           <>
@@ -162,7 +199,7 @@ export default function MapLayerPanel({
       {!isOpen && (
         <div className="map-layer-panel-icons">
           {/* Shape layers */}
-          {hasShapeLayers && shapeLayers.map((layer) => {
+          {hasShapeLayers && sortedShapeLayers.map((layer) => {
             const isSelected = String(layer.shape_layer_instance_id) === selectedShapeLayer && !showDots;
             const icon = getLayerIcon(layer.layer_key, layer.category, layer.display_name);
             const layerId = String(layer.shape_layer_instance_id);
@@ -208,7 +245,7 @@ export default function MapLayerPanel({
           {hasShapeLayers && (
             <div className="map-layer-section">
               <div className="map-layer-section-title">Shape Layers</div>
-              {shapeLayers.map((layer) => {
+              {sortedShapeLayers.map((layer) => {
                 const isSelected = String(layer.shape_layer_instance_id) === selectedShapeLayer && !showDots;
                 const icon = getLayerIcon(layer.layer_key, layer.category, layer.display_name);
                 const layerId = String(layer.shape_layer_instance_id);

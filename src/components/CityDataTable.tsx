@@ -12,6 +12,7 @@ import {
   saveCity,
   unsaveCity,
   getCityStats,
+  refreshAllAcs,
 } from "@/lib/apiClient";
 import { emitSavedCitiesChanged } from "@/lib/uiEvents";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
@@ -61,6 +62,13 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
   const [vectorStatsErrorCityIds, setVectorStatsErrorCityIds] = useState<
     Set<number>
   >(() => new Set());
+  const [refreshAcsLoading, setRefreshAcsLoading] = useState(false);
+  const [refreshAcsResult, setRefreshAcsResult] = useState<{
+    refreshed_count: number;
+    error_count: number;
+    refreshed?: Array<{ city_name?: string; rows_written?: number }>;
+    errors?: Array<{ city_name?: string; city_id?: number; error: string }>;
+  } | null>(null);
 
   useEffect(() => {
     loadCities();
@@ -300,6 +308,41 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
       alert("Failed to structure cities: " + err.message);
     } finally {
       setStructuringCities(false);
+    }
+  };
+
+  const handleRefreshAcs = async () => {
+    const cityIds = selectedCityIds.length > 0 ? selectedCityIds : undefined;
+    const message = cityIds
+      ? `Refresh population from Census ACS for ${cityIds.length} selected city(ies) that have an ACS source?`
+      : "Refresh population from Census ACS for all cities with an ACS source? This may take a minute.";
+    if (!confirm(message)) return;
+    setRefreshAcsResult(null);
+    setRefreshAcsLoading(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const result = await refreshAllAcs(token, {
+        sync_to_metric_after: true,
+        city_ids: cityIds,
+      });
+      setRefreshAcsResult({
+        refreshed_count: result.refreshed_count,
+        error_count: result.error_count,
+        refreshed: result.refreshed,
+        errors: result.errors,
+      });
+      if (result.refreshed_count > 0) {
+        loadCities();
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setRefreshAcsResult({
+        refreshed_count: 0,
+        error_count: 1,
+        errors: [{ city_id: 0, error: msg }],
+      });
+    } finally {
+      setRefreshAcsLoading(false);
     }
   };
 
@@ -673,6 +716,43 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
               : `🏗️ Structure Selected Cities (${selectedCityIds.length} cities)`}
           </button>
           <button
+            onClick={handleRefreshAcs}
+            disabled={refreshAcsLoading}
+            style={{
+              padding: "10px 20px",
+              background: "#059669",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: refreshAcsLoading ? "not-allowed" : "pointer",
+              opacity: refreshAcsLoading ? 0.6 : 1,
+            }}
+          >
+            {refreshAcsLoading
+              ? "Refreshing…"
+              : selectedCityIds.length > 0
+                ? `📊 Refresh ACS (${selectedCityIds.length} selected)`
+                : "📊 Refresh all from ACS"}
+          </button>
+          {refreshAcsResult && (
+            <div
+              style={{
+                width: "100%",
+                padding: "12px",
+                marginTop: "8px",
+                background: refreshAcsResult.error_count > 0 ? "#fef3c7" : "#d1fae5",
+                color: refreshAcsResult.error_count > 0 ? "#92400e" : "#065f46",
+                borderRadius: "6px",
+                fontSize: "14px",
+              }}
+            >
+              {refreshAcsResult.refreshed_count} city(ies) refreshed, {refreshAcsResult.error_count} error(s).
+              {refreshAcsResult.errors?.length
+                ? ` Errors: ${refreshAcsResult.errors.map((e) => `${e.city_name ?? e.city_id}: ${e.error}`).join("; ")}`
+                : ""}
+            </div>
+          )}
+          <button
             onClick={() => setShowAddCityForm(!showAddCityForm)}
             className="btn btn-success"
             style={{
@@ -815,6 +895,9 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
                 <th className={styles.populationCol} style={{ padding: "12px", textAlign: "left" }}>
                   Population
                 </th>
+                <th className={styles.popSourceCol} style={{ padding: "12px", textAlign: "left" }}>
+                  Pop source
+                </th>
                 <th className={styles.platformCol} style={{ padding: "12px", textAlign: "left" }}>
                   Platform
                 </th>
@@ -837,7 +920,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
                 <React.Fragment key={`state-${stateGroup.state}`}>
                   <tr className={styles.stateHeaderRow}>
                     <td
-                      colSpan={10}
+                      colSpan={11}
                       className={styles.stateHeaderCell}
                       style={{
                         padding: "12px",
@@ -949,6 +1032,11 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
                         </td>
                         <td className={styles.populationCol} style={{ padding: "12px" }}>
                           {formatPopulation(city.population)}
+                        </td>
+                        <td className={styles.popSourceCol} style={{ padding: "12px", fontSize: "12px", color: "var(--text-secondary)" }}>
+                          {city.population_source_name
+                            ? `${city.population_source_name}${city.population_data_year != null ? ` ${city.population_data_year}` : ""}`
+                            : "—"}
                         </td>
                         <td className={styles.platformCol} style={{ padding: "12px" }}>
                           <span

@@ -133,6 +133,10 @@
   min-width: 100px;
 }
 
+.popSourceCol {
+  min-width: 120px;
+}
+
 .platformCol {
   min-width: 100px;
 }

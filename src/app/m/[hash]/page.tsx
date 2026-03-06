@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getPublicCityDetail } from "@/lib/publicApiClient";
+import Loader from "@/components/Loader";
 // Icon mapping for different shape layer types
 const getLayerIcon = (layerKey?: string, category?: string, displayName?: string): string => {
   const key = (layerKey || "").toLowerCase();
@@ -72,6 +73,9 @@ interface SavedMap {
   created_at: string;
 }
 
+// Single palette for multi-layer map dots and layer panel swatches (keep in sync)
+const MULTI_LAYER_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#ca8a04", "#9333ea", "#0d9488", "#e11d48", "#0891b2"];
+
 // Fetch public map data (no auth required).
 // Use /api so Next.js rewrites to the backend in both dev and prod (avoids CORS,
 // consistent behavior on direct load and in-app nav). Backend: GET /api/maps/public/:hash.
@@ -117,13 +121,19 @@ export default function PublicMapPage() {
   const [resolvedCityName, setResolvedCityName] = useState<string | null>(null);
   const [selectedShapeLayer, setSelectedShapeLayer] = useState<string | null>(null);
   const [showPoints, setShowPoints] = useState(false);
+  /** For multi-layer maps: visibility per layer index (all true by default). */
+  const [multiLayerVisibility, setMultiLayerVisibility] = useState<Record<number, boolean>>({});
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const dotsDistrictIdRef = useRef<string | null>(null);
+  const multiLayerVisibilityRef = useRef<Record<number, boolean>>({});
 
   useEffect(() => {
     dotsDistrictIdRef.current = dotsDistrictId;
   }, [dotsDistrictId]);
+  useEffect(() => {
+    multiLayerVisibilityRef.current = multiLayerVisibility;
+  }, [multiLayerVisibility]);
   
   // Fetch map data
   useEffect(() => {
@@ -157,6 +167,38 @@ export default function PublicMapPage() {
       setSelectedShapeLayer(String(dv.shape_layer_instance_id));
     }
   }, [map?.short_hash, map?.id, map?.map_config?.default_view, map?.location_data?.length]);
+
+  // Initialize multi-layer visibility when map is multi_layer (all layers visible)
+  useEffect(() => {
+    if (!map || map.map_type !== "multi_layer") return;
+    const layers = map.map_config?.layer_maps as any[] | undefined;
+    if (!layers?.length) return;
+    setMultiLayerVisibility((prev) => {
+      const next = { ...prev };
+      layers.forEach((_, i) => {
+        if (next[i] === undefined) next[i] = true;
+      });
+      return next;
+    });
+  }, [map?.short_hash, map?.map_type, map?.map_config?.layer_maps]);
+
+  // Sync multi-layer visibility toggles to map layer visibility
+  useEffect(() => {
+    if (!map || map.map_type !== "multi_layer" || !mapInstanceRef.current) return;
+    const layers = map.map_config?.layer_maps as any[] | undefined;
+    if (!layers?.length) return;
+    const mapInstance = mapInstanceRef.current;
+    layers.forEach((_, i) => {
+      const layerId = `multi-layer-${i}`;
+      if (mapInstance.getLayer(layerId)) {
+        mapInstance.setLayoutProperty(
+          layerId,
+          "visibility",
+          multiLayerVisibility[i] !== false ? "visible" : "none"
+        );
+      }
+    });
+  }, [map?.short_hash, map?.map_type, multiLayerVisibility]);
 
   // Resolve city name when map has city_id but API did not return city_name
   useEffect(() => {
@@ -200,10 +242,18 @@ export default function PublicMapPage() {
 
   const clearLegend = () => setLegend(null);
 
-  // Total count and item_noun for caption (choropleth: sum of aggregation values; point: location_data.length)
+  // Total count and item_noun for caption (choropleth: sum of aggregation values; point: location_data.length; multi_layer: sum of layer counts)
   const getMapDisplayCount = (m: SavedMap | null): { count: number; itemNoun: string } | null => {
     if (!m) return null;
     const itemNoun = (m.map_config?.item_noun as string) || "items";
+    if (m.map_type === "multi_layer") {
+      const layerMaps = m.map_config?.layer_maps as Array<{ location_data?: any[] }> | undefined;
+      if (Array.isArray(layerMaps) && layerMaps.length > 0) {
+        const total = layerMaps.reduce((sum, layer) => sum + (layer.location_data?.length ?? 0), 0);
+        if (total > 0) return { count: total, itemNoun: "points" };
+      }
+      return null;
+    }
     const aggregations = m.map_config?.aggregations as Record<string, { rows?: Array<{ value?: number; count?: number }> }> | undefined;
     if (aggregations && typeof aggregations === "object") {
       for (const key of Object.keys(aggregations)) {
@@ -728,7 +778,7 @@ export default function PublicMapPage() {
 
       // Check if we have pre-computed aggregations for this shape layer
       const aggregationKey = String(targetShapeLayerId);
-      let aggregation = aggregations[aggregationKey] || aggregations[Number(targetShapeLayerId)];
+      const aggregation = aggregations[aggregationKey] || aggregations[Number(targetShapeLayerId)];
       
       console.log(`[PublicMapPage] Looking for aggregation with key: ${aggregationKey}`);
       console.log(`[PublicMapPage] Found aggregation:`, aggregation ? `Yes (${aggregation.rows?.length || 0} rows)` : 'No');
@@ -1035,11 +1085,13 @@ export default function PublicMapPage() {
     mapInstanceRef.current = mapInstance;
     
     mapInstance.on("load", async () => {
-      if (!map.location_data || map.location_data.length === 0) {
+      const layerMaps = map.map_config?.layer_maps as Array<{ title?: string; location_data?: any[]; map_type?: string }> | undefined;
+      const isMultiLayer = map.map_type === "multi_layer" && layerMaps && layerMaps.length > 0;
+      if (!isMultiLayer && (!map.location_data || map.location_data.length === 0)) {
         console.log("No location data available");
         return;
       }
-      
+
       const locationDataCount = map.location_data?.length || 0;
       const hasAggregations = !!(map.map_config?.aggregations && Object.keys(map.map_config.aggregations).length > 0);
       const hasAvailableShapeLayers = !!(map.map_config?.available_shape_layers && map.map_config.available_shape_layers.length > 0);
@@ -1129,6 +1181,73 @@ export default function PublicMapPage() {
           // Shape layers are being discovered asynchronously, they'll trigger a re-render
           // For now, show points as fallback until shape layers are discovered
           // The shape layer discovery effect will switch to choropleth when ready
+        }
+      } else if (map.map_type === "multi_layer" && layerMaps?.length) {
+        // Multi-layer: one point layer per child map (from map_config.layer_maps, expanded by API)
+        clearLegend();
+        const allBounds: Array<[[number, number], [number, number]]> = [];
+        layerMaps.forEach((layer: any, layerIndex: number) => {
+          const locData = layer.location_data || [];
+          const validPoints = locData.filter((point: any) => {
+            const lat = point.lat ?? point.latitude;
+            const lon = point.lon ?? point.longitude;
+            return lat != null && lon != null && !isNaN(Number(lat)) && !isNaN(Number(lon)) && isFinite(Number(lat)) && isFinite(Number(lon));
+          }).map((point: any) => ({
+            ...point,
+            lat: point.lat ?? point.latitude,
+            lon: point.lon ?? point.longitude,
+          }));
+          if (validPoints.length === 0) return;
+          const sourceId = `multi-layer-${layerIndex}-source`;
+          const layerId = `multi-layer-${layerIndex}`;
+          const geojson = {
+            type: "FeatureCollection" as const,
+            features: validPoints.map((point: any, i: number) => ({
+              type: "Feature" as const,
+              geometry: { type: "Point" as const, coordinates: [point.lon, point.lat] },
+              properties: { id: i, ...point },
+            })),
+          };
+          mapInstance.addSource(sourceId, { type: "geojson", data: geojson });
+          const color = MULTI_LAYER_COLORS[layerIndex % MULTI_LAYER_COLORS.length];
+          mapInstance.addLayer({
+            id: layerId,
+            type: "circle",
+            source: sourceId,
+            paint: {
+              "circle-radius": 6,
+              "circle-color": color,
+              "circle-stroke-color": "#fff",
+              "circle-stroke-width": 1,
+              "circle-opacity": 0.8,
+            },
+          });
+          const lngs = validPoints.map((p: any) => p.lon);
+          const lats = validPoints.map((p: any) => p.lat);
+          if (lngs.length && lats.length) {
+            allBounds.push([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]]);
+          }
+          mapInstance.on("click", layerId, (e: any) => {
+            if (!e.features?.length) return;
+            const props = e.features[0].properties;
+            let content = "<div class='map-popup'>";
+            const title = layer.title || `Layer ${layerIndex + 1}`;
+            content += `<p><strong>${title}</strong></p>`;
+            for (const [k, v] of Object.entries(props)) {
+              if (k !== "id" && v != null) content += `<p><strong>${k}:</strong> ${String(v)}</p>`;
+            }
+            content += "</div>";
+            new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(content).addTo(mapInstance);
+          });
+          mapInstance.on("mouseenter", layerId, () => { mapInstance.getCanvas().style.cursor = "pointer"; });
+          mapInstance.on("mouseleave", layerId, () => { mapInstance.getCanvas().style.cursor = ""; });
+        });
+        if (map.bounds && map.bounds.length >= 2) {
+          mapInstance.fitBounds(map.bounds, { padding: 50, maxZoom: 15 });
+        } else if (allBounds.length > 0) {
+          const allLngs = allBounds.flatMap((b) => [b[0][0], b[1][0]]);
+          const allLats = allBounds.flatMap((b) => [b[0][1], b[1][1]]);
+          mapInstance.fitBounds([[Math.min(...allLngs), Math.min(...allLats)], [Math.max(...allLngs), Math.max(...allLats)]], { padding: 50, maxZoom: 15 });
         }
       } else if (map.map_type === "heatmap") {
         // Heatmap layer - filter for valid coordinates
@@ -1438,8 +1557,67 @@ export default function PublicMapPage() {
         : "mapbox://styles/mapbox/light-v11";
       mapInstanceRef.current.setStyle(newStyle);
       
-      // Reload choropleth layers after style loads
+      // Reload choropleth or multi-layer layers after style loads
       mapInstanceRef.current.once("style.load", async () => {
+        const layerMapsForStyle = map.map_config?.layer_maps as any[] | undefined;
+        const isMultiLayer = map.map_type === "multi_layer" && layerMapsForStyle?.length;
+        if (isMultiLayer && mapInstanceRef.current) {
+          const vis = multiLayerVisibilityRef.current;
+          layerMapsForStyle.forEach((layer: any, layerIndex: number) => {
+            const locData = layer.location_data || [];
+            const validPoints = locData.filter((point: any) => {
+              const lat = point.lat ?? point.latitude;
+              const lon = point.lon ?? point.longitude;
+              return lat != null && lon != null && !isNaN(Number(lat)) && !isNaN(Number(lon)) && isFinite(Number(lat)) && isFinite(Number(lon));
+            }).map((point: any) => ({
+              ...point,
+              lat: point.lat ?? point.latitude,
+              lon: point.lon ?? point.longitude,
+            }));
+            if (validPoints.length === 0) return;
+            const sourceId = `multi-layer-${layerIndex}-source`;
+            const layerId = `multi-layer-${layerIndex}`;
+            const geojson = {
+              type: "FeatureCollection" as const,
+              features: validPoints.map((point: any, i: number) => ({
+                type: "Feature" as const,
+                geometry: { type: "Point" as const, coordinates: [point.lon, point.lat] },
+                properties: { id: i, ...point },
+              })),
+            };
+            mapInstanceRef.current!.addSource(sourceId, { type: "geojson", data: geojson });
+            const color = MULTI_LAYER_COLORS[layerIndex % MULTI_LAYER_COLORS.length];
+            mapInstanceRef.current!.addLayer({
+              id: layerId,
+              type: "circle",
+              source: sourceId,
+              paint: {
+                "circle-radius": 6,
+                "circle-color": color,
+                "circle-stroke-color": "#fff",
+                "circle-stroke-width": 1,
+                "circle-opacity": 0.8,
+              },
+            });
+            mapInstanceRef.current!.setLayoutProperty(layerId, "visibility", vis[layerIndex] !== false ? "visible" : "none");
+            const mapboxgl = (window as any).mapboxgl;
+            mapInstanceRef.current!.on("click", layerId, (e: any) => {
+              if (!e.features?.length) return;
+              const props = e.features[0].properties;
+              let content = "<div class='map-popup'>";
+              const title = layer.title || `Layer ${layerIndex + 1}`;
+              content += `<p><strong>${title}</strong></p>`;
+              for (const [k, v] of Object.entries(props)) {
+                if (k !== "id" && v != null) content += `<p><strong>${k}:</strong> ${String(v)}</p>`;
+              }
+              content += "</div>";
+              new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(content).addTo(mapInstanceRef.current!);
+            });
+            mapInstanceRef.current!.on("mouseenter", layerId, () => { mapInstanceRef.current!.getCanvas().style.cursor = "pointer"; });
+            mapInstanceRef.current!.on("mouseleave", layerId, () => { mapInstanceRef.current!.getCanvas().style.cursor = ""; });
+          });
+          return;
+        }
         const locationDataCount = map.location_data?.length || 0;
         const hasAggregations = map.map_config?.aggregations && Object.keys(map.map_config.aggregations).length > 0;
         const hasAvailableShapeLayers = map.map_config?.available_shape_layers && map.map_config.available_shape_layers.length > 0;
@@ -1452,8 +1630,7 @@ export default function PublicMapPage() {
         if (shouldUseChoropleth && mapInstanceRef.current) {
           console.log("Reloading choropleth layers after style change");
           await loadChoroplethMap(mapInstanceRef.current, map, selectedShapeLayer);
-        } else if (mapInstanceRef.current && mapInstanceRef.current.getLayer && mapInstanceRef.current.getLayer("choropleth-outline")) {
-          // Just update outline color if layers already exist
+        } else if (mapInstanceRef.current?.getLayer?.("choropleth-outline")) {
           const outlineColor = theme === "dark" ? "#ffffff" : "#000000";
           mapInstanceRef.current.setPaintProperty("choropleth-outline", "line-color", outlineColor);
           mapInstanceRef.current.setPaintProperty("choropleth-outline", "line-opacity", theme === "dark" ? 0.8 : 0.6);
@@ -1500,7 +1677,10 @@ export default function PublicMapPage() {
   if (loading) {
     return (
       <div className={`public-map-page loading ${isEmbedded ? "embedded" : ""}`}>
-        <div className="loading-spinner">Loading map...</div>
+        <div className="tc-loading-state tc-loading-state--stacked">
+          <Loader size="md" color="dark" />
+          <span>Loading map…</span>
+        </div>
       </div>
     );
   }
@@ -1669,39 +1849,55 @@ export default function PublicMapPage() {
           </div>
         </div>
         <div className="map-container-wrapper embedded-map-wrapper">
-          <MapLayerPanel
-            availableShapeLayers={availableShapeLayers.length > 0 ? availableShapeLayers : 
-              (map?.map_config?.shape_layer_instance_id ? [{
-                shape_layer_instance_id: map.map_config.shape_layer_instance_id,
-                identifier_field: map.map_config.district_field || "supervisor_district",
-                display_name: "Districts",
-                layer_key: "supervisor_districts",
-                category: "government",
-              }] : [])
-            }
-            selectedShapeLayer={selectedShapeLayer}
-            onShapeLayerSelect={(shapeLayerId) => {
-              setSelectedShapeLayer(shapeLayerId);
-              // Hide points when selecting a shape layer
-              if (showPoints) {
-                setShowPoints(false);
+          {map.map_type === "multi_layer" && (map.map_config?.layer_maps as any[])?.length > 0 ? (
+            <div className="multi-layer-panel" role="region" aria-label="Map layers">
+              <div className="multi-layer-panel-title">Layers</div>
+              {(map.map_config.layer_maps as any[]).map((layer: any, i: number) => (
+                <label key={i} className="multi-layer-panel-item">
+                  <input
+                    type="checkbox"
+                    checked={multiLayerVisibility[i] !== false}
+                    onChange={() => setMultiLayerVisibility((prev) => ({ ...prev, [i]: !prev[i] }))}
+                    aria-label={`Toggle ${layer.title || `Layer ${i + 1}`}`}
+                  />
+                  <span
+                    className="multi-layer-panel-swatch"
+                    style={{ backgroundColor: MULTI_LAYER_COLORS[i % MULTI_LAYER_COLORS.length] }}
+                    aria-hidden
+                  />
+                  <span>{layer.title || `Layer ${i + 1}`}</span>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <MapLayerPanel
+              availableShapeLayers={availableShapeLayers.length > 0 ? availableShapeLayers : 
+                (map?.map_config?.shape_layer_instance_id ? [{
+                  shape_layer_instance_id: map.map_config.shape_layer_instance_id,
+                  identifier_field: map.map_config.district_field || "supervisor_district",
+                  display_name: "Districts",
+                  layer_key: "supervisor_districts",
+                  category: "government",
+                }] : [])
               }
-              if (mapInstanceRef.current && map) {
-                loadChoroplethMap(mapInstanceRef.current, map, shapeLayerId);
-              }
-            }}
-            showDots={showPoints && !selectedShapeLayer}
-            onToggleDots={() => {
-              // Clear shape layer selection when showing points
-              if (!showPoints && selectedShapeLayer) {
-                setSelectedShapeLayer(null);
-              }
-              setShowPoints(!showPoints);
-            }}
-            canShowDots={!!(map.location_data && map.location_data.length > 0)}
-          />
+              selectedShapeLayer={selectedShapeLayer}
+              onShapeLayerSelect={(shapeLayerId) => {
+                setSelectedShapeLayer(shapeLayerId);
+                if (showPoints) setShowPoints(false);
+                if (mapInstanceRef.current && map) {
+                  loadChoroplethMap(mapInstanceRef.current, map, shapeLayerId);
+                }
+              }}
+              showDots={showPoints && !selectedShapeLayer}
+              onToggleDots={() => {
+                if (!showPoints && selectedShapeLayer) setSelectedShapeLayer(null);
+                setShowPoints(!showPoints);
+              }}
+              canShowDots={!!(map.location_data && map.location_data.length > 0)}
+            />
+          )}
           <div className="map-container embedded-map" ref={mapContainerRef} />
-          {legend && legend.items.length > 0 && (
+          {legend && legend.items.length > 0 && map.map_type !== "multi_layer" && (
             <div className="map-legend" aria-label="Map legend">
               <div className="map-legend-title">{legend.title}</div>
               <div className="map-legend-items">
@@ -1962,39 +2158,55 @@ export default function PublicMapPage() {
         </div>
 
         <div className="map-container-wrapper">
-          <MapLayerPanel
-            availableShapeLayers={availableShapeLayers.length > 0 ? availableShapeLayers : 
-              (map?.map_config?.shape_layer_instance_id ? [{
-                shape_layer_instance_id: map.map_config.shape_layer_instance_id,
-                identifier_field: map.map_config.district_field || "supervisor_district",
-                display_name: "Districts",
-                layer_key: "supervisor_districts",
-                category: "government",
-              }] : [])
-            }
-            selectedShapeLayer={selectedShapeLayer}
-            onShapeLayerSelect={(shapeLayerId) => {
-              setSelectedShapeLayer(shapeLayerId);
-              // Hide points when selecting a shape layer
-              if (showPoints) {
-                setShowPoints(false);
+          {map.map_type === "multi_layer" && (map.map_config?.layer_maps as any[])?.length > 0 ? (
+            <div className="multi-layer-panel" role="region" aria-label="Map layers">
+              <div className="multi-layer-panel-title">Layers</div>
+              {(map.map_config.layer_maps as any[]).map((layer: any, i: number) => (
+                <label key={i} className="multi-layer-panel-item">
+                  <input
+                    type="checkbox"
+                    checked={multiLayerVisibility[i] !== false}
+                    onChange={() => setMultiLayerVisibility((prev) => ({ ...prev, [i]: !prev[i] }))}
+                    aria-label={`Toggle ${layer.title || `Layer ${i + 1}`}`}
+                  />
+                  <span
+                    className="multi-layer-panel-swatch"
+                    style={{ backgroundColor: MULTI_LAYER_COLORS[i % MULTI_LAYER_COLORS.length] }}
+                    aria-hidden
+                  />
+                  <span>{layer.title || `Layer ${i + 1}`}</span>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <MapLayerPanel
+              availableShapeLayers={availableShapeLayers.length > 0 ? availableShapeLayers : 
+                (map?.map_config?.shape_layer_instance_id ? [{
+                  shape_layer_instance_id: map.map_config.shape_layer_instance_id,
+                  identifier_field: map.map_config.district_field || "supervisor_district",
+                  display_name: "Districts",
+                  layer_key: "supervisor_districts",
+                  category: "government",
+                }] : [])
               }
-              if (mapInstanceRef.current && map) {
-                loadChoroplethMap(mapInstanceRef.current, map, shapeLayerId);
-              }
-            }}
-            showDots={showPoints && !selectedShapeLayer}
-            onToggleDots={() => {
-              // Clear shape layer selection when showing points
-              if (!showPoints && selectedShapeLayer) {
-                setSelectedShapeLayer(null);
-              }
-              setShowPoints(!showPoints);
-            }}
-            canShowDots={!!(map.location_data && map.location_data.length > 0)}
-          />
+              selectedShapeLayer={selectedShapeLayer}
+              onShapeLayerSelect={(shapeLayerId) => {
+                setSelectedShapeLayer(shapeLayerId);
+                if (showPoints) setShowPoints(false);
+                if (mapInstanceRef.current && map) {
+                  loadChoroplethMap(mapInstanceRef.current, map, shapeLayerId);
+                }
+              }}
+              showDots={showPoints && !selectedShapeLayer}
+              onToggleDots={() => {
+                if (!showPoints && selectedShapeLayer) setSelectedShapeLayer(null);
+                setShowPoints(!showPoints);
+              }}
+              canShowDots={!!(map.location_data && map.location_data.length > 0)}
+            />
+          )}
           <div className="map-container" ref={mapContainerRef} />
-          {legend && legend.items.length > 0 && (
+          {legend && legend.items.length > 0 && map.map_type !== "multi_layer" && (
             <div className="map-legend" aria-label="Map legend">
               <div className="map-legend-title">{legend.title}</div>
               <div className="map-legend-items">

@@ -170,6 +170,10 @@ export function useFeedStoryDetail(storyId: number | null) {
 export function useTrackFeedEngagement() {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   const queryClient = useQueryClient();
+  // Temporary kill switch to stop expensive engage POSTs.
+  // Disabled by default; set NEXT_PUBLIC_DISABLE_FEED_ENGAGEMENT=false to re-enable.
+  const engagementEnabled =
+    process.env.NEXT_PUBLIC_DISABLE_FEED_ENGAGEMENT === "false";
 
   return useMutation({
     mutationFn: async ({
@@ -177,8 +181,11 @@ export function useTrackFeedEngagement() {
       action,
     }: {
       storyId: number;
-      action: "view" | "click" | "share";
+      action: "view" | "click" | "share" | "like";
     }) => {
+      if (!engagementEnabled) {
+        return { success: false, message: "Engagement disabled" };
+      }
       if (!isAuthenticated) {
         // Silently fail if not authenticated (engagement tracking is optional)
         return { success: false, message: "Not authenticated" };
@@ -186,7 +193,8 @@ export function useTrackFeedEngagement() {
       const token = await getAccessTokenSilently();
       return trackFeedEngagement(storyId, action, token);
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (result, variables) => {
+      if (!(result as { success?: boolean } | undefined)?.success) return;
       // Invalidate the story detail query to refresh engagement counts
       queryClient.invalidateQueries({ queryKey: feedKeys.detail(variables.storyId) });
       // Also invalidate lists to refresh counts in list views

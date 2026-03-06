@@ -11,11 +11,17 @@ import styles from "./SidebarLists.module.css";
 interface MyCitiesProps {
   onCityClick?: (cityId: number) => void;
   onDistrictClick?: (cityId: number, district: string) => void;
+  /** User's saved places (optional). When set, shown under each city with districts. */
+  userPlaces?: Array<{ id: number; city_id: number; label: string }>;
+  /** Called when user clicks a saved place: open city with this place selected. */
+  onPlaceClick?: (cityId: number, placeId: number) => void;
+  /** Currently selected place id (for active state in sidebar). */
+  activePlaceId?: number | null;
   activeCityId?: number | null;
   activeDistrict?: string | null;
 }
 
-export default function MyCities({ onCityClick, onDistrictClick, activeCityId, activeDistrict }: MyCitiesProps) {
+export default function MyCities({ onCityClick, onDistrictClick, userPlaces = [], onPlaceClick, activePlaceId, activeCityId, activeDistrict }: MyCitiesProps) {
   const { getAccessTokenSilently } = useAuth0();
   const [cities, setCities] = useState<SavedCity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +41,12 @@ export default function MyCities({ onCityClick, onDistrictClick, activeCityId, a
       acc[d.city_id].push(d);
       return acc;
     }, {});
+
+  const placesByCityId = userPlaces.reduce<Record<number, Array<{ id: number; city_id: number; label: string }>>>((acc, p) => {
+    if (!acc[p.city_id]) acc[p.city_id] = [];
+    acc[p.city_id].push(p);
+    return acc;
+  }, {});
 
   useEffect(() => {
     loadCities();
@@ -183,7 +195,7 @@ export default function MyCities({ onCityClick, onDistrictClick, activeCityId, a
               return (
                 <div key={city.id}>
                   <div
-                    className={`${styles.item} ${activeCityId === city.id && !activeDistrict ? styles.itemActive : ""}`}
+                    className={`${styles.item} ${activeCityId === city.id && !activeDistrict && !activePlaceId ? styles.itemActive : ""}`}
                     data-city-id={city.id}
                     onMouseEnter={() => handleCityHover(city.id)}
                     onClick={() => handleCityClick(city.id)}
@@ -233,6 +245,27 @@ export default function MyCities({ onCityClick, onDistrictClick, activeCityId, a
                           >
                             <span className={styles.districtNumber}>D{d.district}</span>
                             <span className={styles.districtName}>{d.display_name}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {(placesByCityId[city.id]?.length ?? 0) > 0 && (
+                    <div className={styles.placeSubList}>
+                      {placesByCityId[city.id].map((place) => {
+                        const isPlaceActive = activeCityId === city.id && activePlaceId === place.id;
+                        return (
+                          <div
+                            key={`place-${place.id}`}
+                            className={`${styles.placeSubItem} ${isPlaceActive ? styles.placeSubItemActive : ""}`}
+                            onClick={() => onPlaceClick?.(city.id, place.id)}
+                          >
+                            <span className={styles.placeSubItemIcon} aria-hidden title="Saved place">
+                              <svg width="12" height="14" viewBox="0 0 12 14" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Place">
+                                <path d="M6 0C2.686 0 0 2.686 0 6c0 4.5 6 8 6 8s6-3.5 6-8c0-3.314-2.686-6-6-6zm0 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" fill="currentColor" />
+                              </svg>
+                            </span>
+                            <span className={styles.placeSubItemLabel}>{place.label}</span>
                           </div>
                         );
                       })}

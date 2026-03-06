@@ -127,6 +127,7 @@ export interface CityAdminData {
   metrics?: any[];
   geographic_structures?: any[];
   governance_structures?: any[];
+  census_place_geoid?: string | null;
 }
 
 export interface CityStructureData {
@@ -180,6 +181,7 @@ export interface UpdateCityRequest {
   state?: string | null;
   country?: string | null;
   population?: number | null;
+  census_place_geoid?: string | null;
   main_domain?: string | null;
   main_portal_url?: string | null;
   all_portal_urls?: string[];
@@ -323,6 +325,9 @@ export interface PopulationSourceConfig {
   updated_at?: string | null;
 }
 
+/** GET population source: full config when configured, or { configured: false } when no source. */
+export type PopulationSourceGetResponse = (PopulationSourceConfig & { configured: true }) | { configured: false };
+
 export interface PopulationRefreshResult {
   success: boolean;
   rows_written?: number;
@@ -331,12 +336,73 @@ export interface PopulationRefreshResult {
   error?: string;
 }
 
-export function getPopulationSource(cityId: number, token: string): Promise<PopulationSourceConfig> {
-  return request<PopulationSourceConfig>(`/api/admin/population/sources/${cityId}`, "GET", undefined, token);
+export function getPopulationSource(cityId: number, token: string): Promise<PopulationSourceGetResponse> {
+  return request<PopulationSourceGetResponse>(`/api/admin/population/sources/${cityId}`, "GET", undefined, token);
 }
 
 export function refreshPopulation(cityId: number, token: string): Promise<PopulationRefreshResult> {
   return request<PopulationRefreshResult>(`/api/admin/population/refresh/${cityId}`, "POST", undefined, token);
+}
+
+export interface PopulationSyncResult {
+  success: boolean;
+  charts_updated?: number;
+  metric_id?: number;
+  districts?: number;
+  error?: string;
+  message?: string;
+}
+
+export function syncPopulationToMetric(cityId: number, token: string): Promise<PopulationSyncResult> {
+  return request<PopulationSyncResult>(`/api/admin/population/sync/${cityId}`, "POST", undefined, token);
+}
+
+export interface RefreshAllAcsResult {
+  refreshed: Array<{ city_id: number; city_name?: string; rows_written?: number; charts_updated?: number }>;
+  errors: Array<{ city_id: number; city_name?: string; error: string }>;
+  refreshed_count: number;
+  error_count: number;
+}
+
+export function refreshAllAcs(
+  token: string,
+  params?: { sync_to_metric_after?: boolean; city_ids?: number[] }
+): Promise<RefreshAllAcsResult> {
+  const sp = new URLSearchParams();
+  if (params?.sync_to_metric_after !== false) sp.set("sync_to_metric_after", "true");
+  if (params?.city_ids?.length) params.city_ids.forEach((id) => sp.append("city_ids", String(id)));
+  const search = sp.toString() ? `?${sp.toString()}` : "";
+  return request<RefreshAllAcsResult>(`/api/admin/population/refresh-all-acs${search}`, "POST", undefined, token);
+}
+
+export interface LookupCensusGeoidResult {
+  city_id: number;
+  city_name?: string;
+  state?: string | null;
+  census_place_geoid: string | null;
+  updated?: boolean;
+  message?: string;
+}
+
+export function lookupCensusGeoid(
+  cityId: number,
+  token: string,
+  params?: { update_city?: boolean; ensure_acs_source?: boolean; census_api_key?: string }
+): Promise<LookupCensusGeoidResult> {
+  const sp = new URLSearchParams();
+  if (params?.update_city) sp.set("update_city", "true");
+  if (params?.ensure_acs_source) sp.set("ensure_acs_source", "true");
+  if (params?.census_api_key) sp.set("census_api_key", params.census_api_key);
+  const q = sp.toString() ? `?${sp.toString()}` : "";
+  return request<LookupCensusGeoidResult>(`/api/admin/population/lookup-census-geoid/${cityId}${q}`, "POST", undefined, token);
+}
+
+export interface PopulationMetricIdResult {
+  population_metric_id: number;
+}
+
+export function getPopulationMetricId(cityId: number, token: string): Promise<PopulationMetricIdResult> {
+  return request<PopulationMetricIdResult>(`/api/admin/population/sources/${cityId}/metric-id`, "GET", undefined, token);
 }
 
 export function getCityStructure(cityId: number, token: string): Promise<CityStructureData> {
@@ -654,6 +720,9 @@ export interface CityListItem {
   vector_db_size_mb?: number | null;
   structure_status?: string;
   is_active?: boolean;
+  population_source_type?: string | null;
+  population_source_name?: string | null;
+  population_data_year?: number | null;
 }
 
 export function listCities(
@@ -821,6 +890,12 @@ export interface AdminMetricListItem {
   freshness?: MetricFreshnessSummary | null;
   most_recent_data_date?: string | null;
   earliest_data_date?: string | null;
+  time_series_count?: number;
+  changed_since_last_run?: boolean | null;
+  has_location_fields?: boolean;
+  has_category_fields?: boolean;
+  has_map_fields?: boolean;
+  supports_districts?: boolean;
 }
 
 export interface AdminMetricDetail {
@@ -1008,6 +1083,10 @@ export function listAdminMetrics(
     metric_type?: string;
     is_active?: boolean;
     city_id?: number;
+    /** Filter by last run status: failed, completed, cancelled, timeout, or never */
+    last_execution_status?: string;
+    /** Include record counts (slower). Default false for fast list load. */
+    include_record_counts?: boolean;
     force_refresh?: boolean;
   }
 ): Promise<AdminMetricListItem[]> {
@@ -1018,10 +1097,12 @@ export function listAdminMetrics(
   if (options?.metric_type) params.append("metric_type", options.metric_type);
   if (options?.is_active !== undefined) params.append("is_active", options.is_active.toString());
   if (options?.city_id !== undefined) params.append("city_id", options.city_id.toString());
+  if (options?.last_execution_status) params.append("last_execution_status", options.last_execution_status);
+  if (options?.include_record_counts === true) params.append("include_record_counts", "true");
   if (options?.force_refresh) params.append("_t", Date.now().toString());
 
   const query = params.toString();
-  const path = `/api/admin/metrics/${query ? `?${query}` : ""}`;
+  const path = `/api/admin/metrics${query ? `?${query}` : ""}`;
   return request<AdminMetricListItem[]>(path, "GET", undefined, token);
 }
 
@@ -1428,6 +1509,10 @@ export interface GetMapDataRequest {
   start_date?: string | null;
   end_date?: string | null;
   districts?: number[] | null;
+  /** When set (e.g. My Block), only points within radius_m of (center_lat, center_lon) are returned */
+  center_lat?: number | null;
+  center_lon?: number | null;
+  radius_m?: number | null;
 }
 
 export interface GetMapDataResponse {
@@ -1441,15 +1526,17 @@ export function getMetricMapData(
   payload: GetMapDataRequest,
   token: string
 ): Promise<GetMapDataResponse> {
-  // Build request body, only including districts if it has a value
   const body: any = {
     start_date: payload.start_date,
     end_date: payload.end_date,
   };
-  
-  // Only include districts if it's not null/undefined and has values
   if (payload.districts && payload.districts.length > 0) {
     body.districts = payload.districts;
+  }
+  if (payload.center_lat != null && payload.center_lon != null && payload.radius_m != null && payload.radius_m > 0) {
+    body.center_lat = payload.center_lat;
+    body.center_lon = payload.center_lon;
+    body.radius_m = payload.radius_m;
   }
 
   return request<GetMapDataResponse>(
@@ -2664,6 +2751,136 @@ export function getSavedDistricts(token: string): Promise<SavedDistrict[]> {
   return request<SavedDistrict[]>("/api/cities/saved-districts", "GET", undefined, token);
 }
 
+// ---------------------------------------------------------------------------
+// User Places (My block) API
+// ---------------------------------------------------------------------------
+
+export interface UserPlace {
+  id: number;
+  user_id: string;
+  city_id: number;
+  label: string;
+  lat: number;
+  lng: number;
+  radius_m: number;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface PlaceTimeSeriesPoint {
+  metric_id: number;
+  period_type: string;
+  time_period: string;
+  value: number;
+  updated_at: string | null;
+}
+
+export interface PlaceAnomaly {
+  id: number;
+  metric_id: number;
+  object_id: string;
+  object_name: string | null;
+  period_type: string;
+  time_period: string | null;
+  recent_mean: number | null;
+  comparison_mean: number | null;
+  stddev: number | null;
+  difference: number | null;
+  pct_change: number | null;
+  is_anomaly: boolean;
+  chart_payload: Record<string, unknown> | null;
+  created_at: string | null;
+}
+
+export function listMyPlaces(
+  token: string,
+  options?: { city_id?: number }
+): Promise<UserPlace[]> {
+  const query = options?.city_id != null ? `?city_id=${options.city_id}` : "";
+  return request<UserPlace[]>(`/api/users/me/places${query}`, "GET", undefined, token);
+}
+
+export function createPlace(
+  token: string,
+  body: { city_id: number; label: string; lat: number; lng: number; radius_m?: number }
+): Promise<UserPlace> {
+  return request<UserPlace>("/api/users/me/places", "POST", body, token);
+}
+
+export function getPlace(placeId: number, token: string): Promise<UserPlace> {
+  return request<UserPlace>(`/api/users/me/places/${placeId}`, "GET", undefined, token);
+}
+
+export function updatePlace(
+  placeId: number,
+  token: string,
+  body: { label?: string; lat?: number; lng?: number; radius_m?: number }
+): Promise<UserPlace> {
+  return request<UserPlace>(`/api/users/me/places/${placeId}`, "PATCH", body, token);
+}
+
+export function deletePlace(placeId: number, token: string): Promise<void> {
+  return request<void>(`/api/users/me/places/${placeId}`, "DELETE", undefined, token);
+}
+
+export function getPlaceMetrics(
+  placeId: number,
+  token: string
+): Promise<{ place_id: number; time_series: PlaceTimeSeriesPoint[] }> {
+  return request(`/api/users/me/places/${placeId}/metrics`, "GET", undefined, token);
+}
+
+export function getPlaceAnomalies(
+  placeId: number,
+  token: string
+): Promise<{ place_id: number; anomalies: PlaceAnomaly[] }> {
+  return request(`/api/users/me/places/${placeId}/anomalies`, "GET", undefined, token);
+}
+
+export function runPlaceMetricsAndAnomalies(
+  placeId: number,
+  token: string
+): Promise<{
+  place_id: number;
+  metrics: { ok: boolean; metrics_run?: number; error?: string };
+  anomalies: { ok: boolean; anomalies_written?: number; error?: string };
+}> {
+  return request(`/api/users/me/places/${placeId}/run`, "POST", undefined, token);
+}
+
+/** Start place metrics + anomalies refresh as a background job. Returns job_id; poll getJob until completed/failed. */
+export function runPlaceMetricsAndAnomaliesAsJob(
+  placeId: number,
+  token: string
+): Promise<{ job_id: string; message: string }> {
+  return request<{ job_id: string; message: string }>(
+    `/api/users/me/places/${placeId}/run-as-job`,
+    "POST",
+    undefined,
+    token
+  );
+}
+
+/** Same request shape as batch comparisons for city/district; used for place dashboard parity. */
+export interface PlaceComparisonsBatchRequest {
+  metric_ids: number[];
+  comparison_types?: ComparisonType[];
+}
+
+/** Same response shape as BatchComparisonsResponse so dashboard can use one code path. */
+export function getPlaceComparisonsBatch(
+  placeId: number,
+  requestBody: PlaceComparisonsBatchRequest,
+  token: string
+): Promise<BatchComparisonsResponse> {
+  return request<BatchComparisonsResponse>(
+    `/api/users/me/places/${placeId}/comparisons/batch`,
+    "POST",
+    requestBody,
+    token
+  );
+}
+
 // Datasets Admin API
 export interface DatasetStats {
   total_datasets: number;
@@ -3246,6 +3463,30 @@ export function getAvailablePeriods(
   return request<AvailablePeriodsResponse>(path, "GET", undefined, token);
 }
 
+export interface AnomalyPlaceType {
+  group_field: string;
+  label: string;
+  places: string[];
+}
+
+export interface AnomalyPlaceTypesResponse {
+  place_types: AnomalyPlaceType[];
+}
+
+export function getAnomalyPlaceTypes(
+  cityId: number,
+  token: string
+): Promise<AnomalyPlaceTypesResponse> {
+  const params = new URLSearchParams();
+  params.append("city_id", cityId.toString());
+  return request<AnomalyPlaceTypesResponse>(
+    `/api/anomalies/place-types?${params.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
 export function getAnomalyRun(runId: number, token: string): Promise<Record<string, any>> {
   return request<Record<string, any>>(`/api/anomalies/run/${runId}`, "GET", undefined, token);
 }
@@ -3279,12 +3520,16 @@ export interface FeedStory {
   visualization_type?: string | null;
   visualization_ref_id?: number | null;
   detail_url: string;
+  /** Optional path to static image for feed card (e.g. /api/time-series/public/123/image). Prefer over embed for fast display. */
+  image_url?: string | null;
   /** Call-to-action label, e.g. "Read full report", "View metric", "View anomaly details". Defaults to "Read full report". */
   cta_label?: string | null;
   related_urls?: Array<Record<string, any>>;
   view_count: number;
   click_count: number;
   share_count: number;
+  like_count: number;
+  comment_count: number;
   priority_score: number;
   is_featured: boolean;
   status: string;
@@ -3305,12 +3550,55 @@ export interface FeedStoryResponse {
 }
 
 export interface EngagementRequest {
-  action: "view" | "click" | "share";
+  action: "view" | "click" | "share" | "like";
 }
 
 export interface EngagementResponse {
   success: boolean;
   message: string;
+}
+
+export interface FeedStoryComment {
+  id: number;
+  feed_story_id: number;
+  user_id: number | null;
+  author_name: string | null;
+  body: string;
+  created_at: string | null;
+}
+
+export interface FeedStoryCommentsResponse {
+  comments: FeedStoryComment[];
+  count: number;
+}
+
+export interface FeedStoryCommentCreate {
+  body: string;
+  author_name?: string | null;
+}
+
+export function listFeedStoryComments(storyId: number, limit?: number): Promise<FeedStoryCommentsResponse> {
+  const params = new URLSearchParams();
+  if (limit != null) params.append("limit", limit.toString());
+  const query = params.toString();
+  return request<FeedStoryCommentsResponse>(
+    `/api/feed/story/${storyId}/comments${query ? `?${query}` : ""}`,
+    "GET",
+    undefined
+  );
+}
+
+export function addFeedStoryComment(
+  storyId: number,
+  body: FeedStoryCommentCreate,
+  token?: string
+): Promise<FeedStoryResponse> {
+  return request<FeedStoryResponse>(
+    `/api/feed/story/${storyId}/comments`,
+    "POST",
+    body,
+    token
+  );
 }
 
 export function listFeedStories(
@@ -3374,7 +3662,7 @@ export function getFeedStory(storyId: number, token: string): Promise<FeedStoryR
 
 export function trackFeedEngagement(
   storyId: number,
-  action: "view" | "click" | "share",
+  action: "view" | "click" | "share" | "like",
   token: string
 ): Promise<EngagementResponse> {
   return request<EngagementResponse>(

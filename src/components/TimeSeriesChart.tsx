@@ -13,6 +13,14 @@ const Plot = dynamic(
 
 export type PeriodType = "day" | "week" | "month" | "year" | "ytd";
 
+/** Default number of periods to show when the user changes the period dropdown. */
+const DEFAULT_PERIOD_LIMITS: Record<Exclude<PeriodType, "ytd">, number> = {
+  day: 90,    // last 90 days
+  week: 24,   // last 24 weeks
+  month: 24,  // last 24 months
+  year: 10,   // last 10 years
+};
+
 export interface TimeSeriesDataPoint {
   time_period: string;
   numeric_value: number;
@@ -237,6 +245,39 @@ function filterPartialPeriods(
   };
 
   return { filtered, partialInfo };
+}
+
+/**
+ * Sort time_period strings for consistent ordering (day: YYYY-MM-DD, week: YYYY-Wxx, month: YYYY-MM, year: YYYY).
+ */
+function sortByTimePeriod(a: TimeSeriesDataPoint, b: TimeSeriesDataPoint): number {
+  const pa = a.time_period;
+  const pb = b.time_period;
+  if (pa.includes("W") && pb.includes("W")) {
+    const [yA, wA] = pa.split("-W").map(Number);
+    const [yB, wB] = pb.split("-W").map(Number);
+    if (yA !== yB) return yA - yB;
+    return wA - wB;
+  }
+  return pa.localeCompare(pb);
+}
+
+/**
+ * Limit each group's data to the last N periods (by period type) so the chart shows a default window.
+ */
+function limitToDefaultRange(
+  aggregatedByGroup: Map<string, TimeSeriesDataPoint[]>,
+  periodType: PeriodType
+): Map<string, TimeSeriesDataPoint[]> {
+  if (periodType === "ytd") return aggregatedByGroup;
+  const limit = DEFAULT_PERIOD_LIMITS[periodType];
+  const result = new Map<string, TimeSeriesDataPoint[]>();
+  for (const [groupValue, points] of aggregatedByGroup.entries()) {
+    const sorted = [...points].sort(sortByTimePeriod);
+    const sliced = sorted.slice(-limit);
+    if (sliced.length > 0) result.set(groupValue, sliced);
+  }
+  return result;
 }
 
 /**
@@ -557,11 +598,12 @@ export default function TimeSeriesChart({
     setShowPartialInfo(false); // Reset disclosure when period changes
   };
 
-  // Aggregate data by group and filter out partial periods
+  // Aggregate by period, filter partial periods, then limit to default range (last 24 weeks, 24 months, 10 years, etc.)
   const { aggregatedByGroup, partialPeriodInfo } = useMemo(() => {
     const rawAggregated = aggregateDataByGroup(data, periodType);
     const { filtered, partialInfo } = filterPartialPeriods(rawAggregated, periodType, data);
-    return { aggregatedByGroup: filtered, partialPeriodInfo: partialInfo };
+    const limited = limitToDefaultRange(filtered, periodType);
+    return { aggregatedByGroup: limited, partialPeriodInfo: partialInfo };
   }, [data, periodType]);
 
   // Check if we have group values

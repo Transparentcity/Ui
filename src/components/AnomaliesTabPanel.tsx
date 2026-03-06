@@ -2,7 +2,9 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useCityAnomalies, useAvailablePeriods, type AnomalyResult } from "@/lib/hooks/useAnomalies";
+import { useAuth0 } from "@auth0/auth0-react";
+import { useCityAnomalies, useAvailablePeriods, useAnomalyPlaceTypes, type AnomalyResult } from "@/lib/hooks/useAnomalies";
+import { getPlaceAnomalies, type PlaceAnomaly } from "@/lib/apiClient";
 import AnomalySparkline from "./AnomalySparkline";
 import Loader from "./Loader";
 import { MetricLink } from "./MetricLink";
@@ -20,6 +22,8 @@ interface AnomaliesTabPanelProps {
   cityName?: string;
   metrics?: AnomalyPanelMetric[];
   initialDistrict?: number | null;
+  selectedPlaceId?: number | null;
+  userPlaces?: Array<{ id: number; label: string; city_id: number }>;
   onMetricClick?: (metricId: number, district?: number | null) => void;
 }
 
@@ -201,17 +205,18 @@ function getAnomalyDisplayInfo(anomaly: AnomalyResult) {
       ? itemNoun
       : `${itemNoun}s`;
 
-  // District/Citywide - always shown in the badge
-  let districtDisplay: string;
-  if (anomaly.district === 0 || anomaly.district === null || anomaly.district === undefined) {
-    districtDisplay = "Citywide";
-  } else {
-    districtDisplay = `District ${anomaly.district}`;
-  }
-
-  // Group field/value - shown separately if present
   const groupField = anomaly.group_field || null;
   const groupValue = anomaly.group_value || null;
+
+  // District/Citywide/Place - badge: show place name when anomaly is grouped by a location (e.g. neighborhood)
+  let districtDisplay: string;
+  if (anomaly.district != null && anomaly.district !== 0) {
+    districtDisplay = `District ${anomaly.district}`;
+  } else if (groupValue) {
+    districtDisplay = groupValue;
+  } else {
+    districtDisplay = "Citywide";
+  }
 
   const metricName = anomaly.metric_name || anomaly.object_name || `Metric ${anomaly.metric_id}`;
   const dateInfo = getDateRangeInfo(anomaly.chart_payload, anomaly.period_type);
@@ -253,8 +258,10 @@ const MIN_SIGMA_OPTIONS: ({ value: ""; label: string } | { value: number; label:
   { value: 4, label: "≥ 4σ" },
 ];
 
-// districtFilter values: "all" | "citywide" | "any_district" | "<number>"
+// districtFilter values: "all" | "citywide" | "any_district" | "<number>" | "place:<id>" | "group:<field>|<value>"
 type DistrictFilterValue = string;
+
+const GROUP_PREFIX = "group:";
 
 /** Single anomaly card: links to full details page /a/[id]. Metric name click opens metric modal (stops propagation). */
 function AnomalyCard({
@@ -388,14 +395,22 @@ export default function AnomaliesTabPanel({
   cityName,
   metrics = [],
   initialDistrict,
+  selectedPlaceId = null,
+  userPlaces = [],
   onMetricClick,
 }: AnomaliesTabPanelProps) {
   const [expandedMetricIds, setExpandedMetricIds] = useState<Set<number>>(new Set());
-  const [periodType, setPeriodType] = useState("");
+  // Tightened default filters for faster first load.
+  const [periodType, setPeriodType] = useState("week");
   const [periodDate, setPeriodDate] = useState("");
   const [metricId, setMetricId] = useState<number | "">("");
   const [minSigma, setMinSigma] = useState<string | number>("");
-  const [districtFilter, setDistrictFilter] = useState<DistrictFilterValue>("all");
+  const [districtFilter, setDistrictFilter] = useState<DistrictFilterValue>(() => {
+    if (selectedPlaceId != null) return `place:${selectedPlaceId}`;
+    return initialDistrict == null || initialDistrict === 0
+      ? "citywide"
+      : String(initialDistrict);
+  });
   // Group filter: "" = All, or "groupField|groupValue" when a single metric with groups is selected
   const [groupFilter, setGroupFilter] = useState("");
 
@@ -416,26 +431,68 @@ export default function AnomaliesTabPanel({
     30
   );
   const availablePeriods = periodType ? periodsData?.periods ?? [] : [];
+  const { data: placeTypesData } = useAnomalyPlaceTypes(cityId);
+  const anomalyPlaceTypes = placeTypesData?.place_types ?? [];
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+
+  // Keep district filter in sync with the global selector defaults from parent.
+  useEffect(() => {
+    if (selectedPlaceId != null) {
+      setDistrictFilter(`place:${selectedPlaceId}`);
+      return;
+    }
+    setDistrictFilter(
+      initialDistrict == null || initialDistrict === 0
+        ? "citywide"
+        : String(initialDistrict)
+    );
+  }, [initialDistrict, selectedPlaceId]);
+
+  // Keep period date unchanged unless user explicitly picks one.
 
   // Determine district parameter to send to backend
-  const apiDistrict: number | undefined =
-    districtFilter === "all" || districtFilter === "any_district"
-      ? undefined
-      : districtFilter === "citywide"
-      ? 0
-      : parseInt(districtFilter, 10);
+  const apiDistrict: number | undefined = useMemo(() => {
+    if (
+      districtFilter === "all" ||
+      districtFilter === "any_district" ||
+      districtFilter.startsWith("place:") ||
+      districtFilter.startsWith(GROUP_PREFIX)
+    ) {
+      return undefined;
+    }
+    if (districtFilter === "citywide") return 0;
+    const n = parseInt(districtFilter, 10);
+    return Number.isNaN(n) ? undefined : n;
+  }, [districtFilter]);
 
-  // Parse group filter for API (only when a single metric is selected)
+  const selectedPlaceFilterId = useMemo(() => {
+    if (!districtFilter.startsWith("place:")) return null;
+    const id = parseInt(districtFilter.replace("place:", ""), 10);
+    return Number.isNaN(id) ? null : id;
+  }, [districtFilter]);
+
+  // Group/place filter for API: from Location selector (group:field|value) or from metric Group dropdown
+  const locationGroupParts = useMemo(() => {
+    if (!districtFilter.startsWith(GROUP_PREFIX)) return null;
+    const rest = districtFilter.slice(GROUP_PREFIX.length);
+    const pipe = rest.indexOf("|");
+    if (pipe === -1) return null;
+    return { field: rest.slice(0, pipe), value: rest.slice(pipe + 1) };
+  }, [districtFilter]);
   const groupFilterParts = groupFilter ? groupFilter.split("|") : [];
   const apiGroupField =
-    groupFilterParts.length === 2 ? groupFilterParts[0] : undefined;
+    locationGroupParts?.field ??
+    (groupFilterParts.length === 2 ? groupFilterParts[0] : undefined);
   const apiGroupValue =
-    groupFilterParts.length === 2 ? groupFilterParts[1] : undefined;
+    locationGroupParts?.value ??
+    (groupFilterParts.length === 2 ? groupFilterParts[1] : undefined);
 
   // Fetch anomalies with backend filters
   const { data: anomaliesData, isLoading, error } = useCityAnomalies(cityId, {
     is_anomaly: true,
-    limit: 200,
+    // In "any district" mode, fetch a larger window before client-side filtering
+    // so district-only results are less likely to be filtered to empty.
+    limit: districtFilter === "any_district" ? 150 : 50,
     period_type: periodType || undefined,
     period_date: periodDate || undefined,
     metric_id: metricId === "" ? undefined : (metricId as number),
@@ -443,6 +500,42 @@ export default function AnomaliesTabPanel({
     group_field: apiGroupField,
     group_value: apiGroupValue,
   });
+  const [placeAnomaliesData, setPlaceAnomaliesData] = useState<PlaceAnomaly[]>([]);
+  const [placeAnomaliesLoading, setPlaceAnomaliesLoading] = useState(false);
+  const [placeAnomaliesError, setPlaceAnomaliesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedPlaceFilterId == null) {
+      setPlaceAnomaliesData([]);
+      setPlaceAnomaliesError(null);
+      return;
+    }
+    if (!isAuthenticated) {
+      setPlaceAnomaliesData([]);
+      setPlaceAnomaliesError("Sign in required for place anomalies");
+      return;
+    }
+    let cancelled = false;
+    setPlaceAnomaliesLoading(true);
+    setPlaceAnomaliesError(null);
+    getAccessTokenSilently()
+      .then((token) => getPlaceAnomalies(selectedPlaceFilterId, token))
+      .then((res) => {
+        if (!cancelled) setPlaceAnomaliesData(res?.anomalies ?? []);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setPlaceAnomaliesData([]);
+          setPlaceAnomaliesError(err instanceof Error ? err.message : "Failed to load place anomalies");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPlaceAnomaliesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPlaceFilterId, isAuthenticated, getAccessTokenSilently]);
 
   // Group options for the selected metric: only when one metric is selected and results have group_field/group_value.
   // Cache in a ref so when user filters by group we still show the full list in the dropdown.
@@ -500,19 +593,60 @@ export default function AnomaliesTabPanel({
   const knownDistricts =
     districtFilter === "all" ? rawDistricts : districtsCacheRef.current;
   const specificDistricts = knownDistricts.filter((d) => d !== 0);
+  const metricNameById = useMemo(() => {
+    const m = new Map<number, string>();
+    metrics.forEach((metric) => m.set(metric.id, metric.metric_name));
+    return m;
+  }, [metrics]);
+  const normalizedPlaceAnomalies = useMemo<AnomalyResult[]>(() => {
+    return placeAnomaliesData.map((a) => ({
+      id: a.id,
+      run_id: 0,
+      metric_id: a.metric_id,
+      object_id: a.object_id,
+      object_name: a.object_name,
+      period_type: a.period_type,
+      district: null,
+      recent_mean: a.recent_mean,
+      comparison_mean: a.comparison_mean,
+      stddev: a.stddev,
+      difference: a.difference,
+      pct_change: a.pct_change,
+      is_anomaly: a.is_anomaly,
+      chart_payload: a.chart_payload as Record<string, any> | null,
+      created_at: a.created_at,
+      metric_name: metricNameById.get(a.metric_id) || `Metric ${a.metric_id}`,
+      group_field: null,
+      group_value: null,
+      greendirection: "down",
+      category: null,
+      item_noun: "items",
+    } as unknown as AnomalyResult));
+  }, [placeAnomaliesData, metricNameById]);
 
   // Client-side filters: minimum sigma + "any district" (excludes citywide)
   const filteredAnomalies = useMemo(() => {
-    let list = anomaliesData?.results ?? [];
+    let list =
+      selectedPlaceFilterId != null ? normalizedPlaceAnomalies : (anomaliesData?.results ?? []);
     if (districtFilter === "any_district") {
       list = list.filter((a) => a.district != null && a.district !== 0);
+    }
+    if (metricId !== "") {
+      list = list.filter((a) => a.metric_id === metricId);
     }
     if (minSigma !== "" && minSigma !== undefined) {
       const threshold = typeof minSigma === "string" ? parseFloat(minSigma) : minSigma;
       if (!Number.isNaN(threshold)) list = list.filter((a) => getSigma(a) >= threshold);
     }
     return list;
-  }, [anomaliesData?.results, minSigma, districtFilter]);
+  }, [
+    selectedPlaceFilterId,
+    normalizedPlaceAnomalies,
+    anomaliesData?.results,
+    minSigma,
+    districtFilter,
+    metricId,
+  ]);
 
   // Group by metric_id; each group keeps API order (first = top rated)
   const anomaliesByMetric = useMemo(() => {
@@ -580,15 +714,15 @@ export default function AnomaliesTabPanel({
           </select>
         </div>
         <div className={styles.filterGroup}>
-          <label className={styles.filterLabel} htmlFor="anomaly-district">
-            District
+          <label className={styles.filterLabel} htmlFor="anomaly-location">
+            Location
           </label>
           <select
-            id="anomaly-district"
+            id="anomaly-location"
             className={styles.filterSelect}
             value={districtFilter}
             onChange={(e) => setDistrictFilter(e.target.value)}
-            aria-label="Filter by district"
+            aria-label="Filter by location"
           >
             <option value="all">All</option>
             <option value="citywide">Citywide</option>
@@ -598,6 +732,23 @@ export default function AnomaliesTabPanel({
             {specificDistricts.map((d) => (
               <option key={d} value={String(d)}>
                 District {d}
+              </option>
+            ))}
+            {anomalyPlaceTypes.map((pt) => (
+              <optgroup key={pt.group_field} label={pt.label}>
+                {pt.places.map((place) => (
+                  <option
+                    key={`${pt.group_field}-${place}`}
+                    value={`${GROUP_PREFIX}${pt.group_field}|${place}`}
+                  >
+                    {place}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+            {userPlaces.map((p) => (
+              <option key={`place-${p.id}`} value={`place:${p.id}`}>
+                {p.label}
               </option>
             ))}
           </select>
@@ -665,24 +816,24 @@ export default function AnomaliesTabPanel({
       </div>
 
       <div className={styles.content}>
-        {isLoading && (
+        {(isLoading || placeAnomaliesLoading) && (
           <div className={styles.loadingContainer}>
-            <Loader size="md" color="purple" />
-            <span>Loading anomalies...</span>
+            <Loader size="md" color="dark" />
+            <span className="tc-loading-state">Loading anomalies…</span>
           </div>
         )}
 
-        {error && !isLoading && (
+        {(error || placeAnomaliesError) && !isLoading && !placeAnomaliesLoading && (
           <div className={styles.errorContainer}>
             <i className="fas fa-exclamation-triangle" />
             <span>
               Failed to load anomalies:{" "}
-              {error instanceof Error ? error.message : "Unknown error"}
+              {placeAnomaliesError || (error instanceof Error ? error.message : "Unknown error")}
             </span>
           </div>
         )}
 
-        {!isLoading && !error && filteredAnomalies.length === 0 && (
+        {!isLoading && !placeAnomaliesLoading && !error && !placeAnomaliesError && filteredAnomalies.length === 0 && (
           <div className={styles.emptyContainer}>
             <i className="fas fa-check-circle" />
             <span>No significant anomalies detected</span>
@@ -692,7 +843,7 @@ export default function AnomaliesTabPanel({
           </div>
         )}
 
-        {!isLoading && !error && anomaliesByMetric.length > 0 && (
+        {!isLoading && !placeAnomaliesLoading && !error && !placeAnomaliesError && anomaliesByMetric.length > 0 && (
           <div className={styles.anomaliesList}>
             {anomaliesByMetric.map(({ metricId: mid, anomalies: groupAnomalies }) => {
               const [top, ...rest] = groupAnomalies;

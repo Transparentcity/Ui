@@ -85,22 +85,14 @@
   padding: 0 !important;
 }
 
-@media (min-width: 1024px) {
-  .adminContainer {
-    padding: 12px !important;
-  }
-}
-
-@media (min-width: 1280px) {
-  .adminContainer {
-    padding: 16px !important;
-  }
-}
-
 /* Full-bleed container for CityView (map + overlays manage their own spacing). */
 .cityViewContainer {
   padding: 0;
-  overflow: hidden;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Remove padding when city view is in map mode */
@@ -160,6 +152,15 @@
   }
 
   .contentViewActive:has(.city-view.tab-view-active) {
+    overflow-y: auto;
+  }
+
+  .cityViewContainer:has(.city-view.city-view-single-page) {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .contentViewActive:has(.city-view.city-view-single-page) {
     overflow-y: auto;
   }
 }

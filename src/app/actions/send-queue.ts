@@ -632,7 +632,7 @@ export async function approveQueueItems(ids: string[]) {
   const campaignIds = [...new Set(itemsArray.map((i: any) => i.campaign_id).filter(Boolean))]
   
   // Fetch throttle settings for campaigns (if any)
-  let throttleSettings: Record<string, any> = {}
+  const throttleSettings: Record<string, any> = {}
   if (campaignIds.length > 0) {
     const { data: settings } = await db
       .from("campaign_throttle_settings")
@@ -749,7 +749,7 @@ export async function regenerateQueueItems(ids: string[], anomaliesFromApi?: Ano
   const campaignIds = [...new Set(itemsArr.map((i: any) => i.campaign_id).filter(Boolean))]
   
   // Fetch templates for campaigns
-  let campaignTemplates: Record<string, any> = {}
+  const campaignTemplates: Record<string, any> = {}
   if (campaignIds.length > 0) {
     const { data: campaigns } = await db
       .from("campaigns")

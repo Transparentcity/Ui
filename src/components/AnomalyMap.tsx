@@ -187,7 +187,7 @@ export default function AnomalyMap({
 
     // Calculate bounds from data if not provided
     let bounds = mapData.bounds;
-    let center = mapData.center;
+    const center = mapData.center;
 
     if (!bounds && mapData.location_data.length > 0) {
       const lats = mapData.location_data.map((p) => p.lat).filter(isFiniteNumber);
