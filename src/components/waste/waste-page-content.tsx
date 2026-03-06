@@ -552,8 +552,9 @@ export function WastePageContent() {
             </div>
           )}
 
-          {/* Error banner — hidden while a refresh is running (stale from prior attempt) */}
-          {error && !isManualRefreshing && (
+          {/* Error banner — hidden while refresh is running or when the more specific
+              timeout/failure banner is already shown (avoids two amber banners). */}
+          {error && !isManualRefreshing && !(activeJob?.status === "failed") && (
             <details className={`mb-4 rounded-lg group ${displayData ? "bg-amber-50 border border-amber-200" : "bg-red-50 border border-red-200"}`}>
               <summary className="flex items-center gap-2 p-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                 <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${displayData ? "text-amber-500" : "text-red-500"}`} />
@@ -586,8 +587,8 @@ export function WastePageContent() {
             </details>
           )}
 
-          {/* Start job error banner — downgraded when fallback data is visible */}
-          {startError && !isManualRefreshing && (
+          {/* Start job error banner — hidden when timeout banner already visible */}
+          {startError && !isManualRefreshing && !(activeJob?.status === "failed") && (
             <details className={`mb-4 rounded-lg group ${displayData ? "bg-amber-50 border border-amber-200" : "bg-red-50 border border-red-200"}`}>
               <summary className="flex items-center gap-3 p-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                 <AlertTriangle className={`w-4 h-4 shrink-0 ${displayData ? "text-amber-500" : "text-red-500"}`} />
@@ -735,25 +736,47 @@ export function WastePageContent() {
           {/* ─── CATEGORY VIEW: summary header + findings ─── */}
           {isCategoryView && (
             <>
-              {/* Category summary stats */}
-              {activeCategorySummary && (
+              {/* Category summary stats — derived from actual findings array
+                  so counts always match the list below (prevents stale summary
+                  showing "131 findings" when localStorage trimmed them away). */}
+              {categoryFindings.length > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                   <div className="bg-white rounded-lg border border-gray-200 p-3">
                     <p className="text-xs text-gray-500">Findings</p>
-                    <p className="text-2xl font-bold">{activeCategorySummary.finding_count}</p>
+                    <p className="text-2xl font-bold">{categoryFindings.length}</p>
                   </div>
                   <div className="bg-white rounded-lg border border-gray-200 p-3">
                     <p className="text-xs text-gray-500">Critical</p>
-                    <p className="text-2xl font-bold text-red-600">{activeCategorySummary.critical_count}</p>
+                    <p className="text-2xl font-bold text-red-600">{categoryFindings.filter(f => f.severity?.toLowerCase() === "critical").length}</p>
                   </div>
                   <div className="bg-white rounded-lg border border-gray-200 p-3">
                     <p className="text-xs text-gray-500">High</p>
-                    <p className="text-2xl font-bold text-amber-600">{activeCategorySummary.high_count}</p>
+                    <p className="text-2xl font-bold text-amber-600">{categoryFindings.filter(f => f.severity?.toLowerCase() === "high").length}</p>
                   </div>
                   <div className="bg-white rounded-lg border border-gray-200 p-3">
                     <p className="text-xs text-gray-500">Exposure</p>
-                    <p className="text-2xl font-bold">{formatDollar(activeCategorySummary.total_amount)}</p>
+                    <p className="text-2xl font-bold">{formatDollar(categoryFindings.reduce((sum, f) => sum + (f.amount ?? 0), 0) || null)}</p>
                   </div>
+                </div>
+              )}
+
+              {/* Warn when summary reports findings but they're missing from the array
+                  (happens when localStorage cache was trimmed or persisted data incomplete) */}
+              {categoryFindings.length === 0 && activeCategorySummary && activeCategorySummary.finding_count > 0 && !showLoadingState && (
+                <div className="mb-4 p-3 rounded-lg border bg-amber-50 border-amber-200 flex items-center gap-3">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-amber-800">
+                      {activeCategorySummary.finding_count} findings expected but not loaded
+                    </p>
+                    <p className="text-xs text-amber-600 mt-0.5">
+                      Cached data may be incomplete. Run a fresh analysis to load all findings.
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={handleRefresh} className="shrink-0 border-amber-300 text-amber-700 hover:bg-amber-100">
+                    <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                    Refresh
+                  </Button>
                 </div>
               )}
 
