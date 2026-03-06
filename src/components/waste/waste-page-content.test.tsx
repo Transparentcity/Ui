@@ -179,7 +179,7 @@ describe("WastePageContent", () => {
     })
     const { container } = render(<WastePageContent />)
     const statBar = container.querySelector("[data-testid='waste-stat-bar']")
-    const errorBanner = screen.getByText("Analysis error").closest(".bg-red-50")
+    const errorBanner = screen.getByText("Live analysis unavailable — showing previous results").closest(".bg-amber-50")
     expect(statBar).toBeInTheDocument()
     expect(errorBanner).toBeInTheDocument()
   })

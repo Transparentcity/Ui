@@ -213,10 +213,13 @@ export function WastePageContent() {
     return CRM_DEFAULT_CITY_ID
   }, [wasteEligibleCities])
 
-  const { data, error } = useWasteAnalysis(undefined, true)
-
   // Load last persisted run from DB — instant data even when live analysis times out
   const { data: persistedData } = useLatestPersistedWasteResult(selectedCityId)
+
+  // Only auto-fetch live analysis if we have NO fallback data (cache or persisted).
+  // This avoids hammering a struggling backend when we already have good data to show.
+  const hasFallbackData = !!(cachedData || persistedData)
+  const { data, error } = useWasteAnalysis(undefined, !hasFallbackData)
 
   const { activeJob, isRunning: isManualRefreshing, startJob, cancelJob: cancelActiveJob, startError, retryCount, lastDiagnostics } = useActiveWasteJob(selectedCityId)
 
@@ -519,35 +522,38 @@ export function WastePageContent() {
             </div>
           )}
 
-          {/* Error banner — compact */}
+          {/* Error banner — downgraded to amber when fallback data is visible */}
           {error && (
-            <details className="mb-4 bg-red-50 border border-red-200 rounded-lg group">
+            <details className={`mb-4 rounded-lg group ${displayData ? "bg-amber-50 border border-amber-200" : "bg-red-50 border border-red-200"}`}>
               <summary className="flex items-center gap-2 p-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-                <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                <span className="text-xs font-medium text-red-800">Analysis error</span>
-                <span className="text-xs text-red-400 group-open:hidden ml-auto">Show</span>
-                <span className="text-xs text-red-400 hidden group-open:inline ml-auto">Hide</span>
+                <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${displayData ? "text-amber-500" : "text-red-500"}`} />
+                <span className={`text-xs font-medium ${displayData ? "text-amber-800" : "text-red-800"}`}>
+                  {displayData ? "Live analysis unavailable — showing previous results" : "Analysis error"}
+                </span>
+                <Button variant="outline" size="sm" onClick={handleRefresh} className={`shrink-0 ml-auto text-xs ${displayData ? "border-amber-300 text-amber-800 hover:bg-amber-100" : "border-red-300 text-red-800 hover:bg-red-100"}`}>
+                  Retry
+                </Button>
               </summary>
-              <p className="px-2.5 pb-2.5 text-xs text-red-600 break-all">
+              <p className={`px-2.5 pb-2.5 text-xs break-all ${displayData ? "text-amber-600" : "text-red-600"}`}>
                 {error instanceof Error ? error.message : "Failed to load waste analysis"}
               </p>
             </details>
           )}
 
-          {/* Start job error banner — compact with expandable details */}
+          {/* Start job error banner — downgraded when fallback data is visible */}
           {startError && !isManualRefreshing && (
-            <details className="mb-4 bg-red-50 border border-red-200 rounded-lg group">
+            <details className={`mb-4 rounded-lg group ${displayData ? "bg-amber-50 border border-amber-200" : "bg-red-50 border border-red-200"}`}>
               <summary className="flex items-center gap-3 p-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
-                <span className="text-sm font-medium text-red-800 flex-1">Could not start analysis</span>
-                <span className="text-xs text-red-400 group-open:hidden">Show details</span>
-                <span className="text-xs text-red-400 hidden group-open:inline">Hide details</span>
-                <Button variant="outline" size="sm" onClick={handleRefresh} className="shrink-0 border-red-300 text-red-800 hover:bg-red-100 ml-2">
+                <AlertTriangle className={`w-4 h-4 shrink-0 ${displayData ? "text-amber-500" : "text-red-500"}`} />
+                <span className={`text-sm font-medium flex-1 ${displayData ? "text-amber-800" : "text-red-800"}`}>
+                  {displayData ? "Refresh failed — showing previous results" : "Could not start analysis"}
+                </span>
+                <Button variant="outline" size="sm" onClick={handleRefresh} className={`shrink-0 ml-2 ${displayData ? "border-amber-300 text-amber-800 hover:bg-amber-100" : "border-red-300 text-red-800 hover:bg-red-100"}`}>
                   Retry
                 </Button>
               </summary>
               <div className="px-3 pb-3 pt-0">
-                <p className="text-xs text-red-600 font-mono whitespace-pre-wrap break-all max-h-32 overflow-y-auto bg-red-100/50 rounded p-2">{startError}</p>
+                <p className={`text-xs font-mono whitespace-pre-wrap break-all max-h-32 overflow-y-auto rounded p-2 ${displayData ? "text-amber-600 bg-amber-100/50" : "text-red-600 bg-red-100/50"}`}>{startError}</p>
               </div>
             </details>
           )}

@@ -269,7 +269,8 @@ export function useActiveWasteJob(cityId: number | null) {
     }
   }, [isAuthenticated]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** Kick off a new waste analysis run and start polling it. */
+  /** Kick off a new waste analysis run and start polling it.
+   *  Auto-retries up to 2 times on gateway errors (502/503/504) with backoff. */
   const startJob = useCallback(
     async (category?: string) => {
       if (!cityId) {
@@ -279,36 +280,62 @@ export function useActiveWasteJob(cityId: number | null) {
       }
       setIsStarting(true)
       setStartError(null)
-      try {
-        const token = await getAccessTokenSilently()
-        const result: WasteRunJobResponse = await runWasteAnalysis(token, {
-          city_id: cityId,
-          category,
-          force_refresh: true,
-          persist: true,
-        })
-        const jobId = result.job_id ?? result.existing_job_id
-        if (jobId) {
-          setActiveJob({
-            job_id: jobId,
-            job_type: "waste_analysis_run",
-            status: "pending",
-            description: "Waste analysis",
-            progress: 0,
-            created_at: new Date().toISOString(),
+
+      const MAX_START_RETRIES = 2
+      const RETRY_DELAYS = [3000, 6000] // backoff: 3s, 6s
+
+      for (let attempt = 0; attempt <= MAX_START_RETRIES; attempt++) {
+        try {
+          const token = await getAccessTokenSilently()
+          const result: WasteRunJobResponse = await runWasteAnalysis(token, {
+            city_id: cityId,
+            category,
+            force_refresh: true,
+            persist: true,
           })
-          startPolling(jobId)
-        } else {
-          console.error("[useActiveWasteJob] No job_id in response:", result)
-          setStartError("Server did not return a job ID. Check the backend logs.")
+          const jobId = result.job_id ?? result.existing_job_id
+          if (jobId) {
+            setActiveJob({
+              job_id: jobId,
+              job_type: "waste_analysis_run",
+              status: "pending",
+              description: "Waste analysis",
+              progress: 0,
+              created_at: new Date().toISOString(),
+            })
+            startPolling(jobId)
+          } else {
+            console.error("[useActiveWasteJob] No job_id in response:", result)
+            setStartError("Server did not return a job ID. Check the backend logs.")
+          }
+          setIsStarting(false)
+          return
+        } catch (err) {
+          const status = (err as { status?: number }).status
+          const isGatewayError = status === 502 || status === 503 || status === 504
+          if (isGatewayError && attempt < MAX_START_RETRIES) {
+            console.warn(`[useActiveWasteJob] Attempt ${attempt + 1} failed with ${status}, retrying in ${RETRY_DELAYS[attempt]}ms...`)
+            setActiveJob({
+              job_id: `retry-${attempt}`,
+              job_type: "waste_analysis_run",
+              status: "pending",
+              description: "Waste analysis",
+              progress: 0,
+              status_message: `Server returned ${status} — retrying (attempt ${attempt + 2} of ${MAX_START_RETRIES + 1})...`,
+              created_at: new Date().toISOString(),
+            })
+            await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]))
+            continue
+          }
+          const msg = err instanceof Error ? err.message : String(err)
+          console.error("[useActiveWasteJob] Failed to start job:", msg)
+          setStartError(`Failed to start analysis: ${msg}`)
+          setActiveJob(null)
+          setIsStarting(false)
+          return
         }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        console.error("[useActiveWasteJob] Failed to start job:", msg)
-        setStartError(`Failed to start analysis: ${msg}`)
-      } finally {
-        setIsStarting(false)
       }
+      setIsStarting(false)
     },
     [cityId, getAccessTokenSilently, startPolling]
   )
