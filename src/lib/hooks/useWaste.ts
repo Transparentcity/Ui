@@ -207,7 +207,9 @@ export function useActiveWasteJob(cityId: number | null) {
             retryCountRef.current = 0
             setRetryCount(0)
             setLastDiagnostics(null)
-            queryClient.invalidateQueries({ queryKey: ["waste", "analysis"] })
+            // NOTE: useWasteAnalysis is disabled when fallback data exists, so
+            // invalidating ["waste", "analysis"] is a no-op. Fresh data flows
+            // through the always-enabled persisted query instead.
             queryClient.invalidateQueries({ queryKey: ["waste", "persisted"] })
             queryClient.invalidateQueries({ queryKey: ["waste", "summary"] })
             queryClient.invalidateQueries({ queryKey: ["waste", "queue"] })
@@ -235,6 +237,15 @@ export function useActiveWasteJob(cityId: number | null) {
     [pollJob, stopPolling]
   )
 
+  // Stable refs so the mount effect always calls the latest versions
+  // without needing them in its dependency array (which would cause re-runs).
+  const startPollingRef = useRef(startPolling)
+  startPollingRef.current = startPolling
+  const stopPollingRef = useRef(stopPolling)
+  stopPollingRef.current = stopPolling
+  const getTokenRef = useRef(getAccessTokenSilently)
+  getTokenRef.current = getAccessTokenSilently
+
   // On mount, check for any active waste job
   useEffect(() => {
     if (!isAuthenticated) return
@@ -242,13 +253,13 @@ export function useActiveWasteJob(cityId: number | null) {
 
     ;(async () => {
       try {
-        const token = await getAccessTokenSilently()
+        const token = await getTokenRef.current()
         const result = await listJobs(token, 5, "running", undefined, "waste_analysis_run")
         const running = result.jobs?.[0]
         if (cancelled) return
         if (running) {
           setActiveJob(running)
-          startPolling(running.job_id)
+          startPollingRef.current(running.job_id)
         } else {
           // Also check pending
           const pending = await listJobs(token, 5, "pending", undefined, "waste_analysis_run")
@@ -256,7 +267,7 @@ export function useActiveWasteJob(cityId: number | null) {
           const pendingJob = pending.jobs?.[0]
           if (pendingJob) {
             setActiveJob(pendingJob)
-            startPolling(pendingJob.job_id)
+            startPollingRef.current(pendingJob.job_id)
           }
         }
       } catch {
@@ -266,9 +277,9 @@ export function useActiveWasteJob(cityId: number | null) {
 
     return () => {
       cancelled = true
-      stopPolling()
+      stopPollingRef.current()
     }
-  }, [isAuthenticated]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAuthenticated])
 
   /** Kick off a new waste analysis run and start polling it.
    *  Auto-retries up to 2 times on gateway errors (502/503/504) with backoff. */

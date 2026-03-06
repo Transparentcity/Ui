@@ -271,6 +271,8 @@ export function WastePageContent() {
   }, [persistedData])
 
   const handleRefresh = () => {
+    // Clear any manually-restored snapshot so it doesn't shadow fresh results
+    setRestoredData(null)
     // Always run all categories so a single-category run doesn't replace
     // the full persisted dataset (which would make other tabs show 0 findings).
     startJob()
