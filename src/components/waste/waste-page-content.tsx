@@ -6,7 +6,7 @@ import { useWasteAnalysis, useActiveWasteJob, useLatestPersistedWasteResult } fr
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
 import { WasteShell } from "./waste-shell"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, AlertTriangle, Clock, Database } from "lucide-react"
+import { RefreshCw, AlertTriangle, Clock, Database, Square } from "lucide-react"
 import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import type {
   WasteAnalyzeResponse,
@@ -222,7 +222,7 @@ export function WastePageContent() {
   // Load last persisted run from DB — instant data even when live analysis times out
   const { data: persistedData } = useLatestPersistedWasteResult(selectedCityId)
 
-  const { activeJob, isRunning: isManualRefreshing, startJob, startError, retryCount, lastDiagnostics } = useActiveWasteJob(selectedCityId)
+  const { activeJob, isRunning: isManualRefreshing, startJob, cancelJob: cancelActiveJob, startError, retryCount, lastDiagnostics } = useActiveWasteJob(selectedCityId)
 
   // Fallback chain: fresh API data → localStorage cache → persisted DB run
   const displayData = data ?? cachedData ?? persistedData
@@ -422,20 +422,39 @@ export function WastePageContent() {
                 })}
               </span>
             )}
-            <Button
-              variant={isManualRefreshing ? "default" : "outline"}
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isManualRefreshing}
-              className={isManualRefreshing ? "bg-blue-600 text-white border-blue-600 cursor-wait" : ""}
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${isManualRefreshing ? "animate-spin" : ""}`} />
-              {isManualRefreshing
-                ? `Analyzing…`
-                : isCategoryView
+            {isManualRefreshing ? (
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="default"
+                  size="sm"
+                  disabled
+                  className="bg-blue-600 text-white border-blue-600 cursor-wait"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Analyzing…
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={cancelActiveJob}
+                  className="border-red-300 text-red-700 hover:bg-red-50"
+                >
+                  <Square className="w-3.5 h-3.5 mr-1.5" />
+                  Stop
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                {isCategoryView
                   ? `Refresh ${activeCategory}`
                   : "Refresh all"}
-            </Button>
+              </Button>
+            )}
           </div>
         ) : undefined
       }

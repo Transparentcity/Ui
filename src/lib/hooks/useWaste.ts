@@ -9,6 +9,7 @@ import {
   closeInvestigation,
   createInvestigationAction,
   createWasteDisposition,
+  cancelJob,
   getJob,
   listJobs,
   getWasteDetectorAccuracy,
@@ -328,12 +329,29 @@ export function useActiveWasteJob(cityId: number | null) {
     [startJob]
   )
 
+  /** Cancel the active job and stop polling. */
+  const cancelActiveJob = useCallback(async () => {
+    if (!activeJob?.job_id) return
+    stopPolling()
+    try {
+      const token = await getAccessTokenSilently()
+      await cancelJob(activeJob.job_id, token)
+    } catch {
+      // best-effort
+    }
+    setActiveJob(null)
+    retryCountRef.current = 0
+    setRetryCount(0)
+    setLastDiagnostics(null)
+    setStartError(null)
+  }, [activeJob?.job_id, getAccessTokenSilently, stopPolling])
+
   const isRunning =
     isStarting ||
     (activeJob != null &&
       (activeJob.status === "pending" || activeJob.status === "running"))
 
-  return { activeJob, isRunning, isStarting, startJob: startJobWithReset, startError, retryCount, lastDiagnostics }
+  return { activeJob, isRunning, isStarting, startJob: startJobWithReset, cancelJob: cancelActiveJob, startError, retryCount, lastDiagnostics }
 }
 
 /**
