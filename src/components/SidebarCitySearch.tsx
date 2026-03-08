@@ -16,6 +16,9 @@ import {
   reverseGeocode,
   getCurrentLocation,
   resolveCityFromGeocode,
+  fetchAddressSuggestions,
+  suggestionToGeocodeResult,
+  type AddressSuggestion,
   type GeocodeResult,
 } from "@/lib/locationSearchUtils";
 import { saveCity, createPlace } from "@/lib/apiClient";
@@ -60,7 +63,11 @@ export default function SidebarCitySearch({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const lastRequestIdRef = useRef(0);
   const searchTimeoutRef = useRef<number | null>(null);
+  const addressSuggestTimeoutRef = useRef<number | null>(null);
   const geoLoadingTimeoutRef = useRef<number | null>(null);
+
+  const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
+  const [addressSuggestionsLoading, setAddressSuggestionsLoading] = useState(false);
 
   const trimmed = useMemo(() => query.trim(), [query]);
   const queryIsGeo = useMemo(
@@ -82,6 +89,7 @@ export default function SidebarCitySearch({
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) window.clearTimeout(searchTimeoutRef.current);
+      if (addressSuggestTimeoutRef.current) window.clearTimeout(addressSuggestTimeoutRef.current);
       if (geoLoadingTimeoutRef.current) window.clearTimeout(geoLoadingTimeoutRef.current);
     };
   }, []);
@@ -102,6 +110,7 @@ export default function SidebarCitySearch({
     setOpen(false);
     setQuery("");
     setResults([]);
+    setAddressSuggestions([]);
     setError(null);
     setSelectedIndex(-1);
     setPendingCityAndCoords(null);
@@ -113,6 +122,10 @@ export default function SidebarCitySearch({
       window.clearTimeout(geoLoadingTimeoutRef.current);
       geoLoadingTimeoutRef.current = null;
     }
+    if (addressSuggestTimeoutRef.current) {
+      window.clearTimeout(addressSuggestTimeoutRef.current);
+      addressSuggestTimeoutRef.current = null;
+    }
   };
 
   const scheduleCitySearch = (q: string) => {
@@ -120,6 +133,52 @@ export default function SidebarCitySearch({
     searchTimeoutRef.current = window.setTimeout(() => {
       void runCitySearch(q);
     }, 250);
+  };
+
+  const scheduleAddressSuggest = (q: string) => {
+    if (addressSuggestTimeoutRef.current) window.clearTimeout(addressSuggestTimeoutRef.current);
+    const s = q.trim();
+    if (s.length < 2) {
+      setAddressSuggestions([]);
+      setAddressSuggestionsLoading(false);
+      return;
+    }
+    setAddressSuggestionsLoading(true);
+    addressSuggestTimeoutRef.current = window.setTimeout(async () => {
+      const list = await fetchAddressSuggestions(s);
+      setAddressSuggestions(list);
+      setAddressSuggestionsLoading(false);
+      setSelectedIndex(-1);
+    }, 300);
+  };
+
+  const handleAddressSuggestionSelect = async (suggestion: AddressSuggestion) => {
+    if (!suggestion.cityName) {
+      setError("Could not determine city from this address.");
+      return;
+    }
+    setGeoLoading(true);
+    setError(null);
+    setAddressSuggestions([]);
+    try {
+      const geo = suggestionToGeocodeResult(suggestion);
+      const { city, coordinates } = await resolveCityFromGeocode(geo, searchPublicCities);
+      if (coordinates) {
+        setStoredGPSLocation(coordinates);
+        if (onGPSLocation) onGPSLocation(coordinates);
+        if (isAuthenticated) {
+          showMapSaveStep(city, coordinates);
+        } else {
+          selectCity(city, true);
+        }
+      } else {
+        selectCity(city, true);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not find city for this address.");
+    } finally {
+      setGeoLoading(false);
+    }
   };
 
   const runCitySearch = async (q: string) => {
@@ -336,7 +395,14 @@ export default function SidebarCitySearch({
       return;
     }
 
+    const listLength = addressSuggestions.length > 0 ? addressSuggestions.length : results.length;
+
     if (e.key === "Enter") {
+      if (addressSuggestions.length > 0 && selectedIndex >= 0 && addressSuggestions[selectedIndex]) {
+        e.preventDefault();
+        void handleAddressSuggestionSelect(addressSuggestions[selectedIndex]);
+        return;
+      }
       if (queryIsGeo) {
         e.preventDefault();
         void handleGeocodeQuery();
@@ -350,9 +416,7 @@ export default function SidebarCitySearch({
 
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setSelectedIndex((prev) =>
-        Math.min(prev + 1, results.length - 1),
-      );
+      setSelectedIndex((prev) => Math.min(prev + 1, listLength - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setSelectedIndex((prev) => Math.max(prev - 1, -1));
@@ -431,10 +495,12 @@ export default function SidebarCitySearch({
               ref={inputRef}
               className={styles.input}
               value={query}
-              placeholder="Enter city, ZIP code, or address"
+              placeholder="Enter address, city, or ZIP code"
               onChange={(e) => {
-                setQuery(e.target.value);
-                scheduleCitySearch(e.target.value);
+                const v = e.target.value;
+                setQuery(v);
+                scheduleCitySearch(v);
+                scheduleAddressSuggest(v);
               }}
               onKeyDown={handleInputKeyDown}
             />
@@ -483,7 +549,37 @@ export default function SidebarCitySearch({
             </div>
           ) : null}
 
-          {!geoLoading && !error && queryIsGeo && trimmed.length > 0 ? (
+          {!geoLoading && addressSuggestionsLoading && trimmed.length >= 2 ? (
+            <div className={styles.resultItem}>
+              <span className={styles.resultLoading}>Searching addresses…</span>
+            </div>
+          ) : null}
+
+          {!geoLoading &&
+            !error &&
+            !addressSuggestionsLoading &&
+            addressSuggestions.length > 0 &&
+            addressSuggestions.map((suggestion, idx) => (
+              <button
+                key={`${suggestion.place_name}-${idx}`}
+                type="button"
+                className={`${styles.resultBtn} ${idx === selectedIndex ? styles.resultBtnSelected : ""}`}
+                role="option"
+                aria-selected={idx === selectedIndex}
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setSelectedIndex(idx)}
+                onClick={() => void handleAddressSuggestionSelect(suggestion)}
+              >
+                <span>{suggestion.place_name}</span>
+                <span className={styles.resultMeta}>Address →</span>
+              </button>
+            ))}
+
+          {!geoLoading &&
+            !error &&
+            addressSuggestions.length === 0 &&
+            queryIsGeo &&
+            trimmed.length > 0 ? (
             <button
               type="button"
               className={styles.resultBtn}
@@ -504,6 +600,7 @@ export default function SidebarCitySearch({
 
           {!geoLoading &&
             !error &&
+            addressSuggestions.length === 0 &&
             !queryIsGeo &&
             !loading &&
             trimmed.length >= 2 &&
@@ -530,6 +627,7 @@ export default function SidebarCitySearch({
 
           {!geoLoading &&
             !error &&
+            addressSuggestions.length === 0 &&
             !queryIsGeo &&
             !loading &&
             trimmed.length >= 2 &&

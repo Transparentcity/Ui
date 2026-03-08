@@ -84,6 +84,52 @@ export function extractCityName(addr?: GeocodeAddress): string | null {
   );
 }
 
+export type AddressSuggestion = {
+  place_name: string;
+  lat: number;
+  lon: number;
+  cityName: string | null;
+  stateName: string | null;
+  countryName: string | null;
+};
+
+/**
+ * Convert an address suggestion to a GeocodeResult for resolveCityFromGeocode.
+ */
+export function suggestionToGeocodeResult(s: AddressSuggestion): GeocodeResult {
+  return {
+    lat: String(s.lat),
+    lon: String(s.lon),
+    display_name: s.place_name,
+    cityName: s.cityName,
+    stateName: s.stateName,
+    countryName: s.countryName,
+  };
+}
+
+/**
+ * Fetch address autocomplete suggestions for the given query.
+ * Returns an empty array if query is too short, or on error.
+ */
+export async function fetchAddressSuggestions(
+  query: string
+): Promise<AddressSuggestion[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+
+  try {
+    const res = await fetch(
+      `/api/geocode/suggest?q=${encodeURIComponent(q)}`,
+      { method: "GET", headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) return [];
+    const data = (await res.json()) as { suggestions?: AddressSuggestion[] };
+    return data.suggestions ?? [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Geocode a query string (zipcode, address, or city name).
  * Returns geocoded location data including city name, state, and coordinates.

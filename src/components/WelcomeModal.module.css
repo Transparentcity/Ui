@@ -162,6 +162,14 @@
   margin-bottom: 16px;
 }
 
+.locationHint {
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+  margin: 0;
+  line-height: 1.4;
+  text-align: center;
+}
+
 .inputGroup {
   width: 100%;
   text-align: left;

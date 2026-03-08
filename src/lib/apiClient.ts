@@ -1074,6 +1074,61 @@ export function listAdminMetricCities(token: string): Promise<AdminMetricCity[]>
   ).then((r) => r.cities);
 }
 
+/** Response from metrics import API. */
+export interface AdminMetricsImportResponse {
+  message: string;
+  metrics_imported: number;
+  orderings_imported: number;
+}
+
+/**
+ * Export metrics (and city ordering) as JSON; returns blob for download.
+ * Optionally filter by city_id (export only that city's metrics + deps).
+ */
+export async function exportAdminMetrics(
+  token: string,
+  options?: { city_id?: number }
+): Promise<Blob> {
+  const query = options?.city_id != null ? `?city_id=${options.city_id}` : "";
+  const res = await fetch(`${API_BASE}/api/admin/metrics/export${query}`, {
+    method: "GET",
+    credentials: "include",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Export failed: ${res.status} ${text}`);
+  }
+  return res.blob();
+}
+
+/**
+ * Import metrics from a JSON file (from Export). Optionally remap all city_id to target_city_id.
+ */
+export async function importAdminMetrics(
+  token: string,
+  file: File,
+  options?: { target_city_id?: number }
+): Promise<AdminMetricsImportResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  const query =
+    options?.target_city_id != null
+      ? `?target_city_id=${options.target_city_id}`
+      : "";
+  const res = await fetch(`${API_BASE}/api/admin/metrics/import${query}`, {
+    method: "POST",
+    credentials: "include",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Import failed: ${res.status} ${text}`);
+  }
+  return res.json();
+}
+
 export function listAdminMetrics(
   token: string,
   options?: {
@@ -1893,17 +1948,19 @@ export async function listJobs(
   limit: number = 20,
   status?: string,
   job_id?: string,
-  job_type?: string
+  job_type?: string,
+  schedule_key?: string
 ): Promise<JobsListResponse> {
   const params = new URLSearchParams();
   params.append("limit", limit.toString());
   if (status) params.append("job_status", status);
   if (job_id) params.append("job_id", job_id);
   if (job_type) params.append("job_type", job_type);
-  
+  if (schedule_key) params.append("schedule_key", schedule_key);
+
   const query = params.toString();
   const path = `/api/jobs${query ? `?${query}` : ""}`;
-  
+
   try {
     return await request<JobsListResponse>(path, "GET", undefined, token);
   } catch (error) {
@@ -2038,6 +2095,15 @@ export interface ScheduledJobsAllResponse {
 
 export function getAllScheduledJobs(token: string): Promise<ScheduledJobsAllResponse> {
   return request<ScheduledJobsAllResponse>("/api/jobs/schedules/all", "GET", undefined, token);
+}
+
+export interface PlaceRefreshLastRunResponse {
+  last_run_at: string | null;
+}
+
+/** When the personalized place refresh job last ran; for dashboard display. */
+export function getPlaceRefreshLastRun(token: string): Promise<PlaceRefreshLastRunResponse> {
+  return request<PlaceRefreshLastRunResponse>("/api/jobs/place-refresh-last-run", "GET", undefined, token);
 }
 
 export interface UpdateCustomScheduledJobRequest {

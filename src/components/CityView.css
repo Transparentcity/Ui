@@ -37,7 +37,7 @@
 }
 
 .city-view-place-selector-row {
-  padding: 8px 24px 12px;
+  padding: 8px 12px 12px;
   background: rgba(255, 255, 255, 0.6);
   border-top: 1px solid var(--border-primary);
 }
@@ -76,32 +76,13 @@
   overflow: hidden;
 }
 
-.city-view-map-section-label {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  z-index: 11;
-  margin: 0;
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(8px);
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border-primary);
-}
-
-[data-theme="dark"] .city-view-map-section-label,
-.dark .city-view-map-section-label {
-  background: rgba(30, 30, 30, 0.9);
-  border-color: var(--border-primary);
-}
-
+/* Map positioned so its center is at 25% from the left (not 50%) */
 .city-view-map-section .city-map-view {
   position: absolute;
-  inset: 0;
-  width: 100%;
+  top: 0;
+  bottom: 0;
+  left: -50%;
+  width: 150%;
   height: 100%;
 }
 
@@ -139,24 +120,29 @@
 .city-view-map-date-overlay {
   position: absolute;
   top: 12px;
-  right: 12px;
-  left: auto;
+  left: 12px;
+  right: auto;
   z-index: 10;
 }
 
 @media (max-width: 640px) {
+  .city-view-place-selector-row {
+    padding: 8px 8px 10px;
+  }
+
   .city-view-map-selector-overlay {
     padding: 8px;
   }
+
   .city-view-map-date-overlay {
     top: 8px;
-    right: 8px;
+    left: 8px;
   }
 }
 
 .city-view-dashboard-section {
   flex-shrink: 0;
-  padding: 24px 24px 0;
+  padding: 16px 12px 0;
   background: var(--bg-primary, #ffffff);
   border-top: 1px solid var(--border-primary);
 }
@@ -165,13 +151,28 @@
   padding: 0;
 }
 
+.city-view-dashboard-last-refresh {
+  font-weight: 400;
+  color: var(--text-secondary, #666);
+}
+
 .city-view-alerts-section {
   flex-shrink: 0;
-  padding: 24px 24px 16px;
+  padding: 16px 12px 12px;
   background: var(--bg-primary, #ffffff);
   border-top: 1px solid var(--border-primary);
   min-height: 200px;
   width: 100%;
+}
+
+@media (max-width: 640px) {
+  .city-view-dashboard-section {
+    padding: 12px 8px 0;
+  }
+
+  .city-view-alerts-section {
+    padding: 12px 8px 8px;
+  }
 }
 
 .city-view-alerts-section .city-view-section-title {

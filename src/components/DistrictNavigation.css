@@ -303,6 +303,38 @@
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
+  position: relative;
+}
+
+.district-navigation-address-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.district-navigation-address-item {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  text-align: left;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-primary, #000);
+}
+
+.district-navigation-address-item:hover {
+  background: var(--bg-secondary, rgba(0, 0, 0, 0.04));
 }
 
 .district-navigation-input {

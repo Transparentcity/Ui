@@ -46,6 +46,10 @@ interface SidebarProps {
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void;
   /** Called after user saves a personalized place from Search Cities (so parent can refetch places). */
   onPlaceSaved?: (place: { id: number }) => void;
+  /** Called after a place is renamed (so parent can refetch places). */
+  onPlaceRenamed?: (placeId: number, newLabel: string) => void;
+  /** Called after a place is deleted (so parent can refetch and clear selection). */
+  onPlaceDeleted?: (placeId: number) => void;
   /** Called when user clicks "Find your district" in Search Cities; e.g. open district modal when a city is selected. */
   onOpenFindDistrict?: () => void;
   onMenuToggle?: () => void;
@@ -92,6 +96,8 @@ export default function Sidebar({
   onCitySelect,
   onGPSLocation,
   onPlaceSaved,
+  onPlaceRenamed,
+  onPlaceDeleted,
   onOpenFindDistrict,
   onMenuToggle,
   currentView,
@@ -361,8 +367,10 @@ export default function Sidebar({
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                <polyline points="22,6 12,13 2,6"></polyline>
+                <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path>
+                <path d="M18 14h-8"></path>
+                <path d="M15 18h-5"></path>
+                <path d="M10 6h8v4h-8V6Z"></path>
               </svg>
             </span>
             <span>Feed</span>
@@ -423,6 +431,8 @@ export default function Sidebar({
                 onClose();
               }
             }}
+            onPlaceRenamed={onPlaceRenamed}
+            onPlaceDeleted={onPlaceDeleted}
             activeCityId={activeCityId}
             activeDistrict={activeDistrict != null ? String(activeDistrict) : undefined}
           />

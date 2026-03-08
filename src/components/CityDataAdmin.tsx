@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
-import { useEffect, useState, useMemo } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ModelGroupInfo,
@@ -515,6 +515,8 @@ export default function CityDataAdmin({
   const [anomaliesOpen, setAnomaliesOpen] = useState(false);
   const [runAllMetricsOpen, setRunAllMetricsOpen] = useState(false);
   const [anomaliesMetricId, setAnomaliesMetricId] = useState<number | null>(null);
+  /** Metric row id whose action bar is expanded (tap row to show/hide actions) */
+  const [expandedMetricsRowId, setExpandedMetricsRowId] = useState<number | null>(null);
   const [populationSource, setPopulationSource] = useState<PopulationSourceConfig | null | "none">(null);
   const [populationRefreshLoading, setPopulationRefreshLoading] = useState(false);
   const [populationRefreshError, setPopulationRefreshError] = useState<string | null>(null);
@@ -4230,79 +4232,101 @@ export default function CityDataAdmin({
                             // Access data - handle both typed and untyped (any) metric objects
                             const metricAny = metric as any;
 
+                            const isExpanded = expandedMetricsRowId === metric.id;
                             return (
-                              <tr
-                                key={metric.id}
-                                className={`${styles.metricTableRow} ${hasNoTimeSeriesData ? styles.metricTableRowNoData : ""}`}
-                                style={{
-                                  backgroundColor: hasNoTimeSeriesData
-                                    ? "rgba(220, 38, 38, 0.12)"
-                                    : isSuccess
-                                    ? "rgba(76, 175, 80, 0.10)"
-                                    : isFailure
-                                    ? "rgba(244, 67, 54, 0.10)"
-                                    : hasNoStatus
-                                    ? "rgba(158, 158, 158, 0.05)"
-                                    : "transparent",
-                                }}
-                              >
-                                <td className={styles.metricNameCell}>
-                                  <div className={styles.metricNameContent}>
-                                    <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>
-                                      {metric.metric_name}
-                                      <span className={styles.metricIdInline}>({metric.id})</span>
+                              <Fragment key={metric.id}>
+                                <tr
+                                  role="button"
+                                  tabIndex={0}
+                                  aria-expanded={isExpanded}
+                                  aria-label={isExpanded ? `Collapse actions for ${metric.metric_name}` : `Expand actions for ${metric.metric_name}`}
+                                  className={`${styles.metricTableRow} ${hasNoTimeSeriesData ? styles.metricTableRowNoData : ""} ${isExpanded ? styles.metricTableRowExpanded : ""}`}
+                                  style={{
+                                    backgroundColor: hasNoTimeSeriesData
+                                      ? "rgba(220, 38, 38, 0.12)"
+                                      : isSuccess
+                                      ? "rgba(76, 175, 80, 0.10)"
+                                      : isFailure
+                                      ? "rgba(244, 67, 54, 0.10)"
+                                      : hasNoStatus
+                                      ? "rgba(158, 158, 158, 0.05)"
+                                      : "transparent",
+                                  }}
+                                  onClick={() => setExpandedMetricsRowId((prev) => (prev === metric.id ? null : metric.id))}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                      e.preventDefault();
+                                      setExpandedMetricsRowId((prev) => (prev === metric.id ? null : metric.id));
+                                    }
+                                  }}
+                                >
+                                  <td className={styles.metricNameCell}>
+                                    <div className={styles.metricNameContent}>
+                                      <div style={{ fontWeight: 500, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "6px" }}>
+                                        {metric.metric_name}
+                                        <span className={styles.metricIdInline}>({metric.id})</span>
+                                        <span className={styles.metricRowExpandHint} aria-hidden>
+                                          {isExpanded ? "▼" : "▶"}
+                                        </span>
+                                      </div>
                                     </div>
-                                    <div className={styles.metricActionsWrapper}>
-                                      <MetricActions
-                                        metricId={metric.id}
-                                        onEdit={() => openEditModal(metric.id)}
-                                        onViewCharts={() => openCharts(metric.id)}
-                                        onViewMaps={() => openMaps(metric.id)}
-                                        onExecute={() => openExecuteModal(metric.id)}
-                                        onDelete={() => deleteMetric(metric.id)}
-                                        onViewAnomalies={() => openViewAnomalies(metric.id)}
-                                        compact={true}
-                                      />
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className={styles.metricDateCell}>
-                                  {(metricAny.most_recent_data_date || metric.most_recent_data_date) ? (
-                                    <span style={{ fontSize: "12px", color: "var(--text-primary)" }}>
-                                      {new Date(metricAny.most_recent_data_date || metric.most_recent_data_date).toLocaleDateString()}
-                                    </span>
-                                  ) : (
-                                    <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
-                                  )}
-                                </td>
-                                <td className={styles.metricDateCell}>
-                                  {(metricAny.record_counts?.total_active ?? metric.record_counts?.total_active) != null ? (
-                                    <span style={{ fontSize: "12px", color: "var(--color-success, #22c55e)", fontWeight: 500 }}>
-                                      {(metricAny.record_counts?.total_active ?? metric.record_counts?.total_active).toLocaleString()}
-                                    </span>
-                                  ) : (
-                                    <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
-                                  )}
-                                </td>
-                                <td className={styles.metricDateCell}>
-                                  {(metricAny.record_counts?.total_inactive ?? metric.record_counts?.total_inactive) != null ? (
-                                    <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>
-                                      {(metricAny.record_counts?.total_inactive ?? metric.record_counts?.total_inactive).toLocaleString()}
-                                    </span>
-                                  ) : (
-                                    <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
-                                  )}
-                                </td>
-                                <td className={styles.metricExecutionCell}>
-                                  {(metricAny.last_execution_at || metric.last_execution_at) ? (
-                                    <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                                      {new Date(metricAny.last_execution_at || metric.last_execution_at).toLocaleDateString("en-US", { timeZone: "UTC" })}
-                                    </span>
-                                  ) : (
-                                    <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
-                                  )}
-                                </td>
-                              </tr>
+                                  </td>
+                                  <td className={styles.metricDateCell}>
+                                    {(metricAny.most_recent_data_date || metric.most_recent_data_date) ? (
+                                      <span style={{ fontSize: "12px", color: "var(--text-primary)" }}>
+                                        {new Date(metricAny.most_recent_data_date || metric.most_recent_data_date).toLocaleDateString()}
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
+                                    )}
+                                  </td>
+                                  <td className={styles.metricDateCell}>
+                                    {(metricAny.record_counts?.total_active ?? metric.record_counts?.total_active) != null ? (
+                                      <span style={{ fontSize: "12px", color: "var(--color-success, #22c55e)", fontWeight: 500 }}>
+                                        {(metricAny.record_counts?.total_active ?? metric.record_counts?.total_active).toLocaleString()}
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
+                                    )}
+                                  </td>
+                                  <td className={styles.metricDateCell}>
+                                    {(metricAny.record_counts?.total_inactive ?? metric.record_counts?.total_inactive) != null ? (
+                                      <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>
+                                        {(metricAny.record_counts?.total_inactive ?? metric.record_counts?.total_inactive).toLocaleString()}
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
+                                    )}
+                                  </td>
+                                  <td className={styles.metricExecutionCell}>
+                                    {(metricAny.last_execution_at || metric.last_execution_at) ? (
+                                      <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                                        {new Date(metricAny.last_execution_at || metric.last_execution_at).toLocaleDateString("en-US", { timeZone: "UTC" })}
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
+                                    )}
+                                  </td>
+                                </tr>
+                                {isExpanded && (
+                                  <tr className={styles.metricTableActionsRow} aria-hidden>
+                                    <td colSpan={5} className={styles.metricTableActionsCell}>
+                                      <div className={styles.metricTableActionsInner} onClick={(e) => e.stopPropagation()}>
+                                        <MetricActions
+                                          metricId={metric.id}
+                                          onEdit={() => openEditModal(metric.id)}
+                                          onViewCharts={() => openCharts(metric.id)}
+                                          onViewMaps={() => openMaps(metric.id)}
+                                          onExecute={() => openExecuteModal(metric.id)}
+                                          onDelete={() => deleteMetric(metric.id)}
+                                          onViewAnomalies={() => openViewAnomalies(metric.id)}
+                                          compact={true}
+                                        />
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </Fragment>
                             );
                           })}
                         </tbody>

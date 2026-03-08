@@ -8,7 +8,8 @@ export const DEFAULT_MAP_ZOOM = 13;
 /** Zoom levels for initial map view by scope (no data loaded yet). */
 export const INITIAL_ZOOM_CITYWIDE = 10;
 export const INITIAL_ZOOM_DISTRICT = 12;
-export const INITIAL_ZOOM_BLOCK = 15;
+/** Block view default: zoomed out ~2 levels from close-up so more context is visible. */
+export const INITIAL_ZOOM_BLOCK = 13;
 
 /** Approximate US state centroids [lng, lat] for fast initial map center (city-level view). */
 const US_STATE_CENTROIDS: Record<string, [number, number]> = {

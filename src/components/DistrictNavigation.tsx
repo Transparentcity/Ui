@@ -1,6 +1,12 @@
 "use client";
 
-import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type MouseEvent as ReactMouseEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -10,6 +16,8 @@ import {
   isLikelyZipcode,
   isLikelyAddress,
   geocodeQuery,
+  fetchAddressSuggestions,
+  type AddressSuggestion,
   type GeocodeResult,
 } from "@/lib/locationSearchUtils";
 import LocationMapSave from "@/components/LocationMapSave";
@@ -194,6 +202,12 @@ export default function DistrictNavigation({
   const shareFeedbackRef = useRef<number | null>(null);
   const searchTimeoutRef = useRef<number | null>(null);
   const geoLoadingTimeoutRef = useRef<number | null>(null);
+  const addressSuggestTimeoutRef = useRef<number | null>(null);
+  const addressSuggestContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
+  const [addressSuggestionsLoading, setAddressSuggestionsLoading] = useState(false);
+  const [showAddressDropdown, setShowAddressDropdown] = useState(false);
 
   const trimmed = useMemo(() => query.trim(), [query]);
 
@@ -299,7 +313,7 @@ export default function DistrictNavigation({
     if (openTrigger != null && openTrigger > 0) setOpen(true);
   }, [openTrigger]);
 
-  const handleShare = (e: MouseEvent<HTMLButtonElement>) => {
+  const handleShare = (e: ReactMouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     if (!publicPagePath || typeof window === "undefined") return;
     const url = window.location.origin + publicPagePath;
@@ -349,11 +363,47 @@ export default function DistrictNavigation({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open]);
 
+  // Address suggest: run when modal is open and query changes
+  useEffect(() => {
+    if (!open) {
+      setAddressSuggestions([]);
+      setShowAddressDropdown(false);
+      return () => {
+        if (addressSuggestTimeoutRef.current) {
+          window.clearTimeout(addressSuggestTimeoutRef.current);
+        }
+      };
+    }
+    scheduleAddressSuggest(query);
+    return () => {
+      if (addressSuggestTimeoutRef.current) {
+        window.clearTimeout(addressSuggestTimeoutRef.current);
+      }
+    };
+  }, [open, query]);
+
+  // Close address dropdown when clicking outside
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        addressSuggestContainerRef.current &&
+        !addressSuggestContainerRef.current.contains(e.target as Node)
+      ) {
+        setShowAddressDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
   const closeModal = () => {
     setOpen(false);
     setQuery("");
     setError(null);
     setPendingPoint(null);
+    setAddressSuggestions([]);
+    setShowAddressDropdown(false);
     if (geoLoading) {
       setGeoLoading(false);
     }
@@ -361,6 +411,62 @@ export default function DistrictNavigation({
       window.clearTimeout(geoLoadingTimeoutRef.current);
       geoLoadingTimeoutRef.current = null;
     }
+    if (addressSuggestTimeoutRef.current) {
+      window.clearTimeout(addressSuggestTimeoutRef.current);
+      addressSuggestTimeoutRef.current = null;
+    }
+  };
+
+  const scheduleAddressSuggest = (q: string) => {
+    if (addressSuggestTimeoutRef.current) {
+      window.clearTimeout(addressSuggestTimeoutRef.current);
+    }
+    const s = q.trim();
+    if (s.length < 2) {
+      setAddressSuggestions([]);
+      setAddressSuggestionsLoading(false);
+      setShowAddressDropdown(false);
+      return;
+    }
+    setShowAddressDropdown(true);
+    setAddressSuggestionsLoading(true);
+    addressSuggestTimeoutRef.current = window.setTimeout(async () => {
+      const list = await fetchAddressSuggestions(s);
+      setAddressSuggestions(list);
+      setAddressSuggestionsLoading(false);
+    }, 300);
+  };
+
+  const handleAddressSuggestionSelect = (suggestion: AddressSuggestion) => {
+    setShowAddressDropdown(false);
+    setAddressSuggestions([]);
+    setError(null);
+    setPendingPoint({ lat: suggestion.lat, lng: suggestion.lon });
+
+    const districtResult = findDistrictContainingPoint(
+      suggestion.lat,
+      suggestion.lon,
+      shapefiles,
+      leaders
+    );
+
+    if (districtResult) {
+      const districtNum =
+        typeof districtResult.identifier === "number"
+          ? districtResult.identifier
+          : parseInt(String(districtResult.identifier), 10);
+
+      if (!isNaN(districtNum)) {
+        onDistrictSelect(districtNum);
+        onPlaceSelect?.(null);
+        if (onGPSLocation) onGPSLocation({ lat: suggestion.lat, lng: suggestion.lon });
+        closeModal();
+        return;
+      }
+    }
+
+    if (onGPSLocation) onGPSLocation({ lat: suggestion.lat, lng: suggestion.lon });
+    setError("Location found but not within any known district");
   };
 
   const handleDistrictSelect = (district: number) => {
@@ -657,7 +763,10 @@ export default function DistrictNavigation({
               </div>
 
               <div className="district-navigation-modal-body">
-                <div className="district-navigation-search-box">
+                <div
+                  className="district-navigation-search-box"
+                  ref={addressSuggestContainerRef}
+                >
                   <input
                     ref={inputRef}
                     type="text"
@@ -671,6 +780,7 @@ export default function DistrictNavigation({
                     }}
                     placeholder="Search by address, zipcode, district number, or representative name..."
                     className="district-navigation-input"
+                    autoComplete="off"
                   />
                   <button
                     className="district-navigation-search-button"
@@ -679,6 +789,28 @@ export default function DistrictNavigation({
                   >
                     {loading ? "..." : "Search"}
                   </button>
+                  {showAddressDropdown && (addressSuggestions.length > 0 || addressSuggestionsLoading) && (
+                    <div className="district-navigation-address-dropdown" role="listbox">
+                      {addressSuggestionsLoading ? (
+                        <div className="district-navigation-address-item" style={{ color: "var(--text-secondary, #6b7280)" }}>
+                          Searching addresses…
+                        </div>
+                      ) : (
+                        addressSuggestions.map((suggestion, idx) => (
+                          <button
+                            key={`${suggestion.place_name}-${idx}`}
+                            type="button"
+                            className="district-navigation-address-item"
+                            role="option"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleAddressSuggestionSelect(suggestion)}
+                          >
+                            {suggestion.place_name}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* GPS Button */}

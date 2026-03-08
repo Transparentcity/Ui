@@ -1,4 +1,4 @@
-export type DateRangePreset = "all" | "last_week" | "last_month" | "custom";
+export type DateRangePreset = "all" | "mtd" | "last_week" | "last_month" | "custom";
 
 export interface MetricDateRange {
   preset: DateRangePreset;
@@ -43,6 +43,12 @@ export function getPresetMetricDateRange(preset: DateRangePreset): MetricDateRan
   const today = new Date();
   const end = toIsoDateString(today);
 
+  if (preset === "mtd") {
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const start = toIsoDateString(startOfMonth);
+    return { preset: "mtd", start_date: start, end_date: end };
+  }
+
   if (preset === "last_week") {
     const start = toIsoDateString(addDays(today, -7));
     return { preset: "last_week", start_date: start, end_date: end };
@@ -85,8 +91,26 @@ function formatDateShort(dateStr: string): string {
   return `${month} ${day}`;
 }
 
+function formatDateRangeInParentheses(start_date: string, end_date: string): string {
+  const startDate = new Date(start_date + "T00:00:00");
+  const endDate = new Date(end_date + "T00:00:00");
+  const startFormatted = formatDateShort(start_date);
+  const endFormatted = formatDateShort(end_date);
+  const year = endDate.getFullYear();
+  if (startDate.getMonth() === endDate.getMonth() && startDate.getFullYear() === endDate.getFullYear()) {
+    return `${startFormatted.split(" ")[0]} ${startDate.getDate()}-${endDate.getDate()} ${year}`;
+  }
+  return `${startFormatted}-${endFormatted} ${year}`;
+}
+
 export function formatMetricDateRangeLabel(range: MetricDateRange): string {
   if (!range.start_date && !range.end_date) return "All time";
+  if (range.preset === "mtd") {
+    if (range.start_date && range.end_date) {
+      return `Month to date (${formatDateRangeInParentheses(range.start_date, range.end_date)})`;
+    }
+    return "Month to date";
+  }
   if (range.preset === "last_week") return "Last week";
   if (range.preset === "last_month") return "Last month";
   if (range.start_date && range.end_date) {

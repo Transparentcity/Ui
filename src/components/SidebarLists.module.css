@@ -304,6 +304,47 @@
   color: var(--text-primary);
 }
 
+/* Row wrapper for place with menu (rename/delete) */
+.placeSubItemRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.placeSubItemRow .placeSubItem {
+  flex: 1;
+  min-width: 0;
+}
+
+.placeMenuBtn {
+  opacity: 0;
+  padding: 4px 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  transition: opacity 0.2s, background 0.2s;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+}
+
+.placeSubItemRow:hover .placeMenuBtn {
+  opacity: 1;
+}
+
+.placeMenuBtn:hover {
+  background: var(--border-primary);
+}
+
+.placeSubItemRow .placeMenu {
+  right: 0;
+  top: 100%;
+  transform: translateY(2px);
+}
+
 .sectionHeader {
   padding: var(--space-md) var(--space-lg);
   font-size: 11px;

@@ -15,8 +15,10 @@ import {
   saveCity,
   updateUserPreferences,
   getUserPreferences,
+  listMyPlaces,
   createPlace,
   followRepresentative,
+  type UserPlace,
 } from "@/lib/apiClient";
 import { findDistrictFromCoordinates } from "@/lib/findDistrictFromCoordinates";
 import { emitSavedCitiesChanged } from "@/lib/uiEvents";
@@ -45,9 +47,11 @@ export default function EditHomeLocationModal({
   const [loading, setLoading] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
+  const [placesLoading, setPlacesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [mounted, setMounted] = useState(false);
+  const [existingPlaces, setExistingPlaces] = useState<UserPlace[]>([]);
 
   /** When set, we have city (and optionally coords) for the map step. */
   const [pending, setPending] = useState<{
@@ -61,6 +65,7 @@ export default function EditHomeLocationModal({
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const searchTimeoutRef = useRef<number | null>(null);
+  const placesCityIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -96,8 +101,76 @@ export default function EditHomeLocationModal({
     setSelectedIndex(-1);
     setPlaceLabel("My block");
     setPlaceRadius(DEFAULT_PLACE_RADIUS_M);
+    setExistingPlaces([]);
+    setPlacesLoading(false);
+    placesCityIdRef.current = null;
     if (geoLoading) setGeoLoading(false);
     onClose();
+  };
+
+  const loadExistingPlaces = async (cityId: number) => {
+    placesCityIdRef.current = cityId;
+    setPlacesLoading(true);
+    setExistingPlaces([]);
+    try {
+      const token = await getAccessTokenSilently();
+      const places = await listMyPlaces(token, { city_id: cityId });
+      if (placesCityIdRef.current === cityId) {
+        setExistingPlaces(places);
+      }
+    } catch (e) {
+      if (placesCityIdRef.current === cityId) {
+        setExistingPlaces([]);
+      }
+    } finally {
+      if (placesCityIdRef.current === cityId) {
+        setPlacesLoading(false);
+      }
+    }
+  };
+
+  const openMapStep = (
+    nextPending: {
+      city: PublicCitySearchResult;
+      coords: { lat: number; lng: number } | null;
+      district: number | null;
+    }
+  ) => {
+    setPending(nextPending);
+    setStep("map");
+    setError(null);
+    void loadExistingPlaces(nextPending.city.id);
+  };
+
+  const persistHomeLocation = async ({
+    token,
+    cityId,
+    district,
+    coords,
+    place,
+  }: {
+    token: string;
+    cityId: number;
+    district: number | null;
+    coords: { lat: number; lng: number };
+    place?: Pick<UserPlace, "id" | "label">;
+  }) => {
+    const latest = await getUserPreferences(token);
+    const currentExtra = latest.extra || {};
+    await updateUserPreferences(
+      {
+        extra: {
+          ...currentExtra,
+          home_location: {
+            city_id: cityId,
+            district: district ?? null,
+            coordinates: coords,
+            ...(place ? { place_id: place.id, place_label: place.label } : {}),
+          },
+        },
+      },
+      token
+    );
   };
 
   const scheduleSearch = (q: string) => {
@@ -124,9 +197,7 @@ export default function EditHomeLocationModal({
   };
 
   const handleSelectCityOnly = (city: PublicCitySearchResult) => {
-    setPending({ city, coords: null, district: null });
-    setStep("map");
-    setError(null);
+    openMapStep({ city, coords: null, district: null });
   };
 
   /** Use current location: from search step we resolve city from reverse geocode; from map step we use pending.city. */
@@ -154,8 +225,7 @@ export default function EditHomeLocationModal({
         city.id,
         token
       );
-      setPending({ city, coords, district });
-      if (step === "search") setStep("map");
+      openMapStep({ city, coords, district });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not get location");
     } finally {
@@ -185,8 +255,7 @@ export default function EditHomeLocationModal({
         city.id,
         token
       );
-      setPending({ city, coords: coordinates, district });
-      setStep("map");
+      openMapStep({ city, coords: coordinates, district });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Geocoding failed");
     } finally {
@@ -212,34 +281,66 @@ export default function EditHomeLocationModal({
           // ignore if follow fails (e.g. already following)
         }
       }
-      await createPlace(token, {
+      const createdPlace = await createPlace(token, {
         city_id: cityId,
         label: opts.label.trim() || "My block",
         lat,
         lng,
         radius_m: opts.radius_m,
       });
-      const latest = await getUserPreferences(token);
-      const currentExtra = latest.extra || {};
-      await updateUserPreferences(
-        {
-          extra: {
-            ...currentExtra,
-            home_location: {
-              city_id: cityId,
-              district: district ?? null,
-              coordinates: pending.coords,
-            },
-          },
-        },
-        token
-      );
+      await persistHomeLocation({
+        token,
+        cityId,
+        district,
+        coords: pending.coords,
+        place: createdPlace,
+      });
       emitSavedCitiesChanged();
       queryClient.invalidateQueries({ queryKey: cityKeys.savedDistricts() });
       onSaved?.();
       closeModal();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save");
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  const handleUseExistingPlace = async (place: UserPlace) => {
+    setSaveLoading(true);
+    setError(null);
+    try {
+      const token = await getAccessTokenSilently();
+      const district = await findDistrictFromCoordinates(
+        place.lat,
+        place.lng,
+        place.city_id,
+        token
+      );
+
+      await saveCity(place.city_id, token);
+      if (district !== null && district !== undefined) {
+        try {
+          await followRepresentative(place.city_id, String(district), token);
+        } catch {
+          // ignore if follow fails (e.g. already following)
+        }
+      }
+
+      await persistHomeLocation({
+        token,
+        cityId: place.city_id,
+        district,
+        coords: { lat: place.lat, lng: place.lng },
+        place,
+      });
+
+      emitSavedCitiesChanged();
+      queryClient.invalidateQueries({ queryKey: cityKeys.savedDistricts() });
+      onSaved?.();
+      closeModal();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to use saved place");
     } finally {
       setSaveLoading(false);
     }
@@ -362,6 +463,53 @@ export default function EditHomeLocationModal({
                 <span> · District {pending.district}</span>
               )}
             </p>
+            {error && (
+              <div className={searchStyles.resultError} style={{ marginBottom: 12 }}>
+                <span>{error}</span>
+              </div>
+            )}
+            {(placesLoading || existingPlaces.length > 0) && (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                  marginBottom: 16,
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
+                  Use one of your saved places
+                </div>
+                {placesLoading ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-secondary)", fontSize: 13 }}>
+                    <Loader size="sm" color="dark" />
+                    <span>Loading saved places…</span>
+                  </div>
+                ) : (
+                  <>
+                    {existingPlaces.map((place) => (
+                      <button
+                        key={place.id}
+                        type="button"
+                        className={searchStyles.resultBtn}
+                        onClick={() => void handleUseExistingPlace(place)}
+                        disabled={saveLoading}
+                      >
+                        <div className={searchStyles.resultCityRow}>
+                          <span className={searchStyles.resultCityName}>{place.label}</span>
+                          <span style={{ color: "var(--text-secondary)", fontSize: 12 }}>
+                            {place.radius_m} m radius
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                    <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: 13 }}>
+                      Or add a new place below.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
             {!pending.coords ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>
@@ -406,11 +554,6 @@ export default function EditHomeLocationModal({
               </div>
             ) : (
               <>
-                {error && (
-                  <div className={searchStyles.resultError} style={{ marginBottom: 12 }}>
-                    <span>{error}</span>
-                  </div>
-                )}
                 <LocationMapSave
                   cityId={pending.city.id}
                   lat={pending.coords.lat}

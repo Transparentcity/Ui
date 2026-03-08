@@ -242,7 +242,8 @@ function zoomToGPSLocation(
     const metersPerPixel = diameterMeters / targetDiameterPx;
     const computed =
       Math.log2((156543.03392 * Math.cos(latRad)) / Math.max(metersPerPixel, 0.0001));
-    zoom = Math.max(9, Math.min(19, computed));
+    // Default block view zoomed out 2 levels so more neighborhood context is visible
+    zoom = Math.max(9, Math.min(19, computed - 2));
   }
   map.flyTo({
     center: [lng, lat],

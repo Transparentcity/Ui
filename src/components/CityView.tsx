@@ -9,7 +9,7 @@ import DistrictNavigation from "@/components/DistrictNavigation";
 import AnomaliesTabPanel from "@/components/AnomaliesTabPanel";
 import { useCity, useSavedCities, useSaveCity, useUnsaveCity, useCityLeaders, useRepresentativeFollowerCounts, usePublicCityDistricts, useRepresentativeFollows, useFollowRepresentative, useUnfollowRepresentative } from "@/lib/hooks/useCities";
 import type { CityLeader } from "@/lib/apiClient";
-import { listMyPlaces, getPlaceMetrics, getPlaceAnomalies, runPlaceMetricsAndAnomaliesAsJob, getJob, type PlaceTimeSeriesPoint, type PlaceAnomaly } from "@/lib/apiClient";
+import { listMyPlaces, getPlaceMetrics, getPlaceAnomalies, runPlaceMetricsAndAnomaliesAsJob, getJob, getPlaceRefreshLastRun, type PlaceTimeSeriesPoint, type PlaceAnomaly } from "@/lib/apiClient";
 import { useUserMetricOrdering } from "@/lib/hooks/useCityAdmin";
 import { emitSavedCitiesChanged, SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEvents";
 import { getPresetMetricDateRange, getDefaultDateRangeFromMetrics, type MetricDateRange } from "@/lib/dateRange";
@@ -108,6 +108,17 @@ interface SparklineDataPoint {
   year: number; // calendar year
 }
 
+function isValidSparklineDataPoint(
+  point: SparklineDataPoint | null | undefined,
+): point is SparklineDataPoint {
+  return (
+    point != null &&
+    Number.isFinite(point.day) &&
+    Number.isFinite(point.value) &&
+    Number.isFinite(point.year)
+  );
+}
+
 // Helper function to parse date strings consistently as local dates
 // This avoids timezone issues when parsing "YYYY-MM-DD" strings.
 // When JavaScript parses "2025-01-01" with new Date(), it treats it as UTC midnight,
@@ -138,10 +149,11 @@ function formatDateRange(startDate: Date, endDate: Date): string {
 
 // Calculate 7-day trailing average
 function calculate7DayAverage(data: SparklineDataPoint[]): SparklineDataPoint[] {
-  if (data.length === 0) return [];
+  const safeData = Array.isArray(data) ? data.filter(isValidSparklineDataPoint) : [];
+  if (safeData.length === 0) return [];
   
   // Sort by day
-  const sorted = [...data].sort((a, b) => a.day - b.day);
+  const sorted = [...safeData].sort((a, b) => a.day - b.day);
   
   return sorted.map((point, idx) => {
     const start = Math.max(0, idx - 6);
@@ -200,9 +212,22 @@ const YTDSparkline = React.memo(function YTDSparkline({
     );
   }
 
+  const safeData = data.filter(isValidSparklineDataPoint);
+  if (safeData.length === 0) {
+    return (
+      <div style={{ width, height, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ fontSize: "10px", color: "var(--text-secondary)" }}>No data</span>
+      </div>
+    );
+  }
+
   // Separate data by year
-  const currentYearData = data.filter(d => d.year === currentYear).sort((a, b) => a.day - b.day);
-  const priorYearData = data.filter(d => d.year === priorYear).sort((a, b) => a.day - b.day);
+  const currentYearData = safeData
+    .filter((d) => d.year === currentYear)
+    .sort((a, b) => a.day - b.day);
+  const priorYearData = safeData
+    .filter((d) => d.year === priorYear)
+    .sort((a, b) => a.day - b.day);
 
   // Calculate 7-day averages
   const currentYearAvg = calculate7DayAverage(currentYearData);
@@ -538,6 +563,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
   
   const [currentPeriodType, setCurrentPeriodType] = useState<CurrentPeriodType>('this_year');
   const [comparisonPeriodType, setComparisonPeriodType] = useState<ComparisonPeriodType>('last_year');
+  const hasUserAdjustedComparisonRef = useRef(false);
   
   // Derive ComparisonType from the two selections
   const selectedComparisonType = useMemo<ComparisonType>(() => {
@@ -759,6 +785,9 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
 
       const sparklineData: SparklineDataPoint[] = [];
       detail.data.forEach((point) => {
+        if (!point?.time_period || !Number.isFinite(point.numeric_value)) {
+          return;
+        }
         const parsed = parseLocalDate(point.time_period);
         if (parsed.year === currentYear || parsed.year === priorYear) {
           const startOfYear = new Date(parsed.year, 0, 1);
@@ -831,6 +860,9 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
       // Build sparkline data
       const sparklineData: SparklineDataPoint[] = [];
       detail.data.forEach((point) => {
+        if (!point?.time_period || !Number.isFinite(point.numeric_value)) {
+          return;
+        }
         const parsed = parseLocalDate(point.time_period);
         if (parsed.year === currentYear || parsed.year === priorYear) {
           const startOfYear = new Date(parsed.year, 0, 1);
@@ -1329,6 +1361,15 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     ];
   }, []);
 
+  useEffect(() => {
+    if (selectedPlaceId == null) return;
+    if (hasUserAdjustedComparisonRef.current) return;
+    if (currentPeriodType === "this_year" && comparisonPeriodType === "last_year") {
+      setCurrentPeriodType("this_month");
+      setComparisonPeriodType("last_month");
+    }
+  }, [selectedPlaceId, currentPeriodType, comparisonPeriodType]);
+
   if (!metrics || metrics.length === 0) {
     return (
       <div className="dashboard-section">
@@ -1361,6 +1402,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                 className="comparison-selector-dropdown"
                 value={currentPeriodType}
                 onChange={(e) => {
+                  hasUserAdjustedComparisonRef.current = true;
                   const newCurrent = e.target.value as CurrentPeriodType;
                   setCurrentPeriodType(newCurrent);
                   if (newCurrent === 'this_year' && comparisonPeriodType === 'last_month') {
@@ -1380,6 +1422,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                 className="comparison-selector-dropdown"
                 value={comparisonPeriodType}
                 onChange={(e) => {
+                  hasUserAdjustedComparisonRef.current = true;
                   const newComparison = e.target.value as ComparisonPeriodType;
                   setComparisonPeriodType(newComparison);
                   if (currentPeriodType === 'this_year' && newComparison === 'last_month') {
@@ -1414,6 +1457,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                 className="comparison-selector-dropdown"
                 value={currentPeriodType}
                 onChange={(e) => {
+                  hasUserAdjustedComparisonRef.current = true;
                   const newCurrent = e.target.value as CurrentPeriodType;
                   setCurrentPeriodType(newCurrent);
                   if (newCurrent === "this_year" && comparisonPeriodType === "last_month") {
@@ -1433,6 +1477,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                 className="comparison-selector-dropdown"
                 value={comparisonPeriodType}
                 onChange={(e) => {
+                  hasUserAdjustedComparisonRef.current = true;
                   const newComparison = e.target.value as ComparisonPeriodType;
                   setComparisonPeriodType(newComparison);
                   if (currentPeriodType === "this_year" && newComparison === "last_month") {
@@ -1760,7 +1805,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
   const [openDistrictTrigger, setOpenDistrictTrigger] = useState(0);
   const [saving, setSaving] = useState(false);
   const [metricDateRange, setMetricDateRange] = useState<MetricDateRange>(
-    getPresetMetricDateRange("last_week")
+    getPresetMetricDateRange("mtd")
   );
   // Use initialDistrict if provided, otherwise default to 0 (mayor/citywide)
   // If initialDistrict is explicitly null, use 0 (citywide); if undefined, also use 0
@@ -1777,6 +1822,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
   const [selectedMetricId, setSelectedMetricId] = useState<number | null>(null);
   const [selectedMetricDistrict, setSelectedMetricDistrict] = useState<number | null>(null);
   const [userOrderDialogOpen, setUserOrderDialogOpen] = useState(false);
+  const [lastPlaceRefreshAt, setLastPlaceRefreshAt] = useState<string | null>(null);
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
   const alertsSectionRef = useRef<HTMLDivElement | null>(null);
   const [isCityDataReady, setIsCityDataReady] = useState(false);
@@ -1862,6 +1908,24 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
     return () => { cancelled = true; };
   }, [cityId, cityLoaded, isAuthenticated, getAccessTokenSilently, placesRefreshKey]);
 
+  // Fetch last place refresh time for dashboard header (authenticated users only)
+  useEffect(() => {
+    if (!cityLoaded || !isAuthenticated) {
+      setLastPlaceRefreshAt(null);
+      return;
+    }
+    let cancelled = false;
+    getAccessTokenSilently()
+      .then((token) => getPlaceRefreshLastRun(token))
+      .then((res) => {
+        if (!cancelled && res.last_run_at) setLastPlaceRefreshAt(res.last_run_at);
+      })
+      .catch(() => {
+        if (!cancelled) setLastPlaceRefreshAt(null);
+      });
+    return () => { cancelled = true; };
+  }, [cityLoaded, isAuthenticated, getAccessTokenSilently]);
+
   // Determine if current city is saved (still used for sidebar/onboarding, not header)
   const isCitySaved = useMemo(() => {
     return savedCities.some((city) => city.id === cityId);
@@ -1882,14 +1946,13 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
   }, [followPending, isFollowed, unfollowMutation, followMutation, headerDistrictStr]);
 
   // Set default date range when city data loads
-  // Default to "last week" for Map Panel instead of calculating from metrics
+  // Default to "month to date" (MTD) for Map Panel so it matches dashboard comparison
   useEffect(() => {
     if (cityData?.metrics && cityData.metrics.length > 0) {
-      // Use "last week" preset instead of calculating custom date range
-      setMetricDateRange(getPresetMetricDateRange("last_week"));
+      setMetricDateRange(getPresetMetricDateRange("mtd"));
     } else {
-      // Reset to "last week" when switching cities or if no metrics
-      setMetricDateRange(getPresetMetricDateRange("last_week"));
+      // Reset to MTD when switching cities or if no metrics
+      setMetricDateRange(getPresetMetricDateRange("mtd"));
     }
   }, [cityData?.metrics, cityId]);
 
@@ -2094,7 +2157,12 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             <>
         {/* Map section - fixed height, last 7 days default */}
         <section ref={mapSectionRef} className="city-view-map-section" id="map-section" aria-label="Map">
-          <h2 className="city-view-section-title city-view-map-section-label">Map</h2>
+          <div className="city-view-map-date-overlay">
+            <MetricDateRangeSelector
+              value={metricDateRange}
+              onChange={setMetricDateRange}
+            />
+          </div>
           <CityMapView
             cityId={cityId}
             isAdmin={isAdmin}
@@ -2118,17 +2186,18 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             selectedAnomaly={selectedAnomaly}
             onAnomalyClear={() => setSelectedAnomaly(null)}
           />
-          <div className="city-view-map-date-overlay">
-            <MetricDateRangeSelector
-              value={metricDateRange}
-              onChange={setMetricDateRange}
-            />
-          </div>
         </section>
 
         {/* Dashboard section - YTD default, no DistrictNavigation (uses sticky selector) */}
         <section className="city-view-dashboard-section" aria-label="Dashboard">
-          <h2 className="city-view-section-title">Dashboard</h2>
+          <h2 className="city-view-section-title">
+            Dashboard
+            {lastPlaceRefreshAt ? (
+              <span className="city-view-dashboard-last-refresh">
+                {" "}(last place refresh: {new Date(lastPlaceRefreshAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })})
+              </span>
+            ) : null}
+          </h2>
           <DashboardMetricsSection
             metrics={cityData.metrics || []}
             cityId={cityId}

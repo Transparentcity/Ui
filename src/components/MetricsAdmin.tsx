@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type CreateAdminMetricRequest,
   type UpdateAdminMetricRequest,
+  exportAdminMetrics,
+  importAdminMetrics,
   invalidateAdminMetricMapCache,
   getDefaultExecuteStartDateByPeriod,
 } from "@/lib/apiClient";
@@ -264,6 +266,12 @@ export default function MetricsAdmin() {
   const [showMapFields, setShowMapFields] = useState(false);
   const [mapCacheInvalidating, setMapCacheInvalidating] = useState(false);
   const [showAllGaps, setShowAllGaps] = useState(false);
+
+  // Export / Import
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importTargetCityId, setImportTargetCityId] = useState<number | null>(null);
 
   // Debounce refs
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -845,6 +853,96 @@ export default function MetricsAdmin() {
           <button className={styles.primaryBtn} onClick={openCreate}>
             <i className="fas fa-plus" /> Create Metric
           </button>
+
+          <div className={styles.exportImportGroup}>
+            <button
+              className={styles.secondaryBtn}
+              onClick={async () => {
+                if (exporting) return;
+                setExporting(true);
+                try {
+                  const token = await getAccessTokenSilently();
+                  const blob = await exportAdminMetrics(token, {
+                    city_id: selectedCityId ?? undefined,
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "metrics_export.json";
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch (err) {
+                  console.error("Export failed:", err);
+                  alert(err instanceof Error ? err.message : "Export failed");
+                } finally {
+                  setExporting(false);
+                }
+              }}
+              disabled={exporting}
+              title="Download metric definitions and category ordering as JSON (for import on another env)"
+            >
+              <i className="fas fa-download" /> {exporting ? "Exporting…" : "Export"}
+            </button>
+            <span className={styles.exportImportDivider}>/</span>
+            <label className={styles.importLabel}>
+              <input
+                type="file"
+                accept=".json"
+                className={styles.importFileInput}
+                onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
+              />
+              <span className={styles.secondaryBtn}>
+                <i className="fas fa-upload" /> Choose file…
+              </span>
+            </label>
+            {importFile && (
+              <>
+                <select
+                  className={styles.select}
+                  value={importTargetCityId ?? ""}
+                  onChange={(e) =>
+                    setImportTargetCityId(
+                      e.target.value === "" ? null : parseInt(e.target.value, 10)
+                    )
+                  }
+                  title="Remap all metrics to this city (e.g. dev city 1)"
+                >
+                  <option value="">No remap</option>
+                  {cities.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.display_name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className={styles.primaryBtn}
+                  disabled={importing}
+                  onClick={async () => {
+                    if (!importFile) return;
+                    setImporting(true);
+                    try {
+                      const token = await getAccessTokenSilently();
+                      const res = await importAdminMetrics(token, importFile, {
+                        target_city_id: importTargetCityId ?? undefined,
+                      });
+                      alert(res.message);
+                      setImportFile(null);
+                      setImportTargetCityId(null);
+                      metricsQuery.refetch();
+                      summaryQuery.refetch();
+                    } catch (err) {
+                      console.error("Import failed:", err);
+                      alert(err instanceof Error ? err.message : "Import failed");
+                    } finally {
+                      setImporting(false);
+                    }
+                  }}
+                >
+                  {importing ? "Importing…" : "Import"}
+                </button>
+              </>
+            )}
+          </div>
 
           <div className={styles.clearDataGroup}>
             <span className={styles.clearDataLabel}>Clear data:</span>

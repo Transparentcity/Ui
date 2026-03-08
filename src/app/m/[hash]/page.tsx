@@ -1121,14 +1121,26 @@ export default function PublicMapPage() {
       // Prefer points when backend says so or when very few points (so dots are visible)
       const defaultIsPoints = defaultView?.type === "points" || locationDataCount <= 100;
 
-      // Determine if we should use choropleth - respect backend default_view so few-point maps show points
+      // Determine if we should use choropleth - respect backend default_view so few-point maps show points.
+      // Also respect an explicit points toggle so turning dots back on does not get auto-undone.
+      const pointsViewSelected = showPoints && !selectedShapeLayer;
       // If backend says default is points (e.g. small dataset), don't default to choropleth
       const definitelyUseChoropleth = !defaultIsPoints && (
         map.map_type === "choropleth" || hasAggregations || hasDiscoveredShapeLayers || hasShapeLayerInConfig
       );
       const mightUseChoropleth = !defaultIsPoints && canDiscoverShapeLayers && map.map_type === "point" && hasGeographicIdentifiers;
       // Only use choropleth if we definitely should, OR if we might and shape layers are already discovered
-      const shouldUseChoropleth = definitelyUseChoropleth || (mightUseChoropleth && hasDiscoveredShapeLayers && map.city_id && (locationDataCount >= 100 || hasAggregations));
+      const shouldUseChoropleth =
+        !pointsViewSelected &&
+        (
+          definitelyUseChoropleth ||
+          (
+            mightUseChoropleth &&
+            hasDiscoveredShapeLayers &&
+            map.city_id &&
+            (locationDataCount >= 100 || hasAggregations)
+          )
+        );
       
       console.log("Map loaded, checking map type:", {
         mapType: map.map_type,
@@ -1470,7 +1482,7 @@ export default function PublicMapPage() {
         mapInstanceRef.current = null;
       }
     };
-  }, [map, mapboxLoaded, theme, selectedShapeLayer, isEmbedded]);
+  }, [map, mapboxLoaded, theme, selectedShapeLayer, isEmbedded, showPoints]);
   
   // Trigger choropleth rendering when shape layers are discovered
   useEffect(() => {
@@ -1480,9 +1492,9 @@ export default function PublicMapPage() {
     const defaultView = map.map_config?.default_view as { type?: string } | undefined;
     const preferPoints = defaultView?.type === "points" || locationDataCount <= 100;
 
-    // When we should show points (few points or backend default), do NOT switch to choropleth
-    // when shape layers appear later - keep points visible
-    if (preferPoints) {
+    // When we should show points (few points, backend default, or explicit user choice),
+    // do NOT switch to choropleth when shape layers appear later.
+    if (preferPoints || showPoints) {
       return;
     }
 
@@ -1534,8 +1546,9 @@ export default function PublicMapPage() {
       point.district_id !== null
     ));
     
-    const shouldUseChoropleth = 
-      (map.map_type === "choropleth" || hasAggregations || (map.map_type === "point" && hasGeographicIdentifiers)) && 
+    const shouldUseChoropleth =
+      !showPoints &&
+      (map.map_type === "choropleth" || hasAggregations || (map.map_type === "point" && hasGeographicIdentifiers)) &&
       map.city_id &&
       (locationDataCount >= 100 || hasAggregations);
     
@@ -1621,9 +1634,10 @@ export default function PublicMapPage() {
         const locationDataCount = map.location_data?.length || 0;
         const hasAggregations = map.map_config?.aggregations && Object.keys(map.map_config.aggregations).length > 0;
         const hasAvailableShapeLayers = map.map_config?.available_shape_layers && map.map_config.available_shape_layers.length > 0;
-        const shouldUseChoropleth = 
-          (map.map_type === "choropleth" || hasAggregations || hasAvailableShapeLayers) && 
-          (map.map_config?.shape_layer_instance_id || hasAvailableShapeLayers) && 
+        const shouldUseChoropleth =
+          !showPoints &&
+          (map.map_type === "choropleth" || hasAggregations || hasAvailableShapeLayers) &&
+          (map.map_config?.shape_layer_instance_id || hasAvailableShapeLayers) &&
           map.city_id &&
           (locationDataCount >= 1000 || hasAggregations);
         
@@ -1637,7 +1651,7 @@ export default function PublicMapPage() {
         }
       });
     }
-  }, [theme, mapboxLoaded, map, selectedShapeLayer]);
+  }, [theme, mapboxLoaded, map, selectedShapeLayer, showPoints]);
   
   // Toggle points visibility - mutually exclusive with shape layers
   useEffect(() => {
