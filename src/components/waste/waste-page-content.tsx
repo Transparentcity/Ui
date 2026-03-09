@@ -33,7 +33,6 @@ import {
   safeSetCache,
   loadCachedAnalysis,
   WASTE_ANALYSIS_CACHE_KEY,
-  WASTE_ANALYSIS_BACKUP_KEY,
   type WasteCategoryKey,
 } from "./waste-utils"
 
@@ -360,6 +359,41 @@ export function WastePageContent() {
     ) ?? null
   }, [displayData, activeCategory])
 
+  const consolidatedStatus = useMemo(() => {
+    if (isManualRefreshing || hasNoData) return null
+
+    if (activeJob?.status === "failed" || startError || error) {
+      return {
+        tone: "amber",
+        title: activeJob?.error_message || startError
+          ? "Refresh failed - showing last available results"
+          : "Live analysis unavailable - showing last available results",
+        detail:
+          (startError as string | undefined) ||
+          (error instanceof Error ? error.message : undefined) ||
+          activeJob?.error_message ||
+          "Retry to run a fresh analysis.",
+      } as const
+    }
+
+    if (displayData?.analysis_timestamp && !data) {
+      return {
+        tone: isDataStale ? "purple" : "gray",
+        title: isDataStale
+          ? `Results are from ${formatAge(displayData.analysis_timestamp)}`
+          : `Showing saved results from ${new Date(displayData.analysis_timestamp).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+            })}`,
+        detail: isDataStale
+          ? "Run a fresh analysis to check for new anomalies."
+          : "Run Refresh to fetch the latest analysis.",
+      } as const
+    }
+
+    return null
+  }, [isManualRefreshing, hasNoData, activeJob?.status, activeJob?.error_message, startError, error, displayData, data, isDataStale])
+
   return (
     <WasteShell
       title={
@@ -482,26 +516,54 @@ export function WastePageContent() {
           )}
 
           {/* Shared status banners */}
-          {!isManualRefreshing && displayData && !data && displayData.analysis_timestamp && (
-            <p className="text-xs text-gray-500 mb-3 flex items-center gap-2 flex-wrap" data-testid="compact-status-line">
-              <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-              <span>
-                Analysis from{" "}
-                {new Date(displayData.analysis_timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                {" "}({formatAge(displayData.analysis_timestamp)})
-                {displayData.summary?.total_findings
-                  ? ` · ${displayData.summary.total_findings} findings`
-                  : ""}
-                {displayData.cached ? " · cached" : ""}
-              </span>
-              <button
-                type="button"
-                onClick={handleRefresh}
-                className="text-purple-600 hover:text-purple-700 underline text-xs font-medium"
-              >
+          {consolidatedStatus && (
+            <div
+              className={`mb-4 p-3 rounded-lg border flex items-center gap-3 ${
+                consolidatedStatus.tone === "amber"
+                  ? "bg-amber-50 border-amber-200"
+                  : consolidatedStatus.tone === "purple"
+                    ? "bg-purple-50 border-purple-200"
+                    : "bg-gray-50 border-gray-200"
+              }`}
+            >
+              <Clock
+                className={`w-4 h-4 shrink-0 ${
+                  consolidatedStatus.tone === "amber"
+                    ? "text-amber-500"
+                    : consolidatedStatus.tone === "purple"
+                      ? "text-purple-500"
+                      : "text-gray-500"
+                }`}
+              />
+              <div className="flex-1 min-w-0">
+                <p
+                  className={`text-sm font-medium ${
+                    consolidatedStatus.tone === "amber"
+                      ? "text-amber-800"
+                      : consolidatedStatus.tone === "purple"
+                        ? "text-purple-800"
+                        : "text-gray-700"
+                  }`}
+                >
+                  {consolidatedStatus.title}
+                </p>
+                <p
+                  className={`text-xs mt-0.5 ${
+                    consolidatedStatus.tone === "amber"
+                      ? "text-amber-700"
+                      : consolidatedStatus.tone === "purple"
+                        ? "text-purple-700"
+                        : "text-gray-500"
+                  }`}
+                >
+                  {consolidatedStatus.detail}
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleRefresh}>
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
                 Refresh
-              </button>
-            </p>
+              </Button>
+            </div>
           )}
 
           {isManualRefreshing && (
@@ -547,7 +609,7 @@ export function WastePageContent() {
 
           {/* Error banner — hidden while refresh is running or when the more specific
               timeout/failure banner is already shown (avoids two amber banners). */}
-          {error && !isManualRefreshing && !(activeJob?.status === "failed") && (
+          {false && error && !isManualRefreshing && !(activeJob?.status === "failed") && (
             <details className={`mb-4 rounded-lg group ${displayData ? "bg-amber-50 border border-amber-200" : "bg-red-50 border border-red-200"}`}>
               <summary className="flex items-center gap-2 p-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                 <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${displayData ? "text-amber-500" : "text-red-500"}`} />
@@ -575,13 +637,13 @@ export function WastePageContent() {
                 </div>
               </summary>
               <p className={`px-2.5 pb-2.5 text-xs break-all ${displayData ? "text-amber-600" : "text-red-600"}`}>
-                {error instanceof Error ? error.message : "Failed to load waste analysis"}
+                {error! instanceof Error ? error!.message : "Failed to load waste analysis"}
               </p>
             </details>
           )}
 
           {/* Start job error banner — hidden when timeout banner already visible */}
-          {startError && !isManualRefreshing && !(activeJob?.status === "failed") && (
+          {false && startError && !isManualRefreshing && !(activeJob?.status === "failed") && (
             <details className={`mb-4 rounded-lg group ${displayData ? "bg-amber-50 border border-amber-200" : "bg-red-50 border border-red-200"}`}>
               <summary className="flex items-center gap-3 p-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                 <AlertTriangle className={`w-4 h-4 shrink-0 ${displayData ? "text-amber-500" : "text-red-500"}`} />
@@ -615,12 +677,12 @@ export function WastePageContent() {
           )}
 
           {/* Timeout / failure banner with collapsible diagnostics */}
-          {!isManualRefreshing && activeJob?.status === "failed" && (
+          {false && !isManualRefreshing && activeJob?.status === "failed" && (
             <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg text-sm">
               <div className="flex items-center justify-between gap-3 p-3">
                 <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
                 <span className="text-amber-800 flex-1">
-                  {activeJob.error_message || "Analysis failed. Showing previous snapshot."}
+                  {activeJob?.error_message || "Analysis failed. Showing previous snapshot."}
                 </span>
                 <div className="flex items-center gap-1.5 shrink-0">
                   {!displayData && (
@@ -653,10 +715,10 @@ export function WastePageContent() {
                     Diagnostics
                   </summary>
                   <div className="px-3 pb-2 text-xs text-amber-700 space-y-0.5 font-mono" data-testid="failure-diagnostics">
-                    <p>Stuck at: {lastDiagnostics.lastProgress}%{lastDiagnostics.lastStatusMessage && ` — "${lastDiagnostics.lastStatusMessage}"`}</p>
-                    {lastDiagnostics.startedAt && <p>Started: {new Date(lastDiagnostics.startedAt).toLocaleTimeString()}</p>}
-                    <p>Last update: {new Date(lastDiagnostics.lastUpdateAt).toLocaleTimeString()}</p>
-                    <p className="text-amber-500">Job: {lastDiagnostics.jobId}</p>
+                    <p>Stuck at: {lastDiagnostics!.lastProgress}%{lastDiagnostics!.lastStatusMessage && ` — "${lastDiagnostics!.lastStatusMessage}"`}</p>
+                    {lastDiagnostics!.startedAt && <p>Started: {new Date(lastDiagnostics!.startedAt!).toLocaleTimeString()}</p>}
+                    <p>Last update: {new Date(lastDiagnostics!.lastUpdateAt!).toLocaleTimeString()}</p>
+                    <p className="text-amber-500">Job: {lastDiagnostics!.jobId}</p>
                   </div>
                 </details>
               )}
@@ -683,12 +745,12 @@ export function WastePageContent() {
           )}
 
           {/* Stale data nudge — data older than 7 days */}
-          {!isManualRefreshing && isDataStale && displayData?.analysis_timestamp && (
+          {false && !isManualRefreshing && isDataStale && displayData?.analysis_timestamp && (
             <div className="mb-4 p-3 rounded-lg border bg-purple-50 border-purple-200 flex items-center gap-3">
               <Clock className="w-5 h-5 text-purple-500 shrink-0" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-purple-800">
-                  Results are from {formatAge(displayData.analysis_timestamp)}
+                  Results are from {formatAge(displayData?.analysis_timestamp ?? "")}
                 </p>
                 <p className="text-xs text-purple-600 mt-0.5">
                   Run a fresh analysis to check for new anomalies.

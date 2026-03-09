@@ -12,7 +12,7 @@ import {
 import type { WasteEntityScore, WasteFinding } from "@/lib/apiClient"
 import { WasteShell } from "./waste-shell"
 import { TCScoreBadge, scoreTier, TIER_STYLES } from "./tc-score-badge"
-import { normalizeWasteCategory } from "./waste-utils"
+import { normalizeWasteCategory, getWasteCategoryLabel } from "./waste-utils"
 import { cn } from "@/lib/utils"
 import {
   Building2,
@@ -24,7 +24,6 @@ import {
   FileText,
   TrendingUp,
   TrendingDown,
-  Minus,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -256,7 +255,7 @@ function DepartmentBriefing({
                   key={d}
                   className="text-[11px] bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full capitalize"
                 >
-                  {d}
+                  {getWasteCategoryLabel(d)}
                 </span>
               ))}
             </div>

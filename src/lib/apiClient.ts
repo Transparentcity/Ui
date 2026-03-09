@@ -4864,6 +4864,18 @@ export interface WasteFinding {
   finding_report: string | null;
   is_new?: boolean;
   fiscal_year?: number | null;
+  department?: string | null;
+  convergence_details?: {
+    triangle_legs?: string[];
+    triangle_legs_present?: string[];
+    convergence_score?: number;
+    composite_risk?: number;
+    convergence_multiplier?: number;
+    domains?: string[];
+    domains_flagged?: number;
+    domain_risks?: Record<string, number>;
+    finding_count?: number;
+  } | null;
 }
 
 export interface WasteDataFreshness {

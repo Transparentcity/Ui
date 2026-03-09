@@ -7,12 +7,15 @@ import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
 import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import {
   useLatestPersistedWasteResult,
-  useWasteEntityScores,
 } from "@/lib/hooks/useWaste"
 import type { WasteFinding } from "@/lib/apiClient"
 import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
-import { normalizeWasteCategory, formatDollar } from "./waste-utils"
+import {
+  normalizeWasteCategory,
+  formatDollar,
+  getWasteCategoryLabel,
+} from "./waste-utils"
 import { TCScoreBadge } from "./tc-score-badge"
 import { cn } from "@/lib/utils"
 import {
@@ -78,8 +81,15 @@ function FilterBar({
   categories: string[]
 }) {
   const hasFilters = Object.values(filters).some(Boolean)
+  const chips = [
+    filters.severity ? `Severity: ${filters.severity}` : null,
+    filters.category ? `Category: ${getWasteCategoryLabel(filters.category)}` : null,
+    filters.department ? `Department: ${filters.department}` : null,
+    filters.entity ? `Entity: ${filters.entity}` : null,
+  ].filter(Boolean) as string[]
   return (
-    <div className="flex items-center gap-2 flex-wrap mb-5">
+    <div className="mb-5">
+      <div className="flex items-center gap-2 flex-wrap mb-2">
       <Filter className="w-4 h-4 text-gray-400 shrink-0" />
       <select
         value={filters.severity}
@@ -100,7 +110,7 @@ function FilterBar({
         <option value="">All Categories</option>
         {categories.map((c) => (
           <option key={c} value={c}>
-            {c}
+            {getWasteCategoryLabel(c)}
           </option>
         ))}
       </select>
@@ -135,6 +145,19 @@ function FilterBar({
           <X className="w-3 h-3" />
           Clear
         </button>
+      )}
+      </div>
+      {chips.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {chips.map((chip) => (
+            <span
+              key={chip}
+              className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600"
+            >
+              {chip}
+            </span>
+          ))}
+        </div>
       )}
     </div>
   )
@@ -200,7 +223,7 @@ function CategoryBreakdown({ findings }: { findings: WasteFinding[] }) {
               className="flex items-center gap-2 no-underline hover:bg-gray-50 rounded px-1 py-0.5"
             >
               <span className="text-xs text-gray-600 w-24 truncate capitalize">
-                {cat}
+                {getWasteCategoryLabel(cat)}
               </span>
               <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
                 <div
@@ -353,7 +376,7 @@ export function ForensicsOverviewPage() {
 
   const { data: analysisData, isLoading } =
     useLatestPersistedWasteResult(cityId)
-  const allFindings = analysisData?.findings ?? []
+  const allFindings = useMemo(() => analysisData?.findings ?? [], [analysisData])
 
   // Derive filter options from findings
   const departments = useMemo(() => {
@@ -423,6 +446,9 @@ export function ForensicsOverviewPage() {
         />
 
         {/* Summary stats */}
+        <p className="text-xs text-gray-500 mb-3">
+          Showing {filtered.length.toLocaleString()} of {allFindings.length.toLocaleString()} findings
+        </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <p className="text-xs text-gray-500">Total Findings</p>
@@ -513,7 +539,7 @@ export function ForensicsOverviewPage() {
                         </span>
                       </td>
                       <td className="py-2 px-2 text-xs text-gray-500 capitalize">
-                        {normalizeWasteCategory(f.category)}
+                        {getWasteCategoryLabel(f.category)}
                       </td>
                       <td className="py-2 pl-2 text-right text-gray-700 tabular-nums">
                         {f.amount ? formatDollar(f.amount) : "--"}

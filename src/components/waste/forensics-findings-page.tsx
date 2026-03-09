@@ -5,14 +5,12 @@ import { useQuery } from "@tanstack/react-query"
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
 import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import { useLatestPersistedWasteResult } from "@/lib/hooks/useWaste"
-import type { WasteFinding } from "@/lib/apiClient"
 import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
 import { WasteFindingsList } from "./waste-findings-list"
 import { WasteSeverityFilter } from "./waste-severity-filter"
-import { normalizeWasteCategory, formatDollar } from "./waste-utils"
-import { cn } from "@/lib/utils"
-import { Filter, Search, X } from "lucide-react"
+import { normalizeWasteCategory, getWasteCategoryLabel } from "./waste-utils"
+import { Search } from "lucide-react"
 
 function useCityId() {
   const citiesQuery = useQuery({
@@ -34,7 +32,7 @@ export function ForensicsFindingsPage() {
   const cityId = useCityId()
   const { data: analysisData, isLoading } =
     useLatestPersistedWasteResult(cityId)
-  const allFindings = analysisData?.findings ?? []
+  const allFindings = useMemo(() => analysisData?.findings ?? [], [analysisData])
 
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
   const [categoryFilter, setCategoryFilter] = useState("")
@@ -67,6 +65,12 @@ export function ForensicsFindingsPage() {
     return results
   }, [allFindings, severityFilter, categoryFilter, entitySearch])
 
+  const activeChips = [
+    severityFilter !== "all" ? `Severity: ${severityFilter}` : null,
+    categoryFilter ? `Category: ${getWasteCategoryLabel(categoryFilter)}` : null,
+    entitySearch ? `Entity: ${entitySearch}` : null,
+  ].filter(Boolean) as string[]
+
   return (
     <WasteShell
       title="Forensics"
@@ -88,7 +92,7 @@ export function ForensicsFindingsPage() {
               <option value="">All Categories</option>
               {categories.map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  {getWasteCategoryLabel(c)}
                 </option>
               ))}
             </select>
@@ -104,9 +108,21 @@ export function ForensicsFindingsPage() {
             </div>
           </div>
           <span className="text-xs text-gray-400">
-            {filtered.length.toLocaleString()} findings
+            Showing {filtered.length.toLocaleString()} of {allFindings.length.toLocaleString()}
           </span>
         </div>
+        {activeChips.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap mb-3">
+            {activeChips.map((chip) => (
+              <span
+                key={chip}
+                className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600"
+              >
+                {chip}
+              </span>
+            ))}
+          </div>
+        )}
 
         {isLoading ? (
           <div className="space-y-3">

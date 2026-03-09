@@ -15,6 +15,20 @@ export type WasteCategoryKey =
   | "review"
   | "accuracy"
 
+export const WASTE_CATEGORY_LABELS: Record<WasteCategoryKey, string> = {
+  overview: "Overview",
+  convergence: "Cross-Domain Risk",
+  payroll: "Payroll & Personnel",
+  contracts: "Contracts & Procurement",
+  infrastructure: "Infrastructure & Services",
+  influence: "Influence & Pay-to-Play",
+  integrity: "Personnel Integrity",
+  confirmed: "Confirmed Cases",
+  detectors: "Detectors & Data",
+  review: "Review Workbench",
+  accuracy: "Detector Accuracy",
+}
+
 /**
  * Canonical mapping from raw backend category strings to UI category keys.
  * Every component that needs to bucket findings should use this single function.
@@ -80,6 +94,11 @@ export function normalizeWasteCategory(category: string): WasteCategoryKey {
   if (key === "accuracy" || key.includes("precision")) return "accuracy"
 
   return "payroll"
+}
+
+export function getWasteCategoryLabel(category: string): string {
+  const key = normalizeWasteCategory(category)
+  return WASTE_CATEGORY_LABELS[key]
 }
 
 // ── Dollar formatting ───────────────────────────────────────────────────────

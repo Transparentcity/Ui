@@ -49,6 +49,7 @@ function MetricCard({
   color,
   isLoading,
   trend,
+  trendHint,
 }: {
   label: string
   value: number | string
@@ -57,6 +58,7 @@ function MetricCard({
   isLoading?: boolean
   /** Optional trend indicator: positive = up (risk increasing), negative = down (risk decreasing) */
   trend?: { value: string; direction: "up" | "down" | "flat" } | null
+  trendHint?: string
 }) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-5 flex items-start gap-4">
@@ -86,6 +88,9 @@ function MetricCard({
           </div>
         )}
         <div className="text-sm text-gray-500">{label}</div>
+        {trend && trendHint && (
+          <div className="text-[11px] text-gray-400 mt-1">{trendHint}</div>
+        )}
       </div>
     </div>
   )
@@ -98,7 +103,7 @@ const MODE_CARDS = [
     title: "Guardrails API",
     subtitle: "Integrate risk into approval workflows",
     description:
-      "City systems call the score engine during payroll, procurement, contract, and grant workflows to surface risk before approval.",
+      "Connect city systems to get a risk score and recommended action before payroll, procurement, contract, or grant approvals.",
     href: "/waste/api",
     icon: Code2,
     gradient: "from-blue-600 to-indigo-700",
@@ -108,7 +113,7 @@ const MODE_CARDS = [
     title: "Dashboard",
     subtitle: "Monitor current risk and tune sensitivity",
     description:
-      "Live monitoring and tuning center where finance, audit, and compliance teams review current alerts and adjust sensitivity.",
+      "Live operations view for finance and audit teams to monitor active alerts and adjust threshold sensitivity.",
     href: "/waste/dashboard",
     icon: Activity,
     gradient: "from-purple-600 to-violet-700",
@@ -118,7 +123,7 @@ const MODE_CARDS = [
     title: "Forensics",
     subtitle: "Investigate historical patterns and build cases",
     description:
-      "Backward-looking workspace that analyzes historical data to identify patterns of fraud, waste, abuse, and operational breakdown.",
+      "Historical investigation workspace to review long-term patterns and build documented cases.",
     href: "/waste/forensics",
     icon: Search,
     gradient: "from-emerald-600 to-teal-700",
@@ -259,8 +264,8 @@ export function CommandCenterPage() {
 
   return (
     <WasteShell
-      title="WASTE Dashboard"
-      description="Waste detection overview and entry points"
+      title="Command Center"
+      description="Entry points and headline risk indicators"
     >
       {/* Three mode cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
@@ -281,6 +286,7 @@ export function CommandCenterPage() {
           color="bg-red-50"
           isLoading={highRiskQ.isLoading}
           trend={riskTrend}
+          trendHint="vs last run - higher is worse"
         />
         <MetricCard
           label="Open Queue Items"
@@ -289,6 +295,7 @@ export function CommandCenterPage() {
           color="bg-yellow-50"
           isLoading={queueQ.isLoading}
           trend={queueTrend}
+          trendHint="review throughput snapshot"
         />
         <MetricCard
           label="Active Investigations"
@@ -304,6 +311,7 @@ export function CommandCenterPage() {
           color="bg-emerald-50"
           isLoading={accuracyQ.isLoading}
           trend={precisionTrend}
+          trendHint="vs 50% baseline - higher is better"
         />
       </div>
 

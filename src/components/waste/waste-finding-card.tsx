@@ -431,12 +431,12 @@ function ConvergenceDetail({ finding }: { finding: WasteFinding }) {
       </div>
 
       {/* Fraud Triangle */}
-      {cd.triangle_legs_present > 0 && (
+      {(cd.triangle_legs_present?.length ?? 0) > 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Triangle className="w-3.5 h-3.5 text-gray-500" />
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-              Fraud Triangle ({cd.triangle_legs_present}/3)
+              Fraud Triangle ({cd.triangle_legs_present?.length ?? 0}/3)
             </span>
           </div>
           <div className="flex gap-2">
@@ -458,7 +458,7 @@ function ConvergenceDetail({ finding }: { finding: WasteFinding }) {
               )
             })}
           </div>
-          {cd.triangle_legs_present === 3 && (
+          {(cd.triangle_legs_present?.length ?? 0) === 3 && (
             <p className="text-xs text-red-600 font-medium">
               All three legs present — conditions favorable for fraud.
             </p>

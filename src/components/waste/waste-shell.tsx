@@ -29,8 +29,8 @@ type TabItem = {
 }
 
 const TOP_TABS: TabItem[] = [
-  { key: "overview", name: "Overview", href: "/waste", icon: LayoutGrid },
-  { key: "dashboard", name: "Dashboard", href: "/waste/dashboard", icon: Activity },
+  { key: "overview", name: "Command Center", href: "/waste", icon: LayoutGrid },
+  { key: "dashboard", name: "Operations", href: "/waste/dashboard", icon: Activity },
   { key: "forensics", name: "Forensics", href: "/waste/forensics", icon: Search },
   { key: "api", name: "API", href: "/waste/api", icon: Code2 },
   { key: "queue", name: "Queue", href: "/waste/queue", icon: Inbox },

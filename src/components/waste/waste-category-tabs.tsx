@@ -3,22 +3,21 @@
 import { cn } from "@/lib/utils"
 import { Users, ShoppingCart, Wrench, FileCheck, TriangleAlert, Handshake, UserCheck } from "lucide-react"
 import type { WasteCategorySummary } from "@/lib/apiClient"
-import { normalizeWasteCategory, formatDollar } from "./waste-utils"
+import { normalizeWasteCategory, formatDollar, getWasteCategoryLabel } from "./waste-utils"
 
 interface CategoryConfig {
   key: string
-  label: string
   icon: React.ReactNode
 }
 
 const CATEGORIES: CategoryConfig[] = [
-  { key: "convergence", label: "Cross-Domain Risk", icon: <TriangleAlert className="w-5 h-5" /> },
-  { key: "payroll", label: "Payroll & Personnel", icon: <Users className="w-5 h-5" /> },
-  { key: "contracts", label: "Contracts & Procurement", icon: <ShoppingCart className="w-5 h-5" /> },
-  { key: "infrastructure", label: "Infrastructure & Services", icon: <Wrench className="w-5 h-5" /> },
-  { key: "influence", label: "Influence & Pay-to-Play", icon: <Handshake className="w-5 h-5" /> },
-  { key: "integrity", label: "Personnel Integrity", icon: <UserCheck className="w-5 h-5" /> },
-  { key: "confirmed", label: "Confirmed Cases", icon: <FileCheck className="w-5 h-5" /> },
+  { key: "convergence", icon: <TriangleAlert className="w-5 h-5" /> },
+  { key: "payroll", icon: <Users className="w-5 h-5" /> },
+  { key: "contracts", icon: <ShoppingCart className="w-5 h-5" /> },
+  { key: "infrastructure", icon: <Wrench className="w-5 h-5" /> },
+  { key: "influence", icon: <Handshake className="w-5 h-5" /> },
+  { key: "integrity", icon: <UserCheck className="w-5 h-5" /> },
+  { key: "confirmed", icon: <FileCheck className="w-5 h-5" /> },
 ]
 
 interface WasteCategoryTabsProps {
@@ -62,7 +61,7 @@ export function WasteCategoryTabs({
           >
             <div className="flex items-center gap-2 text-gray-600">
               {cat.icon}
-              <span className="text-sm font-medium">{cat.label}</span>
+              <span className="text-sm font-medium">{getWasteCategoryLabel(cat.key)}</span>
             </div>
             {isLoading ? (
               <div className="flex items-baseline gap-3">

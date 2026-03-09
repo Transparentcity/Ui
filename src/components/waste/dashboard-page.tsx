@@ -19,7 +19,10 @@ import type {
   WasteDetectorAccuracy as DetectorAccuracyType,
 } from "@/lib/apiClient"
 import { WasteShell } from "./waste-shell"
-import { normalizeWasteCategory, formatDollar } from "./waste-utils"
+import {
+  formatDollar,
+  getWasteCategoryLabel,
+} from "./waste-utils"
 import { TCScoreBadge } from "./tc-score-badge"
 import { ModelHealth } from "./model-health"
 import { SeverityDonut } from "./widgets/severity-donut"
@@ -38,7 +41,6 @@ import {
   Minus,
   Building2,
   Gauge,
-  BarChart3,
 } from "lucide-react"
 
 // ── Shared city ID hook ─────────────────────────────────────────────────────
@@ -140,7 +142,7 @@ function RiskFeed({ findings }: { findings: WasteFinding[] }) {
                     {f.severity}
                   </span>
                   <span className="text-[10px] text-gray-400">
-                    {normalizeWasteCategory(f.category)}
+                    {getWasteCategoryLabel(f.category)}
                   </span>
                   {f.amount != null && f.amount > 0 && (
                     <span className="text-[10px] text-gray-500 font-medium">
@@ -616,7 +618,7 @@ export function DashboardPage() {
 
   return (
     <WasteShell
-      title="Dashboard"
+      title="Operations"
       description="Operational monitoring and risk overview"
       actions={
         lastRunDate ? (
