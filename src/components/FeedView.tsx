@@ -1,18 +1,16 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFeedStories, useTrackFeedEngagement, useFeedPlaces, type FeedStory } from "@/lib/hooks/useFeed";
 import { useCities } from "@/lib/hooks/useCities";
 import {
-  listCitiesWithFeedStories,
   deleteFeedStory,
   deleteFeedStoriesByCity,
   listFeedStoryComments,
   addFeedStoryComment,
-  type CityWithFeedStories,
   type FeedStoryComment,
   type FeedStoryCommentCreate,
 } from "@/lib/apiClient";
@@ -37,7 +35,6 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
   const router = useRouter();
   const { getAccessTokenSilently } = useAuth0();
   const queryClient = useQueryClient();
-  const canAdminFeed = isAdmin || cityLeadCityIds.length > 0;
 
   const [selectedPlace, setSelectedPlace] = useState<SelectedPlace>(() =>
     cityId != null ? { city_id: cityId, district: district ?? null } : null
@@ -52,11 +49,6 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
   const { data: placesData } = useFeedPlaces();
   const trackEngagement = useTrackFeedEngagement();
 
-  // Admin: cities with feed stories for dropdown
-  const [adminCities, setAdminCities] = useState<CityWithFeedStories[]>([]);
-  const [adminCityId, setAdminCityId] = useState<number | null>(null);
-  const [adminDistrict, setAdminDistrict] = useState<string>("");
-  const [loadingAdminCities, setLoadingAdminCities] = useState(false);
   const [deletingStoryId, setDeletingStoryId] = useState<number | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   /** Story ID whose comments are expanded; null = none. */
@@ -68,26 +60,17 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
   const [commentDraft, setCommentDraft] = useState<Record<number, string>>({});
   const [commentAuthorName, setCommentAuthorName] = useState<Record<number, string>>({});
 
-  const loadAdminCities = useCallback(async () => {
-    if (!canAdminFeed) return;
-    setLoadingAdminCities(true);
-    try {
-      const token = await getAccessTokenSilently();
-      const list = await listCitiesWithFeedStories(token);
-      setAdminCities(Array.isArray(list) ? list : []);
-      if (Array.isArray(list) && list.length > 0 && adminCityId == null) {
-        setAdminCityId(list[0].city_id);
-      }
-    } catch {
-      setAdminCities([]);
-    } finally {
-      setLoadingAdminCities(false);
-    }
-  }, [canAdminFeed, getAccessTokenSilently, adminCityId]);
+  const places = placesData?.places ?? [];
 
-  useEffect(() => {
-    if (canAdminFeed) loadAdminCities();
-  }, [canAdminFeed, loadAdminCities]);
+  /** Unique cities from places (first occurrence per city_id) for City dropdown. */
+  const uniqueCities = useMemo(() => {
+    const seen = new Set<number>();
+    return places.filter((p) => {
+      if (seen.has(p.city_id)) return false;
+      seen.add(p.city_id);
+      return true;
+    });
+  }, [places]);
 
   const invalidateFeedQueries = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: feedKeys.lists() });
@@ -109,14 +92,13 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
   };
 
   const handleDeleteAllForCity = async () => {
-    if (adminCityId == null) return;
+    if (selectedPlace?.city_id == null) return;
     if (!confirm("Delete all feed stories for this city? This cannot be undone.")) return;
     setBulkDeleting(true);
     try {
       const token = await getAccessTokenSilently();
-      await deleteFeedStoriesByCity(adminCityId, token);
+      await deleteFeedStoriesByCity(selectedPlace.city_id, token);
       invalidateFeedQueries();
-      await loadAdminCities();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete stories");
     } finally {
@@ -125,29 +107,20 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
   };
 
   const handleDeleteAllForDistrict = async () => {
-    if (adminCityId == null) return;
-    const districtNum =
-      adminDistrict === "citywide" ? 0 : adminDistrict === "" ? null : parseInt(adminDistrict, 10);
-    if (districtNum === null || isNaN(districtNum)) {
-      alert("Select a district first.");
-      return;
-    }
-    const label = districtNum === 0 ? "city-wide" : `district ${districtNum}`;
+    if (selectedPlace?.city_id == null || selectedPlace.district == null) return;
+    const label = selectedPlace.district === 0 ? "city-wide" : `district ${selectedPlace.district}`;
     if (!confirm(`Delete all feed stories for ${label}? This cannot be undone.`)) return;
     setBulkDeleting(true);
     try {
       const token = await getAccessTokenSilently();
-      await deleteFeedStoriesByCity(adminCityId, token, districtNum);
+      await deleteFeedStoriesByCity(selectedPlace.city_id, token, selectedPlace.district);
       invalidateFeedQueries();
-      await loadAdminCities();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete stories");
     } finally {
       setBulkDeleting(false);
     }
   };
-
-  const places = placesData?.places ?? [];
 
   // Reset to first page when filters change
   useEffect(() => {
@@ -203,9 +176,6 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
     });
   }, [storiesForMaps.map((s) => s.primary_visualization?.id).join(",")]);
 
-  const isPlaceSelected = (p: { city_id: number; district: number }) =>
-    selectedPlace?.city_id === p.city_id && selectedPlace?.district === p.district;
-
   const handlePlaceClick = (place: { city_id: number; district: number }) => {
     setSelectedPlace((prev) =>
       prev?.city_id === place.city_id && prev?.district === place.district
@@ -213,6 +183,16 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
         : { city_id: place.city_id, district: place.district }
     );
   };
+
+  /** Label for the active filter (for subtitle and removable pill). */
+  const activeFilterLabel = useMemo(() => {
+    if (selectedPlace == null) return null;
+    const city = uniqueCities.find((c) => c.city_id === selectedPlace.city_id);
+    const cityName = city?.city_name ?? `City ${selectedPlace.city_id}`;
+    if (selectedPlace.district == null) return `${cityName} (all districts)`;
+    if (selectedPlace.district === 0) return `${cityName} · City-wide`;
+    return `${cityName} · District ${selectedPlace.district}`;
+  }, [selectedPlace, uniqueCities]);
 
   const handleStoryCityClick = (storyCityId: number, storyDistrict: number | null) => {
     const d = storyDistrict ?? 0;
@@ -450,81 +430,24 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
             ? "Sample newsletters you generated (from Settings)"
             : selectedPlace == null
               ? "Latest civic data stories from all cities"
-              : `Stories for ${places.find((p) => isPlaceSelected(p))?.label ?? "selected place"}`
+              : `Stories for ${activeFilterLabel ?? "selected place"}`
           }
         </p>
       </div>
 
-      {/* Admin: filter by city/district and delete */}
-      {canAdminFeed && (
+      {/* Admin only: delete actions (use current City/District filter) */}
+      {isAdmin && (
         <div className={styles.adminBar}>
-          <div className={styles.adminBarRow}>
-            <label htmlFor="feed-admin-city" className={styles.adminLabel}>
-              City
-            </label>
-            <select
-              id="feed-admin-city"
-              value={adminCityId ?? ""}
-              onChange={(e) => {
-                const v = e.target.value;
-                const cid = v ? parseInt(v, 10) : null;
-                setAdminCityId(cid);
-                if (cid != null)
-                  setSelectedPlace({
-                    city_id: cid,
-                    district: adminDistrict === "citywide" ? 0 : adminDistrict ? parseInt(adminDistrict, 10) : null,
-                  });
-              }}
-              className={styles.adminSelect}
-              disabled={loadingAdminCities}
-            >
-              <option value="">
-                {loadingAdminCities ? "Loading…" : "Select city"}
-              </option>
-              {adminCities.map((c) => (
-                <option key={c.city_id} value={c.city_id}>
-                  {c.state ? `${c.city_name}, ${c.state}` : c.city_name}
-                  {c.story_count != null ? ` (${c.story_count})` : ""}
-                </option>
-              ))}
-            </select>
-            <label htmlFor="feed-admin-district" className={styles.adminLabel}>
-              District
-            </label>
-            <select
-              id="feed-admin-district"
-              value={adminDistrict}
-              onChange={(e) => {
-                const v = e.target.value;
-                setAdminDistrict(v);
-                if (adminCityId != null)
-                  setSelectedPlace({
-                    city_id: adminCityId,
-                    district: v === "citywide" ? 0 : v ? parseInt(v, 10) : null,
-                  });
-              }}
-              className={styles.adminSelect}
-              disabled={!adminCityId}
-            >
-              <option value="">All</option>
-              <option value="citywide">City-wide</option>
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((d) => (
-                <option key={d} value={String(d)}>
-                  District {d}
-                </option>
-              ))}
-            </select>
-          </div>
           <div className={styles.adminBarActions}>
             <button
               type="button"
               onClick={handleDeleteAllForCity}
-              disabled={bulkDeleting || !adminCityId}
+              disabled={bulkDeleting || selectedPlace?.city_id == null}
               className={styles.adminDeleteCity}
             >
               {bulkDeleting ? "Deleting…" : "Delete all for city"}
             </button>
-            {adminCityId != null && adminDistrict !== "" && (
+            {selectedPlace?.city_id != null && selectedPlace.district != null && (
               <button
                 type="button"
                 onClick={handleDeleteAllForDistrict}
@@ -556,28 +479,80 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
         </button>
       </div>
 
-      {/* Place filter: All + actual cities/districts (only when not in Personal newsletter view) */}
+      {/* City + District dropdowns for all users (default All / All) */}
       {!personalNewsletterOnly && (
-      <div className={styles.chipBar}>
-        <button
-          type="button"
-          className={`${styles.chip} ${selectedPlace === null ? styles.chipActive : ""}`}
-          onClick={() => setSelectedPlace(null)}
-        >
-          All
-        </button>
-        {places.map((place) => (
-          <button
-            key={`${place.city_id}-${place.district}`}
-            type="button"
-            className={`${styles.chip} ${isPlaceSelected(place) ? styles.chipActive : ""}`}
-            onClick={() => handlePlaceClick(place)}
-          >
-            <span className={styles.chipEmoji}>{place.city_emoji}</span>
-            {place.label}
-          </button>
-        ))}
-      </div>
+        <div className={styles.filterRow}>
+          <div className={styles.filterGroup}>
+            <label htmlFor="feed-city-filter" className={styles.filterLabel}>
+              City
+            </label>
+            <select
+              id="feed-city-filter"
+              value={selectedPlace?.city_id ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (!v) {
+                  setSelectedPlace(null);
+                  return;
+                }
+                const cid = parseInt(v, 10);
+                setSelectedPlace({ city_id: cid, district: null });
+              }}
+              className={styles.filterSelect}
+            >
+              <option value="">All</option>
+              {uniqueCities.map((c) => (
+                <option key={c.city_id} value={c.city_id}>
+                  {c.city_emoji} {c.city_name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.filterGroup}>
+            <label htmlFor="feed-district-filter" className={styles.filterLabel}>
+              District
+            </label>
+            <select
+              id="feed-district-filter"
+              value={selectedPlace?.district != null ? String(selectedPlace.district) : ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (selectedPlace == null) return;
+                if (v === "") {
+                  setSelectedPlace((prev) => (prev ? { ...prev, district: null } : null));
+                  return;
+                }
+                const d = v === "0" ? 0 : parseInt(v, 10);
+                setSelectedPlace((prev) => (prev ? { ...prev, district: d } : null));
+              }}
+              className={styles.filterSelect}
+              disabled={selectedPlace == null}
+            >
+              <option value="">All</option>
+              {selectedPlace != null && (
+                <>
+                  <option value="0">City-wide</option>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((d) => (
+                    <option key={d} value={d}>
+                      District {d}
+                    </option>
+                  ))}
+                </>
+              )}
+            </select>
+          </div>
+          {activeFilterLabel != null && (
+            <button
+              type="button"
+              className={styles.filterPill}
+              onClick={() => setSelectedPlace(null)}
+              title="Clear filter"
+            >
+              <span className={styles.filterPillLabel}>{activeFilterLabel}</span>
+              <span className={styles.filterPillRemove} aria-hidden>×</span>
+            </button>
+          )}
+        </div>
       )}
 
       {/* Frequency filter */}
@@ -646,13 +621,21 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
                     </div>
                   </div>
                   <div className={styles.actorRight}>
-                    <span className={styles.districtBadge} title={(story.district ?? 0) === 0 ? "City-wide story" : `District ${story.district} story`}>
+                    <button
+                      type="button"
+                      className={styles.districtBadgeButton}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePlaceClick({ city_id: story.city_id, district: story.district ?? 0 });
+                      }}
+                      title={`Filter by ${getDistrictLabel(story.district ?? 0)}`}
+                    >
                       {getDistrictLabel(story.district ?? 0)}
-                    </span>
+                    </button>
                     {story.is_featured && (
                       <span className={styles.featuredBadge}>Featured</span>
                     )}
-                    {canAdminFeed && (
+                    {isAdmin && (
                       <button
                         type="button"
                         className={styles.storyDeleteBtn}

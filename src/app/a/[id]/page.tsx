@@ -1269,8 +1269,8 @@ export default function AnomalyChartPage() {
         <footer className="anomaly-footer">
           <div className="footer-content">
             <p className="footer-text">
-              This anomaly was detected by <strong>transparent.city</strong>, a civic data transparency platform
-              that monitors public datasets for unusual patterns.
+              This anomaly was detected by <strong>transparent.city</strong>, a civic data platform that delivers
+              block-level data about what’s happening near you and in the places you care about—in your city and around the world.
             </p>
             <div className="footer-links">
               <Link href="/" className="footer-link">

@@ -30,7 +30,7 @@ interface CityViewProps {
   isAdmin: boolean;
   gpsLocation?: { lat: number; lng: number } | null;
   initialDistrict?: number | null;
-  /** When set, select this saved place in the dashboard scope (e.g. from sidebar My Cities). */
+  /** When set, select this saved place in the dashboard scope (e.g. from sidebar My Places). */
   initialPlaceId?: number | null;
   /** When set to this cityId, open the Find Your District modal (e.g. from Search Cities). */
   requestOpenDistrictModal?: number | null;
@@ -1808,11 +1808,11 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
     getPresetMetricDateRange("mtd")
   );
   // Use initialDistrict if provided, otherwise default to 0 (mayor/citywide)
-  // If initialDistrict is explicitly null, use 0 (citywide); if undefined, also use 0
+  // When initialPlaceId is set (My block), we use place scope so district is 0 and place is set from the start to avoid flashing "Citywide".
   const [selectedDistrict, setSelectedDistrict] = useState<number | null>(
-    initialDistrict !== undefined && initialDistrict !== null ? initialDistrict : 0
+    initialPlaceId != null ? 0 : (initialDistrict !== undefined && initialDistrict !== null ? initialDistrict : 0)
   );
-  const [selectedPlaceId, setSelectedPlaceId] = useState<number | null>(null);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<number | null>(initialPlaceId ?? null);
   const [userPlaces, setUserPlaces] = useState<{ id: number; label: string; city_id: number; lat?: number; lng?: number; radius_m?: number }[]>([]);
   const [placesRefreshKey, setPlacesRefreshKey] = useState(0);
   const [districtGPSLocation, setDistrictGPSLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -2138,7 +2138,11 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             </div>
           ) : (
             <div className="city-view-place-selector-row city-view-place-selector-fallback">
-              <span className="city-view-place-selector-label">Citywide</span>
+              <span className="city-view-place-selector-label">
+                {selectedPlaceId != null
+                  ? (userPlaces.find((p) => p.id === selectedPlaceId)?.label ?? "My block")
+                  : "Citywide"}
+              </span>
             </div>
           )}
         </header>

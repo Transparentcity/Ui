@@ -234,7 +234,7 @@ export default function DashboardPage() {
     migratePendingMetricOrder();
   }, [isAuthenticated, isLoading]);
 
-  // Load all user places for sidebar (My Cities list)
+  // Load all user places for sidebar (My Places list)
   useEffect(() => {
     if (!isAuthenticated || isLoading) {
       setAllUserPlaces([]);
@@ -469,7 +469,7 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // Do not auto-select a city on landing. Only Feed is selected; user picks a city from My Cities when they want.
+  // Do not auto-select a city on landing. Only Feed is selected; user picks a city from My Places when they want.
 
   const handleMenuToggle = () => {
     setSidebarOpen(!sidebarOpen);
@@ -1138,7 +1138,12 @@ export default function DashboardPage() {
 
           {currentView === "feed" && (
             <div id="feed-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
-              <FeedView cityId={null} district={null} />
+              <FeedView
+                cityId={null}
+                district={null}
+                isAdmin={isAdmin}
+                cityLeadCityIds={cityLeadCityIds}
+              />
             </div>
           )}
         </div>

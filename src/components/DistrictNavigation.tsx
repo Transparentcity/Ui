@@ -671,8 +671,9 @@ export default function DistrictNavigation({
   if (!mounted) return null;
 
   // Determine display name and label (place scope overrides district)
-  const displayName = isPlaceScope && selectedPlace
-    ? selectedPlace.label
+  // When place is selected but selectedPlace not yet loaded (userPlaces still fetching), show "My block" to avoid flashing "Citywide"
+  const displayName = isPlaceScope
+    ? (selectedPlace ? selectedPlace.label : "My block")
     : currentRepresentative
     ? currentRepresentative.name
     : isMayor

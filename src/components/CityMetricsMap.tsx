@@ -363,70 +363,7 @@ export default function CityMetricsMap({
         .join(","),
     [metricsForLayerSelector]
   );
-  const hasSavedMetricPreference = !!orderedMetricIds && orderedMetricIds.size > 0;
-
-  // Default layer selection:
-  // - If the user has saved metric preferences, use that same chosen set across map scopes.
-  // - Otherwise keep the legacy defaults (My Block = map-capable metrics on; City/District = all off).
-  useEffect(() => {
-    if (orderingQuery.isLoading) {
-      return;
-    }
-
-    if (placeCircle) {
-      if (metricsForLayerSelector.length > 0) {
-        const newIds = new Set(metricsForLayerSelector.map((m) => String(m.id)));
-        setSelectedMetricIds((prev) => {
-          if (prev.size !== newIds.size || [...prev].some((id) => !newIds.has(id))) {
-            return newIds;
-          }
-          return prev;
-        });
-        setHiddenLayers((prev) => (prev.size > 0 ? new Set() : prev));
-        blockDefaultsSetRef.current = true;
-      } else {
-        setSelectedMetricIds((prev) => (prev.size > 0 ? new Set() : prev));
-        setHiddenLayers((prev) => (prev.size > 0 ? new Set() : prev));
-      }
-      previousPlaceCircleRef.current = true;
-      return;
-    }
-
-    // Citywide or District view: use chosen metrics when available; otherwise preserve legacy all-off default.
-    blockDefaultsSetRef.current = false;
-    const shouldApplyCityDefault =
-      previousPlaceCircleRef.current || !defaultMetricsSetRef.current;
-    previousPlaceCircleRef.current = false;
-
-    if (!shouldApplyCityDefault || availableMetrics.length === 0) {
-      return;
-    }
-
-    const nextDefaultIds = hasSavedMetricPreference
-      ? new Set(metricsForLayerSelector.map((m) => String(m.id)))
-      : new Set<string>();
-
-    setSelectedMetricIds((prev) => {
-      if (prev.size !== nextDefaultIds.size || [...prev].some((id) => !nextDefaultIds.has(id))) {
-        return nextDefaultIds;
-      }
-      return prev;
-    });
-    setHiddenLayers((prev) => (prev.size > 0 ? new Set() : prev));
-    defaultMetricsSetRef.current = true;
-  // Depend on stable keys so we don't re-run when object/array refs change; metricsWithMapCapability is read from closure when effect runs
-  }, [
-    availableMetrics,
-    placeCircleKey,
-    mapCapableIdsKey,
-    layerSelectorMetricIdsKey,
-    hasSavedMetricPreference,
-    placeCircle,
-    metricsForLayerSelector,
-    orderingQuery.isLoading,
-  ]);
-
-  // Compute sorted metrics and position-based color mapping
+  // Compute sorted metrics and position-based color mapping (needed for default layer selection)
   // This ensures each metric gets a unique, stable color based on its position in the list
   // Colors remain the same whether the metric is toggled on or off
   const metricColorMapping = useMemo(() => {
@@ -481,7 +418,15 @@ export default function CityMetricsMap({
       positionMap.set(String(metric.id), index % LAYER_COLOR_PALETTE.length);
     });
 
-    return { positionMap, orderingMap, sortedMetrics };
+    // First metric in user's sorted list that has map capability (map_query or has_map_fields)
+    const hasMapCapability = (m: AdminMetricListItem) => {
+      const hasMapQuery = m.map_query != null && String(m.map_query).trim().length > 0;
+      return hasMapQuery || m.has_map_fields === true;
+    };
+    const firstMapCapableMetricId =
+      sortedMetrics.find(hasMapCapability)?.id ?? null;
+
+    return { positionMap, orderingMap, sortedMetrics, firstMapCapableMetricId };
   }, [metricsForLayerSelector, orderingData]);
 
   // Get color index for a metric based on its position in the sorted list
@@ -497,6 +442,67 @@ export default function CityMetricsMap({
     // Fallback for metrics not in the sorted list (shouldn't happen normally)
     return parseInt(metricId, 10) % LAYER_COLOR_PALETTE.length;
   }, [metricColorMapping.positionMap]);
+
+  // Default layer selection:
+  // - My Block (placeCircle): all map-capable metrics on.
+  // - Citywide/District: only the first metric in the user's sorted list that has a map query (map capability).
+  useEffect(() => {
+    if (orderingQuery.isLoading) {
+      return;
+    }
+
+    if (placeCircle) {
+      if (metricsForLayerSelector.length > 0) {
+        const newIds = new Set(metricsForLayerSelector.map((m) => String(m.id)));
+        setSelectedMetricIds((prev) => {
+          if (prev.size !== newIds.size || [...prev].some((id) => !newIds.has(id))) {
+            return newIds;
+          }
+          return prev;
+        });
+        setHiddenLayers((prev) => (prev.size > 0 ? new Set() : prev));
+        blockDefaultsSetRef.current = true;
+      } else {
+        setSelectedMetricIds((prev) => (prev.size > 0 ? new Set() : prev));
+        setHiddenLayers((prev) => (prev.size > 0 ? new Set() : prev));
+      }
+      previousPlaceCircleRef.current = true;
+      return;
+    }
+
+    // Citywide or District view: default to a single metric — the first in the user's sorted list that has a map query.
+    blockDefaultsSetRef.current = false;
+    const shouldApplyCityDefault =
+      previousPlaceCircleRef.current || !defaultMetricsSetRef.current;
+    previousPlaceCircleRef.current = false;
+
+    if (!shouldApplyCityDefault || availableMetrics.length === 0) {
+      return;
+    }
+
+    const firstMapCapableId = metricColorMapping.firstMapCapableMetricId;
+    const nextDefaultIds =
+      firstMapCapableId != null
+        ? new Set([String(firstMapCapableId)])
+        : new Set<string>();
+
+    setSelectedMetricIds((prev) => {
+      if (prev.size !== nextDefaultIds.size || [...prev].some((id) => !nextDefaultIds.has(id))) {
+        return nextDefaultIds;
+      }
+      return prev;
+    });
+    setHiddenLayers((prev) => (prev.size > 0 ? new Set() : prev));
+    defaultMetricsSetRef.current = true;
+  }, [
+    availableMetrics,
+    placeCircleKey,
+    layerSelectorMetricIdsKey,
+    placeCircle,
+    metricsForLayerSelector,
+    orderingQuery.isLoading,
+    metricColorMapping.firstMapCapableMetricId,
+  ]);
 
   // Note: React Query now handles tracking loaded/attempted metrics via its cache
   // The useMapLayersData hook provides automatic caching with 15-minute staleTime
@@ -2482,17 +2488,20 @@ export default function CityMetricsMap({
         />
       )}
 
-      {/* Point details (from map point click) - shown in bottom panel instead of floating popup */}
+      {/* Point details (from map point click) - full-width bottom panel (same as gallery/311 media) */}
       {selectedPointDetails && (
         <div className="city-metrics-map-point-details">
-          <button
-            type="button"
-            className="city-metrics-map-point-details-close"
-            onClick={() => setSelectedPointDetails(null)}
-            aria-label="Close point details"
-          >
-            ×
-          </button>
+          <div className="city-metrics-map-point-details-header">
+            <span className="city-metrics-map-point-details-title">Point details</span>
+            <button
+              type="button"
+              className="city-metrics-map-point-details-close"
+              onClick={() => setSelectedPointDetails(null)}
+              aria-label="Close point details"
+            >
+              ×
+            </button>
+          </div>
           <div
             className="city-metrics-map-point-details-content"
             dangerouslySetInnerHTML={{ __html: selectedPointDetails }}
@@ -2686,8 +2695,8 @@ export default function CityMetricsMap({
                   style={{
                     width: "36px",
                     height: "36px",
-                    background: isVisible && !hasNoPoints ? layerColor : "transparent",
-                    border: isVisible && !hasNoPoints ? `2px solid ${layerColor}` : `2px solid ${theme === "dark" ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.15)"}`,
+                    background: isVisible && hasNoPoints ? "#888" : isVisible && !hasNoPoints ? layerColor : "transparent",
+                    border: isVisible && hasNoPoints ? "2px solid #888" : isVisible && !hasNoPoints ? `2px solid ${layerColor}` : `2px solid ${theme === "dark" ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.15)"}`,
                     borderRadius: "50%",
                     cursor: "pointer",
                     display: "flex",
@@ -2696,9 +2705,9 @@ export default function CityMetricsMap({
                     padding: 0,
                     position: "relative",
                     transition: "all 0.2s ease, transform 0.15s ease",
-                    opacity: hasNoPoints ? 0.4 : isVisible ? 1 : 0.3,
+                    opacity: hasNoPoints ? 0.7 : isVisible ? 1 : 0.3,
                     flexShrink: 0,
-                    color: isVisible && !hasNoPoints ? "#fff" : (theme === "dark" ? "rgba(255, 255, 255, 0.6)" : "rgba(0, 0, 0, 0.6)"),
+                    color: isVisible ? "#fff" : (theme === "dark" ? "rgba(255, 255, 255, 0.6)" : "rgba(0, 0, 0, 0.6)"),
                     fontSize: "1.2rem",
                     fontWeight: "normal",
                     fontFamily: "Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif",
@@ -2940,7 +2949,11 @@ export default function CityMetricsMap({
                             <span
                               className="city-metrics-map-slider"
                               style={{
-                                backgroundColor: isVisible ? layerColor : "#ccc",
+                                backgroundColor: hasNoPoints
+                                  ? "#888"
+                                  : isVisible
+                                    ? layerColor
+                                    : "#ccc",
                               }}
                             />
                           </label>

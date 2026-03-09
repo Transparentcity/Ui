@@ -965,13 +965,13 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
                               disabled={isSaving}
                               title={
                                 isSaved
-                                  ? "Remove from My Cities"
-                                  : "Save to My Cities"
+                                  ? "Remove from My Places"
+                                  : "Save to My Places"
                               }
                               aria-label={
                                 isSaved
-                                  ? "Remove from My Cities"
-                                  : "Save to My Cities"
+                                  ? "Remove from My Places"
+                                  : "Save to My Places"
                               }
                               style={{
                                 background: "transparent",

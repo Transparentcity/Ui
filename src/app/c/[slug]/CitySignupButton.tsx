@@ -106,7 +106,7 @@ export default function CitySignupButton() {
             >
               <div className="nav-signup-item-title">I&apos;m a citizen</div>
               <div className="nav-signup-item-desc">
-                Follow a city, read research, and get the map view.
+                Block-level data for what’s happening near you and in the places you care about—in your city and around the world.
               </div>
             </button>
             <button

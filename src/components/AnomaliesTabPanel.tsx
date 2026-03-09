@@ -739,11 +739,11 @@ export default function AnomaliesTabPanel({
                 District {d}
               </option>
             ))}
-            {anomalyPlaceTypes.map((pt) => (
-              <optgroup key={pt.group_field} label={pt.label}>
+            {anomalyPlaceTypes.map((pt, idx) => (
+              <optgroup key={`${pt.group_field}-${idx}`} label={pt.label}>
                 {pt.places.map((place) => (
                   <option
-                    key={`${pt.group_field}-${place}`}
+                    key={`${pt.group_field}-${idx}-${place}`}
                     value={`${GROUP_PREFIX}${pt.group_field}|${place}`}
                   >
                     {place}

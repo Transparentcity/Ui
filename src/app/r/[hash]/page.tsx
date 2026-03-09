@@ -28,6 +28,21 @@ export default function PublicResearchPage() {
         .finally(() => setLoading(false));
     }
   }, [hash]);
+
+  // Deep link: scroll to #story-{short_hash} when report has multiple feed stories
+  useEffect(() => {
+    if (!research?.final_report_html || typeof window === "undefined") return;
+    const hashId = window.location.hash?.slice(1);
+    if (!hashId || !hashId.startsWith("story-")) return;
+    const el = document.getElementById(hashId);
+    if (el) {
+      const t = setTimeout(
+        () => el.scrollIntoView({ behavior: "smooth", block: "start" }),
+        150
+      );
+      return () => clearTimeout(t);
+    }
+  }, [research?.final_report_html, research?.id]);
   
   if (loading) {
     return <div className="public-research-page loading">Loading...</div>;

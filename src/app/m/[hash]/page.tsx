@@ -2346,7 +2346,7 @@ export default function PublicMapPage() {
           <div className="cta-section">
             <h3>Sign up now</h3>
             <p>
-              Get updates, maps, and content about your city and neighborhood.
+              Get block-level data about what’s happening near you and in the places you care about—in your city and around the world.
             </p>
             <a href="/" className="cta-button">
               Sign up

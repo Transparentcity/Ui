@@ -204,6 +204,53 @@
   line-height: 1;
 }
 
+/* ── Filter row (City + District dropdowns + removable pill) ── */
+
+.filterRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.filterLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.filterPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 999px;
+  border: 1px solid var(--brand-primary, #ad35fa);
+  background: var(--brand-primary-light, rgba(173, 53, 250, 0.1));
+  color: var(--brand-primary, #ad35fa);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filterPill:hover {
+  background: var(--brand-primary-light, rgba(173, 53, 250, 0.18));
+  border-color: var(--brand-primary-dark, #9420e0);
+}
+
+.filterPillLabel {
+  white-space: nowrap;
+}
+
+.filterPillRemove {
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0.8;
+}
+
 /* ── Secondary filters ── */
 
 .secondaryFilters {
@@ -382,7 +429,7 @@
   white-space: nowrap;
 }
 
-/* District badge: city-wide vs district-level story */
+/* District badge: city-wide vs district-level story (clickable to filter) */
 .districtBadge {
   display: inline-block;
   padding: 2px 8px;
@@ -395,6 +442,30 @@
   background: var(--bg-tertiary);
   color: var(--text-secondary);
   border: 1px solid var(--border-primary);
+}
+
+.districtBadgeButton {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-radius: 4px;
+  white-space: nowrap;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.districtBadgeButton:hover {
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary-light, rgba(173, 53, 250, 0.08));
 }
 
 .featuredBadge {

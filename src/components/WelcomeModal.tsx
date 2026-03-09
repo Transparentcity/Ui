@@ -550,7 +550,7 @@ export default function WelcomeModal({
       const token = await getAccessTokenSilently();
       const cityId = locationResult.matchedCity.id;
 
-      // Save the city to My Cities
+      // Save the city to My Places
       await saveCity(cityId, token);
 
       // Determine district to load and add to My Districts (follow representative)
@@ -688,9 +688,9 @@ export default function WelcomeModal({
         <Loader size="lg" color="purple" className="loaderStatic" />
       </div>
       
-      <h1 className={styles.title}>Know your city</h1>
+      <h1 className={styles.title}>What’s happening near you</h1>
       <p className={styles.subtitle}>
-        Find out who represents you and how your neighborhood is really doing.
+        Block-level data for your address and the places you care about—in your city and around the world.
       </p>
       
       <div className={styles.valuePropsCompact}>
@@ -706,13 +706,13 @@ export default function WelcomeModal({
             <path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z" />
             <circle cx="12" cy="10" r="3" />
           </svg>
-          <span>Crime &amp; safety</span>
+          <span>Crime &amp; safety near you</span>
         </div>
         <div className={styles.valuePropCompact}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
           </svg>
-          <span>City performance</span>
+          <span>Block &amp; city performance</span>
         </div>
       </div>
 

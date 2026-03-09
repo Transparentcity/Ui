@@ -168,6 +168,7 @@ export default function UserManagement() {
     setEditForm({
       role: user.role as "admin" | "analyst" | "viewer",
       is_active: user.is_active,
+      custom_email_prompt: user.custom_email_prompt ?? null,
     });
     setEditCityLeadCityIds(user.city_lead_city_ids || []);
     setEditCityLeadDirty(false);
@@ -1121,7 +1122,24 @@ export default function UserManagement() {
                       </button>
                     )}
                   </>
-                )}
+                    )}
+              </div>
+
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Custom email prompt</label>
+                <p className={styles.helpText} style={{ marginBottom: 6 }}>
+                  Optional instructions for this user&apos;s newsletter/email content (e.g. focus on housing, keep it brief).
+                </p>
+                <textarea
+                  value={editForm.custom_email_prompt ?? ""}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, custom_email_prompt: e.target.value || null })
+                  }
+                  className={styles.formInput}
+                  rows={4}
+                  placeholder="e.g. Focus on housing and permits. Keep to 2–3 sentences."
+                  style={{ resize: "vertical", minHeight: 80 }}
+                />
               </div>
 
               <div className={styles.formGroup}>

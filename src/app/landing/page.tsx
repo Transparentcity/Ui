@@ -59,14 +59,13 @@ export default function LandingPage() {
         <div className="container">
           <div className="hero-content">
             <div className="hero-text">
-              <span className="badge">📊 Democratizing city data</span>
-              <h1 className="hero-title">Everyone Deserves Transparent Government</h1>
+              <span className="badge">📊 Block-level data, near you and around the world</span>
+              <h1 className="hero-title">What’s Happening Near You—And in the Places You Care About</h1>
               <p className="hero-description">
-                From public safety to city services, Transparent.city turns
-                official city data into clear, source-linked summaries of what’s
-                actually changing in your neighborhood. See where things are
-                improving, where they aren’t, and have the receipts to credit or
-                challenge your public officials fairly.
+                Transparent.city turns official city data into block-level views of what’s
+                actually changing—near you and in the places you care about, in your city and around the world.
+                See crime, 311, permits, and more at the block level; get clear, source-linked summaries;
+                and have the receipts to credit or challenge your public officials fairly.
               </p>
 
               <div className="hero-visual">
@@ -679,12 +678,12 @@ export default function LandingPage() {
       <section className="cta">
         <div className="container">
           <div className="cta-content">
-            <h2 className="cta-title">Ready to See How Your City Is Really Doing?</h2>
+            <h2 className="cta-title">Ready to See What’s Happening Near You?</h2>
             <p className="cta-description">
+              Block-level data for the places you care about—in your city and around the world.
               Start with San Francisco today. Use shared, verifiable facts to
               recognize what’s working, question what isn’t, and keep
-              conversations between residents, advocates, and officials grounded
-              in reality.
+              conversations grounded in reality.
             </p>
             <div className="cta-buttons">
               <a

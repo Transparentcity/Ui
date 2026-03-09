@@ -3215,6 +3215,7 @@ export interface User {
   government_leader_name?: string | null;
   government_city_id?: number | null;
   government_district?: number | null;
+  custom_email_prompt?: string | null;
 }
 
 export interface UpdateUserGovernmentStatusRequest {
@@ -3228,6 +3229,7 @@ export interface UserUpdateRequest {
   role?: "admin" | "analyst" | "viewer";
   is_active?: boolean;
   custom_permissions?: string[];
+  custom_email_prompt?: string | null;
 }
 
 export interface UserStats {
