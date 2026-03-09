@@ -46,20 +46,69 @@ function formatDollar(amount: number | null | undefined): string {
 }
 
 function buildAnalysisPrompt(finding: WasteFinding): string {
-  return (
-    `Analyze this specific waste finding in detail:\n\n` +
-    `Item: ${finding.entity} (${finding.subcategory})\n` +
-    `Amount: ${finding.amount != null ? formatDollar(finding.amount) : "N/A"}\n` +
-    `Issue: ${finding.metric} ${finding.metricDetail}\n` +
-    `Context: ${finding.description}\n` +
-    `Tool: ${finding.tool}\n\n` +
-    `Please provide a comprehensive analysis covering:\n` +
-    `1. Pattern Recognition: Does this match known fraud or waste schemes (e.g., shell companies, structuring, payroll padding)?\n` +
-    `2. Statistical Context: How significant is this anomaly compared to typical municipal data (Z-scores, Benford's Law)?\n` +
-    `3. Operational Reality: What are legitimate operational reasons that could explain this (e.g., emergency overtime, sole-source proprietary tech)?\n` +
-    `4. Investigation Plan: List 3-5 specific, actionable questions an auditor should ask to verify this finding.\n` +
-    `5. Risk Assessment: Rate the potential financial loss and reputational risk (Low/Med/High).`
-  )
+  const lines: string[] = []
+
+  lines.push(`You are a municipal auditor's AI assistant. Analyze this entity and finding from San Francisco's waste detection system.\n`)
+
+  // Entity identity
+  lines.push(`## Entity Under Review`)
+  lines.push(`- **Name:** ${finding.entity}`)
+  lines.push(`- **Category:** ${finding.subcategory}`)
+  if (finding.department) lines.push(`- **Department:** ${finding.department}`)
+  if (finding.fiscal_year) lines.push(`- **Fiscal Year:** FY${finding.fiscal_year}`)
+  lines.push(`- **Severity:** ${finding.severity?.toUpperCase() ?? "UNKNOWN"}`)
+  lines.push(`- **Confidence:** ${finding.confidence} — ${finding.confidence_reason ?? ""}`)
+  lines.push(`- **Amount at risk:** ${finding.amount != null ? formatDollar(finding.amount) : "N/A"}`)
+  if (finding.estimated_dollar_impact != null) {
+    lines.push(`- **Estimated dollar impact:** ${formatDollar(finding.estimated_dollar_impact)}`)
+  }
+  lines.push(`- **Priority score:** ${finding.priority_score}`)
+  lines.push(`- **Corroboration count:** ${finding.corroboration_count} (other detectors flagging the same entity)`)
+  lines.push(`- **Data completeness:** ${Math.round(finding.data_completeness * 100)}%`)
+  if (finding.is_partial_data) lines.push(`- **Note:** Based on partial fiscal year data`)
+  lines.push(``)
+
+  // What was detected
+  lines.push(`## What Was Detected`)
+  lines.push(`- **Finding:** ${finding.metric}`)
+  lines.push(`- **Detail:** ${finding.metricDetail}`)
+  lines.push(`- **Detector:** ${finding.tool}`)
+  lines.push(``)
+
+  // Full description / how we found it
+  lines.push(`## How We Found It`)
+  lines.push(finding.description)
+  lines.push(``)
+
+  // Convergence details if present
+  if (finding.convergence_details) {
+    const cd = finding.convergence_details
+    lines.push(`## Cross-Domain Convergence`)
+    if (cd.domains_flagged) lines.push(`- Domains flagged: ${cd.domains_flagged}`)
+    if (cd.convergence_multiplier) lines.push(`- Convergence multiplier: ${cd.convergence_multiplier}x`)
+    if (cd.triangle_legs_present?.length) lines.push(`- Fraud Triangle legs present: ${cd.triangle_legs_present.join(", ")}`)
+    if (cd.finding_count) lines.push(`- Total findings for this entity: ${cd.finding_count}`)
+    lines.push(``)
+  }
+
+  // Finding narrative if available
+  if (finding.narrative) {
+    lines.push(`## Analyst Narrative`)
+    lines.push(finding.narrative)
+    lines.push(``)
+  }
+
+  // What we want
+  lines.push(`## Your Analysis`)
+  lines.push(`Please provide a thorough investigation brief covering:\n`)
+  lines.push(`1. **Who is this entity?** Search your knowledge for any public information about "${finding.entity}" in San Francisco — prior audits, news coverage, lawsuits, government reports, campaign contributions, lobbying activity, or regulatory actions. If this is a vendor, describe what they do and their relationship with the city.`)
+  lines.push(`2. **Why were they flagged?** Explain the specific anomaly in plain language. What makes this pattern suspicious compared to normal municipal operations?`)
+  lines.push(`3. **How serious is this?** Rate the risk (Critical/High/Medium/Low) considering the dollar amount, pattern type, confidence level, and whether multiple independent detectors corroborate the finding.`)
+  lines.push(`4. **Innocent explanations:** What legitimate operational reasons could explain this? (e.g., emergency spending, sole-source proprietary technology, grant-funded surge)`)
+  lines.push(`5. **Red flags to watch for:** What additional evidence would confirm this is genuine waste, fraud, or abuse vs. a false positive?`)
+  lines.push(`6. **Recommended next steps:** List 3-5 specific, actionable investigation steps an auditor should take — e.g., which records to pull, which officials to interview, which contracts to cross-reference.`)
+
+  return lines.join("\n")
 }
 
 async function withTimeout<T>(
