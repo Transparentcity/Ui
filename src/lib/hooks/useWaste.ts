@@ -144,10 +144,10 @@ export function useActiveWasteJob(cityId: number | null) {
         }
 
         // Detect stale jobs via two signals:
-        // 1) Total age > 6 min (backend hard-kills at 5 min, so 6 = safe margin)
-        // 2) Progress hasn't changed in 3 min (job is stuck even if young)
-        const MAX_JOB_AGE_MS = 6 * 60 * 1000
-        const PROGRESS_STALL_MS = 2.5 * 60 * 1000 // slightly under backend's 2-min detector timeout
+        // Backend timeout is 30 min; persistence of 1k+ findings to Cloud SQL
+        // can legitimately take 10-15 min.  Give ample margin.
+        const MAX_JOB_AGE_MS = 35 * 60 * 1000
+        const PROGRESS_STALL_MS = 15 * 60 * 1000
         const createdAt = new Date(job.created_at).getTime()
         const jobAgeMs = Date.now() - createdAt
         const progressStallMs = Date.now() - lastProgressSnapshotRef.current.updatedAt

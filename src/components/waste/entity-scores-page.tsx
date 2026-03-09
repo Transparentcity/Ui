@@ -8,6 +8,8 @@ import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import { WasteShell } from "./waste-shell"
 import { SeverityBadge } from "./severity-badge"
 import { ScoreBar } from "./score-bar"
+import { TCScoreBadge } from "./tc-score-badge"
+import { ScoreExplainer } from "./score-explainer"
 import {
   Table,
   TableHeader,
@@ -164,6 +166,7 @@ export function EntityScoresPage() {
             <SelectItem value="vendor">Vendor</SelectItem>
             <SelectItem value="employee">Employee</SelectItem>
             <SelectItem value="department">Department</SelectItem>
+            <SelectItem value="location">Location</SelectItem>
             <SelectItem value="nonprofit">Nonprofit</SelectItem>
           </SelectContent>
         </Select>
@@ -298,51 +301,18 @@ export function EntityScoresPage() {
                   <SeverityBadge severity={selectedEntity.severity_tier} />
                 </DialogTitle>
                 <DialogDescription>
-                  {selectedEntity.entity_type} &middot; Score: {Math.round(selectedEntity.composite_score)}
+                  {selectedEntity.entity_type} &middot; TC Score {selectedEntity.composite_score.toFixed(1)}
                 </DialogDescription>
               </DialogHeader>
 
-              {/* Score breakdown */}
-              <div className="mt-4">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">
-                  Signal Breakdown
-                </h4>
-                {selectedEntity.signals.length === 0 ? (
-                  <p className="text-xs text-gray-400">No signals recorded</p>
-                ) : (
-                  <div className="space-y-2">
-                    {selectedEntity.signals
-                      .sort((a, b) => b.contribution - a.contribution)
-                      .map((sig, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <span className="text-xs text-gray-600 w-32 truncate">
-                            {sig.detector_key.replace(/_/g, " ")}
-                          </span>
-                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-purple-500 rounded-full"
-                              style={{
-                                width: `${Math.min(100, (sig.contribution / selectedEntity.composite_score) * 100)}%`,
-                              }}
-                            />
-                          </div>
-                          <span className="text-xs text-gray-500 tabular-nums w-10 text-right">
-                            {sig.contribution.toFixed(1)}
-                          </span>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Score metadata */}
-              {selectedEntity.score_delta != null && selectedEntity.score_delta !== 0 && (
-                <div className="mt-6 text-xs text-gray-500">
-                  Score delta: <span className={selectedEntity.score_delta > 0 ? "text-red-600" : "text-green-600"}>
-                    {selectedEntity.score_delta > 0 ? "+" : ""}{selectedEntity.score_delta.toFixed(1)}
-                  </span>
-                </div>
-              )}
+              <ScoreExplainer
+                entityName={selectedEntity.entity_name}
+                score={selectedEntity.composite_score}
+                signals={selectedEntity.signals}
+                signalCount={selectedEntity.signal_count}
+                scoreDelta={selectedEntity.score_delta}
+                className="mt-4"
+              />
 
               <Button
                 variant="outline"

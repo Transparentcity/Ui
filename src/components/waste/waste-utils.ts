@@ -4,9 +4,12 @@ import type { WasteAnalyzeResponse } from "@/lib/apiClient"
 
 export type WasteCategoryKey =
   | "overview"
+  | "convergence"
   | "payroll"
   | "contracts"
   | "infrastructure"
+  | "influence"
+  | "integrity"
   | "confirmed"
   | "detectors"
   | "review"
@@ -27,7 +30,7 @@ export function normalizeWasteCategory(category: string): WasteCategoryKey {
   if (key === "overview") return "overview"
   if (key === "payroll" || key.includes("payroll") || key === "payroll_compensation") return "payroll"
 
-  // Map integrity/personnel to payroll
+  // Personnel integrity (revolving door, dual employment, etc.)
   if (
     key === "integrity" ||
     key.includes("integrity") ||
@@ -35,7 +38,7 @@ export function normalizeWasteCategory(category: string): WasteCategoryKey {
     key.includes("revolving") ||
     key.includes("conflict")
   ) {
-    return "payroll"
+    return "integrity"
   }
 
   if (
@@ -60,17 +63,18 @@ export function normalizeWasteCategory(category: string): WasteCategoryKey {
     return "infrastructure"
   }
 
-  // Influence / lobbying / pay-to-play map to contracts (not "vendor")
+  // Influence / lobbying / pay-to-play
   if (
     key === "influence" ||
     key.includes("influence") ||
     key.includes("lobby") ||
     key.includes("pay_to_play")
   ) {
-    return "contracts"
+    return "influence"
   }
 
   if (key === "confirmed" || key.includes("confirmed")) return "confirmed"
+  if (key === "convergence" || key.includes("convergence") || key.includes("cross_domain")) return "convergence"
   if (key === "detectors" || key === "detectors_data") return "detectors"
   if (key === "review" || key.includes("queue")) return "review"
   if (key === "accuracy" || key.includes("precision")) return "accuracy"

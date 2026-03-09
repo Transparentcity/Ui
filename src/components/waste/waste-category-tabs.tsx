@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { Users, ShoppingCart, Wrench, FileCheck } from "lucide-react"
+import { Users, ShoppingCart, Wrench, FileCheck, TriangleAlert, Handshake, UserCheck } from "lucide-react"
 import type { WasteCategorySummary } from "@/lib/apiClient"
 import { normalizeWasteCategory, formatDollar } from "./waste-utils"
 
@@ -12,9 +12,12 @@ interface CategoryConfig {
 }
 
 const CATEGORIES: CategoryConfig[] = [
+  { key: "convergence", label: "Cross-Domain Risk", icon: <TriangleAlert className="w-5 h-5" /> },
   { key: "payroll", label: "Payroll & Personnel", icon: <Users className="w-5 h-5" /> },
   { key: "contracts", label: "Contracts & Procurement", icon: <ShoppingCart className="w-5 h-5" /> },
   { key: "infrastructure", label: "Infrastructure & Services", icon: <Wrench className="w-5 h-5" /> },
+  { key: "influence", label: "Influence & Pay-to-Play", icon: <Handshake className="w-5 h-5" /> },
+  { key: "integrity", label: "Personnel Integrity", icon: <UserCheck className="w-5 h-5" /> },
   { key: "confirmed", label: "Confirmed Cases", icon: <FileCheck className="w-5 h-5" /> },
 ]
 
@@ -37,7 +40,7 @@ export function WasteCategoryTabs({
   const noData = !isLoading && categorySummaries.length === 0
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4 mb-6">
       {CATEGORIES.map((cat) => {
         const summary = getSummary(cat.key)
         const isActive = activeCategory === cat.key

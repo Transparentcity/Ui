@@ -39,7 +39,7 @@ import {
 
 type SeverityFilter = "all" | "critical" | "high" | "medium"
 
-const WASTE_ANALYSIS_ESTIMATED_SECONDS = 120
+const WASTE_ANALYSIS_ESTIMATED_SECONDS = 900
 const STALE_DATA_WARNING_DAYS = 7
 
 function formatAge(isoDate: string): string {
@@ -61,29 +61,32 @@ export function getWasteAnalysisProgress(elapsedSeconds: number): {
   isLongRunning: boolean
 } {
   let step = "Connecting to city data sources..."
-  if (elapsedSeconds > 8) {
-    step = "Analyzing payroll and compensation patterns..."
-  }
-  if (elapsedSeconds > 20) {
-    step = "Scanning vendor contracts for anomalies..."
-  }
-  if (elapsedSeconds > 40) {
-    step = "Checking infrastructure and service costs..."
+  if (elapsedSeconds > 5) {
+    step = "Fetching datasets from open data portal (12 datasets)..."
   }
   if (elapsedSeconds > 60) {
-    step = "Cross-referencing employee and vendor records..."
+    step = "Still fetching — large datasets can take a few minutes..."
   }
-  if (elapsedSeconds > 80) {
+  if (elapsedSeconds > 150) {
+    step = "Running payroll & compensation detectors..."
+  }
+  if (elapsedSeconds > 210) {
+    step = "Scanning vendor contracts for anomalies..."
+  }
+  if (elapsedSeconds > 270) {
+    step = "Checking infrastructure & service patterns..."
+  }
+  if (elapsedSeconds > 310) {
     step = "Scoring and prioritizing findings..."
   }
-  if (elapsedSeconds > 100) {
-    step = "Saving results..."
+  if (elapsedSeconds > 340) {
+    step = "Persisting results to database..."
   }
   if (elapsedSeconds > WASTE_ANALYSIS_ESTIMATED_SECONDS) {
     const mins = Math.floor(elapsedSeconds / 60)
-    step = `Still processing (${mins}m ${elapsedSeconds % 60}s) — large datasets can take several minutes`
+    step = `Still processing (${mins}m ${elapsedSeconds % 60}s) — wrapping up`
   }
-  if (elapsedSeconds > 300) {
+  if (elapsedSeconds > 540) {
     const mins = Math.floor(elapsedSeconds / 60)
     step = `Running longer than expected (${mins}m) — checking server status`
   }
@@ -299,16 +302,6 @@ export function WastePageContent() {
     if (!displayData?.findings) return []
     return displayData.findings
       .filter((f) => normalizeWasteCategory(f.category) === activeCategory)
-      .map((f) => {
-        // Flag integrity/personnel findings as "New" when viewed under Payroll
-        const key = f.category.toLowerCase().trim().replace(/[_\s&.,'-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")
-        const isIntegrity = key === "integrity" || key.includes("integrity") || key.includes("personnel") || key.includes("revolving") || key.includes("conflict")
-        
-        if (isIntegrity && activeCategory === "payroll") {
-          return { ...f, is_new: true }
-        }
-        return f
-      })
   }, [displayData, activeCategory])
 
   // Filter by severity
