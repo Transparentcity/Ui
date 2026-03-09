@@ -741,6 +741,13 @@ export function WasteFindingCard({
           {finding.entity}
         </span>
 
+        {/* Fiscal year */}
+        {finding.fiscal_year && (
+          <span className="text-[10px] text-gray-400 whitespace-nowrap hidden sm:inline">
+            FY{finding.fiscal_year}
+          </span>
+        )}
+
         {/* Amount */}
         {finding.amount != null && finding.amount > 0 && (
           <span className="text-sm font-medium text-gray-700 whitespace-nowrap hidden md:inline">
@@ -860,6 +867,11 @@ export function WasteFindingCard({
                 </span>
               )}
               <span>{finding.id}</span>
+              {finding.fiscal_year && (
+                <span className="text-gray-400">
+                  FY{finding.fiscal_year}
+                </span>
+              )}
               <span className="text-gray-300">
                 Priority: {finding.priority_score ?? "—"}
               </span>
