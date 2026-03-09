@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type */
 import { API_BASE } from "./apiBase";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -4956,6 +4957,83 @@ export interface WasteDetectorAccuracy {
   updated_at: string | null;
 }
 
+export interface WasteScoreDistribution {
+  total_entities: number;
+  mean: number;
+  p50: number;
+  p90: number;
+  p95: number;
+  p99: number;
+  max_score: number;
+}
+
+export interface WasteSaturationStats {
+  count_gte_95: number;
+  pct_gte_95: number;
+  count_eq_100: number;
+  pct_eq_100: number;
+}
+
+export interface WasteDetectorPrecisionSnapshot {
+  detector_key: string;
+  total_findings: number;
+  confirmed_count: number;
+  false_positive_count: number;
+  precision_rate: number;
+  confirmed_case_hits: number;
+  confirmed_case_hit_rate: number;
+  updated_at: string | null;
+}
+
+export interface WasteTrustMetricsResponse {
+  city_id: number;
+  generated_at: string;
+  saturation: WasteSaturationStats;
+  score_distribution: WasteScoreDistribution;
+  confirmed_case_total_findings: number;
+  detector_precision: WasteDetectorPrecisionSnapshot[];
+}
+
+export interface WasteTrustReportRequest {
+  city_id: number;
+  lookback_days?: number;
+}
+
+export interface WasteDepartmentRiskProfile {
+  id: string | null;
+  city_id: number;
+  department_name: string;
+  department_match_name: string;
+  procurement_risk: number;
+  payroll_risk: number;
+  infrastructure_risk: number;
+  influence_risk: number;
+  integrity_risk: number;
+  domains_flagged: number;
+  convergence_multiplier: number;
+  composite_risk: number;
+  opportunity_score: number;
+  pressure_score: number;
+  capability_score: number;
+  triangle_legs_present: number;
+  finding_count: number;
+  finding_ids: string[];
+  top_finding_summary: string | null;
+  last_scored_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface WasteDepartmentRiskPage {
+  city_id: number;
+  generated_at: string;
+  items: WasteDepartmentRiskProfile[];
+  page: number;
+  per_page: number;
+  total: number;
+  has_next: boolean;
+}
+
 export interface WasteReviewQueueItem {
   id: string;
   finding_id: number;
@@ -5311,6 +5389,71 @@ export function getWasteEntityScores(
     `/api/waste/scores?${query.toString()}`,
     "GET",
     undefined,
+    token
+  );
+}
+
+export function getWasteTrustMetrics(
+  token: string,
+  params: {
+    city_id: number;
+    detector_precision_limit?: number;
+    detector_precision_min_findings?: number;
+  }
+): Promise<WasteTrustMetricsResponse> {
+  const query = new URLSearchParams();
+  query.set("city_id", String(params.city_id));
+  if (params.detector_precision_limit != null) {
+    query.set("detector_precision_limit", String(params.detector_precision_limit));
+  }
+  if (params.detector_precision_min_findings != null) {
+    query.set(
+      "detector_precision_min_findings",
+      String(params.detector_precision_min_findings)
+    );
+  }
+  return request<WasteTrustMetricsResponse>(
+    `/api/waste/scores/trust/metrics?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getWasteDepartmentRisk(
+  token: string,
+  params: {
+    city_id: number;
+    min_score?: number;
+    min_domains?: number;
+    page?: number;
+    per_page?: number;
+  }
+): Promise<WasteDepartmentRiskPage> {
+  const query = new URLSearchParams();
+  query.set("city_id", String(params.city_id));
+  if (params.min_score != null) query.set("min_score", String(params.min_score));
+  if (params.min_domains != null) {
+    query.set("min_domains", String(params.min_domains));
+  }
+  if (params.page != null) query.set("page", String(params.page));
+  if (params.per_page != null) query.set("per_page", String(params.per_page));
+  return request<WasteDepartmentRiskPage>(
+    `/api/waste/department-risk?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function generateWasteTrustReport(
+  token: string,
+  payload: WasteTrustReportRequest
+): Promise<WasteRunJobResponse> {
+  return request<WasteRunJobResponse>(
+    "/api/waste/scores/trust/report",
+    "POST",
+    payload,
     token
   );
 }

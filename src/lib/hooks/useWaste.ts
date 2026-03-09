@@ -20,7 +20,10 @@ import {
   getWasteInvestigation,
   getWasteInvestigations,
   getWasteReviewQueue,
+  getWasteDepartmentRisk,
   getWasteSummary,
+  getWasteTrustMetrics,
+  generateWasteTrustReport,
   getWasteThresholds,
   listWasteRuns,
   runWasteAnalysis,
@@ -35,12 +38,15 @@ import {
   type SyncWasteReviewQueueRequest,
   type UpdateThresholdRequest,
   type WasteDetectorAccuracy,
+  type WasteDepartmentRiskPage,
   type WasteDisposition,
   type WasteEntityScoresPage,
   type WasteInvestigation,
   type WasteInvestigationsPage,
   type WasteReviewQueuePage,
   type WasteAnalyzeResponse,
+  type WasteTrustMetricsResponse,
+  type WasteTrustReportRequest,
   type WasteRun,
   type WasteRunJobResponse,
   type WasteSummaryResponse,
@@ -694,6 +700,97 @@ export function useWasteEntityScores(params: {
     enabled,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
+  })
+}
+
+export function useWasteTrustMetrics(params: {
+  cityId: number | null
+  detectorPrecisionLimit?: number
+  detectorPrecisionMinFindings?: number
+  enabled?: boolean
+}) {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
+  const enabled =
+    isAuthenticated && !!params.cityId && (params.enabled ?? true)
+
+  return useQuery<WasteTrustMetricsResponse>({
+    queryKey: [
+      "waste",
+      "trust",
+      "metrics",
+      params.cityId,
+      params.detectorPrecisionLimit ?? 10,
+      params.detectorPrecisionMinFindings ?? 5,
+    ],
+    queryFn: async () => {
+      if (!params.cityId) throw new Error("City ID required")
+      const token = await getAccessTokenSilently()
+      return getWasteTrustMetrics(token, {
+        city_id: params.cityId,
+        detector_precision_limit: params.detectorPrecisionLimit ?? 10,
+        detector_precision_min_findings: params.detectorPrecisionMinFindings ?? 5,
+      })
+    },
+    enabled,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useWasteDepartmentRisk(params: {
+  cityId: number | null
+  minScore?: number
+  minDomains?: number
+  page?: number
+  perPage?: number
+  enabled?: boolean
+}) {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
+  const enabled =
+    isAuthenticated && !!params.cityId && (params.enabled ?? true)
+
+  return useQuery<WasteDepartmentRiskPage>({
+    queryKey: [
+      "waste",
+      "department-risk",
+      params.cityId,
+      params.minScore ?? "",
+      params.minDomains ?? "",
+      params.page ?? 1,
+      params.perPage ?? 10,
+    ],
+    queryFn: async () => {
+      if (!params.cityId) throw new Error("City ID required")
+      const token = await getAccessTokenSilently()
+      return getWasteDepartmentRisk(token, {
+        city_id: params.cityId,
+        min_score: params.minScore,
+        min_domains: params.minDomains,
+        page: params.page ?? 1,
+        per_page: params.perPage ?? 10,
+      })
+    },
+    enabled,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useGenerateWasteTrustReport() {
+  const { getAccessTokenSilently } = useAuth0()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: WasteTrustReportRequest) => {
+      const token = await getAccessTokenSilently()
+      return generateWasteTrustReport(token, payload)
+    },
+    onSuccess: (_res, payload) => {
+      queryClient.invalidateQueries({
+        queryKey: ["waste", "trust", "metrics", payload.city_id],
+      })
+      queryClient.invalidateQueries({ queryKey: ["waste", "trust"] })
+    },
   })
 }
 

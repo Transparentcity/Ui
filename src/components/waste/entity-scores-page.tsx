@@ -1,15 +1,22 @@
 "use client"
 
 import { useState, useMemo, useCallback } from "react"
-import { useWasteEntityScores } from "@/lib/hooks/useWaste"
+import {
+  useWasteDepartmentRisk,
+  useWasteEntityScores,
+  useWasteTrustMetrics,
+} from "@/lib/hooks/useWaste"
 import { useQuery } from "@tanstack/react-query"
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
 import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import { WasteShell } from "./waste-shell"
 import { SeverityBadge } from "./severity-badge"
 import { ScoreBar } from "./score-bar"
-import { TCScoreBadge } from "./tc-score-badge"
 import { ScoreExplainer } from "./score-explainer"
+import { TrustMetricsSnapshot } from "./trust-metrics-snapshot"
+import { TrustDetectorTable } from "./trust-detector-table"
+import { DepartmentTrustTable } from "./department-trust-table"
+import { TrustMethodologyNote } from "./trust-methodology-note"
 import {
   Table,
   TableHeader,
@@ -51,6 +58,44 @@ const SEVERITY_ORDER: Record<string, number> = {
   medium: 2,
   low: 3,
   info: 4,
+}
+
+const DETECTOR_LABEL_OVERRIDES: Record<string, string> = {
+  vendor_d10_contract_drift: "Contract drift",
+  vendor_d9_ghost: "Ghost vendor",
+  vendor_d8_split_pos: "Split purchase orders",
+  vendor_d11_short_bids: "Short bid window",
+  vendor_d19_sole_source: "Sole-source concentration",
+  payroll_d1_ot_ratio: "Overtime ratio",
+  payroll_d2_pareto: "Pay concentration",
+  payroll_d6_hours: "Hours feasibility",
+  integrity_rd1_revolving_door: "Revolving door",
+  influence_d18_pay_to_play: "Pay-to-play overlap",
+}
+
+function toTitleCase(text: string): string {
+  return text
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
+}
+
+function formatDetectorLabel(detectorKey?: string | null): string {
+  const normalized = String(detectorKey || "").trim().toLowerCase()
+  if (!normalized) return "—"
+  if (DETECTOR_LABEL_OVERRIDES[normalized]) {
+    return DETECTOR_LABEL_OVERRIDES[normalized]
+  }
+  const withoutDomain = normalized.replace(
+    /^(vendor|payroll|infrastructure|integrity|influence|nonprofit)_/,
+    ""
+  )
+  const withoutIndex = withoutDomain
+    .replace(/^(rd\d+|np\d+|d\d+[a-z]?|i\d+)_/, "")
+    .replace(/_/g, " ")
+
+  return toTitleCase(withoutIndex || normalized.replace(/_/g, " "))
 }
 
 function SortHeader({
@@ -108,6 +153,24 @@ export function EntityScoresPage() {
     sortBy,
     sortDir,
   })
+  const {
+    data: trustMetrics,
+    isLoading: trustLoading,
+    error: trustError,
+  } = useWasteTrustMetrics({
+    cityId: selectedCityId,
+    detectorPrecisionLimit: 10,
+    detectorPrecisionMinFindings: 5,
+  })
+  const {
+    data: departmentRisk,
+    isLoading: departmentRiskLoading,
+    error: departmentRiskError,
+  } = useWasteDepartmentRisk({
+    cityId: selectedCityId,
+    page: 1,
+    perPage: 8,
+  })
 
   const toggleSort = useCallback(
     (field: SortField) => {
@@ -141,6 +204,28 @@ export function EntityScoresPage() {
 
   return (
     <WasteShell title="Entity Risk Scores" description="Composite risk scores across all monitored entities">
+      <div className="mb-6 space-y-4">
+        <TrustMetricsSnapshot
+          metrics={trustMetrics}
+          isLoading={trustLoading}
+          errorMessage={trustError instanceof Error ? trustError.message : null}
+        />
+        <DepartmentTrustTable
+          data={departmentRisk}
+          isLoading={departmentRiskLoading}
+          errorMessage={
+            departmentRiskError instanceof Error ? departmentRiskError.message : null
+          }
+        />
+        <TrustDetectorTable
+          metrics={trustMetrics}
+          isLoading={trustLoading}
+          errorMessage={trustError instanceof Error ? trustError.message : null}
+          maxRows={10}
+        />
+        <TrustMethodologyNote />
+      </div>
+
       {/* Filters */}
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         <Select value={severityFilter} onValueChange={(v) => { setSeverityFilter(v === "all" ? "" : v); setPage(1) }}>
@@ -163,11 +248,10 @@ export function EntityScoresPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All types</SelectItem>
-            <SelectItem value="vendor">Vendor</SelectItem>
+            <SelectItem value="vendor">Vendor / Nonprofit</SelectItem>
             <SelectItem value="employee">Employee</SelectItem>
             <SelectItem value="department">Department</SelectItem>
             <SelectItem value="location">Location</SelectItem>
-            <SelectItem value="nonprofit">Nonprofit</SelectItem>
           </SelectContent>
         </Select>
 
@@ -248,8 +332,11 @@ export function EntityScoresPage() {
                     <SeverityBadge severity={entity.severity_tier} />
                   </TableCell>
                   <TableCell className="tabular-nums">{entity.signal_count}</TableCell>
-                  <TableCell className="text-gray-500 text-xs">
-                    {entity.top_detector?.replace(/_/g, " ") ?? "—"}
+                  <TableCell
+                    className="text-gray-500 text-xs"
+                    title={entity.top_detector ?? undefined}
+                  >
+                    {formatDetectorLabel(entity.top_detector)}
                   </TableCell>
                   <TableCell className="text-gray-400 text-xs">
                     {entity.last_scored_at
@@ -302,6 +389,7 @@ export function EntityScoresPage() {
                 </DialogTitle>
                 <DialogDescription>
                   {selectedEntity.entity_type} &middot; TC Score {selectedEntity.composite_score.toFixed(1)}
+                  {selectedEntity.composite_score >= 100 ? " (max risk priority)" : ""}
                 </DialogDescription>
               </DialogHeader>
 
