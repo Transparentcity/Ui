@@ -8,6 +8,7 @@ import {
   useCreateWasteDisposition,
 } from "@/lib/hooks/useWaste"
 import { useCities } from "@/lib/hooks/useCities"
+import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import { WasteShell } from "./waste-shell"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Button } from "@/components/ui/button"
@@ -316,7 +317,7 @@ export function ReviewQueuePage() {
   const citiesQuery = useCities({ includeInactive: false })
   const selectedCityId = useMemo(() => {
     const eligible = (citiesQuery.data ?? []).filter((c) => (c.datasets_count ?? 0) > 0)
-    return eligible.length > 0 ? Number(eligible[0].city_id) : null
+    return eligible.length > 0 ? Number(eligible[0].city_id) : CRM_DEFAULT_CITY_ID
   }, [citiesQuery.data])
 
   const { data, isLoading, error } = useWasteReviewQueue({
@@ -612,7 +613,7 @@ export function ReviewQueuePage() {
                 <QueueItemCard
                   key={item.id}
                   item={item}
-                  cityId={selectedCityId!}
+                  cityId={selectedCityId}
                   isSelected={selected.has(item.id)}
                   onToggle={() => toggleSelect(item.id)}
                 />
