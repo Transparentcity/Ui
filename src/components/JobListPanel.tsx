@@ -7,18 +7,16 @@ import type { Job as WebSocketJob } from "@/lib/useJobWebSocket";
 import Loader from "./Loader";
 import styles from "./JobListPanel.module.css";
 
-/** Filter by schedule / job type: value is job_type for API, label is for UI */
-const SCHEDULE_FILTER_OPTIONS: { value: string; label: string }[] = [
+/** Filter by schedule_key (job_metadata). Matches backend run_schedule keys. */
+const SCHEDULE_KEY_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "All jobs" },
-  { value: "batch_metric_execution", label: "Daily / metric runs" },
-  { value: "check_email", label: "Daily emails" },
+  { value: "daily_metrics", label: "Daily metrics" },
   { value: "weekly_newsletter", label: "Weekly newsletter" },
+  { value: "annual_metrics", label: "Annual metrics" },
+  { value: "monthly_city_metadata", label: "Monthly city metadata" },
   { value: "database_cleanup", label: "Database cleanup" },
-  { value: "load_city_data", label: "Load city data" },
-  { value: "custom_scheduled_job", label: "Custom scheduled" },
-  { value: "scheduled_job", label: "Scheduled job" },
-  { value: "metric_calculation", label: "Metric calculation" },
-  { value: "research", label: "Research" },
+  { value: "weekly_metrics", label: "Weekly metrics" },
+  { value: "monthly_metrics", label: "Monthly metrics" },
 ];
 
 interface JobListPanelProps {
@@ -93,22 +91,29 @@ export default function JobListPanel({
     ])
   );
 
-  const fetchFilteredByType = useCallback(async () => {
-    if (!scheduleFilter || !token) {
+  const fetchJobs = useCallback(async () => {
+    if (!token) {
       setFilteredByTypeJobs(null);
       return;
     }
     setFilteredJobsLoading(true);
     try {
       const currentToken = token || (await getAccessTokenSilently());
-      const res = await listJobs(currentToken, 100, filterStatus || undefined, undefined, scheduleFilter);
+      const res = await listJobs(
+        currentToken,
+        100,
+        filterStatus || undefined,
+        undefined,
+        undefined,
+        scheduleFilter || undefined
+      );
       const list = (res.jobs || []).map((j) => ({
         ...j,
         duration_seconds: j.duration_seconds ?? calculateDuration(j.started_at, j.completed_at),
       }));
       setFilteredByTypeJobs(list);
     } catch (err) {
-      console.error("Error loading jobs by type:", err);
+      console.error("Error loading jobs:", err);
       setFilteredByTypeJobs([]);
     } finally {
       setFilteredJobsLoading(false);
@@ -116,51 +121,29 @@ export default function JobListPanel({
   }, [scheduleFilter, token, getAccessTokenSilently, filterStatus]);
 
   useEffect(() => {
-    if (scheduleFilter && token) {
-      fetchFilteredByType();
+    if (token) {
+      fetchJobs();
     } else {
       setFilteredByTypeJobs(null);
     }
-  }, [scheduleFilter, token, fetchFilteredByType]);
+  }, [token, fetchJobs]);
 
-  const baseJobs: Job[] = filteredByTypeJobs !== null
-    ? filteredByTypeJobs.map((j) => {
-        const live = wsJobMap.get(j.job_id);
-        if (live) {
-          return {
-            ...j,
-            status: live.status,
-            progress: live.progress,
-            status_message: live.status_message,
-            started_at: live.started_at,
-            completed_at: live.completed_at,
-            error_message: live.error_message,
-            duration_seconds: live.duration_seconds ?? calculateDuration(live.started_at, live.completed_at),
-          };
-        }
-        return j;
-      })
-    : webSocketJobs
-        .filter((job) => {
-          if (filterStatus && job.status !== filterStatus) return false;
-          return true;
-        })
-        .map((wsJob: WebSocketJob) => ({
-          job_id: wsJob.job_id,
-          job_type: wsJob.job_type || "unknown",
-          status: wsJob.status,
-          description: wsJob.description,
-          status_message: wsJob.status_message,
-          progress: wsJob.progress,
-          created_at: wsJob.created_at,
-          started_at: wsJob.started_at || null,
-          completed_at: wsJob.completed_at || null,
-          error_message: wsJob.error || null,
-          duration_seconds: calculateDuration(wsJob.started_at, wsJob.completed_at),
-          logs: (wsJob as Job).logs ?? [],
-          result: (wsJob as Job).result ?? null,
-          job_metadata: (wsJob as Job).job_metadata ?? {},
-        }));
+  const baseJobs: Job[] = (filteredByTypeJobs !== null ? filteredByTypeJobs : []).map((j) => {
+    const live = wsJobMap.get(j.job_id);
+    if (live) {
+      return {
+        ...j,
+        status: live.status,
+        progress: live.progress,
+        status_message: live.status_message,
+        started_at: live.started_at,
+        completed_at: live.completed_at,
+        error_message: live.error_message,
+        duration_seconds: live.duration_seconds ?? calculateDuration(live.started_at, live.completed_at),
+      };
+    }
+    return j;
+  });
 
   const jobs: Job[] = baseJobs.filter((job) => {
     if (filterStatus && job.status !== filterStatus) return false;
@@ -379,14 +362,14 @@ export default function JobListPanel({
 
       <div className={styles.filters}>
         <div className={styles.filterGroup}>
-          <label>Schedule / job type:</label>
+          <label>Schedule:</label>
           <select
             value={scheduleFilter}
             onChange={(e) => setScheduleFilter(e.target.value)}
             className={styles.filterSelect}
             disabled={filteredJobsLoading}
           >
-            {SCHEDULE_FILTER_OPTIONS.map((opt) => (
+            {SCHEDULE_KEY_OPTIONS.map((opt) => (
               <option key={opt.value || "all"} value={opt.value}>
                 {opt.label}
               </option>

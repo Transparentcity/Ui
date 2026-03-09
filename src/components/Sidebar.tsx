@@ -31,11 +31,27 @@ interface SidebarProps {
   onCityClick?: (cityId: number) => void;
   onDistrictClick?: (cityId: number, district: number) => void;
   activeCityId?: number | null;
+  /** Active district when viewing a city (for highlighting in My Cities). */
+  activeDistrict?: string | number | null;
+  /** User's saved places (for My Cities list). When set, shown under each city. */
+  userPlaces?: Array<{ id: number; city_id: number; label: string }>;
+  /** Currently selected place id (for active state in sidebar). */
+  activePlaceId?: number | null;
+  /** Called when user clicks a saved place in My Cities: open city with this place selected. */
+  onPlaceClick?: (cityId: number, placeId: number) => void;
   onResearchClick?: (reportId: number) => void;
   currentResearchId?: number | null;
   onResearchDeleted?: (reportId: number) => void;
   onCitySelect?: (cityId: number) => void;
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void;
+  /** Called after user saves a personalized place from Search Cities (so parent can refetch places). */
+  onPlaceSaved?: (place: { id: number }) => void;
+  /** Called after a place is renamed (so parent can refetch places). */
+  onPlaceRenamed?: (placeId: number, newLabel: string) => void;
+  /** Called after a place is deleted (so parent can refetch and clear selection). */
+  onPlaceDeleted?: (placeId: number) => void;
+  /** Called when user clicks "Find your district" in Search Cities; e.g. open district modal when a city is selected. */
+  onOpenFindDistrict?: () => void;
   onMenuToggle?: () => void;
   currentView?: string;
 }
@@ -70,11 +86,19 @@ export default function Sidebar({
   onCityClick,
   onDistrictClick,
   activeCityId,
+  activeDistrict,
+  userPlaces = [],
+  activePlaceId,
+  onPlaceClick,
   onResearchClick,
   currentResearchId,
   onResearchDeleted,
   onCitySelect,
   onGPSLocation,
+  onPlaceSaved,
+  onPlaceRenamed,
+  onPlaceDeleted,
+  onOpenFindDistrict,
   onMenuToggle,
   currentView,
 }: SidebarProps) {
@@ -343,25 +367,27 @@ export default function Sidebar({
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                <polyline points="22,6 12,13 2,6"></polyline>
+                <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path>
+                <path d="M18 14h-8"></path>
+                <path d="M15 18h-5"></path>
+                <path d="M10 6h8v4h-8V6Z"></path>
               </svg>
             </span>
             <span>Feed</span>
           </button>
-
 
           {/* City Search */}
           {onCitySelect && (
             <SidebarCitySearch
               onCitySelect={(cityId) => {
                 onCitySelect(cityId);
-                // Auto-close sidebar in narrow mode after city selection
                 if (isNarrowScreen() && onClose) {
                   onClose();
                 }
               }}
               onGPSLocation={onGPSLocation}
+              onPlaceSaved={onPlaceSaved}
+              onFindDistrict={onOpenFindDistrict}
             />
           )}
 
@@ -392,7 +418,23 @@ export default function Sidebar({
                 onClose();
               }
             }}
+            userPlaces={userPlaces}
+            activePlaceId={activePlaceId}
+            onPlaceClick={(cityId, placeId) => {
+              if (onPlaceClick) {
+                onPlaceClick(cityId, placeId);
+              }
+              if (onViewChange) {
+                onViewChange("city");
+              }
+              if (isNarrowScreen() && onClose) {
+                onClose();
+              }
+            }}
+            onPlaceRenamed={onPlaceRenamed}
+            onPlaceDeleted={onPlaceDeleted}
             activeCityId={activeCityId}
+            activeDistrict={activeDistrict != null ? String(activeDistrict) : undefined}
           />
 
           {/* Spacing */}

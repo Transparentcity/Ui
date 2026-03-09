@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type CreateAdminMetricRequest,
   type UpdateAdminMetricRequest,
+  exportAdminMetrics,
+  importAdminMetrics,
   invalidateAdminMetricMapCache,
   getDefaultExecuteStartDateByPeriod,
 } from "@/lib/apiClient";
@@ -34,6 +36,7 @@ import MetricMapsModal from "./MetricMapsModal";
 import styles from "./MetricsAdmin.module.css";
 
 type StatusFilter = "" | "true" | "false";
+type LastRunFilter = "" | "failed" | "completed" | "never";
 
 function formatDateTime(value?: string | null): string {
   if (!value) return "Never";
@@ -133,6 +136,7 @@ export default function MetricsAdmin() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedType, setSelectedType] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("");
+  const [selectedLastRunStatus, setSelectedLastRunStatus] = useState<LastRunFilter>("");
   const [selectedUpdateFrequency, setSelectedUpdateFrequency] = useState("");
   const [maxLagDays, setMaxLagDays] = useState<number | null>(null);
   
@@ -150,7 +154,7 @@ export default function MetricsAdmin() {
   const typesQuery = useMetricTypes();
   const citiesQuery = useMetricCities();
   
-  // Metrics query with filters
+  // Metrics query with filters (include_record_counts=false for fast load; use for troubleshooting when needed)
   const metricsQuery = useMetrics({
     limit: 100,
     search: debouncedSearchQuery || undefined,
@@ -158,6 +162,8 @@ export default function MetricsAdmin() {
     metric_type: selectedType || undefined,
     is_active: selectedStatus === "" ? undefined : selectedStatus === "true",
     city_id: selectedCityId || undefined,
+    last_execution_status: selectedLastRunStatus || undefined,
+    include_record_counts: false,
   });
   
   // Mutation hooks
@@ -182,7 +188,7 @@ export default function MetricsAdmin() {
   const types = typesQuery.data ?? [];
   const cities = citiesQuery.data ?? [];
   
-  // Apply client-side freshness filters
+  // Apply client-side freshness filters only; order is from backend (last run descending)
   const metrics = useMemo(() => {
     let filtered = metricsQuery.data ?? [];
     
@@ -260,6 +266,12 @@ export default function MetricsAdmin() {
   const [showMapFields, setShowMapFields] = useState(false);
   const [mapCacheInvalidating, setMapCacheInvalidating] = useState(false);
   const [showAllGaps, setShowAllGaps] = useState(false);
+
+  // Export / Import
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importTargetCityId, setImportTargetCityId] = useState<number | null>(null);
 
   // Debounce refs
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -782,6 +794,18 @@ export default function MetricsAdmin() {
 
           <select
             className={styles.select}
+            value={selectedLastRunStatus}
+            onChange={(e) => setSelectedLastRunStatus(e.target.value as LastRunFilter)}
+            title="Filter by last execution result (use Failed to troubleshoot and re-run)"
+          >
+            <option value="">Last run: All</option>
+            <option value="failed">Last run: Failed</option>
+            <option value="completed">Last run: Completed</option>
+            <option value="never">Last run: Never run</option>
+          </select>
+
+          <select
+            className={styles.select}
             value={selectedUpdateFrequency}
             onChange={(e) => setSelectedUpdateFrequency(e.target.value)}
           >
@@ -805,6 +829,16 @@ export default function MetricsAdmin() {
             <option value="30">≤ 30 days</option>
           </select>
 
+          {summary && Number(summary.failed_metrics) > 0 && (
+            <button
+              className={styles.primaryBtn}
+              onClick={() => setSelectedLastRunStatus("failed")}
+              title="Show only metrics that failed on last run (troubleshoot and re-run)"
+            >
+              <i className="fas fa-exclamation-triangle" /> Failed ({summary.failed_metrics})
+            </button>
+          )}
+
           <button 
             className={styles.primaryBtn} 
             onClick={() => {
@@ -819,6 +853,96 @@ export default function MetricsAdmin() {
           <button className={styles.primaryBtn} onClick={openCreate}>
             <i className="fas fa-plus" /> Create Metric
           </button>
+
+          <div className={styles.exportImportGroup}>
+            <button
+              className={styles.secondaryBtn}
+              onClick={async () => {
+                if (exporting) return;
+                setExporting(true);
+                try {
+                  const token = await getAccessTokenSilently();
+                  const blob = await exportAdminMetrics(token, {
+                    city_id: selectedCityId ?? undefined,
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "metrics_export.json";
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch (err) {
+                  console.error("Export failed:", err);
+                  alert(err instanceof Error ? err.message : "Export failed");
+                } finally {
+                  setExporting(false);
+                }
+              }}
+              disabled={exporting}
+              title="Download metric definitions and category ordering as JSON (for import on another env)"
+            >
+              <i className="fas fa-download" /> {exporting ? "Exporting…" : "Export"}
+            </button>
+            <span className={styles.exportImportDivider}>/</span>
+            <label className={styles.importLabel}>
+              <input
+                type="file"
+                accept=".json"
+                className={styles.importFileInput}
+                onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
+              />
+              <span className={styles.secondaryBtn}>
+                <i className="fas fa-upload" /> Choose file…
+              </span>
+            </label>
+            {importFile && (
+              <>
+                <select
+                  className={styles.select}
+                  value={importTargetCityId ?? ""}
+                  onChange={(e) =>
+                    setImportTargetCityId(
+                      e.target.value === "" ? null : parseInt(e.target.value, 10)
+                    )
+                  }
+                  title="Remap all metrics to this city (e.g. dev city 1)"
+                >
+                  <option value="">No remap</option>
+                  {cities.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.display_name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className={styles.primaryBtn}
+                  disabled={importing}
+                  onClick={async () => {
+                    if (!importFile) return;
+                    setImporting(true);
+                    try {
+                      const token = await getAccessTokenSilently();
+                      const res = await importAdminMetrics(token, importFile, {
+                        target_city_id: importTargetCityId ?? undefined,
+                      });
+                      alert(res.message);
+                      setImportFile(null);
+                      setImportTargetCityId(null);
+                      metricsQuery.refetch();
+                      summaryQuery.refetch();
+                    } catch (err) {
+                      console.error("Import failed:", err);
+                      alert(err instanceof Error ? err.message : "Import failed");
+                    } finally {
+                      setImporting(false);
+                    }
+                  }}
+                >
+                  {importing ? "Importing…" : "Import"}
+                </button>
+              </>
+            )}
+          </div>
 
           <div className={styles.clearDataGroup}>
             <span className={styles.clearDataLabel}>Clear data:</span>
@@ -858,14 +982,20 @@ export default function MetricsAdmin() {
                 <th className={styles.th}>Metric</th>
                 <th className={`${styles.th} ${styles.hideNarrow}`}>City</th>
                 <th className={`${styles.th} ${styles.hideNarrow}`}>Category</th>
-                <th className={styles.th}>Data Range</th>
+                <th className={`${styles.th} ${styles.hideNarrow}`}>Template</th>
+                <th className={styles.th}>Last data date</th>
+                <th className={styles.th}>Changed since last run</th>
+                <th className={styles.th}>Time series</th>
+                <th className={`${styles.th} ${styles.hideNarrow}`} title="Location, category, map, districts">
+                  Setup
+                </th>
                 <th className={styles.th}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
-                  <td className={styles.td} colSpan={5}>
+                  <td className={styles.td} colSpan={9}>
                     <span className={styles.muted}>Loading…</span>
                   </td>
                 </tr>
@@ -873,7 +1003,7 @@ export default function MetricsAdmin() {
 
               {tableEmpty && (
                 <tr>
-                  <td className={styles.td} colSpan={5}>
+                  <td className={styles.td} colSpan={9}>
                     <span className={styles.muted}>No metrics found matching the current filters.</span>
                   </td>
                 </tr>
@@ -897,33 +1027,50 @@ export default function MetricsAdmin() {
                     <td className={`${styles.td} ${styles.hideNarrow}`}>
                       <span className={`${styles.badge} ${styles.badgePrimary}`}>{m.category}</span>
                     </td>
+                    <td className={`${styles.td} ${styles.hideNarrow}`}>
+                      {m.template_id != null ? (
+                        <span className={styles.muted} title={`Template metric ID: ${m.template_id}`}>{m.template_id}</span>
+                      ) : (
+                        <span className={styles.muted}>—</span>
+                      )}
+                    </td>
                     <td className={styles.td}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        {(m.earliest_data_date || m.most_recent_data_date) && (
-                          <div style={{ fontSize: 12, color: "var(--text-primary)", fontWeight: 500 }}>
-                            {m.earliest_data_date && new Date(m.earliest_data_date).getFullYear()}
-                            {m.earliest_data_date && m.most_recent_data_date && " → "}
-                            {m.most_recent_data_date && new Date(m.most_recent_data_date).getFullYear()}
-                          </div>
-                        )}
-                        <FreshnessBadge freshness={m.freshness} />
-                        {m.record_counts && (m.record_counts.total_active > 0 || m.record_counts.total_inactive > 0) && (
-                          <div 
-                            style={{ fontSize: 10, cursor: "help", display: "flex", gap: 6 }}
-                            title={`Active:\n  Charts: ${m.record_counts.active_charts}\n  Data points: ${m.record_counts.active_data_points.toLocaleString()}\n  Anomaly runs: ${m.record_counts.anomaly_runs}\n  Anomaly results: ${m.record_counts.anomaly_results}\n  Maps: ${m.record_counts.saved_maps}\n\nInactive:\n  Charts: ${m.record_counts.inactive_charts}\n  Data points: ${m.record_counts.inactive_data_points.toLocaleString()}`}
-                          >
-                            {m.record_counts.total_active > 0 && (
-                              <span style={{ color: "var(--color-success, #22c55e)" }}>
-                                {m.record_counts.total_active.toLocaleString()} active
-                              </span>
-                            )}
-                            {m.record_counts.total_inactive > 0 && (
-                              <span style={{ color: "var(--text-tertiary)" }}>
-                                {m.record_counts.total_inactive.toLocaleString()} inactive
-                              </span>
-                            )}
-                          </div>
-                        )}
+                      {m.most_recent_data_date ? formatDate(m.most_recent_data_date) : "—"}
+                    </td>
+                    <td className={styles.td}>
+                      {m.changed_since_last_run === true && <span className={styles.badgeYellow}>Yes</span>}
+                      {m.changed_since_last_run === false && <span className={styles.muted}>No</span>}
+                      {m.changed_since_last_run == null && <span className={styles.muted}>—</span>}
+                    </td>
+                    <td className={styles.td}>
+                      <span title="Time series metadata (chart) count from last run">{m.time_series_count ?? 0}</span>
+                    </td>
+                    <td className={`${styles.td} ${styles.hideNarrow}`}>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                        <span
+                          title={m.has_location_fields ? "Location fields configured" : "No location fields"}
+                          style={{ color: m.has_location_fields ? "var(--color-success, #22c55e)" : "var(--text-tertiary)" }}
+                        >
+                          <i className="fas fa-map-marker-alt" style={{ opacity: m.has_location_fields ? 1 : 0.35 }} />
+                        </span>
+                        <span
+                          title={m.has_category_fields ? "Category fields configured" : "No category fields"}
+                          style={{ color: m.has_category_fields ? "var(--color-success, #22c55e)" : "var(--text-tertiary)" }}
+                        >
+                          <i className="fas fa-tags" style={{ opacity: m.has_category_fields ? 1 : 0.35 }} />
+                        </span>
+                        <span
+                          title={m.has_map_fields ? "Map query configured" : "No map query"}
+                          style={{ color: m.has_map_fields ? "var(--color-success, #22c55e)" : "var(--text-tertiary)" }}
+                        >
+                          <i className="fas fa-map" style={{ opacity: m.has_map_fields ? 1 : 0.35 }} />
+                        </span>
+                        <span
+                          title={m.supports_districts ? "Supports districts" : "No district support"}
+                          style={{ color: m.supports_districts ? "var(--color-success, #22c55e)" : "var(--text-tertiary)" }}
+                        >
+                          <i className="fas fa-border-all" style={{ opacity: m.supports_districts ? 1 : 0.35 }} />
+                        </span>
                       </div>
                     </td>
                     <td className={styles.td}>

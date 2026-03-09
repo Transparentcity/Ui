@@ -162,6 +162,14 @@
   margin-bottom: 16px;
 }
 
+.locationHint {
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+  margin: 0;
+  line-height: 1.4;
+  text-align: center;
+}
+
 .inputGroup {
   width: 100%;
   text-align: left;
@@ -403,6 +411,50 @@
   font-size: 13px;
   color: var(--text-tertiary, #9ca3af);
   margin-top: 4px;
+}
+
+/* Leader step: compact cards + map + add to places */
+.leaderStepContent .stepTitle {
+  margin-bottom: 8px;
+}
+
+.leadersContainerCompact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+
+.leaderCardCompact {
+  padding: 12px 14px;
+  background: linear-gradient(135deg, var(--brand-primary-light, rgba(173, 53, 250, 0.08)) 0%, var(--bg-secondary, #f8f9fa) 100%);
+  border: 1px solid var(--brand-primary, #ad35fa);
+  border-radius: var(--radius-md, 8px);
+  text-align: center;
+}
+
+.leaderCardCompact .leaderLabel {
+  font-size: 10px;
+  margin-bottom: 4px;
+}
+
+.leaderCardCompact .leaderName {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.leaderCardCompact .leaderTitle,
+.leaderCardCompact .leaderDistrict {
+  font-size: 12px;
+}
+
+.leaderStepMapSection {
+  margin: 12px 0;
+}
+
+.leaderStepLocationMapSave {
+  border-radius: var(--radius-md, 8px);
 }
 
 /* Track Options */

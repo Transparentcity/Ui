@@ -118,26 +118,37 @@ export default function DeltaMapView({
   const geoJsonWithData = useMemo(() => {
     if (!shapeData?.geometry || !districtData?.districts) return null;
 
-    // Create a map from district number to change data
+    // Create a map from district number to change data (support string and number keys)
     const districtMap = new Map<string | number, typeof districtData.districts[0]>();
     for (const d of districtData.districts) {
       districtMap.set(d.district, d);
       districtMap.set(String(d.district), d);
       districtMap.set(`District ${d.district}`, d);
+      districtMap.set(`district ${d.district}`, d);
     }
+
+    const districtFieldNames = shapeData.district_field_names ?? [];
 
     // Enrich features with change data
     const features = shapeData.geometry.features.map((feature) => {
       const props = feature.properties || {};
-      // Try to find district identifier from various fields
-      const districtId =
-        props.district ||
-        props.sup_dist_num ||
-        props.supervisor_district ||
-        props.DISTRICT ||
-        props.name;
+      // Use the city's district field names: first property present wins
+      let districtId: string | number | undefined;
+      for (const key of districtFieldNames) {
+        if (props[key] != null) {
+          districtId = props[key] as string | number;
+          break;
+        }
+      }
 
-      const data = districtMap.get(districtId) || districtMap.get(String(districtId));
+      const data =
+        districtId === undefined
+          ? undefined
+          : districtMap.get(districtId as string | number) ||
+            districtMap.get(String(districtId)) ||
+            (typeof districtId === "string" && /^\d+$/.test(districtId)
+              ? districtMap.get(Number(districtId))
+              : undefined);
 
       return {
         ...feature,

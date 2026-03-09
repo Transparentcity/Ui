@@ -10,8 +10,13 @@ import {
   listCitiesWithFeedStories,
   deleteFeedStory,
   deleteFeedStoriesByCity,
+  listFeedStoryComments,
+  addFeedStoryComment,
   type CityWithFeedStories,
+  type FeedStoryComment,
+  type FeedStoryCommentCreate,
 } from "@/lib/apiClient";
+import { API_BASE } from "@/lib/apiBase";
 import { feedKeys } from "@/lib/hooks/useFeed";
 import Loader from "./Loader";
 import styles from "./FeedView.module.css";
@@ -41,6 +46,8 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
   /** When true, show only stories from "Generate example newsletter" (personal_newsletter category). */
   const [personalNewsletterOnly, setPersonalNewsletterOnly] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(10);
+  /** Resolve map id -> short_hash for feed stories that only have map id (so image and link work). */
+  const [resolvedMapHashes, setResolvedMapHashes] = useState<Record<number, string>>({});
   const { data: citiesList } = useCities();
   const { data: placesData } = useFeedPlaces();
   const trackEngagement = useTrackFeedEngagement();
@@ -52,6 +59,14 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
   const [loadingAdminCities, setLoadingAdminCities] = useState(false);
   const [deletingStoryId, setDeletingStoryId] = useState<number | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  /** Story ID whose comments are expanded; null = none. */
+  const [commentsExpandedId, setCommentsExpandedId] = useState<number | null>(null);
+  /** Cached comments per story (when expanded). */
+  const [commentsCache, setCommentsCache] = useState<Record<number, FeedStoryComment[]>>({});
+  const [commentsLoadingId, setCommentsLoadingId] = useState<number | null>(null);
+  const [commentSubmittingId, setCommentSubmittingId] = useState<number | null>(null);
+  const [commentDraft, setCommentDraft] = useState<Record<number, string>>({});
+  const [commentAuthorName, setCommentAuthorName] = useState<Record<number, string>>({});
 
   const loadAdminCities = useCallback(async () => {
     if (!canAdminFeed) return;
@@ -163,6 +178,31 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
     }
   }, [feedData?.stories]);
 
+  // Resolve map id -> short_hash for stories that have map id but no short_hash (e.g. old feed data).
+  // Must run unconditionally (before any early return) to satisfy Rules of Hooks.
+  const storiesForMaps = feedData?.stories ?? [];
+  useEffect(() => {
+    const mapIdsToResolve = new Set<number>();
+    for (const story of storiesForMaps) {
+      const pv = story.primary_visualization;
+      if (!pv || (story.visualization_type || pv.type) !== "map") continue;
+      const id = pv.id != null ? Number(pv.id) : NaN;
+      if (Number.isNaN(id) || pv.short_hash || resolvedMapHashes[id]) continue;
+      mapIdsToResolve.add(id);
+    }
+    if (mapIdsToResolve.size === 0) return;
+    mapIdsToResolve.forEach((mapId) => {
+      fetch(`${API_BASE.replace(/\/$/, "")}/api/maps/public/by-id/${mapId}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { short_hash?: string } | null) => {
+          if (data?.short_hash) {
+            setResolvedMapHashes((prev) => ({ ...prev, [mapId]: data.short_hash! }));
+          }
+        })
+        .catch(() => {});
+    });
+  }, [storiesForMaps.map((s) => s.primary_visualization?.id).join(",")]);
+
   const isPlaceSelected = (p: { city_id: number; district: number }) =>
     selectedPlace?.city_id === p.city_id && selectedPlace?.district === p.district;
 
@@ -194,6 +234,58 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
       navigator.clipboard.writeText(fullUrl).then(() => {
         alert("Link copied to clipboard!");
       });
+    }
+  };
+
+  const handleLike = (story: FeedStory, e: React.MouseEvent) => {
+    e.stopPropagation();
+    trackEngagement.mutate({ storyId: story.id, action: "like" });
+  };
+
+  const handleToggleComments = async (storyId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (commentsExpandedId === storyId) {
+      setCommentsExpandedId(null);
+      return;
+    }
+    setCommentsExpandedId(storyId);
+    if (!commentsCache[storyId]) {
+      setCommentsLoadingId(storyId);
+      try {
+        const res = await listFeedStoryComments(storyId);
+        setCommentsCache((prev) => ({ ...prev, [storyId]: res.comments }));
+      } catch {
+        setCommentsCache((prev) => ({ ...prev, [storyId]: [] }));
+      } finally {
+        setCommentsLoadingId(null);
+      }
+    }
+  };
+
+  const handleSubmitComment = async (storyId: number, e: React.FormEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const body = (commentDraft[storyId] ?? "").trim();
+    if (!body) return;
+    setCommentSubmittingId(storyId);
+    try {
+      const token = await getAccessTokenSilently().catch(() => undefined);
+      const payload: FeedStoryCommentCreate = { body };
+      if (!token && (commentAuthorName[storyId] ?? "").trim()) {
+        payload.author_name = commentAuthorName[storyId]?.trim();
+      } else if (token && (commentAuthorName[storyId] ?? "").trim()) {
+        payload.author_name = commentAuthorName[storyId]?.trim();
+      }
+      await addFeedStoryComment(storyId, payload, token);
+      invalidateFeedQueries();
+      setCommentDraft((prev) => ({ ...prev, [storyId]: "" }));
+      setCommentAuthorName((prev) => ({ ...prev, [storyId]: "" }));
+      const res = await listFeedStoryComments(storyId);
+      setCommentsCache((prev) => ({ ...prev, [storyId]: res.comments }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to post comment");
+    } finally {
+      setCommentSubmittingId(null);
     }
   };
 
@@ -295,30 +387,32 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
     }
   };
 
-  /** Effective embed URL for iframe: use stored embed_url, or derive from short_hash/id for maps/charts/anomalies so embeds work when backend did not persist embed_url (e.g. older refs or generate_map without save). */
-  const getEmbedUrl = (story: FeedStory): string | null => {
+  /** Full URL for a static image of the visualization (chart, anomaly, or map). Used for feed cards instead of interactive embeds. */
+  const getImageUrl = (story: FeedStory, resolvedMapHash?: string | null): string | null => {
+    const base = API_BASE.replace(/\/$/, "");
+    if (story.image_url) return `${base}${story.image_url}`;
     const pv = story.primary_visualization;
     if (!pv) return null;
-    if (pv.embed_url) return pv.embed_url;
     const type = (story.visualization_type || pv.type || "").toLowerCase();
-    const hash = pv.short_hash;
     const id = pv.id;
-    if (type === "map" && hash) return `/m/${hash}?embedded=true`;
-    if (type === "chart" && id != null) return `/t/${id}?embedded=true`;
-    if (type === "anomaly" && (id != null || hash)) return `/a/${id ?? hash}?embedded=true`;
+    const hash = type === "map" ? (resolvedMapHash ?? pv.short_hash) : pv.short_hash;
+    if (type === "chart" && id != null) return `${base}/api/time-series/public/${id}/image`;
+    if (type === "anomaly" && id != null) return `${base}/api/anomalies/public/result/${id}/image`;
+    if (type === "map" && hash) return `${base}/api/maps/public/${hash}/image`;
     return null;
   };
 
-  /** Effective view URL for "open in new tab" when embed_url is missing. */
-  const getViewUrl = (story: FeedStory): string | null => {
+  /** Effective view URL for "open in new tab" (no embeds in feed; link to full view). */
+  const getViewUrl = (story: FeedStory, resolvedMapHash?: string | null): string | null => {
     const pv = story.primary_visualization;
     if (!pv) return null;
-    if (pv.view_url) return pv.view_url;
-    if (pv.url) return pv.url;
     const type = (story.visualization_type || pv.type || "").toLowerCase();
-    const hash = pv.short_hash;
-    const id = pv.id;
+    const hash = type === "map" ? (resolvedMapHash ?? pv.short_hash) : pv.short_hash;
     if (type === "map" && hash) return `/m/${hash}`;
+    if (pv.view_url && !pv.view_url.startsWith("/map/")) return pv.view_url;
+    if (pv.url) return pv.url;
+    const id = pv.id;
+    if (type === "map" && !hash) return id != null ? `/map/${id}` : null;
     if (type === "chart" && id != null) return `/t/${id}`;
     if (type === "anomaly" && (id != null || hash)) return `/a/${id ?? hash}`;
     return null;
@@ -578,7 +672,7 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
                   <p className={styles.storyDescription}>{story.description}</p>
                 </div>
 
-                {/* Visualization: chart or map with clear link when available. Embed URL is derived from short_hash when not stored (e.g. district business stories with map refs). */}
+                {/* Visualization: static image when available (chart/anomaly); otherwise placeholder + link. No interactive embeds in feed. */}
                 {story.primary_visualization && (
                   <div className={styles.storyVisualization}>
                     {story.visualization_type && (
@@ -586,48 +680,70 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
                         {getVisualizationBadge(story)}
                       </div>
                     )}
-                    {getEmbedUrl(story) ? (
-                      <iframe
-                        src={getEmbedUrl(story)!}
-                        title={story.primary_visualization.title || "Visualization"}
-                        className={`${styles.visualizationIframe} ${
-                          story.visualization_type === "map"
-                            ? styles.visualizationIframeMap
-                            : story.visualization_type === "anomaly"
-                            ? styles.visualizationIframeAnomaly
-                            : ""
-                        }`}
-                        frameBorder="0"
-                        scrolling="no"
-                        allowFullScreen
-                        loading="lazy"
-                        sandbox="allow-scripts allow-same-origin allow-popups"
-                      />
-                    ) : getViewUrl(story) ? (
-                      <a
-                        href={getViewUrl(story)!}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={styles.visualizationLink}
-                        onClick={(e) => e.stopPropagation()}
-                      >
+                    {(() => {
+                      const pv = story.primary_visualization;
+                      const isMap = (story.visualization_type || pv?.type) === "map";
+                      const mapId = pv?.id != null ? Number(pv.id) : null;
+                      const resolvedHash = isMap && mapId != null ? resolvedMapHashes[mapId] : null;
+                      const imageUrl = getImageUrl(story, resolvedHash);
+                      const viewUrl = getViewUrl(story, resolvedHash);
+                      return imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          alt={pv?.title || "Story visualization"}
+                          className={styles.visualizationImage}
+                          loading="lazy"
+                        />
+                      ) : viewUrl ? (
+                        <a
+                          href={viewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={styles.visualizationLink}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className={styles.visualizationPlaceholder}>
+                            {getVisualizationPlaceholder(story)}
+                            <span className={styles.visualizationLinkText}>
+                              {getVisualizationLinkLabel(story)}
+                            </span>
+                          </div>
+                        </a>
+                      ) : (
                         <div className={styles.visualizationPlaceholder}>
                           {getVisualizationPlaceholder(story)}
-                          <span className={styles.visualizationLinkText}>
-                            {getVisualizationLinkLabel(story)}
-                          </span>
                         </div>
-                      </a>
-                    ) : (
-                      <div className={styles.visualizationPlaceholder}>
-                        {getVisualizationPlaceholder(story)}
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 )}
 
-                {/* Footer actions */}
+                {/* Footer: engagement stats + actions */}
                 <div className={styles.storyFooter}>
+                  <div className={styles.storyStats} onClick={(e) => e.stopPropagation()}>
+                    <span className={styles.storyStat} title="Views">
+                      <span className={styles.storyStatIcon} aria-hidden>👁</span>
+                      {(story.view_count ?? 0).toLocaleString()}
+                    </span>
+                    <button
+                      type="button"
+                      className={styles.likeBtn}
+                      onClick={(e) => handleLike(story, e)}
+                      title="Like"
+                    >
+                      <span className={styles.storyStatIcon} aria-hidden>♥</span>
+                      {(story.like_count ?? 0).toLocaleString()}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.commentToggleBtn}
+                      onClick={(e) => handleToggleComments(story.id, e)}
+                      title="Comments"
+                    >
+                      <span className={styles.storyStatIcon} aria-hidden>💬</span>
+                      {(story.comment_count ?? 0).toLocaleString()}
+                    </button>
+                  </div>
                   <button
                     className={styles.readMoreBtn}
                     onClick={(e) => {
@@ -652,6 +768,71 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
                     Share
                   </button>
                 </div>
+
+                {/* Expandable comments */}
+                {commentsExpandedId === story.id && (
+                  <div
+                    className={styles.commentsPanel}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {commentsLoadingId === story.id ? (
+                      <p className={styles.commentsLoading}>Loading comments…</p>
+                    ) : (
+                      <>
+                        <ul className={styles.commentsList}>
+                          {(commentsCache[story.id] ?? []).length === 0 ? (
+                            <li className={styles.commentsEmpty}>No comments yet. Be the first!</li>
+                          ) : (
+                            (commentsCache[story.id] ?? []).map((c) => (
+                              <li key={c.id} className={styles.commentItem}>
+                                <span className={styles.commentAuthor}>
+                                  {c.author_name || "Anonymous"}
+                                </span>
+                                <span className={styles.commentTime}>
+                                  {c.created_at ? getRelativeTime(c.created_at) : ""}
+                                </span>
+                                <p className={styles.commentBody}>{c.body}</p>
+                              </li>
+                            ))
+                          )}
+                        </ul>
+                        <form
+                          className={styles.commentForm}
+                          onSubmit={(e) => handleSubmitComment(story.id, e)}
+                        >
+                          <input
+                            type="text"
+                            className={styles.commentAuthorInput}
+                            placeholder="Your name (required when not logged in)"
+                            value={commentAuthorName[story.id] ?? ""}
+                            onChange={(e) =>
+                              setCommentAuthorName((prev) => ({ ...prev, [story.id]: e.target.value }))
+                            }
+                            maxLength={255}
+                          />
+                          <textarea
+                            className={styles.commentTextarea}
+                            placeholder="Write a comment…"
+                            value={commentDraft[story.id] ?? ""}
+                            onChange={(e) =>
+                              setCommentDraft((prev) => ({ ...prev, [story.id]: e.target.value }))
+                            }
+                            rows={2}
+                            maxLength={2000}
+                            required
+                          />
+                          <button
+                            type="submit"
+                            className={styles.commentSubmitBtn}
+                            disabled={commentSubmittingId === story.id}
+                          >
+                            {commentSubmittingId === story.id ? "Posting…" : "Post comment"}
+                          </button>
+                        </form>
+                      </>
+                    )}
+                  </div>
+                )}
               </article>
             );
           })}

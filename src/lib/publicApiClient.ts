@@ -693,6 +693,10 @@ export type PublicShapefileResponse = {
   structure_type: string;
   feature_count: number;
   geometry: GeoJSON.FeatureCollection;
+  /** Property name in each feature for district/ward ID (e.g. "ward", "supervisor_district") */
+  identifier_field?: string | null;
+  /** City's district field names; match feature properties using the first one present (empty if city not configured) */
+  district_field_names?: string[];
 };
 
 export function getPublicMetricShapefile(

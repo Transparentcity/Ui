@@ -191,6 +191,44 @@
   visibility: visible;
 }
 
+/* Tap/click to expand: row is clickable; actions appear in a detail row below */
+.metricTableRow[role="button"] {
+  cursor: pointer;
+}
+
+.metricTableRowExpanded {
+  background-color: var(--bg-secondary) !important;
+}
+
+.metricRowExpandHint {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  opacity: 0.7;
+}
+
+.metricTableActionsRow {
+  background: var(--bg-secondary);
+}
+
+.metricTableActionsRow td {
+  border-bottom: 1px solid var(--border-primary);
+  padding: 8px 10px;
+  vertical-align: middle;
+}
+
+.metricTableActionsCell {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.metricTableActionsInner {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
 /* Show actions on touch devices (mobile) for better accessibility */
 @media (hover: none) and (pointer: coarse) {
   .metricActionsWrapper {

@@ -14,7 +14,7 @@ import {
   type CityStructureData,
 } from "@/lib/apiClient";
 import { useCityMetricsForMap } from "@/lib/hooks/useMetrics";
-import { useCityAdminStructure, useCityMetricOrdering } from "@/lib/hooks/useCityAdmin";
+import { useCityAdminStructure, useUserMetricOrdering } from "@/lib/hooks/useCityAdmin";
 import { useMapLayersData } from "@/lib/hooks/useMapLayers";
 import type { MetricDateRange } from "@/lib/dateRange";
 import Loader from "@/components/Loader";
@@ -55,6 +55,8 @@ interface CityMetricsMapProps {
   setEnabledShapeLayerInstanceIds?: React.Dispatch<React.SetStateAction<Set<number>>>;
   gpsLocation?: { lat: number; lng: number } | null; // GPS coordinates - when set, prevents dynamic zooming
   selectedDistrict?: number | null; // Selected district number for filtering data
+  /** When set (My Block), map data requests are limited to points within this radius of the center */
+  placeCircle?: { lat: number; lng: number; radius_m: number } | null;
   selectedAnomaly?: AnomalyResult | null; // Currently selected anomaly for anomaly mode
   onAnomalyClear?: () => void; // Callback to clear anomaly selection
 }
@@ -70,6 +72,7 @@ export default function CityMetricsMap({
   setEnabledShapeLayerInstanceIds,
   gpsLocation,
   selectedDistrict,
+  placeCircle = null,
   selectedAnomaly,
   onAnomalyClear,
 }: CityMetricsMapProps) {
@@ -84,7 +87,7 @@ export default function CityMetricsMap({
   const loadingMapsRef = useRef<Set<string>>(new Set());
   const [visibleLayers, setVisibleLayers] = useState<Set<string>>(new Set());
   const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set());
-  const [isPanelOpen, setIsPanelOpen] = useState(true);
+  const [isPanelOpen, setIsPanelOpen] = useState(true); // Open (popped out) by default
   const [error, setError] = useState<string | null>(null);
   const [selectedTimelineDate, setSelectedTimelineDate] = useState<string | null>(null);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
@@ -104,6 +107,9 @@ export default function CityMetricsMap({
   const [hoveredItemRect, setHoveredItemRect] = useState<DOMRect | null>(null);
   const dockLabelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Point click details shown in bottom panel (no floating popup)
+  const [selectedPointDetails, setSelectedPointDetails] = useState<string | null>(null);
+
   // Anomaly mode state
   const [anomalyModeMap, setAnomalyModeMap] = useState<MapData | null>(null);
   const [anomalyModeLoading, setAnomalyModeLoading] = useState(false);
@@ -111,16 +117,54 @@ export default function CityMetricsMap({
 
   // Track if we've set default metrics to avoid re-enabling them
   const defaultMetricsSetRef = useRef(false);
+  const blockDefaultsSetRef = useRef(false);
   const previousCityIdRef = useRef<number | null>(null);
+  const previousPlaceCircleRef = useRef<boolean>(false);
+
+  // Load metric ordering to match dashboard order and visible metric selection.
+  // This is user-scoped and falls back to city ordering when no user override exists.
+  const orderingQuery = useUserMetricOrdering(cityId && isActive ? cityId : null);
+  const orderingData = orderingQuery.data;
+
+  const orderedMetricIds = useMemo(() => {
+    if (!orderingData?.orderings?.length) return null;
+    return new Set(
+      orderingData.orderings
+        .map((ordering) => ordering.metric_id)
+        .filter((metricId): metricId is number => metricId != null)
+    );
+  }, [orderingData]);
+
+  const activeVisibleMetrics = useMemo(() => {
+    const activeMetrics = availableMetrics.filter((metric) => metric.is_active);
+    if (!orderedMetricIds || orderedMetricIds.size === 0) {
+      return activeMetrics;
+    }
+    return activeMetrics.filter((metric) => orderedMetricIds.has(metric.id));
+  }, [availableMetrics, orderedMetricIds]);
+
+  // Metrics with working map/location (map_query) — used in My block mode to limit nav to layers that can show points
+  const metricsWithMapCapability = useMemo(() => {
+    return activeVisibleMetrics.filter((m) => {
+      const hasMapQuery = m.map_query != null && String(m.map_query).trim().length > 0;
+      return hasMapQuery || m.has_map_fields === true;
+    });
+  }, [activeVisibleMetrics]);
+
+  // When My block is selected (placeCircle), the layer selector only shows chosen metrics
+  // that can actually render at place level. Other scopes use the same chosen metric set.
+  const metricsForLayerSelector = useMemo(() => {
+    if (placeCircle && metricsWithMapCapability.length > 0) {
+      return metricsWithMapCapability;
+    }
+    return activeVisibleMetrics;
+  }, [activeVisibleMetrics, placeCircle, metricsWithMapCapability]);
 
   // Load available metrics for this city using React Query
   const metricsQuery = useCityMetricsForMap(cityId && isActive ? cityId : null);
   
   // Load city structure for district information
   const structureQuery = useCityAdminStructure(cityId && isActive ? cityId : null);
-  
-  // Load metric ordering to match dashboard order
-  const { data: orderingData } = useCityMetricOrdering(cityId && isActive ? cityId : null);
   
   // Convert selected metric IDs to numbers for the hook
   const selectedMetricIdsArray = useMemo(() => {
@@ -146,6 +190,7 @@ export default function CityMetricsMap({
       startDate: metricDateRange?.start_date ?? null,
       endDate: metricDateRange?.end_date ?? null,
       districts: districtsForQuery,
+      placeCircle: placeCircle ?? null,
     },
     isActive && !isAnomalyMode // Don't fetch when in anomaly mode
   );
@@ -272,9 +317,11 @@ export default function CityMetricsMap({
       setIsTimelinePlaying(false);
       currentAnimationDateRef.current = null;
       
-      // Reset default metrics flag
+      // Reset default/block metrics flags so new city gets correct layer defaults
       defaultMetricsSetRef.current = false;
-      
+      blockDefaultsSetRef.current = false;
+      previousPlaceCircleRef.current = false;
+
       // Remove all metric layers from map
       if (mapInstanceRef.current) {
         const map = mapInstanceRef.current;
@@ -295,33 +342,89 @@ export default function CityMetricsMap({
     previousCityIdRef.current = cityId;
   }, [cityId, mapInstanceRef, maps, selectedMetricIds, removeMetricLayerFromMap]);
 
-  // Auto-enable metrics based on their TEMPLATE's subcategory (not the metric's own subcategory)
-  // Default to 311-related templates (templates with subcategory "311" in TEMPLATE_CONFIG)
+  // Stable key for placeCircle so effect doesn't re-run when parent passes a new object with same values
+  const placeCircleKey = placeCircle
+    ? `${placeCircle.lat},${placeCircle.lng},${placeCircle.radius_m}`
+    : null;
+  // Stable key for map-capable metric ids so effect doesn't re-run when array reference changes
+  const mapCapableIdsKey = useMemo(
+    () =>
+      metricsWithMapCapability
+        .map((m) => m.id)
+        .sort((a, b) => a - b)
+        .join(","),
+    [metricsWithMapCapability]
+  );
+  const layerSelectorMetricIdsKey = useMemo(
+    () =>
+      metricsForLayerSelector
+        .map((metric) => metric.id)
+        .sort((a, b) => a - b)
+        .join(","),
+    [metricsForLayerSelector]
+  );
+  const hasSavedMetricPreference = !!orderedMetricIds && orderedMetricIds.size > 0;
+
+  // Default layer selection:
+  // - If the user has saved metric preferences, use that same chosen set across map scopes.
+  // - Otherwise keep the legacy defaults (My Block = map-capable metrics on; City/District = all off).
   useEffect(() => {
-    // Only set defaults once when metrics are loaded and we haven't set them yet
-    if (defaultMetricsSetRef.current || availableMetrics.length === 0) {
+    if (orderingQuery.isLoading) {
       return;
     }
 
-    // Find metrics whose TEMPLATE has subcategory "311"
-    // We look up the template_id in TEMPLATE_CONFIG to get the template's subcategory
-    const metricsToEnable = availableMetrics.filter((m) => {
-      if (!m.template_id) return false;
-      const templateConfig = getTemplateConfig(m.template_id);
-      return templateConfig?.subcategory?.toLowerCase() === "311";
-    });
-
-    if (metricsToEnable.length > 0) {
-      setSelectedMetricIds((prev) => {
-        const updated = new Set(prev);
-        metricsToEnable.forEach((metric) => {
-          updated.add(String(metric.id));
+    if (placeCircle) {
+      if (metricsForLayerSelector.length > 0) {
+        const newIds = new Set(metricsForLayerSelector.map((m) => String(m.id)));
+        setSelectedMetricIds((prev) => {
+          if (prev.size !== newIds.size || [...prev].some((id) => !newIds.has(id))) {
+            return newIds;
+          }
+          return prev;
         });
-        return updated;
-      });
-      defaultMetricsSetRef.current = true;
+        setHiddenLayers((prev) => (prev.size > 0 ? new Set() : prev));
+        blockDefaultsSetRef.current = true;
+      } else {
+        setSelectedMetricIds((prev) => (prev.size > 0 ? new Set() : prev));
+        setHiddenLayers((prev) => (prev.size > 0 ? new Set() : prev));
+      }
+      previousPlaceCircleRef.current = true;
+      return;
     }
-  }, [availableMetrics]);
+
+    // Citywide or District view: use chosen metrics when available; otherwise preserve legacy all-off default.
+    blockDefaultsSetRef.current = false;
+    const shouldApplyCityDefault =
+      previousPlaceCircleRef.current || !defaultMetricsSetRef.current;
+    previousPlaceCircleRef.current = false;
+
+    if (!shouldApplyCityDefault || availableMetrics.length === 0) {
+      return;
+    }
+
+    const nextDefaultIds = hasSavedMetricPreference
+      ? new Set(metricsForLayerSelector.map((m) => String(m.id)))
+      : new Set<string>();
+
+    setSelectedMetricIds((prev) => {
+      if (prev.size !== nextDefaultIds.size || [...prev].some((id) => !nextDefaultIds.has(id))) {
+        return nextDefaultIds;
+      }
+      return prev;
+    });
+    setHiddenLayers((prev) => (prev.size > 0 ? new Set() : prev));
+    defaultMetricsSetRef.current = true;
+  // Depend on stable keys so we don't re-run when object/array refs change; metricsWithMapCapability is read from closure when effect runs
+  }, [
+    availableMetrics,
+    placeCircleKey,
+    mapCapableIdsKey,
+    layerSelectorMetricIdsKey,
+    hasSavedMetricPreference,
+    placeCircle,
+    metricsForLayerSelector,
+    orderingQuery.isLoading,
+  ]);
 
   // Compute sorted metrics and position-based color mapping
   // This ensures each metric gets a unique, stable color based on its position in the list
@@ -341,8 +444,8 @@ export default function CityMetricsMap({
       });
     }
 
-    // Filter to only active metrics (same as panel)
-    const filteredMetrics = availableMetrics.filter((metric) => metric.is_active);
+    // When My block is selected use only metrics with working location columns; otherwise all active (same as panel)
+    const filteredMetrics = metricsForLayerSelector;
 
     // Sort metrics using dashboard ordering, then fall back to template order
     const sortedMetrics = [...filteredMetrics].sort((a, b) => {
@@ -379,7 +482,7 @@ export default function CityMetricsMap({
     });
 
     return { positionMap, orderingMap, sortedMetrics };
-  }, [availableMetrics, orderingData]);
+  }, [metricsForLayerSelector, orderingData]);
 
   // Get color index for a metric based on its position in the sorted list
   // This ensures each metric gets a unique color that remains stable
@@ -532,6 +635,18 @@ export default function CityMetricsMap({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDistrict]);
+
+  // When switching My block <-> Citywide, remove metric layers so new data (different placeCircle) loads cleanly
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+    const idsToRemove = new Set<string>();
+    selectedMetricIds.forEach((id) => idsToRemove.add(id));
+    maps.forEach((m) => idsToRemove.add(String(m.metric_id)));
+    idsToRemove.forEach((id) => removeMetricLayerFromMap(map, id));
+    // React Query cache key includes placeCircle, so citywide vs My block data will refetch automatically
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placeCircleKey]);
 
   // Helper to convert ISO week format (2025-W02) to start/end dates
   const parseISOWeekToDateRange = useCallback((isoWeek: string): { start: Date; end: Date } | null => {
@@ -872,11 +987,7 @@ export default function CityMetricsMap({
             });
             
             popupHTML += `</div>`;
-            
-            new (window as any).mapboxgl.Popup()
-              .setLngLat(e.lngLat)
-              .setHTML(popupHTML)
-              .addTo(map);
+            setSelectedPointDetails(popupHTML);
           }
         });
 
@@ -1781,19 +1892,7 @@ export default function CityMetricsMap({
                 }
                 
                 popupHTML += '</div>';
-                
-                const popup = new (window as any).mapboxgl.Popup()
-                  .setLngLat(e.lngLat)
-                  .setHTML(popupHTML)
-                  .addTo(map);
-                
-                // Fix accessibility issue with popup close button
-                setTimeout(() => {
-                  const closeButton = document.querySelector('.mapboxgl-popup-close-button');
-                  if (closeButton && closeButton.hasAttribute('aria-hidden')) {
-                    closeButton.removeAttribute('aria-hidden');
-                  }
-                }, 10);
+                setSelectedPointDetails(popupHTML);
               }
             });
 
@@ -2050,26 +2149,7 @@ export default function CityMetricsMap({
             });
             
             popupHTML += `</div>`;
-            
-            const popup = new (window as any).mapboxgl.Popup({
-              anchor: 'bottom',
-              offset: [0, -10],
-              closeButton: true,
-              closeOnClick: true,
-              className: 'custom-metric-popup'
-            })
-              .setLngLat(e.lngLat)
-              .setHTML(popupHTML)
-              .addTo(map);
-            
-            // Fix accessibility issue with popup close button
-            // Mapbox sets aria-hidden="true" on the close button, which causes accessibility errors
-            setTimeout(() => {
-              const closeButton = document.querySelector('.mapboxgl-popup-close-button');
-              if (closeButton && closeButton.hasAttribute('aria-hidden')) {
-                closeButton.removeAttribute('aria-hidden');
-              }
-            }, 10);
+            setSelectedPointDetails(popupHTML);
           }
         });
       }
@@ -2100,13 +2180,14 @@ export default function CityMetricsMap({
     updateLayerOpacity(map);
   }, [maps, mapFeatures, selectedMetricIds, hiddenLayers, updateLayerOpacity, structureQuery.data, findDistrictField, availableMetrics, gpsLocation]);
 
-  // Update layers when maps change
+  // Update layers when maps change or district (citywide vs specific) changes
+  // Re-running when selectedDistrict changes ensures dots re-appear for citywide after the "remove on district change" effect runs
   useEffect(() => {
     if (!mapInstanceRef.current || !isActive) return;
-    
+
     const map = mapInstanceRef.current;
     const isLoaded = map.isStyleLoaded && map.isStyleLoaded();
-    
+
     if (isLoaded) {
       addLayersToMap(map);
     } else {
@@ -2114,7 +2195,7 @@ export default function CityMetricsMap({
         addLayersToMap(map);
       });
     }
-  }, [maps, mapFeatures, isActive, mapInstanceRef, addLayersToMap, mapStyleVersion]);
+  }, [maps, mapFeatures, isActive, mapInstanceRef, addLayersToMap, mapStyleVersion, selectedDistrict]);
 
   // Update layer visibility when visibleLayers changes
   useEffect(() => {
@@ -2131,11 +2212,11 @@ export default function CityMetricsMap({
       const metricIdStr = String(mapData.metric_id);
       const isSelected = selectedMetricIds.has(metricIdStr);
       const shouldBeVisible = isSelected && !hiddenLayers.has(uniqueId);
-      
+
       if (map.getLayer(layerId)) {
         const currentVisibility = map.getLayoutProperty(layerId, "visibility");
         const targetVisibility = shouldBeVisible ? "visible" : "none";
-        
+
         if (currentVisibility !== targetVisibility) {
           map.setLayoutProperty(layerId, "visibility", targetVisibility);
         }
@@ -2205,6 +2286,60 @@ export default function CityMetricsMap({
       return updated;
     });
   };
+
+  // Turn all map metrics on or off (only affects metrics shown in the layer selector)
+  const allMetricIdsInSelector = useMemo(
+    () => new Set(metricColorMapping.sortedMetrics.map((m) => String(m.id))),
+    [metricColorMapping.sortedMetrics]
+  );
+  const handleAllMetricsOn = useCallback(() => {
+    setSelectedMetricIds(new Set(allMetricIdsInSelector));
+    setHiddenLayers(new Set());
+  }, [allMetricIdsInSelector]);
+  const handleAllMetricsOff = useCallback(() => {
+    if (mapInstanceRef.current) {
+      selectedMetricIds.forEach((id) =>
+        removeMetricLayerFromMap(mapInstanceRef.current, id)
+      );
+    }
+    setSelectedMetricIds(new Set());
+    setHiddenLayers(new Set());
+  }, [selectedMetricIds, removeMetricLayerFromMap]);
+
+  // Turn all metrics in a category on or off (by metric id list from that category)
+  const handleCategoryOn = useCallback((metricIds: string[]) => {
+    const idSet = new Set(metricIds);
+    setSelectedMetricIds((prev) => {
+      const next = new Set(prev);
+      idSet.forEach((id) => next.add(id));
+      return next;
+    });
+    setHiddenLayers((prev) => {
+      const next = new Set(prev);
+      idSet.forEach((id) => next.delete(id));
+      return next;
+    });
+  }, []);
+  const handleCategoryOff = useCallback(
+    (metricIds: string[]) => {
+      if (mapInstanceRef.current) {
+        metricIds.forEach((id) =>
+          removeMetricLayerFromMap(mapInstanceRef.current, id)
+        );
+      }
+      setSelectedMetricIds((prev) => {
+        const next = new Set(prev);
+        metricIds.forEach((id) => next.delete(id));
+        return next;
+      });
+      setHiddenLayers((prev) => {
+        const next = new Set(prev);
+        metricIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    },
+    [removeMetricLayerFromMap]
+  );
 
   // Dock-style label handlers for hover/touch reveal
   const showDockLabel = useCallback((itemId: string, label: string, element: HTMLElement) => {
@@ -2305,15 +2440,39 @@ export default function CityMetricsMap({
     });
   }
 
+  // Keep metrics in their original order within each group; do not sort selected to top
+
   // Only show panel if there are any metric layers or shape layers to display
   const hasMetricLayers = sortedMetrics.length > 0;
   // Flatten grouped metrics for emoji view (maintains order)
   const flatMetricsForEmoji = groupedMetrics.flatMap((group) => group.metrics);
   const hasShapeLayers = shapeLayers.length > 0;
+  // Sort shape layers so enabled (pre-selected) ones appear at the top
+  const sortedShapeLayers = useMemo(
+    () =>
+      [...shapeLayers].sort((a, b) => {
+        const aEnabled = enabledShapeLayerInstanceIds?.has(a.instance_id) ?? false;
+        const bEnabled = enabledShapeLayerInstanceIds?.has(b.instance_id) ?? false;
+        if (aEnabled && !bEnabled) return -1;
+        if (!aEnabled && bEnabled) return 1;
+        return 0;
+      }),
+    [shapeLayers, enabledShapeLayerInstanceIds]
+  );
   if (!hasMetricLayers && !hasShapeLayers) return null;
 
   return (
     <div className="city-metrics-map">
+      {/* Map points loading overlay: re-zoom happens immediately; show animation while points reload */}
+      {loadingMaps.size > 0 && !isAnomalyMode && (
+        <div className="city-metrics-map-loading-overlay" aria-live="polite" aria-busy="true">
+          <div className="city-metrics-map-loading-pulse" />
+          <div className="city-metrics-map-loading-content">
+            <Loader size="sm" color="purple" />
+            <span>Loading points…</span>
+          </div>
+        </div>
+      )}
       {/* Timeline Component - hidden in anomaly mode */}
       {!isAnomalyMode && (
         <MapTimeline
@@ -2322,7 +2481,25 @@ export default function CityMetricsMap({
           onAnimationStateChange={handleAnimationStateChange}
         />
       )}
-      
+
+      {/* Point details (from map point click) - shown in bottom panel instead of floating popup */}
+      {selectedPointDetails && (
+        <div className="city-metrics-map-point-details">
+          <button
+            type="button"
+            className="city-metrics-map-point-details-close"
+            onClick={() => setSelectedPointDetails(null)}
+            aria-label="Close point details"
+          >
+            ×
+          </button>
+          <div
+            className="city-metrics-map-point-details-content"
+            dangerouslySetInnerHTML={{ __html: selectedPointDetails }}
+          />
+        </div>
+      )}
+
       {/* Anomaly Mode Loading Indicator */}
       {isAnomalyMode && anomalyModeLoading && (
         <div
@@ -2472,6 +2649,9 @@ export default function CityMetricsMap({
               const layerColor = metric.color;
               const uniqueId = metricId;
               const isVisible = isSelected && !hiddenLayers.has(uniqueId);
+              const metricMapData = mapFeatures.find((mf) => String(mf.mapData.metric_id) === metricId);
+              const pointCount = metricMapData?.pointCount ?? 0;
+              const hasNoPoints = isSelected && !isLoading && pointCount === 0;
               
               // Extract first character/emoji from metric name
               const metricName = metric.metric_name || "";
@@ -2488,6 +2668,7 @@ export default function CityMetricsMap({
                   key={`emoji-${metric.id}`}
                   data-dock-id={`metric-${metricId}`}
                   data-dock-label={metric.metric_name || "Metric"}
+                  data-no-points={hasNoPoints ? "true" : undefined}
                   onClick={(e) => {
                     e.stopPropagation();
                     hideDockLabel();
@@ -2505,8 +2686,8 @@ export default function CityMetricsMap({
                   style={{
                     width: "36px",
                     height: "36px",
-                    background: isVisible ? layerColor : "transparent",
-                    border: isVisible ? `2px solid ${layerColor}` : `2px solid ${theme === "dark" ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.15)"}`,
+                    background: isVisible && !hasNoPoints ? layerColor : "transparent",
+                    border: isVisible && !hasNoPoints ? `2px solid ${layerColor}` : `2px solid ${theme === "dark" ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.15)"}`,
                     borderRadius: "50%",
                     cursor: "pointer",
                     display: "flex",
@@ -2515,16 +2696,16 @@ export default function CityMetricsMap({
                     padding: 0,
                     position: "relative",
                     transition: "all 0.2s ease, transform 0.15s ease",
-                    opacity: isVisible ? 1 : 0.3,
+                    opacity: hasNoPoints ? 0.4 : isVisible ? 1 : 0.3,
                     flexShrink: 0,
-                    color: isVisible ? "#fff" : (theme === "dark" ? "rgba(255, 255, 255, 0.6)" : "rgba(0, 0, 0, 0.6)"),
+                    color: isVisible && !hasNoPoints ? "#fff" : (theme === "dark" ? "rgba(255, 255, 255, 0.6)" : "rgba(0, 0, 0, 0.6)"),
                     fontSize: "1.2rem",
                     fontWeight: "normal",
                     fontFamily: "Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif",
                     lineHeight: 1,
                     transform: hoveredItemId === `metric-${metricId}` ? "scale(1.2)" : "scale(1)",
                   }}
-                  title={metric.metric_name || "Metric"}
+                  title={hasNoPoints ? `${metric.metric_name || "Metric"} (no points in range)` : (metric.metric_name || "Metric")}
                   onMouseEnter={(e) => {
                     showDockLabel(`metric-${metricId}`, metric.metric_name || "Metric", e.currentTarget);
                     if (!isVisible) {
@@ -2553,7 +2734,7 @@ export default function CityMetricsMap({
             })}
 
             {/* Shapes (emoji-only) */}
-            {shapeLayers.map((layer) => {
+            {sortedShapeLayers.map((layer) => {
               const isVisible = !!enabledShapeLayerInstanceIds?.has(layer.instance_id);
               const layerColor = layer.color || "#ad35fa";
 
@@ -2638,20 +2819,73 @@ export default function CityMetricsMap({
           >
             {hasMetricLayers && (
               <>
-                {groupedMetrics.map((group) => (
+                <div className="city-metrics-map-layers-toolbar">
+                  <button
+                    type="button"
+                    className="city-metrics-map-toolbar-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAllMetricsOn();
+                    }}
+                  >
+                    All on
+                  </button>
+                  <button
+                    type="button"
+                    className="city-metrics-map-toolbar-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAllMetricsOff();
+                    }}
+                  >
+                    All off
+                  </button>
+                </div>
+                {groupedMetrics.map((group) => {
+                  const categoryMetricIds = group.metrics.map((m) => String(m.id));
+                  return (
                   <div key={group.category}>
-                    {/* Category Header */}
+                    {/* Category Header with On/Off for category */}
                     <div
+                      className="city-metrics-map-category-header"
                       style={{
-                        fontSize: "0.85rem",
-                        opacity: 0.8,
                         marginTop: group.category === groupedMetrics[0].category ? "0" : "16px",
-                        marginBottom: "8px",
-                        fontWeight: 600,
-                        textTransform: "capitalize",
                       }}
                     >
-                      {group.categoryDisplayName}
+                      <span
+                        style={{
+                          fontSize: "0.85rem",
+                          opacity: 0.8,
+                          fontWeight: 600,
+                          textTransform: "capitalize",
+                        }}
+                      >
+                        {group.categoryDisplayName}
+                      </span>
+                      <div className="city-metrics-map-category-actions">
+                        <button
+                          type="button"
+                          className="city-metrics-map-category-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCategoryOn(categoryMetricIds);
+                          }}
+                          title={`Turn all ${group.categoryDisplayName} metrics on`}
+                        >
+                          On
+                        </button>
+                        <button
+                          type="button"
+                          className="city-metrics-map-category-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCategoryOff(categoryMetricIds);
+                          }}
+                          title={`Turn all ${group.categoryDisplayName} metrics off`}
+                        >
+                          Off
+                        </button>
+                      </div>
                     </div>
                     {/* Metrics in this category */}
                     {group.metrics.map((metric) => {
@@ -2662,39 +2896,30 @@ export default function CityMetricsMap({
                       const uniqueId = metricId;
                       const isVisible = isSelected && !hiddenLayers.has(uniqueId);
                       
-                      // Get point count for this metric
+                      // Get point count for this metric (only when selected and loaded)
                       const metricMapData = mapFeatures.find((mf) => String(mf.mapData.metric_id) === metricId);
                       const pointCount = metricMapData?.pointCount || 0;
+                      const hasNoPoints = isSelected && !isLoading && pointCount === 0;
 
                       return (
-                        <div key={metric.id} className="city-metrics-map-layer-item">
-                          <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-                            <span
-                              className="city-metrics-map-layer-name"
-                              onClick={() => handleMetricToggle(metricId)}
-                            >
-                              {isLoading && (
-                                <span style={{ display: "inline-flex", alignItems: "center", marginRight: "8px" }}>
-                                  <Loader size="sm" color="purple" />
-                                </span>
-                              )}
-                              {metric.metric_name}
-                            </span>
-                            {pointCount > 0 && (
-                              <span
-                                style={{
-                                  fontSize: "0.7rem",
-                                  color: "var(--text-secondary)",
-                                  opacity: 0.7,
-                                  marginTop: "2px",
-                                  marginLeft: "0",
-                                }}
-                              >
-                                {pointCount.toLocaleString()} {pointCount === 1 ? "point" : "points"}
-                                {pointCount > 1000 && " (choropleth)"}
+                        <div
+                          key={metric.id}
+                          className={`city-metrics-map-layer-item${hasNoPoints ? " no-points" : ""}`}
+                        >
+                          <span
+                            className="city-metrics-map-layer-name"
+                            onClick={() => handleMetricToggle(metricId)}
+                          >
+                            {isLoading && (
+                              <span style={{ display: "inline-flex", alignItems: "center", marginRight: "6px" }}>
+                                <Loader size="sm" color="purple" />
                               </span>
                             )}
-                          </div>
+                            {metric.metric_name}
+                            <span className="city-metrics-map-layer-count">
+                              ({pointCount > 0 ? pointCount.toLocaleString() : "0"})
+                            </span>
+                          </span>
                           <label className="city-metrics-map-toggle-switch">
                             <input
                               type="checkbox"
@@ -2723,7 +2948,8 @@ export default function CityMetricsMap({
                       );
                     })}
                   </div>
-                ))}
+                  );
+                })}
               </>
             )}
 
@@ -2740,7 +2966,7 @@ export default function CityMetricsMap({
                 >
                   Shapes
                 </div>
-                {shapeLayers.map((layer) => {
+                {sortedShapeLayers.map((layer) => {
                   const checked = !!enabledShapeLayerInstanceIds?.has(layer.instance_id);
                   const canToggle = !!setEnabledShapeLayerInstanceIds;
                   const layerColor = layer.color || getStableColorForKey(`shape:${layer.instance_id}`);
@@ -2812,16 +3038,14 @@ export default function CityMetricsMap({
         />
       )}
       
-      {/* Dock-style floating label - appears on hover/touch */}
+      {/* Dock-style floating label - always below the hovered item (same as narrow/mobile) for readability */}
       {hoveredItemId && hoveredItemRect && (
         <div
           className="city-metrics-map-dock-label"
           style={{
             position: "fixed",
-            // Position to the left of the hovered item
-            right: `calc(100vw - ${hoveredItemRect.left}px + 12px)`,
-            top: `${hoveredItemRect.top + hoveredItemRect.height / 2}px`,
-            transform: "translateY(-50%)",
+            top: `${hoveredItemRect.bottom + 8}px`,
+            left: `${hoveredItemRect.left}px`,
             background: theme === "dark" 
               ? "rgba(30, 30, 30, 0.95)" 
               : "rgba(255, 255, 255, 0.95)",

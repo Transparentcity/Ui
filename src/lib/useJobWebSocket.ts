@@ -175,8 +175,12 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         
-        // If job returns 404, remove it from local state to stop polling it
-        if (errorMessage.includes('404') || errorMessage.includes('not found') || errorMessage.includes('Not found')) {
+        // If job returns 404 or 403 (not found or not authorized), remove from state to stop polling
+        const isNotFound =
+          errorMessage.includes('404') || errorMessage.includes('not found') || errorMessage.includes('Not found');
+        const isUnauthorized =
+          errorMessage.includes('403') || errorMessage.includes('Not authorized') || errorMessage.includes('not authorized');
+        if (isNotFound || isUnauthorized) {
           setJobs((prevJobs) => {
             const newJobs = new Map(prevJobs);
             newJobs.delete(jobId);

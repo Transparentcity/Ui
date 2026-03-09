@@ -1,26 +1,40 @@
 "use client";
 
-import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type MouseEvent as ReactMouseEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
+import { useAuth0 } from "@auth0/auth0-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import type { CityLeader, CityShapefile } from "@/lib/apiClient";
+import { createPlace } from "@/lib/apiClient";
 import {
   isLikelyZipcode,
   isLikelyAddress,
   geocodeQuery,
+  fetchAddressSuggestions,
+  type AddressSuggestion,
   type GeocodeResult,
 } from "@/lib/locationSearchUtils";
-import {
-  useRepresentativeFollows,
-  useFollowRepresentative,
-  useUnfollowRepresentative,
-} from "@/lib/hooks/useCities";
+import LocationMapSave from "@/components/LocationMapSave";
+import { DEFAULT_PLACE_RADIUS_M } from "@/lib/mapUtils";
 import "./DistrictNavigation.css";
 
 function isLikelyDistrictNumber(q: string): boolean {
   const s = q.trim();
   // Match patterns like "District 1", "D1", "1", etc.
   return /^(district\s*)?[0-9]+$/i.test(s);
+}
+
+/** User-saved place for "My block" scope */
+export interface UserPlaceForSelector {
+  id: number;
+  label: string;
+  city_id: number;
 }
 
 interface DistrictNavigationProps {
@@ -37,6 +51,16 @@ interface DistrictNavigationProps {
   publicPagePath?: string | null;
   /** When false, defers fetching follow state until e.g. city has loaded (improves slow-connection UX). */
   newsletterQueriesEnabled?: boolean;
+  /** User's saved places for this city (enables "My block" in selector). */
+  userPlaces?: UserPlaceForSelector[];
+  /** Currently selected place ID when in "My block" scope. */
+  selectedPlaceId?: number | null;
+  /** Called when user selects a place (clears district). Call onDistrictSelect(null) when selecting a place. */
+  onPlaceSelect?: (placeId: number | null) => void;
+  /** Called after user saves a new place from this dialog; parent should refetch user places. */
+  onPlaceSaved?: (place: { id: number }) => void;
+  /** When this value changes and is > 0, open the modal (e.g. from Search Cities "Find your district"). */
+  openTrigger?: number;
 }
 
 // Helper function to check if a point is inside a polygon
@@ -152,16 +176,16 @@ export default function DistrictNavigation({
   cityId,
   publicPagePath,
   newsletterQueriesEnabled = true,
+  userPlaces = [],
+  selectedPlaceId = null,
+  onPlaceSelect,
+  onPlaceSaved,
+  openTrigger,
 }: DistrictNavigationProps) {
   const district = selectedDistrict ?? 0;
-  const districtStr = String(district);
-  const { data: followedDistricts = {} } = useRepresentativeFollows(cityId ?? null, {
-    enabled: newsletterQueriesEnabled,
-  });
-  const followMutation = useFollowRepresentative(cityId ?? null);
-  const unfollowMutation = useUnfollowRepresentative(cityId ?? null);
-  const isFollowed = !!(followedDistricts[districtStr]);
-  const followPending = followMutation.isPending || unfollowMutation.isPending;
+  const isPlaceScope = selectedPlaceId != null && selectedPlaceId > 0;
+  const selectedPlace = userPlaces.find((p) => p.id === selectedPlaceId);
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   const { theme } = useTheme();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -170,11 +194,20 @@ export default function DistrictNavigation({
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+  /** Point resolved from address/zip geocode or GPS; show map + save when set. */
+  const [pendingPoint, setPendingPoint] = useState<{ lat: number; lng: number } | null>(null);
+  const [saveBlockLoading, setSaveBlockLoading] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const shareFeedbackRef = useRef<number | null>(null);
   const searchTimeoutRef = useRef<number | null>(null);
   const geoLoadingTimeoutRef = useRef<number | null>(null);
+  const addressSuggestTimeoutRef = useRef<number | null>(null);
+  const addressSuggestContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
+  const [addressSuggestionsLoading, setAddressSuggestionsLoading] = useState(false);
+  const [showAddressDropdown, setShowAddressDropdown] = useState(false);
 
   const trimmed = useMemo(() => query.trim(), [query]);
 
@@ -276,7 +309,11 @@ export default function DistrictNavigation({
     };
   }, []);
 
-  const handleShare = (e: MouseEvent<HTMLButtonElement>) => {
+  useEffect(() => {
+    if (openTrigger != null && openTrigger > 0) setOpen(true);
+  }, [openTrigger]);
+
+  const handleShare = (e: ReactMouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     if (!publicPagePath || typeof window === "undefined") return;
     const url = window.location.origin + publicPagePath;
@@ -326,10 +363,47 @@ export default function DistrictNavigation({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open]);
 
+  // Address suggest: run when modal is open and query changes
+  useEffect(() => {
+    if (!open) {
+      setAddressSuggestions([]);
+      setShowAddressDropdown(false);
+      return () => {
+        if (addressSuggestTimeoutRef.current) {
+          window.clearTimeout(addressSuggestTimeoutRef.current);
+        }
+      };
+    }
+    scheduleAddressSuggest(query);
+    return () => {
+      if (addressSuggestTimeoutRef.current) {
+        window.clearTimeout(addressSuggestTimeoutRef.current);
+      }
+    };
+  }, [open, query]);
+
+  // Close address dropdown when clicking outside
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        addressSuggestContainerRef.current &&
+        !addressSuggestContainerRef.current.contains(e.target as Node)
+      ) {
+        setShowAddressDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
   const closeModal = () => {
     setOpen(false);
     setQuery("");
     setError(null);
+    setPendingPoint(null);
+    setAddressSuggestions([]);
+    setShowAddressDropdown(false);
     if (geoLoading) {
       setGeoLoading(false);
     }
@@ -337,11 +411,101 @@ export default function DistrictNavigation({
       window.clearTimeout(geoLoadingTimeoutRef.current);
       geoLoadingTimeoutRef.current = null;
     }
+    if (addressSuggestTimeoutRef.current) {
+      window.clearTimeout(addressSuggestTimeoutRef.current);
+      addressSuggestTimeoutRef.current = null;
+    }
+  };
+
+  const scheduleAddressSuggest = (q: string) => {
+    if (addressSuggestTimeoutRef.current) {
+      window.clearTimeout(addressSuggestTimeoutRef.current);
+    }
+    const s = q.trim();
+    if (s.length < 2) {
+      setAddressSuggestions([]);
+      setAddressSuggestionsLoading(false);
+      setShowAddressDropdown(false);
+      return;
+    }
+    setShowAddressDropdown(true);
+    setAddressSuggestionsLoading(true);
+    addressSuggestTimeoutRef.current = window.setTimeout(async () => {
+      const list = await fetchAddressSuggestions(s);
+      setAddressSuggestions(list);
+      setAddressSuggestionsLoading(false);
+    }, 300);
+  };
+
+  const handleAddressSuggestionSelect = (suggestion: AddressSuggestion) => {
+    setShowAddressDropdown(false);
+    setAddressSuggestions([]);
+    setError(null);
+    setPendingPoint({ lat: suggestion.lat, lng: suggestion.lon });
+
+    const districtResult = findDistrictContainingPoint(
+      suggestion.lat,
+      suggestion.lon,
+      shapefiles,
+      leaders
+    );
+
+    if (districtResult) {
+      const districtNum =
+        typeof districtResult.identifier === "number"
+          ? districtResult.identifier
+          : parseInt(String(districtResult.identifier), 10);
+
+      if (!isNaN(districtNum)) {
+        onDistrictSelect(districtNum);
+        onPlaceSelect?.(null);
+        if (onGPSLocation) onGPSLocation({ lat: suggestion.lat, lng: suggestion.lon });
+        closeModal();
+        return;
+      }
+    }
+
+    if (onGPSLocation) onGPSLocation({ lat: suggestion.lat, lng: suggestion.lon });
+    setError("Location found but not within any known district");
   };
 
   const handleDistrictSelect = (district: number) => {
     onDistrictSelect(district);
+    onPlaceSelect?.(null);
     closeModal();
+  };
+
+  const handlePlaceSelect = (placeId: number | null) => {
+    onPlaceSelect?.(placeId);
+    // Do not call onDistrictSelect(null) here: parent's onPlaceSelect already sets
+    // selectedPlaceId and selectedDistrict=null; calling onDistrictSelect(null) would
+    // trigger parent's onDistrictChange which clears selectedPlaceId.
+    closeModal();
+  };
+
+  const handleSavePlace = async (opts: { label: string; radius_m: number }) => {
+    if (!pendingPoint || cityId == null || !isAuthenticated) return;
+    setError(null);
+    setSaveBlockLoading(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const place = await createPlace(token, {
+        city_id: cityId,
+        label: opts.label.trim() || "My block",
+        lat: pendingPoint.lat,
+        lng: pendingPoint.lng,
+        radius_m: opts.radius_m,
+      });
+      onPlaceSaved?.(place);
+      setPendingPoint(null);
+      onPlaceSelect?.(place.id);
+      // Do not call onDistrictSelect(null): parent's onPlaceSelect already sets district to null
+      closeModal();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save place");
+    } finally {
+      setSaveBlockLoading(false);
+    }
   };
 
   const handleGeocodeQuery = async () => {
@@ -360,32 +524,26 @@ export default function DistrictNavigation({
       if (isNaN(lat) || isNaN(lng)) {
         throw new Error("Invalid coordinates from geocoding");
       }
-      
+
+      setPendingPoint({ lat, lng });
+
       // Find district containing this location
-      // Prioritize shapefiles that match the primary geographic structure (supervisor districts)
       const districtResult = findDistrictContainingPoint(lat, lng, shapefiles, leaders);
-      
+
       if (districtResult) {
         const districtNum = typeof districtResult.identifier === "number"
           ? districtResult.identifier
           : parseInt(String(districtResult.identifier), 10);
-        
+
         if (!isNaN(districtNum)) {
-          handleDistrictSelect(districtNum);
-          
-          // Notify parent about GPS location for map zooming
-          if (onGPSLocation) {
-            onGPSLocation({ lat, lng });
-          }
+          onDistrictSelect(districtNum);
+          onPlaceSelect?.(null);
+          if (onGPSLocation) onGPSLocation({ lat, lng });
           return;
         }
       }
-      
-      // If no district found, still set GPS location for map zooming
-      if (onGPSLocation) {
-        onGPSLocation({ lat, lng });
-      }
-      
+
+      if (onGPSLocation) onGPSLocation({ lat, lng });
       setError("Location found but not within any known district");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Geocoding failed");
@@ -428,32 +586,25 @@ export default function DistrictNavigation({
 
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
-      
-      // Find district containing this location
-      // Prioritize shapefiles that match the primary geographic structure (supervisor districts)
+
+      setPendingPoint({ lat, lng });
+
       const districtResult = findDistrictContainingPoint(lat, lng, shapefiles, leaders);
-      
+
       if (districtResult) {
         const districtNum = typeof districtResult.identifier === "number"
           ? districtResult.identifier
           : parseInt(String(districtResult.identifier), 10);
-        
+
         if (!isNaN(districtNum)) {
-          handleDistrictSelect(districtNum);
-          
-          // Notify parent about GPS location for map zooming
-          if (onGPSLocation) {
-            onGPSLocation({ lat, lng });
-          }
+          onDistrictSelect(districtNum);
+          onPlaceSelect?.(null);
+          if (onGPSLocation) onGPSLocation({ lat, lng });
           return;
         }
       }
-      
-      // If no district found, still set GPS location for map zooming
-      if (onGPSLocation) {
-        onGPSLocation({ lat, lng });
-      }
-      
+
+      if (onGPSLocation) onGPSLocation({ lat, lng });
       setError("Your location is not within any known district");
     } catch (e) {
       console.error("GPS location error:", e);
@@ -519,16 +670,17 @@ export default function DistrictNavigation({
 
   if (!mounted) return null;
 
-  // Determine display name and label
-  const displayName = currentRepresentative
+  // Determine display name and label (place scope overrides district)
+  const displayName = isPlaceScope && selectedPlace
+    ? selectedPlace.label
+    : currentRepresentative
     ? currentRepresentative.name
     : isMayor
     ? "Mayor"
     : selectedDistrict !== null
     ? `District ${selectedDistrict}`
-    : "Mayor"; // Default to "Mayor" for citywide view
-
-  const labelText = isMayor ? "Mayor:" : "District Representative:";
+    : "Mayor";
+  const labelText = isPlaceScope ? "My block:" : isMayor ? "Mayor:" : "District Representative:";
 
   return (
     <>
@@ -551,66 +703,41 @@ export default function DistrictNavigation({
             <span className="district-navigation-label">{labelText}</span>
             <span className="district-navigation-name">{displayName}</span>
           </div>
-          {leaderFollowerCounts != null && (
-            <div className="district-navigation-follow-row">
-              <span className="district-navigation-subscribers">
-                {(leaderFollowerCounts[String(selectedDistrict ?? 0)] ?? 0)} followers
-              </span>
-              {cityId != null && (
-                <button
-                  type="button"
-                  className={`district-navigation-subscribe ${isFollowed ? "following" : ""}`}
-                  onClick={(e: MouseEvent<HTMLButtonElement>) => {
-                    e.stopPropagation();
-                    if (followPending) return;
-                    if (isFollowed) {
-                      unfollowMutation.mutate(districtStr);
-                    } else {
-                      followMutation.mutate(districtStr);
-                    }
-                  }}
-                  disabled={followPending}
-                  aria-label={isFollowed ? `Unfollow ${district === 0 ? "citywide" : `District ${district}`}` : `Follow ${district === 0 ? "citywide" : `District ${district}`}`}
-                >
-                  {followPending ? "…" : isFollowed ? "Following" : "Follow"}
-                </button>
+        </div>
+        <div className="district-navigation-actions">
+          {publicPagePath != null && (
+            <button
+              type="button"
+              className="district-navigation-share"
+              onClick={handleShare}
+              aria-label="Share public page"
+            >
+              {shareFeedback ? shareFeedback : (
+                <>
+                  <span className="district-navigation-share-text">Share</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                  </svg>
+                </>
               )}
-            </div>
+            </button>
           )}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-        {publicPagePath != null && (
-          <button
-            type="button"
-            className="district-navigation-share"
-            onClick={handleShare}
-            aria-label="Share public page"
+          <svg
+            className="district-navigation-chevron"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
           >
-            {shareFeedback ? shareFeedback : (
-              <>
-                <span className="district-navigation-share-text">Share</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                </svg>
-              </>
-            )}
-          </button>
-        )}
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
         </div>
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{ marginLeft: "8px", opacity: 0.7 }}
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
       </div>
 
       {/* Search Modal */}
@@ -636,7 +763,10 @@ export default function DistrictNavigation({
               </div>
 
               <div className="district-navigation-modal-body">
-                <div className="district-navigation-search-box">
+                <div
+                  className="district-navigation-search-box"
+                  ref={addressSuggestContainerRef}
+                >
                   <input
                     ref={inputRef}
                     type="text"
@@ -650,6 +780,7 @@ export default function DistrictNavigation({
                     }}
                     placeholder="Search by address, zipcode, district number, or representative name..."
                     className="district-navigation-input"
+                    autoComplete="off"
                   />
                   <button
                     className="district-navigation-search-button"
@@ -658,6 +789,28 @@ export default function DistrictNavigation({
                   >
                     {loading ? "..." : "Search"}
                   </button>
+                  {showAddressDropdown && (addressSuggestions.length > 0 || addressSuggestionsLoading) && (
+                    <div className="district-navigation-address-dropdown" role="listbox">
+                      {addressSuggestionsLoading ? (
+                        <div className="district-navigation-address-item" style={{ color: "var(--text-secondary, #6b7280)" }}>
+                          Searching addresses…
+                        </div>
+                      ) : (
+                        addressSuggestions.map((suggestion, idx) => (
+                          <button
+                            key={`${suggestion.place_name}-${idx}`}
+                            type="button"
+                            className="district-navigation-address-item"
+                            role="option"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleAddressSuggestionSelect(suggestion)}
+                          >
+                            {suggestion.place_name}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* GPS Button */}
@@ -684,6 +837,21 @@ export default function DistrictNavigation({
                 {/* Error Message */}
                 {error && (
                   <div className="district-navigation-error">{error}</div>
+                )}
+
+                {/* Same map + save experience as onboarding and sidebar */}
+                {pendingPoint !== null && isAuthenticated && cityId != null && (
+                  <LocationMapSave
+                    cityId={cityId}
+                    lat={pendingPoint.lat}
+                    lng={pendingPoint.lng}
+                    defaultRadiusM={DEFAULT_PLACE_RADIUS_M}
+                    onSave={handleSavePlace}
+                    saving={saveBlockLoading}
+                    saveButtonLabel="Save as my block"
+                    onCancel={() => setPendingPoint(null)}
+                    className="district-navigation-location-map-save"
+                  />
                 )}
 
                 {/* District List */}
@@ -714,6 +882,32 @@ export default function DistrictNavigation({
                   </div>
                 )}
 
+                {/* My block (user places) – shown first */}
+                {!trimmed && userPlaces.length > 0 && (
+                  <div className="district-navigation-results">
+                    <div className="district-navigation-results-header">
+                      My block:
+                    </div>
+                    {userPlaces.map((place) => {
+                      const isSelected = selectedPlaceId === place.id;
+                      return (
+                        <button
+                          key={place.id}
+                          className={`district-navigation-result-item ${isSelected ? "selected" : ""}`}
+                          onClick={() => handlePlaceSelect(place.id)}
+                        >
+                          <div className="district-navigation-result-name">
+                            {place.label}
+                          </div>
+                          <div className="district-navigation-result-district">
+                            Block
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {/* All Districts (when no query) */}
                 {!trimmed && districtOptions.length > 0 && (
                   <div className="district-navigation-results">
@@ -721,8 +915,8 @@ export default function DistrictNavigation({
                       All Districts:
                     </div>
                     {districtOptions.map((option) => {
-                      const isSelected = selectedDistrict === option.district || 
-                        (selectedDistrict === null && option.district === 0);
+                      const isSelected = !isPlaceScope && (selectedDistrict === option.district ||
+                        (selectedDistrict === null && option.district === 0));
                       return (
                         <button
                           key={option.district}

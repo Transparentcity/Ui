@@ -5,6 +5,14 @@
   font-size: 13px;
 }
 
+/* Wrapper for city row so the main action is a button (one-tap selection) */
+.itemRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .item {
   padding: var(--space-xs) var(--space-lg);
   cursor: pointer;
@@ -14,6 +22,18 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+/* Button used as list item: reset defaults so it matches .item appearance */
+.itemButton {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  border-radius: 0;
 }
 
 .itemMenuOpen {
@@ -83,7 +103,8 @@
   pointer-events: none;
 }
 
-.item:hover .menuBtn {
+.item:hover .menuBtn,
+.itemRow:hover .menuBtn {
   opacity: 1;
   pointer-events: auto;
 }
@@ -175,6 +196,14 @@
   border-left: 3px solid transparent;
   text-decoration: none;
   color: inherit;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  border-top: none;
+  border-right: none;
+  border-bottom: none;
+  background: none;
+  border-radius: 0;
 }
 
 .districtSubItem:hover {
@@ -205,6 +234,115 @@
 .districtSubItem:hover .districtName,
 .districtSubItemActive .districtName {
   color: var(--text-primary);
+}
+
+/* Saved places under same city (same hierarchy as districts, subtle difference) */
+.placeSubList {
+  display: flex;
+  flex-direction: column;
+}
+
+.placeSubItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px var(--space-lg) 4px calc(var(--space-lg) + 28px);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  border-left: 3px solid transparent;
+  text-decoration: none;
+  color: inherit;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  border-top: none;
+  border-right: none;
+  border-bottom: none;
+  background: none;
+  border-radius: 0;
+}
+
+.placeSubItem:hover {
+  background: var(--bg-tertiary);
+}
+
+.placeSubItemActive {
+  background: var(--bg-tertiary);
+  border-left-color: var(--brand-primary);
+}
+
+.placeSubItemIcon {
+  flex-shrink: 0;
+  width: 12px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary, #999);
+  opacity: 0.7;
+}
+
+.placeSubItemIcon svg {
+  display: block;
+}
+
+.placeSubItemActive .placeSubItemIcon {
+  color: var(--text-secondary);
+  opacity: 0.85;
+}
+
+.placeSubItemLabel {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.placeSubItem:hover .placeSubItemLabel,
+.placeSubItemActive .placeSubItemLabel {
+  color: var(--text-primary);
+}
+
+/* Row wrapper for place with menu (rename/delete) */
+.placeSubItemRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.placeSubItemRow .placeSubItem {
+  flex: 1;
+  min-width: 0;
+}
+
+.placeMenuBtn {
+  opacity: 0;
+  padding: 4px 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  transition: opacity 0.2s, background 0.2s;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+}
+
+.placeSubItemRow:hover .placeMenuBtn {
+  opacity: 1;
+}
+
+.placeMenuBtn:hover {
+  background: var(--border-primary);
+}
+
+.placeSubItemRow .placeMenu {
+  right: 0;
+  top: 100%;
+  transform: translateY(2px);
 }
 
 .sectionHeader {

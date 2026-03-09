@@ -111,9 +111,10 @@ export function useCities(options?: { includeInactive?: boolean; limit?: number;
 
 /**
  * Hook to fetch saved cities for the current user.
- * Cache time: 2 minutes (saved cities can change)
+ * Cache time: 2 minutes (saved cities can change).
+ * Pass options.enabled to defer until after critical data (e.g. city) has loaded so dashboard can show first.
  */
-export function useSavedCities() {
+export function useSavedCities(options?: { enabled?: boolean }) {
   const { getAccessTokenSilently } = useAuth0();
 
   return useQuery({
@@ -122,6 +123,7 @@ export function useSavedCities() {
       const token = await getAccessTokenSilently();
       return getSavedCities(token);
     },
+    enabled: options?.enabled !== false,
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 }

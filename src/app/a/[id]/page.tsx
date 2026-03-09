@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { getPublicMetric, getPublicCityDetail, type PublicMetricDetail, type PublicCityDetail } from "@/lib/publicApiClient";
 import { parseLocalDate } from "@/lib/dateRange";
+import Loader from "@/components/Loader";
 import "./styles.css";
 
 // Dynamically import AnomalyMap to avoid SSR issues with Mapbox
@@ -664,7 +665,10 @@ export default function AnomalyChartPage() {
   if (loading) {
     return (
       <div className={`anomaly-page loading ${isEmbedded ? "embedded" : ""}`}>
-        <div className="loading-spinner">Loading anomaly chart...</div>
+        <div className="tc-loading-state tc-loading-state--stacked">
+          <Loader size="md" color="dark" />
+          <span>Loading anomaly chart…</span>
+        </div>
       </div>
     );
   }

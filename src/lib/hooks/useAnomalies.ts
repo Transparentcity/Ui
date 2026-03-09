@@ -8,12 +8,14 @@ import {
   getAnomalyRun,
   getAnomalyResult,
   getAvailablePeriods,
+  getAnomalyPlaceTypes,
   type RunAnomalyRequest,
   type RunAnomalyResponse,
   type ListAnomaliesResponse,
   type AnomalyResult,
   type AvailablePeriod,
   type AvailablePeriodsResponse,
+  type AnomalyPlaceType,
 } from "@/lib/apiClient";
 
 // Re-export types for consumers
@@ -216,4 +218,26 @@ export function useAvailablePeriods(
     enabled: !!cityId && !!periodType,
   });
 }
+
+/**
+ * Hook to get anomaly place types for a city (shapefile-backed locations like neighborhoods).
+ * Used to populate the Location selector with "Neighborhood: Noe Valley" etc.
+ * Cache time: 5 minutes
+ */
+export function useAnomalyPlaceTypes(cityId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: [...anomalyKeys.all, "place-types", cityId] as const,
+    queryFn: async () => {
+      if (!cityId) throw new Error("City ID is required");
+      const token = await getAccessTokenSilently();
+      return getAnomalyPlaceTypes(cityId, token);
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled: !!cityId,
+  });
+}
+
+export type { AnomalyPlaceType };
 

@@ -7,163 +7,43 @@ import {
   type PublicCitySearchResult,
 } from "@/lib/publicApiClient";
 import {
+  fetchAddressSuggestions,
+  type AddressSuggestion,
+} from "@/lib/locationSearchUtils";
+import {
   saveCity,
   updateUserPreferences,
+  getUserPreferences,
   submitCityLeadInterest,
   getCity,
   getCityLeaders,
-  getCityStructure,
-  getCityShapeLayers,
+  createPlace,
+  followRepresentative,
+  getCityMetrics,
+  saveUserMetricOrdering,
   type CityDetail,
   type CityLeader,
-  type CityStructureData,
-  type CityShapefile,
-  type CityShapeLayerListItem,
+  type MetricOrderingItem,
 } from "@/lib/apiClient";
+import { findDistrictFromCoordinates } from "@/lib/findDistrictFromCoordinates";
+import { DEFAULT_PLACE_RADIUS_M } from "@/lib/mapUtils";
+import {
+  mergeNewsletterPreferenceFields,
+  readNewsletterPreferenceFields,
+} from "@/lib/newsletterPreferences";
+import LocationMapSave from "./LocationMapSave";
 import styles from "./WelcomeModal.module.css";
 import Loader from "./Loader";
-
-// Helper function to check if a point is inside a polygon (ray casting algorithm)
-function pointInPolygon(point: [number, number], polygon: [number, number][]): boolean {
-  const [x, y] = point;
-  let inside = false;
-  
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const [xi, yi] = polygon[i];
-    const [xj, yj] = polygon[j];
-    
-    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
-      inside = !inside;
-    }
-  }
-  
-  return inside;
-}
-
-// Find which district contains the GPS point
-async function findDistrictFromCoordinates(
-  lat: number,
-  lng: number,
-  cityId: number,
-  token: string
-): Promise<number | null> {
-  try {
-    // Get city structure and shapefiles
-    const [cityStructure, shapeLayers] = await Promise.all([
-      getCityStructure(cityId, token),
-      getCityShapeLayers(cityId, token),
-    ]);
-
-    if (!cityStructure || !shapeLayers || shapeLayers.length === 0) {
-      return null;
-    }
-
-    const point: [number, number] = [lng, lat];
-    
-    // Find the primary geographic structure (the one used by most leaders)
-    let primaryGeographicStructureId: number | null = null;
-    
-    // Get leaders to determine primary structure
-    const leaders = await getCityLeaders(cityId, token);
-    if (leaders && leaders.length > 0) {
-      const structureIdCounts = new Map<number, number>();
-      leaders.forEach((leader) => {
-        if (leader.geographic_structure_id) {
-          const count = structureIdCounts.get(leader.geographic_structure_id) || 0;
-          structureIdCounts.set(leader.geographic_structure_id, count + 1);
-        }
-      });
-      
-      let maxCount = 0;
-      structureIdCounts.forEach((count, structureId) => {
-        if (count > maxCount) {
-          maxCount = count;
-          primaryGeographicStructureId = structureId;
-        }
-      });
-    }
-    
-    // If no clear winner, try to find by name
-    if (!primaryGeographicStructureId && cityStructure.geographic_structures) {
-      const districtStructure = cityStructure.geographic_structures.find(
-        (gs) => gs.structure_name?.toLowerCase().includes('supervisor') ||
-                gs.structure_name?.toLowerCase().includes('council') ||
-                gs.structure_name?.toLowerCase().includes('ward') ||
-                gs.structure_type?.toLowerCase().includes('supervisor') ||
-                gs.structure_type?.toLowerCase().includes('council')
-      );
-      if (districtStructure && districtStructure.id !== undefined) {
-        primaryGeographicStructureId = districtStructure.id;
-      }
-    }
-    
-    // Extract shapefile instances from shape layers
-    const shapefiles: CityShapefile[] = shapeLayers
-      .map((layer) => layer.instance)
-      .filter((instance): instance is CityShapefile => instance !== null);
-    
-    // Separate shapefiles into primary and others
-    const primaryShapefiles: CityShapefile[] = [];
-    const otherShapefiles: CityShapefile[] = [];
-    
-    shapefiles.forEach((shapefile) => {
-      if (primaryGeographicStructureId && shapefile.geographic_structure_id === primaryGeographicStructureId) {
-        primaryShapefiles.push(shapefile);
-      } else {
-        otherShapefiles.push(shapefile);
-      }
-    });
-    
-    // Check primary shapefiles first
-    const shapefilesToCheck = [...primaryShapefiles, ...otherShapefiles];
-    
-    for (const shapefile of shapefilesToCheck) {
-      const geometryData = shapefile.geometry_data;
-      if (!geometryData || geometryData.type !== "FeatureCollection") continue;
-      
-      for (const feature of geometryData.features) {
-        if (!feature.geometry || !feature.geometry.coordinates) continue;
-        
-        let rings: [number, number][][] = [];
-        
-        if (feature.geometry.type === "Polygon") {
-          rings = [feature.geometry.coordinates[0] as [number, number][]];
-        } else if (feature.geometry.type === "MultiPolygon") {
-          rings = feature.geometry.coordinates.map((poly: any) => poly[0] as [number, number][]);
-        }
-        
-        for (const ring of rings) {
-          if (pointInPolygon(point, ring)) {
-            const identifier = feature.properties?.[shapefile.identifier_field || ""];
-            if (identifier !== undefined && identifier !== null) {
-              // Try to parse as number, or extract number from string
-              const districtNum = typeof identifier === 'number' 
-                ? identifier 
-                : parseInt(String(identifier).replace(/\D/g, ''), 10);
-              if (!isNaN(districtNum)) {
-                return districtNum;
-              }
-            }
-          }
-        }
-      }
-    }
-    
-    return null;
-  } catch (error) {
-    console.error("Error finding district from coordinates:", error);
-    return null;
-  }
-}
 
 interface WelcomeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCitySelected: (cityId: number, district?: number | null) => void;
+  /** Called when user finishes onboarding with a city (and optional place). Pass placeId to open block-level view. */
+  onCitySelected: (cityId: number, district?: number | null, placeId?: number | null) => void;
   onComplete: () => void;
 }
 
-type Step = "welcome" | "leader" | "email-personalization" | "preferences" | "all-set" | "coming-soon";
+type Step = "welcome" | "leader" | "email-personalization" | "all-set" | "coming-soon";
 
 interface LocationResult {
   cityName: string;
@@ -191,27 +71,33 @@ export default function WelcomeModal({
   const [locationInput, setLocationInput] = useState("");
   const [locationResult, setLocationResult] = useState<LocationResult | null>(null);
   const [leadSubmitted, setLeadSubmitted] = useState(false);
-  const [trackBoth, setTrackBoth] = useState(true); // Default to tracking both
+  const [trackBoth, setTrackBoth] = useState(true);
   const [homeCoordinates, setHomeCoordinates] = useState<{ lat: number; lng: number } | null>(null);
-  
+  const [placeLabel, setPlaceLabel] = useState("My block");
+  const [placeRadius, setPlaceRadius] = useState(DEFAULT_PLACE_RADIUS_M);
+
   // Preferences state
+  // All email types pre-defaulted on; user can edit in Settings later
   const [personalizedEmail, setPersonalizedEmail] = useState(true);
   const [anomalyAlerts, setAnomalyAlerts] = useState(true);
-  const [weeklyDigest, setWeeklyDigest] = useState(false);
+  const [weeklyDigest, setWeeklyDigest] = useState(true);
   const [monthlyReport, setMonthlyReport] = useState(true);
   const [reportScope, setReportScope] = useState<"district" | "city">("district");
   const [newsletterDescription, setNewsletterDescription] = useState("");
   const [newsletterFrequency, setNewsletterFrequency] = useState<"weekly" | "monthly">("weekly");
-  
-  // City search state
-  const [citySearchResults, setCitySearchResults] = useState<PublicCitySearchResult[]>([]);
-  const [citySearchLoading, setCitySearchLoading] = useState(false);
-  const [showCityDropdown, setShowCityDropdown] = useState(false);
-  const searchTimeoutRef = useRef<number | null>(null);
-  const citySearchRef = useRef<HTMLDivElement>(null);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+
+  // Address autocomplete state
+  const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
+  const [addressSuggestionsLoading, setAddressSuggestionsLoading] = useState(false);
+  const [showAddressDropdown, setShowAddressDropdown] = useState(false);
+  const addressSuggestTimeoutRef = useRef<number | null>(null);
+  const locationInputRef = useRef<HTMLDivElement>(null);
 
   // Reset state when modal opens
   useEffect(() => {
+    let cancelled = false;
+
     if (isOpen) {
       setStep("welcome");
       setLocationInput("");
@@ -220,26 +106,61 @@ export default function WelcomeModal({
       setLeadSubmitted(false);
       setTrackBoth(true);
       setHomeCoordinates(null);
-      // Reset preferences
+      setPlaceLabel("My block");
+      setPlaceRadius(DEFAULT_PLACE_RADIUS_M);
+      setAddressSuggestions([]);
+      setShowAddressDropdown(false);
+      // Reset preferences (all emails on by default)
       setPersonalizedEmail(true);
       setAnomalyAlerts(true);
-      setWeeklyDigest(false);
+      setWeeklyDigest(true);
       setMonthlyReport(true);
       setReportScope("district");
       setNewsletterDescription("");
       setNewsletterFrequency("weekly");
-    }
-  }, [isOpen]);
+      setSelectedCategoryIds([]);
 
-  // Close city dropdown when clicking outside
+      const loadSavedNewsletterPreferences = async () => {
+        try {
+          const token = await getAccessTokenSilently();
+          const preferences = await getUserPreferences(token);
+          if (cancelled) return;
+
+          const { newsletterDescription, newsletterFrequency } =
+            readNewsletterPreferenceFields(preferences.extra);
+          setNewsletterDescription(newsletterDescription);
+          setNewsletterFrequency(newsletterFrequency);
+        } catch (err) {
+          console.error("Error loading saved newsletter preferences:", err);
+        }
+      };
+
+      void loadSavedNewsletterPreferences();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getAccessTokenSilently, isOpen]);
+
+  // Close address dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (citySearchRef.current && !citySearchRef.current.contains(e.target as Node)) {
-        setShowCityDropdown(false);
+      if (locationInputRef.current && !locationInputRef.current.contains(e.target as Node)) {
+        setShowAddressDropdown(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Clear address suggest timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (addressSuggestTimeoutRef.current) {
+        window.clearTimeout(addressSuggestTimeoutRef.current);
+      }
+    };
   }, []);
 
   if (!isOpen) return null;
@@ -256,36 +177,75 @@ export default function WelcomeModal({
     }
   };
 
-  const searchCities = async (query: string) => {
-    if (query.length < 2) {
-      setCitySearchResults([]);
+  const fetchSuggestions = async (query: string) => {
+    if (query.trim().length < 2) {
+      setAddressSuggestions([]);
       return;
     }
-
-    setCitySearchLoading(true);
+    setAddressSuggestionsLoading(true);
     try {
-      const results = await searchPublicCities(query, 8);
-      setCitySearchResults(results);
+      const suggestions = await fetchAddressSuggestions(query);
+      setAddressSuggestions(suggestions);
+      setShowAddressDropdown(true);
     } catch (err) {
-      console.error("City search error:", err);
-      setCitySearchResults([]);
+      console.error("Address suggest error:", err);
+      setAddressSuggestions([]);
     } finally {
-      setCitySearchLoading(false);
+      setAddressSuggestionsLoading(false);
     }
   };
 
-  const handleCityInputChange = (value: string) => {
+  const handleLocationInputChange = (value: string) => {
     setLocationInput(value);
-    setShowCityDropdown(true);
     setError(null);
 
-    if (searchTimeoutRef.current) {
-      window.clearTimeout(searchTimeoutRef.current);
+    if (addressSuggestTimeoutRef.current) {
+      window.clearTimeout(addressSuggestTimeoutRef.current);
     }
 
-    searchTimeoutRef.current = window.setTimeout(() => {
-      searchCities(value);
+    if (value.trim().length < 2) {
+      setAddressSuggestions([]);
+      setShowAddressDropdown(false);
+      return;
+    }
+
+    setShowAddressDropdown(true);
+    addressSuggestTimeoutRef.current = window.setTimeout(() => {
+      fetchSuggestions(value);
     }, 300);
+  };
+
+  const handleAddressSuggestionSelect = async (suggestion: AddressSuggestion) => {
+    setShowAddressDropdown(false);
+    setLocationInput(suggestion.place_name);
+    setAddressSuggestions([]);
+    setLoading(true);
+    setError(null);
+
+    const cityName =
+      suggestion.cityName?.trim() ||
+      null;
+    if (!cityName) {
+      setError("Could not determine city from this address. Please try another or use the GPS button.");
+      setLoading(false);
+      return;
+    }
+
+    setHomeCoordinates({ lat: suggestion.lat, lng: suggestion.lon });
+    try {
+      await processLocationAndFindCity(
+        cityName,
+        suggestion.stateName,
+        suggestion.countryName,
+        null,
+        { lat: suggestion.lat, lng: suggestion.lon }
+      );
+    } catch (err) {
+      console.error("Error processing address suggestion:", err);
+      setError("We don’t have that city yet. Try another address or use the GPS button.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Fetch city details, leaders, and determine if active
@@ -343,16 +303,16 @@ export default function WelcomeModal({
     };
   };
 
-  const handleCitySelect = async (city: PublicCitySearchResult) => {
-    setShowCityDropdown(false);
+  const handleCitySelectFromSearch = async (city: PublicCitySearchResult) => {
+    setShowAddressDropdown(false);
     setLocationInput(city.display_name);
     setLoading(true);
     setError(null);
-    
+
     try {
       const result = await fetchCityDetailsAndLeaders(city, null);
       setLocationResult(result);
-      
+
       if (result.isActive) {
         setStep("leader");
       } else {
@@ -377,7 +337,7 @@ export default function WelcomeModal({
     const normalizedCityName = cityName.trim().toLowerCase();
     
     // First try: city + state
-    let searchQuery = stateName ? `${cityName}, ${stateName}` : cityName;
+    const searchQuery = stateName ? `${cityName}, ${stateName}` : cityName;
     let cities = await searchPublicCities(searchQuery, 10);
     
     // If no results and we have state, try just the city name
@@ -476,7 +436,7 @@ export default function WelcomeModal({
       
       if (!geocodeRes.ok) {
         if (geocodeRes.status === 404) {
-          setError("Location not found. Please try a different city name or ZIP code.");
+          setError("Location not found. Try a different address or use the GPS button.");
           setLoading(false);
           return;
         }
@@ -588,38 +548,65 @@ export default function WelcomeModal({
     setLoading(true);
     try {
       const token = await getAccessTokenSilently();
-      
-      // Save the city
-      await saveCity(locationResult.matchedCity.id, token);
-      
-      // Determine district to load
+      const cityId = locationResult.matchedCity.id;
+
+      // Save the city to My Cities
+      await saveCity(cityId, token);
+
+      // Determine district to load and add to My Districts (follow representative)
       const districtToLoad = locationResult.councilMember?.district ?? locationResult.district ?? null;
-      
+      if (districtToLoad !== null && districtToLoad !== undefined) {
+        try {
+          await followRepresentative(cityId, String(districtToLoad), token);
+        } catch {
+          // ignore if already following or follow fails
+        }
+      }
+
+      // If we have coordinates, create a place (My block) so it appears in My places
+      let createdPlaceId: number | null = null;
+      if (homeCoordinates) {
+        try {
+          const createdPlace = await createPlace(token, {
+            city_id: cityId,
+            label: placeLabel?.trim() || "My block",
+            lat: homeCoordinates.lat,
+            lng: homeCoordinates.lng,
+            radius_m: placeRadius ?? DEFAULT_PLACE_RADIUS_M,
+          });
+          createdPlaceId = createdPlace?.id ?? null;
+        } catch {
+          // ignore if place creation fails
+        }
+      }
+
       // Save home location (coordinates and district) to preferences for future use
       const homeLocation = homeCoordinates
         ? {
-            city_id: locationResult.matchedCity.id,
+            city_id: cityId,
             district: districtToLoad,
             coordinates: homeCoordinates,
           }
         : districtToLoad !== null
         ? {
-            city_id: locationResult.matchedCity.id,
+            city_id: cityId,
             district: districtToLoad,
           }
         : null;
-      
-      // Mark onboarding complete and save home location
+
+      // Merge with existing preferences so we don't overwrite saved_cities, etc.
+      const latest = await getUserPreferences(token);
+      const currentExtra = latest.extra || {};
       await updateUserPreferences(
         {
           has_completed_onboarding: true,
-          extra: homeLocation ? { home_location: homeLocation } : undefined,
+          extra: homeLocation ? { ...currentExtra, home_location: homeLocation } : currentExtra,
         },
         token
       );
-      
-      // Navigate to city with district
-      onCitySelected(locationResult.matchedCity.id, districtToLoad);
+
+      // Navigate to city (and block-level view when we created a place)
+      onCitySelected(cityId, districtToLoad, createdPlaceId);
       onComplete();
       onClose();
     } catch (err) {
@@ -672,12 +659,12 @@ export default function WelcomeModal({
 
   // Render step indicator
   const renderStepIndicator = () => {
-    // Determine steps based on current flow
+    // Determine steps based on current flow (no separate "preferences" step)
     let steps: string[] = [];
     if (step === "coming-soon") {
       steps = ["welcome", "coming-soon"];
     } else {
-      steps = ["welcome", "leader", "email-personalization", "preferences", "all-set"];
+      steps = ["welcome", "leader", "email-personalization", "all-set"];
     }
     
     const currentIndex = steps.indexOf(step);
@@ -731,17 +718,20 @@ export default function WelcomeModal({
 
       {error && <div className={styles.error}>{error}</div>}
 
-      {/* Location Input Section */}
+      {/* Location Input Section: address, or GPS / map in next step */}
       <div className={styles.locationSection}>
-        <div className={styles.inputGroup} ref={citySearchRef}>
+        <p className={styles.locationHint}>
+          Enter your address, or use the GPS button to use your current location. You can fine-tune your spot on the map in the next step.
+        </p>
+        <div className={styles.inputGroup} ref={locationInputRef}>
           <div className={styles.inputWithGPS}>
             <input
               type="text"
               className={styles.input}
-              placeholder="Enter your city or ZIP code"
+              placeholder="Enter your address"
               value={locationInput}
-              onChange={(e) => handleCityInputChange(e.target.value)}
-              onFocus={() => locationInput.length >= 2 && setShowCityDropdown(true)}
+              onChange={(e) => handleLocationInputChange(e.target.value)}
+              onFocus={() => locationInput.trim().length >= 2 && setShowAddressDropdown(true)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
@@ -749,12 +739,15 @@ export default function WelcomeModal({
                 }
               }}
               disabled={loading}
+              autoComplete="off"
+              aria-autocomplete="list"
+              aria-expanded={showAddressDropdown && addressSuggestions.length > 0}
             />
             <button
               className={styles.gpsButton}
               onClick={handleGPSLocation}
               disabled={loading}
-              title="Use my location"
+              title="Use my current location"
             >
               {loading ? (
                 <Loader size="sm" color="purple" />
@@ -770,19 +763,26 @@ export default function WelcomeModal({
               )}
             </button>
           </div>
-          
-          {showCityDropdown && citySearchResults.length > 0 && (
-            <div className={styles.dropdown}>
-              {citySearchResults.map((city) => (
-                <button
-                  key={city.id}
-                  className={styles.dropdownItem}
-                  onClick={() => handleCitySelect(city)}
-                >
-                  {city.emoji && <span className={styles.cityEmoji}>{city.emoji}</span>}
-                  <span>{city.display_name}</span>
-                </button>
-              ))}
+
+          {showAddressDropdown && (addressSuggestions.length > 0 || addressSuggestionsLoading) && (
+            <div className={styles.dropdown} role="listbox">
+              {addressSuggestionsLoading ? (
+                <div className={styles.dropdownItem}>
+                  <Loader size="sm" color="purple" /> Searching…
+                </div>
+              ) : (
+                addressSuggestions.map((suggestion, index) => (
+                  <button
+                    key={`${suggestion.place_name}-${index}`}
+                    type="button"
+                    className={styles.dropdownItem}
+                    onClick={() => handleAddressSuggestionSelect(suggestion)}
+                    role="option"
+                  >
+                    <span>{suggestion.place_name}</span>
+                  </button>
+                ))
+              )}
             </div>
           )}
         </div>
@@ -801,9 +801,33 @@ export default function WelcomeModal({
           )}
         </button>
       </div>
-      
     </div>
   );
+
+  // Save city + place (if location) on Continue from leader step
+  const handleLeaderContinue = async () => {
+    if (!locationResult?.matchedCity) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const token = await getAccessTokenSilently();
+      await saveCity(locationResult.matchedCity.id, token);
+      if (homeCoordinates) {
+        await createPlace(token, {
+          city_id: locationResult.matchedCity.id,
+          label: placeLabel.trim() || "My block",
+          lat: homeCoordinates.lat,
+          lng: homeCoordinates.lng,
+          radius_m: placeRadius,
+        });
+      }
+      setStep("email-personalization");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Render leader step - show representative info
   const renderLeaderStep = () => {
@@ -814,73 +838,84 @@ export default function WelcomeModal({
       : locationResult.cityName;
 
     const { mayor, councilMember } = locationResult;
+    const showMapAndPlace = homeCoordinates != null && locationResult.matchedCity != null;
 
     return (
-      <div className={styles.stepContent}>
+      <div className={`${styles.stepContent} ${styles.leaderStepContent}`}>
         <div className={styles.successIcon}>
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
             <polyline points="22 4 12 14.01 9 11.01" />
           </svg>
         </div>
-        
+
         <h2 className={styles.stepTitle}>
           {locationResult.matchedCity?.emoji && (
             <span className={styles.titleEmoji}>{locationResult.matchedCity.emoji}</span>
           )}
           {cityDisplayName}
         </h2>
-        
-        <div className={styles.leadersContainer}>
-          {mayor && (
-            <div className={styles.leaderCard}>
-              <div className={styles.leaderLabel}>Your Mayor</div>
-              <div className={styles.leaderName}>{mayor.name}</div>
-              <div className={styles.leaderTitle}>{mayor.title}</div>
-            </div>
-          )}
-          
-          {councilMember && (
-            <div className={styles.leaderCard}>
-              <div className={styles.leaderLabel}>Your Representative</div>
-              <div className={styles.leaderName}>{councilMember.name}</div>
-              <div className={styles.leaderTitle}>{councilMember.title}</div>
-              {councilMember.district && (
-                <div className={styles.leaderDistrict}>District {councilMember.district}</div>
-              )}
-            </div>
-          )}
-          
-          {!mayor && !councilMember && (
-            <p className={styles.stepDescription}>
-              We have data for your city! Explore crime, safety, traffic, and more.
-            </p>
-          )}
-        </div>
 
-        <div className={styles.trackOptions}>
-          <label className={styles.trackOption}>
-            <input
-              type="checkbox"
-              checked={trackBoth}
-              onChange={(e) => setTrackBoth(e.target.checked)}
+        {/* Mayor & Rep above the map */}
+        {(mayor || councilMember) && (
+          <div className={styles.leadersContainerCompact}>
+            {mayor && (
+              <div className={styles.leaderCardCompact}>
+                <div className={styles.leaderLabel}>Your Mayor</div>
+                <div className={styles.leaderName}>{mayor.name}</div>
+                <div className={styles.leaderTitle}>{mayor.title}</div>
+              </div>
+            )}
+            {councilMember && (
+              <div className={styles.leaderCardCompact}>
+                <div className={styles.leaderLabel}>Your Representative</div>
+                <div className={styles.leaderName}>{councilMember.name}</div>
+                <div className={styles.leaderTitle}>{councilMember.title}</div>
+                {councilMember.district && (
+                  <div className={styles.leaderDistrict}>District {councilMember.district}</div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        {!mayor && !councilMember && (
+          <p className={styles.stepDescription}>
+            We have data for your city! Explore crime, safety, traffic, and more.
+          </p>
+        )}
+
+        {showMapAndPlace && (
+          <div className={styles.leaderStepMapSection}>
+            <LocationMapSave
+              cityId={locationResult.matchedCity!.id}
+              lat={homeCoordinates!.lat}
+              lng={homeCoordinates!.lng}
+              valueLabel={placeLabel}
+              valueRadiusM={placeRadius}
+              onLabelChange={setPlaceLabel}
+              onRadiusChange={setPlaceRadius}
+              defaultLabel="My block"
+              defaultRadiusM={DEFAULT_PLACE_RADIUS_M}
+              className={styles.leaderStepLocationMapSave}
             />
-            <span className={styles.trackOptionText}>
-              <strong>Track both my mayor and representative</strong>
-              <span>See data for your district and citywide</span>
-            </span>
-          </label>
-        </div>
+          </div>
+        )}
 
         {error && <div className={styles.error}>{error}</div>}
 
         <div className={styles.actions}>
           <button
             className={styles.primaryButton}
-            onClick={() => setStep("email-personalization")}
+            onClick={handleLeaderContinue}
             disabled={loading}
           >
-            Continue
+            {loading ? (
+              <span className={styles.buttonLoader}>
+                <Loader size="sm" color="white" />
+              </span>
+            ) : (
+              "Continue"
+            )}
           </button>
           <button className={styles.backButton} onClick={() => setStep("welcome")}>
             Try a different city
@@ -890,39 +925,63 @@ export default function WelcomeModal({
     );
   };
 
-  // One-click preset prompts for personalized newsletter
+  // One-click preset prompts for personalized newsletter; also drive metric ordering (preset id → backend category names)
   const EMAIL_PRESETS = [
     {
       id: "crime-safety",
       label: "Crime & Safety",
       prompt:
         "Create a newsletter focused on crime and safety trends: violent and property crime trends, 311 calls related to safety and encampments, and any notable changes or anomalies. Compare to prior period and highlight actionable insights for residents.",
+      metricCategories: ["crime", "safety"],
     },
     {
       id: "economy",
       label: "Economy & Jobs",
       prompt:
         "Create a newsletter focused on local economy and jobs: business permits, employment-related metrics, economic development, and key indicators. Include period-over-period comparison and notable shifts.",
+      metricCategories: ["economy"],
     },
     {
       id: "real-estate",
       label: "Real Estate & Housing",
       prompt:
         "Create a newsletter focused on housing and real estate: permits, construction, affordability indicators, and housing-related 311 or code data. Highlight trends and anomalies relevant to residents and renters.",
+      metricCategories: ["housing"],
     },
     {
       id: "transportation",
       label: "Transportation & Traffic",
       prompt:
         "Create a newsletter focused on transportation and traffic: transit usage, traffic volumes, 311 street and sidewalk issues, and mobility trends. Include comparisons and notable changes.",
+      metricCategories: ["transportation", "transit", "mobility"],
     },
     {
       id: "environment",
       label: "Environment & Sustainability",
       prompt:
         "Create a newsletter focused on environment and sustainability: air quality, waste, green infrastructure, and sustainability metrics. Compare to prior period and highlight key takeaways.",
+      metricCategories: ["environment", "sustainability"],
     },
   ];
+
+  /** Build newsletter prompt from selected preset ids; used to keep prompt and pills in sync. */
+  const buildPromptFromSelection = (ids: string[]): string => {
+    if (ids.length === 0) return "";
+    const labels = ids
+      .map((id) => EMAIL_PRESETS.find((p) => p.id === id)?.label)
+      .filter(Boolean) as string[];
+    if (labels.length === 0) return "";
+    return `Create a ${newsletterFrequency} newsletter for this city and district. Focus on: ${labels.join(", ")}. Include recent changes and trends, notable anomalies, comparative analysis (this period vs. previous, district vs. city-wide), and actionable insights for residents. Be data-driven with specific numbers; highlight both positive and concerning trends.`;
+  };
+
+  /** Toggle a category pill; updates selection and derived newsletter prompt. */
+  const handleCategoryPillToggle = (presetId: string) => {
+    const next = selectedCategoryIds.includes(presetId)
+      ? selectedCategoryIds.filter((id) => id !== presetId)
+      : [...selectedCategoryIds, presetId];
+    setSelectedCategoryIds(next);
+    setNewsletterDescription(buildPromptFromSelection(next));
+  };
 
   const defaultSamplePrompt =
     "Create a weekly newsletter report for this city and district. Focus on recent changes and trends in key metrics (crime, housing, permits, 311 calls), notable anomalies, comparative analysis (this period vs. previous, district vs. city-wide), and actionable insights for residents. Be data-driven with specific numbers; highlight both positive and concerning trends.";
@@ -941,21 +1000,26 @@ export default function WelcomeModal({
           Choose a focus or describe what you want in your {newsletterFrequency} newsletter for {cityDisplayName}.
         </p>
 
+        <p className={styles.stepDescription} style={{ marginBottom: "12px" }}>
+          Select one or more to personalize your newsletter and dashboard—your chosen topics will appear first on your city dashboard and map.
+        </p>
         <div className={styles.presetChips}>
-          {EMAIL_PRESETS.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              className={
-                newsletterDescription === preset.prompt
-                  ? `${styles.presetChip} ${styles.presetChipActive}`
-                  : styles.presetChip
-              }
-              onClick={() => setNewsletterDescription(preset.prompt)}
-            >
-              {preset.label}
-            </button>
-          ))}
+          {EMAIL_PRESETS.map((preset) => {
+            const isActive = selectedCategoryIds.includes(preset.id);
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                className={
+                  isActive ? `${styles.presetChip} ${styles.presetChipActive}` : styles.presetChip
+                }
+                onClick={() => handleCategoryPillToggle(preset.id)}
+                aria-pressed={isActive}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
         </div>
 
         <label className={styles.textInputLabel}>Sample prompt (edit if you like)</label>
@@ -994,10 +1058,16 @@ export default function WelcomeModal({
         <div className={styles.actions}>
           <button
             className={styles.primaryButton}
-            onClick={() => setStep("preferences")}
+            onClick={handleSaveFromEmailPersonalization}
             disabled={loading}
           >
-            Continue
+            {loading ? (
+              <span className={styles.buttonLoader}>
+                <Loader size="sm" color="white" />
+              </span>
+            ) : (
+              "Continue"
+            )}
           </button>
           <button className={styles.backButton} onClick={() => setStep("leader")}>
             Back
@@ -1007,58 +1077,149 @@ export default function WelcomeModal({
     );
   };
 
-  // Handle saving preferences and moving to all-set step
-  const handleSavePreferences = async () => {
+  /** Build user metric ordering from selected category pills: preferred categories first, then rest. Used for dashboard and map column order. */
+  const buildUserMetricOrdering = (
+    metrics: Array<{ id: number; category?: string | null; subcategory?: string | null; sub_category?: string | null }>,
+    preferredCategoryOrder: string[]
+  ): MetricOrderingItem[] => {
+    const categoryToMetrics = new Map<string, Array<{ id: number; subcategory: string | null }>>();
+    for (const m of metrics) {
+      const cat = (m.category && m.category.trim()) || "Uncategorized";
+      const sub = (m.subcategory ?? m.sub_category ?? null) && String(m.subcategory ?? m.sub_category).trim() ? String(m.subcategory ?? m.sub_category).trim() : null;
+      if (!categoryToMetrics.has(cat)) categoryToMetrics.set(cat, []);
+      categoryToMetrics.get(cat)!.push({ id: m.id, subcategory: sub });
+    }
+    const allCategories = Array.from(categoryToMetrics.keys());
+    const preferredSet = new Set(preferredCategoryOrder);
+    const preferredOrdered = preferredCategoryOrder.filter((c) => categoryToMetrics.has(c));
+    const otherCategories = allCategories.filter((c) => !preferredSet.has(c)).sort((a, b) => a.localeCompare(b));
+    const sortedCategories = [...preferredOrdered, ...otherCategories];
+
+    const orderings: MetricOrderingItem[] = [];
+    sortedCategories.forEach((categoryName, catIndex) => {
+      const categoryOrder = (catIndex + 1) * 100;
+      const items = categoryToMetrics.get(categoryName)!;
+      const bySub = new Map<string | null, number[]>();
+      items.forEach(({ id, subcategory }) => {
+        if (!bySub.has(subcategory)) bySub.set(subcategory, []);
+        bySub.get(subcategory)!.push(id);
+      });
+      const subcats = Array.from(bySub.keys()).sort((a, b) => (a == null ? -1 : b == null ? 1 : a.localeCompare(b)));
+      let metricOrder = 0;
+      subcats.forEach((sub) => {
+        (bySub.get(sub) ?? []).forEach((metricId) => {
+          metricOrder += 10;
+          orderings.push({
+            category_name: categoryName,
+            category_order: categoryOrder,
+            subcategory_name: sub ?? undefined,
+            metric_id: metricId,
+            metric_order: metricOrder,
+          });
+        });
+      });
+    });
+    return orderings;
+  };
+
+  // Save from email-personalization: city + comm prefs + user metric ordering (from selected pills).
+  const handleSaveFromEmailPersonalization = async () => {
     setLoading(true);
+    setError(null);
     try {
       const token = await getAccessTokenSilently();
-      
+
       if (!locationResult?.matchedCity) {
         setError("City information missing. Please try again.");
         setLoading(false);
         return;
       }
-      
-      // Save the city
-      await saveCity(locationResult.matchedCity.id, token);
-      
-      // Determine district to load
+
+      const cityId = locationResult.matchedCity.id;
+      await saveCity(cityId, token);
+
       const districtToLoad = locationResult.councilMember?.district ?? locationResult.district ?? null;
-      
-      // Prepare preferences data
+      if (districtToLoad !== null && districtToLoad !== undefined) {
+        try {
+          await followRepresentative(cityId, String(districtToLoad), token);
+        } catch {
+          // ignore
+        }
+      }
+
+      if (homeCoordinates) {
+        try {
+          await createPlace(token, {
+            city_id: cityId,
+            label: placeLabel?.trim() || "My block",
+            lat: homeCoordinates.lat,
+            lng: homeCoordinates.lng,
+            radius_m: placeRadius ?? DEFAULT_PLACE_RADIUS_M,
+          });
+        } catch {
+          // ignore
+        }
+      }
+
+      // Personalized metric order: selected pills (in preset order) → preferred categories first for dashboard and map
+      if (selectedCategoryIds.length > 0) {
+        try {
+          const metrics = (await getCityMetrics(cityId, token)) || [];
+          const preferredOrder: string[] = [];
+          for (const preset of EMAIL_PRESETS) {
+            if (!selectedCategoryIds.includes(preset.id) || !preset.metricCategories) continue;
+            for (const c of preset.metricCategories) {
+              if (!preferredOrder.includes(c)) preferredOrder.push(c);
+            }
+          }
+          const orderings = buildUserMetricOrdering(metrics, preferredOrder);
+          if (orderings.length > 0) {
+            await saveUserMetricOrdering(cityId, orderings, token);
+          }
+        } catch (err) {
+          console.error("Error saving metric ordering:", err);
+          // Don't block onboarding; user can customize later in Settings
+        }
+      }
+
+      const latest = await getUserPreferences(token);
+      const currentExtra = latest.extra || {};
+      const communicationPreferences = mergeNewsletterPreferenceFields(
+        currentExtra,
+        {
+          newsletterDescription,
+          newsletterFrequency,
+        }
+      );
       const preferencesData: any = {
         has_completed_onboarding: true,
         extra: {
+          ...currentExtra,
           communication_preferences: {
-            personalized_email: personalizedEmail,
-            anomaly_alerts: anomalyAlerts,
-            weekly_digest: weeklyDigest,
-            monthly_report: monthlyReport,
-            report_scope: monthlyReport ? reportScope : null,
-            newsletter_description: newsletterDescription || null,
-            newsletter_frequency: personalizedEmail ? newsletterFrequency : null,
+            ...communicationPreferences,
+            personalized_email: true,
+            anomaly_alerts: true,
+            weekly_digest: true,
+            monthly_report: true,
+            report_scope: "district",
           },
         },
       };
-      
-      // Add home location if available
+
       if (homeCoordinates) {
         preferencesData.extra.home_location = {
-          city_id: locationResult.matchedCity.id,
+          city_id: cityId,
           district: districtToLoad,
           coordinates: homeCoordinates,
         };
       } else if (districtToLoad !== null) {
         preferencesData.extra.home_location = {
-          city_id: locationResult.matchedCity.id,
+          city_id: cityId,
           district: districtToLoad,
         };
       }
-      
-      // Save preferences
+
       await updateUserPreferences(preferencesData, token);
-      
-      // Move to all-set step
       setStep("all-set");
     } catch (err) {
       console.error("Error saving preferences:", err);
@@ -1076,118 +1237,6 @@ export default function WelcomeModal({
     onCitySelected(locationResult.matchedCity.id, districtToLoad);
     onComplete();
     onClose();
-  };
-
-  // Render preferences step
-  const renderPreferencesStep = () => {
-    if (!locationResult) return null;
-
-    return (
-      <div className={styles.stepContent}>
-        <h2 className={styles.stepTitle}>Customize your experience</h2>
-        <p className={styles.stepDescription}>
-          Tell us how you&apos;d like to stay informed about your city.
-        </p>
-
-        {/* Communication Preferences */}
-        <div className={styles.preferencesSection}>
-          <h3 className={styles.sectionTitle}>Communication</h3>
-          
-          <label className={styles.preferenceOption}>
-            <input
-              type="checkbox"
-              checked={personalizedEmail}
-              onChange={(e) => setPersonalizedEmail(e.target.checked)}
-            />
-            <span className={styles.preferenceOptionText}>
-              <strong>Personalized email</strong>
-              <span>Custom newsletter tailored to your interests</span>
-            </span>
-          </label>
-
-          {personalizedEmail && (
-            <div className={styles.newsletterCustomization}>
-              <label className={styles.textInputLabel}>
-                Describe your ideal personalized newsletter
-              </label>
-              <textarea
-                className={styles.newsletterDescriptionInput}
-                placeholder="Create a weekly newsletter report for [City] ([District]). Focus on recent changes and trends in key metrics (crime, housing, permits, 311 calls, budget), notable anomalies or significant shifts, comparative analysis (this period vs. previous period, this district vs. city-wide), and actionable insights for residents. The report should be accessible to general public, data-driven with specific numbers and percentages, highlight both positive and concerning trends, and include visualizations where helpful."
-                value={newsletterDescription}
-                onChange={(e) => setNewsletterDescription(e.target.value)}
-                rows={4}
-              />
-              <div className={styles.frequencySelector}>
-                <label className={styles.frequencyLabel}>Frequency:</label>
-                <label className={styles.frequencyOption}>
-                  <input
-                    type="radio"
-                    name="newsletterFrequency"
-                    checked={newsletterFrequency === "weekly"}
-                    onChange={() => setNewsletterFrequency("weekly")}
-                  />
-                  <span>Weekly</span>
-                </label>
-                <label className={styles.frequencyOption}>
-                  <input
-                    type="radio"
-                    name="newsletterFrequency"
-                    checked={newsletterFrequency === "monthly"}
-                    onChange={() => setNewsletterFrequency("monthly")}
-                  />
-                  <span>Monthly</span>
-                </label>
-              </div>
-            </div>
-          )}
-
-          <label className={styles.preferenceOption}>
-            <input
-              type="checkbox"
-              checked={anomalyAlerts}
-              onChange={(e) => setAnomalyAlerts(e.target.checked)}
-            />
-            <span className={styles.preferenceOptionText}>
-              <strong>Anomaly alerts</strong>
-              <span>Get notified when significant changes are detected</span>
-            </span>
-          </label>
-
-          <label className={styles.preferenceOption}>
-            <input
-              type="checkbox"
-              checked={monthlyReport}
-              onChange={(e) => setMonthlyReport(e.target.checked)}
-            />
-            <span className={styles.preferenceOptionText}>
-              <strong>Monthly report</strong>
-              <span>Comprehensive analysis of city performance</span>
-            </span>
-          </label>
-        </div>
-
-        {error && <div className={styles.error}>{error}</div>}
-
-        <div className={styles.actions}>
-          <button
-            className={styles.primaryButton}
-            onClick={handleSavePreferences}
-            disabled={loading}
-          >
-            {loading ? (
-              <span className={styles.buttonLoader}>
-                <Loader size="sm" color="white" />
-              </span>
-            ) : (
-              "Continue"
-            )}
-          </button>
-          <button className={styles.backButton} onClick={() => setStep("email-personalization")}>
-            Back
-          </button>
-        </div>
-      </div>
-    );
   };
 
   // Render all-set step
@@ -1213,34 +1262,31 @@ export default function WelcomeModal({
         </p>
 
         <div className={styles.allSetSummary}>
-          {personalizedEmail && (
-            <div className={styles.summaryItem}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-              <span>Personalized {newsletterFrequency} email enabled</span>
-            </div>
-          )}
-          {anomalyAlerts && (
-            <div className={styles.summaryItem}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-              <span>Anomaly alerts enabled</span>
-            </div>
-          )}
-          {monthlyReport && (
-            <div className={styles.summaryItem}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-              <span>Monthly report enabled</span>
-            </div>
-          )}
+          <div className={styles.summaryItem}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            <span>Personalized {newsletterFrequency} email</span>
+          </div>
+          <div className={styles.summaryItem}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            <span>Anomaly alerts</span>
+          </div>
+          <div className={styles.summaryItem}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            <span>Weekly digest &amp; monthly report</span>
+          </div>
         </div>
+        <p className={styles.stepDescription} style={{ marginTop: "12px", fontSize: "13px" }}>
+          You can change these anytime in Settings.
+        </p>
 
         <div className={styles.actions}>
           <button
@@ -1342,7 +1388,6 @@ export default function WelcomeModal({
         {step === "welcome" && renderWelcomeStep()}
         {step === "leader" && renderLeaderStep()}
         {step === "email-personalization" && renderEmailPersonalizationStep()}
-        {step === "preferences" && renderPreferencesStep()}
         {step === "all-set" && renderAllSetStep()}
         {step === "coming-soon" && renderComingSoonStep()}
       </div>

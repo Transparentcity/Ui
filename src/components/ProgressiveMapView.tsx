@@ -239,12 +239,13 @@ export default function ProgressiveMapView({
     return shapeLayersFromConfig?.length ? shapeLayersFromConfig : EMPTY_SHAPE_LAYERS;
   }, [availableViews, shapeLayersFromConfig]);
 
-  // Initial view from default_view (backend decides); with few points always show points so dots are visible
+  // Initial view from default_view (backend decides); with few points always show points so dots are visible.
+  // Use 1000 so that "Last month" and similar bounded ranges (often a few hundred points) show points by default.
   const initialViewRef = useRef(false);
   useEffect(() => {
     if (initialViewRef.current) return;
     initialViewRef.current = true;
-    const fewPoints = locationDataCount <= 100;
+    const fewPoints = locationDataCount <= 1000;
     if (defaultView) {
       if (defaultView.type === "points" || fewPoints) {
         setShowPoints(true);
@@ -311,22 +312,23 @@ export default function ProgressiveMapView({
       .finally(() => setLoadingLazyView(false));
   }, [selectedShapeLayer, mapHash, aggregations, lazyLoadedAggregations, onError]);
 
-  // Automatically load points from location_data for point maps
+  // Automatically load points from location_data for point maps.
+  // Sync whenever location_data changes (e.g. user switches to "Last month") so points update.
   useEffect(() => {
-    // For point maps, load points immediately from location_data
-    if (isPointMap && mapData.location_data && Array.isArray(mapData.location_data) && mapData.location_data.length > 0 && points === null) {
-      // Normalize point data to extract lat/lon from various formats (including GeoJSON)
-      const validLocationData = normalizePointData(mapData.location_data);
-
-      if (validLocationData.length > 0) {
-        console.log(`[ProgressiveMapView] Loading ${validLocationData.length} points from location_data for point map (normalized from ${mapData.location_data.length})`);
-        setPoints(validLocationData);
-        setShowPoints(true);
-      } else {
-        console.log(`[ProgressiveMapView] No valid points found after normalization. Sample data:`, mapData.location_data[0]);
+    if (!isPointMap || !mapData.location_data || !Array.isArray(mapData.location_data) || mapData.location_data.length === 0) {
+      if (isPointMap && (!mapData.location_data || mapData.location_data.length === 0)) {
+        setPoints(null);
       }
+      return;
     }
-  }, [isPointMap, mapData.location_data, points]);
+    const validLocationData = normalizePointData(mapData.location_data);
+    if (validLocationData.length > 0) {
+      setPoints(validLocationData);
+      setShowPoints(true);
+    } else {
+      setPoints(null);
+    }
+  }, [isPointMap, mapData.location_data]);
 
   // Automatically fetch and show points if location_data has items (for choropleth maps with data)
   useEffect(() => {

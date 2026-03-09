@@ -1,21 +1,10 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import TitleBar from "@/components/TitleBar";
 import Sidebar from "@/components/Sidebar";
-import ChatView from "@/components/ChatView";
-import CityDataAdmin from "@/components/CityDataAdmin";
-import CityDataTable from "@/components/CityDataTable";
-import CityView from "@/components/CityView";
-import ResearchView from "@/components/ResearchView";
-import DatasetsAdmin from "@/components/DatasetsAdmin";
-import MetricsAdmin from "@/components/MetricsAdmin";
-import UserManagement from "@/components/UserManagement";
-import ClaimsAdmin from "@/components/ClaimsAdmin";
-import JobLogsViewer from "@/components/JobLogsViewer";
-import EmailAdmin from "@/components/EmailAdmin";
 import FeedView from "@/components/FeedView";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
@@ -29,16 +18,19 @@ import {
   recordSignupIntent,
   getGovernmentVerificationStatus,
   updateGovernmentVerification,
+  listMyPlaces,
   type ClaimContext,
   type GovernmentVerificationStatus,
   type UserPreferences,
   type UserPreferencesUpdateRequest,
   type CityDetail,
+  type UserPlace,
 } from "@/lib/apiClient";
 import { PENDING_ORDER_STORAGE_KEY_PREFIX } from "@/components/MetricOrderEditor";
 import Loader from "@/components/Loader";
 import WelcomeModal from "@/components/WelcomeModal";
 import GovernmentOnboardingModal from "@/components/GovernmentOnboardingModal";
+import EditHomeLocationModal from "@/components/EditHomeLocationModal";
 import RedisStatusIndicator from "@/components/RedisStatusIndicator";
 import {
   trackSignupComplete,
@@ -48,8 +40,50 @@ import {
   trackUserActivation,
   trackCitySaved,
 } from "@/lib/analytics";
+import {
+  mergeNewsletterPreferenceFields,
+  readNewsletterPreferenceFields,
+} from "@/lib/newsletterPreferences";
 import styles from "./page.module.css";
 import dynamic from "next/dynamic";
+
+// Lazy-load heavy views so dashboard shell and default Feed paint immediately
+const ChatView = dynamic(() => import("@/components/ChatView"), {
+  ssr: false,
+  loading: () => (
+    <div className={`${styles.contentView} tc-loading-state`} style={{ alignItems: "center", justifyContent: "center" }}>
+      <Loader size="sm" color="dark" />
+      <span>Loading…</span>
+    </div>
+  ),
+});
+const CityView = dynamic(() => import("@/components/CityView"), {
+  ssr: false,
+  loading: () => (
+    <div className={`${styles.contentView} tc-loading-state`} style={{ alignItems: "center", justifyContent: "center" }}>
+      <Loader size="sm" color="dark" />
+      <span>Loading…</span>
+    </div>
+  ),
+});
+const ResearchView = dynamic(() => import("@/components/ResearchView"), {
+  ssr: false,
+  loading: () => (
+    <div className={`${styles.contentView} tc-loading-state`} style={{ alignItems: "center", justifyContent: "center" }}>
+      <Loader size="sm" color="dark" />
+      <span>Loading…</span>
+    </div>
+  ),
+});
+const CityDataAdmin = dynamic(() => import("@/components/CityDataAdmin"), { ssr: false });
+const CityDataTable = dynamic(() => import("@/components/CityDataTable"), { ssr: false });
+const DatasetsAdmin = dynamic(() => import("@/components/DatasetsAdmin"), { ssr: false });
+const MetricsAdmin = dynamic(() => import("@/components/MetricsAdmin"), { ssr: false });
+const UserManagement = dynamic(() => import("@/components/UserManagement"), { ssr: false });
+const ClaimsAdmin = dynamic(() => import("@/components/ClaimsAdmin"), { ssr: false });
+const JobLogsViewer = dynamic(() => import("@/components/JobLogsViewer"), { ssr: false });
+const EmailAdmin = dynamic(() => import("@/components/EmailAdmin"), { ssr: false });
+const DataCompletenessAdmin = dynamic(() => import("@/components/DataCompletenessAdmin"), { ssr: false });
 
 // Dynamically import NewResearchPage to avoid SSR issues
 const NewResearchPage = dynamic(() => import("../research/new/page"), { ssr: false });
@@ -86,6 +120,11 @@ export default function DashboardPage() {
   const [currentResearchId, setCurrentResearchId] = useState<number | null>(null);
   const [initialChatPrompt, setInitialChatPrompt] = useState<string | null>(null);
   const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [requestOpenDistrictModal, setRequestOpenDistrictModal] = useState<number | null>(null);
+  const [initialPlaceId, setInitialPlaceId] = useState<number | null>(null);
+  /** Official Selector selection (district / place) so left nav can stay in sync; only when currentView === "city". */
+  const [citySelection, setCitySelection] = useState<{ district: number | null; placeId: number | null }>({ district: null, placeId: null });
+  const [allUserPlaces, setAllUserPlaces] = useState<UserPlace[]>([]);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showGovernmentOnboardingModal, setShowGovernmentOnboardingModal] = useState(false);
   const [governmentClaimContext, setGovernmentClaimContext] = useState<ClaimContext | null>(null);
@@ -108,6 +147,7 @@ export default function DashboardPage() {
   const [editableNewsletterFrequency, setEditableNewsletterFrequency] = useState<"weekly" | "monthly">("weekly");
   const [generatingSampleNewsletter, setGeneratingSampleNewsletter] = useState(false);
   const [sampleNewsletterReportUrl, setSampleNewsletterReportUrl] = useState<string | null>(null);
+  const [showEditHomeLocationModal, setShowEditHomeLocationModal] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -145,23 +185,6 @@ export default function DashboardPage() {
       trackDashboardView();
     }
   }, [isAuthenticated, isLoading]);
-
-  // Load government verification status for sidebar logo (and keep in sync when settings load it)
-  useEffect(() => {
-    if (!isAuthenticated || isLoading) return;
-    let cancelled = false;
-    getAccessTokenSilently()
-      .then((token) => getGovernmentVerificationStatus(token))
-      .then((status) => {
-        if (!cancelled) setGovVerificationStatus(status);
-      })
-      .catch(() => {
-        if (!cancelled) setGovVerificationStatus(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated, isLoading, getAccessTokenSilently]);
 
   // Track signup completion and login
   useEffect(() => {
@@ -214,6 +237,24 @@ export default function DashboardPage() {
     migratePendingMetricOrder();
   }, [isAuthenticated, isLoading]);
 
+  // Load all user places for sidebar (My Cities list)
+  useEffect(() => {
+    if (!isAuthenticated || isLoading) {
+      setAllUserPlaces([]);
+      return;
+    }
+    let cancelled = false;
+    getAccessTokenSilently()
+      .then((token) => listMyPlaces(token))
+      .then((list) => {
+        if (!cancelled) setAllUserPlaces(list);
+      })
+      .catch(() => {
+        if (!cancelled) setAllUserPlaces([]);
+      });
+    return () => { cancelled = true; };
+  }, [isAuthenticated, isLoading, getAccessTokenSilently]);
+
   // Reload preferences when settings view becomes active
   useEffect(() => {
     if (currentView === "system-stats" && isAuthenticated && !isLoading && !loadingPreferences) {
@@ -254,32 +295,43 @@ export default function DashboardPage() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // Load permissions and government verification in parallel (single round-trip for sidebar state)
   useEffect(() => {
-    const checkAdminStatus = async () => {
-      if (!isAuthenticated || !user) {
-        setIsCheckingAdmin(false);
-        return;
-      }
+    if (!isAuthenticated || !user) {
+      setIsCheckingAdmin(false);
+      return;
+    }
 
+    let cancelled = false;
+
+    const loadPermissionsAndGov = async () => {
       try {
         const token = await getAccessTokenSilently();
-        const permissions = await getMyPermissions(token);
+        const [permissions, govStatus] = await Promise.all([
+          getMyPermissions(token),
+          getGovernmentVerificationStatus(token).catch(() => null),
+        ]);
+        if (cancelled) return;
         setIsAdmin(permissions.is_admin || false);
         setCityLeadCityIds(permissions.city_lead_city_ids || []);
+        setGovVerificationStatus(govStatus ?? null);
         console.log("Admin status checked:", { isAdmin: permissions.is_admin, role: permissions.role });
-        setIsCheckingAdmin(false);
       } catch (error) {
         console.error("Error checking admin status:", error);
-        // On error, default to false (non-admin)
-        setIsAdmin(false);
-        setCityLeadCityIds([]);
-        setIsCheckingAdmin(false);
+        if (!cancelled) {
+          setIsAdmin(false);
+          setCityLeadCityIds([]);
+          setGovVerificationStatus(null);
+        }
+      } finally {
+        if (!cancelled) setIsCheckingAdmin(false);
       }
     };
 
-    if (isAuthenticated) {
-      checkAdminStatus();
-    }
+    loadPermissionsAndGov();
+    return () => {
+      cancelled = true;
+    };
   }, [isAuthenticated, user, getAccessTokenSilently]);
 
   // Check if user needs onboarding (first-time user check)
@@ -426,6 +478,12 @@ export default function DashboardPage() {
     setSidebarOpen(!sidebarOpen);
   };
 
+  // Stable callback so CityView's useEffect doesn't re-run every render (avoids max update depth)
+  const onOfficialSelectionChange = useCallback(
+    (s: { district: number | null; placeId: number | null }) => setCitySelection(s),
+    []
+  );
+
   const handleNewChat = () => {
     setCurrentView("chat");
     setCurrentSessionId(null); // Reset to new chat
@@ -460,7 +518,13 @@ export default function DashboardPage() {
 
   const handleSearchCities = () => {
     // City search is now handled by the CityTypeahead component in the Sidebar
-    // This function is kept for backward compatibility but is no longer needed
+  };
+
+  const handleOpenFindDistrict = () => {
+    if (activeCityId != null) {
+      setRequestOpenDistrictModal(activeCityId);
+      setCurrentView("city");
+    }
   };
 
   const handleViewChange = (view: string) => {
@@ -481,13 +545,51 @@ export default function DashboardPage() {
 
   const handleCityClick = (cityId: number) => {
     setActiveCityId(cityId);
-    setInitialDistrict(null); // Clear initial district when manually selecting
+    setInitialDistrict(null);
+    setInitialPlaceId(null);
+    setCitySelection({ district: null, placeId: null });
     setCurrentView("city");
-    setCurrentSessionId(null); // Clear chat session when selecting a city
+    setCurrentSessionId(null);
     setIsCurrentSessionJobSession(false);
-    setCurrentResearchId(null); // Clear research when selecting a city
-    // Clear GPS location when city is selected via sidebar
+    setCurrentResearchId(null);
     setGpsLocation(null);
+  };
+
+  const handlePlaceClick = (cityId: number, placeId: number) => {
+    setActiveCityId(cityId);
+    setInitialDistrict(null);
+    setInitialPlaceId(placeId);
+    setCitySelection({ district: null, placeId });
+    setCurrentView("city");
+    setCurrentSessionId(null);
+    setIsCurrentSessionJobSession(false);
+    setCurrentResearchId(null);
+    setGpsLocation(null);
+  };
+
+  const handlePlaceSaved = () => {
+    getAccessTokenSilently()
+      .then((token) => listMyPlaces(token))
+      .then(setAllUserPlaces)
+      .catch(() => setAllUserPlaces([]));
+  };
+
+  const handlePlaceRenamed = () => {
+    getAccessTokenSilently()
+      .then((token) => listMyPlaces(token))
+      .then(setAllUserPlaces)
+      .catch(() => setAllUserPlaces([]));
+  };
+
+  const handlePlaceDeleted = (placeId: number) => {
+    getAccessTokenSilently()
+      .then((token) => listMyPlaces(token))
+      .then(setAllUserPlaces)
+      .catch(() => setAllUserPlaces([]));
+    if (citySelection.placeId === placeId) {
+      setCitySelection((prev) => ({ ...prev, placeId: null }));
+      setInitialPlaceId(null);
+    }
   };
 
   const handleOpenSettings = async () => {
@@ -508,16 +610,16 @@ export default function DashboardPage() {
       
       // Initialize editable state from preferences
       const commPrefs = prefs.extra?.communication_preferences || {};
+      const { newsletterDescription, newsletterFrequency } =
+        readNewsletterPreferenceFields(prefs.extra);
       console.log("Communication preferences from loaded prefs:", commPrefs);
       
       setEditableAnomalyAlerts(commPrefs.anomaly_alerts ?? false);
       setEditableWeeklyDigest(commPrefs.weekly_digest ?? false);
       setEditableMonthlyReport(commPrefs.monthly_report ?? false);
       setEditableReportScope(commPrefs.report_scope || "district");
-      setEditableNewsletterDescription(commPrefs.newsletter_description || "");
-      setEditableNewsletterFrequency(
-        commPrefs.newsletter_frequency === "monthly" ? "monthly" : "weekly"
-      );
+      setEditableNewsletterDescription(newsletterDescription);
+      setEditableNewsletterFrequency(newsletterFrequency);
       
       // Fetch government verification status (for Settings government mode section)
       try {
@@ -563,6 +665,14 @@ export default function DashboardPage() {
       const currentExtra = latestPrefs.extra || {};
       
       console.log("Current extra before update:", JSON.stringify(currentExtra, null, 2));
+
+      const communicationPreferences = mergeNewsletterPreferenceFields(
+        currentExtra,
+        {
+          newsletterDescription: editableNewsletterDescription,
+          newsletterFrequency: editableNewsletterFrequency,
+        }
+      );
       
       // Build updated extra object, preserving ALL existing data
       // The backend merges extra fields at the top level of preferences,
@@ -570,13 +680,11 @@ export default function DashboardPage() {
       const updatedExtra = {
         ...currentExtra, // Preserve all existing extra fields (saved_cities, home_location, etc.)
         communication_preferences: {
-          ...(currentExtra.communication_preferences || {}), // Preserve existing comm prefs
+          ...communicationPreferences,
           anomaly_alerts: editableAnomalyAlerts,
           weekly_digest: editableWeeklyDigest,
           monthly_report: editableMonthlyReport,
           report_scope: editableMonthlyReport ? editableReportScope : null,
-          newsletter_description: editableNewsletterDescription || null,
-          newsletter_frequency: editableNewsletterFrequency,
         },
       };
       
@@ -609,15 +717,15 @@ export default function DashboardPage() {
       
       // Re-initialize editable state from refreshed preferences to ensure sync
       const commPrefs = refreshed.extra?.communication_preferences || {};
+      const { newsletterDescription, newsletterFrequency } =
+        readNewsletterPreferenceFields(refreshed.extra);
       
       setEditableAnomalyAlerts(commPrefs.anomaly_alerts ?? false);
       setEditableWeeklyDigest(commPrefs.weekly_digest ?? false);
       setEditableMonthlyReport(commPrefs.monthly_report ?? false);
       setEditableReportScope(commPrefs.report_scope || "district");
-      setEditableNewsletterDescription(commPrefs.newsletter_description || "");
-      setEditableNewsletterFrequency(
-        commPrefs.newsletter_frequency === "monthly" ? "monthly" : "weekly"
-      );
+      setEditableNewsletterDescription(newsletterDescription);
+      setEditableNewsletterFrequency(newsletterFrequency);
       
       // Update home city if it exists
       if (refreshed.extra?.home_location?.city_id) {
@@ -686,14 +794,21 @@ export default function DashboardPage() {
     }
   };
 
-  const handleWelcomeCitySelected = (cityId: number, district?: number | null) => {
+  const handleWelcomeCitySelected = (cityId: number, district?: number | null, placeId?: number | null) => {
     setActiveCityId(cityId);
-    // If district is provided, set it; otherwise keep null (will default to citywide/0 in CityView)
     setInitialDistrict(district !== undefined && district !== null ? district : null);
+    setInitialPlaceId(placeId ?? null);
     setCurrentView("city");
     setCurrentSessionId(null);
     setCurrentResearchId(null);
     hasAutoSelectedCity.current = true;
+    // Refresh My Places so the new block appears in the sidebar
+    if (placeId != null) {
+      getAccessTokenSilently()
+        .then((token) => listMyPlaces(token))
+        .then(setAllUserPlaces)
+        .catch(() => {});
+    }
   };
 
   const handleWelcomeComplete = () => {
@@ -720,22 +835,6 @@ export default function DashboardPage() {
       const next = p.toString() ? `${window.location.pathname}?${p}` : window.location.pathname;
       window.history.replaceState({}, "", next);
     }
-  };
-
-  const buttonStyle = {
-    padding: "8px 16px",
-    fontSize: "14px",
-    fontWeight: 500,
-    color: "var(--button-secondary-text)",
-    background: "var(--bg-secondary)",
-    border: "1px solid var(--border-primary)",
-    borderRadius: "6px",
-    cursor: "pointer",
-    transition: "all 0.15s ease",
-  };
-  const buttonHover = (e: React.MouseEvent<HTMLButtonElement>, over: boolean) => {
-    e.currentTarget.style.background = over ? "var(--bg-tertiary)" : "var(--bg-secondary)";
-    e.currentTarget.style.borderColor = over ? "var(--border-secondary)" : "var(--border-primary)";
   };
 
   const handleResetOnboarding = async () => {
@@ -794,11 +893,12 @@ export default function DashboardPage() {
     }
   };
 
-  if (isLoading || isCheckingAdmin) {
+  // Only block on Auth0; show shell + feed immediately. Admin/gov state fills in when ready.
+  if (isLoading) {
     return (
-      <div className={styles.dashboardLoading}>
+      <div className={`${styles.dashboardLoading} tc-loading-state`}>
         <Loader size="sm" color="dark" />
-        <span>Loading...</span>
+        <span>Loading…</span>
       </div>
     );
   }
@@ -838,13 +938,29 @@ export default function DashboardPage() {
         onCityClick={handleCityClick}
         onDistrictClick={(cityId, district) => {
           setActiveCityId(cityId);
-          setInitialDistrict(district);
+          const districtNum = typeof district === "string" ? parseInt(district, 10) : district;
+          setInitialDistrict(districtNum);
+          setInitialPlaceId(null);
+          setCitySelection({ district: Number.isNaN(districtNum) ? null : districtNum, placeId: null });
           setCurrentView("city");
           setCurrentSessionId(null);
           setIsCurrentSessionJobSession(false);
           setCurrentResearchId(null);
           setGpsLocation(null);
         }}
+        userPlaces={allUserPlaces}
+        activePlaceId={currentView === "city" ? citySelection.placeId : null}
+        activeDistrict={
+          currentView === "city"
+            ? citySelection.placeId != null
+              ? undefined
+              : citySelection.district
+            : undefined
+        }
+        onPlaceClick={handlePlaceClick}
+        onPlaceSaved={handlePlaceSaved}
+        onPlaceRenamed={handlePlaceRenamed}
+        onPlaceDeleted={handlePlaceDeleted}
         activeCityId={activeCityId}
         onResearchClick={(reportId) => {
           setCurrentResearchId(reportId);
@@ -862,6 +978,8 @@ export default function DashboardPage() {
         onCitySelect={(cityId) => {
           setActiveCityId(cityId);
           setInitialDistrict(null); // Clear initial district when manually selecting
+          setInitialPlaceId(null);
+          setCitySelection({ district: null, placeId: null });
           setCurrentView("city");
           setCurrentSessionId(null); // Clear chat session when selecting a city
           setIsCurrentSessionJobSession(false);
@@ -869,11 +987,9 @@ export default function DashboardPage() {
           // selects a city from the sidebar list (via handleCityClick)
         }}
         onGPSLocation={(location) => {
-          // Set or clear GPS location
-          // If location is null, clear GPS (remove marker and zoom out)
-          // Otherwise, set GPS location for map zooming
           setGpsLocation(location);
         }}
+        onOpenFindDistrict={handleOpenFindDistrict}
       />
 
       <main className={`${styles.mainContent} ${sidebarOpen ? "" : styles.mainContentCollapsed}`} id="main-content">
@@ -970,10 +1086,15 @@ export default function DashboardPage() {
             <div id="city-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
               <div className={`${styles.adminContainer} ${styles.cityViewContainer}`}>
                 <CityView
+                  key={activeCityId}
                   cityId={activeCityId}
                   isAdmin={isAdmin || cityLeadCityIds.includes(activeCityId)}
                   gpsLocation={gpsLocation}
                   initialDistrict={initialDistrict}
+                  initialPlaceId={initialPlaceId}
+                  requestOpenDistrictModal={requestOpenDistrictModal}
+                  onClearDistrictModalRequest={() => setRequestOpenDistrictModal(null)}
+                  onOfficialSelectionChange={onOfficialSelectionChange}
                 />
               </div>
             </div>
@@ -1019,403 +1140,160 @@ export default function DashboardPage() {
       {/* Settings Overlay */}
       {settingsOpen && (
         <>
-          {/* Backdrop */}
-          <div
-            onClick={() => setSettingsOpen(false)}
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: "rgba(0, 0, 0, 0.5)",
-              zIndex: 1000,
-              cursor: "pointer",
-            }}
-          />
-          {/* Settings Panel */}
-          <div
-            style={{
-              position: "fixed",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              width: "90%",
-              maxWidth: "800px",
-              maxHeight: "90vh",
-              background: "var(--bg-primary)",
-              borderRadius: "12px",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-              zIndex: 1001,
-              overflow: "auto",
-              border: "1px solid var(--border-primary)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={styles.adminContainer} style={{ padding: "24px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
-                <h2 style={{ margin: 0 }}>Settings</h2>
-                <button
-                  onClick={() => setSettingsOpen(false)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: "8px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRadius: "6px",
-                    color: "var(--text-secondary)",
-                    transition: "all 0.15s ease",
-                    fontSize: "20px",
-                    lineHeight: 1,
-                    width: "32px",
-                    height: "32px",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "var(--bg-secondary)";
-                    e.currentTarget.style.color = "var(--button-secondary-text)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "none";
-                    e.currentTarget.style.color = "var(--text-secondary)";
-                  }}
-                  aria-label="Close settings"
-                >
+          <div className={styles.settingsBackdrop} onClick={() => setSettingsOpen(false)} aria-hidden />
+          <div className={styles.settingsPanel} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="settings-title">
+            <div className={styles.settingsPanelInner}>
+              <header className={styles.settingsHeader}>
+                <h2 id="settings-title" className={styles.settingsTitle}>Settings</h2>
+                <button type="button" className={styles.settingsCloseBtn} onClick={() => setSettingsOpen(false)} aria-label="Close settings">
                   ×
                 </button>
-              </div>
+              </header>
               {loadingPreferences ? (
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "16px" }}>
+                <div className="tc-loading-state" style={{ marginTop: "8px" }}>
                   <Loader size="sm" color="dark" />
-                  <span style={{ color: "var(--text-secondary)" }}>Loading preferences...</span>
+                  <span>Loading preferences…</span>
                 </div>
               ) : (
-                <div style={{ marginTop: "16px" }}>
-                  {/* User Information Section */}
-                  <div style={{ marginBottom: "32px" }}>
-                    <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
-                      Account Information
-                    </h3>
-                    
-                    {userEmail && (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "12px 0",
-                          borderBottom: "1px solid var(--border-primary)",
-                          gap: "16px",
-                        }}
-                      >
-                        <div>
-                          <div
-                            style={{
-                              fontWeight: 600,
-                              color: "var(--text-primary)",
-                              marginBottom: "4px",
-                            }}
-                          >
-                            Email
-                          </div>
-                          <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                            {userEmail}
+                <div className={styles.settingsBody}>
+                  {/* Account */}
+                  <section className={styles.settingsSection}>
+                    <h3 className={styles.settingsSectionTitle}>Account</h3>
+                    <div className={styles.settingsSectionCard}>
+                      {userEmail && (
+                        <div className={styles.settingsRow}>
+                          <div className={styles.settingsRowLabel}>
+                            <div className={styles.settingsRowTitle}>Email</div>
+                            <div className={styles.settingsRowDescription}>{userEmail}</div>
                           </div>
                         </div>
-                      </div>
-                    )}
-
-                    {userPreferences?.extra?.home_location && (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "12px 0",
-                          borderBottom: "1px solid var(--border-primary)",
-                          gap: "16px",
-                        }}
-                      >
-                        <div>
-                          <div
-                            style={{
-                              fontWeight: 600,
-                              color: "var(--text-primary)",
-                              marginBottom: "4px",
-                            }}
-                          >
-                            Home Location
-                          </div>
-                          <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                            {homeCity ? (
-                              <>
-                                {homeCity.emoji && <span style={{ marginRight: "6px" }}>{homeCity.emoji}</span>}
-                                {homeCity.display_name || homeCity.name}
-                                {userPreferences.extra.home_location.district !== null && userPreferences.extra.home_location.district !== undefined && (
-                                  <span> • District {userPreferences.extra.home_location.district}</span>
-                                )}
-                              </>
+                      )}
+                      <div className={styles.settingsRow}>
+                        <div className={styles.settingsRowLabel}>
+                          <div className={styles.settingsRowTitle}>Home location</div>
+                          <div className={styles.settingsRowDescription}>
+                            {userPreferences?.extra?.home_location ? (
+                              homeCity ? (
+                                <>
+                                  {homeCity.emoji && <span style={{ marginRight: "6px" }}>{homeCity.emoji}</span>}
+                                  {homeCity.display_name || homeCity.name}
+                                  {userPreferences.extra.home_location.district !== null && userPreferences.extra.home_location.district !== undefined && (
+                                    <span> · District {userPreferences.extra.home_location.district}</span>
+                                  )}
+                                </>
+                              ) : (
+                                `City ID: ${userPreferences.extra.home_location.city_id}${
+                                  userPreferences.extra.home_location.district !== null && userPreferences.extra.home_location.district !== undefined
+                                    ? ` · District ${userPreferences.extra.home_location.district}`
+                                    : ""
+                                }`
+                              )
                             ) : (
-                              `City ID: ${userPreferences.extra.home_location.city_id}${
-                                userPreferences.extra.home_location.district !== null && userPreferences.extra.home_location.district !== undefined
-                                  ? ` • District ${userPreferences.extra.home_location.district}`
-                                  : ""
-                              }`
+                              "Not set"
                             )}
                           </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Communication Preferences Section */}
-                  <div style={{ marginBottom: "32px" }}>
-                    <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
-                      Communication Preferences
-                    </h3>
-                    
-                    <label
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "12px 0",
-                        borderBottom: "1px solid var(--border-primary)",
-                        gap: "16px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <div>
-                        <div
-                          style={{
-                            fontWeight: 600,
-                            color: "var(--text-primary)",
-                            marginBottom: "4px",
-                          }}
-                        >
-                          Anomaly Alerts
-                        </div>
-                        <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                          Get notified when significant changes are detected
+                        <div className={styles.settingsRowControl}>
+                          <button type="button" className={styles.settingsSecondaryBtn} onClick={() => setShowEditHomeLocationModal(true)}>
+                            {userPreferences?.extra?.home_location ? "Edit" : "Set location"}
+                          </button>
                         </div>
                       </div>
-                      <label
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "10px",
-                          cursor: "pointer",
-                          userSelect: "none",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={editableAnomalyAlerts}
-                          onChange={(e) => setEditableAnomalyAlerts(e.target.checked)}
-                          aria-label="Toggle anomaly alerts"
-                        />
-                        <span style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                          {editableAnomalyAlerts ? "On" : "Off"}
-                        </span>
-                      </label>
-                    </label>
-
-                    <label
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "12px 0",
-                        borderBottom: "1px solid var(--border-primary)",
-                        gap: "16px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <div>
-                        <div
-                          style={{
-                            fontWeight: 600,
-                            color: "var(--text-primary)",
-                            marginBottom: "4px",
-                          }}
-                        >
-                          Weekly Digest
-                        </div>
-                        <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                          Summary of key metrics and changes
-                        </div>
-                      </div>
-                      <label
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "10px",
-                          cursor: "pointer",
-                          userSelect: "none",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={editableWeeklyDigest}
-                          onChange={(e) => setEditableWeeklyDigest(e.target.checked)}
-                          aria-label="Toggle weekly digest"
-                        />
-                        <span style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                          {editableWeeklyDigest ? "On" : "Off"}
-                        </span>
-                      </label>
-                    </label>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "12px 0",
-                        borderBottom: "1px solid var(--border-primary)",
-                        gap: "16px",
-                      }}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <div
-                          style={{
-                            fontWeight: 600,
-                            color: "var(--text-primary)",
-                            marginBottom: "4px",
-                          }}
-                        >
-                          Monthly Report
-                        </div>
-                        <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                          Comprehensive analysis of city performance
-                        </div>
-                        {editableMonthlyReport && (
-                          <div style={{ marginTop: "8px", display: "flex", gap: "16px" }}>
-                            <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px" }}>
-                              <input
-                                type="radio"
-                                name="reportScope"
-                                checked={editableReportScope === "district"}
-                                onChange={() => setEditableReportScope("district")}
-                              />
-                              <span>For my district</span>
-                            </label>
-                            <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px" }}>
-                              <input
-                                type="radio"
-                                name="reportScope"
-                                checked={editableReportScope === "city"}
-                                onChange={() => setEditableReportScope("city")}
-                              />
-                              <span>For the whole city</span>
-                            </label>
-                          </div>
-                        )}
-                      </div>
-                      <label
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "10px",
-                          cursor: "pointer",
-                          userSelect: "none",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={editableMonthlyReport}
-                          onChange={(e) => setEditableMonthlyReport(e.target.checked)}
-                          aria-label="Toggle monthly report"
-                        />
-                        <span style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                          {editableMonthlyReport ? "On" : "Off"}
-                        </span>
-                      </label>
                     </div>
-                  </div>
+                  </section>
+                  <EditHomeLocationModal
+                      open={showEditHomeLocationModal}
+                      onClose={() => setShowEditHomeLocationModal(false)}
+                      onSaved={async () => {
+                        await loadUserSettings();
+                        handlePlaceSaved();
+                      }}
+                    />
 
-                  {/* Personalized Newsletter Section */}
-                  <div style={{ marginBottom: "32px" }}>
-                    <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "8px" }}>
-                      Personalized newsletter
-                    </h3>
-                    <p style={{ color: "var(--text-secondary)", fontSize: "13px", marginBottom: "12px" }}>
-                      Your newsletter preferences from onboarding. Edit below and save to update. Generate an example to see a sample in the Personal newsletter section of your feed.
-                    </p>
-                    <div style={{ padding: "12px 0", borderBottom: "1px solid var(--border-primary)" }}>
-                      <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "var(--text-primary)", marginBottom: "6px" }}>
+                  {/* Communication preferences */}
+                  <section className={styles.settingsSection}>
+                    <h3 className={styles.settingsSectionTitle}>Communication preferences</h3>
+                    <div className={styles.settingsSectionCard}>
+                      <label className={styles.settingsRow} style={{ cursor: "pointer" }}>
+                        <div className={styles.settingsRowLabel}>
+                          <div className={styles.settingsRowTitle}>Anomaly alerts</div>
+                          <div className={styles.settingsRowDescription}>Get notified when significant changes are detected</div>
+                        </div>
+                        <div className={styles.settingsRowControl}>
+                          <label style={{ display: "inline-flex", alignItems: "center", gap: "8px", cursor: "pointer", userSelect: "none", fontSize: "13px", color: "var(--text-secondary)" }}>
+                            <input type="checkbox" checked={editableAnomalyAlerts} onChange={(e) => setEditableAnomalyAlerts(e.target.checked)} aria-label="Toggle anomaly alerts" />
+                            {editableAnomalyAlerts ? "On" : "Off"}
+                          </label>
+                        </div>
+                      </label>
+                      <label className={styles.settingsRow} style={{ cursor: "pointer" }}>
+                        <div className={styles.settingsRowLabel}>
+                          <div className={styles.settingsRowTitle}>Weekly digest</div>
+                          <div className={styles.settingsRowDescription}>Summary of key metrics and changes</div>
+                        </div>
+                        <div className={styles.settingsRowControl}>
+                          <label style={{ display: "inline-flex", alignItems: "center", gap: "8px", cursor: "pointer", userSelect: "none", fontSize: "13px", color: "var(--text-secondary)" }}>
+                            <input type="checkbox" checked={editableWeeklyDigest} onChange={(e) => setEditableWeeklyDigest(e.target.checked)} aria-label="Toggle weekly digest" />
+                            {editableWeeklyDigest ? "On" : "Off"}
+                          </label>
+                        </div>
+                      </label>
+                      <div className={styles.settingsRow}>
+                        <div className={styles.settingsRowLabel} style={{ flex: 1 }}>
+                          <div className={styles.settingsRowTitle}>Monthly report</div>
+                          <div className={styles.settingsRowDescription}>Comprehensive analysis of city performance</div>
+                          {editableMonthlyReport && (
+                            <div style={{ marginTop: "10px", display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                              <label className={styles.settingsRadioLabel}>
+                                <input type="radio" name="reportScope" checked={editableReportScope === "district"} onChange={() => setEditableReportScope("district")} />
+                                For my district
+                              </label>
+                              <label className={styles.settingsRadioLabel}>
+                                <input type="radio" name="reportScope" checked={editableReportScope === "city"} onChange={() => setEditableReportScope("city")} />
+                                For the whole city
+                              </label>
+                            </div>
+                          )}
+                        </div>
+                        <div className={styles.settingsRowControl}>
+                          <label style={{ display: "inline-flex", alignItems: "center", gap: "8px", cursor: "pointer", userSelect: "none", fontSize: "13px", color: "var(--text-secondary)" }}>
+                            <input type="checkbox" checked={editableMonthlyReport} onChange={(e) => setEditableMonthlyReport(e.target.checked)} aria-label="Toggle monthly report" />
+                            {editableMonthlyReport ? "On" : "Off"}
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Personalized newsletter */}
+                  <section className={styles.settingsSection}>
+                    <h3 className={styles.settingsSectionTitle}>Personalized newsletter</h3>
+                    <div className={styles.settingsNewsletterBlock}>
+                      <p className={styles.settingsNewsletterIntro}>
+                        Your newsletter preferences from onboarding. Edit below and save to update. Generate an example to see a sample in the Personal newsletter section of your feed.
+                      </p>
+                      <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "var(--text-primary)", marginBottom: "8px" }}>
                         Newsletter description (what you want each edition to focus on)
                       </label>
                       <textarea
+                        className={styles.settingsTextarea}
                         value={editableNewsletterDescription}
                         onChange={(e) => setEditableNewsletterDescription(e.target.value)}
                         placeholder="Create a weekly newsletter report for this city and district. Focus on recent changes and trends in key metrics (crime, housing, permits, 311 calls), notable anomalies, comparative analysis..."
                         rows={4}
-                        style={{
-                          width: "100%",
-                          padding: "12px 14px",
-                          fontSize: "14px",
-                          fontFamily: "inherit",
-                          border: "1px solid var(--border-primary)",
-                          borderRadius: "8px",
-                          background: "var(--bg-primary)",
-                          color: "var(--text-primary)",
-                          resize: "vertical",
-                          transition: "all 0.15s ease",
-                          marginBottom: "12px",
-                        }}
-                        onFocus={(e) => {
-                          e.target.style.borderColor = "var(--brand-primary, #ad35fa)";
-                          e.target.style.boxShadow = "0 0 0 3px var(--brand-primary-light, rgba(173, 53, 250, 0.1))";
-                        }}
-                        onBlur={(e) => {
-                          e.target.style.borderColor = "var(--border-primary)";
-                          e.target.style.boxShadow = "none";
-                        }}
                       />
-                      <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "16px" }}>
+                      <div className={styles.settingsRadioGroup}>
                         <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--text-primary)" }}>Frequency:</span>
-                        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "var(--text-secondary)", cursor: "pointer" }}>
-                          <input
-                            type="radio"
-                            name="newsletterFreqSettings"
-                            checked={editableNewsletterFrequency === "weekly"}
-                            onChange={() => setEditableNewsletterFrequency("weekly")}
-                            style={{ accentColor: "var(--brand-primary, #ad35fa)" }}
-                          />
+                        <label className={styles.settingsRadioLabel}>
+                          <input type="radio" name="newsletterFreqSettings" checked={editableNewsletterFrequency === "weekly"} onChange={() => setEditableNewsletterFrequency("weekly")} style={{ accentColor: "var(--brand-primary, #ad35fa)" }} />
                           Weekly
                         </label>
-                        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "var(--text-secondary)", cursor: "pointer" }}>
-                          <input
-                            type="radio"
-                            name="newsletterFreqSettings"
-                            checked={editableNewsletterFrequency === "monthly"}
-                            onChange={() => setEditableNewsletterFrequency("monthly")}
-                            style={{ accentColor: "var(--brand-primary, #ad35fa)" }}
-                          />
+                        <label className={styles.settingsRadioLabel}>
+                          <input type="radio" name="newsletterFreqSettings" checked={editableNewsletterFrequency === "monthly"} onChange={() => setEditableNewsletterFrequency("monthly")} style={{ accentColor: "var(--brand-primary, #ad35fa)" }} />
                           Monthly
                         </label>
                       </div>
-                      <button
-                        type="button"
-                        onClick={handleGenerateSampleNewsletter}
-                        disabled={generatingSampleNewsletter}
-                        style={{
-                          padding: "10px 18px",
-                          fontSize: "14px",
-                          fontWeight: 600,
-                          color: "#fff",
-                          background: generatingSampleNewsletter ? "var(--text-tertiary, #9ca3af)" : "var(--brand-primary, #ad35fa)",
-                          border: "none",
-                          borderRadius: "8px",
-                          cursor: generatingSampleNewsletter ? "not-allowed" : "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "8px",
-                        }}
-                      >
+                      <button type="button" className={styles.settingsGenerateBtn} onClick={handleGenerateSampleNewsletter} disabled={generatingSampleNewsletter}>
                         {generatingSampleNewsletter ? (
                           <>
                             <Loader size="sm" color="white" />
@@ -1426,271 +1304,126 @@ export default function DashboardPage() {
                         )}
                       </button>
                       {sampleNewsletterReportUrl && (
-                        <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "12px", padding: "10px", background: "var(--bg-secondary)", borderRadius: "6px" }}>
+                        <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "12px", padding: "12px", background: "var(--bg-primary)", borderRadius: "8px" }}>
                           Sample is being generated. It will appear under <strong>Personal newsletter</strong> in your feed when ready.{" "}
-                          <a href={sampleNewsletterReportUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand-primary, #ad35fa)" }}>
-                            View report
-                          </a>
+                          <a href={sampleNewsletterReportUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand-primary, #ad35fa)" }}>View report</a>
                         </p>
                       )}
                     </div>
-                  </div>
+                  </section>
 
-                  {/* Display Preferences Section */}
-                  <div style={{ marginBottom: "32px" }}>
-                    <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
-                      Display Preferences
-                    </h3>
-                    
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "12px 0",
-                        borderBottom: "1px solid var(--border-primary)",
-                        gap: "16px",
-                      }}
-                    >
-                      <div>
-                        <div
-                          style={{
-                            fontWeight: 600,
-                            color: "var(--text-primary)",
-                            marginBottom: "4px",
-                          }}
-                        >
-                          Dark mode
+                  {/* Display */}
+                  <section className={styles.settingsSection}>
+                    <h3 className={styles.settingsSectionTitle}>Display</h3>
+                    <div className={styles.settingsSectionCard}>
+                      <label className={styles.settingsRow} style={{ cursor: "pointer" }}>
+                        <div className={styles.settingsRowLabel}>
+                          <div className={styles.settingsRowTitle}>Dark mode</div>
+                          <div className={styles.settingsRowDescription}>Use a dark color theme across the UI</div>
                         </div>
-                        <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                          Use a dark color theme across the UI.
+                        <div className={styles.settingsRowControl}>
+                          <label style={{ display: "inline-flex", alignItems: "center", gap: "8px", cursor: "pointer", userSelect: "none", fontSize: "13px", color: "var(--text-secondary)" }}>
+                            <input type="checkbox" checked={theme === "dark"} onChange={(e) => setTheme(e.target.checked ? "dark" : "light")} aria-label="Toggle dark mode" />
+                            {theme === "dark" ? "On" : "Off"}
+                          </label>
                         </div>
-                      </div>
-                      <label
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "10px",
-                          cursor: "pointer",
-                          userSelect: "none",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={theme === "dark"}
-                          onChange={(e) => setTheme(e.target.checked ? "dark" : "light")}
-                          aria-label="Toggle dark mode"
-                        />
-                        <span style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                          {theme === "dark" ? "On" : "Off"}
-                        </span>
                       </label>
                     </div>
-                  </div>
+                  </section>
 
-                  {/* Save Preferences Button */}
-                  <div style={{ marginBottom: "32px", paddingTop: "16px", borderTop: "1px solid var(--border-primary)" }}>
-                    <button
-                      onClick={handleSavePreferences}
-                      disabled={savingPreferences}
-                      style={{
-                        padding: "12px 24px",
-                        fontSize: "15px",
-                        fontWeight: 600,
-                        color: "#ffffff",
-                        background: savingPreferences
-                          ? "var(--text-tertiary, #9ca3af)"
-                          : "var(--brand-primary, #ad35fa)",
-                        border: "none",
-                        borderRadius: "8px",
-                        cursor: savingPreferences ? "not-allowed" : "pointer",
-                        transition: "all 0.15s ease",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        justifyContent: "center",
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!savingPreferences) {
-                          e.currentTarget.style.background = "var(--brand-primary-hover, #9333ea)";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!savingPreferences) {
-                          e.currentTarget.style.background = "var(--brand-primary, #ad35fa)";
-                        }
-                      }}
-                    >
+                  {/* Save */}
+                  <div className={styles.settingsSaveBlock}>
+                    <button type="button" className={styles.settingsSaveBtn} onClick={handleSavePreferences} disabled={savingPreferences}>
                       {savingPreferences ? (
                         <>
                           <Loader size="sm" color="white" />
-                          <span>Saving...</span>
+                          <span>Saving…</span>
                         </>
                       ) : (
-                        "Save Preferences"
+                        "Save preferences"
                       )}
                     </button>
                   </div>
 
-                  {/* System Status Section - Subtle indicator at bottom */}
-                  <div style={{ 
-                    marginTop: "32px", 
-                    paddingTop: "24px", 
-                    borderTop: "1px solid var(--border-primary)",
-                    opacity: 0.7
-                  }}>
-                    <div style={{ 
-                      display: "flex", 
-                      alignItems: "center", 
-                      justifyContent: "space-between",
-                      padding: "8px 0"
-                    }}>
+                  {/* System status */}
+                  <div className={styles.settingsFooterBlock}>
+                    <div className={styles.settingsFooterRow}>
                       <div>
-                        <div style={{ 
-                          fontSize: "12px", 
-                          color: "var(--text-secondary)", 
-                          marginBottom: "4px",
-                          fontWeight: 500
-                        }}>
-                          Session Storage
-                        </div>
-                        <div style={{ 
-                          fontSize: "11px", 
-                          color: "var(--text-secondary)",
-                          opacity: 0.8
-                        }}>
-                          Connection status for chat sessions
-                        </div>
+                        <div className={styles.settingsRowTitle} style={{ fontSize: "12px", marginBottom: "2px" }}>Session storage</div>
+                        <div className={styles.settingsRowDescription} style={{ fontSize: "12px" }}>Connection status for chat sessions</div>
                       </div>
-                      <div style={{ fontSize: "12px" }}>
-                        <RedisStatusIndicator subtle />
-                      </div>
+                      <RedisStatusIndicator subtle />
                     </div>
                   </div>
 
                   {/* Government mode (preview) */}
-                  <div style={{ marginBottom: "32px" }}>
-                    <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
-                      Government mode (preview)
-                    </h3>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "12px 0",
-                        borderBottom: "1px solid var(--border-primary)",
-                        gap: "16px",
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: "4px" }}>
-                          {govVerificationStatus?.government_verified ? "Government mode on" : "Government mode off"}
+                  <section className={styles.settingsSection}>
+                    <h3 className={styles.settingsSectionTitle}>Government mode (preview)</h3>
+                    <div className={styles.settingsSectionCard}>
+                      <div className={styles.settingsRow}>
+                        <div className={styles.settingsRowLabel}>
+                          <div className={styles.settingsRowTitle}>
+                            {govVerificationStatus?.government_verified ? "Government mode on" : "Government mode off"}
+                          </div>
+                          <div className={styles.settingsRowDescription}>
+                            {govVerificationStatus?.government_verified
+                              ? govVerificationStatus.government_email
+                                ? `Verified as ${govVerificationStatus.government_email}`
+                                : "You're seeing the app as a government user."
+                              : "Switch to government mode to see the UI as a government-verified user."}
+                          </div>
                         </div>
-                        <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                          {govVerificationStatus?.government_verified
-                            ? govVerificationStatus.government_email
-                              ? `Verified as ${govVerificationStatus.government_email}`
-                              : "You're seeing the app as a government user."
-                            : "Switch to government mode to see the UI as a government-verified user."}
+                        <div className={styles.settingsRowControl} style={{ display: "flex", gap: "8px" }}>
+                          {govVerificationStatus?.government_verified ? (
+                            <button type="button" className={styles.settingsSecondaryBtn} onClick={() => handleSwitchGovernmentMode(false)} disabled={govModeToggling}>
+                              {govModeToggling ? "…" : "Revert to standard user"}
+                            </button>
+                          ) : (
+                            <button type="button" className={styles.settingsSecondaryBtn} onClick={() => handleSwitchGovernmentMode(true)} disabled={govModeToggling}>
+                              {govModeToggling ? "…" : "Switch to government mode"}
+                            </button>
+                          )}
                         </div>
-                      </div>
-                      <div style={{ display: "flex", gap: "8px" }}>
-                        {govVerificationStatus?.government_verified ? (
-                          <button
-                            onClick={() => handleSwitchGovernmentMode(false)}
-                            disabled={govModeToggling}
-                            style={buttonStyle}
-                            onMouseEnter={(e) => buttonHover(e, true)}
-                            onMouseLeave={(e) => buttonHover(e, false)}
-                          >
-                            {govModeToggling ? "…" : "Revert to standard user"}
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleSwitchGovernmentMode(true)}
-                            disabled={govModeToggling}
-                            style={buttonStyle}
-                            onMouseEnter={(e) => buttonHover(e, true)}
-                            onMouseLeave={(e) => buttonHover(e, false)}
-                          >
-                            {govModeToggling ? "…" : "Switch to government mode"}
-                          </button>
-                        )}
                       </div>
                     </div>
-                  </div>
+                  </section>
 
-                  {/* Onboarding Section */}
-                  <div style={{ marginBottom: "32px" }}>
-                    <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
-                      Onboarding
-                    </h3>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "12px 0",
-                        borderBottom: "1px solid var(--border-primary)",
-                        gap: "16px",
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: "4px" }}>
-                          Reset onboarding
+                  {/* Onboarding */}
+                  <section className={styles.settingsSection}>
+                    <h3 className={styles.settingsSectionTitle}>Onboarding</h3>
+                    <div className={styles.settingsSectionCard}>
+                      <div className={styles.settingsRow}>
+                        <div className={styles.settingsRowLabel}>
+                          <div className={styles.settingsRowTitle}>Reset onboarding</div>
+                          <div className={styles.settingsRowDescription}>Show the citizen welcome screen again on your next visit</div>
                         </div>
-                        <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                          Show the citizen welcome screen again on your next visit.
+                        <div className={styles.settingsRowControl}>
+                          <button type="button" className={styles.settingsSecondaryBtn} onClick={handleResetOnboarding}>Reset</button>
                         </div>
                       </div>
-                      <button
-                        onClick={handleResetOnboarding}
-                        style={buttonStyle}
-                        onMouseEnter={(e) => buttonHover(e, true)}
-                        onMouseLeave={(e) => buttonHover(e, false)}
-                      >
-                        Reset
-                      </button>
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "12px 0",
-                        borderBottom: "1px solid var(--border-primary)",
-                        gap: "16px",
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: "4px" }}>
-                          Reset and show government onboarding
+                      <div className={styles.settingsRow}>
+                        <div className={styles.settingsRowLabel}>
+                          <div className={styles.settingsRowTitle}>Reset and show government onboarding</div>
+                          <div className={styles.settingsRowDescription}>Run the government flow (verify email, confirm profile) again</div>
                         </div>
-                        <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                          Run the government flow (verify email, confirm profile) again.
+                        <div className={styles.settingsRowControl}>
+                          <button type="button" className={styles.settingsSecondaryBtn} onClick={handleResetOnboardingGovernment}>Reset (government)</button>
                         </div>
                       </div>
-                      <button
-                        onClick={handleResetOnboardingGovernment}
-                        style={buttonStyle}
-                        onMouseEnter={(e) => buttonHover(e, true)}
-                        onMouseLeave={(e) => buttonHover(e, false)}
-                      >
-                        Reset (government)
-                      </button>
                     </div>
-                  </div>
+                  </section>
 
-                  {/* System Statistics Section */}
-                  <div style={{ marginTop: "32px", paddingTop: "16px", borderTop: "1px solid var(--border-primary)" }}>
-                    <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "16px" }}>
-                      System Statistics
-                    </h3>
-                    <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-                      System statistics coming soon...
+                  {/* System statistics */}
+                  <section className={styles.settingsSection}>
+                    <h3 className={styles.settingsSectionTitle}>System statistics</h3>
+                    <div className={styles.settingsSectionCard}>
+                      <div className={styles.settingsRow}>
+                        <div className={styles.settingsRowLabel}>
+                          <div className={styles.settingsRowDescription}>Coming soon…</div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  </section>
                 </div>
               )}
             </div>

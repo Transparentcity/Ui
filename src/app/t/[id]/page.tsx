@@ -152,9 +152,9 @@ export default function TimeSeriesChartPage() {
   if (loading) {
     return (
       <div className={`time-series-page loading ${isEmbedded ? "embedded" : ""}`}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.75rem" }}>
+        <div className="tc-loading-state tc-loading-state--stacked">
           <Loader size="md" color="dark" />
-          <span className="loading-spinner">Loading chart...</span>
+          <span>Loading chart…</span>
         </div>
       </div>
     );

@@ -436,6 +436,31 @@
   cursor: not-allowed;
 }
 
+.exportImportGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.exportImportDivider {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.importLabel {
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.importFileInput {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
 .clearDataGroup {
   display: flex;
   align-items: center;

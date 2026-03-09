@@ -11,6 +11,9 @@ import {
   reverseGeocode,
   getCurrentLocation,
   resolveCityFromGeocode,
+  fetchAddressSuggestions,
+  suggestionToGeocodeResult,
+  type AddressSuggestion,
 } from "@/lib/locationSearchUtils";
 import "./CityTypeahead.css";
 
@@ -42,7 +45,10 @@ export default function CityTypeahead({
   const [hoveredCityId, setHoveredCityId] = useState<number | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
+  const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
+  const [addressSuggestionsLoading, setAddressSuggestionsLoading] = useState(false);
   const searchTimeoutRef = useRef<number | null>(null);
+  const addressSuggestTimeoutRef = useRef<number | null>(null);
   const lastRequestIdRef = useRef(0);
   const cityPickerRef = useRef<HTMLDivElement | null>(null);
 
@@ -271,6 +277,47 @@ export default function CityTypeahead({
     }, 300);
   };
 
+  const scheduleAddressSuggest = (query: string) => {
+    if (addressSuggestTimeoutRef.current) {
+      window.clearTimeout(addressSuggestTimeoutRef.current);
+    }
+    const s = query.trim();
+    if (s.length < 2) {
+      setAddressSuggestions([]);
+      setAddressSuggestionsLoading(false);
+      return;
+    }
+    setAddressSuggestionsLoading(true);
+    addressSuggestTimeoutRef.current = window.setTimeout(async () => {
+      const list = await fetchAddressSuggestions(s);
+      setAddressSuggestions(list);
+      setAddressSuggestionsLoading(false);
+      setSelectedIndex(-1);
+    }, 300);
+  };
+
+  const handleAddressSuggestionSelect = async (suggestion: AddressSuggestion) => {
+    if (!suggestion.cityName) {
+      setGeoError("Could not determine city from this address.");
+      return;
+    }
+    setGeoLoading(true);
+    setGeoError(null);
+    setCityError(null);
+    try {
+      const geo = suggestionToGeocodeResult(suggestion);
+      const { city, coordinates } = await resolveCityFromGeocode(geo, searchPublicCities);
+      if (coordinates && onGPSLocation) {
+        onGPSLocation(coordinates);
+      }
+      selectCity(city);
+    } catch (e) {
+      setGeoError(e instanceof Error ? e.message : "Could not find city for this address.");
+    } finally {
+      setGeoLoading(false);
+    }
+  };
+
   const selectCity = (city: PublicCitySearchResult) => {
     setCityQuery("");
     setCityDropdownOpen(false);
@@ -347,6 +394,9 @@ export default function CityTypeahead({
       if (searchTimeoutRef.current) {
         window.clearTimeout(searchTimeoutRef.current);
       }
+      if (addressSuggestTimeoutRef.current) {
+        window.clearTimeout(addressSuggestTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -386,9 +436,11 @@ export default function CityTypeahead({
           value={cityQuery}
               placeholder={placeholder || "Enter city, ZIP code, or address"}
           onChange={(e) => {
-            setCityQuery(e.target.value);
+            const v = e.target.value;
+            setCityQuery(v);
             setCityDropdownOpen(true);
-            scheduleCitySearch(e.target.value);
+            scheduleCitySearch(v);
+            scheduleAddressSuggest(v);
           }}
           onFocus={() => {
             setCityDropdownOpen(true);
@@ -408,12 +460,14 @@ export default function CityTypeahead({
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
-              // Auto-trigger geocoding for zipcodes/addresses on Enter
+              if (cityDropdownOpen && addressSuggestions.length > 0 && selectedIndex >= 0 && addressSuggestions[selectedIndex]) {
+                void handleAddressSuggestionSelect(addressSuggestions[selectedIndex]);
+                return;
+              }
               if (queryIsGeo && normalizedCityQuery.length > 0) {
                 void handleGeocodeQuery();
                 return;
               }
-              // Select city if one is selected
               if (cityDropdownOpen && selectedIndex >= 0 && cityResults[selectedIndex]) {
                 const city = cityResults[selectedIndex];
                 if (city) selectCity(city);
@@ -422,11 +476,12 @@ export default function CityTypeahead({
             }
 
             if (!cityDropdownOpen) return;
-            if (!cityResults.length && !queryIsGeo) return;
+            const listLen = addressSuggestions.length > 0 ? addressSuggestions.length : cityResults.length;
+            if (listLen === 0 && !queryIsGeo) return;
 
             if (e.key === "ArrowDown") {
               e.preventDefault();
-              setSelectedIndex((prev) => Math.min(prev + 1, cityResults.length - 1));
+              setSelectedIndex((prev) => Math.min(prev + 1, listLen - 1));
             } else if (e.key === "ArrowUp") {
               e.preventDefault();
               setSelectedIndex((prev) => Math.max(prev - 1, -1));
@@ -457,7 +512,43 @@ export default function CityTypeahead({
             </div>
           )}
 
-          {!geoLoading && !geoError && queryIsGeo && normalizedCityQuery.length > 0 && (
+          {!geoLoading && addressSuggestionsLoading && normalizedCityQuery.length >= 2 && (
+            <div className="city-typeahead-option" role="option" aria-selected={false}>
+              <div>Searching addresses…</div>
+            </div>
+          )}
+
+          {!geoLoading &&
+            !geoError &&
+            !addressSuggestionsLoading &&
+            addressSuggestions.length > 0 &&
+            addressSuggestions.map((suggestion, idx) => (
+              <button
+                key={`${suggestion.place_name}-${idx}`}
+                type="button"
+                className="city-typeahead-option"
+                role="option"
+                aria-selected={idx === selectedIndex}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  void handleAddressSuggestionSelect(suggestion);
+                }}
+                onMouseEnter={() => setSelectedIndex(idx)}
+                style={{
+                  background:
+                    idx === selectedIndex ? "rgba(17, 24, 39, 0.05)" : "transparent",
+                }}
+              >
+                <div>{suggestion.place_name}</div>
+                <div className="city-typeahead-meta">Address</div>
+              </button>
+            ))}
+
+          {!geoLoading &&
+            !geoError &&
+            addressSuggestions.length === 0 &&
+            queryIsGeo &&
+            normalizedCityQuery.length > 0 && (
             <button
               type="button"
               className="city-typeahead-option"
@@ -515,6 +606,7 @@ export default function CityTypeahead({
             !geoLoading &&
             !cityError &&
             !geoError &&
+            addressSuggestions.length === 0 &&
             !queryIsGeo &&
             normalizedCityQuery.length >= 2 &&
             cityResults.map((city, idx) => (
@@ -625,6 +717,7 @@ export default function CityTypeahead({
             !geoLoading &&
             !cityError &&
             !geoError &&
+            addressSuggestions.length === 0 &&
             !queryIsGeo &&
             normalizedCityQuery.length >= 2 &&
             cityResults.length === 0 && (

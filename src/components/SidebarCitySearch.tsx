@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useAuth0 } from "@auth0/auth0-react";
 
 import {
   searchPublicCities,
@@ -15,20 +16,33 @@ import {
   reverseGeocode,
   getCurrentLocation,
   resolveCityFromGeocode,
+  fetchAddressSuggestions,
+  suggestionToGeocodeResult,
+  type AddressSuggestion,
   type GeocodeResult,
 } from "@/lib/locationSearchUtils";
+import { saveCity, createPlace } from "@/lib/apiClient";
+import LocationMapSave from "@/components/LocationMapSave";
+import { DEFAULT_PLACE_RADIUS_M } from "@/lib/mapUtils";
 
 import styles from "./SidebarCitySearch.module.css";
 
 export default function SidebarCitySearch({
   onCitySelect,
   onGPSLocation,
+  onFindDistrict,
+  onPlaceSaved,
   placeholder = "Search cities…",
 }: {
   onCitySelect: (cityId: number) => void;
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void;
+  /** Called when user clicks "Find your district" from the null state; parent may open district modal if a city is selected. */
+  onFindDistrict?: () => void;
+  /** Called after user saves a personalized place from the map step (so parent can refetch places). */
+  onPlaceSaved?: (place: { id: number }) => void;
   placeholder?: string;
 }) {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PublicCitySearchResult[]>([]);
@@ -39,11 +53,21 @@ export default function SidebarCitySearch({
   const [mounted, setMounted] = useState(false);
   const [storedGPSLocation, setStoredGPSLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsActive, setGpsActive] = useState(false);
+  /** When set, user resolved city + coordinates (GPS or address); show map save step before opening city. */
+  const [pendingCityAndCoords, setPendingCityAndCoords] = useState<{
+    city: PublicCitySearchResult;
+    coords: { lat: number; lng: number };
+  } | null>(null);
+  const [savePlaceLoading, setSavePlaceLoading] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const lastRequestIdRef = useRef(0);
   const searchTimeoutRef = useRef<number | null>(null);
+  const addressSuggestTimeoutRef = useRef<number | null>(null);
   const geoLoadingTimeoutRef = useRef<number | null>(null);
+
+  const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
+  const [addressSuggestionsLoading, setAddressSuggestionsLoading] = useState(false);
 
   const trimmed = useMemo(() => query.trim(), [query]);
   const queryIsGeo = useMemo(
@@ -65,6 +89,7 @@ export default function SidebarCitySearch({
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) window.clearTimeout(searchTimeoutRef.current);
+      if (addressSuggestTimeoutRef.current) window.clearTimeout(addressSuggestTimeoutRef.current);
       if (geoLoadingTimeoutRef.current) window.clearTimeout(geoLoadingTimeoutRef.current);
     };
   }, []);
@@ -85,18 +110,21 @@ export default function SidebarCitySearch({
     setOpen(false);
     setQuery("");
     setResults([]);
+    setAddressSuggestions([]);
     setError(null);
     setSelectedIndex(-1);
-    // Reset GPS loading state when modal closes to prevent stuck states
+    setPendingCityAndCoords(null);
     if (geoLoading) {
       setGeoLoading(false);
     }
     setGpsActive(false);
-    
-    // Clear any GPS timeout
     if (geoLoadingTimeoutRef.current) {
       window.clearTimeout(geoLoadingTimeoutRef.current);
       geoLoadingTimeoutRef.current = null;
+    }
+    if (addressSuggestTimeoutRef.current) {
+      window.clearTimeout(addressSuggestTimeoutRef.current);
+      addressSuggestTimeoutRef.current = null;
     }
   };
 
@@ -105,6 +133,52 @@ export default function SidebarCitySearch({
     searchTimeoutRef.current = window.setTimeout(() => {
       void runCitySearch(q);
     }, 250);
+  };
+
+  const scheduleAddressSuggest = (q: string) => {
+    if (addressSuggestTimeoutRef.current) window.clearTimeout(addressSuggestTimeoutRef.current);
+    const s = q.trim();
+    if (s.length < 2) {
+      setAddressSuggestions([]);
+      setAddressSuggestionsLoading(false);
+      return;
+    }
+    setAddressSuggestionsLoading(true);
+    addressSuggestTimeoutRef.current = window.setTimeout(async () => {
+      const list = await fetchAddressSuggestions(s);
+      setAddressSuggestions(list);
+      setAddressSuggestionsLoading(false);
+      setSelectedIndex(-1);
+    }, 300);
+  };
+
+  const handleAddressSuggestionSelect = async (suggestion: AddressSuggestion) => {
+    if (!suggestion.cityName) {
+      setError("Could not determine city from this address.");
+      return;
+    }
+    setGeoLoading(true);
+    setError(null);
+    setAddressSuggestions([]);
+    try {
+      const geo = suggestionToGeocodeResult(suggestion);
+      const { city, coordinates } = await resolveCityFromGeocode(geo, searchPublicCities);
+      if (coordinates) {
+        setStoredGPSLocation(coordinates);
+        if (onGPSLocation) onGPSLocation(coordinates);
+        if (isAuthenticated) {
+          showMapSaveStep(city, coordinates);
+        } else {
+          selectCity(city, true);
+        }
+      } else {
+        selectCity(city, true);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not find city for this address.");
+    } finally {
+      setGeoLoading(false);
+    }
   };
 
   const runCitySearch = async (q: string) => {
@@ -146,9 +220,42 @@ export default function SidebarCitySearch({
 
   const selectCity = (city: PublicCitySearchResult, fromGPS: boolean = false) => {
     closeModal();
-    // If selecting from GPS, we'll preserve GPS location in the dashboard
-    // If selecting manually, GPS location should be cleared (handled by dashboard)
     onCitySelect(city.id);
+  };
+
+  const showMapSaveStep = (city: PublicCitySearchResult, coords: { lat: number; lng: number }) => {
+    setPendingCityAndCoords({ city, coords });
+    setError(null);
+  };
+
+  const handleSavePlaceAndOpen = async (opts: { label: string; radius_m: number }) => {
+    if (!pendingCityAndCoords || !isAuthenticated) return;
+    setSavePlaceLoading(true);
+    setError(null);
+    try {
+      const token = await getAccessTokenSilently();
+      await saveCity(pendingCityAndCoords.city.id, token);
+      const place = await createPlace(token, {
+        city_id: pendingCityAndCoords.city.id,
+        label: opts.label.trim() || "My block",
+        lat: pendingCityAndCoords.coords.lat,
+        lng: pendingCityAndCoords.coords.lng,
+        radius_m: opts.radius_m,
+      });
+      onPlaceSaved?.(place);
+      onCitySelect(pendingCityAndCoords.city.id);
+      closeModal();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save place");
+    } finally {
+      setSavePlaceLoading(false);
+    }
+  };
+
+  const handleJustOpenCity = () => {
+    if (!pendingCityAndCoords) return;
+    onCitySelect(pendingCityAndCoords.city.id);
+    closeModal();
   };
 
   const handleGeocodeQuery = async () => {
@@ -159,16 +266,17 @@ export default function SidebarCitySearch({
     try {
       const geo = await geocodeQuery(s);
       const { city, coordinates } = await resolveCityFromGeocode(geo, searchPublicCities);
-      
-      // Store GPS location if we have coordinates
       if (coordinates) {
         setStoredGPSLocation(coordinates);
-        if (onGPSLocation) {
-          onGPSLocation(coordinates);
+        if (onGPSLocation) onGPSLocation(coordinates);
+        if (isAuthenticated) {
+          showMapSaveStep(city, coordinates);
+        } else {
+          selectCity(city, true);
         }
+      } else {
+        selectCity(city, true);
       }
-      
-      selectCity(city, true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Geocoding failed");
     } finally {
@@ -237,13 +345,13 @@ export default function SidebarCitySearch({
         onGPSLocation(location);
       }
       
-      // Reverse geocode to get city
       const geo = await reverseGeocode(location.lat, location.lng);
       const { city } = await resolveCityFromGeocode(geo, searchPublicCities);
-      
-      selectCity(city, true);
-      
-      // Reset states after city is resolved
+      if (isAuthenticated) {
+        showMapSaveStep(city, location);
+      } else {
+        selectCity(city, true);
+      }
       setGeoLoading(false);
       setGpsActive(false);
       
@@ -287,7 +395,14 @@ export default function SidebarCitySearch({
       return;
     }
 
+    const listLength = addressSuggestions.length > 0 ? addressSuggestions.length : results.length;
+
     if (e.key === "Enter") {
+      if (addressSuggestions.length > 0 && selectedIndex >= 0 && addressSuggestions[selectedIndex]) {
+        e.preventDefault();
+        void handleAddressSuggestionSelect(addressSuggestions[selectedIndex]);
+        return;
+      }
       if (queryIsGeo) {
         e.preventDefault();
         void handleGeocodeQuery();
@@ -301,9 +416,7 @@ export default function SidebarCitySearch({
 
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setSelectedIndex((prev) =>
-        Math.min(prev + 1, results.length - 1),
-      );
+      setSelectedIndex((prev) => Math.min(prev + 1, listLength - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setSelectedIndex((prev) => Math.max(prev - 1, -1));
@@ -314,7 +427,9 @@ export default function SidebarCitySearch({
     <div className={styles.modalOverlay} onClick={closeModal}>
       <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
-          <h2 className={styles.modalTitle}>Search Cities</h2>
+          <h2 className={styles.modalTitle}>
+            {pendingCityAndCoords ? "Save a personalized location" : "Search Cities"}
+          </h2>
           <button
             type="button"
             className={styles.modalClose}
@@ -337,6 +452,28 @@ export default function SidebarCitySearch({
           </button>
         </div>
 
+        {pendingCityAndCoords ? (
+          <div className={styles.modalMapSaveStep}>
+            <p className={styles.modalMapSaveCity}>
+              {pendingCityAndCoords.city.emoji && (
+                <span className={styles.modalMapSaveEmoji}>{pendingCityAndCoords.city.emoji}</span>
+              )}
+              {pendingCityAndCoords.city.display_name}
+            </p>
+            {error && <div className={styles.resultError} style={{ marginBottom: 12 }}><span>{error}</span></div>}
+            <LocationMapSave
+              cityId={pendingCityAndCoords.city.id}
+              lat={pendingCityAndCoords.coords.lat}
+              lng={pendingCityAndCoords.coords.lng}
+              defaultRadiusM={DEFAULT_PLACE_RADIUS_M}
+              onSave={handleSavePlaceAndOpen}
+              saving={savePlaceLoading}
+              saveButtonLabel="Save & open city"
+              onCancel={handleJustOpenCity}
+            />
+          </div>
+        ) : (
+        <>
         <div className={styles.modalSearch}>
           <div className={styles.inputWrap}>
             <svg
@@ -358,10 +495,12 @@ export default function SidebarCitySearch({
               ref={inputRef}
               className={styles.input}
               value={query}
-              placeholder="Enter city, ZIP code, or address"
+              placeholder="Enter address, city, or ZIP code"
               onChange={(e) => {
-                setQuery(e.target.value);
-                scheduleCitySearch(e.target.value);
+                const v = e.target.value;
+                setQuery(v);
+                scheduleCitySearch(v);
+                scheduleAddressSuggest(v);
               }}
               onKeyDown={handleInputKeyDown}
             />
@@ -410,7 +549,37 @@ export default function SidebarCitySearch({
             </div>
           ) : null}
 
-          {!geoLoading && !error && queryIsGeo && trimmed.length > 0 ? (
+          {!geoLoading && addressSuggestionsLoading && trimmed.length >= 2 ? (
+            <div className={styles.resultItem}>
+              <span className={styles.resultLoading}>Searching addresses…</span>
+            </div>
+          ) : null}
+
+          {!geoLoading &&
+            !error &&
+            !addressSuggestionsLoading &&
+            addressSuggestions.length > 0 &&
+            addressSuggestions.map((suggestion, idx) => (
+              <button
+                key={`${suggestion.place_name}-${idx}`}
+                type="button"
+                className={`${styles.resultBtn} ${idx === selectedIndex ? styles.resultBtnSelected : ""}`}
+                role="option"
+                aria-selected={idx === selectedIndex}
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setSelectedIndex(idx)}
+                onClick={() => void handleAddressSuggestionSelect(suggestion)}
+              >
+                <span>{suggestion.place_name}</span>
+                <span className={styles.resultMeta}>Address →</span>
+              </button>
+            ))}
+
+          {!geoLoading &&
+            !error &&
+            addressSuggestions.length === 0 &&
+            queryIsGeo &&
+            trimmed.length > 0 ? (
             <button
               type="button"
               className={styles.resultBtn}
@@ -431,6 +600,7 @@ export default function SidebarCitySearch({
 
           {!geoLoading &&
             !error &&
+            addressSuggestions.length === 0 &&
             !queryIsGeo &&
             !loading &&
             trimmed.length >= 2 &&
@@ -457,6 +627,7 @@ export default function SidebarCitySearch({
 
           {!geoLoading &&
             !error &&
+            addressSuggestions.length === 0 &&
             !queryIsGeo &&
             !loading &&
             trimmed.length >= 2 &&
@@ -472,11 +643,28 @@ export default function SidebarCitySearch({
             )}
 
           {!geoLoading && !error && !loading && trimmed.length < 2 && (
-            <div className={styles.resultItem}>
-              <span className={styles.resultHint}>Type to search for cities, or enter a ZIP code</span>
-            </div>
+            <>
+              <div className={styles.resultItem}>
+                <span className={styles.resultHint}>Type to search for cities, or enter a ZIP code</span>
+              </div>
+              {onFindDistrict && (
+                <button
+                  type="button"
+                  className={styles.resultBtn}
+                  onClick={() => {
+                    closeModal();
+                    onFindDistrict();
+                  }}
+                >
+                  <span>Find your district</span>
+                  <span className={styles.resultMeta}>Address, ZIP, or GPS →</span>
+                </button>
+              )}
+            </>
           )}
         </div>
+        </>
+        )}
       </div>
     </div>
   );
