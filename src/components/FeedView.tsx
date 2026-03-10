@@ -14,7 +14,7 @@ import {
   type FeedStoryComment,
   type FeedStoryCommentCreate,
 } from "@/lib/apiClient";
-import { API_BASE } from "@/lib/apiBase";
+import { API_BASE, getApiBaseUrlForAssets } from "@/lib/apiBase";
 import { feedKeys } from "@/lib/hooks/useFeed";
 import Loader from "./Loader";
 import styles from "./FeedView.module.css";
@@ -367,9 +367,9 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
     }
   };
 
-  /** Full URL for a static image of the visualization (chart, anomaly, or map). Used for feed cards instead of interactive embeds. */
+  /** Full URL for a static image of the visualization (chart, anomaly, or map). Used for feed cards instead of interactive embeds. Uses asset base URL so images load on production. */
   const getImageUrl = (story: FeedStory, resolvedMapHash?: string | null): string | null => {
-    const base = API_BASE.replace(/\/$/, "");
+    const base = getApiBaseUrlForAssets();
     if (story.image_url) return `${base}${story.image_url}`;
     const pv = story.primary_visualization;
     if (!pv) return null;
