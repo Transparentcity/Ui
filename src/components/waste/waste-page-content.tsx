@@ -569,7 +569,7 @@ export function WastePageContent() {
                 <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
                   <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                   <span>Taking longer than usual — will auto-retry if it times out</span>
-                  {displayData && (
+                  {!isManualRefreshing && displayData && (
                     <span className="ml-auto text-amber-500">Showing previous results while running</span>
                   )}
                 </div>
