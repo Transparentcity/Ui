@@ -4,7 +4,13 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useFeedStories, useTrackFeedEngagement, useFeedPlaces, type FeedStory } from "@/lib/hooks/useFeed";
+import {
+  useFeedStories,
+  useTrackFeedEngagement,
+  useHideFeedStory,
+  useFeedPlaces,
+  type FeedStory,
+} from "@/lib/hooks/useFeed";
 import { useCities } from "@/lib/hooks/useCities";
 import {
   deleteFeedStory,
@@ -18,6 +24,26 @@ import { API_BASE, getApiBaseUrlForAssets } from "@/lib/apiBase";
 import { feedKeys } from "@/lib/hooks/useFeed";
 import Loader from "./Loader";
 import styles from "./FeedView.module.css";
+
+function HideStoryIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+function ShareIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <path d="M4 10C5.10457 10 6 9.10457 6 8C6 6.89543 5.10457 6 4 6C2.89543 6 2 6.89543 2 8C2 9.10457 2.89543 10 4 10Z" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M12 6C13.1046 6 14 5.10457 14 4C14 2.89543 13.1046 2 12 2C10.8954 2 10 2.89543 10 4C10 5.10457 10.8954 6 12 6Z" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M12 14C13.1046 14 14 13.1046 14 12C14 10.8954 13.1046 10 12 10C10.8954 10 10 10.8954 10 12C10 13.1046 10.8954 14 12 14Z" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M5.7 9.1L10.3 11.4" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M10.3 4.6L5.7 6.9" stroke="currentColor" strokeWidth="1.5"/>
+    </svg>
+  );
+}
 
 interface FeedViewProps {
   cityId?: number | null;
@@ -33,7 +59,7 @@ type SelectedPlace = { city_id: number; district: number | null } | null;
 
 export default function FeedView({ cityId, district, isAdmin = false, cityLeadCityIds = [] }: FeedViewProps) {
   const router = useRouter();
-  const { getAccessTokenSilently } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   const queryClient = useQueryClient();
 
   const [selectedPlace, setSelectedPlace] = useState<SelectedPlace>(() =>
@@ -48,6 +74,7 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
   const { data: citiesList } = useCities();
   const { data: placesData } = useFeedPlaces();
   const trackEngagement = useTrackFeedEngagement();
+  const hideStory = useHideFeedStory();
 
   const [deletingStoryId, setDeletingStoryId] = useState<number | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -217,9 +244,9 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
     }
   };
 
-  const handleLike = (story: FeedStory, e: React.MouseEvent) => {
+  const handleHideStory = (story: FeedStory, e: React.MouseEvent) => {
     e.stopPropagation();
-    trackEngagement.mutate({ storyId: story.id, action: "like" });
+    hideStory.mutate({ storyId: story.id });
   };
 
   const handleToggleComments = async (storyId: number, e: React.MouseEvent) => {
@@ -321,6 +348,7 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
     const labels: Record<string, string> = {
       point: "Point Map",
       choropleth: "Choropleth",
+      delta: "Delta Map",
       symbol: "Symbol Map",
       heatmap: "Heatmap",
       multi_layer: "Multi-Layer Map",
@@ -701,32 +729,20 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
                   </div>
                 )}
 
-                {/* Footer: engagement stats + actions */}
+                {/* Footer: hide, read more, share */}
                 <div className={styles.storyFooter}>
-                  <div className={styles.storyStats} onClick={(e) => e.stopPropagation()}>
-                    <span className={styles.storyStat} title="Views">
-                      <span className={styles.storyStatIcon} aria-hidden>👁</span>
-                      {(story.view_count ?? 0).toLocaleString()}
-                    </span>
-                    <button
-                      type="button"
-                      className={styles.likeBtn}
-                      onClick={(e) => handleLike(story, e)}
-                      title="Like"
-                    >
-                      <span className={styles.storyStatIcon} aria-hidden>♥</span>
-                      {(story.like_count ?? 0).toLocaleString()}
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.commentToggleBtn}
-                      onClick={(e) => handleToggleComments(story.id, e)}
-                      title="Comments"
-                    >
-                      <span className={styles.storyStatIcon} aria-hidden>💬</span>
-                      {(story.comment_count ?? 0).toLocaleString()}
-                    </button>
-                  </div>
+                  {isAuthenticated && (
+                    <div className={styles.aiFeedbackArea} onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className={styles.hideStoryBtn}
+                        onClick={(e) => handleHideStory(story, e)}
+                        title="Hide this story from your feed"
+                      >
+                        <HideStoryIcon />
+                      </button>
+                    </div>
+                  )}
                   <button
                     className={styles.readMoreBtn}
                     onClick={(e) => {
@@ -741,14 +757,17 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
                     onClick={(e) => handleShare(story, e)}
                     title="Share story"
                   >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M4 10C5.10457 10 6 9.10457 6 8C6 6.89543 5.10457 6 4 6C2.89543 6 2 6.89543 2 8C2 9.10457 2.89543 10 4 10Z" stroke="currentColor" strokeWidth="1.5"/>
-                      <path d="M12 6C13.1046 6 14 5.10457 14 4C14 2.89543 13.1046 2 12 2C10.8954 2 10 2.89543 10 4C10 5.10457 10.8954 6 12 6Z" stroke="currentColor" strokeWidth="1.5"/>
-                      <path d="M12 14C13.1046 14 14 13.1046 14 12C14 10.8954 13.1046 10 12 10C10.8954 10 10 10.8954 10 12C10 13.1046 10.8954 14 12 14Z" stroke="currentColor" strokeWidth="1.5"/>
-                      <path d="M5.7 9.1L10.3 11.4" stroke="currentColor" strokeWidth="1.5"/>
-                      <path d="M10.3 4.6L5.7 6.9" stroke="currentColor" strokeWidth="1.5"/>
-                    </svg>
+                    <ShareIcon />
                     Share
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.commentToggleBtn}
+                    onClick={(e) => handleToggleComments(story.id, e)}
+                    title="Comments"
+                  >
+                    <span className={styles.storyStatIcon} aria-hidden>💬</span>
+                    {(story.comment_count ?? 0).toLocaleString()}
                   </button>
                 </div>
 

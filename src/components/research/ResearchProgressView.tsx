@@ -196,7 +196,7 @@ export default function ResearchProgressView({
                     <div className={styles.itemQuestion}>{item.research_question}</div>
                     {item.iteration_number !== undefined && (
                       <div className={styles.itemMeta}>
-                        Iteration {item.iteration_number + 1}
+                        Round {item.iteration_number + 1}
                         {item.started_at && (
                           <span> • Started {new Date(item.started_at).toLocaleTimeString()}</span>
                         )}

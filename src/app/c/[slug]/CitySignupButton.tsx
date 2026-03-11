@@ -40,7 +40,6 @@ export default function CitySignupButton() {
     await loginWithRedirect({
       authorizationParams: {
         screen_hint: "signup",
-        prompt: "login",
         ...(prefillEmail && { login_hint: prefillEmail }),
       },
       appState: { returnTo: `/dashboard?signup=${intent}` },
@@ -106,7 +105,7 @@ export default function CitySignupButton() {
             >
               <div className="nav-signup-item-title">I&apos;m a citizen</div>
               <div className="nav-signup-item-desc">
-                Block-level data for what’s happening near you and in the places you care about—in your city and around the world.
+                Follow a city, read research, and get the map view.
               </div>
             </button>
             <button

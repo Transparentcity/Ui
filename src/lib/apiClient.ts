@@ -304,6 +304,25 @@ export function updateCity(
   return request<CityAdminData>(`/api/admin/cities/${cityId}`, "PUT", data, token);
 }
 
+export interface DeleteCityResponse {
+  deleted: boolean;
+  city_id: number;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+export function deleteCity(
+  cityId: number,
+  token: string
+): Promise<DeleteCityResponse> {
+  return request<DeleteCityResponse>(
+    `/api/admin/cities/${cityId}`,
+    "DELETE",
+    undefined,
+    token
+  );
+}
+
 // --- Population by district (admin) ---
 
 export interface PopulationSourceConfig {
@@ -541,6 +560,7 @@ export function getTemplateInstantiationStatus(
 /** Optional body for template instantiation (single or all). */
 export interface InstantiateTemplateRequest {
   model_key?: string | null;
+  only_missing?: boolean;
 }
 
 export function instantiateSingleTemplate(
@@ -566,6 +586,63 @@ export function instantiateAllTemplates(
     `/api/admin/cities/${cityId}/instantiate-all-templates`,
     "POST",
     body ?? undefined,
+    token
+  );
+}
+
+export interface StructureMetricsBatchRequest {
+  city_ids: number[];
+  template_ids?: number[] | null;
+  model_key?: string | null;
+  only_missing?: boolean;
+}
+
+export function startStructureMetricsBatch(
+  payload: StructureMetricsBatchRequest,
+  token: string
+): Promise<JobResponse> {
+  return request<JobResponse>(
+    "/api/admin/structure-metrics-batch",
+    "POST",
+    payload,
+    token
+  );
+}
+
+export interface StructureMetricsLastRunSummary {
+  success?: boolean | null;
+  last_run_at?: string | null;
+  model_key?: string | null;
+  errors?: string[] | null;
+  opportunities?: string[] | null;
+}
+
+export function getStructureMetricsLastRuns(
+  cityIds: number[],
+  token: string
+): Promise<Record<string, StructureMetricsLastRunSummary>> {
+  if (cityIds.length === 0) return Promise.resolve({});
+  const query = new URLSearchParams({ city_ids: cityIds.join(",") });
+  return request<Record<string, StructureMetricsLastRunSummary>>(
+    `/api/admin/structure-metrics-last-runs?${query}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface CityDataDashboardStats {
+  total_metrics: number;
+  cities_with_metrics_count: number;
+}
+
+export function getCityDataDashboardStats(
+  token: string
+): Promise<CityDataDashboardStats> {
+  return request<CityDataDashboardStats>(
+    "/api/admin/city-data-dashboard-stats",
+    "GET",
+    undefined,
     token
   );
 }
@@ -724,6 +801,10 @@ export interface CityListItem {
   population_source_type?: string | null;
   population_source_name?: string | null;
   population_data_year?: number | null;
+  portal_type?: string | null;
+  template_metrics_attempted?: number;
+  template_metrics_instantiated?: number;
+  template_metrics_missing?: number;
 }
 
 export function listCities(
@@ -3607,6 +3688,8 @@ export interface FeedStory {
   metadata?: Record<string, any>;
   created_at?: string | null;
   updated_at?: string | null;
+  /** Current user's AI feedback (thumbs up/down); only when authenticated. */
+  user_ai_feedback?: "up" | "down" | null;
 }
 
 export interface FeedStoriesResponse {
@@ -3738,6 +3821,30 @@ export function trackFeedEngagement(
     `/api/feed/story/${storyId}/engage`,
     "POST",
     { action },
+    token
+  );
+}
+
+/** Set AI feedback (thumbs up/down) for a story. Requires auth. */
+export function setFeedStoryFeedback(
+  storyId: number,
+  feedback: "up" | "down",
+  token: string
+): Promise<EngagementResponse> {
+  return request<EngagementResponse>(
+    `/api/feed/story/${storyId}/feedback`,
+    "POST",
+    { feedback },
+    token
+  );
+}
+
+/** Hide story from current user's feed. Other users still see it. Requires auth. */
+export function hideFeedStory(storyId: number, token: string): Promise<EngagementResponse> {
+  return request<EngagementResponse>(
+    `/api/feed/story/${storyId}/hide`,
+    "POST",
+    undefined,
     token
   );
 }
@@ -3915,9 +4022,12 @@ export interface ResearchReport {
   city_id?: number | null;
   district?: string | null;
   status: string;
-  max_iterations: number;
-  max_subquestions: number;
-  current_iteration: number;
+  max_iterations?: number;
+  max_subquestions?: number;
+  current_iteration?: number;
+  scoping_questions?: { narrative?: string; questions?: string[]; options_if_helpful?: Record<string, string[]> } | null;
+  scope_answers?: Record<string, any> | null;
+  scoped_focus?: string | null;
   agenda?: Record<string, any> | null;
   final_report_html?: string | null;
   model_key?: string | null;
@@ -3966,12 +4076,11 @@ export interface CreateResearchRequest {
   prompt: string;
   city_id?: number | null;
   district?: string | null;
-  max_iterations?: number;
-  max_subquestions?: number;
+  one_shot?: boolean;
+  require_scoping?: boolean;
   model_key?: string;
   require_agenda_approval?: boolean;
   enable_web_search?: boolean;
-  // Newsletter metadata fields (optional) - set these to create a newsletter report
   is_newsletter?: boolean;
   newsletter_frequency?: "weekly" | "monthly" | null;
   generate_feed_stories?: boolean;
@@ -4046,6 +4155,19 @@ export function getResearchItems(
     `/api/research/${reportId}/items`,
     "GET",
     undefined,
+    token
+  );
+}
+
+export function submitScopeAnswers(
+  reportId: number,
+  body: { answers: string[]; scoped_focus_text?: string | null },
+  token: string
+): Promise<{ status: string; report_id: number; message: string }> {
+  return request<{ status: string; report_id: number; message: string }>(
+    `/api/research/${reportId}/scope-answers`,
+    "POST",
+    body,
     token
   );
 }

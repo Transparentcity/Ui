@@ -428,7 +428,16 @@ export default function CityMapView({
         // Set city data immediately so UI can render
         setCityData(city);
 
-        // Wait for structure and shapefiles so we have the location's actual center before showing the map.
+        // Show base map immediately with city-based center (no geometry required).
+        // Structure and shapefiles will load in background and we'll recenter when ready.
+        if (city) {
+          const initialView = getInitialMapView(city);
+          setMapCenter(initialView.center);
+          setMapZoom(initialView.zoom);
+        }
+        setLoading(false);
+
+        // Load structure and shapefiles in background for bounds/center and layers.
         let structureData = null;
         try {
           structureData = await getCityStructure(cityId, token).catch((err) => {

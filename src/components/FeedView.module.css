@@ -608,6 +608,67 @@
   margin-top: 4px;
 }
 
+/* AI feedback area: thumbs up/down + hide (BRAND_KIT: spruce-green, warm-coral, brand-primary) */
+.aiFeedbackArea {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+}
+
+.aiFeedbackLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-right: 4px;
+}
+
+.feedbackBtn,
+.hideStoryBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.feedbackBtn:hover,
+.hideStoryBtn:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-secondary);
+  color: var(--text-primary);
+}
+
+.feedbackBtnUp.feedbackBtnActiveUp {
+  background: rgba(74, 116, 99, 0.12);
+  border-color: var(--spruce-green, #4A7463);
+  color: var(--spruce-green, #4A7463);
+}
+
+.feedbackBtnDown.feedbackBtnActiveDown {
+  background: rgba(255, 107, 90, 0.12);
+  border-color: var(--warm-coral, #FF6B5A);
+  color: var(--warm-coral, #FF6B5A);
+}
+
+.hideStoryBtn {
+  width: 32px;
+  height: 32px;
+  margin-left: 4px;
+}
+
+.hideStoryBtn:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
 .storyStats {
   display: flex;
   align-items: center;
