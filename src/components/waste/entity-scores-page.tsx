@@ -1,13 +1,20 @@
 "use client"
 
 import { useState, useMemo, useCallback } from "react"
-import { useWasteEntityScores } from "@/lib/hooks/useWaste"
-import { useQuery } from "@tanstack/react-query"
-import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
-import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
+import {
+  useWasteDepartmentRisk,
+  useWasteEntityScores,
+  useWasteTrustMetrics,
+} from "@/lib/hooks/useWaste"
+import { useWasteCity } from "./WasteCityContext"
 import { WasteShell } from "./waste-shell"
 import { SeverityBadge } from "./severity-badge"
 import { ScoreBar } from "./score-bar"
+import { ScoreExplainer } from "./score-explainer"
+import { TrustMetricsSnapshot } from "./trust-metrics-snapshot"
+import { TrustDetectorTable } from "./trust-detector-table"
+import { DepartmentTrustTable } from "./department-trust-table"
+import { TrustMethodologyNote } from "./trust-methodology-note"
 import {
   Table,
   TableHeader,
@@ -51,6 +58,44 @@ const SEVERITY_ORDER: Record<string, number> = {
   info: 4,
 }
 
+const DETECTOR_LABEL_OVERRIDES: Record<string, string> = {
+  vendor_d10_contract_drift: "Contract drift",
+  vendor_d9_ghost: "Ghost vendor",
+  vendor_d8_split_pos: "Split purchase orders",
+  vendor_d11_short_bids: "Short bid window",
+  vendor_d19_sole_source: "Sole-source concentration",
+  payroll_d1_ot_ratio: "Overtime ratio",
+  payroll_d2_pareto: "Pay concentration",
+  payroll_d6_hours: "Hours feasibility",
+  integrity_rd1_revolving_door: "Revolving door",
+  influence_d18_pay_to_play: "Pay-to-play overlap",
+}
+
+function toTitleCase(text: string): string {
+  return text
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
+}
+
+function formatDetectorLabel(detectorKey?: string | null): string {
+  const normalized = String(detectorKey || "").trim().toLowerCase()
+  if (!normalized) return "—"
+  if (DETECTOR_LABEL_OVERRIDES[normalized]) {
+    return DETECTOR_LABEL_OVERRIDES[normalized]
+  }
+  const withoutDomain = normalized.replace(
+    /^(vendor|payroll|infrastructure|integrity|influence|nonprofit)_/,
+    ""
+  )
+  const withoutIndex = withoutDomain
+    .replace(/^(rd\d+|np\d+|d\d+[a-z]?|i\d+)_/, "")
+    .replace(/_/g, " ")
+
+  return toTitleCase(withoutIndex || normalized.replace(/_/g, " "))
+}
+
 function SortHeader({
   field,
   activeField,
@@ -86,16 +131,7 @@ export function EntityScoresPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
   const [selectedEntity, setSelectedEntity] = useState<WasteEntityScore | null>(null)
 
-  const citiesQuery = useQuery({
-    queryKey: ["public", "cities", "sitemap"],
-    queryFn: listPublicCitiesForSitemap,
-    staleTime: 5 * 60 * 1000,
-  })
-  const selectedCityId = useMemo(() => {
-    const eligible = (citiesQuery.data ?? []).filter((c) => (c.datasets_count ?? 0) > 0)
-    if (eligible.length > 0) return Number(eligible[0].id)
-    return CRM_DEFAULT_CITY_ID
-  }, [citiesQuery.data])
+  const { selectedCityId } = useWasteCity()
 
   const { data, isLoading, error } = useWasteEntityScores({
     cityId: selectedCityId,
@@ -105,6 +141,24 @@ export function EntityScoresPage() {
     entityType: entityTypeFilter || undefined,
     sortBy,
     sortDir,
+  })
+  const {
+    data: trustMetrics,
+    isLoading: trustLoading,
+    error: trustError,
+  } = useWasteTrustMetrics({
+    cityId: selectedCityId,
+    detectorPrecisionLimit: 10,
+    detectorPrecisionMinFindings: 5,
+  })
+  const {
+    data: departmentRisk,
+    isLoading: departmentRiskLoading,
+    error: departmentRiskError,
+  } = useWasteDepartmentRisk({
+    cityId: selectedCityId,
+    page: 1,
+    perPage: 8,
   })
 
   const toggleSort = useCallback(
@@ -139,6 +193,28 @@ export function EntityScoresPage() {
 
   return (
     <WasteShell title="Entity Risk Scores" description="Composite risk scores across all monitored entities">
+      <div className="mb-6 space-y-4">
+        <TrustMetricsSnapshot
+          metrics={trustMetrics}
+          isLoading={trustLoading}
+          errorMessage={trustError instanceof Error ? trustError.message : null}
+        />
+        <DepartmentTrustTable
+          data={departmentRisk}
+          isLoading={departmentRiskLoading}
+          errorMessage={
+            departmentRiskError instanceof Error ? departmentRiskError.message : null
+          }
+        />
+        <TrustDetectorTable
+          metrics={trustMetrics}
+          isLoading={trustLoading}
+          errorMessage={trustError instanceof Error ? trustError.message : null}
+          maxRows={10}
+        />
+        <TrustMethodologyNote />
+      </div>
+
       {/* Filters */}
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         <Select value={severityFilter} onValueChange={(v) => { setSeverityFilter(v === "all" ? "" : v); setPage(1) }}>
@@ -161,10 +237,10 @@ export function EntityScoresPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All types</SelectItem>
-            <SelectItem value="vendor">Vendor</SelectItem>
+            <SelectItem value="vendor">Vendor / Nonprofit</SelectItem>
             <SelectItem value="employee">Employee</SelectItem>
             <SelectItem value="department">Department</SelectItem>
-            <SelectItem value="nonprofit">Nonprofit</SelectItem>
+            <SelectItem value="location">Location</SelectItem>
           </SelectContent>
         </Select>
 
@@ -245,8 +321,11 @@ export function EntityScoresPage() {
                     <SeverityBadge severity={entity.severity_tier} />
                   </TableCell>
                   <TableCell className="tabular-nums">{entity.signal_count}</TableCell>
-                  <TableCell className="text-gray-500 text-xs">
-                    {entity.top_detector?.replace(/_/g, " ") ?? "—"}
+                  <TableCell
+                    className="text-gray-500 text-xs"
+                    title={entity.top_detector ?? undefined}
+                  >
+                    {formatDetectorLabel(entity.top_detector)}
                   </TableCell>
                   <TableCell className="text-gray-400 text-xs">
                     {entity.last_scored_at
@@ -298,51 +377,19 @@ export function EntityScoresPage() {
                   <SeverityBadge severity={selectedEntity.severity_tier} />
                 </DialogTitle>
                 <DialogDescription>
-                  {selectedEntity.entity_type} &middot; Score: {Math.round(selectedEntity.composite_score)}
+                  {selectedEntity.entity_type} &middot; TC Score {selectedEntity.composite_score.toFixed(1)}
+                  {selectedEntity.composite_score >= 100 ? " (max risk priority)" : ""}
                 </DialogDescription>
               </DialogHeader>
 
-              {/* Score breakdown */}
-              <div className="mt-4">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">
-                  Signal Breakdown
-                </h4>
-                {selectedEntity.signals.length === 0 ? (
-                  <p className="text-xs text-gray-400">No signals recorded</p>
-                ) : (
-                  <div className="space-y-2">
-                    {selectedEntity.signals
-                      .sort((a, b) => b.contribution - a.contribution)
-                      .map((sig, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <span className="text-xs text-gray-600 w-32 truncate">
-                            {sig.detector_key.replace(/_/g, " ")}
-                          </span>
-                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-purple-500 rounded-full"
-                              style={{
-                                width: `${Math.min(100, (sig.contribution / selectedEntity.composite_score) * 100)}%`,
-                              }}
-                            />
-                          </div>
-                          <span className="text-xs text-gray-500 tabular-nums w-10 text-right">
-                            {sig.contribution.toFixed(1)}
-                          </span>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Score metadata */}
-              {selectedEntity.score_delta != null && selectedEntity.score_delta !== 0 && (
-                <div className="mt-6 text-xs text-gray-500">
-                  Score delta: <span className={selectedEntity.score_delta > 0 ? "text-red-600" : "text-green-600"}>
-                    {selectedEntity.score_delta > 0 ? "+" : ""}{selectedEntity.score_delta.toFixed(1)}
-                  </span>
-                </div>
-              )}
+              <ScoreExplainer
+                entityName={selectedEntity.entity_name}
+                score={selectedEntity.composite_score}
+                signals={selectedEntity.signals}
+                signalCount={selectedEntity.signal_count}
+                scoreDelta={selectedEntity.score_delta}
+                className="mt-4"
+              />
 
               <Button
                 variant="outline"

@@ -4,13 +4,30 @@ import type { WasteAnalyzeResponse } from "@/lib/apiClient"
 
 export type WasteCategoryKey =
   | "overview"
+  | "convergence"
   | "payroll"
   | "contracts"
   | "infrastructure"
+  | "influence"
+  | "integrity"
   | "confirmed"
   | "detectors"
   | "review"
   | "accuracy"
+
+export const WASTE_CATEGORY_LABELS: Record<WasteCategoryKey, string> = {
+  overview: "Overview",
+  convergence: "Cross-Domain Risk",
+  payroll: "Payroll & Personnel",
+  contracts: "Contracts & Procurement",
+  infrastructure: "Infrastructure & Services",
+  influence: "Influence & Pay-to-Play",
+  integrity: "Personnel Integrity",
+  confirmed: "Confirmed Cases",
+  detectors: "Detectors & Data",
+  review: "Review Workbench",
+  accuracy: "Detector Accuracy",
+}
 
 /**
  * Canonical mapping from raw backend category strings to UI category keys.
@@ -27,7 +44,7 @@ export function normalizeWasteCategory(category: string): WasteCategoryKey {
   if (key === "overview") return "overview"
   if (key === "payroll" || key.includes("payroll") || key === "payroll_compensation") return "payroll"
 
-  // Map integrity/personnel to payroll
+  // Personnel integrity (revolving door, dual employment, etc.)
   if (
     key === "integrity" ||
     key.includes("integrity") ||
@@ -35,7 +52,7 @@ export function normalizeWasteCategory(category: string): WasteCategoryKey {
     key.includes("revolving") ||
     key.includes("conflict")
   ) {
-    return "payroll"
+    return "integrity"
   }
 
   if (
@@ -60,22 +77,47 @@ export function normalizeWasteCategory(category: string): WasteCategoryKey {
     return "infrastructure"
   }
 
-  // Influence / lobbying / pay-to-play map to contracts (not "vendor")
+  // Influence / lobbying / pay-to-play
   if (
     key === "influence" ||
     key.includes("influence") ||
     key.includes("lobby") ||
     key.includes("pay_to_play")
   ) {
-    return "contracts"
+    return "influence"
   }
 
   if (key === "confirmed" || key.includes("confirmed")) return "confirmed"
+  if (key === "convergence" || key.includes("convergence") || key.includes("cross_domain")) return "convergence"
   if (key === "detectors" || key === "detectors_data") return "detectors"
   if (key === "review" || key.includes("queue")) return "review"
   if (key === "accuracy" || key.includes("precision")) return "accuracy"
 
   return "payroll"
+}
+
+export function getWasteCategoryLabel(category: string): string {
+  const key = normalizeWasteCategory(category)
+  return WASTE_CATEGORY_LABELS[key]
+}
+
+export const WASTE_CATEGORY_DESCRIPTIONS: Record<WasteCategoryKey, string> = {
+  overview: "Summary across all waste detection modules",
+  convergence: "Departments flagged across multiple independent risk domains",
+  payroll: "Overtime, compensation anomalies, and personnel integrity",
+  contracts: "Vendor concentration, procurement patterns, and influence",
+  infrastructure: "311 service clusters and infrastructure patterns",
+  influence: "Lobbying overlap, campaign finance patterns, and pay-to-play risk",
+  integrity: "Revolving door hires, dual employment, and conflict-of-interest signals",
+  confirmed: "Cases confirmed through audits, investigations, or public records",
+  detectors: "All anomaly-detection algorithms and public datasets used by the platform",
+  review: "Disposition workflow for auditor triage and assignment",
+  accuracy: "Precision tracking from auditor feedback",
+}
+
+export function getWasteCategoryDescription(category: string): string {
+  const key = normalizeWasteCategory(category)
+  return WASTE_CATEGORY_DESCRIPTIONS[key]
 }
 
 // ── Dollar formatting ───────────────────────────────────────────────────────

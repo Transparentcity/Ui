@@ -3,19 +3,17 @@
 import { cn } from "@/lib/utils"
 
 function scoreColor(score: number): string {
-  if (score >= 80) return "bg-red-500"
-  if (score >= 60) return "bg-orange-500"
-  if (score >= 40) return "bg-yellow-500"
-  if (score >= 20) return "bg-blue-500"
-  return "bg-gray-400"
+  if (score >= 81) return "bg-red-500"
+  if (score >= 61) return "bg-orange-500"
+  if (score >= 31) return "bg-amber-500"
+  return "bg-green-500"
 }
 
 function scoreTextColor(score: number): string {
-  if (score >= 80) return "text-red-700"
-  if (score >= 60) return "text-orange-700"
-  if (score >= 40) return "text-yellow-700"
-  if (score >= 20) return "text-blue-700"
-  return "text-gray-500"
+  if (score >= 81) return "text-red-700"
+  if (score >= 61) return "text-orange-700"
+  if (score >= 31) return "text-amber-700"
+  return "text-green-700"
 }
 
 interface ScoreBarProps {

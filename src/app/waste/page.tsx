@@ -1,5 +1,5 @@
-import { WastePageContent } from "@/components/waste/waste-page-content"
+import { CommandCenterPage } from "@/components/waste/command-center-page"
 
 export default function WastePage() {
-  return <WastePageContent />
+  return <CommandCenterPage />
 }

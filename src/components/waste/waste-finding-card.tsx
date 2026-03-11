@@ -2,9 +2,32 @@
 
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion, AlertCircle, Sparkles, Map as MapIcon } from "lucide-react"
+import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion, AlertCircle, Sparkles, Map as MapIcon, Triangle } from "lucide-react"
 import { type WasteFinding } from "@/lib/apiClient"
 import { formatDollar, escapeSoqlLike as escapeSoqlLikeShared, escapeSoql } from "./waste-utils"
+import { TCScoreBadge } from "./tc-score-badge"
+
+const DOMAIN_LABELS: Record<string, string> = {
+  procurement: "Contracts & Procurement",
+  payroll: "Payroll & Compensation",
+  infrastructure: "Infrastructure & Services",
+  influence: "Influence & Pay-to-Play",
+  integrity: "Personnel Integrity",
+}
+
+const DOMAIN_COLORS: Record<string, string> = {
+  procurement: "bg-blue-500",
+  payroll: "bg-emerald-500",
+  infrastructure: "bg-amber-500",
+  influence: "bg-purple-500",
+  integrity: "bg-rose-500",
+}
+
+const TRIANGLE_LEG_LABELS: Record<string, { label: string; color: string }> = {
+  Opportunity: { label: "Opportunity", color: "text-blue-700 bg-blue-50 border-blue-200" },
+  Pressure: { label: "Pressure", color: "text-amber-700 bg-amber-50 border-amber-200" },
+  Capability: { label: "Capability", color: "text-rose-700 bg-rose-50 border-rose-200" },
+}
 
 const severityConfig = {
   critical: {
@@ -363,6 +386,89 @@ export function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
   return null
 }
 
+function ConvergenceDetail({ finding }: { finding: WasteFinding }) {
+  const cd = finding.convergence_details
+  if (!cd) return null
+
+  const domainEntries = Object.entries(cd.domain_risks ?? {}).sort(
+    ([, a], [, b]) => (b as number) - (a as number)
+  )
+  const allLegs = ["Opportunity", "Pressure", "Capability"]
+
+  return (
+    <div className="space-y-4">
+      {/* Composite score header */}
+      <div className="flex items-center gap-4">
+        <TCScoreBadge score={cd.composite_risk ?? 0} size="lg" showLabel />
+        <div className="text-xs text-gray-500">
+          {cd.domains_flagged} domains flagged
+          <span className="mx-1.5 text-gray-300">|</span>
+          {cd.convergence_multiplier}x convergence multiplier
+          <span className="mx-1.5 text-gray-300">|</span>
+          {cd.finding_count} underlying findings
+        </div>
+      </div>
+
+      {/* Domain risk bars */}
+      <div className="space-y-2">
+        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Risk by Domain</span>
+        {domainEntries.map(([domain, score]) => (
+          <div key={domain} className="flex items-center gap-3">
+            <span className="text-xs text-gray-600 w-44 shrink-0">
+              {DOMAIN_LABELS[domain] ?? domain}
+            </span>
+            <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className={cn("h-full rounded-full transition-all", DOMAIN_COLORS[domain] ?? "bg-gray-400")}
+                style={{ width: `${Math.min(score as number, 100)}%` }}
+              />
+            </div>
+            <span className="text-xs font-medium text-gray-700 w-8 text-right">
+              {Math.round(score as number)}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Fraud Triangle */}
+      {(cd.triangle_legs_present?.length ?? 0) > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Triangle className="w-3.5 h-3.5 text-gray-500" />
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+              Fraud Triangle ({cd.triangle_legs_present?.length ?? 0}/3)
+            </span>
+          </div>
+          <div className="flex gap-2">
+            {allLegs.map((leg) => {
+              const active = (cd.triangle_legs ?? []).includes(leg)
+              const cfg = TRIANGLE_LEG_LABELS[leg]
+              return (
+                <span
+                  key={leg}
+                  className={cn(
+                    "inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border",
+                    active
+                      ? cfg?.color
+                      : "text-gray-400 bg-gray-50 border-gray-200"
+                  )}
+                >
+                  {cfg?.label ?? leg}
+                </span>
+              )
+            })}
+          </div>
+          {(cd.triangle_legs_present?.length ?? 0) === 3 && (
+            <p className="text-xs text-red-600 font-medium">
+              All three legs present — conditions favorable for fraud.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function WasteFindingCard({
   finding,
   isExpanded,
@@ -374,6 +480,7 @@ export function WasteFindingCard({
   const confKey = ((finding.confidence ?? "medium").toLowerCase()) as keyof typeof confidenceConfig
   const conf = confidenceConfig[confKey] ?? confidenceConfig.medium
   const ConfIcon = conf.icon
+  const isConvergence = finding.category?.toLowerCase().includes("convergence")
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isDetailsLoading, setIsDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
@@ -622,15 +729,24 @@ export function WasteFindingCard({
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Confidence indicator (compact) */}
-        <span className="hidden lg:inline-flex shrink-0" title={conf.label}>
-          <ConfIcon className={cn("w-3.5 h-3.5", conf.text)} aria-label={conf.label} />
-        </span>
+        {/* Confidence indicator (compact) — hidden for convergence */}
+        {isConvergence ? null : (
+          <span className="hidden lg:inline-flex shrink-0" title={conf.label}>
+            <ConfIcon className={cn("w-3.5 h-3.5", conf.text)} aria-label={conf.label} />
+          </span>
+        )}
 
         {/* Entity tag */}
         <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded truncate max-w-[120px] sm:max-w-none sm:whitespace-nowrap inline-flex">
           {finding.entity}
         </span>
+
+        {/* Fiscal year */}
+        {finding.fiscal_year && (
+          <span className="text-[10px] text-gray-400 whitespace-nowrap hidden sm:inline">
+            FY{finding.fiscal_year}
+          </span>
+        )}
 
         {/* Amount */}
         {finding.amount != null && finding.amount > 0 && (
@@ -663,9 +779,15 @@ export function WasteFindingCard({
             )}
           </div>
 
-          <p className="text-sm text-gray-700 leading-relaxed mb-3">
-            {finding.description}
-          </p>
+          {isConvergence ? (
+            <div className="mb-3">
+              <ConvergenceDetail finding={finding} />
+            </div>
+          ) : (
+            <p className="text-sm text-gray-700 leading-relaxed mb-3">
+              {finding.description}
+            </p>
+          )}
 
           {canShowDetails && (
             <div className="mb-3">
@@ -700,17 +822,19 @@ export function WasteFindingCard({
             </div>
           )}
 
-          {/* Confidence badge */}
-          <div className={cn(
-            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs mb-3",
-            conf.bg, conf.text, "border", conf.border
-          )}>
-            <ConfIcon className="w-3.5 h-3.5" />
-            <span className="font-medium">{conf.label}</span>
-            {finding.confidence_reason && (
-              <span className="text-gray-500 ml-1">— {finding.confidence_reason}</span>
-            )}
-          </div>
+          {/* Confidence badge — hidden for convergence meta-findings */}
+          {!isConvergence && (
+            <div className={cn(
+              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs mb-3",
+              conf.bg, conf.text, "border", conf.border
+            )}>
+              <ConfIcon className="w-3.5 h-3.5" />
+              <span className="font-medium">{conf.label}</span>
+              {finding.confidence_reason && (
+                <span className="text-gray-500 ml-1">— {finding.confidence_reason}</span>
+              )}
+            </div>
+          )}
 
           {/* Caveat / data quality warning */}
           {finding.caveat && (
@@ -743,6 +867,11 @@ export function WasteFindingCard({
                 </span>
               )}
               <span>{finding.id}</span>
+              {finding.fiscal_year && (
+                <span className="text-gray-400">
+                  FY{finding.fiscal_year}
+                </span>
+              )}
               <span className="text-gray-300">
                 Priority: {finding.priority_score ?? "—"}
               </span>

@@ -20,7 +20,12 @@ import {
   getWasteInvestigation,
   getWasteInvestigations,
   getWasteReviewQueue,
+  getWasteDepartmentRisk,
   getWasteSummary,
+  getWasteTrustMetrics,
+  generateWasteTrustReport,
+  getWasteCityMethodology,
+  getWasteSystemMethodology,
   getWasteThresholds,
   listWasteRuns,
   runWasteAnalysis,
@@ -35,16 +40,21 @@ import {
   type SyncWasteReviewQueueRequest,
   type UpdateThresholdRequest,
   type WasteDetectorAccuracy,
+  type WasteDepartmentRiskPage,
   type WasteDisposition,
   type WasteEntityScoresPage,
   type WasteInvestigation,
   type WasteInvestigationsPage,
   type WasteReviewQueuePage,
   type WasteAnalyzeResponse,
+  type WasteTrustMetricsResponse,
+  type WasteTrustReportRequest,
   type WasteRun,
   type WasteRunJobResponse,
   type WasteSummaryResponse,
   type WasteThreshold,
+  type CityMethodologyResponse,
+  type SystemMethodologyResponse,
 } from "@/lib/apiClient"
 
 /**
@@ -144,10 +154,10 @@ export function useActiveWasteJob(cityId: number | null) {
         }
 
         // Detect stale jobs via two signals:
-        // 1) Total age > 6 min (backend hard-kills at 5 min, so 6 = safe margin)
-        // 2) Progress hasn't changed in 3 min (job is stuck even if young)
-        const MAX_JOB_AGE_MS = 6 * 60 * 1000
-        const PROGRESS_STALL_MS = 2.5 * 60 * 1000 // slightly under backend's 2-min detector timeout
+        // Backend timeout is 30 min; persistence of 1k+ findings to Cloud SQL
+        // can legitimately take 10-15 min.  Give ample margin.
+        const MAX_JOB_AGE_MS = 35 * 60 * 1000
+        const PROGRESS_STALL_MS = 15 * 60 * 1000
         const createdAt = new Date(job.created_at).getTime()
         const jobAgeMs = Date.now() - createdAt
         const progressStallMs = Date.now() - lastProgressSnapshotRef.current.updatedAt
@@ -697,6 +707,97 @@ export function useWasteEntityScores(params: {
   })
 }
 
+export function useWasteTrustMetrics(params: {
+  cityId: number | null
+  detectorPrecisionLimit?: number
+  detectorPrecisionMinFindings?: number
+  enabled?: boolean
+}) {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
+  const enabled =
+    isAuthenticated && !!params.cityId && (params.enabled ?? true)
+
+  return useQuery<WasteTrustMetricsResponse>({
+    queryKey: [
+      "waste",
+      "trust",
+      "metrics",
+      params.cityId,
+      params.detectorPrecisionLimit ?? 10,
+      params.detectorPrecisionMinFindings ?? 5,
+    ],
+    queryFn: async () => {
+      if (!params.cityId) throw new Error("City ID required")
+      const token = await getAccessTokenSilently()
+      return getWasteTrustMetrics(token, {
+        city_id: params.cityId,
+        detector_precision_limit: params.detectorPrecisionLimit ?? 10,
+        detector_precision_min_findings: params.detectorPrecisionMinFindings ?? 5,
+      })
+    },
+    enabled,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useWasteDepartmentRisk(params: {
+  cityId: number | null
+  minScore?: number
+  minDomains?: number
+  page?: number
+  perPage?: number
+  enabled?: boolean
+}) {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
+  const enabled =
+    isAuthenticated && !!params.cityId && (params.enabled ?? true)
+
+  return useQuery<WasteDepartmentRiskPage>({
+    queryKey: [
+      "waste",
+      "department-risk",
+      params.cityId,
+      params.minScore ?? "",
+      params.minDomains ?? "",
+      params.page ?? 1,
+      params.perPage ?? 10,
+    ],
+    queryFn: async () => {
+      if (!params.cityId) throw new Error("City ID required")
+      const token = await getAccessTokenSilently()
+      return getWasteDepartmentRisk(token, {
+        city_id: params.cityId,
+        min_score: params.minScore,
+        min_domains: params.minDomains,
+        page: params.page ?? 1,
+        per_page: params.perPage ?? 10,
+      })
+    },
+    enabled,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useGenerateWasteTrustReport() {
+  const { getAccessTokenSilently } = useAuth0()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: WasteTrustReportRequest) => {
+      const token = await getAccessTokenSilently()
+      return generateWasteTrustReport(token, payload)
+    },
+    onSuccess: (_res, payload) => {
+      queryClient.invalidateQueries({
+        queryKey: ["waste", "trust", "metrics", payload.city_id],
+      })
+      queryClient.invalidateQueries({ queryKey: ["waste", "trust"] })
+    },
+  })
+}
+
 // ── Investigations ─────────────────────────────────────────────────────────
 
 export function useWasteInvestigations(params: {
@@ -832,5 +933,36 @@ export function useUpdateWasteThresholds() {
         queryKey: ["waste", "thresholds", payload.cityId],
       })
     },
+  })
+}
+
+export function useWasteCityMethodology(cityId: number | null) {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
+
+  return useQuery<CityMethodologyResponse>({
+    queryKey: ["waste", "methodology", "city", cityId],
+    queryFn: async () => {
+      if (!cityId) throw new Error("City ID required")
+      const token = await getAccessTokenSilently()
+      return getWasteCityMethodology(token, cityId)
+    },
+    enabled: isAuthenticated && !!cityId,
+    staleTime: 10 * 60 * 1000,
+    retry: 1,
+  })
+}
+
+export function useWasteSystemMethodology() {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
+
+  return useQuery<SystemMethodologyResponse>({
+    queryKey: ["waste", "methodology", "system"],
+    queryFn: async () => {
+      const token = await getAccessTokenSilently()
+      return getWasteSystemMethodology(token)
+    },
+    enabled: isAuthenticated,
+    staleTime: 10 * 60 * 1000,
+    retry: 1,
   })
 }

@@ -63,14 +63,14 @@ describe("normalizeWasteCategory", () => {
     expect(normalizeWasteCategory(input)).toBe("payroll")
   })
 
-  // Integrity / personnel → payroll
+  // Integrity / personnel → integrity
   it.each([
     "integrity",
     "Personnel Integrity",
     "revolving_door",
     "conflict_of_interest",
-  ])("maps '%s' to payroll", (input) => {
-    expect(normalizeWasteCategory(input)).toBe("payroll")
+  ])("maps '%s' to integrity", (input) => {
+    expect(normalizeWasteCategory(input)).toBe("integrity")
   })
 
   // Contracts bucket
@@ -84,13 +84,13 @@ describe("normalizeWasteCategory", () => {
     expect(normalizeWasteCategory(input)).toBe("contracts")
   })
 
-  // Influence → contracts
+  // Influence → influence
   it.each([
     "influence",
     "Lobbying Activity",
     "pay_to_play",
-  ])("maps '%s' to contracts", (input) => {
-    expect(normalizeWasteCategory(input)).toBe("contracts")
+  ])("maps '%s' to influence", (input) => {
+    expect(normalizeWasteCategory(input)).toBe("influence")
   })
 
   // Infrastructure bucket

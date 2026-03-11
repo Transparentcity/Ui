@@ -21,6 +21,9 @@ import {
   listMyPlaces,
   type ClaimContext,
   type GovernmentVerificationStatus,
+  type UserPreferences,
+  type UserPreferencesUpdateRequest,
+  type CityDetail,
   type UserPlace,
 } from "@/lib/apiClient";
 import { PENDING_ORDER_STORAGE_KEY_PREFIX } from "@/components/MetricOrderEditor";
@@ -85,7 +88,7 @@ const DataCompletenessAdmin = dynamic(() => import("@/components/DataCompletenes
 // Dynamically import NewResearchPage to avoid SSR issues
 const NewResearchPage = dynamic(() => import("../research/new/page"), { ssr: false });
 
-type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "claims-admin" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "data-completeness" | "city" | "metric" | "job-logs" | "research" | "research-new" | "feed";
+type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "claims-admin" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "city" | "metric" | "job-logs" | "research" | "research-new" | "feed";
 
 // Mobile breakpoint (matches CSS media query)
 const MOBILE_BREAKPOINT = 768;
@@ -127,10 +130,10 @@ export default function DashboardPage() {
   const [governmentClaimContext, setGovernmentClaimContext] = useState<ClaimContext | null>(null);
   const hasAutoSelectedCity = useRef(false);
   const hasCheckedOnboarding = useRef(false);
-  const [userPreferences, setUserPreferences] = useState<any>(null);
+  const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null);
   const [govVerificationStatus, setGovVerificationStatus] = useState<GovernmentVerificationStatus | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [homeCity, setHomeCity] = useState<any>(null);
+  const [homeCity, setHomeCity] = useState<(CityDetail & { display_name?: string }) | null>(null);
   const [loadingPreferences, setLoadingPreferences] = useState(false);
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [govModeToggling, setGovModeToggling] = useState(false);
@@ -688,7 +691,7 @@ export default function DashboardPage() {
       console.log("Updated extra to send:", JSON.stringify(updatedExtra, null, 2));
       
       // Build update request with only the fields the API expects
-      const updateRequest: any = {
+      const updateRequest: UserPreferencesUpdateRequest = {
         extra: updatedExtra,
       };
       
@@ -697,7 +700,7 @@ export default function DashboardPage() {
         updateRequest.has_completed_onboarding = latestPrefs.has_completed_onboarding;
       }
       if (latestPrefs.theme !== undefined) {
-        updateRequest.theme = latestPrefs.theme;
+        updateRequest.theme = latestPrefs.theme ?? undefined;
       }
       
       // Save preferences
@@ -1125,16 +1128,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {currentView === "data-completeness" && isAdmin && (
-            <div id="data-completeness-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
-              <div className={styles.adminContainer}>
-                <h2 style={{ margin: "0 0 8px 0", padding: 0, color: "var(--text-primary)", fontSize: "18px" }}>
-                  Data Completeness
-                </h2>
-                <DataCompletenessAdmin />
-              </div>
-            </div>
-          )}
 
           {currentView === "feed" && (
             <div id="feed-view" className={`${styles.contentView} ${styles.contentViewActive}`}>

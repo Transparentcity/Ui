@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type */
 import { API_BASE } from "./apiBase";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -4866,6 +4867,18 @@ export interface WasteFinding {
   finding_report: string | null;
   is_new?: boolean;
   fiscal_year?: number | null;
+  department?: string | null;
+  convergence_details?: {
+    triangle_legs?: string[];
+    triangle_legs_present?: string[];
+    convergence_score?: number;
+    composite_risk?: number;
+    convergence_multiplier?: number;
+    domains?: string[];
+    domains_flagged?: number;
+    domain_risks?: Record<string, number>;
+    finding_count?: number;
+  } | null;
 }
 
 export interface WasteDataFreshness {
@@ -4944,6 +4957,83 @@ export interface WasteDetectorAccuracy {
   false_positive_count: number;
   precision_rate: number;
   updated_at: string | null;
+}
+
+export interface WasteScoreDistribution {
+  total_entities: number;
+  mean: number;
+  p50: number;
+  p90: number;
+  p95: number;
+  p99: number;
+  max_score: number;
+}
+
+export interface WasteSaturationStats {
+  count_gte_95: number;
+  pct_gte_95: number;
+  count_eq_100: number;
+  pct_eq_100: number;
+}
+
+export interface WasteDetectorPrecisionSnapshot {
+  detector_key: string;
+  total_findings: number;
+  confirmed_count: number;
+  false_positive_count: number;
+  precision_rate: number;
+  confirmed_case_hits: number;
+  confirmed_case_hit_rate: number;
+  updated_at: string | null;
+}
+
+export interface WasteTrustMetricsResponse {
+  city_id: number;
+  generated_at: string;
+  saturation: WasteSaturationStats;
+  score_distribution: WasteScoreDistribution;
+  confirmed_case_total_findings: number;
+  detector_precision: WasteDetectorPrecisionSnapshot[];
+}
+
+export interface WasteTrustReportRequest {
+  city_id: number;
+  lookback_days?: number;
+}
+
+export interface WasteDepartmentRiskProfile {
+  id: string | null;
+  city_id: number;
+  department_name: string;
+  department_match_name: string;
+  procurement_risk: number;
+  payroll_risk: number;
+  infrastructure_risk: number;
+  influence_risk: number;
+  integrity_risk: number;
+  domains_flagged: number;
+  convergence_multiplier: number;
+  composite_risk: number;
+  opportunity_score: number;
+  pressure_score: number;
+  capability_score: number;
+  triangle_legs_present: number;
+  finding_count: number;
+  finding_ids: string[];
+  top_finding_summary: string | null;
+  last_scored_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface WasteDepartmentRiskPage {
+  city_id: number;
+  generated_at: string;
+  items: WasteDepartmentRiskProfile[];
+  page: number;
+  per_page: number;
+  total: number;
+  has_next: boolean;
 }
 
 export interface WasteReviewQueueItem {
@@ -5305,6 +5395,71 @@ export function getWasteEntityScores(
   );
 }
 
+export function getWasteTrustMetrics(
+  token: string,
+  params: {
+    city_id: number;
+    detector_precision_limit?: number;
+    detector_precision_min_findings?: number;
+  }
+): Promise<WasteTrustMetricsResponse> {
+  const query = new URLSearchParams();
+  query.set("city_id", String(params.city_id));
+  if (params.detector_precision_limit != null) {
+    query.set("detector_precision_limit", String(params.detector_precision_limit));
+  }
+  if (params.detector_precision_min_findings != null) {
+    query.set(
+      "detector_precision_min_findings",
+      String(params.detector_precision_min_findings)
+    );
+  }
+  return request<WasteTrustMetricsResponse>(
+    `/api/waste/scores/trust/metrics?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getWasteDepartmentRisk(
+  token: string,
+  params: {
+    city_id: number;
+    min_score?: number;
+    min_domains?: number;
+    page?: number;
+    per_page?: number;
+  }
+): Promise<WasteDepartmentRiskPage> {
+  const query = new URLSearchParams();
+  query.set("city_id", String(params.city_id));
+  if (params.min_score != null) query.set("min_score", String(params.min_score));
+  if (params.min_domains != null) {
+    query.set("min_domains", String(params.min_domains));
+  }
+  if (params.page != null) query.set("page", String(params.page));
+  if (params.per_page != null) query.set("per_page", String(params.per_page));
+  return request<WasteDepartmentRiskPage>(
+    `/api/waste/department-risk?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function generateWasteTrustReport(
+  token: string,
+  payload: WasteTrustReportRequest
+): Promise<WasteRunJobResponse> {
+  return request<WasteRunJobResponse>(
+    "/api/waste/scores/trust/report",
+    "POST",
+    payload,
+    token
+  );
+}
+
 // ============================================================================
 // WASTE INVESTIGATIONS
 // ============================================================================
@@ -5486,6 +5641,174 @@ export function updateWasteThresholds(
     "/api/waste/thresholds",
     "PUT",
     { city_id: cityId, updates },
+    token
+  );
+}
+
+// ============================================================================
+// WASTE BENCHMARK
+// ============================================================================
+
+export interface BenchmarkSummaryCity {
+  city_id: number;
+  city_name: string;
+  total_findings: number;
+  critical_count: number;
+  high_count: number;
+  estimated_exposure: number | null;
+}
+
+export interface BenchmarkSummaryResponse {
+  selected_city: BenchmarkSummaryCity;
+  all_cities: BenchmarkSummaryCity[];
+  rank_by_exposure: number;
+  rank_by_findings: number;
+  total_tracked_cities: number;
+}
+
+export interface BenchmarkEntityRankItem {
+  city_id: number;
+  city_name: string;
+  entity_name: string;
+  entity_type: string;
+  composite_score: number;
+}
+
+export interface BenchmarkEntityRankResponse {
+  city_id: number;
+  top_entities: BenchmarkEntityRankItem[];
+  city_rank: number;
+  city_max_score: number;
+  total_tracked_cities: number;
+}
+
+export function getWasteBenchmarkSummary(
+  token: string,
+  cityId: number
+): Promise<BenchmarkSummaryResponse> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  return request<BenchmarkSummaryResponse>(
+    `/api/waste/benchmark/summary?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getWasteBenchmarkEntityRank(
+  token: string,
+  cityId: number,
+  entityType?: string
+): Promise<BenchmarkEntityRankResponse> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  if (entityType) query.set("entity_type", entityType);
+  return request<BenchmarkEntityRankResponse>(
+    `/api/waste/benchmark/entity-rank?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+// ============================================================================
+// WASTE METHODOLOGY
+// ============================================================================
+
+export interface MethodologyDatasetInfo {
+  logical_name: string;
+  display_name: string;
+  socrata_id: string | null;
+  available: boolean;
+  portal_url: string | null;
+  detectors_enabled: string[];
+  column_mappings: Record<string, string>;
+}
+
+export interface MethodologyBudgetYearInfo {
+  fiscal_year: string;
+  socrata_id: string;
+  portal_url: string;
+}
+
+export interface DataGapInfo {
+  id: string;
+  title: string;
+  gap_type: string;
+  priority: string;
+  description: string;
+  detectors_blocked: string[];
+  new_detectors_enabled: string[];
+  public_records_request: string;
+}
+
+export interface CityMethodologyResponse {
+  city_id: number;
+  city_key: string;
+  domain: string;
+  fiscal_year_start_month: number;
+  fiscal_year_label: string;
+  datasets: MethodologyDatasetInfo[];
+  missing_datasets: MethodologyDatasetInfo[];
+  budget_year_datasets: MethodologyBudgetYearInfo[];
+  methodology_notes: Record<string, string>;
+  data_gaps: DataGapInfo[];
+  total_detectors_available: number;
+  total_detectors_skipped: number;
+}
+
+export interface SystemCityOverview {
+  city_id: number;
+  city_key: string;
+  domain: string;
+  datasets_available: number;
+  datasets_missing: number;
+  detector_coverage_pct: number;
+}
+
+export interface SystemLearningInfo {
+  id: string;
+  title: string;
+  discovered_city: string;
+  affected_detectors: string[];
+  description: string;
+  resolution: string;
+  universal: boolean;
+}
+
+export interface SystemRequirementInfo {
+  id: string;
+  dataset_name: string;
+  why_needed: string;
+  detectors_enabled: string[];
+  alternatives: string[];
+}
+
+export interface SystemMethodologyResponse {
+  cities: SystemCityOverview[];
+  learnings: SystemLearningInfo[];
+  requirements: SystemRequirementInfo[];
+}
+
+export function getWasteCityMethodology(
+  token: string,
+  cityId: number
+): Promise<CityMethodologyResponse> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  return request<CityMethodologyResponse>(
+    `/api/waste/methodology?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getWasteSystemMethodology(
+  token: string
+): Promise<SystemMethodologyResponse> {
+  return request<SystemMethodologyResponse>(
+    "/api/waste/methodology/system",
+    "GET",
+    undefined,
     token
   );
 }

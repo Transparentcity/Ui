@@ -33,15 +33,13 @@ import {
   markFoiaExternallyFiled,
   updateFoiaRequest,
   aiDraftFoiaRequest,
-} from "@/lib/foiaApiClient"
-import {
+  submitFoiaRequest as submitFoiaRequestClient,
+  changeFoiaRequestStatus,
   createFoiaMessage,
   completeFoiaTask,
   createFoiaTask,
-  submitFoiaRequest,
-  updateRequestStatus,
   uploadFoiaFile,
-} from "@/app/actions/foia"
+} from "@/lib/foiaApiClient"
 import { API_BASE } from "@/lib/apiBase"
 import {
   FOLLOW_UP_ACTION_OPTIONS,
@@ -70,6 +68,10 @@ import type {
   FoiaAttachment,
   FoiaSubmissionAttempt,
   RequestStatus,
+  MessageClassification,
+  CommunicationChannel,
+  ResponseAction,
+  TaskType,
 } from "@/lib/foia/types"
 
 const tabs = [
@@ -186,6 +188,15 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
     }
   }, [autoOpenEdit, pathname, request, router, searchParams])
 
+  useEffect(() => {
+    if (autoOpenExternal && request) {
+      const nextParams = new URLSearchParams(searchParams.toString())
+      nextParams.delete("external")
+      const nextQuery = nextParams.toString()
+      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname)
+    }
+  }, [autoOpenExternal, pathname, request, router, searchParams])
+
   function closeEditModal() {
     setShowEditModal(false)
     if (!autoOpenEdit) return
@@ -199,7 +210,7 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
     if (!statusTransition) return
     setActionLoading(true)
     try {
-      await updateRequestStatus(parseInt(requestId, 10), statusTransition.toStatus, "admin", transitionNotes.trim() || undefined)
+      await changeFoiaRequestStatus(parseInt(requestId, 10), statusTransition.toStatus, "admin", transitionNotes.trim() || undefined)
       toast.success(`Status changed to ${statusTransition.label}`)
       setStatusTransition(null)
       setTransitionNotes("")
@@ -217,8 +228,7 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
   async function handleRewrite() {
     setActionLoading(true)
     try {
-      // Creates a new version as a draft - navigates to the new request
-      const { rewriteFoiaRequest } = await import("@/app/actions/foia")
+      const { rewriteFoiaRequest } = await import("@/lib/foiaApiClient")
       const result = (await rewriteFoiaRequest(parseInt(requestId, 10), {})) as { id?: number }
       if (result?.id) {
         router.push(`/foia/requests/${result.id}`)
@@ -237,12 +247,16 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
     request_description?: string
   }) {
     if (!request) return
+    setActionLoading(true)
     try {
       await updateFoiaRequest(request.id, data)
       closeEditModal()
       await loadData()
     } catch (err) {
+      console.error("handleSaveEdits failed:", err)
       toast.error(err instanceof Error ? err.message : "Update failed")
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -259,7 +273,7 @@ export function RequestDetailContent({ requestId }: { requestId: string }) {
     if (!request) return
     setActionLoading(true)
     try {
-      await submitFoiaRequest(request.id, { submitted_date: submittedDate })
+      await submitFoiaRequestClient(request.id, { submitted_date: submittedDate })
       await loadData()
       setShowSubmitModal(false)
       router.push(`/foia/requests/${request.id}?external=1`)
@@ -1393,9 +1407,9 @@ function EditRequestModal({
   const canEditCoreFields = isDraft
 
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-2xl rounded-2xl bg-white shadow-xl">
+      <div className="relative z-10 w-full max-w-2xl rounded-2xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
             <h3 className="text-base font-semibold text-gray-900">Edit request</h3>
@@ -1435,7 +1449,7 @@ function EditRequestModal({
                 value={desc}
                 onChange={(e) => setDesc(e.target.value)}
                 disabled={!canEditCoreFields || saving}
-                rows={6}
+                rows={12}
                 placeholder="What records are you requesting?"
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm leading-relaxed focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-50 disabled:text-gray-400"
               />
@@ -1454,7 +1468,8 @@ function EditRequestModal({
           </button>
           <button
             type="button"
-            onClick={async () => {
+            onClick={async (e) => {
+              e.stopPropagation()
               await onSave({
                 title: canEditCoreFields ? title.trim() || undefined : undefined,
                 request_description: canEditCoreFields ? desc.trim() || undefined : undefined,
@@ -1487,9 +1502,24 @@ function MessagesTab({
   const [taskCreatedFor, setTaskCreatedFor] = useState<number | null>(null)
   const [autoDraftNarrowReply, setAutoDraftNarrowReply] = useState(true)
   const [quickInsert, setQuickInsert] = useState("")
-  const [msgForm, setMsgForm] = useState({
-    direction: "inbound" as "outbound" | "inbound",
-    classification: "follow_up" as string,
+  const [msgForm, setMsgForm] = useState<{
+    direction: "outbound" | "inbound"
+    classification: MessageClassification
+    subject: string
+    body: string
+    sender: string
+    recipient: string
+    sender_name: string
+    sender_email: string
+    sender_phone: string
+    sender_title: string
+    notes: string
+    email_snippet: string
+    channel: CommunicationChannel
+    response_action_required: ResponseAction
+  }>({
+    direction: "inbound",
+    classification: "follow_up",
     subject: "",
     body: "",
     sender: "",
@@ -1500,8 +1530,8 @@ function MessagesTab({
     sender_title: "",
     notes: "",
     email_snippet: "",
-    channel: "email" as string,
-    response_action_required: "none" as string,
+    channel: "email",
+    response_action_required: "none",
   })
 
   function resetForm() {
@@ -1784,7 +1814,7 @@ function MessagesTab({
                 <label className="mb-1 block text-xs font-medium text-gray-700">Channel</label>
                 <select
                   value={msgForm.channel}
-                  onChange={(e) => setMsgForm((f) => ({ ...f, channel: e.target.value }))}
+                  onChange={(e) => setMsgForm((f) => ({ ...f, channel: e.target.value as CommunicationChannel }))}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                 >
                   <option value="email">Email</option>
@@ -1799,8 +1829,8 @@ function MessagesTab({
                 <select
                   value={msgForm.classification}
                   onChange={(e) => {
-                    const cls = e.target.value
-                    const suggestedAction = classificationToAction[cls] || "none"
+                    const cls = e.target.value as MessageClassification
+                    const suggestedAction = (classificationToAction[cls] || "none") as ResponseAction
                     setMsgForm((f) => ({ ...f, classification: cls, response_action_required: suggestedAction }))
                   }}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
@@ -1951,7 +1981,7 @@ function MessagesTab({
               </p>
               <select
                 value={msgForm.response_action_required}
-                onChange={(e) => setMsgForm((f) => ({ ...f, response_action_required: e.target.value }))}
+                onChange={(e) => setMsgForm((f) => ({ ...f, response_action_required: e.target.value as ResponseAction }))}
                 className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
               >
                 {ACTION_OPTIONS.map((opt) => (
