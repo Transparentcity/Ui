@@ -128,12 +128,12 @@ export function ForensicsCategoryDetailPage({
             activeFilter={severityFilter}
             onFilterChange={setSeverityFilter}
           />
-          <WasteExport category={normalizedCat} />
+          <WasteExport category={normalizedCat} cityId={cityId} />
         </div>
 
         {/* Cluster map for infrastructure */}
         {normalizedCat === "infrastructure" && infraFindings.length > 0 && (
-          <WasteClusterMap findings={infraFindings} />
+          <WasteClusterMap findings={infraFindings} cityId={cityId} />
         )}
 
         {/* Findings List */}
@@ -147,7 +147,7 @@ export function ForensicsCategoryDetailPage({
             ))}
           </div>
         ) : (
-          <WasteFindingsList findings={filteredFindings} onAskSeymour={handleAskSeymour} />
+          <WasteFindingsList findings={filteredFindings} onAskSeymour={handleAskSeymour} cityId={cityId} />
         )}
 
         <WasteSeymourPanel

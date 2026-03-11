@@ -9,9 +9,10 @@ import { toast } from "sonner"
 
 interface WasteExportProps {
   category: string
+  cityId?: number
 }
 
-export function WasteExport({ category }: WasteExportProps) {
+export function WasteExport({ category, cityId }: WasteExportProps) {
   const { getAccessTokenSilently } = useAuth0()
   const [exporting, setExporting] = useState<string | null>(null)
   const [exportError, setExportError] = useState<string | null>(null)
@@ -23,7 +24,7 @@ export function WasteExport({ category }: WasteExportProps) {
       const token = await getAccessTokenSilently()
 
       if (format === "xlsx") {
-        const blob = await exportAuditorReport(token, category)
+        const blob = await exportAuditorReport(token, category, cityId)
         const url = URL.createObjectURL(blob)
         const a = document.createElement("a")
         a.href = url
@@ -36,7 +37,7 @@ export function WasteExport({ category }: WasteExportProps) {
         return
       }
 
-      const blob = await exportWasteFindings(token, category, format)
+      const blob = await exportWasteFindings(token, category, format, cityId)
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url

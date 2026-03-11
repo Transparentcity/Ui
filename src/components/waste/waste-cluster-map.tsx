@@ -7,9 +7,43 @@ import "@/components/AnomalyMap.css"
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ""
 
-// SF default center
-const SF_CENTER: [number, number] = [-122.4194, 37.7749]
-const SF_ZOOM = 12
+interface MapboxMap {
+  on: (event: string, layerOrCb: string | (() => void), cb?: (e: MapboxClickEvent) => void) => void
+  addSource: (id: string, source: Record<string, unknown>) => void
+  addLayer: (layer: Record<string, unknown>) => void
+  addControl: (control: unknown, position: string) => void
+  getCanvas: () => HTMLElement
+  fitBounds: (bounds: [[number, number], [number, number]], opts: Record<string, unknown>) => void
+  remove: () => void
+}
+
+interface MapboxClickEvent {
+  features?: { properties: Record<string, unknown>; geometry: { coordinates: number[] } }[]
+}
+
+interface WindowWithMapbox extends Window {
+  mapboxgl?: {
+    accessToken: string
+    Map: new (opts: Record<string, unknown>) => MapboxMap
+    NavigationControl: new (opts: Record<string, unknown>) => unknown
+    Popup: new (opts: Record<string, unknown>) => {
+      setLngLat: (coords: number[]) => { setHTML: (html: string) => { addTo: (map: MapboxMap) => void } }
+    }
+  }
+}
+
+const CITY_CENTERS: Record<string, { center: [number, number]; zoom: number }> = {
+  sf: { center: [-122.4194, 37.7749], zoom: 12 },
+  chicago: { center: [-87.6298, 41.8781], zoom: 11 },
+}
+
+const SF_CITY_IDS = new Set([1, 2, 56837])
+const CHICAGO_CITY_IDS = new Set([3, 56838])
+
+function getCityMapDefaults(cityId?: number): { center: [number, number]; zoom: number } {
+  if (cityId && CHICAGO_CITY_IDS.has(cityId)) return CITY_CENTERS.chicago
+  return CITY_CENTERS.sf
+}
 
 interface ClusterPoint {
   lat: number
@@ -74,11 +108,12 @@ function parseClusterFromFinding(finding: WasteFinding): ClusterPoint | null {
 
 interface WasteClusterMapProps {
   findings: WasteFinding[]
+  cityId?: number
 }
 
-export function WasteClusterMap({ findings }: WasteClusterMapProps) {
+export function WasteClusterMap({ findings, cityId }: WasteClusterMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
-  const mapInstanceRef = useRef<any>(null)
+  const mapInstanceRef = useRef<MapboxMap | null>(null)
   const [mapboxLoaded, setMapboxLoaded] = useState(false)
 
   const clusters = useMemo(() => {
@@ -95,8 +130,8 @@ export function WasteClusterMap({ findings }: WasteClusterMapProps) {
   // Load Mapbox GL JS dynamically (same pattern as AnomalyMap)
   useEffect(() => {
     if (typeof window === "undefined") return
-    if ((window as any).mapboxgl) {
-      setMapboxLoaded(true)
+    if ((window as unknown as WindowWithMapbox).mapboxgl) {
+      queueMicrotask(() => setMapboxLoaded(true))
       return
     }
 
@@ -121,7 +156,7 @@ export function WasteClusterMap({ findings }: WasteClusterMapProps) {
 
     if (!MAPBOX_TOKEN) return
 
-    const mapboxgl = (window as any).mapboxgl
+    const mapboxgl = (window as unknown as WindowWithMapbox).mapboxgl
     if (!mapboxgl) return
 
     mapboxgl.accessToken = MAPBOX_TOKEN
@@ -132,13 +167,14 @@ export function WasteClusterMap({ findings }: WasteClusterMapProps) {
       mapInstanceRef.current = null
     }
 
+    const defaults = getCityMapDefaults(cityId)
     let map
     try {
       map = new mapboxgl.Map({
         container: mapContainerRef.current,
         style: "mapbox://styles/mapbox/light-v11",
-        center: SF_CENTER,
-        zoom: SF_ZOOM,
+        center: defaults.center,
+        zoom: defaults.zoom,
         attributionControl: false,
       })
     } catch (error) {
@@ -260,7 +296,7 @@ export function WasteClusterMap({ findings }: WasteClusterMapProps) {
       })
 
       // Popup on click
-      map.on("click", "waste-clusters-circle", (e: any) => {
+      map.on("click", "waste-clusters-circle", (e: MapboxClickEvent) => {
         if (!e.features?.length) return
         const props = e.features[0].properties
         const coords = e.features[0].geometry.coordinates.slice()
@@ -310,7 +346,7 @@ export function WasteClusterMap({ findings }: WasteClusterMapProps) {
         mapInstanceRef.current = null
       }
     }
-  }, [mapboxLoaded, clusters])
+  }, [mapboxLoaded, clusters, cityId])
 
   if (clusters.length === 0) {
     return (

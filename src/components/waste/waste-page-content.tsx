@@ -61,7 +61,7 @@ export function getWasteAnalysisProgress(elapsedSeconds: number): {
 } {
   let step = "Connecting to city data sources..."
   if (elapsedSeconds > 5) {
-    step = "Fetching datasets from open data portal (12 datasets)..."
+    step = "Fetching datasets from open data portal..."
   }
   if (elapsedSeconds > 60) {
     step = "Still fetching — large datasets can take a few minutes..."
@@ -165,7 +165,7 @@ export function WastePageContent() {
   // Only auto-fetch live analysis if we have NO fallback data (cache or persisted).
   // This avoids hammering a struggling backend when we already have good data to show.
   const hasFallbackData = !!(cachedData || persistedData)
-  const { data, error } = useWasteAnalysis(undefined, !hasFallbackData)
+  const { data, error } = useWasteAnalysis(undefined, !hasFallbackData, selectedCityId)
 
   const { activeJob, isRunning: isManualRefreshing, startJob, cancelJob: cancelActiveJob, startError, retryCount, lastDiagnostics } = useActiveWasteJob(selectedCityId)
 
@@ -315,8 +315,9 @@ export function WastePageContent() {
   }, [displayData, activeCategory])
 
   const hasDataQualityInfo = useMemo(() => {
-    const hasFreshnessInfo = (displayData?.data_freshness?.length ?? 0) > 0 &&
-      displayData!.data_freshness!.some((d) => d.stale || d.is_partial_year)
+    const freshness = displayData?.data_freshness
+    const hasFreshnessInfo = (freshness?.length ?? 0) > 0 &&
+      (freshness?.some((d) => d.stale || d.is_partial_year) ?? false)
     const hasErrors = (displayData?.errors?.length ?? 0) > 0
     return hasFreshnessInfo || hasErrors
   }, [displayData])
@@ -568,7 +569,7 @@ export function WastePageContent() {
                 <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
                   <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                   <span>Taking longer than usual — will auto-retry if it times out</span>
-                  {!isManualRefreshing && displayData && (
+                  {displayData && (
                     <span className="ml-auto text-amber-500">Showing previous results while running</span>
                   )}
                 </div>
@@ -771,12 +772,12 @@ export function WastePageContent() {
                   activeFilter={severityFilter}
                   onFilterChange={setSeverityFilter}
                 />
-                <WasteExport category={activeCategory} />
+                <WasteExport category={activeCategory} cityId={selectedCityId} />
               </div>
 
               {/* Cluster map for infrastructure */}
               {activeCategory === "infrastructure" && infraFindings.length > 0 && (
-                <WasteClusterMap findings={infraFindings} />
+                <WasteClusterMap findings={infraFindings} cityId={selectedCityId} />
               )}
 
               {/* Findings List */}
@@ -790,6 +791,7 @@ export function WastePageContent() {
                 <WasteFindingsList
                   findings={filteredFindings}
                   onAskSeymour={handleAskSeymour}
+                  cityId={selectedCityId}
                 />
               )}
             </>
@@ -801,7 +803,7 @@ export function WastePageContent() {
               Seymour tokens used today in Waste: {todaySeymourTokens.toLocaleString()}
             </p>
             <p className="text-xs text-gray-400 text-center">
-              Data: DataSF Open Data Portal &middot; Anomalies &ne; confirmed fraud &middot; Sorted by confidence &amp; priority
+              Data: City Open Data Portal &middot; Anomalies &ne; confirmed fraud &middot; Sorted by confidence &amp; priority
             </p>
           </div>
 

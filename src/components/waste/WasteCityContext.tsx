@@ -22,7 +22,7 @@ export function WasteCityProvider({ children }: { children: React.ReactNode }) {
 
   const selectedCityName =
     city.eligibleCities.find((c) => Number(c.id) === city.selectedCityId)?.name ??
-    "San Francisco"
+    "City"
 
   return (
     <WasteCityCtx.Provider value={{ ...city, selectedCityName }}>

@@ -128,7 +128,7 @@ export function ForensicsFindingsPage() {
             ))}
           </div>
         ) : (
-          <WasteFindingsList findings={filtered} onAskSeymour={handleAskSeymour} />
+          <WasteFindingsList findings={filtered} onAskSeymour={handleAskSeymour} cityId={cityId} />
         )}
 
         <WasteSeymourPanel

@@ -60,6 +60,7 @@ interface WasteSubcategoryGroupProps {
   expandedFindingId: string | null
   onFindingToggle: (id: string) => void
   onAskSeymour?: (finding: WasteFinding) => void
+  cityId?: number
 }
 
 export function WasteSubcategoryGroup({
@@ -69,6 +70,7 @@ export function WasteSubcategoryGroup({
   expandedFindingId,
   onFindingToggle,
   onAskSeymour,
+  cityId,
 }: WasteSubcategoryGroupProps) {
   const [isCollapsed, setIsCollapsed] = useState(true)
   const [expandedSubGroup, setExpandedSubGroup] = useState<string | null>(null)
@@ -145,6 +147,7 @@ export function WasteSubcategoryGroup({
                           isExpanded={expandedFindingId === finding.id}
                           onToggle={() => onFindingToggle(finding.id)}
                           onAskSeymour={onAskSeymour}
+                          cityId={cityId}
                         />
                       ))}
                     </div>
@@ -161,6 +164,7 @@ export function WasteSubcategoryGroup({
                 isExpanded={expandedFindingId === finding.id}
                 onToggle={() => onFindingToggle(finding.id)}
                 onAskSeymour={onAskSeymour}
+                cityId={cityId}
               />
             ))
           )}
