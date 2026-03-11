@@ -27,6 +27,8 @@ import { WasteReviewQueue } from "./waste-review-queue"
 import { WasteDetectorAccuracy } from "./waste-detector-accuracy"
 import {
   normalizeWasteCategory,
+  getWasteCategoryLabel,
+  getWasteCategoryDescription,
   formatDollar,
   safeSetCache,
   loadCachedAnalysis,
@@ -104,63 +106,35 @@ export function getWasteAnalysisProgress(elapsedSeconds: number): {
   return { step, etaLabel, progressPct, isLongRunning }
 }
 
-function DataFreshnessBanner({ freshness }: { freshness: WasteDataFreshness[] }) {
-  const staleDatasets = freshness.filter((d) => d.stale)
-  const anyStale = staleDatasets.length > 0
-  const anyPartial = freshness.some((d) => d.is_partial_year)
-
-  if (!anyStale && !anyPartial) return null
-
+function DataSourceDetails({ freshness }: { freshness: WasteDataFreshness[] }) {
   return (
-    <div
-      className={`mb-4 p-3 rounded-lg border flex items-start gap-3 ${
-        anyStale
-          ? "bg-amber-50 border-amber-200"
-          : "bg-blue-50 border-blue-200"
-      }`}
-    >
-      <Clock
-        className={`w-5 h-5 shrink-0 mt-0.5 ${
-          anyStale ? "text-amber-500" : "text-blue-500"
-        }`}
-      />
-      <div className="flex-1">
-        <p
-          className={`text-sm font-medium ${
-            anyStale ? "text-amber-800" : "text-blue-800"
-          }`}
-        >
-          {anyStale ? "Some data may be stale" : "Partial fiscal year data"}
-        </p>
-        <div className="mt-1 space-y-1">
-          {freshness.map((ds, i) => (
-            <div key={i} className="flex items-center gap-2 text-xs">
-              <Database className="w-3 h-3 text-gray-400" />
-              <span className="font-medium text-gray-700">
-                {ds.dataset_name}
-              </span>
-              <span className="text-gray-500">
-                {ds.rows_fetched.toLocaleString()} rows
-              </span>
-              {ds.data_as_of && (
-                <span className="text-gray-400">
-                  updated {formatAge(ds.data_as_of)}
-                </span>
-              )}
-              {ds.stale && (
-                <span className="text-amber-600 font-medium">
-                  {ds.stale_reason}
-                </span>
-              )}
-              {ds.is_partial_year && (
-                <span className="text-blue-600 font-medium">
-                  partial year
-                </span>
-              )}
-            </div>
-          ))}
+    <div className="space-y-1">
+      {freshness.map((ds, i) => (
+        <div key={i} className="flex items-center gap-2 text-xs">
+          <Database className="w-3 h-3 text-gray-400" />
+          <span className="font-medium text-gray-700">
+            {ds.dataset_name}
+          </span>
+          <span className="text-gray-500">
+            {ds.rows_fetched.toLocaleString()} rows
+          </span>
+          {ds.data_as_of && (
+            <span className="text-gray-400">
+              updated {formatAge(ds.data_as_of)}
+            </span>
+          )}
+          {ds.stale && (
+            <span className="text-amber-600 font-medium">
+              {ds.stale_reason}
+            </span>
+          )}
+          {ds.is_partial_year && (
+            <span className="text-blue-600 font-medium">
+              partial year
+            </span>
+          )}
         </div>
-      </div>
+      ))}
     </div>
   )
 }
@@ -340,6 +314,26 @@ export function WastePageContent() {
     ) ?? null
   }, [displayData, activeCategory])
 
+  const hasDataQualityInfo = useMemo(() => {
+    const hasFreshnessInfo = (displayData?.data_freshness?.length ?? 0) > 0 &&
+      displayData!.data_freshness!.some((d) => d.stale || d.is_partial_year)
+    const hasErrors = (displayData?.errors?.length ?? 0) > 0
+    return hasFreshnessInfo || hasErrors
+  }, [displayData])
+
+  const dataQualitySummaryLabel = useMemo(() => {
+    const staleCount = displayData?.data_freshness?.filter((d) => d.stale).length ?? 0
+    const errorCount = displayData?.errors?.length ?? 0
+    const parts: string[] = []
+    if (staleCount > 0) parts.push(`${staleCount} stale dataset${staleCount !== 1 ? "s" : ""}`)
+    if (errorCount > 0) parts.push(`${errorCount} detector issue${errorCount !== 1 ? "s" : ""}`)
+    if (parts.length === 0) {
+      const partialCount = displayData?.data_freshness?.filter((d) => d.is_partial_year).length ?? 0
+      if (partialCount > 0) parts.push(`${partialCount} partial-year dataset${partialCount !== 1 ? "s" : ""}`)
+    }
+    return parts.length > 0 ? parts.join(", ") : "Data sources"
+  }, [displayData])
+
   const consolidatedStatus = useMemo(() => {
     if (isManualRefreshing || hasNoData) return null
 
@@ -377,40 +371,8 @@ export function WastePageContent() {
 
   return (
     <WasteShell
-      title={
-        isDetectorsView
-          ? "Detectors & Data"
-          : isReviewView
-            ? "Review Workbench"
-            : isAccuracyView
-              ? "Detector Accuracy"
-              : isOverviewView
-                ? "Overview"
-                : activeCategory === "payroll"
-                  ? "Payroll & Personnel"
-                  : activeCategory === "contracts"
-                    ? "Contracts & Procurement"
-                    : activeCategory === "infrastructure"
-                      ? "Infrastructure & Services"
-                      : "Waste Detection"
-      }
-      description={
-        isDetectorsView
-          ? "All anomaly-detection algorithms and public datasets used by the platform"
-          : isReviewView
-            ? "Disposition workflow for auditor triage and assignment."
-            : isAccuracyView
-              ? "Precision tracking from auditor feedback."
-              : isOverviewView
-                ? "Summary across all waste detection modules"
-                : activeCategory === "payroll"
-                  ? "Overtime, compensation anomalies, and personnel integrity"
-                  : activeCategory === "contracts"
-                    ? "Vendor concentration, procurement patterns, and influence"
-                    : activeCategory === "infrastructure"
-                      ? "311 service clusters and infrastructure patterns"
-                      : "Anomaly detection across payroll, contracts, and city services"
-      }
+      title={getWasteCategoryLabel(activeCategory)}
+      description={getWasteCategoryDescription(activeCategory)}
       activeCategory={activeCategory}
       onCategoryChange={handleCategoryChange}
       actions={
@@ -496,54 +458,85 @@ export function WastePageContent() {
             </div>
           )}
 
-          {/* Shared status banners */}
-          {consolidatedStatus && (
+          {/* Unified status panel: current state + data age + action */}
+          {(consolidatedStatus || hasDataQualityInfo) && (
             <div
-              className={`mb-4 p-3 rounded-lg border flex items-center gap-3 ${
-                consolidatedStatus.tone === "amber"
+              className={`mb-4 rounded-lg border ${
+                consolidatedStatus?.tone === "amber"
                   ? "bg-amber-50 border-amber-200"
-                  : consolidatedStatus.tone === "purple"
+                  : consolidatedStatus?.tone === "purple"
                     ? "bg-purple-50 border-purple-200"
                     : "bg-gray-50 border-gray-200"
               }`}
             >
-              <Clock
-                className={`w-4 h-4 shrink-0 ${
-                  consolidatedStatus.tone === "amber"
-                    ? "text-amber-500"
-                    : consolidatedStatus.tone === "purple"
-                      ? "text-purple-500"
-                      : "text-gray-500"
-                }`}
-              />
-              <div className="flex-1 min-w-0">
-                <p
-                  className={`text-sm font-medium ${
-                    consolidatedStatus.tone === "amber"
-                      ? "text-amber-800"
-                      : consolidatedStatus.tone === "purple"
-                        ? "text-purple-800"
-                        : "text-gray-700"
-                  }`}
-                >
-                  {consolidatedStatus.title}
-                </p>
-                <p
-                  className={`text-xs mt-0.5 ${
-                    consolidatedStatus.tone === "amber"
-                      ? "text-amber-700"
-                      : consolidatedStatus.tone === "purple"
-                        ? "text-purple-700"
-                        : "text-gray-500"
-                  }`}
-                >
-                  {consolidatedStatus.detail}
-                </p>
-              </div>
-              <Button variant="outline" size="sm" onClick={handleRefresh}>
-                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                Refresh
-              </Button>
+              {consolidatedStatus && (
+                <div className="p-3 flex items-center gap-3">
+                  <Clock
+                    className={`w-4 h-4 shrink-0 ${
+                      consolidatedStatus.tone === "amber"
+                        ? "text-amber-500"
+                        : consolidatedStatus.tone === "purple"
+                          ? "text-purple-500"
+                          : "text-gray-500"
+                    }`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`text-sm font-medium ${
+                        consolidatedStatus.tone === "amber"
+                          ? "text-amber-800"
+                          : consolidatedStatus.tone === "purple"
+                            ? "text-purple-800"
+                            : "text-gray-700"
+                      }`}
+                    >
+                      {consolidatedStatus.title}
+                    </p>
+                    <p
+                      className={`text-xs mt-0.5 ${
+                        consolidatedStatus.tone === "amber"
+                          ? "text-amber-700"
+                          : consolidatedStatus.tone === "purple"
+                            ? "text-purple-700"
+                            : "text-gray-500"
+                      }`}
+                    >
+                      {consolidatedStatus.detail}
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={handleRefresh}>
+                    <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                    Refresh
+                  </Button>
+                </div>
+              )}
+
+              {hasDataQualityInfo && (
+                <details className={consolidatedStatus ? "border-t border-gray-200" : ""}>
+                  <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-xs text-gray-600 hover:text-gray-800">
+                    <Database className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="font-medium">
+                      {dataQualitySummaryLabel}
+                    </span>
+                    <span className="ml-auto text-gray-400">Details</span>
+                  </summary>
+                  <div className="px-3 pb-3 space-y-2">
+                    {displayData?.data_freshness && displayData.data_freshness.length > 0 && (
+                      <DataSourceDetails freshness={displayData.data_freshness} />
+                    )}
+                    {displayData?.errors && displayData.errors.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-amber-700">
+                          {displayData.errors.length} detector{displayData.errors.length !== 1 ? "s" : ""} had issues
+                        </p>
+                        {displayData.errors.map((err, i) => (
+                          <p key={i} className="text-xs text-amber-600">{err}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </details>
+              )}
             </div>
           )}
 
@@ -706,53 +699,8 @@ export function WastePageContent() {
             </div>
           )}
 
-          {/* Partial errors — collapsed by default */}
-          {displayData?.errors && displayData.errors.length > 0 && (
-            <details className="mb-4 bg-amber-50 border border-amber-200 rounded-lg group">
-              <summary className="flex items-center gap-2 p-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                <span className="text-xs font-medium text-amber-800">
-                  {displayData.errors.length} detector{displayData.errors.length !== 1 ? "s" : ""} had issues
-                </span>
-                <span className="text-xs text-amber-400 group-open:hidden ml-auto">Show</span>
-                <span className="text-xs text-amber-400 hidden group-open:inline ml-auto">Hide</span>
-              </summary>
-              <div className="px-2.5 pb-2.5 space-y-1">
-                {displayData.errors.map((err, i) => (
-                  <p key={i} className="text-xs text-amber-600">{err}</p>
-                ))}
-              </div>
-            </details>
-          )}
-
-          {/* Stale data nudge — data older than 7 days */}
-          {false && !isManualRefreshing && isDataStale && displayData?.analysis_timestamp && (
-            <div className="mb-4 p-3 rounded-lg border bg-purple-50 border-purple-200 flex items-center gap-3">
-              <Clock className="w-5 h-5 text-purple-500 shrink-0" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-purple-800">
-                  Results are from {formatAge(displayData?.analysis_timestamp ?? "")}
-                </p>
-                <p className="text-xs text-purple-600 mt-0.5">
-                  Run a fresh analysis to check for new anomalies.
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                className="shrink-0 border-purple-300 text-purple-700 hover:bg-purple-100"
-              >
-                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                Refresh
-              </Button>
-            </div>
-          )}
-
-          {/* Data freshness */}
-          {displayData?.data_freshness && displayData.data_freshness.length > 0 && (
-            <DataFreshnessBanner freshness={displayData.data_freshness} />
-          )}
+          {/* Legacy banners removed — data freshness and detector errors are
+              now shown inside the unified status panel above. */}
 
           {/* ─── OVERVIEW: summary only, no individual findings ─── */}
           {isOverviewView && (

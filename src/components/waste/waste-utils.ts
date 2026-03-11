@@ -101,6 +101,25 @@ export function getWasteCategoryLabel(category: string): string {
   return WASTE_CATEGORY_LABELS[key]
 }
 
+export const WASTE_CATEGORY_DESCRIPTIONS: Record<WasteCategoryKey, string> = {
+  overview: "Summary across all waste detection modules",
+  convergence: "Departments flagged across multiple independent risk domains",
+  payroll: "Overtime, compensation anomalies, and personnel integrity",
+  contracts: "Vendor concentration, procurement patterns, and influence",
+  infrastructure: "311 service clusters and infrastructure patterns",
+  influence: "Lobbying overlap, campaign finance patterns, and pay-to-play risk",
+  integrity: "Revolving door hires, dual employment, and conflict-of-interest signals",
+  confirmed: "Cases confirmed through audits, investigations, or public records",
+  detectors: "All anomaly-detection algorithms and public datasets used by the platform",
+  review: "Disposition workflow for auditor triage and assignment",
+  accuracy: "Precision tracking from auditor feedback",
+}
+
+export function getWasteCategoryDescription(category: string): string {
+  const key = normalizeWasteCategory(category)
+  return WASTE_CATEGORY_DESCRIPTIONS[key]
+}
+
 // ── Dollar formatting ───────────────────────────────────────────────────────
 
 export function formatDollar(amount: number | null | undefined): string {
