@@ -2,12 +2,17 @@
 
 import { useState, useMemo } from "react"
 import { useLatestPersistedWasteResult } from "@/lib/hooks/useWaste"
+import type { WasteFinding } from "@/lib/apiClient"
 import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
 import { WasteFindingsList } from "./waste-findings-list"
 import { WasteSeverityFilter } from "./waste-severity-filter"
 import { WasteExport } from "./waste-export"
 import { WasteClusterMap } from "./waste-cluster-map"
+import {
+  WasteSeymourPanel,
+  type WasteSeymourRequest,
+} from "./waste-seymour-panel"
 import { useWasteCity } from "./WasteCityContext"
 import { normalizeWasteCategory, formatDollar } from "./waste-utils"
 
@@ -33,6 +38,11 @@ export function ForensicsCategoryDetailPage({
   const { selectedCityId: cityId } = useWasteCity()
   const normalizedCat = normalizeWasteCategory(category)
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
+  const [seymourRequest, setSeymourRequest] = useState<WasteSeymourRequest | null>(null)
+
+  const handleAskSeymour = (finding: WasteFinding) => {
+    setSeymourRequest({ finding })
+  }
 
   const { data: analysisData, isLoading } =
     useLatestPersistedWasteResult(cityId)
@@ -137,8 +147,13 @@ export function ForensicsCategoryDetailPage({
             ))}
           </div>
         ) : (
-          <WasteFindingsList findings={filteredFindings} />
+          <WasteFindingsList findings={filteredFindings} onAskSeymour={handleAskSeymour} />
         )}
+
+        <WasteSeymourPanel
+          request={seymourRequest}
+          onClose={() => setSeymourRequest(null)}
+        />
       </ForensicsShell>
     </WasteShell>
   )
