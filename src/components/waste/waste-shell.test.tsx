@@ -25,6 +25,13 @@ vi.mock("@/components/Loader", () => ({
   default: () => <div data-testid="loader">Loading...</div>,
 }))
 
+vi.mock("@/lib/hooks/useWaste", () => ({
+  useLatestWasteRun: vi.fn().mockReturnValue({
+    data: null,
+    isLoading: false,
+  }),
+}))
+
 vi.mock("./WasteCityContext", () => ({
   useWasteCity: () => ({
     selectedCityId: 57260,
@@ -51,7 +58,10 @@ describe("WasteShell", () => {
 
   it("shows the selected city name as a badge next to the title", () => {
     render(<WasteShell title="Command Center">Content</WasteShell>)
-    expect(screen.getByText("San Francisco")).toBeInTheDocument()
+    const badges = screen.getAllByText("San Francisco")
+    expect(badges.length).toBeGreaterThanOrEqual(1)
+    const badge = badges.find((el) => el.className.includes("purple"))
+    expect(badge).toBeInTheDocument()
   })
 
   it("shows the city name in the footer", () => {

@@ -335,7 +335,7 @@ export function WastePageContent() {
   }, [displayData])
 
   const consolidatedStatus = useMemo(() => {
-    if (isManualRefreshing || hasNoData) return null
+    if (isManualRefreshing) return null
 
     if (activeJob?.status === "failed" || startError || error) {
       return {
