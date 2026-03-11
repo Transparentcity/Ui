@@ -2,9 +2,6 @@
 
 import { useState, useMemo } from "react"
 import Link from "next/link"
-import { useQuery } from "@tanstack/react-query"
-import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
-import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import {
   useLatestPersistedWasteResult,
 } from "@/lib/hooks/useWaste"
@@ -17,6 +14,7 @@ import {
   getWasteCategoryLabel,
 } from "./waste-utils"
 import { TCScoreBadge } from "./tc-score-badge"
+import { useWasteCity } from "./WasteCityContext"
 import { cn } from "@/lib/utils"
 import {
   ArrowRight,
@@ -24,22 +22,6 @@ import {
   Filter,
   X,
 } from "lucide-react"
-
-// ── City ID hook ────────────────────────────────────────────────────────────
-
-function useCityId() {
-  const citiesQuery = useQuery({
-    queryKey: ["public", "cities", "sitemap"],
-    queryFn: listPublicCitiesForSitemap,
-    staleTime: 5 * 60 * 1000,
-  })
-  return useMemo(() => {
-    const eligible = (citiesQuery.data ?? []).filter(
-      (c) => (c.datasets_count ?? 0) > 0
-    )
-    return eligible.length > 0 ? Number(eligible[0].id) : CRM_DEFAULT_CITY_ID
-  }, [citiesQuery.data])
-}
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -371,7 +353,7 @@ function ConvergenceSection({ findings }: { findings: WasteFinding[] }) {
 // ── Main Component ──────────────────────────────────────────────────────────
 
 export function ForensicsOverviewPage() {
-  const cityId = useCityId()
+  const { selectedCityId: cityId } = useWasteCity()
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
 
   const { data: analysisData, isLoading } =

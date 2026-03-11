@@ -6,9 +6,7 @@ import {
   useWasteEntityScores,
   useWasteTrustMetrics,
 } from "@/lib/hooks/useWaste"
-import { useQuery } from "@tanstack/react-query"
-import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
-import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
+import { useWasteCity } from "./WasteCityContext"
 import { WasteShell } from "./waste-shell"
 import { SeverityBadge } from "./severity-badge"
 import { ScoreBar } from "./score-bar"
@@ -133,16 +131,7 @@ export function EntityScoresPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
   const [selectedEntity, setSelectedEntity] = useState<WasteEntityScore | null>(null)
 
-  const citiesQuery = useQuery({
-    queryKey: ["public", "cities", "sitemap"],
-    queryFn: listPublicCitiesForSitemap,
-    staleTime: 5 * 60 * 1000,
-  })
-  const selectedCityId = useMemo(() => {
-    const eligible = (citiesQuery.data ?? []).filter((c) => (c.datasets_count ?? 0) > 0)
-    if (eligible.length > 0) return Number(eligible[0].id)
-    return CRM_DEFAULT_CITY_ID
-  }, [citiesQuery.data])
+  const { selectedCityId } = useWasteCity()
 
   const { data, isLoading, error } = useWasteEntityScores({
     cityId: selectedCityId,

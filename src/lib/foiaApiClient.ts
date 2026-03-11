@@ -117,11 +117,12 @@ export function updateFoiaRequest(
 }
 
 export function submitFoiaRequest(
-  id: number
+  id: number,
+  data?: { submitted_date?: string }
 ): Promise<FoiaRequest> {
   return apiFetch(`/api/foia/requests/${id}/submit`, {
     method: "POST",
-    body: JSON.stringify({}),
+    body: JSON.stringify(data ?? {}),
   })
 }
 
@@ -176,6 +177,30 @@ export function createFoiaAttachment(requestId: number, data: Partial<FoiaAttach
 
 export function getFoiaAttachment(id: number): Promise<FoiaAttachment> {
   return apiFetch(`/api/foia/attachments/${id}`)
+}
+
+export async function uploadFoiaFile(
+  requestId: number,
+  formData: FormData,
+  token?: FoiaAuthToken
+): Promise<FoiaAttachment> {
+  const effectiveToken = token ?? foiaAuthToken
+  const url = `${API_BASE}/api/foia/requests/${requestId}/upload`
+  const headers: HeadersInit = {}
+  if (effectiveToken) {
+    headers["Authorization"] = `Bearer ${effectiveToken}`
+  }
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: formData,
+    credentials: "include",
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => "")
+    throw new Error(`Upload failed: ${body || res.statusText}`)
+  }
+  return res.json()
 }
 
 // ---------------------------------------------------------------------------

@@ -7,8 +7,7 @@ import {
   useBulkDisposeWasteFindings,
   useCreateWasteDisposition,
 } from "@/lib/hooks/useWaste"
-import { useCities } from "@/lib/hooks/useCities"
-import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
+import { useWasteCity } from "./WasteCityContext"
 import { WasteShell } from "./waste-shell"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Button } from "@/components/ui/button"
@@ -314,11 +313,7 @@ export function ReviewQueuePage() {
   const [bulkDisposition, setBulkDisposition] = useState<WasteDispositionType | undefined>()
   const [confirmBulk, setConfirmBulk] = useState(false)
 
-  const citiesQuery = useCities({ includeInactive: false })
-  const selectedCityId = useMemo(() => {
-    const eligible = (citiesQuery.data ?? []).filter((c) => (c.datasets_count ?? 0) > 0)
-    return eligible.length > 0 ? Number(eligible[0].city_id) : CRM_DEFAULT_CITY_ID
-  }, [citiesQuery.data])
+  const { selectedCityId } = useWasteCity()
 
   const { data, isLoading, error } = useWasteReviewQueue({
     cityId: selectedCityId,

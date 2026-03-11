@@ -1,30 +1,13 @@
 "use client"
 
-import { useMemo } from "react"
 import Link from "next/link"
-import { useQuery } from "@tanstack/react-query"
-import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
-import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import { useWasteInvestigations } from "@/lib/hooks/useWaste"
 import type { WasteInvestigation } from "@/lib/apiClient"
 import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
+import { useWasteCity } from "./WasteCityContext"
 import { cn } from "@/lib/utils"
 import { ArrowRight, CheckCircle2, FolderOpen, Clock } from "lucide-react"
-
-function useCityId() {
-  const citiesQuery = useQuery({
-    queryKey: ["public", "cities", "sitemap"],
-    queryFn: listPublicCitiesForSitemap,
-    staleTime: 5 * 60 * 1000,
-  })
-  return useMemo(() => {
-    const eligible = (citiesQuery.data ?? []).filter(
-      (c) => (c.datasets_count ?? 0) > 0
-    )
-    return eligible.length > 0 ? Number(eligible[0].id) : CRM_DEFAULT_CITY_ID
-  }, [citiesQuery.data])
-}
 
 const STATUS_COLORS: Record<string, string> = {
   open: "bg-blue-100 text-blue-700",
@@ -44,7 +27,7 @@ const DISPOSITION_LABELS: Record<string, string> = {
 }
 
 export function ForensicsCasesPage() {
-  const cityId = useCityId()
+  const { selectedCityId: cityId } = useWasteCity()
 
   // Load closed investigations as "cases"
   const closedQ = useWasteInvestigations({ cityId, status: "closed", perPage: 50 })

@@ -77,15 +77,17 @@ vi.mock("@/components/Loader", () => ({
   default: () => <div>Loading...</div>,
 }))
 
-vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => ({
-    data: [{ id: 1, name: "San Francisco", datasets_count: 5 }],
+vi.mock("./WasteCityContext", () => ({
+  useWasteCity: () => ({
+    selectedCityId: 1,
+    eligibleCities: [{ id: 1, name: "San Francisco", slug: "san-francisco", datasets_count: 5 }],
     isLoading: false,
+    isFetching: false,
+    cityLoadError: null,
+    isCityFallback: false,
+    setSelectedCityId: vi.fn(),
+    selectedCityName: "San Francisco",
   }),
-}))
-
-vi.mock("@/lib/publicApiClient", () => ({
-  listPublicCitiesForSitemap: vi.fn().mockResolvedValue([]),
 }))
 
 const mockStartJob = vi.fn()

@@ -1,9 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
-import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
+import { useState } from "react"
 import { useWasteEntityScores } from "@/lib/hooks/useWaste"
 import type { WasteEntityScore } from "@/lib/apiClient"
 import { WasteShell } from "./waste-shell"
@@ -11,6 +8,7 @@ import { ForensicsShell } from "./forensics-shell"
 import { ScoreBar } from "./score-bar"
 import { SeverityBadge } from "./severity-badge"
 import { TCScoreBadge } from "./tc-score-badge"
+import { useWasteCity } from "./WasteCityContext"
 import { cn } from "@/lib/utils"
 import {
   ChevronLeft,
@@ -25,22 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-function useCityId() {
-  const citiesQuery = useQuery({
-    queryKey: ["public", "cities", "sitemap"],
-    queryFn: listPublicCitiesForSitemap,
-    staleTime: 5 * 60 * 1000,
-  })
-  return useMemo(() => {
-    const eligible = (citiesQuery.data ?? []).filter(
-      (c) => (c.datasets_count ?? 0) > 0
-    )
-    return eligible.length > 0 ? Number(eligible[0].id) : CRM_DEFAULT_CITY_ID
-  }, [citiesQuery.data])
-}
-
 export function ForensicsEntitiesPage() {
-  const cityId = useCityId()
+  const { selectedCityId: cityId } = useWasteCity()
   const [page, setPage] = useState(1)
   const [severityFilter, setSeverityFilter] = useState("")
   const [entityTypeFilter, setEntityTypeFilter] = useState("")

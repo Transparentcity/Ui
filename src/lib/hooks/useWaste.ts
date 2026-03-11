@@ -24,6 +24,8 @@ import {
   getWasteSummary,
   getWasteTrustMetrics,
   generateWasteTrustReport,
+  getWasteCityMethodology,
+  getWasteSystemMethodology,
   getWasteThresholds,
   listWasteRuns,
   runWasteAnalysis,
@@ -51,6 +53,8 @@ import {
   type WasteRunJobResponse,
   type WasteSummaryResponse,
   type WasteThreshold,
+  type CityMethodologyResponse,
+  type SystemMethodologyResponse,
 } from "@/lib/apiClient"
 
 /**
@@ -929,5 +933,36 @@ export function useUpdateWasteThresholds() {
         queryKey: ["waste", "thresholds", payload.cityId],
       })
     },
+  })
+}
+
+export function useWasteCityMethodology(cityId: number | null) {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
+
+  return useQuery<CityMethodologyResponse>({
+    queryKey: ["waste", "methodology", "city", cityId],
+    queryFn: async () => {
+      if (!cityId) throw new Error("City ID required")
+      const token = await getAccessTokenSilently()
+      return getWasteCityMethodology(token, cityId)
+    },
+    enabled: isAuthenticated && !!cityId,
+    staleTime: 10 * 60 * 1000,
+    retry: 1,
+  })
+}
+
+export function useWasteSystemMethodology() {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
+
+  return useQuery<SystemMethodologyResponse>({
+    queryKey: ["waste", "methodology", "system"],
+    queryFn: async () => {
+      const token = await getAccessTokenSilently()
+      return getWasteSystemMethodology(token)
+    },
+    enabled: isAuthenticated,
+    staleTime: 10 * 60 * 1000,
+    retry: 1,
   })
 }

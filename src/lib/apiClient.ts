@@ -5644,6 +5644,174 @@ export function updateWasteThresholds(
 }
 
 // ============================================================================
+// WASTE BENCHMARK
+// ============================================================================
+
+export interface BenchmarkSummaryCity {
+  city_id: number;
+  city_name: string;
+  total_findings: number;
+  critical_count: number;
+  high_count: number;
+  estimated_exposure: number | null;
+}
+
+export interface BenchmarkSummaryResponse {
+  selected_city: BenchmarkSummaryCity;
+  all_cities: BenchmarkSummaryCity[];
+  rank_by_exposure: number;
+  rank_by_findings: number;
+  total_tracked_cities: number;
+}
+
+export interface BenchmarkEntityRankItem {
+  city_id: number;
+  city_name: string;
+  entity_name: string;
+  entity_type: string;
+  composite_score: number;
+}
+
+export interface BenchmarkEntityRankResponse {
+  city_id: number;
+  top_entities: BenchmarkEntityRankItem[];
+  city_rank: number;
+  city_max_score: number;
+  total_tracked_cities: number;
+}
+
+export function getWasteBenchmarkSummary(
+  token: string,
+  cityId: number
+): Promise<BenchmarkSummaryResponse> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  return request<BenchmarkSummaryResponse>(
+    `/api/waste/benchmark/summary?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getWasteBenchmarkEntityRank(
+  token: string,
+  cityId: number,
+  entityType?: string
+): Promise<BenchmarkEntityRankResponse> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  if (entityType) query.set("entity_type", entityType);
+  return request<BenchmarkEntityRankResponse>(
+    `/api/waste/benchmark/entity-rank?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+// ============================================================================
+// WASTE METHODOLOGY
+// ============================================================================
+
+export interface MethodologyDatasetInfo {
+  logical_name: string;
+  display_name: string;
+  socrata_id: string | null;
+  available: boolean;
+  portal_url: string | null;
+  detectors_enabled: string[];
+  column_mappings: Record<string, string>;
+}
+
+export interface MethodologyBudgetYearInfo {
+  fiscal_year: string;
+  socrata_id: string;
+  portal_url: string;
+}
+
+export interface DataGapInfo {
+  id: string;
+  title: string;
+  gap_type: string;
+  priority: string;
+  description: string;
+  detectors_blocked: string[];
+  new_detectors_enabled: string[];
+  public_records_request: string;
+}
+
+export interface CityMethodologyResponse {
+  city_id: number;
+  city_key: string;
+  domain: string;
+  fiscal_year_start_month: number;
+  fiscal_year_label: string;
+  datasets: MethodologyDatasetInfo[];
+  missing_datasets: MethodologyDatasetInfo[];
+  budget_year_datasets: MethodologyBudgetYearInfo[];
+  methodology_notes: Record<string, string>;
+  data_gaps: DataGapInfo[];
+  total_detectors_available: number;
+  total_detectors_skipped: number;
+}
+
+export interface SystemCityOverview {
+  city_id: number;
+  city_key: string;
+  domain: string;
+  datasets_available: number;
+  datasets_missing: number;
+  detector_coverage_pct: number;
+}
+
+export interface SystemLearningInfo {
+  id: string;
+  title: string;
+  discovered_city: string;
+  affected_detectors: string[];
+  description: string;
+  resolution: string;
+  universal: boolean;
+}
+
+export interface SystemRequirementInfo {
+  id: string;
+  dataset_name: string;
+  why_needed: string;
+  detectors_enabled: string[];
+  alternatives: string[];
+}
+
+export interface SystemMethodologyResponse {
+  cities: SystemCityOverview[];
+  learnings: SystemLearningInfo[];
+  requirements: SystemRequirementInfo[];
+}
+
+export function getWasteCityMethodology(
+  token: string,
+  cityId: number
+): Promise<CityMethodologyResponse> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  return request<CityMethodologyResponse>(
+    `/api/waste/methodology?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getWasteSystemMethodology(
+  token: string
+): Promise<SystemMethodologyResponse> {
+  return request<SystemMethodologyResponse>(
+    "/api/waste/methodology/system",
+    "GET",
+    undefined,
+    token
+  );
+}
+
+// ============================================================================
 // CHAT JOBS API
 // ============================================================================
 

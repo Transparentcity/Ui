@@ -2,12 +2,10 @@
 
 import { useMemo } from "react"
 import Link from "next/link"
-import { useQuery } from "@tanstack/react-query"
-import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
-import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import { useLatestPersistedWasteResult } from "@/lib/hooks/useWaste"
 import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
+import { useWasteCity } from "./WasteCityContext"
 import { normalizeWasteCategory, formatDollar } from "./waste-utils"
 import { cn } from "@/lib/utils"
 import {
@@ -20,20 +18,6 @@ import {
   TriangleAlert,
   ArrowRight,
 } from "lucide-react"
-
-function useCityId() {
-  const citiesQuery = useQuery({
-    queryKey: ["public", "cities", "sitemap"],
-    queryFn: listPublicCitiesForSitemap,
-    staleTime: 5 * 60 * 1000,
-  })
-  return useMemo(() => {
-    const eligible = (citiesQuery.data ?? []).filter(
-      (c) => (c.datasets_count ?? 0) > 0
-    )
-    return eligible.length > 0 ? Number(eligible[0].id) : CRM_DEFAULT_CITY_ID
-  }, [citiesQuery.data])
-}
 
 const CATEGORY_META: Record<
   string,
@@ -89,7 +73,7 @@ const CATEGORY_META: Record<
 }
 
 export function ForensicsCategoriesPage() {
-  const cityId = useCityId()
+  const { selectedCityId: cityId } = useWasteCity()
   const { data: analysisData, isLoading } =
     useLatestPersistedWasteResult(cityId)
   const allFindings = analysisData?.findings ?? []

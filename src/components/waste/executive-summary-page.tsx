@@ -1,14 +1,12 @@
 "use client"
 
 import { useMemo } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
-import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import {
   useWasteEntityScores,
   useLatestPersistedWasteResult,
   useWasteDetectorAccuracy,
 } from "@/lib/hooks/useWaste"
+import { useWasteCity } from "./WasteCityContext"
 import type { WasteEntityScore, WasteFinding } from "@/lib/apiClient"
 import { WasteShell } from "./waste-shell"
 import { TCScoreBadge, scoreTier, TIER_STYLES } from "./tc-score-badge"
@@ -26,22 +24,6 @@ import {
   TrendingDown,
 } from "lucide-react"
 import Link from "next/link"
-
-// ── City ID Hook ────────────────────────────────────────────────────────────
-
-function useCityId() {
-  const citiesQuery = useQuery({
-    queryKey: ["public", "cities", "sitemap"],
-    queryFn: listPublicCitiesForSitemap,
-    staleTime: 5 * 60 * 1000,
-  })
-  return useMemo(() => {
-    const eligible = (citiesQuery.data ?? []).filter(
-      (c) => (c.datasets_count ?? 0) > 0
-    )
-    return eligible.length > 0 ? Number(eligible[0].id) : CRM_DEFAULT_CITY_ID
-  }, [citiesQuery.data])
-}
 
 // ── Domain Labels ───────────────────────────────────────────────────────────
 
@@ -348,7 +330,7 @@ function DepartmentBriefing({
 // ── Main Component ──────────────────────────────────────────────────────────
 
 export function ExecutiveSummaryPage() {
-  const cityId = useCityId()
+  const { selectedCityId: cityId } = useWasteCity()
 
   const { data: deptData, isLoading: deptsLoading } = useWasteEntityScores({
     cityId,

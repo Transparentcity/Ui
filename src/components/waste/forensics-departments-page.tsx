@@ -1,12 +1,9 @@
 "use client"
 
-import { useMemo } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
-import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import { useWasteEntityScores } from "@/lib/hooks/useWaste"
 import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
+import { useWasteCity } from "./WasteCityContext"
 import { TCScoreBadge, TCTierBadge } from "./tc-score-badge"
 import {
   TrendingUp,
@@ -14,22 +11,8 @@ import {
   Minus,
 } from "lucide-react"
 
-function useCityId() {
-  const citiesQuery = useQuery({
-    queryKey: ["public", "cities", "sitemap"],
-    queryFn: listPublicCitiesForSitemap,
-    staleTime: 5 * 60 * 1000,
-  })
-  return useMemo(() => {
-    const eligible = (citiesQuery.data ?? []).filter(
-      (c) => (c.datasets_count ?? 0) > 0
-    )
-    return eligible.length > 0 ? Number(eligible[0].id) : CRM_DEFAULT_CITY_ID
-  }, [citiesQuery.data])
-}
-
 export function ForensicsDepartmentsPage() {
-  const cityId = useCityId()
+  const { selectedCityId: cityId } = useWasteCity()
   const { data, isLoading } = useWasteEntityScores({
     cityId,
     perPage: 200,

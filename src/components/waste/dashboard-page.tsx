@@ -2,9 +2,6 @@
 
 import { useMemo } from "react"
 import Link from "next/link"
-import { useQuery } from "@tanstack/react-query"
-import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
-import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import {
   useWasteEntityScores,
   useWasteReviewQueue,
@@ -18,6 +15,7 @@ import type {
   WasteInvestigation,
   WasteDetectorAccuracy as DetectorAccuracyType,
 } from "@/lib/apiClient"
+import { useWasteCity } from "./WasteCityContext"
 import { WasteShell } from "./waste-shell"
 import {
   formatDollar,
@@ -42,22 +40,6 @@ import {
   Building2,
   Gauge,
 } from "lucide-react"
-
-// ── Shared city ID hook ─────────────────────────────────────────────────────
-
-function useCityId() {
-  const citiesQuery = useQuery({
-    queryKey: ["public", "cities", "sitemap"],
-    queryFn: listPublicCitiesForSitemap,
-    staleTime: 5 * 60 * 1000,
-  })
-  return useMemo(() => {
-    const eligible = (citiesQuery.data ?? []).filter(
-      (c) => (c.datasets_count ?? 0) > 0
-    )
-    return eligible.length > 0 ? Number(eligible[0].id) : CRM_DEFAULT_CITY_ID
-  }, [citiesQuery.data])
-}
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -577,7 +559,7 @@ function RecentInvestigations({ cityId }: { cityId: number }) {
 // ── Main Component ──────────────────────────────────────────────────────────
 
 export function DashboardPage() {
-  const cityId = useCityId()
+  const { selectedCityId: cityId } = useWasteCity()
 
   // Get findings from the latest persisted analysis for the risk feed
   const { data: analysisData } = useLatestPersistedWasteResult(cityId)

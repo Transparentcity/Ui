@@ -2,15 +2,13 @@
 
 import { useMemo } from "react"
 import Link from "next/link"
-import { useQuery } from "@tanstack/react-query"
-import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
-import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import {
   useWasteEntityScores,
   useWasteReviewQueue,
   useWasteInvestigations,
   useWasteDetectorAccuracy,
 } from "@/lib/hooks/useWaste"
+import { useWasteCity } from "./WasteCityContext"
 import { WasteShell } from "./waste-shell"
 import { cn } from "@/lib/utils"
 import {
@@ -27,20 +25,6 @@ import {
 } from "lucide-react"
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-
-function useCityId() {
-  const citiesQuery = useQuery({
-    queryKey: ["public", "cities", "sitemap"],
-    queryFn: listPublicCitiesForSitemap,
-    staleTime: 5 * 60 * 1000,
-  })
-  return useMemo(() => {
-    const eligible = (citiesQuery.data ?? []).filter(
-      (c) => (c.datasets_count ?? 0) > 0
-    )
-    return eligible.length > 0 ? Number(eligible[0].id) : CRM_DEFAULT_CITY_ID
-  }, [citiesQuery.data])
-}
 
 function MetricCard({
   label,
@@ -175,7 +159,7 @@ function ModeCard({
 // ── Main Component ──────────────────────────────────────────────────────────
 
 export function CommandCenterPage() {
-  const cityId = useCityId()
+  const { selectedCityId: cityId } = useWasteCity()
 
   // Key metrics queries
   const highRiskQ = useWasteEntityScores({

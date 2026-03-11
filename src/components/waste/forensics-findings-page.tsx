@@ -1,10 +1,8 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
-import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import { useLatestPersistedWasteResult } from "@/lib/hooks/useWaste"
+import { useWasteCity } from "./WasteCityContext"
 import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
 import { WasteFindingsList } from "./waste-findings-list"
@@ -12,24 +10,10 @@ import { WasteSeverityFilter } from "./waste-severity-filter"
 import { normalizeWasteCategory, getWasteCategoryLabel } from "./waste-utils"
 import { Search } from "lucide-react"
 
-function useCityId() {
-  const citiesQuery = useQuery({
-    queryKey: ["public", "cities", "sitemap"],
-    queryFn: listPublicCitiesForSitemap,
-    staleTime: 5 * 60 * 1000,
-  })
-  return useMemo(() => {
-    const eligible = (citiesQuery.data ?? []).filter(
-      (c) => (c.datasets_count ?? 0) > 0
-    )
-    return eligible.length > 0 ? Number(eligible[0].id) : CRM_DEFAULT_CITY_ID
-  }, [citiesQuery.data])
-}
-
 type SeverityFilter = "all" | "critical" | "high" | "medium"
 
 export function ForensicsFindingsPage() {
-  const cityId = useCityId()
+  const { selectedCityId: cityId } = useWasteCity()
   const { data: analysisData, isLoading } =
     useLatestPersistedWasteResult(cityId)
   const allFindings = useMemo(() => analysisData?.findings ?? [], [analysisData])

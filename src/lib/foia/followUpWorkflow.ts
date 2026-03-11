@@ -1,3 +1,5 @@
+import type { TaskType } from "./types"
+
 export const FOLLOW_UP_ACTION_OPTIONS = [
   { value: "none", label: "No action needed" },
   { value: "no_response", label: "No Response (status check)" },
@@ -56,10 +58,10 @@ const ACTION_TO_TASK_TITLE: Record<string, string> = {
   none: "Follow up on interaction",
 }
 
-export function getFollowUpTaskSpec(action?: string): { type: string; title: string } {
+export function getFollowUpTaskSpec(action?: string): { type: TaskType; title: string } {
   const key = action || "none"
   return {
-    type: ACTION_TO_TASK_TYPE[key] || "general_followup",
+    type: (ACTION_TO_TASK_TYPE[key] || "general_followup") as TaskType,
     title: ACTION_TO_TASK_TITLE[key] || "Follow up on interaction",
   }
 }
@@ -68,7 +70,7 @@ export function buildNoResponseTaskPayload(requestId: number, reason: string, da
   const due = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
   return {
     request_id: requestId,
-    type: "no_response",
+    type: "no_response" as const,
     title: "No response - send 10-day status check",
     description: reason,
     due_at: due,

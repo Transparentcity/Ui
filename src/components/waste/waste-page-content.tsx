@@ -1,13 +1,11 @@
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
-import { useQuery } from "@tanstack/react-query"
 import { useWasteAnalysis, useActiveWasteJob, useLatestPersistedWasteResult } from "@/lib/hooks/useWaste"
-import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
+import { useWasteCity } from "./WasteCityContext"
 import { WasteShell } from "./waste-shell"
 import { Button } from "@/components/ui/button"
 import { RefreshCw, AlertTriangle, Clock, Database, Square, ShieldAlert } from "lucide-react"
-import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import type {
   WasteAnalyzeResponse,
   WasteDataFreshness,
@@ -185,24 +183,7 @@ export function WastePageContent() {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
   })
 
-  // Use public API so the waste page works without auth (SSR-safe; no useAuth0)
-  const citiesQuery = useQuery({
-    queryKey: ["public", "cities", "sitemap"],
-    queryFn: listPublicCitiesForSitemap,
-    staleTime: 5 * 60 * 1000,
-  })
-  const wasteEligibleCities = useMemo(
-    () => (citiesQuery.data ?? []).filter((city) => (city.datasets_count ?? 0) > 0),
-    [citiesQuery.data]
-  )
-  const selectedCityId = useMemo(() => {
-    if (wasteEligibleCities.length > 0) {
-      return Number(wasteEligibleCities[0].id)
-    }
-    // Fall back to the configured default city so the Refresh button works
-    // even if the public cities API is slow or returns no eligible cities
-    return CRM_DEFAULT_CITY_ID
-  }, [wasteEligibleCities])
+  const { selectedCityId } = useWasteCity()
 
   // Load last persisted run from DB — instant data even when live analysis times out
   const { data: persistedData } = useLatestPersistedWasteResult(selectedCityId)
