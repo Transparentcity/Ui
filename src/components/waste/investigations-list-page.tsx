@@ -4,6 +4,7 @@ import { useState, useMemo } from "react"
 import { useWasteInvestigations } from "@/lib/hooks/useWaste"
 import { useCities } from "@/lib/hooks/useCities"
 import { WasteShell } from "./waste-shell"
+import { InvestigationsShell } from "./investigations-shell"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -57,6 +58,7 @@ export function InvestigationsListPage() {
 
   return (
     <WasteShell title="Investigations" description="All waste and fraud investigations">
+      <InvestigationsShell title="Cases">
       {/* Filters */}
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v === "all" ? "" : v); setPage(1) }}>
@@ -166,6 +168,7 @@ export function InvestigationsListPage() {
           </div>
         </div>
       )}
+      </InvestigationsShell>
     </WasteShell>
   )
 }

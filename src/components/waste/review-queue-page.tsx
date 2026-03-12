@@ -9,6 +9,7 @@ import {
 } from "@/lib/hooks/useWaste"
 import { useWasteCity } from "./WasteCityContext"
 import { WasteShell } from "./waste-shell"
+import { InvestigationsShell } from "./investigations-shell"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -460,7 +461,8 @@ export function ReviewQueuePage() {
     displayItems.length > 0 && selected.size === displayItems.length
 
   return (
-    <WasteShell title="Review Queue" description="Score-first auditor workbench">
+    <WasteShell title="Investigations" description="Score-first auditor workbench">
+      <InvestigationsShell title="Review Queue">
       {/* Segmentation tabs */}
       <div className="flex items-center gap-0 mb-4 border-b border-gray-200 overflow-x-auto scrollbar-hide -mt-1">
         {SEGMENT_TABS.map((tab) => (
@@ -707,6 +709,7 @@ export function ReviewQueuePage() {
         onConfirm={confirmBulkDispose}
         loading={bulkDisposeMutation.isPending}
       />
+      </InvestigationsShell>
     </WasteShell>
   )
 }

@@ -8,6 +8,7 @@ import {
 } from "@/lib/hooks/useWaste"
 import { useWasteCity } from "./WasteCityContext"
 import { WasteShell } from "./waste-shell"
+import { InvestigationsShell } from "./investigations-shell"
 import { SeverityBadge } from "./severity-badge"
 import { ScoreBar } from "./score-bar"
 import { ScoreExplainer } from "./score-explainer"
@@ -192,7 +193,8 @@ export function EntityScoresPage() {
   }, [items, sortBy, sortDir])
 
   return (
-    <WasteShell title="Entity Risk Scores" description="Composite risk scores across all monitored entities">
+    <WasteShell title="Investigations" description="Composite risk scores across all monitored entities">
+      <InvestigationsShell title="Entity Risk Scores">
       <div className="mb-6 space-y-4">
         <TrustMetricsSnapshot
           metrics={trustMetrics}
@@ -403,6 +405,7 @@ export function EntityScoresPage() {
           )}
         </DialogContent>
       </Dialog>
+      </InvestigationsShell>
     </WasteShell>
   )
 }

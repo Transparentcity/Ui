@@ -12,6 +12,7 @@ import { WasteShell } from "./waste-shell"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
+import Link from "next/link"
 import {
   Save,
   RotateCcw,
@@ -22,6 +23,8 @@ import {
   BarChart3,
   Gauge,
   Info,
+  BookOpen,
+  ArrowRight,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -84,6 +87,15 @@ const POLICY_GROUPS: PolicyGroup[] = [
     color: "border-l-rose-500",
     detectorCategories: ["integrity", "influence"],
   },
+  {
+    key: "quality",
+    title: "Signal Quality Controls",
+    description:
+      "Global filters that control finding actionability: materiality floors, confidence thresholds, effect-size gates, and entity consolidation. These apply equally across all detector families.",
+    icon: ShieldAlert,
+    color: "border-l-slate-500",
+    detectorCategories: ["global"],
+  },
 ]
 
 // ── Detector plain-English descriptions ─────────────────────────────────────
@@ -119,6 +131,10 @@ const DETECTOR_DESCRIPTIONS: Record<string, string> = {
   nonprofit_np1: "Flags nonprofits receiving grants with missing required financial audits",
   nonprofit_np2: "Detects unusual grant disbursement patterns",
   nonprofit_np3: "Identifies nonprofits with financial ratios outside acceptable bounds",
+  global_materiality_floor: "Minimum dollar exposure for a finding to appear in the default view — findings below this amount are suppressed",
+  global_confidence_floor: "Minimum confidence score (0–1) for a finding to appear — low-confidence statistical-only findings are suppressed below this",
+  global_entity_consolidation: "Number of independent detector signals required to consolidate findings into a single multi-signal investigation target",
+  global_novelty_discount: "Severity cap for findings that recur across multiple analysis runs (1=Low, 2=Medium, 3=High) — recurring structural patterns are capped",
 }
 
 // ── Impact Preview ──────────────────────────────────────────────────────────
@@ -579,6 +595,31 @@ export function ThresholdConfigPage() {
           ) : null}
         </div>
       )}
+
+      {/* Methodology links */}
+      <div className="mt-8 bg-white rounded-lg border border-gray-200 p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <BookOpen className="w-4 h-4 text-gray-400" />
+          <h3 className="text-sm font-semibold text-gray-700">Methodology</h3>
+        </div>
+        <p className="text-xs text-gray-500 mb-4">
+          Understand how detectors work, how scores are computed, and how thresholds affect the analysis pipeline.
+        </p>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/waste/methodology"
+            className="text-xs font-medium text-purple-600 no-underline hover:text-purple-700 flex items-center gap-1"
+          >
+            City Methodology <ArrowRight className="w-3 h-3" />
+          </Link>
+          <Link
+            href="/waste/methodology/system"
+            className="text-xs font-medium text-purple-600 no-underline hover:text-purple-700 flex items-center gap-1"
+          >
+            System Methodology <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+      </div>
 
       <ConfirmDialog
         open={confirmResetAll}

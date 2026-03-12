@@ -32,7 +32,7 @@ import {
   formatDollar,
   safeSetCache,
   loadCachedAnalysis,
-  WASTE_ANALYSIS_CACHE_KEY,
+  wasteCacheKey,
   type WasteCategoryKey,
 } from "./waste-utils"
 
@@ -143,7 +143,8 @@ export function WastePageContent() {
   const [activeCategory, setActiveCategory] = useState<WasteCategoryKey>("overview")
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
   const [seymourRequest, setSeymourRequest] = useState<WasteSeymourRequest | null>(null)
-  const [cachedData] = useState<WasteAnalyzeResponse | null>(() => loadCachedAnalysis())
+  const { selectedCityId } = useWasteCity()
+  const [cachedData] = useState<WasteAnalyzeResponse | null>(() => loadCachedAnalysis(selectedCityId))
   const [restoredData, setRestoredData] = useState<WasteAnalyzeResponse | null>(null)
   const now = new Date()
   const localDateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
@@ -156,8 +157,6 @@ export function WastePageContent() {
     const parsed = saved ? parseInt(saved, 10) : 0
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
   })
-
-  const { selectedCityId } = useWasteCity()
 
   // Load last persisted run from DB — instant data even when live analysis times out
   const { data: persistedData } = useLatestPersistedWasteResult(selectedCityId)
@@ -214,8 +213,8 @@ export function WastePageContent() {
   // Persist fresh data to localStorage cache
   useEffect(() => {
     if (!data || typeof window === "undefined") return
-    safeSetCache(WASTE_ANALYSIS_CACHE_KEY, data)
-  }, [data])
+    safeSetCache(wasteCacheKey(selectedCityId), data, selectedCityId)
+  }, [data, selectedCityId])
 
   // Keep localStorage in sync when persisted data loads so the next page
   // visit shows fresh data instantly (not a stale cache from a prior session).
@@ -223,9 +222,9 @@ export function WastePageContent() {
   // but we add an explicit check here for clarity.
   useEffect(() => {
     if (!persistedData || typeof window === "undefined") return
-    if ((persistedData.findings?.length ?? 0) === 0) return // don't overwrite cache with empty persisted data
-    safeSetCache(WASTE_ANALYSIS_CACHE_KEY, persistedData)
-  }, [persistedData])
+    if ((persistedData.findings?.length ?? 0) === 0) return
+    safeSetCache(wasteCacheKey(selectedCityId), persistedData, selectedCityId)
+  }, [persistedData, selectedCityId])
 
   const handleRefresh = () => {
     // Clear any manually-restored snapshot so it doesn't shadow fresh results
@@ -597,7 +596,7 @@ export function WastePageContent() {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const backup = loadCachedAnalysis()
+                        const backup = loadCachedAnalysis(selectedCityId)
                         if (backup) setRestoredData(backup)
                       }}
                       className="text-xs border-red-300 text-red-800 hover:bg-red-100"
@@ -631,7 +630,7 @@ export function WastePageContent() {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const backup = loadCachedAnalysis()
+                        const backup = loadCachedAnalysis(selectedCityId)
                         if (backup) setRestoredData(backup)
                       }}
                       className={`${displayData ? "border-amber-300 text-amber-800 hover:bg-amber-100" : "border-red-300 text-red-800 hover:bg-red-100"}`}
@@ -665,7 +664,7 @@ export function WastePageContent() {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const backup = loadCachedAnalysis()
+                        const backup = loadCachedAnalysis(selectedCityId)
                         if (backup) setRestoredData(backup)
                       }}
                       className="border-amber-300 text-amber-800 hover:bg-amber-100"

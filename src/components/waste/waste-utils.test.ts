@@ -7,6 +7,9 @@ import {
   escapeSoqlLike,
   escapeHtml,
   safeSetCache,
+  loadCachedAnalysis,
+  wasteCacheKey,
+  wasteBackupKey,
   WASTE_ANALYSIS_CACHE_KEY,
 } from "./waste-utils"
 
@@ -230,6 +233,46 @@ describe("escapeHtml", () => {
   })
 })
 
+// ── wasteCacheKey / wasteBackupKey ──────────────────────────────────────────
+
+describe("wasteCacheKey", () => {
+  it("includes cityId when provided", () => {
+    const key = wasteCacheKey(57260)
+    expect(key).toContain(":57260:")
+  })
+
+  it("works without cityId", () => {
+    const key = wasteCacheKey()
+    expect(key).not.toContain(":undefined:")
+    expect(key).toContain("v2")
+  })
+
+  it("works with null cityId", () => {
+    const key = wasteCacheKey(null)
+    expect(key).not.toContain(":null:")
+    expect(key).toContain("v2")
+  })
+
+  it("different cities produce different keys", () => {
+    const sfKey = wasteCacheKey(57260)
+    const chiKey = wasteCacheKey(56838)
+    expect(sfKey).not.toBe(chiKey)
+  })
+})
+
+describe("wasteBackupKey", () => {
+  it("includes cityId when provided", () => {
+    const key = wasteBackupKey(57260)
+    expect(key).toContain(":57260:")
+  })
+
+  it("different from cache key", () => {
+    const cache = wasteCacheKey(57260)
+    const backup = wasteBackupKey(57260)
+    expect(cache).not.toBe(backup)
+  })
+})
+
 // ── safeSetCache ────────────────────────────────────────────────────────────
 
 describe("safeSetCache", () => {
@@ -249,22 +292,21 @@ describe("safeSetCache", () => {
 
   it("stores data in localStorage on success", () => {
     const data = { findings: [{ id: "f1" }], summary: {} } as unknown as WasteAnalyzeResponse
-    safeSetCache(WASTE_ANALYSIS_CACHE_KEY, data)
-    // Primary cache write + backup key write (since findings > 0)
-    expect(setItemMock).toHaveBeenCalledWith(
-      WASTE_ANALYSIS_CACHE_KEY,
-      JSON.stringify(data)
-    )
+    const key = wasteCacheKey(57260)
+    safeSetCache(key, data, 57260)
+    expect(setItemMock).toHaveBeenCalledWith(key, JSON.stringify(data))
   })
 
   it("does not overwrite good cached data with empty data", () => {
     const cachedData = { findings: [{ id: "f1" }], summary: {} } as unknown as WasteAnalyzeResponse
-    getItemMock.mockReturnValue(JSON.stringify(cachedData))
+    const key = wasteCacheKey(57260)
+    getItemMock.mockImplementation((k: string) =>
+      k === key ? JSON.stringify(cachedData) : null
+    )
 
     const emptyData = { findings: [], summary: {} } as unknown as WasteAnalyzeResponse
-    safeSetCache(WASTE_ANALYSIS_CACHE_KEY, emptyData)
+    safeSetCache(key, emptyData, 57260)
 
-    // Should not have written to primary cache (empty data, good cache exists)
     expect(setItemMock).not.toHaveBeenCalled()
   })
 
@@ -272,20 +314,17 @@ describe("safeSetCache", () => {
     const findings = Array.from({ length: 600 }, (_, i) => ({ id: `f-${i}` }))
     const data = { findings, summary: {} } as unknown as WasteAnalyzeResponse
 
-    // First call throws (full data), second call succeeds (trimmed to 500)
-    // After that, backup key also writes (2 more calls: full + trimmed)
     let callCount = 0
     setItemMock.mockImplementation(() => {
       callCount++
       if (callCount === 1) throw new Error("QuotaExceeded")
-      // All subsequent calls succeed
     })
 
-    safeSetCache(WASTE_ANALYSIS_CACHE_KEY, data)
+    const key = wasteCacheKey(57260)
+    safeSetCache(key, data, 57260)
 
-    // Verify the primary cache was written with trimmed data
     const primaryCalls = setItemMock.mock.calls.filter(
-      (c: [string, string]) => c[0] === WASTE_ANALYSIS_CACHE_KEY
+      (c: [string, string]) => c[0] === key
     )
     expect(primaryCalls.length).toBeGreaterThanOrEqual(1)
     const stored = JSON.parse(primaryCalls[primaryCalls.length - 1][1])
@@ -296,9 +335,110 @@ describe("safeSetCache", () => {
     const data = { findings: [{ id: "f1" }], summary: {} } as unknown as WasteAnalyzeResponse
     setItemMock.mockImplementation(() => { throw new Error("QuotaExceeded") })
 
-    safeSetCache(WASTE_ANALYSIS_CACHE_KEY, data)
+    safeSetCache(wasteCacheKey(57260), data, 57260)
 
-    // Should NOT remove the key (better to keep stale data than nothing)
     expect(removeItemMock).not.toHaveBeenCalled()
+  })
+
+  it("city-scoped write does not affect other cities", () => {
+    const data = { findings: [{ id: "f1" }], summary: {} } as unknown as WasteAnalyzeResponse
+    const sfKey = wasteCacheKey(57260)
+    safeSetCache(sfKey, data, 57260)
+
+    const sfCalls = setItemMock.mock.calls.filter(
+      (c: [string, string]) => c[0].includes("57260")
+    )
+    const chiCalls = setItemMock.mock.calls.filter(
+      (c: [string, string]) => c[0].includes("56838")
+    )
+    expect(sfCalls.length).toBeGreaterThan(0)
+    expect(chiCalls.length).toBe(0)
+  })
+})
+
+// ── loadCachedAnalysis ─────────────────────────────────────────────────────
+
+describe("loadCachedAnalysis", () => {
+  let getItemMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    getItemMock = vi.fn().mockReturnValue(null)
+    Object.defineProperty(window, "localStorage", {
+      value: { getItem: getItemMock, setItem: vi.fn(), removeItem: vi.fn() },
+      writable: true,
+    })
+  })
+
+  it("returns null when no cache exists", () => {
+    const result = loadCachedAnalysis(57260)
+    expect(result).toBeNull()
+  })
+
+  it("returns city-scoped cached data", () => {
+    const data = { findings: [{ id: "f1" }], summary: {} }
+    const key = wasteCacheKey(57260)
+    getItemMock.mockImplementation((k: string) =>
+      k === key ? JSON.stringify(data) : null
+    )
+
+    const result = loadCachedAnalysis(57260)
+    expect(result).not.toBeNull()
+    expect(result!.findings).toHaveLength(1)
+  })
+
+  it("does not return data from a different city", () => {
+    const data = { findings: [{ id: "f1" }], summary: {} }
+    const sfKey = wasteCacheKey(57260)
+    getItemMock.mockImplementation((k: string) =>
+      k === sfKey ? JSON.stringify(data) : null
+    )
+
+    const result = loadCachedAnalysis(56838)
+    expect(result).toBeNull()
+  })
+
+  it("falls back to backup key when primary empty", () => {
+    const data = { findings: [{ id: "f1" }], summary: {} }
+    const backupKey = wasteBackupKey(57260)
+    getItemMock.mockImplementation((k: string) =>
+      k === backupKey ? JSON.stringify(data) : null
+    )
+
+    const result = loadCachedAnalysis(57260)
+    expect(result).not.toBeNull()
+  })
+
+  it("returns null for SSR (no window)", () => {
+    const origWindow = globalThis.window
+    // @ts-expect-error - simulating SSR
+    delete globalThis.window
+    try {
+      const result = loadCachedAnalysis(57260)
+      expect(result).toBeNull()
+    } finally {
+      globalThis.window = origWindow
+    }
+  })
+
+  it("skips oversized entries", () => {
+    const bigString = "x".repeat(5_000_000)
+    const key = wasteCacheKey(57260)
+    getItemMock.mockImplementation((k: string) =>
+      k === key ? bigString : null
+    )
+
+    const result = loadCachedAnalysis(57260)
+    expect(result).toBeNull()
+  })
+
+  it("skips entries with zero findings", () => {
+    const data = { findings: [], summary: {} }
+    const key = wasteCacheKey(57260)
+    getItemMock.mockImplementation((k: string) =>
+      k === key ? JSON.stringify(data) : null
+    )
+
+    const result = loadCachedAnalysis(57260)
+    expect(result).toBeNull()
   })
 })

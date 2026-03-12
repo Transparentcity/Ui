@@ -4877,6 +4877,10 @@ export interface WasteFinding {
     domain_risks?: Record<string, number>;
     finding_count?: number;
   } | null;
+  is_recurring?: boolean;
+  recurrence_count?: number;
+  consolidated_into?: string | null;
+  supporting_findings?: string[] | null;
 }
 
 export interface WasteDataFreshness {
@@ -4907,6 +4911,8 @@ export interface WasteSummaryResponse {
   net_exposure: number | null;
   departments_affected: number;
   categories: WasteCategorySummary[];
+  suppressed_below_materiality?: number;
+  suppressed_below_confidence?: number;
 }
 
 export interface WasteAnalyzeResponse {

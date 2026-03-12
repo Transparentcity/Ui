@@ -74,7 +74,7 @@ export function ForensicsCategoryDetailPage({
 
   return (
     <WasteShell
-      title="Forensics"
+      title="Backtrace"
       description="Historical analysis and investigation workspace"
     >
       <ForensicsShell title={label}>

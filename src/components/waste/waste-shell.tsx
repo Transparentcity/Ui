@@ -10,11 +10,7 @@ import {
   Activity,
   Search,
   Code2,
-  Inbox,
-  FolderOpen,
-  BarChart3,
   SlidersHorizontal,
-  FileText,
   ArrowLeft,
   LogIn,
   MapPin,
@@ -33,16 +29,18 @@ type TabItem = {
 }
 
 const TOP_TABS: TabItem[] = [
-  { key: "overview", name: "Command Center", href: "/waste", icon: LayoutGrid },
-  { key: "dashboard", name: "Operations", href: "/waste/dashboard", icon: Activity },
-  { key: "forensics", name: "Forensics", href: "/waste/forensics", icon: Search },
-  { key: "api", name: "API", href: "/waste/api", icon: Code2 },
-  { key: "queue", name: "Queue", href: "/waste/queue", icon: Inbox },
-  { key: "investigations", name: "Investigations", href: "/waste/investigations", icon: FolderOpen },
-  { key: "scores", name: "Scores", href: "/waste/scores", icon: BarChart3 },
-  { key: "executive", name: "Executive", href: "/waste/executive", icon: FileText },
+  { key: "workspace", name: "Workspace", href: "/waste", icon: LayoutGrid },
+  { key: "api", name: "Guardrails API", href: "/waste/api", icon: Code2 },
+  { key: "investigations", name: "Investigations", href: "/waste/dashboard", icon: Activity },
+  { key: "backtrace", name: "Backtrace", href: "/waste/forensics", icon: Search },
   { key: "thresholds", name: "Thresholds", href: "/waste/settings/thresholds", icon: SlidersHorizontal },
 ]
+
+const FOLDED_ROUTES: Record<string, string[]> = {
+  investigations: ["/waste/dashboard", "/waste/queue", "/waste/investigations", "/waste/scores"],
+  backtrace: ["/waste/forensics", "/waste/executive"],
+  thresholds: ["/waste/settings/thresholds", "/waste/methodology"],
+}
 
 interface WasteShellProps {
   children: React.ReactNode
@@ -117,6 +115,12 @@ export function WasteShell({
 
   const isTabActive = (tab: TabItem) => {
     if (tab.href === "/waste") return pathname === "/waste"
+    const routes = FOLDED_ROUTES[tab.key]
+    if (routes) {
+      return routes.some(
+        (r) => pathname === r || pathname.startsWith(`${r}/`)
+      )
+    }
     return pathname === tab.href || pathname.startsWith(`${tab.href}/`)
   }
 
