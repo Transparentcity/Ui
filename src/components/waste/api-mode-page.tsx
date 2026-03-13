@@ -6,7 +6,6 @@ import { WasteShell } from "./waste-shell"
 import { TCScoreBadge } from "./tc-score-badge"
 import { cn } from "@/lib/utils"
 import {
-  Code2,
   ArrowRight,
   CheckCircle2,
   ShieldCheck,
@@ -274,25 +273,31 @@ const DETECTOR_MAPPING = [
 
 const DECISION_LOGIC = [
   {
-    range: "0 – 30",
+    range: "0 – 19",
     action: "Auto-approve",
-    color: "bg-green-50 text-green-700 border-green-200",
+    color: "bg-slate-50 text-slate-700 border-slate-200",
     icon: CheckCircle2,
   },
   {
-    range: "31 – 60",
+    range: "20 – 39",
     action: "Approve with logging",
-    color: "bg-amber-50 text-amber-700 border-amber-200",
+    color: "bg-green-50 text-green-700 border-green-200",
     icon: Clock,
   },
   {
-    range: "61 – 80",
+    range: "40 – 59",
+    action: "Route to analyst queue",
+    color: "bg-amber-50 text-amber-700 border-amber-200",
+    icon: AlertTriangle,
+  },
+  {
+    range: "60 – 79",
     action: "Route to review queue",
     color: "bg-orange-50 text-orange-700 border-orange-200",
     icon: AlertTriangle,
   },
   {
-    range: "81 – 100",
+    range: "80 – 100",
     action: "Hold for senior review",
     color: "bg-red-50 text-red-700 border-red-200",
     icon: XOctagon,
