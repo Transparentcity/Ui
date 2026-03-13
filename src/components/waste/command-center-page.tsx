@@ -94,20 +94,20 @@ const MODE_CARDS = [
     cta: "Explore",
   },
   {
-    title: "Dashboard",
-    subtitle: "Monitor current risk and tune sensitivity",
+    title: "Investigations",
+    subtitle: "Monitor current risk and work active cases",
     description:
-      "Live operations view for finance and audit teams to monitor active alerts and adjust threshold sensitivity.",
+      "Live operations view for finance and audit teams to review flagged items, manage the queue, and track open investigations.",
     href: "/waste/dashboard",
     icon: Activity,
     gradient: "from-purple-600 to-violet-700",
     cta: "Open",
   },
   {
-    title: "Forensics",
-    subtitle: "Investigate historical patterns and build cases",
+    title: "Backtrace",
+    subtitle: "Investigate historical patterns and tune detectors",
     description:
-      "Historical investigation workspace to review long-term patterns and build documented cases.",
+      "Retrospective analysis across prior fiscal years to uncover patterns, validate detectors, and build documented cases.",
     href: "/waste/forensics",
     icon: Search,
     gradient: "from-emerald-600 to-teal-700",
@@ -248,7 +248,7 @@ export function CommandCenterPage() {
 
   return (
     <WasteShell
-      title="Command Center"
+      title="Workspace"
       description="Entry points and headline risk indicators"
     >
       {/* Three mode cards */}

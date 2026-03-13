@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, BookOpen, Scale, Shield, Layers, Search, BarChart3, GitBranch, Target, Building2, Users } from "lucide-react"
+import { ChevronDown, BookOpen, Scale, Shield, Layers, Search, BarChart3, GitBranch, Target, Building2, Users, SlidersHorizontal } from "lucide-react"
 import {
   Collapsible,
   CollapsibleContent,
@@ -1183,7 +1183,304 @@ export function ThresholdMethodologyNote() {
               </SectionBox>
             </MethodologySection>
 
-            {/* ── 8. Guardrails and Limitations ───────────────────────── */}
+            {/* ── 8. Signal Quality Controls ─────────────────────────── */}
+
+            <MethodologySection
+              id="methodology-signal-quality"
+              icon={SlidersHorizontal}
+              title="Signal Quality Controls"
+              subtitle="How the system filters noise, ensures consistency across cities, and keeps findings actionable"
+              accentClass="border-slate-300"
+            >
+              <p>
+                Detection thresholds (e.g., &ldquo;flag overtime above 50% of base pay&rdquo;)
+                determine <em>what</em> the system looks for. Signal quality controls determine
+                <em>which of those findings are worth an auditor&rsquo;s time</em>. These are
+                separate concerns: the detection standard is the same everywhere, but the
+                actionability filters can be tuned per city based on context, budget size, and
+                review capacity.
+              </p>
+              <p>
+                All signal quality controls are configurable per city via the Policy Tuning page
+                under &ldquo;Signal Quality Controls.&rdquo; Each control is stored as a
+                threshold row in the database with a system default and an optional per-city
+                override. Changes take effect on the next analysis run.
+              </p>
+
+              <SectionBox label="Materiality floor" tone="slate">
+                <div className="space-y-2 text-xs text-slate-800">
+                  <p>
+                    The materiality floor sets the minimum dollar exposure for a finding to
+                    appear in results. Findings where the flagged amount falls below this
+                    threshold are suppressed from the default view. The number of suppressed
+                    findings is reported in the analysis summary for transparency.
+                  </p>
+                  <div>
+                    <strong>How it works:</strong> After all detectors have run and produced raw
+                    findings, but before confidence scoring, the system checks each finding&rsquo;s
+                    dollar amount against the floor. Findings below the floor are removed from the
+                    results. Two categories are exempt:
+                  </div>
+                  <ul className="list-disc pl-4 space-y-1">
+                    <li>
+                      <strong>Confirmed historical cases</strong> are never filtered&mdash;their
+                      amounts are audited figures from real investigations.
+                    </li>
+                    <li>
+                      <strong>Findings with no dollar amount</strong> (e.g., Benford anomalies,
+                      statistical tests) pass through because they cannot be evaluated on dollars.
+                    </li>
+                  </ul>
+                  <div>
+                    <strong>Current defaults:</strong> San Francisco uses a $2,500 floor;
+                    Chicago and other cities use a $5,000 floor. These reflect differences in
+                    procurement patterns: SF has documented cases (e.g., Jones/Henriquez, HRC
+                    payment splitting) where structuring schemes used amounts in the
+                    $2,500&ndash;$5,000 range, making low-dollar individual findings actionable
+                    in that city&rsquo;s context.
+                  </div>
+                  <div>
+                    <strong>What is NOT affected:</strong> Aggregating detectors&mdash;such as
+                    D8 (Split Purchase Orders), D1 (SSS Duplicates), D6 (Vendor Concentration),
+                    and D2 (Pareto Concentration)&mdash;report the <em>combined</em> dollar
+                    exposure across grouped transactions. If someone structures 100 payments of
+                    $2,000 each to avoid oversight, the split-PO detector flags the combined
+                    $200,000 total, which is well above any materiality floor. The floor filters
+                    only the <em>individual finding&rsquo;s</em> reported amount, not the
+                    underlying transactions that feed into aggregating detectors.
+                  </div>
+                  <div>
+                    <strong>Trade-off:</strong> Raising the floor reduces noise and review
+                    burden but may suppress low-dollar findings that are individually actionable
+                    or that represent the early stages of a larger scheme. Lowering it increases
+                    coverage at the cost of more findings to review.
+                  </div>
+                </div>
+              </SectionBox>
+
+              <SectionBox label="Confidence floor" tone="indigo">
+                <div className="space-y-2 text-xs text-indigo-900">
+                  <p>
+                    The confidence floor sets the minimum confidence score (0.0&ndash;1.0) for a
+                    finding to appear. This primarily filters out single-signal statistical
+                    anomalies that lack corroboration from other detectors.
+                  </p>
+                  <div>
+                    <strong>How it works:</strong> After confidence scoring assigns each finding
+                    a composite score (based on statistical strength, cross-detector
+                    corroboration, and data completeness), findings below the floor are
+                    suppressed. Confirmed historical cases are exempt.
+                  </div>
+                  <div>
+                    <strong>Default: 0.35.</strong> At this level, findings typically need either
+                    moderate statistical strength <em>or</em> corroboration from at least one
+                    other detector to survive. Pure statistical anomalies (e.g., a Benford
+                    deviation with no other supporting signal) score around 0.25&ndash;0.30 and
+                    are suppressed.
+                  </div>
+                  <div>
+                    <strong>Trade-off:</strong> Raising the floor aggressively filters
+                    single-signal findings, which reduces noise but may suppress early-stage
+                    detection of patterns that have not yet developed corroborating signals.
+                    Lowering it allows more exploratory findings through.
+                  </div>
+                </div>
+              </SectionBox>
+
+              <SectionBox label="Effect-size gates (Benford and round-number detectors)" tone="emerald">
+                <div className="space-y-2 text-xs text-emerald-900">
+                  <p>
+                    Statistical tests like Benford&rsquo;s Law and round-number analysis use
+                    chi-square goodness-of-fit statistics. A fundamental property of chi-square
+                    tests is that <em>any</em> deviation becomes statistically significant with
+                    a large enough sample&mdash;even deviations too small to indicate real
+                    manipulation.
+                  </p>
+                  <div>
+                    <strong>The problem:</strong> A city with 500,000 vendor payments will
+                    produce Benford &ldquo;hits&rdquo; on almost every department simply because
+                    the sample size makes even 0.5% deviations from expected proportions
+                    statistically significant. These are mathematically correct but not
+                    actionable.
+                  </div>
+                  <div>
+                    <strong>The solution:</strong> Effect-size gates require that the
+                    <em> magnitude</em> of deviation exceeds a minimum threshold, not just the
+                    <em> statistical significance</em>. The system computes the Mean Absolute
+                    Deviation (MAD) between observed and expected Benford digit proportions. Only
+                    departments where MAD exceeds the threshold (default 1.5 percentage points)
+                    are flagged.
+                  </div>
+                  <div>
+                    <strong>For round numbers:</strong> The detector already computes the excess
+                    proportion of round-number payments above the expected 10% baseline. The
+                    effect-size gate (default 10 percentage points) requires that at least 20% of
+                    a vendor&rsquo;s payments be round numbers before a finding is emitted.
+                  </div>
+                  <div>
+                    <strong>Trade-off:</strong> These gates do not change the detection
+                    <em> standard</em>&mdash;the same forensic test is applied everywhere. They
+                    change the <em>sensitivity floor</em> so that the standard scales correctly
+                    with dataset size. A 15% deviation from Benford proportions in a
+                    50-transaction department is meaningful; a 0.8% deviation in a 100,000-transaction
+                    department is noise, even though both pass a p&lt;0.001 significance test.
+                  </div>
+                </div>
+              </SectionBox>
+
+              <SectionBox label="Entity consolidation" tone="purple">
+                <div className="space-y-2 text-xs text-purple-900">
+                  <p>
+                    When three or more independent detectors flag the same entity (vendor,
+                    employee, or department), the system generates a consolidated &ldquo;Multi-Signal
+                    Investigation Target&rdquo; finding that groups them together.
+                  </p>
+                  <div>
+                    <strong>How it works:</strong> After all detectors and the convergence
+                    meta-detector have run, the system builds a map of each entity to the distinct
+                    detector families that flagged it. Entities meeting or exceeding the minimum
+                    signal count (default: 3) produce a consolidated meta-finding. The original
+                    component findings are preserved and linked to the consolidated parent.
+                  </div>
+                  <div>
+                    <strong>Why this matters for auditors:</strong> An auditor reviewing a queue
+                    of 300 findings does not want to see &ldquo;ACME Corp: Duplicate Payments,&rdquo;
+                    &ldquo;ACME Corp: Round Numbers,&rdquo; &ldquo;ACME Corp: Ghost Vendor,&rdquo;
+                    and &ldquo;ACME Corp: Concentration&rdquo; as four separate items. They want
+                    to see <em>&ldquo;ACME Corp: 4 independent risk signals&rdquo;</em> with the
+                    details available on expansion. Consolidation reduces cognitive load without
+                    losing any information.
+                  </div>
+                  <div>
+                    <strong>Trade-off:</strong> Setting the minimum too low (e.g., 2) may
+                    consolidate findings that happen to share an entity name but represent
+                    unrelated patterns. Setting it too high (e.g., 5) means only the most extreme
+                    cases get consolidated, reducing the decluttering benefit.
+                  </div>
+                </div>
+              </SectionBox>
+
+              <SectionBox label="Novelty weighting (recurring vs. new findings)" tone="orange">
+                <div className="space-y-2 text-xs text-orange-900">
+                  <p>
+                    Not all findings are equally urgent. A vendor flagged for the same pattern
+                    in every analysis run for two years is a different priority than a vendor
+                    flagged for the first time this month.
+                  </p>
+                  <div>
+                    <strong>How it works:</strong> After analysis, the system checks each
+                    finding&rsquo;s entity + detector combination against prior runs stored in
+                    the database. Findings that match a prior run are tagged as
+                    &ldquo;recurring&rdquo; and their severity is capped at a configurable
+                    maximum (default: Medium). New findings&mdash;those appearing for the first
+                    time&mdash;retain their original severity unmodified.
+                  </div>
+                  <div>
+                    <strong>Rationale:</strong> Recurring findings often represent structural
+                    patterns: a police department will always have high overtime, a utility
+                    provider will always dominate its department&rsquo;s vendor concentration.
+                    These are worth knowing but should not crowd out new anomalies that may
+                    represent active fraud. Capping recurring severity ensures new signals
+                    surface at the top of the review queue.
+                  </div>
+                  <div>
+                    <strong>Confirmed historical cases are exempt:</strong> Findings in the
+                    Confirmed Cases category are never subject to novelty discounting&mdash;they
+                    represent validated fraud regardless of how many times the system has seen them.
+                  </div>
+                  <div>
+                    <strong>Trade-off:</strong> Setting the severity cap to Low aggressively
+                    demotes recurring findings, which is appropriate when review capacity is
+                    limited and the goal is to focus on new leads. Setting it to High
+                    preserves more of the original severity, which is better when the recurring
+                    pattern may represent ongoing rather than historical behavior.
+                  </div>
+                </div>
+              </SectionBox>
+
+              <SectionBox label="How these controls interact" tone="gray">
+                <div className="space-y-2 text-xs text-gray-700">
+                  <p>
+                    The signal quality controls run in a specific pipeline order:
+                  </p>
+                  <ol className="list-decimal pl-4 space-y-1">
+                    <li>
+                      <strong>Effect-size gates</strong> (inside detectors) &mdash; prevent
+                      trivial statistical deviations from becoming findings at all.
+                    </li>
+                    <li>
+                      <strong>Materiality floor</strong> (post-detection) &mdash; removes
+                      findings below the dollar threshold.
+                    </li>
+                    <li>
+                      <strong>Confidence scoring</strong> (post-detection) &mdash; assigns each
+                      finding a composite confidence score.
+                    </li>
+                    <li>
+                      <strong>Confidence floor</strong> (post-scoring) &mdash; removes findings
+                      below the confidence threshold.
+                    </li>
+                    <li>
+                      <strong>Novelty weighting</strong> (post-scoring) &mdash; tags recurring
+                      findings and caps their severity.
+                    </li>
+                    <li>
+                      <strong>Convergence analysis</strong> (post-scoring) &mdash; adds
+                      cross-domain meta-findings.
+                    </li>
+                    <li>
+                      <strong>Entity consolidation</strong> (post-convergence) &mdash; groups
+                      multi-signal entities.
+                    </li>
+                  </ol>
+                  <p>
+                    This ordering means a finding must survive all earlier filters to reach later
+                    stages. A $3,000 Benford anomaly with low confidence is removed by the
+                    materiality floor and never reaches confidence scoring. A high-confidence,
+                    high-dollar finding that recurs every run has its severity capped but
+                    is still visible.
+                  </p>
+                </div>
+              </SectionBox>
+
+              <SectionBox label="Per-city customization" tone="amber">
+                <div className="space-y-2 text-xs text-amber-900">
+                  <p>
+                    Every signal quality control can be customized independently for each city.
+                    The system stores a default value and an optional per-city override. The
+                    effective value is always <code>COALESCE(city_override, system_default)</code>.
+                  </p>
+                  <p>
+                    This design reflects the reality that different cities have different contexts:
+                  </p>
+                  <ul className="list-disc pl-4 space-y-1">
+                    <li>
+                      A city with documented split-PO structuring at the $2,500&ndash;$5,000 level
+                      (e.g., San Francisco) should have a lower materiality floor than a city where
+                      procurement oversight starts at $10,000.
+                    </li>
+                    <li>
+                      A city with a small audit team may want a higher confidence floor to
+                      reduce queue volume, while a city with a dedicated forensic unit may prefer
+                      a lower floor to maximize coverage.
+                    </li>
+                    <li>
+                      A city experiencing rapid turnover of vendors may want novelty weighting
+                      set to Low (more aggressive demotion of recurring findings) to surface
+                      new actors quickly.
+                    </li>
+                  </ul>
+                  <p>
+                    The detection standards themselves&mdash;what constitutes a 50% overtime ratio
+                    or a ghost vendor or a Benford deviation&mdash;are the same across all cities.
+                    The signal quality controls adjust <em>how those detections are prioritized
+                    and presented</em>, not what is detected.
+                  </p>
+                </div>
+              </SectionBox>
+            </MethodologySection>
+
+            {/* ── 9. Guardrails and Limitations ───────────────────────── */}
 
             <MethodologySection
               id="methodology-guardrails"
@@ -1294,7 +1591,7 @@ export function ThresholdMethodologyNote() {
               </SectionBox>
             </MethodologySection>
 
-            {/* ── 9. Operational Guidance ──────────────────────────────── */}
+            {/* ── 10. Operational Guidance ─────────────────────────────── */}
 
             <MethodologySection
               id="methodology-operational"
@@ -1395,7 +1692,7 @@ export function ThresholdMethodologyNote() {
               </SectionBox>
             </MethodologySection>
 
-            {/* ── 10. Further Reading ─────────────────────────────────── */}
+            {/* ── 11. Further Reading ─────────────────────────────────── */}
 
             <MethodologySection
               id="methodology-references"

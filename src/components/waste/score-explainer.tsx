@@ -10,6 +10,7 @@ interface Signal {
   contribution: number
   weight?: number
   confidence?: string
+  confidence_score?: number
 }
 
 interface ScoreExplainerProps {
@@ -46,6 +47,24 @@ export function ScoreExplainer({
 
   const totalContribution = useMemo(
     () => sortedSignals.reduce((s, sig) => s + sig.contribution, 0),
+    [sortedSignals]
+  )
+
+  const resolvedSignals = useMemo(
+    () =>
+      sortedSignals.map((sig) => {
+        if (sig.confidence) return sig
+        if (sig.confidence_score != null) {
+          const level =
+            sig.confidence_score >= 0.7
+              ? "high"
+              : sig.confidence_score >= 0.4
+                ? "medium"
+                : "low"
+          return { ...sig, confidence: level }
+        }
+        return sig
+      }),
     [sortedSignals]
   )
 
@@ -111,7 +130,7 @@ export function ScoreExplainer({
       </div>
 
       {/* Weight & confidence row */}
-      {sortedSignals.some((s) => s.weight != null || s.confidence) && (
+      {resolvedSignals.some((s) => s.weight != null || s.confidence) && (
         <div>
           <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
             <Scale className="w-3.5 h-3.5" />
@@ -121,7 +140,7 @@ export function ScoreExplainer({
             <span className="font-medium text-gray-500">Detector</span>
             <span className="font-medium text-gray-500 text-center">Weight</span>
             <span className="font-medium text-gray-500 text-center">Confidence</span>
-            {sortedSignals.map((sig, i) => (
+            {resolvedSignals.map((sig, i) => (
               <div key={i} className="contents">
                 <span className="text-gray-600 truncate">
                   {sig.detector_key.replace(/_/g, " ")}

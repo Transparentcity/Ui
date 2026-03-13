@@ -17,6 +17,7 @@ import type {
 } from "@/lib/apiClient"
 import { useWasteCity } from "./WasteCityContext"
 import { WasteShell } from "./waste-shell"
+import { InvestigationsShell } from "./investigations-shell"
 import {
   formatDollar,
   getWasteCategoryLabel,
@@ -600,7 +601,7 @@ export function DashboardPage() {
 
   return (
     <WasteShell
-      title="Operations"
+      title="Investigations"
       description="Operational monitoring and risk overview"
       actions={
         lastRunDate ? (
@@ -611,6 +612,7 @@ export function DashboardPage() {
         ) : undefined
       }
     >
+      <InvestigationsShell title="Dashboard">
       {/* Top stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <div className="bg-white rounded-lg border border-gray-200 p-4">
@@ -669,6 +671,7 @@ export function DashboardPage() {
         <QueueStatus cityId={cityId} />
         <InvestigationSummary cityId={cityId} />
       </div>
+      </InvestigationsShell>
     </WasteShell>
   )
 }

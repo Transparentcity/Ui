@@ -68,21 +68,22 @@ import {
 export function useWasteAnalysis(
   category?: string,
   enabled: boolean = true,
+  cityId?: number,
 ) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0()
   const forceRefreshRef = useRef(false)
 
   const query = useQuery<WasteAnalyzeResponse>({
-    queryKey: ["waste", "analysis", category ?? "all"],
+    queryKey: ["waste", "analysis", category ?? "all", cityId ?? "default"],
     queryFn: async () => {
       const token = await getAccessTokenSilently()
       const shouldForce = forceRefreshRef.current
       forceRefreshRef.current = false
-      return getWasteAnalysis(token, category, shouldForce)
+      return getWasteAnalysis(token, category, shouldForce, cityId)
     },
     enabled: isAuthenticated && enabled,
-    staleTime: 10 * 60 * 1000, // 10 minutes — analysis is expensive
-    gcTime: 30 * 60 * 1000, // keep in cache 30 min to avoid re-fetching on navigation
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
     retry: 1,
     refetchOnWindowFocus: false,
   })
@@ -419,14 +420,14 @@ export function useActiveWasteJob(cityId: number | null) {
 /**
  * Fetch just the waste summary stats (for the stat bar).
  */
-export function useWasteSummary() {
+export function useWasteSummary(cityId?: number) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0()
 
   return useQuery<WasteSummaryResponse>({
-    queryKey: ["waste", "summary"],
+    queryKey: ["waste", "summary", cityId ?? "default"],
     queryFn: async () => {
       const token = await getAccessTokenSilently()
-      return getWasteSummary(token)
+      return getWasteSummary(token, cityId)
     },
     enabled: isAuthenticated,
     staleTime: 5 * 60 * 1000,

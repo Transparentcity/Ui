@@ -366,7 +366,7 @@ export function ExecutiveSummaryPage() {
 
   return (
     <WasteShell
-      title="Executive Summary"
+      title="Backtrace"
       description="Department risk briefings for leadership review"
     >
       {/* Summary bar */}

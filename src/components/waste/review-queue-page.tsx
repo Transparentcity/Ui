@@ -9,6 +9,7 @@ import {
 } from "@/lib/hooks/useWaste"
 import { useWasteCity } from "./WasteCityContext"
 import { WasteShell } from "./waste-shell"
+import { InvestigationsShell } from "./investigations-shell"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -21,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   UserPlus,
@@ -69,6 +71,7 @@ function QueueItemCard({
   onToggle: () => void
 }) {
   const [disposedAs, setDisposedAs] = useState<WasteDispositionType | null>(null)
+  const [expanded, setExpanded] = useState(false)
   const disposeMutation = useCreateWasteDisposition()
   const assignMutation = useAssignWasteQueueItem()
   const [assignInput, setAssignInput] = useState("")
@@ -76,11 +79,9 @@ function QueueItemCard({
 
   const score = item.composite_score ?? 0
 
-  // Simulated top signals from the finding description + detector key
   const topSignals = useMemo(() => {
     const signals: string[] = []
     if (item.finding_description) {
-      // Split description into sentences and take top 3
       const sentences = item.finding_description
         .split(/[.;]/)
         .map((s) => s.trim())
@@ -92,6 +93,10 @@ function QueueItemCard({
     }
     return signals.slice(0, 3)
   }, [item.finding_description, item.finding_subcategory])
+
+  const hasMoreDetail =
+    (item.finding_description?.length ?? 0) > 120 ||
+    topSignals.some((s) => s.length > 80)
 
   const handleDispose = useCallback(
     (disposition: WasteDispositionType) => {
@@ -151,7 +156,7 @@ function QueueItemCard({
           />
         </div>
 
-        {/* Score badge — large, prominent */}
+        {/* Score badge */}
         <div className="shrink-0">
           <TCScoreBadge score={score} size="xl" showLabel />
         </div>
@@ -160,10 +165,16 @@ function QueueItemCard({
         <div className="flex-1 min-w-0">
           {/* Header row */}
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">
-                {item.finding_entity_name ?? `Finding #${item.finding_id}`}
-              </p>
+            <div className="min-w-0 flex-1">
+              <button
+                type="button"
+                onClick={() => setExpanded(!expanded)}
+                className="text-left group"
+              >
+                <p className="text-sm font-semibold text-gray-900 group-hover:text-purple-700 transition-colors">
+                  {item.finding_entity_name ?? `Finding #${item.finding_id}`}
+                </p>
+              </button>
               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 {item.finding_detector_key && (
                   <span className="text-[10px] font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
@@ -201,9 +212,26 @@ function QueueItemCard({
                 </span>
               </div>
             </div>
+
+            {/* Expand / collapse toggle */}
+            {hasMoreDetail && (
+              <button
+                type="button"
+                onClick={() => setExpanded(!expanded)}
+                className="shrink-0 p-1 rounded-md text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                aria-label={expanded ? "Collapse details" : "Expand details"}
+              >
+                <ChevronDown
+                  className={cn(
+                    "w-4 h-4 transition-transform",
+                    expanded && "rotate-180"
+                  )}
+                />
+              </button>
+            )}
           </div>
 
-          {/* Top signals */}
+          {/* Top signals — always visible, full text when expanded */}
           {topSignals.length > 0 && (
             <div className="mt-2.5 space-y-1">
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
@@ -215,9 +243,37 @@ function QueueItemCard({
                   className="flex items-start gap-1.5 text-xs text-gray-700"
                 >
                   <span className="text-red-400 mt-0.5 shrink-0 leading-none">&#x25cf;</span>
-                  <span className="line-clamp-1">{signal}</span>
+                  <span className={expanded ? "" : "line-clamp-2"}>{signal}</span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Expanded detail panel */}
+          {expanded && item.finding_description && (
+            <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+                Full Description
+              </p>
+              <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-line">
+                {item.finding_description}
+              </p>
+              {item.finding_subcategory && (
+                <div className="mt-2 pt-2 border-t border-gray-200">
+                  <span className="text-[10px] text-gray-500">Subcategory: </span>
+                  <span className="text-[10px] font-medium text-gray-700 capitalize">
+                    {item.finding_subcategory}
+                  </span>
+                </div>
+              )}
+              {item.finding_created_at && (
+                <div className="mt-1">
+                  <span className="text-[10px] text-gray-500">Finding date: </span>
+                  <span className="text-[10px] font-medium text-gray-700">
+                    {new Date(item.finding_created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -405,7 +461,8 @@ export function ReviewQueuePage() {
     displayItems.length > 0 && selected.size === displayItems.length
 
   return (
-    <WasteShell title="Review Queue" description="Score-first auditor workbench">
+    <WasteShell title="Investigations" description="Score-first auditor workbench">
+      <InvestigationsShell title="Review Queue">
       {/* Segmentation tabs */}
       <div className="flex items-center gap-0 mb-4 border-b border-gray-200 overflow-x-auto scrollbar-hide -mt-1">
         {SEGMENT_TABS.map((tab) => (
@@ -490,15 +547,15 @@ export function ReviewQueuePage() {
             setPage(1)
           }}
         >
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="All priorities" />
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="All score tiers" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All priorities</SelectItem>
-            <SelectItem value="critical">Critical</SelectItem>
-            <SelectItem value="high">High</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="low">Low</SelectItem>
+            <SelectItem value="all">All score tiers</SelectItem>
+            <SelectItem value="critical">Critical (81–100)</SelectItem>
+            <SelectItem value="high">High (61–80)</SelectItem>
+            <SelectItem value="medium">Medium (31–60)</SelectItem>
+            <SelectItem value="low">Low (0–30)</SelectItem>
           </SelectContent>
         </Select>
 
@@ -652,6 +709,7 @@ export function ReviewQueuePage() {
         onConfirm={confirmBulkDispose}
         loading={bulkDisposeMutation.isPending}
       />
+      </InvestigationsShell>
     </WasteShell>
   )
 }

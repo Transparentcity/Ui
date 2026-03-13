@@ -2,11 +2,16 @@
 
 import { useState, useMemo } from "react"
 import { useLatestPersistedWasteResult } from "@/lib/hooks/useWaste"
+import type { WasteFinding } from "@/lib/apiClient"
 import { useWasteCity } from "./WasteCityContext"
 import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
 import { WasteFindingsList } from "./waste-findings-list"
 import { WasteSeverityFilter } from "./waste-severity-filter"
+import {
+  WasteSeymourPanel,
+  type WasteSeymourRequest,
+} from "./waste-seymour-panel"
 import { normalizeWasteCategory, getWasteCategoryLabel } from "./waste-utils"
 import { Search } from "lucide-react"
 
@@ -21,6 +26,11 @@ export function ForensicsFindingsPage() {
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
   const [categoryFilter, setCategoryFilter] = useState("")
   const [entitySearch, setEntitySearch] = useState("")
+  const [seymourRequest, setSeymourRequest] = useState<WasteSeymourRequest | null>(null)
+
+  const handleAskSeymour = (finding: WasteFinding) => {
+    setSeymourRequest({ finding })
+  }
 
   const categories = useMemo(() => {
     const set = new Set<string>()
@@ -57,7 +67,7 @@ export function ForensicsFindingsPage() {
 
   return (
     <WasteShell
-      title="Forensics"
+      title="Backtrace"
       description="Historical analysis and investigation workspace"
     >
       <ForensicsShell title="All Findings">
@@ -118,8 +128,13 @@ export function ForensicsFindingsPage() {
             ))}
           </div>
         ) : (
-          <WasteFindingsList findings={filtered} />
+          <WasteFindingsList findings={filtered} onAskSeymour={handleAskSeymour} cityId={cityId} />
         )}
+
+        <WasteSeymourPanel
+          request={seymourRequest}
+          onClose={() => setSeymourRequest(null)}
+        />
       </ForensicsShell>
     </WasteShell>
   )

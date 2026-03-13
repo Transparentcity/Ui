@@ -547,7 +547,7 @@ export function CityMethodologyPage() {
 
   return (
     <WasteShell
-      title="City Methodology"
+      title="Thresholds"
       description="Datasets, analysis decisions, and data handling specifics"
     >
       {isLoading && (

@@ -57,7 +57,7 @@ describe("WasteShell", () => {
   })
 
   it("shows the selected city name as a badge next to the title", () => {
-    render(<WasteShell title="Command Center">Content</WasteShell>)
+    render(<WasteShell title="Workspace">Content</WasteShell>)
     const badges = screen.getAllByText("San Francisco")
     expect(badges.length).toBeGreaterThanOrEqual(1)
     const badge = badges.find((el) => el.className.includes("purple"))
@@ -85,8 +85,10 @@ describe("WasteShell", () => {
 
   it("renders tab navigation links", () => {
     render(<WasteShell title="Test">Content</WasteShell>)
-    expect(screen.getByText("Command Center")).toBeInTheDocument()
-    expect(screen.getByText("Operations")).toBeInTheDocument()
-    expect(screen.getByText("Forensics")).toBeInTheDocument()
+    expect(screen.getByText("Workspace")).toBeInTheDocument()
+    expect(screen.getByText("Guardrails API")).toBeInTheDocument()
+    expect(screen.getByText("Investigations")).toBeInTheDocument()
+    expect(screen.getByText("Backtrace")).toBeInTheDocument()
+    expect(screen.getByText("Thresholds")).toBeInTheDocument()
   })
 })

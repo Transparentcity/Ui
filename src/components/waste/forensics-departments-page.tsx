@@ -25,7 +25,7 @@ export function ForensicsDepartmentsPage() {
 
   return (
     <WasteShell
-      title="Forensics"
+      title="Backtrace"
       description="Historical analysis and investigation workspace"
     >
       <ForensicsShell title="Department Risk Profiles">

@@ -110,7 +110,7 @@ const EVENT_TYPES: EventType[] = [
       event_type: "vendor_creation",
       vendor_name: "Acme Consulting Group LLC",
       tax_id: "XX-XXX4821",
-      address: "1847 Market St, San Francisco, CA",
+      address: "1847 Market St, Anytown, US",
       contact_email: "billing@acme-cg.com",
       requested_by: "procurement_dept",
       category: "Professional Services",
@@ -139,7 +139,7 @@ const EVENT_TYPES: EventType[] = [
     payload: {
       event_type: "contract_amendment",
       contract_id: "CT-2023-0447",
-      vendor_name: "Bay Area Infrastructure Inc",
+      vendor_name: "Metro Infrastructure Inc",
       original_amount: 250000,
       amendment_amount: 187500,
       new_total: 437500,

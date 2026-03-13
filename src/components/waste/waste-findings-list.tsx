@@ -18,6 +18,7 @@ export interface GroupedSubcategory {
 interface WasteFindingsListProps {
   findings: WasteFinding[]
   onAskSeymour?: (finding: WasteFinding) => void
+  cityId?: number
 }
 
 const severityOrder = { critical: 0, high: 1, medium: 2 }
@@ -67,6 +68,7 @@ function sortByMostRecent(items: WasteFinding[]): WasteFinding[] {
 export function WasteFindingsList({
   findings,
   onAskSeymour,
+  cityId,
 }: WasteFindingsListProps) {
   const [expandedFindingId, setExpandedFindingId] = useState<string | null>(null)
 
@@ -150,6 +152,7 @@ export function WasteFindingsList({
           expandedFindingId={expandedFindingId}
           onFindingToggle={handleFindingToggle}
           onAskSeymour={onAskSeymour}
+          cityId={cityId}
         />
       ))}
     </div>

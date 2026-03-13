@@ -5001,6 +5001,10 @@ export interface WasteFinding {
     domain_risks?: Record<string, number>;
     finding_count?: number;
   } | null;
+  is_recurring?: boolean;
+  recurrence_count?: number;
+  consolidated_into?: string | null;
+  supporting_findings?: string[] | null;
 }
 
 export interface WasteDataFreshness {
@@ -5031,6 +5035,8 @@ export interface WasteSummaryResponse {
   net_exposure: number | null;
   departments_affected: number;
   categories: WasteCategorySummary[];
+  suppressed_below_materiality?: number;
+  suppressed_below_confidence?: number;
 }
 
 export interface WasteAnalyzeResponse {
@@ -5243,11 +5249,13 @@ export interface SyncWasteReviewQueueResponse {
 export function getWasteAnalysis(
   token: string,
   category?: string,
-  forceRefresh?: boolean
+  forceRefresh?: boolean,
+  cityId?: number
 ): Promise<WasteAnalyzeResponse> {
   const params = new URLSearchParams();
   if (category) params.append("category", category);
   if (forceRefresh) params.append("force_refresh", "true");
+  if (cityId != null) params.append("city_id", String(cityId));
   const query = params.toString();
   const path = `/api/waste/analyze${query ? `?${query}` : ""}`;
   return request<WasteAnalyzeResponse>(path, "GET", undefined, token);
@@ -5261,9 +5269,13 @@ export function runWasteAnalysis(
 }
 
 export function getWasteSummary(
-  token: string
+  token: string,
+  cityId?: number
 ): Promise<WasteSummaryResponse> {
-  return request<WasteSummaryResponse>("/api/waste/summary", "GET", undefined, token);
+  const params = new URLSearchParams();
+  if (cityId != null) params.append("city_id", String(cityId));
+  const query = params.toString();
+  return request<WasteSummaryResponse>(`/api/waste/summary${query ? `?${query}` : ""}`, "GET", undefined, token);
 }
 
 export function getWasteRunResult(
@@ -5410,9 +5422,12 @@ export function syncWasteReviewQueue(
 export async function exportWasteFindings(
   token: string,
   category: string,
-  format: "csv" | "json" | "xlsx"
+  format: "csv" | "json" | "xlsx",
+  cityId?: number
 ): Promise<Blob> {
-  const url = `${API_BASE}/api/waste/export/${category}?format=${format}`;
+  const params = new URLSearchParams({ format });
+  if (cityId != null) params.append("city_id", String(cityId));
+  const url = `${API_BASE}/api/waste/export/${category}?${params.toString()}`;
   const res = await fetch(url, {
     method: "GET",
     credentials: "include",
@@ -5428,9 +5443,12 @@ export async function exportWasteFindings(
 
 export async function exportAuditorReport(
   token: string,
-  category: string = "all"
+  category: string = "all",
+  cityId?: number
 ): Promise<Blob> {
-  const url = `${API_BASE}/api/waste/export-report?category=${encodeURIComponent(category)}`;
+  const params = new URLSearchParams({ category });
+  if (cityId != null) params.append("city_id", String(cityId));
+  const url = `${API_BASE}/api/waste/export-report?${params.toString()}`;
   const res = await fetch(url, {
     method: "GET",
     credentials: "include",

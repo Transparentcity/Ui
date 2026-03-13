@@ -22,7 +22,7 @@ const EXPORT_CATEGORIES = [
 export function ForensicsExportsPage() {
   return (
     <WasteShell
-      title="Forensics"
+      title="Backtrace"
       description="Historical analysis and investigation workspace"
     >
       <ForensicsShell title="Evidence Export">
