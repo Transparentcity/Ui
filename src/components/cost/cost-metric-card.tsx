@@ -10,9 +10,9 @@ import type { CostMetricResult } from "@/lib/apiClient"
 
 const ICON_MAP: Record<string, LucideIcon> = {
   Bus, ShieldAlert, Phone, Flame, Home, Heart,
-  FileText, Ticket, PaintBucket: Paintbrush, Paintbrush,
-  BookOpen, Users,
+  FileText, Ticket, BookOpen, Users,
   Construction, UtensilsCrossed, PawPrint,
+  PaintBucket: Paintbrush,
 }
 
 function formatCost(cost: number): string {
@@ -94,7 +94,7 @@ export function CostMetricCard({ metric, cityAName, cityBName, useAdjusted, onCl
       <div className="flex items-center justify-between mb-2">
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${ratioColor(displayRatio)}`}>
           {moreExpensive} is {displayRatioValue.toFixed(1)}x more
-          {useAdjusted ? " (COL adj.)" : ""}
+          {useAdjusted ? " (adjusted for local prices)" : ""}
         </span>
       </div>
 
@@ -103,7 +103,9 @@ export function CostMetricCard({ metric, cityAName, cityBName, useAdjusted, onCl
           {tier.label}
         </span>
         <span className="text-[10px] text-gray-400">
-          {metric.city_a.source_name} · {metric.city_a.source_year}
+          {metric.city_a.source_name === metric.city_b.source_name
+            ? `${metric.city_a.source_name} · ${metric.city_a.source_year}`
+            : "Sources vary · click for details"}
         </span>
       </div>
     </div>

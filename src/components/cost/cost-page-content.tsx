@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useAuth0 } from "@auth0/auth0-react"
 import { Card, CardContent } from "@/components/ui/card"
 import {
-  TrendingUp, ArrowRightLeft, AlertTriangle, DollarSign,
+  TrendingUp, ArrowRightLeft, Scale, DollarSign,
 } from "lucide-react"
 import { getCostBasket, type CostBasketResponse, type CostMetricResult } from "@/lib/apiClient"
 import { CostMetricCard } from "./cost-metric-card"
@@ -13,7 +13,8 @@ import { CostDetailDrawer } from "./cost-detail-drawer"
 import Loader from "@/components/Loader"
 
 function formatRatio(ratio: number): string {
-  return `${ratio.toFixed(1)}x`
+  const display = ratio >= 1 ? ratio : 1 / ratio
+  return `${display.toFixed(1)}x`
 }
 
 interface StatItemProps {
@@ -128,7 +129,7 @@ export function CostPageContent() {
             <StatItem
               label="More Expensive"
               value={data.more_expensive_city}
-              subtext={`on ${data.metrics_available} of 13 metrics`}
+              subtext={`across ${data.metrics_available} metrics compared`}
               icon={<DollarSign className="h-5 w-5 text-red-500" />}
               accentColor="#ef4444"
             />
@@ -143,7 +144,7 @@ export function CostPageContent() {
               label="After Cost-of-Living"
               value={`${formatRatio(data.rpp_adjusted_basket_index)} more`}
               subtext="Adjusted for regional prices (BLS RPP)"
-              icon={<AlertTriangle className="h-5 w-5 text-purple-500" />}
+              icon={<Scale className="h-5 w-5 text-purple-500" />}
               accentColor="#8b5cf6"
             />
           </div>
@@ -170,7 +171,7 @@ export function CostPageContent() {
             </button>
           </div>
           {useAdjusted && (
-            <span className="text-[10px] text-gray-400">SF RPP 115.6, Chicago RPP 103.6 (BLS 2024)</span>
+            <span className="text-[10px] text-gray-400">Regional Price Parity: SF 115.6, Chicago 103.6 (BLS 2024)</span>
           )}
         </div>
 
@@ -208,7 +209,7 @@ export function CostPageContent() {
           <div className="px-5 pb-4 space-y-2 text-xs text-gray-600">
             <p><strong>Unit cost</strong> = agency/program budget &divide; service volume. This is the average cost, not the marginal cost of one additional unit.</p>
             <p><strong>Cost-of-living adjustment</strong> uses BLS Regional Price Parities (2024). SF metro = 115.6, Chicago metro = 103.6, national = 100.</p>
-            <p><strong>Data tiers:</strong> FEDERAL DATA = published by NTD, NCES, or IMLS (standardised, audited). OPEN DATA = computed from city Socrata portals. RESEARCHED = from city controller reports or investigative journalism.</p>
+            <p><strong>Data tiers:</strong> FEDERAL DATA = published by NTD or IMLS (standardized, audited). OPEN DATA = computed from city Socrata portals. RESEARCHED = from city controller reports or investigative journalism.</p>
             <p><strong>City vs county:</strong> SF is a consolidated city-county. Most metrics compare city-level agencies directly. Jail and K-12 are flagged where the provider differs.</p>
             <p><strong>Sources:</strong> National Transit Database, NCES F-33 Survey, IMLS Public Libraries Survey, DataSF, Chicago Data Portal, VERA Institute, Silverstein/Civic Federation, SF Controller, WBEZ/Sun-Times.</p>
           </div>

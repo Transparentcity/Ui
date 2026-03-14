@@ -17,9 +17,9 @@ import type { CostMetricResult, CostCityResult } from "@/lib/apiClient"
 
 const ICON_MAP: Record<string, LucideIcon> = {
   Bus, ShieldAlert, Phone, Flame, Home, Heart,
-  FileText, Ticket, PaintBucket: Paintbrush, Paintbrush,
-  BookOpen, Users,
+  FileText, Ticket, BookOpen, Users,
   Construction, UtensilsCrossed, PawPrint,
+  PaintBucket: Paintbrush,
 }
 
 function formatDollar(n: number): string {
@@ -76,6 +76,7 @@ export function CostDetailDrawer({ metric, cityAName, cityBName, open, onClose }
   const Icon = ICON_MAP[metric.icon] ?? FileText
   const moreExpensive = metric.ratio >= 1 ? cityAName : cityBName
   const rawRatio = metric.ratio >= 1 ? metric.ratio : 1 / metric.ratio
+  const rppMoreExpensive = metric.rpp_adjusted_ratio >= 1 ? cityAName : cityBName
   const adjRatio = metric.rpp_adjusted_ratio >= 1 ? metric.rpp_adjusted_ratio : 1 / metric.rpp_adjusted_ratio
 
   return (
@@ -98,7 +99,7 @@ export function CostDetailDrawer({ metric, cityAName, cityBName, open, onClose }
           <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Comparison</p>
           <div className="space-y-1 text-sm text-gray-700">
             <p>Raw: <span className="font-medium">{moreExpensive} is {rawRatio.toFixed(2)}x more expensive</span></p>
-            <p>After cost-of-living adjustment: <span className="font-medium">{moreExpensive} is {adjRatio.toFixed(2)}x more</span></p>
+            <p>After cost-of-living adjustment: <span className="font-medium">{rppMoreExpensive} is {adjRatio.toFixed(2)}x more</span></p>
             <p className="text-xs text-gray-500">RPP: SF 115.6, Chicago 103.6 (BLS 2024)</p>
           </div>
         </div>
