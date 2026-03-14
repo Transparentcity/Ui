@@ -190,13 +190,47 @@ export function CostPageContent() {
 
         {/* Methodology — collapsed by default */}
         <details className="rounded-md border border-gray-200 bg-white">
-          <summary className="cursor-pointer px-3 py-2 text-[11px] font-medium text-gray-500 hover:bg-gray-50">
+          <summary className="cursor-pointer px-4 py-2.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
             Methodology and Sources
           </summary>
-          <div className="px-3 pb-3 space-y-1.5 text-[10px] text-gray-500">
-            <p><strong>Unit cost</strong> = agency/program budget &divide; service volume. Average cost, not marginal.</p>
-            <p><strong>COL adjustment</strong> uses BLS Regional Price Parities (2024). SF = 115.6, Chicago = 103.6.</p>
-            <p><strong>Sources:</strong> NTD, IMLS, DataSF, Chicago Data Portal, VERA, Silverstein/Civic Federation, SF Controller, WBEZ.</p>
+          <div className="px-4 pb-4 space-y-3 text-xs text-gray-600 border-t border-gray-100 pt-3">
+            <div>
+              <p className="font-semibold text-gray-700 mb-1">How unit costs are calculated</p>
+              <p>Each metric divides a city agency or program budget by the number of times that service was delivered: <strong>unit cost = budget &divide; volume</strong>. This is the average cost to the city, not the marginal cost of one more unit. It includes overhead, personnel, benefits, and administration unless noted otherwise.</p>
+            </div>
+            <div>
+              <p className="font-semibold text-gray-700 mb-1">Cost-of-living adjustment</p>
+              <p>The &ldquo;COL Adjusted&rdquo; toggle divides each cost by the BLS Regional Price Parity index for that metro area, normalizing to the national average. This answers: &ldquo;If local prices were average, would this service still cost more?&rdquo; San Francisco RPP = 115.6 (15.6% above national average), Chicago RPP = 103.6 (3.6% above).</p>
+            </div>
+            <div>
+              <p className="font-semibold text-gray-700 mb-1">Data tiers</p>
+              <ul className="list-disc list-inside space-y-0.5 ml-1">
+                <li><strong>Federal data</strong> &mdash; Published by standardized federal programs (National Transit Database, IMLS Public Libraries Survey). Audited, comparable across every US city.</li>
+                <li><strong>Open data</strong> &mdash; Computed from city Socrata portals by dividing department budgets by operational volume datasets. Updated as portals refresh (daily to weekly).</li>
+                <li><strong>Researched</strong> &mdash; Sourced from city controller audits, investigative journalism, or national cost estimates. Updated when new reports are published.</li>
+              </ul>
+            </div>
+            <div>
+              <p className="font-semibold text-gray-700 mb-1">City vs. county</p>
+              <p>San Francisco is a consolidated city-county &mdash; its budget includes services (jails, courts, hospital) that in Chicago are handled by Cook County. For the unit costs shown here, all compared services are provided by identifiable city-level agencies in both places, so the city-county structure does not distort the comparison.</p>
+            </div>
+            <div>
+              <p className="font-semibold text-gray-700 mb-1">Card colors</p>
+              <p>The colored left border on each card indicates the service category: <span className="inline-block w-2 h-2 rounded-sm bg-emerald-500 align-middle mx-0.5" /> Getting Around, <span className="inline-block w-2 h-2 rounded-sm bg-purple-500 align-middle mx-0.5" /> Public Safety, <span className="inline-block w-2 h-2 rounded-sm bg-amber-500 align-middle mx-0.5" /> Housing &amp; Health, <span className="inline-block w-2 h-2 rounded-sm bg-indigo-500 align-middle mx-0.5" /> City Services, <span className="inline-block w-2 h-2 rounded-sm bg-pink-500 align-middle mx-0.5" /> Your Government.</p>
+            </div>
+            <div>
+              <p className="font-semibold text-gray-700 mb-1">Sources</p>
+              <p>National Transit Database (transit) &middot; IMLS Public Libraries Survey (libraries) &middot; DataSF and Chicago Data Portal (budget actuals, 311 cases, permits, citations, arrests, fire incidents, employee compensation) &middot; VERA Institute of Justice (policing costs) &middot; Silverstein / Civic Federation (Chicago fully loaded police costs) &middot; SF Controller (shelter audit, March 2025) &middot; WBEZ / Chicago Sun-Times (Cook County jail investigation) &middot; BLS / BEA Regional Price Parities (cost-of-living adjustment).</p>
+            </div>
+            <div>
+              <p className="font-semibold text-gray-700 mb-1">Important caveats</p>
+              <ul className="list-disc list-inside space-y-0.5 ml-1">
+                <li>Unit cost &ne; marginal cost. Reducing one arrest does not save $50,700 &mdash; most costs are fixed (salaries, facilities).</li>
+                <li>Some metrics use national average estimates where city-specific budget isolation is not possible (e.g., pothole repair cost).</li>
+                <li>Federal data sources (NTD, IMLS) lag 1&ndash;2 years by design. Open data metrics use the most recent fiscal year available.</li>
+                <li>Click any card for full calculation details, source links, and metric-specific caveats.</li>
+              </ul>
+            </div>
           </div>
         </details>
 
