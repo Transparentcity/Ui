@@ -15,10 +15,18 @@ const ICON_MAP: Record<string, LucideIcon> = {
   PaintBucket: Paintbrush,
 }
 
+const CATEGORY_ACCENT: Record<string, string> = {
+  getting_around: "#10b981",
+  public_safety: "#8b5cf6",
+  housing_health: "#f59e0b",
+  city_services: "#6366f1",
+  your_government: "#ec4899",
+}
+
 function formatCost(cost: number): string {
   if (cost >= 100_000) return `$${Math.round(cost / 1000).toLocaleString()}K`
   if (cost >= 1_000) return `$${Math.round(cost).toLocaleString()}`
-  if (cost >= 1) return `$${cost.toFixed(2)}`
+  if (cost >= 1) return `$${cost.toFixed(0)}`
   return `$${cost.toFixed(2)}`
 }
 
@@ -27,17 +35,6 @@ function ratioColor(ratio: number): string {
   if (r < 1.1) return "bg-emerald-100 text-emerald-700"
   if (r <= 2.0) return "bg-amber-100 text-amber-700"
   return "bg-red-100 text-red-700"
-}
-
-function tierBadge(tier: string): { label: string; cls: string } {
-  switch (tier) {
-    case "UNIVERSAL":
-      return { label: "FEDERAL DATA", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" }
-    case "SOCRATA":
-      return { label: "OPEN DATA", cls: "bg-blue-50 text-blue-700 border-blue-200" }
-    default:
-      return { label: "RESEARCHED", cls: "bg-amber-50 text-amber-700 border-amber-200" }
-  }
 }
 
 interface CostMetricCardProps {
@@ -59,55 +56,39 @@ export function CostMetricCard({ metric, cityAName, cityBName, useAdjusted, onCl
   const displayRatio = useAdjusted ? metric.rpp_adjusted_ratio : metric.ratio
   const moreExpensive = displayRatio >= 1 ? cityAName : cityBName
   const displayRatioValue = displayRatio >= 1 ? displayRatio : 1 / displayRatio
-  const tier = tierBadge(metric.tier)
+  const accent = CATEGORY_ACCENT[metric.category] ?? "#6366f1"
 
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-lg border border-gray-200 p-5 cursor-pointer hover:shadow-md transition-shadow"
+      className="relative bg-white rounded-md border border-gray-200 pl-3.5 pr-2.5 py-2 cursor-pointer hover:shadow-sm transition-shadow overflow-hidden"
     >
-      <div className="flex items-center gap-2 mb-3">
-        <Icon className="h-4 w-4 text-gray-500" />
-        <span className="text-sm font-semibold text-gray-800">{metric.short_label}</span>
+      <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-md" style={{ backgroundColor: accent }} />
+
+      <div className="flex items-center gap-1.5 mb-1">
+        <Icon className="h-3 w-3 text-gray-400 shrink-0" />
+        <span className="text-[11px] font-semibold text-gray-800 truncate">{metric.short_label}</span>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-3">
+      <div className="grid grid-cols-2 gap-2 mb-1.5">
         <div>
-          <p className="text-xs text-gray-500 mb-0.5">{cityAName}</p>
-          <p className="text-2xl font-bold tabular-nums">{formatCost(costA)}</p>
+          <p className="text-[9px] text-gray-400 leading-none mb-0.5">{cityAName}</p>
+          <p className="text-base font-bold tabular-nums leading-tight">{formatCost(costA)}</p>
         </div>
         <div>
-          <p className="text-xs text-gray-500 mb-0.5">{cityBName}</p>
-          <p className="text-2xl font-bold tabular-nums">{formatCost(costB)}</p>
+          <p className="text-[9px] text-gray-400 leading-none mb-0.5">{cityBName}</p>
+          <p className="text-base font-bold tabular-nums leading-tight">{formatCost(costB)}</p>
         </div>
       </div>
 
-      <div className="space-y-1.5 mb-3">
-        <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-          <div className="h-full rounded-full bg-purple-500" style={{ width: `${barWidthA}%` }} />
-        </div>
-        <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-          <div className="h-full rounded-full bg-indigo-500" style={{ width: `${barWidthB}%` }} />
-        </div>
+      <div className="flex gap-0.5 mb-1.5">
+        <div className="h-1.5 rounded-full bg-purple-500" style={{ width: `${barWidthA}%` }} />
+        <div className="h-1.5 rounded-full bg-indigo-400" style={{ width: `${barWidthB}%` }} />
       </div>
 
-      <div className="flex items-center justify-between mb-2">
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${ratioColor(displayRatio)}`}>
-          {moreExpensive} is {displayRatioValue.toFixed(1)}x more
-          {useAdjusted ? " (adjusted for local prices)" : ""}
-        </span>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium border ${tier.cls}`}>
-          {tier.label}
-        </span>
-        <span className="text-[10px] text-gray-400">
-          {metric.city_a.source_name === metric.city_b.source_name
-            ? `${metric.city_a.source_name} · ${metric.city_a.source_year}`
-            : "Sources vary · click for details"}
-        </span>
-      </div>
+      <span className={`inline-block rounded-full px-1.5 py-px text-[9px] font-medium leading-tight ${ratioColor(displayRatio)}`}>
+        {moreExpensive} {displayRatioValue.toFixed(1)}x{useAdjusted ? " adj." : ""}
+      </span>
     </div>
   )
 }
