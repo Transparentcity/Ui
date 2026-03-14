@@ -24,10 +24,13 @@ const CATEGORY_ACCENT: Record<string, string> = {
 }
 
 function formatCost(cost: number): string {
-  if (cost >= 100_000) return `$${Math.round(cost / 1000).toLocaleString()}K`
-  if (cost >= 1_000) return `$${Math.round(cost).toLocaleString()}`
-  if (cost >= 1) return `$${cost.toFixed(0)}`
-  return `$${cost.toFixed(2)}`
+  const showCents = Math.abs(cost) < 10
+  return cost.toLocaleString(undefined, {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: showCents ? 2 : 0,
+    maximumFractionDigits: showCents ? 2 : 0,
+  })
 }
 
 function ratioColor(ratio: number): string {
@@ -35,6 +38,14 @@ function ratioColor(ratio: number): string {
   if (r < 1.1) return "bg-emerald-100 text-emerald-700"
   if (r <= 2.0) return "bg-amber-100 text-amber-700"
   return "bg-red-100 text-red-700"
+}
+
+function costBasisColor(label: string): string {
+  if (label === "Fully loaded cost") return "bg-purple-100 text-purple-700"
+  if (label === "Operating cost") return "bg-emerald-100 text-emerald-700"
+  if (label === "Contract rate") return "bg-blue-100 text-blue-700"
+  if (label.includes("estimate")) return "bg-amber-100 text-amber-700"
+  return "bg-gray-100 text-gray-700"
 }
 
 interface CostMetricCardProps {
@@ -74,10 +85,22 @@ export function CostMetricCard({ metric, cityAName, cityBName, useAdjusted, onCl
         <div>
           <p className="text-[9px] text-gray-400 leading-none mb-0.5">{cityAName}</p>
           <p className="text-base font-bold tabular-nums leading-tight">{formatCost(costA)}</p>
+          <span
+            className={`mt-1 inline-block rounded-full px-1.5 py-px text-[8px] font-medium leading-tight ${costBasisColor(metric.city_a.cost_basis_label)}`}
+            title={metric.city_a.cost_basis_label}
+          >
+            {metric.city_a.cost_basis_label}
+          </span>
         </div>
         <div>
           <p className="text-[9px] text-gray-400 leading-none mb-0.5">{cityBName}</p>
           <p className="text-base font-bold tabular-nums leading-tight">{formatCost(costB)}</p>
+          <span
+            className={`mt-1 inline-block rounded-full px-1.5 py-px text-[8px] font-medium leading-tight ${costBasisColor(metric.city_b.cost_basis_label)}`}
+            title={metric.city_b.cost_basis_label}
+          >
+            {metric.city_b.cost_basis_label}
+          </span>
         </div>
       </div>
 

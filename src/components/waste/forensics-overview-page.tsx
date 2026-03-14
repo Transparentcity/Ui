@@ -382,7 +382,7 @@ function TrustCalibrationSection({ cityId }: { cityId: number | null }) {
   })
 
   const laneEntries = useMemo(() => {
-    const lanes = trustReportQ.data?.report.policy_lane_summary.lanes ?? {}
+    const lanes = trustReportQ.data?.report?.policy_lane_summary?.lanes ?? {}
     return Object.entries(lanes).sort(([left], [right]) => {
       if (left === "default") return 1
       if (right === "default") return -1
@@ -390,9 +390,10 @@ function TrustCalibrationSection({ cityId }: { cityId: number | null }) {
     })
   }, [trustReportQ.data])
 
-  const topDeltas = trustReportQ.data?.report.top_weight_deltas.slice(0, 5) ?? []
+  const topDeltas =
+    trustReportQ.data?.report?.top_weight_deltas?.slice(0, 5) ?? []
   const thresholdChanges =
-    trustReportQ.data?.report.threshold_changes.slice(0, 5) ?? []
+    trustReportQ.data?.report?.threshold_changes?.slice(0, 5) ?? []
   const metrics = trustMetricsQ.data
   const report = trustReportQ.data?.report
 

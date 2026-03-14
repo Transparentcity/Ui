@@ -250,7 +250,7 @@ export function CommandCenterPage() {
   }, [avgPrecision])
 
   const laneEntries = useMemo(() => {
-    const lanes = trustReportQ.data?.report.policy_lane_summary.lanes ?? {}
+    const lanes = trustReportQ.data?.report?.policy_lane_summary?.lanes ?? {}
     return Object.entries(lanes).sort(([left], [right]) => {
       if (left === "default") return 1
       if (right === "default") return -1
@@ -259,7 +259,7 @@ export function CommandCenterPage() {
   }, [trustReportQ.data])
 
   const trustReportGeneratedAt = useMemo(() => {
-    const generatedAt = trustReportQ.data?.report.generated_at
+    const generatedAt = trustReportQ.data?.report?.generated_at
     if (!generatedAt) return null
     const parsed = new Date(generatedAt)
     if (Number.isNaN(parsed.getTime())) return null
@@ -345,7 +345,7 @@ export function CommandCenterPage() {
             <div className="h-20 rounded-lg bg-gray-100 animate-pulse" />
             <div className="h-20 rounded-lg bg-gray-100 animate-pulse" />
           </div>
-        ) : trustReportQ.data?.report.policy_lane_summary ? (
+        ) : trustReportQ.data?.report?.policy_lane_summary ? (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
               <div className="rounded-lg border border-violet-100 bg-violet-50 p-4">

@@ -197,6 +197,7 @@ export function CostPageContent() {
             <div>
               <p className="font-semibold text-gray-700 mb-1">How unit costs are calculated</p>
               <p>Each metric divides a city agency or program budget by the number of times that service was delivered: <strong>unit cost = budget &divide; volume</strong>. This is the average cost to the city, not the marginal cost of one more unit. It includes overhead, personnel, benefits, and administration unless noted otherwise.</p>
+              <p className="mt-1">The small badges on each city number show the <strong>cost basis</strong> being used, such as operating cost, fully loaded cost, contract rate, or estimate.</p>
             </div>
             <div>
               <p className="font-semibold text-gray-700 mb-1">Cost-of-living adjustment</p>
@@ -237,38 +238,38 @@ export function CostPageContent() {
               <div className="space-y-3">
 
                 <div className="border-l-2 border-emerald-400 pl-2.5">
-                  <p className="font-medium text-gray-700">Transit Ride &mdash; $8.97 (SF) vs $6.20 (CHI)</p>
-                  <p>Published by the <strong>National Transit Database</strong> (FTA). Operating expense &divide; unlinked passenger trips. This is the full cost to the transit agency per boarding, not the fare. SF Muni FY2022; CTA FY2024. No calculation needed &mdash; NTD publishes the per-trip number directly.</p>
+                  <p className="font-medium text-gray-700">Transit Ride &mdash; $7.03 (SF) vs $6.20 (CHI)</p>
+                  <p>Published by the <strong>National Transit Database</strong> (FTA). Operating expense &divide; unlinked passenger trips. This is the full cost to the transit agency per boarding, not the fare. Both cities now use FY2024 NTD data. No custom city calculation is needed &mdash; NTD publishes the ingredients directly.</p>
                 </div>
 
                 <div className="border-l-2 border-purple-400 pl-2.5">
-                  <p className="font-medium text-gray-700">Arrest &mdash; $50,700 (SF) vs $65,500 (CHI)</p>
-                  <p><strong>SF:</strong> SFPD total department spending from DataSF budget actuals (<code>bpnb-jwfb</code>, dept = &ldquo;Police&rdquo;) &divide; arrests from police incident reports (<code>wg3w-h783</code>, filtered to resolution = &ldquo;Cite or Arrest Adult&rdquo;). <strong>CHI:</strong> Fully loaded police cost of $3.8B (Silverstein / Civic Federation study, Nov 2024 &mdash; includes $1.1B pensions, $212M health insurance, $42.5M legal settlements) &divide; 58,074 arrests from CPD arrest dataset (<code>dpt3-jri9</code>). &ldquo;Fully loaded&rdquo; means all costs attributable to policing, not just the official CPD budget.</p>
+                  <p className="font-medium text-gray-700">Arrest &mdash; ~$35,500 (SF live FY2025) vs $65,500 (CHI)</p>
+                  <p><strong>SF:</strong> SFPD FY2025 department actuals from DataSF budget data (<code>bpnb-jwfb</code>, dept = &ldquo;Police&rdquo;) &divide; FY2025 arrests from police incident reports (<code>wg3w-h783</code>, filtered to resolution = &ldquo;Cite or Arrest Adult&rdquo;). <strong>CHI:</strong> Fully loaded police cost of $3.8B (Silverstein / Civic Federation study, Nov 2024 &mdash; includes $1.1B pensions, $212M health insurance, $42.5M legal settlements) &divide; 58,074 arrests from CPD arrest dataset (<code>dpt3-jri9</code>). &ldquo;Fully loaded&rdquo; means all costs attributable to policing, not just the official CPD budget.</p>
                 </div>
 
                 <div className="border-l-2 border-purple-400 pl-2.5">
                   <p className="font-medium text-gray-700">911 Call &mdash; $55 (SF) vs $38 (CHI)</p>
-                  <p><strong>SF:</strong> Department of Emergency Management spending (<code>bpnb-jwfb</code>, dept = &ldquo;Emergency Management&rdquo;) &divide; distinct dispatched calls (<code>nuek-vuh3</code>, COUNT DISTINCT call_number). <strong>CHI:</strong> Office of Emergency Management &amp; Communications (OEMC) budget &divide; dispatched calls. Includes call-taking, dispatch, and communications infrastructure.</p>
+                  <p><strong>SF:</strong> Currently shown as a 2024 estimate derived from DEM operating cost and estimated total 911 call volume. <strong>CHI:</strong> OEMC FY2025 budget divided by estimated all-call volume. These are the most honest current numbers we have, but they are center-wide call-cost estimates, not clean per-dispatch actuals.</p>
                 </div>
 
                 <div className="border-l-2 border-purple-400 pl-2.5">
-                  <p className="font-medium text-gray-700">Fire Response &mdash; $2,800 (SF) vs $1,500 (CHI)</p>
-                  <p><strong>SF:</strong> Fire Department spending (<code>bpnb-jwfb</code>, dept = &ldquo;Fire Department&rdquo;) &divide; distinct fire incidents (<code>wr8u-xric</code>). Includes suppression, EMS, prevention, and administration. <strong>CHI:</strong> CFD budget from appropriations (<code>axxr-vais</code>, dept = &ldquo;FIRE&rdquo;) &divide; incident volume from OEMC estimates. Chicago fire incident data is not on Socrata; volume is estimated from department reports.</p>
+                  <p className="font-medium text-gray-700">Fire Response &mdash; ~$8,900 (SF live FY2025) vs $1,500 (CHI)</p>
+                  <p><strong>SF:</strong> Fire Department FY2025 actuals from DataSF budget data (<code>bpnb-jwfb</code>, dept = &ldquo;Fire Department&rdquo;) &divide; distinct FY2025 incidents from <code>wr8u-xric</code>. Includes suppression, EMS, prevention, and administration. <strong>CHI:</strong> Chicago Fire Department FY2025 appropriations from <code>axxr-vais</code> divided by incident volume estimated from department/OEMC reports. Chicago fire incident volume is still estimated rather than portal-derived.</p>
                 </div>
 
                 <div className="border-l-2 border-amber-400 pl-2.5">
                   <p className="font-medium text-gray-700">Shelter Bed-Night &mdash; $119.21 (SF) vs $35 (CHI)</p>
-                  <p><strong>SF:</strong> Published directly by the SF Controller in March 2025 (<em>Assessment of the San Francisco Shelter System</em>). $119.21 is the per-filled-bed-per-night cost for adult congregate shelters; $176M total across 3,228 beds in 33 shelters. Range: under $100 to over $300/night depending on facility. <strong>CHI:</strong> $35/night is the DFSS contract rate for city-owned and city-leased New Arrivals shelters (April 2024 RFP). True all-in cost is higher but not published. Chicago bed utilization data from <code>vg8w-2w9y</code>.</p>
+                  <p><strong>SF:</strong> Published directly by the SF Controller in March 2025 (<em>Assessment of the San Francisco Shelter System</em>) using FY2023 actual expenditure data. $119.21 is the per-filled-bed-per-night cost for adult congregate shelters; $176M total across 3,228 beds in 33 shelters. Range: under $100 to over $300/night depending on facility. <strong>CHI:</strong> $35/night is the DFSS contract rate for city-owned and city-leased New Arrivals shelters (April 2024 RFP). True all-in cost is higher but not published. Chicago bed utilization data from <code>vg8w-2w9y</code>.</p>
                 </div>
 
                 <div className="border-l-2 border-amber-400 pl-2.5">
                   <p className="font-medium text-gray-700">Naloxone Dose &mdash; $28 (SF) vs $25 (CHI)</p>
-                  <p>Estimated cost per dose based on public health department program expenditures and distribution volume. <strong>SF:</strong> DPH naloxone distribution contracts (FY2024). <strong>CHI:</strong> CDPH naloxone program (FY2024). Includes procurement ($2&ndash;$75 per kit depending on channel), distribution logistics, and training. One dose preventing an overdose saves an estimated $1,000&ndash;$1,500 in emergency response costs.</p>
+                  <p>Estimated cost per <strong>distributed</strong> dose based on public health program expenditures and distribution volume. <strong>SF:</strong> FY2022&ndash;23 distribution volume paired with 2024 DPH contract costs. <strong>CHI:</strong> FY2024 public-health benchmark estimate. Includes procurement ($2&ndash;$75 per kit depending on channel), distribution logistics, and training. This is not a published cost per administered EMS field dose.</p>
                 </div>
 
                 <div className="border-l-2 border-indigo-400 pl-2.5">
-                  <p className="font-medium text-gray-700">Building Permit &mdash; $3,500 (SF) vs $1,000 (CHI)</p>
-                  <p><strong>SF:</strong> Department of Building Inspection spending (<code>bpnb-jwfb</code>, dept = &ldquo;Building Inspection&rdquo;) &divide; distinct permits (<code>i98e-djp9</code>). DBI is fee-supported &mdash; permit fees are set at cost-recovery levels under California law. <strong>CHI:</strong> Buildings Department budget (<code>axxr-vais</code>, dept = &ldquo;BUILDINGS&rdquo;) &divide; permits issued (<code>ydr8-5enu</code>). Permit mix (simple alteration vs new construction) significantly affects the average.</p>
+                  <p className="font-medium text-gray-700">Building Permit &mdash; $2,114 (SF) vs $1,074 (CHI)</p>
+                  <p><strong>SF:</strong> Department of Building Inspection FY2025 actuals (<code>bpnb-jwfb</code>, dept = &ldquo;Building Inspection&rdquo;) &divide; distinct permits (<code>i98e-djp9</code>). DBI is fee-supported &mdash; permit fees are set at cost-recovery levels under California law. <strong>CHI:</strong> Department of Buildings FY2025 appropriations (<code>axxr-vais</code>) &divide; permits issued (<code>ydr8-5enu</code>). Permit mix (simple alteration vs new construction) significantly affects the average.</p>
                 </div>
 
                 <div className="border-l-2 border-indigo-400 pl-2.5">
@@ -278,17 +279,17 @@ export function CostPageContent() {
 
                 <div className="border-l-2 border-indigo-400 pl-2.5">
                   <p className="font-medium text-gray-700">Graffiti Removal &mdash; $240 (SF) vs $43 (CHI)</p>
-                  <p><strong>SF:</strong> DPW graffiti abatement budget ($20M+) &divide; 311 graffiti service requests (<code>vw6y-z8j6</code>, category = &ldquo;Graffiti&rdquo;). <strong>CHI:</strong> Graffiti Blasters program ($4.6M) &divide; 311 graffiti removal requests (<code>v6vf-nfxy</code>, sr_type = &ldquo;Graffiti Removal Request&rdquo;). The 5.6x gap is partly explained by SF&rsquo;s higher labor costs (RPP 115.6 vs 103.6).</p>
+                  <p><strong>SF:</strong> DPW graffiti abatement budget ($20M+) &divide; 311 graffiti service requests (<code>vw6y-z8j6</code>). <strong>CHI:</strong> Graffiti Blasters program ($4.6M) &divide; 311 graffiti removal requests (<code>v6vf-nfxy</code>, sr_type = &ldquo;Graffiti Removal Request&rdquo;). These remain legacy estimate-based cards because neither city exposes a clean graffiti-only adopted budget line in its portal.</p>
                 </div>
 
                 <div className="border-l-2 border-indigo-400 pl-2.5">
-                  <p className="font-medium text-gray-700">Library Visit &mdash; $26 (SF) vs $11 (CHI)</p>
-                  <p>Published by the <strong>IMLS Public Libraries Survey</strong> (FY2022). Library operating expenditures &divide; annual visits. IMLS covers 9,000+ library systems nationwide with standardized data. SF Public Library serves ~6 million visits/year; Chicago Public Library ~9 million. Digital visits may not be counted consistently across systems.</p>
+                  <p className="font-medium text-gray-700">Library Visit &mdash; $47.47 (SF) vs $25.21 (CHI)</p>
+                  <p>Published by the <strong>IMLS Public Libraries Survey</strong> (FY2023). Library operating expenditures &divide; annual visits using the raw <code>TOTOPEXP</code> and <code>VISITS</code> fields. IMLS covers 9,000+ library systems nationwide with standardized data. Digital visits may not be counted consistently across systems.</p>
                 </div>
 
                 <div className="border-l-2 border-indigo-400 pl-2.5">
                   <p className="font-medium text-gray-700">Pothole Filled &mdash; $150 (SF) vs $150 (CHI)</p>
-                  <p>Estimated from <strong>national average repair costs</strong> ($30&ndash;$50 for a hot-asphalt patch, $100&ndash;$400 for a full repair). Pothole repair budgets are embedded in street maintenance and cannot be isolated as a separate line item in either city. Volume: SF from 311 street-defect cases (<code>vw6y-z8j6</code>, category = &ldquo;Street Defects&rdquo;); CHI from the pothole tracker (<code>wqdh-9gek</code>). Chicago crews often fill all potholes on a block per request.</p>
+                  <p>Estimated from <strong>national average repair costs</strong> ($30&ndash;$50 for a hot-asphalt patch, $100&ndash;$400 for a full repair). Pothole repair budgets are embedded in street maintenance and cannot be isolated as a separate line item in either city, so the dollar figure remains an estimate. The stored denominators now use FY2025 volume from SF 311 and Chicago&rsquo;s pothole tracker. Chicago crews often fill all potholes on a block per request.</p>
                 </div>
 
                 <div className="border-l-2 border-indigo-400 pl-2.5">
@@ -298,7 +299,7 @@ export function CostPageContent() {
 
                 <div className="border-l-2 border-indigo-400 pl-2.5">
                   <p className="font-medium text-gray-700">Stray Animal &mdash; $1,800 (SF) vs $500 (CHI)</p>
-                  <p><strong>SF:</strong> SFACC department budget ($12.3M) &divide; 6,872 animal intakes (dogs, cats, other). <strong>CHI:</strong> CACC budget ($7.52M) &divide; ~15,000 intakes. Both are standalone city departments. Cost per animal varies dramatically by outcome &mdash; a same-day return-to-owner is much cheaper than weeks of shelter care plus veterinary treatment before adoption. Live release rate: SF ~88%, CHI ~86%.</p>
+                  <p><strong>SF:</strong> SFACC department budget ($12.3M) &divide; 6,872 FY2025 animal intakes from the official shelter-statistics page. <strong>CHI:</strong> CACC budget ($7.52M) &divide; ~15,000 FY2025 intakes. Both are standalone city departments. Cost per animal varies dramatically by outcome &mdash; a same-day return-to-owner is much cheaper than weeks of shelter care plus veterinary treatment before adoption. Live release rate: SF ~88%, CHI ~86%.</p>
                 </div>
 
                 <div className="border-l-2 border-pink-400 pl-2.5">

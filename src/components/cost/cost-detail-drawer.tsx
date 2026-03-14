@@ -23,9 +23,13 @@ const ICON_MAP: Record<string, LucideIcon> = {
 }
 
 function formatDollar(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `$${Math.round(n).toLocaleString()}`
-  return `$${n.toFixed(2)}`
+  const showCents = Math.abs(n) < 10
+  return n.toLocaleString(undefined, {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: showCents ? 2 : 0,
+    maximumFractionDigits: showCents ? 2 : 0,
+  })
 }
 
 function formatVolume(n: number): string {
@@ -42,12 +46,25 @@ function govLevelBadge(level: string) {
   return null
 }
 
+function costBasisColor(label: string) {
+  if (label === "Fully loaded cost") return "bg-purple-100 text-purple-700"
+  if (label === "Operating cost") return "bg-emerald-100 text-emerald-700"
+  if (label === "Contract rate") return "bg-blue-100 text-blue-700"
+  if (label.includes("estimate")) return "bg-amber-100 text-amber-700"
+  return "bg-gray-100 text-gray-700"
+}
+
 function CityCalcBlock({ city, cityName, unit }: { city: CostCityResult; cityName: string; unit: string }) {
   const hasMath = city.budget != null && city.volume != null
   return (
     <div className="rounded-md border border-gray-200 p-3">
       <p className="text-xs font-medium text-gray-500 mb-1">{cityName}</p>
       <p className="text-2xl font-bold tabular-nums mb-2">{formatDollar(city.cost)}</p>
+      <div className="mb-2">
+        <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${costBasisColor(city.cost_basis_label)}`}>
+          {city.cost_basis_label}
+        </span>
+      </div>
       {hasMath ? (
         <p className="text-xs text-gray-600">
           {formatDollar(city.budget!)} budget ÷ {formatVolume(city.volume!)} = {formatDollar(city.cost)} {" "}

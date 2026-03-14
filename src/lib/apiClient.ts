@@ -5947,6 +5947,7 @@ export interface CostCityResult {
   budget: number | null;
   quality_value: string | null;
   quality_label: string | null;
+  cost_basis_label: string;
   source_name: string;
   source_url: string | null;
   source_year: string;
