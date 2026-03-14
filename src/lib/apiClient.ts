@@ -5937,4 +5937,91 @@ export function createChatJob(
   return request<ChatJobResponse>("/api/chat/jobs", "POST", payload, token);
 }
 
+// ============================================================================
+// COST COMPARISON API
+// ============================================================================
 
+export interface CostCityResult {
+  cost: number;
+  volume: number | null;
+  budget: number | null;
+  quality_value: string | null;
+  quality_label: string | null;
+  source_name: string;
+  source_url: string | null;
+  source_year: string;
+  government_level: string;
+  is_estimate: boolean;
+}
+
+export interface CostMetricResult {
+  metric_key: string;
+  label: string;
+  short_label: string;
+  category: string;
+  icon: string;
+  unit: string;
+  tier: string;
+  city_a: CostCityResult;
+  city_b: CostCityResult;
+  ratio: number;
+  rpp_adjusted_ratio: number;
+  methodology_note: string;
+  caveats: string[];
+}
+
+export interface CostCategoryGroup {
+  category: string;
+  label: string;
+  metrics: CostMetricResult[];
+}
+
+export interface CostBasketResponse {
+  city_a_name: string;
+  city_b_name: string;
+  city_a_id: number;
+  city_b_id: number;
+  categories: CostCategoryGroup[];
+  basket_index: number;
+  rpp_adjusted_basket_index: number;
+  more_expensive_city: string;
+  biggest_gap_metric: string;
+  biggest_gap_ratio: number;
+  metrics_available: number;
+  data_freshness: string;
+}
+
+export function getCostBasket(
+  token: string,
+  cityAId?: number,
+  cityBId?: number
+): Promise<CostBasketResponse> {
+  const params = new URLSearchParams();
+  if (cityAId != null) params.append("city_a", String(cityAId));
+  if (cityBId != null) params.append("city_b", String(cityBId));
+  const query = params.toString();
+  return request<CostBasketResponse>(
+    `/api/comparison/cost-basket${query ? `?${query}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getCostMetricDetail(
+  token: string,
+  metricKey: string,
+  cityAId?: number,
+  cityBId?: number
+): Promise<CostMetricResult> {
+  const params = new URLSearchParams();
+  if (cityAId != null) params.append("city_a", String(cityAId));
+  if (cityBId != null) params.append("city_b", String(cityBId));
+  const query = params.toString();
+  return request<CostMetricResult>(
+    `/api/comparison/cost-basket/${metricKey}${query ? `?${query}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
