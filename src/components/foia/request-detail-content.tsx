@@ -791,8 +791,14 @@ function OverviewTab({
     try {
       await aiDraftFoiaRequest(request.id, "draft_request")
       await onTaskComplete()
+      toast.success("Letter regenerated. It appears below and in the Messages tab.")
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to regenerate letter")
+      const raw = err instanceof Error ? err.message : "Failed to regenerate letter"
+      const isNetworkError = raw === "Failed to fetch" || err instanceof TypeError
+      const message = isNetworkError
+        ? "Can’t reach the API. Make sure the backend is running and Next.js is proxying (check NEXT_PUBLIC_API_BASE_URL in .env.local)."
+        : raw
+      toast.error(message)
     } finally {
       setRegenerating(false)
     }
@@ -895,13 +901,15 @@ function OverviewTab({
       </div>
       )}
 
-      {/* Letter body — prominent for drafts, collapsed for submitted */}
-      {letterBody.trim() && isDraftStatus && (
+      {/* Letter body — prominent for drafts; show Regenerate even when no letter yet */}
+      {isDraftStatus && (
         <div className="rounded-xl border-2 border-purple-200 bg-white p-4 lg:col-span-2">
           <div className="flex items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-semibold text-gray-900">Request Letter</h3>
-              <p className="mt-0.5 text-xs text-gray-400">{letterSource}</p>
+              <p className="mt-0.5 text-xs text-gray-400">
+                {letterBody.trim() ? letterSource : "No letter generated yet. Generate from request description."}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -912,18 +920,26 @@ function OverviewTab({
                 {regenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                 {regenerating ? "Regenerating..." : "Regenerate"}
               </button>
-              <button
-                onClick={() => copyText("letter", letterBody)}
-                className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-700"
-              >
-                {copiedLabel === "letter" ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                {copiedLabel === "letter" ? "Copied!" : "Copy Letter"}
-              </button>
+              {letterBody.trim() ? (
+                <button
+                  onClick={() => copyText("letter", letterBody)}
+                  className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-700"
+                >
+                  {copiedLabel === "letter" ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copiedLabel === "letter" ? "Copied!" : "Copy Letter"}
+                </button>
+              ) : null}
             </div>
           </div>
-          <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm leading-relaxed text-gray-700">
-            {letterBody}
-          </pre>
+          {letterBody.trim() ? (
+            <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm leading-relaxed text-gray-700">
+              {letterBody}
+            </pre>
+          ) : (
+            <p className="mt-3 text-sm text-gray-500">
+              Click Regenerate to create a draft letter from this request’s description and dataset.
+            </p>
+          )}
         </div>
       )}
 

@@ -4,10 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
   Plus, Search, Filter, Loader2, AlertTriangle, Pencil, Copy, ExternalLink, Mail,
-  FileText, Clock, CheckCircle2, MessageSquare, Database, RefreshCw,
+  FileText, Clock, CheckCircle2, MessageSquare, Database, RefreshCw, FileDown,
 } from "lucide-react"
 import { useAuth0 } from "@auth0/auth0-react"
-import { getFoiaDashboard, listFoiaRequests } from "@/lib/foiaApiClient"
+import { getFoiaDashboard, listFoiaRequests, getFoiaStatusReportPdfBlob } from "@/lib/foiaApiClient"
 import { RequestStatusBadge } from "@/components/foia/status-badge"
 import { NewRequestModal } from "@/components/foia/new-request-modal"
 import { datasetLabel } from "@/lib/foia/datasetLabels"
@@ -74,6 +74,7 @@ export function RequestsListContent() {
   const [page, setPage] = useState(1)
   const [sortField, setSortField] = useState<"city" | "status" | "deadline" | "days_open">("deadline")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   const loadRequests = useCallback(async () => {
     setLoading(true)
@@ -134,6 +135,25 @@ export function RequestsListContent() {
   const sortIndicator = (field: typeof sortField) =>
     sortField === field ? (sortDir === "asc" ? " ▲" : " ▼") : ""
 
+  async function handleExportStatusReport() {
+    setExportingPdf(true)
+    try {
+      const token = isAuthenticated ? await getAccessTokenSilently().catch(() => undefined) : undefined
+      const blob = await getFoiaStatusReportPdfBlob(token)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = "foia-status-report.pdf"
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error("Export status report failed:", e)
+      setApiError(e instanceof Error ? e.message : "Export failed")
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
   const sortedRequests = useMemo(() => {
     const sorted = [...requests]
     sorted.sort((a, b) => {
@@ -190,13 +210,28 @@ export function RequestsListContent() {
             {total} total requests, {openCount} open
           </p>
         </div>
-        <button
-          onClick={() => setShowNewRequest(true)}
-          className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-purple-700"
-        >
-          <Plus className="h-4 w-4" />
-          New Request
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleExportStatusReport}
+            disabled={exportingPdf}
+            className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+          >
+            {exportingPdf ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileDown className="h-4 w-4" />
+            )}
+            Export status report (PDF)
+          </button>
+          <button
+            onClick={() => setShowNewRequest(true)}
+            className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-purple-700"
+          >
+            <Plus className="h-4 w-4" />
+            New Request
+          </button>
+        </div>
       </div>
 
       {/* Pipeline summary */}
