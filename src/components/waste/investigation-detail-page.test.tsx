@@ -34,6 +34,17 @@ vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }))
 
+vi.mock("./waste-shell", () => ({
+  WasteShell: ({ children, title, description, actions }: any) => (
+    <div>
+      <h1>{title}</h1>
+      {description ? <p>{description}</p> : null}
+      {actions}
+      {children}
+    </div>
+  ),
+}))
+
 vi.mock("@/lib/hooks/useWaste", () => ({
   useWasteInvestigation: vi.fn(),
   useCreateInvestigationAction: vi.fn(),

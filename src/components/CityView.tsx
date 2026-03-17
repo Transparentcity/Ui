@@ -9,7 +9,7 @@ import DistrictNavigation from "@/components/DistrictNavigation";
 import AnomaliesTabPanel from "@/components/AnomaliesTabPanel";
 import { useCity, useSavedCities, useSaveCity, useUnsaveCity, useCityLeaders, useRepresentativeFollowerCounts, usePublicCityDistricts, useRepresentativeFollows, useFollowRepresentative, useUnfollowRepresentative } from "@/lib/hooks/useCities";
 import type { CityLeader } from "@/lib/apiClient";
-import { listMyPlaces, getPlaceMetrics, getPlaceAnomalies, runPlaceMetricsAndAnomaliesAsJob, getJob, getPlaceRefreshLastRun, type PlaceTimeSeriesPoint, type PlaceAnomaly } from "@/lib/apiClient";
+import { listMyPlaces, getPlaceMetrics, getPlaceAnomalies, runPlaceMetricsAndAnomaliesAsJob, getJob, type PlaceTimeSeriesPoint, type PlaceAnomaly } from "@/lib/apiClient";
 import { useUserMetricOrdering } from "@/lib/hooks/useCityAdmin";
 import { emitSavedCitiesChanged, SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEvents";
 import { getPresetMetricDateRange, getDefaultDateRangeFromMetrics, type MetricDateRange } from "@/lib/dateRange";
@@ -1888,10 +1888,10 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
     let cancelled = false;
     getAccessTokenSilently()
       .then((token) => listMyPlaces(token, { city_id: cityId }))
-      .then((list) => {
+      .then((res) => {
         if (!cancelled) {
           setUserPlaces(
-            list.map((p) => ({
+            res.places.map((p) => ({
               id: p.id,
               label: p.label,
               city_id: p.city_id,
@@ -1900,31 +1900,17 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
               radius_m: p.radius_m,
             }))
           );
+          setLastPlaceRefreshAt(res.place_refresh_last_run_at ?? null);
         }
       })
       .catch(() => {
-        if (!cancelled) setUserPlaces([]);
+        if (!cancelled) {
+          setUserPlaces([]);
+          setLastPlaceRefreshAt(null);
+        }
       });
     return () => { cancelled = true; };
   }, [cityId, cityLoaded, isAuthenticated, getAccessTokenSilently, placesRefreshKey]);
-
-  // Fetch last place refresh time for dashboard header (authenticated users only)
-  useEffect(() => {
-    if (!cityLoaded || !isAuthenticated) {
-      setLastPlaceRefreshAt(null);
-      return;
-    }
-    let cancelled = false;
-    getAccessTokenSilently()
-      .then((token) => getPlaceRefreshLastRun(token))
-      .then((res) => {
-        if (!cancelled && res.last_run_at) setLastPlaceRefreshAt(res.last_run_at);
-      })
-      .catch(() => {
-        if (!cancelled) setLastPlaceRefreshAt(null);
-      });
-    return () => { cancelled = true; };
-  }, [cityLoaded, isAuthenticated, getAccessTokenSilently]);
 
   // Determine if current city is saved (still used for sidebar/onboarding, not header)
   const isCitySaved = useMemo(() => {
@@ -2053,8 +2039,8 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
     }
   };
 
-  // Only block on city + metrics so dashboard can show first; saved cities load in background
-  const loading = loadingCity;
+  // Only show full loading when we have no data yet (initial load). If we have cached city data, keep showing it during refetch to avoid "load → disappear → re-load" flash.
+  const loading = loadingCity && !cityData;
   const error = cityError ? (cityError as Error).message : null;
 
   if (loading) {
@@ -2134,6 +2120,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
                 }}
                 onPlaceSaved={() => setPlacesRefreshKey((k) => k + 1)}
                 openTrigger={openDistrictTrigger}
+                placeRefreshLastRunAt={lastPlaceRefreshAt}
               />
             </div>
           ) : (
@@ -2142,6 +2129,11 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
                 {selectedPlaceId != null
                   ? (userPlaces.find((p) => p.id === selectedPlaceId)?.label ?? "My block")
                   : "Citywide"}
+                {selectedPlaceId != null && lastPlaceRefreshAt && (
+                  <span className="city-view-place-selector-refresh">
+                    {" "}(refreshed {new Date(lastPlaceRefreshAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })})
+                  </span>
+                )}
               </span>
             </div>
           )}

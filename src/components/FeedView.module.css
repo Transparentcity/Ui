@@ -997,23 +997,24 @@
     -webkit-line-clamp: 3;
   }
 
+  /* No padding on image card in narrow mode: only feed card (.storyCard) has padding */
   .storyVisualization {
     margin: 12px 0;
-    padding: 0 12px 12px 12px;
+    padding: 0;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
 
   .storyVisualization > .vizTypeBadge {
-    margin-left: -12px;
-    margin-right: -12px;
-    width: calc(100% + 24px);
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
   }
 
   .storyVisualization > .visualizationPlaceholder {
-    margin-left: -12px;
-    margin-right: -12px;
-    width: calc(100% + 24px);
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
   }
 
   .storyFooter {

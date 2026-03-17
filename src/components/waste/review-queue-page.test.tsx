@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react"
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react"
 import { vi, describe, it, expect, beforeEach } from "vitest"
 import { ReviewQueuePage } from "./review-queue-page"
 import {
@@ -29,6 +29,29 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
+}))
+
+vi.mock("./WasteCityContext", () => ({
+  useWasteCity: () => ({
+    selectedCityId: 1,
+    eligibleCities: [{ id: 1, name: "San Francisco", datasets_count: 5 }],
+    isLoading: false,
+    isFetching: false,
+    cityLoadError: null,
+    isCityFallback: false,
+    setSelectedCityId: vi.fn(),
+    selectedCityName: "San Francisco",
+  }),
+}))
+
+vi.mock("./waste-shell", () => ({
+  WasteShell: ({ children, title, description }: any) => (
+    <div>
+      <h1>{title}</h1>
+      {description ? <p>{description}</p> : null}
+      {children}
+    </div>
+  ),
 }))
 
 vi.mock("@/lib/hooks/useCities", () => ({
@@ -103,7 +126,7 @@ describe("ReviewQueuePage", () => {
 
   it("shows total items count", () => {
     render(<ReviewQueuePage />)
-    expect(screen.getByText("3 items")).toBeInTheDocument()
+    expect(screen.getByText("3 of 3 items")).toBeInTheDocument()
   })
 
   it("shows empty state when no items match", () => {
@@ -146,42 +169,23 @@ describe("ReviewQueuePage", () => {
 
   // ── Bulk dispose ───────────────────────────────────────────────────────────
 
-  it("shows bulk Dispose button when items selected", () => {
+  it("shows bulk disposition actions when items selected", () => {
     render(<ReviewQueuePage />)
     const checkboxes = screen.getAllByRole("checkbox")
     fireEvent.click(checkboxes[1])
-    // The bulk Dispose button is inside the purple bulk actions bar
     const bulkBar = screen.getByText("1 selected").closest("div")!
-    const disposeBtn = bulkBar.querySelector("button")!
-    expect(disposeBtn).toBeInTheDocument()
+    expect(within(bulkBar).getByText("Fraud")).toBeInTheDocument()
+    expect(within(bulkBar).getByText("Waste")).toBeInTheDocument()
+    expect(within(bulkBar).getByText("Abuse")).toBeInTheDocument()
   })
 
-  it("disables bulk Dispose button when no disposition is chosen", () => {
+  it("opens confirm dialog when a bulk disposition is chosen", () => {
     render(<ReviewQueuePage />)
     const checkboxes = screen.getAllByRole("checkbox")
     fireEvent.click(checkboxes[1])
-    // The first button after the DispositionSelect is the Dispose button
-    const bulkBar = screen.getByText("1 selected").closest("div.flex")!
-    const buttons = bulkBar.querySelectorAll("button")
-    // Find the button that contains "Dispose" text
-    const disposeBtn = Array.from(buttons).find((b) => b.textContent?.includes("Dispose"))
-    expect(disposeBtn).toBeDisabled()
-  })
-
-  // ── Bulk assign ────────────────────────────────────────────────────────────
-
-  it("shows Assign button in bulk actions when items selected", () => {
-    render(<ReviewQueuePage />)
-    const checkboxes = screen.getAllByRole("checkbox")
-    fireEvent.click(checkboxes[1])
-    expect(screen.getByText("Assign")).toBeInTheDocument()
-  })
-
-  it("disables Assign button when input is empty", () => {
-    render(<ReviewQueuePage />)
-    const checkboxes = screen.getAllByRole("checkbox")
-    fireEvent.click(checkboxes[1])
-    expect(screen.getByText("Assign").closest("button")).toBeDisabled()
+    const bulkBar = screen.getByText("1 selected").closest("div")!
+    fireEvent.click(within(bulkBar).getByText("Fraud"))
+    expect(screen.getByText("Bulk Dispose Findings")).toBeInTheDocument()
   })
 
   // ── Pagination ─────────────────────────────────────────────────────────────
@@ -234,20 +238,22 @@ describe("ReviewQueuePage", () => {
     expect(screen.getByText(/Run an analysis or adjust filters/)).toBeInTheDocument()
   })
 
-  // ── Bulk assign toast ─────────────────────────────────────────────────────
+  // ── Bulk dispose mutation ─────────────────────────────────────────────────
 
-  it("shows success toast on bulk assign", () => {
+  it("calls bulk dispose mutation after confirmation", async () => {
     const mutate = vi.fn()
-    useAssignWasteQueueItem.mockReturnValue(
-      makeMockMutation({ mutate }) as ReturnType<typeof _useAssignWasteQueueItem>
+    useBulkDisposeWasteFindings.mockReturnValue(
+      makeMockMutation({ mutate }) as ReturnType<typeof _useBulkDisposeWasteFindings>
     )
     render(<ReviewQueuePage />)
     const checkboxes = screen.getAllByRole("checkbox")
     fireEvent.click(checkboxes[1])
-    // Fill in assign input and click Assign
-    const input = screen.getByPlaceholderText("Assign to…")
-    fireEvent.change(input, { target: { value: "auditor@city.gov" } })
-    fireEvent.click(screen.getByText("Assign").closest("button")!)
-    expect(vi.mocked(toast).success).toHaveBeenCalledWith("1 items assigned")
+    const bulkBar = screen.getByText("1 selected").closest("div")!
+    fireEvent.click(within(bulkBar).getByText("Fraud"))
+    fireEvent.click(screen.getByRole("button", { name: "Dispose" }))
+
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalled()
+    })
   })
 })
