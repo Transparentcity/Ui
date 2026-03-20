@@ -165,6 +165,14 @@ export default function MetricsAdmin() {
     last_execution_status: selectedLastRunStatus || undefined,
     include_record_counts: false,
   });
+
+  // Template metrics: always fetch global templates (metric_type=template, no city filter)
+  // so the Template Order Editor shows actual templates even when the main list is filtered by city.
+  const templatesQuery = useMetrics({
+    metric_type: "template",
+    limit: 200,
+    include_record_counts: false,
+  });
   
   // Mutation hooks
   const createMetricMutation = useCreateMetric();
@@ -703,9 +711,9 @@ export default function MetricsAdmin() {
         </div>
       </div>
 
-      {/* Template Ordering */}
+      {/* Template Ordering: use dedicated templates query so real templates show even when list is filtered by city */}
       <TemplateOrderEditor
-        templates={metrics.filter((m) => m.metric_type === "template")}
+        templates={templatesQuery.data ?? []}
       />
 
       {/* Filters */}

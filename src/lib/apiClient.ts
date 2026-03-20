@@ -868,6 +868,18 @@ export function loadCityData(
   );
 }
 
+export function determinePortalTypes(
+  cityIds: number[],
+  token: string
+): Promise<LoadCityDataResponse> {
+  return request<LoadCityDataResponse>(
+    "/api/admin/cities/determine-portal-types",
+    "POST",
+    { city_ids: cityIds },
+    token
+  );
+}
+
 export interface BatchAnalyzeRequest {
   city_ids: number[];
 }

@@ -21,6 +21,27 @@ import { getInitialMapView, INITIAL_ZOOM_CITYWIDE } from "@/lib/mapUtils";
 import type { MetricDateRange } from "@/lib/dateRange";
 import type { AnomalyResult } from "@/lib/hooks/useAnomalies";
 
+/** Mapbox expects [lng, lat]; lat must be -90..90, lng -180..180. Returns a valid center or fallback. */
+const FALLBACK_MAP_CENTER: [number, number] = [-98.5795, 39.8283];
+
+function isValidLngLat(center: [number, number]): boolean {
+  const [lng, lat] = center;
+  return (
+    typeof lng === "number" &&
+    !Number.isNaN(lng) &&
+    lng >= -180 &&
+    lng <= 180 &&
+    typeof lat === "number" &&
+    !Number.isNaN(lat) &&
+    lat >= -90 &&
+    lat <= 90
+  );
+}
+
+function getValidMapCenter(center: [number, number] | null): [number, number] {
+  return center && isValidLngLat(center) ? center : FALLBACK_MAP_CENTER;
+}
+
 // Helper function to check if a point is inside a polygon (ray casting algorithm)
 function pointInPolygon(point: [number, number], polygon: [number, number][]): boolean {
   const [x, y] = point;
@@ -568,7 +589,7 @@ export default function CityMapView({
         }
         
         // Update map center/zoom with calculated values from shapefiles
-        if (calculatedCenter) {
+        if (calculatedCenter && isValidLngLat(calculatedCenter)) {
           setMapCenter(calculatedCenter);
           setMapZoom(calculatedZoom);
           if (mapInstanceRef.current?.loaded()) {
@@ -691,8 +712,8 @@ export default function CityMapView({
         console.log("Waiting for map center calculation...");
         return;
       }
-      
-      const center: [number, number] = mapCenter;
+
+      const center = getValidMapCenter(mapCenter);
       const zoom = mapZoom;
 
       // Determine map style based on theme
@@ -786,8 +807,9 @@ export default function CityMapView({
         return;
       }
       if (mapCenter && mapZoom !== null) {
+        const center = getValidMapCenter(mapCenter);
         map.flyTo({
-          center: mapCenter,
+          center,
           zoom: mapZoom,
           duration: 0, // Recenter ASAP
           essential: true,
@@ -1237,8 +1259,9 @@ export default function CityMapView({
     if (!mapCenter || mapZoom == null) return;
 
     const map = mapInstanceRef.current;
+    const center = getValidMapCenter(mapCenter);
     map.flyTo({
-      center: mapCenter,
+      center,
       zoom: mapZoom,
       duration: 0, // Recenter ASAP
       essential: true,

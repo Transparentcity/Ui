@@ -8,6 +8,7 @@ import {
   CityListItem,
   StructureMetricsLastRunSummary,
   loadCityData,
+  determinePortalTypes,
   batchAnalyzeCities,
   startStructureMetricsBatch,
   getStructureMetricsLastRuns,
@@ -61,6 +62,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
   const [showOnlyInstantiated, setShowOnlyInstantiated] = useState(false);
   const [showAddCityForm, setShowAddCityForm] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
+  const [determiningPortalTypes, setDeterminingPortalTypes] = useState(false);
   const [structuringCities, setStructuringCities] = useState(false);
   const [vectorStatsLoadingCityIds, setVectorStatsLoadingCityIds] = useState<
     Set<number>
@@ -354,6 +356,28 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
     }
   };
 
+  const handleDeterminePortalTypes = async () => {
+    if (selectedCityIds.length === 0) return;
+
+    try {
+      setDeterminingPortalTypes(true);
+      const token = await getAccessTokenSilently();
+      const result = await determinePortalTypes(selectedCityIds, token);
+      notifyJobCreated(result.job_id);
+      alert(
+        `Portal type determination started for ${selectedCityIds.length} cities!\n\n` +
+          `Job ID: ${result.job_id}\n\n` +
+          `You can monitor progress in the jobs badge at the top of the page.`
+      );
+      clearSelectedCities();
+      setTimeout(() => loadCities(), 2000);
+    } catch (err: any) {
+      alert("Failed to determine portal types: " + (err as Error).message);
+    } finally {
+      setDeterminingPortalTypes(false);
+    }
+  };
+
   const handleStructureCities = async () => {
     if (selectedCityIds.length === 0) return;
 
@@ -401,8 +425,8 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
   const handleRefreshAcs = async () => {
     const cityIds = selectedCityIds.length > 0 ? selectedCityIds : undefined;
     const message = cityIds
-      ? `Refresh population from Census ACS for ${cityIds.length} selected city(ies) that have an ACS source?`
-      : "Refresh population from Census ACS for all cities with an ACS source? This may take a minute.";
+      ? `Refresh population from Census ACS for ${cityIds.length} selected city(ies)? Cities without GEOID will be looked up automatically.`
+      : "Refresh population from Census ACS for all cities? Cities without GEOID will be looked up automatically. This may take a few minutes.";
     if (!confirm(message)) return;
     setRefreshAcsResult(null);
     setRefreshAcsLoading(true);
@@ -418,9 +442,8 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
         refreshed: result.refreshed,
         errors: result.errors,
       });
-      if (result.refreshed_count > 0) {
-        loadCities();
-      }
+      // Always reload cities so population and source info reflect latest state
+      loadCities();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setRefreshAcsResult({
@@ -725,6 +748,24 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
             }}
           >
             {loadingData ? "Loading..." : `📥 Load Metadata (${selectedCityIds.length} cities)`}
+          </button>
+          <button
+            onClick={handleDeterminePortalTypes}
+            disabled={selectedCityIds.length === 0 || determiningPortalTypes}
+            title="Detect and update platform type (Socrata, CKAN, ArcGIS, etc.) for selected cities"
+            style={{
+              padding: "10px 20px",
+              background: "#7c3aed",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: selectedCityIds.length === 0 || determiningPortalTypes ? "not-allowed" : "pointer",
+              opacity: selectedCityIds.length === 0 || determiningPortalTypes ? 0.6 : 1,
+            }}
+          >
+            {determiningPortalTypes
+              ? "Determining…"
+              : `🏷️ Determine Portal Type (${selectedCityIds.length} cities)`}
           </button>
           <button
             onClick={handleStructureCities}
