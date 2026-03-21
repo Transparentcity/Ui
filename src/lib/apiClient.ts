@@ -3741,6 +3741,27 @@ export function trackFeedEngagement(
   );
 }
 
+// Escalate a feed story to the user's District Supervisor
+export interface EscalateStoryResponse {
+  success: boolean;
+  message: string;
+  escalate_count: number;
+}
+
+export function escalateStory(
+  storyId: number,
+  token: string,
+  comment?: string,
+  includeName?: boolean,
+): Promise<EscalateStoryResponse> {
+  return request<EscalateStoryResponse>(
+    `/api/feed/public/story/${storyId}/escalate`,
+    "POST",
+    { comment: comment || "", include_name: includeName ?? true },
+    token,
+  );
+}
+
 // Admin feed delete (requires admin)
 export interface DeleteFeedStoryResponse {
   success: boolean;

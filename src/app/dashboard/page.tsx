@@ -5,7 +5,8 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import TitleBar from "@/components/TitleBar";
 import Sidebar from "@/components/Sidebar";
-import FeedView from "@/components/FeedView";
+// Old feed kept as fallback: import FeedView from "@/components/FeedView";
+import FeedView from "@/components/feed/NewFeedView";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
   getMyPermissions,

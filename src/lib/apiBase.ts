@@ -7,12 +7,9 @@
  * Development: http://localhost:8001 (or from env var)
  */
 export function getApiBaseUrl(): string {
-  // Browser: detect production and use same-origin proxy
+  // Browser: always use same-origin proxy (Next.js rewrites handle /api/*)
   if (typeof window !== "undefined") {
-    const hostname = window.location.hostname;
-    if (hostname === "app.transparent.city" || hostname === "transparent.city") {
-      return "";
-    }
+    return "";
   }
 
   // Server-side or dev: use explicit env var if set
