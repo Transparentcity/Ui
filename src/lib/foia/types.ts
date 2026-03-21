@@ -60,6 +60,7 @@ export type TaskType =
   | "pay_fee"
   | "appeal_denial"
   | "follow_up_partial"
+  | "no_response"
 
 export type TaskStatus = "pending" | "assigned" | "in_progress" | "completed" | "cancelled"
 

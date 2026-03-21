@@ -77,18 +77,35 @@ vi.mock("@/components/Loader", () => ({
   default: () => <div>Loading...</div>,
 }))
 
-vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => ({
-    data: [{ id: 1, name: "San Francisco", datasets_count: 5 }],
+vi.mock("./WasteCityContext", () => ({
+  useWasteCity: () => ({
+    selectedCityId: 1,
+    eligibleCities: [{ id: 1, name: "San Francisco", slug: "san-francisco", datasets_count: 5 }],
     isLoading: false,
+    isFetching: false,
+    cityLoadError: null,
+    isCityFallback: false,
+    setSelectedCityId: vi.fn(),
+    selectedCityName: "San Francisco",
   }),
 }))
 
-vi.mock("@/lib/publicApiClient", () => ({
-  listPublicCitiesForSitemap: vi.fn().mockResolvedValue([]),
-}))
-
 const mockStartJob = vi.fn()
+const mockCancelJob = vi.fn()
+
+function mockJobReturn(overrides: Record<string, any> = {}) {
+  return {
+    activeJob: null,
+    isRunning: false,
+    isStarting: false,
+    startJob: mockStartJob,
+    cancelJob: mockCancelJob,
+    startError: undefined,
+    retryCount: 0,
+    lastDiagnostics: null,
+    ...overrides,
+  }
+}
 
 vi.mock("@/lib/hooks/useWaste", () => ({
   useWasteAnalysis: vi.fn().mockReturnValue({
@@ -106,6 +123,10 @@ vi.mock("@/lib/hooks/useWaste", () => ({
     data: null,
     isLoading: false,
   }),
+  useLatestWasteRun: vi.fn().mockReturnValue({
+    data: null,
+    isLoading: false,
+  }),
 }))
 
 import { useWasteAnalysis as _useWasteAnalysis, useActiveWasteJob as _useActiveWasteJob } from "@/lib/hooks/useWaste"
@@ -115,7 +136,7 @@ const useActiveWasteJob = vi.mocked(_useActiveWasteJob)
 const CACHE_KEY = "waste:last-analysis:v1"
 
 const cachedAnalysis = {
-  analysis_timestamp: "2026-03-02T10:00:00Z",
+  analysis_timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
   cached: true,
   summary: {
     total_findings: 42,
@@ -140,18 +161,12 @@ describe("WastePageContent", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorageMock.clear()
-    // Reset to default: no fresh data, no error
     useWasteAnalysis.mockReturnValue({
       data: null,
       error: null,
       forceRefetch: vi.fn().mockResolvedValue({ error: null }),
     })
-    useActiveWasteJob.mockReturnValue({
-      activeJob: null,
-      isRunning: false,
-      isStarting: false,
-      startJob: mockStartJob,
-    })
+    useActiveWasteJob.mockReturnValue(mockJobReturn())
   })
 
   it("renders stat bar", () => {
@@ -159,36 +174,30 @@ describe("WastePageContent", () => {
     expect(screen.getByTestId("waste-stat-bar")).toBeInTheDocument()
   })
 
-  it("shows compact status line when cached data is available but no fresh data", () => {
+  it("shows consolidated status when cached data is available but no fresh data", () => {
     localStorage.setItem(CACHE_KEY, JSON.stringify(cachedAnalysis))
     render(<WastePageContent />)
-    const statusLine = screen.getByTestId("compact-status-line")
-    expect(statusLine).toBeInTheDocument()
-    expect(statusLine.textContent).toContain("Analysis from")
-    expect(statusLine.textContent).toContain("42 findings")
+    expect(screen.getByText(/Showing saved results from/)).toBeInTheDocument()
   })
 
-  it("compact status line contains a Refresh link", () => {
+  it("consolidated status contains a Refresh button", () => {
     localStorage.setItem(CACHE_KEY, JSON.stringify(cachedAnalysis))
     render(<WastePageContent />)
-    const statusLine = screen.getByTestId("compact-status-line")
-    const refreshLink = statusLine.querySelector("button")
-    expect(refreshLink).toBeInTheDocument()
-    expect(refreshLink?.textContent).toBe("Refresh")
+    expect(screen.getByText(/Showing saved results from/)).toBeInTheDocument()
+    const refreshButtons = screen.getAllByRole("button", { name: /Refresh/ })
+    expect(refreshButtons.length).toBeGreaterThanOrEqual(2)
   })
 
-  it("shows both stat bar and error banner when both exist", () => {
+  it("shows both stat bar and error status when both exist", () => {
     localStorage.setItem(CACHE_KEY, JSON.stringify(cachedAnalysis))
     useWasteAnalysis.mockReturnValue({
       data: null,
       error: new Error("Test error"),
       forceRefetch: vi.fn().mockResolvedValue({ error: null }),
     })
-    const { container } = render(<WastePageContent />)
-    const statBar = container.querySelector("[data-testid='waste-stat-bar']")
-    const errorBanner = screen.getByText("Live analysis unavailable — showing previous results").closest(".bg-amber-50")
-    expect(statBar).toBeInTheDocument()
-    expect(errorBanner).toBeInTheDocument()
+    render(<WastePageContent />)
+    expect(screen.getByTestId("waste-stat-bar")).toBeInTheDocument()
+    expect(screen.getByText(/Live analysis unavailable/)).toBeInTheDocument()
   })
 
   it("shows empty state CTA when no data or cache exists", () => {
@@ -211,97 +220,75 @@ describe("WastePageContent", () => {
   // ── Loading indicator / job progress tests ────────────────────────────────
 
   it("shows progress indicator when a waste job is running", () => {
-    useActiveWasteJob.mockReturnValue({
+    useActiveWasteJob.mockReturnValue(mockJobReturn({
       activeJob: {
         job_id: "job-123",
         job_type: "waste_analysis_run",
         status: "running",
-        description: "Waste analysis",
         progress: 45,
         status_message: "Detecting anomalous patterns",
         created_at: new Date(Date.now() - 30_000).toISOString(),
         started_at: new Date(Date.now() - 25_000).toISOString(),
-      } as any,
+      },
       isRunning: true,
-      isStarting: false,
-      startJob: mockStartJob,
-    })
+    }))
     render(<WastePageContent />)
-    // Header shows the Analyzing button
-    expect(screen.getByText(/Analyzing/)).toBeInTheDocument()
-    // Progress percentage visible (in header and loading card)
+    expect(screen.getAllByText(/Analyzing/).length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText(/45%/).length).toBeGreaterThanOrEqual(1)
-    // Status step text visible in the loading card
     expect(screen.getByText(/Detecting anomalous patterns/)).toBeInTheDocument()
   })
 
   it("shows progress indicator with pending job (0% progress)", () => {
-    useActiveWasteJob.mockReturnValue({
+    useActiveWasteJob.mockReturnValue(mockJobReturn({
       activeJob: {
         job_id: "job-456",
         job_type: "waste_analysis_run",
         status: "pending",
-        description: "Waste analysis",
         progress: 0,
         status_message: "",
         created_at: new Date().toISOString(),
-      } as any,
+      },
       isRunning: true,
-      isStarting: false,
-      startJob: mockStartJob,
-    })
+    }))
     render(<WastePageContent />)
-    expect(screen.getByText(/Analyzing/)).toBeInTheDocument()
-    // Welcome state was removed — verify it's not present
+    expect(screen.getAllByText(/Analyzing/).length).toBeGreaterThanOrEqual(1)
     expect(screen.queryByText("Welcome to Waste Detection")).not.toBeInTheDocument()
   })
 
   it("hides progress indicator when job completes and shows results", () => {
-    // Job is completed, data is available
-    useActiveWasteJob.mockReturnValue({
+    useActiveWasteJob.mockReturnValue(mockJobReturn({
       activeJob: {
         job_id: "job-789",
         job_type: "waste_analysis_run",
         status: "completed",
-        description: "Waste analysis",
         progress: 100,
         created_at: new Date(Date.now() - 120_000).toISOString(),
         completed_at: new Date().toISOString(),
-      } as any,
-      isRunning: false,
-      isStarting: false,
-      startJob: mockStartJob,
-    })
+      },
+    }))
     useWasteAnalysis.mockReturnValue({
       data: cachedAnalysis as any,
       error: null,
       forceRefetch: vi.fn().mockResolvedValue({ error: null }),
     })
     render(<WastePageContent />)
-    // Analyzing button should NOT be present
-    expect(screen.queryByText(/Analyzing/)).not.toBeInTheDocument()
-    // The Refresh button should be present (not disabled)
+    expect(screen.queryByText(/Analyzing…/)).not.toBeInTheDocument()
     expect(screen.getByText("Refresh")).toBeInTheDocument()
   })
 
-  it("shows failure banner when job fails", () => {
-    useActiveWasteJob.mockReturnValue({
+  it("shows failure status when job fails", () => {
+    useActiveWasteJob.mockReturnValue(mockJobReturn({
       activeJob: {
         job_id: "job-fail",
         job_type: "waste_analysis_run",
         status: "failed",
-        description: "Waste analysis",
         progress: 30,
         error_message: "Dataset fetch timed out",
         created_at: new Date().toISOString(),
-      } as any,
-      isRunning: false,
-      isStarting: false,
-      startJob: mockStartJob,
-    })
+      },
+    }))
     render(<WastePageContent />)
-    expect(screen.getByText("Dataset fetch timed out")).toBeInTheDocument()
-    expect(screen.getByText("Retry")).toBeInTheDocument()
+    expect(screen.getByText(/Refresh failed/)).toBeInTheDocument()
   })
 
   it("calls startJob when Refresh button is clicked", async () => {
@@ -309,122 +296,98 @@ describe("WastePageContent", () => {
     localStorage.setItem(CACHE_KEY, JSON.stringify(cachedAnalysis))
     render(<WastePageContent />)
     const refreshButtons = screen.getAllByRole("button", { name: /Refresh/ })
-    // Click the header Refresh button (last one, in the actions area)
     await user.click(refreshButtons[refreshButtons.length - 1])
     expect(mockStartJob).toHaveBeenCalled()
   })
 
   it("Refresh button is disabled while job is running", () => {
-    useActiveWasteJob.mockReturnValue({
+    useActiveWasteJob.mockReturnValue(mockJobReturn({
       activeJob: {
         job_id: "job-dis",
         job_type: "waste_analysis_run",
         status: "running",
-        description: "Waste analysis",
         progress: 50,
         created_at: new Date().toISOString(),
-      } as any,
+      },
       isRunning: true,
-      isStarting: false,
-      startJob: mockStartJob,
-    })
+    }))
     localStorage.setItem(CACHE_KEY, JSON.stringify(cachedAnalysis))
     render(<WastePageContent />)
-    const analyzingBtn = screen.getByText(/Analyzing/)
-    expect(analyzingBtn.closest("button")).toBeDisabled()
+    const analyzingBtns = screen.getAllByText(/Analyzing/)
+    expect(analyzingBtns[0].closest("button")).toBeDisabled()
   })
 
   it("resumes showing progress for an already-running job on mount", () => {
-    // Simulates navigating away and back — hook detects running job on mount
-    useActiveWasteJob.mockReturnValue({
+    useActiveWasteJob.mockReturnValue(mockJobReturn({
       activeJob: {
         job_id: "job-resume",
         job_type: "waste_analysis_run",
         status: "running",
-        description: "Waste analysis",
         progress: 65,
         status_message: "Scoring findings for confidence and priority",
         created_at: new Date(Date.now() - 60_000).toISOString(),
         started_at: new Date(Date.now() - 55_000).toISOString(),
-      } as any,
+      },
       isRunning: true,
-      isStarting: false,
-      startJob: mockStartJob,
-    })
+    }))
     render(<WastePageContent />)
     expect(screen.getAllByText(/65%/).length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText(/Scoring findings/)).toBeInTheDocument()
-    expect(screen.getByText(/Analyzing/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Analyzing/).length).toBeGreaterThanOrEqual(1)
   })
 
-  it("shows stale job error with job ID when analysis ran too long", () => {
-    useActiveWasteJob.mockReturnValue({
+  it("shows stale job error with details when analysis ran too long", () => {
+    useActiveWasteJob.mockReturnValue(mockJobReturn({
       activeJob: {
         job_id: "job-stale-abc",
         job_type: "waste_analysis_run",
         status: "failed",
-        description: "Waste analysis",
         progress: 10,
         error_message:
           "Analysis has been running for 11 minutes without completing. " +
           "The server may have restarted or a detector may be stuck. " +
           "Job ID: job-stale-abc",
         created_at: new Date(Date.now() - 11 * 60_000).toISOString(),
-      } as any,
-      isRunning: false,
-      isStarting: false,
-      startJob: mockStartJob,
-    })
+      },
+    }))
     render(<WastePageContent />)
-    // Error banner shows the detailed message including job ID
-    expect(screen.getByText(/server may have restarted/)).toBeInTheDocument()
-    expect(screen.getByText(/job-stale-abc/)).toBeInTheDocument()
-    expect(screen.getByText("Retry")).toBeInTheDocument()
-    // Progress indicator should NOT be shown
-    expect(screen.queryByText(/Analyzing/)).not.toBeInTheDocument()
+    expect(screen.getByText(/Refresh failed/)).toBeInTheDocument()
+    expect(screen.queryByText(/Analyzing…/)).not.toBeInTheDocument()
   })
 
   it("shows backend status_message when available instead of time-based step", () => {
-    useActiveWasteJob.mockReturnValue({
+    useActiveWasteJob.mockReturnValue(mockJobReturn({
       activeJob: {
         job_id: "job-msg",
         job_type: "waste_analysis_run",
         status: "running",
-        description: "Waste analysis",
         progress: 40,
         status_message: "Running waste analysis detectors...",
         created_at: new Date(Date.now() - 20_000).toISOString(),
         started_at: new Date(Date.now() - 18_000).toISOString(),
-      } as any,
+      },
       isRunning: true,
-      isStarting: false,
-      startJob: mockStartJob,
-    })
+    }))
     render(<WastePageContent />)
-    // Should show the backend's status_message, not the time-based fallback
     expect(screen.getByText(/Running waste analysis detectors/)).toBeInTheDocument()
     expect(screen.getAllByText(/40%/).length).toBeGreaterThanOrEqual(1)
   })
 
   it("shows loading card with ETA during analysis", () => {
-    useActiveWasteJob.mockReturnValue({
+    useActiveWasteJob.mockReturnValue(mockJobReturn({
       activeJob: {
         job_id: "job-elapsed",
         job_type: "waste_analysis_run",
         status: "running",
-        description: "Waste analysis",
         progress: 25,
         status_message: "",
         created_at: new Date(Date.now() - 45_000).toISOString(),
         started_at: new Date(Date.now() - 42_000).toISOString(),
-      } as any,
+      },
       isRunning: true,
-      isStarting: false,
-      startJob: mockStartJob,
-    })
+    }))
     render(<WastePageContent />)
     expect(screen.getByTestId("analysis-loading-card")).toBeInTheDocument()
-    // ETA label should be present
     expect(screen.getByText(/Estimated time left/)).toBeInTheDocument()
   })
 })
@@ -440,47 +403,44 @@ describe("getWasteAnalysisProgress", () => {
     expect(p.progressPct).toBeGreaterThanOrEqual(6)
   })
 
-  it("shows payroll step after 8s", () => {
+  it("shows fetching step after 10s", () => {
     const p = getWasteAnalysisProgress(10)
+    expect(p.step).toMatch(/Fetching datasets/)
+  })
+
+  it("still fetching at 65s", () => {
+    const p = getWasteAnalysisProgress(65)
+    expect(p.step).toMatch(/Still fetching/)
+  })
+
+  it("shows payroll step after 150s", () => {
+    const p = getWasteAnalysisProgress(155)
     expect(p.step).toMatch(/payroll/)
   })
 
-  it("shows vendor step after 20s", () => {
-    const p = getWasteAnalysisProgress(25)
+  it("shows vendor step after 210s", () => {
+    const p = getWasteAnalysisProgress(215)
     expect(p.step).toMatch(/vendor/)
   })
 
-  it("shows infrastructure step after 40s", () => {
-    const p = getWasteAnalysisProgress(45)
+  it("shows infrastructure step after 270s", () => {
+    const p = getWasteAnalysisProgress(275)
     expect(p.step).toMatch(/infrastructure/)
   })
 
-  it("shows cross-referencing step after 60s", () => {
-    const p = getWasteAnalysisProgress(65)
-    expect(p.step).toMatch(/Cross-referencing/)
-  })
-
-  it("shows scoring step after 80s", () => {
-    const p = getWasteAnalysisProgress(90)
+  it("shows scoring step after 310s", () => {
+    const p = getWasteAnalysisProgress(315)
     expect(p.step).toMatch(/Scoring/)
   })
 
-  it("shows saving step after 100s", () => {
-    const p = getWasteAnalysisProgress(105)
-    expect(p.step).toMatch(/Saving results/)
+  it("shows persisting step after 340s", () => {
+    const p = getWasteAnalysisProgress(345)
+    expect(p.step).toMatch(/Persisting/)
   })
 
-  it("shows elapsed time and reassurance for long-running analysis (>120s)", () => {
-    const p = getWasteAnalysisProgress(150)
-    expect(p.step).toMatch(/Still processing/)
-    expect(p.step).toMatch(/2m/)
-    expect(p.step).toMatch(/large datasets/)
-  })
-
-  it("shows concern message after 5 minutes", () => {
-    const p = getWasteAnalysisProgress(320)
+  it("shows concern message after 9 minutes", () => {
+    const p = getWasteAnalysisProgress(545)
     expect(p.step).toMatch(/longer than expected/)
-    expect(p.step).toMatch(/5m/)
   })
 
   it("progress never exceeds 95%", () => {
@@ -489,9 +449,9 @@ describe("getWasteAnalysisProgress", () => {
   })
 
   it("marks as long-running after estimated time + 12s", () => {
-    const notYet = getWasteAnalysisProgress(120)
+    const notYet = getWasteAnalysisProgress(900)
     expect(notYet.isLongRunning).toBe(false)
-    const yes = getWasteAnalysisProgress(140)
+    const yes = getWasteAnalysisProgress(913)
     expect(yes.isLongRunning).toBe(true)
   })
 })

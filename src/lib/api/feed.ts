@@ -26,6 +26,8 @@ export interface FeedStory {
   view_count: number;
   click_count: number;
   share_count: number;
+  like_count?: number;
+  comment_count?: number;
   priority_score: number;
   is_featured: boolean;
   status: string;
@@ -34,6 +36,8 @@ export interface FeedStory {
   metadata?: Record<string, any>;
   created_at?: string | null;
   updated_at?: string | null;
+  /** Current user's AI feedback (thumbs up/down); only when authenticated. */
+  user_ai_feedback?: "up" | "down" | null;
 }
 
 export interface FeedStoriesResponse {
@@ -115,13 +119,37 @@ export function getFeedStory(storyId: number, token: string): Promise<FeedStoryR
 
 export function trackFeedEngagement(
   storyId: number,
-  action: "view" | "click" | "share",
+  action: "view" | "click" | "share" | "like",
   token: string
 ): Promise<EngagementResponse> {
   return request<EngagementResponse>(
     `/api/feed/story/${storyId}/engage`,
     "POST",
     { action },
+    token
+  );
+}
+
+/** Set AI feedback (thumbs up/down) for a story. Requires auth. */
+export function setFeedStoryFeedback(
+  storyId: number,
+  feedback: "up" | "down",
+  token: string
+): Promise<EngagementResponse> {
+  return request<EngagementResponse>(
+    `/api/feed/story/${storyId}/feedback`,
+    "POST",
+    { feedback },
+    token
+  );
+}
+
+/** Hide story from current user's feed. Other users still see it. Requires auth. */
+export function hideFeedStory(storyId: number, token: string): Promise<EngagementResponse> {
+  return request<EngagementResponse>(
+    `/api/feed/story/${storyId}/hide`,
+    "POST",
+    undefined,
     token
   );
 }

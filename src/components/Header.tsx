@@ -93,7 +93,6 @@ export default function Header({
     await loginWithRedirect({
       authorizationParams: {
         screen_hint: "signup",
-        prompt: "login",
       },
       appState: { returnTo: `/dashboard?signup=${intent}` },
     });
@@ -449,7 +448,7 @@ export default function Header({
                       disabled={isLoading}
                     >
                       <span className={styles.menuItemTitle}>Sign up as citizen</span>
-                      <span className={styles.menuItemDesc}>Block-level data for the places you care about, in your city and around the world.</span>
+                      <span className={styles.menuItemDesc}>Follow cities, research, and maps.</span>
                     </button>
                     <button
                       className={styles.menuItem}

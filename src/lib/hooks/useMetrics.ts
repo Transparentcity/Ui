@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
   listAdminMetrics,
@@ -101,6 +101,9 @@ export function useMetrics(options: UseMetricsOptions = {}) {
     queryKey: metricKeys.list(options),
     queryFn: async () => {
       const token = await getAccessTokenSilently();
+      if (!token?.trim()) {
+        throw new Error("Not authenticated: no access token. Log in and try again.");
+      }
       return listAdminMetrics(token, options);
     },
     staleTime: 2 * 60 * 1000, // 2 minutes - metrics can change frequently
@@ -120,6 +123,9 @@ export function useMetric(metricId: number | null) {
     queryFn: async () => {
       if (!metricId) throw new Error("Metric ID is required");
       const token = await getAccessTokenSilently();
+      if (!token?.trim()) {
+        throw new Error("Not authenticated: no access token. Log in and try again.");
+      }
       return getAdminMetric(metricId, token);
     },
     enabled: !!metricId,
@@ -160,6 +166,49 @@ export function useTemplateStructuringNotes(
   });
 }
 
+export interface MetricForAggregatedNotes {
+  id: number;
+  metric_name: string;
+}
+
+/**
+ * Fetches structuring notes for all given metrics in parallel.
+ * Use for the City Data Admin Metrics tab to show aggregated notes at the top.
+ */
+export function useAggregatedStructuringNotes(
+  metrics: MetricForAggregatedNotes[] | null
+) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  const enabled = !!metrics && metrics.length > 0;
+  const queries = useQueries({
+    queries: (metrics ?? []).map((m) => ({
+      queryKey: ["structuringNotes", m.id],
+      queryFn: async () => {
+        const token = await getAccessTokenSilently();
+        return getStructuringNotes(m.id, token);
+      },
+      staleTime: 10 * 60 * 1000,
+      enabled,
+    })),
+  });
+
+  const byMetric = (metrics ?? []).map((m, i) => {
+    const q = queries[i];
+    return {
+      metricId: m.id,
+      metricName: m.metric_name,
+      data: q?.data ?? null,
+      isLoading: q?.isLoading ?? false,
+      error: q?.error ?? null,
+    };
+  });
+
+  const isLoading = queries.some((q) => q.isLoading);
+
+  return { byMetric, isLoading };
+}
+
 /**
  * Hook to fetch metrics summary (stats).
  * Cache time: 1 minute (summary changes frequently)
@@ -171,6 +220,9 @@ export function useMetricsSummary() {
     queryKey: metricKeys.summary(),
     queryFn: async () => {
       const token = await getAccessTokenSilently();
+      if (!token?.trim()) {
+        throw new Error("Not authenticated: no access token. Log in and try again.");
+      }
       return getAdminMetricsSummary(token);
     },
     staleTime: 1 * 60 * 1000, // 1 minute

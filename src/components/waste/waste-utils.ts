@@ -4,13 +4,30 @@ import type { WasteAnalyzeResponse } from "@/lib/apiClient"
 
 export type WasteCategoryKey =
   | "overview"
+  | "convergence"
   | "payroll"
   | "contracts"
   | "infrastructure"
+  | "influence"
+  | "integrity"
   | "confirmed"
   | "detectors"
   | "review"
   | "accuracy"
+
+export const WASTE_CATEGORY_LABELS: Record<WasteCategoryKey, string> = {
+  overview: "Workspace",
+  convergence: "Cross-Domain Risk",
+  payroll: "Payroll & Personnel",
+  contracts: "Contracts & Procurement",
+  infrastructure: "Infrastructure & Services",
+  influence: "Influence & Pay-to-Play",
+  integrity: "Personnel Integrity",
+  confirmed: "Confirmed Cases",
+  detectors: "Detectors & Data",
+  review: "Review Workbench",
+  accuracy: "Detector Accuracy",
+}
 
 /**
  * Canonical mapping from raw backend category strings to UI category keys.
@@ -27,7 +44,7 @@ export function normalizeWasteCategory(category: string): WasteCategoryKey {
   if (key === "overview") return "overview"
   if (key === "payroll" || key.includes("payroll") || key === "payroll_compensation") return "payroll"
 
-  // Map integrity/personnel to payroll
+  // Personnel integrity (revolving door, dual employment, etc.)
   if (
     key === "integrity" ||
     key.includes("integrity") ||
@@ -35,7 +52,7 @@ export function normalizeWasteCategory(category: string): WasteCategoryKey {
     key.includes("revolving") ||
     key.includes("conflict")
   ) {
-    return "payroll"
+    return "integrity"
   }
 
   if (
@@ -60,22 +77,47 @@ export function normalizeWasteCategory(category: string): WasteCategoryKey {
     return "infrastructure"
   }
 
-  // Influence / lobbying / pay-to-play map to contracts (not "vendor")
+  // Influence / lobbying / pay-to-play
   if (
     key === "influence" ||
     key.includes("influence") ||
     key.includes("lobby") ||
     key.includes("pay_to_play")
   ) {
-    return "contracts"
+    return "influence"
   }
 
   if (key === "confirmed" || key.includes("confirmed")) return "confirmed"
+  if (key === "convergence" || key.includes("convergence") || key.includes("cross_domain")) return "convergence"
   if (key === "detectors" || key === "detectors_data") return "detectors"
   if (key === "review" || key.includes("queue")) return "review"
   if (key === "accuracy" || key.includes("precision")) return "accuracy"
 
   return "payroll"
+}
+
+export function getWasteCategoryLabel(category: string): string {
+  const key = normalizeWasteCategory(category)
+  return WASTE_CATEGORY_LABELS[key]
+}
+
+export const WASTE_CATEGORY_DESCRIPTIONS: Record<WasteCategoryKey, string> = {
+  overview: "Entry points and headline risk indicators",
+  convergence: "Departments flagged across multiple independent risk domains",
+  payroll: "Overtime, compensation anomalies, and personnel integrity",
+  contracts: "Vendor concentration, procurement patterns, and influence",
+  infrastructure: "311 service clusters and infrastructure patterns",
+  influence: "Lobbying overlap, campaign finance patterns, and pay-to-play risk",
+  integrity: "Revolving door hires, dual employment, and conflict-of-interest signals",
+  confirmed: "Cases confirmed through audits, investigations, or public records",
+  detectors: "All anomaly-detection algorithms and public datasets used by the platform",
+  review: "Disposition workflow for auditor triage and assignment",
+  accuracy: "Precision tracking from auditor feedback",
+}
+
+export function getWasteCategoryDescription(category: string): string {
+  const key = normalizeWasteCategory(category)
+  return WASTE_CATEGORY_DESCRIPTIONS[key]
 }
 
 // ── Dollar formatting ───────────────────────────────────────────────────────
@@ -90,8 +132,24 @@ export function formatDollar(amount: number | null | undefined): string {
 
 // ── localStorage cache helper ───────────────────────────────────────────────
 
-export const WASTE_ANALYSIS_CACHE_KEY = "waste:last-analysis:v1"
-export const WASTE_ANALYSIS_BACKUP_KEY = "waste:last-good-analysis:v1"
+const _CACHE_PREFIX = "waste:last-analysis"
+const _BACKUP_PREFIX = "waste:last-good-analysis"
+const _CACHE_VERSION = "v2"
+
+export function wasteCacheKey(cityId?: number | null): string {
+  const suffix = cityId != null ? `:${cityId}` : ""
+  return `${_CACHE_PREFIX}${suffix}:${_CACHE_VERSION}`
+}
+
+export function wasteBackupKey(cityId?: number | null): string {
+  const suffix = cityId != null ? `:${cityId}` : ""
+  return `${_BACKUP_PREFIX}${suffix}:${_CACHE_VERSION}`
+}
+
+/** @deprecated Use wasteCacheKey(cityId) instead */
+export const WASTE_ANALYSIS_CACHE_KEY = `${_CACHE_PREFIX}:${_CACHE_VERSION}`
+/** @deprecated Use wasteBackupKey(cityId) instead */
+export const WASTE_ANALYSIS_BACKUP_KEY = `${_BACKUP_PREFIX}:${_CACHE_VERSION}`
 
 /** Count findings in a response (0 if missing). */
 function findingCount(data: WasteAnalyzeResponse | null | undefined): number {
@@ -99,9 +157,9 @@ function findingCount(data: WasteAnalyzeResponse | null | undefined): number {
 }
 
 /** Read the current primary cache without parsing errors bubbling up. */
-function readCachedFindings(): number {
+function readCachedFindings(cityId?: number | null): number {
   try {
-    const raw = window.localStorage.getItem(WASTE_ANALYSIS_CACHE_KEY)
+    const raw = window.localStorage.getItem(wasteCacheKey(cityId))
     if (!raw) return 0
     const parsed = JSON.parse(raw) as WasteAnalyzeResponse
     return findingCount(parsed)
@@ -118,25 +176,30 @@ function readCachedFindings(): number {
  * Also maintains a separate backup key that is only written when the data
  * has a meaningful number of findings (> 0), providing a last-resort
  * recovery option.
+ *
+ * @param key - Cache key (use wasteCacheKey(cityId) for city-scoped caching)
+ * @param data - Analysis response to cache
+ * @param cityId - City ID for scoped cache guard logic
  */
-export function safeSetCache(key: string, data: WasteAnalyzeResponse): void {
+export function safeSetCache(
+  key: string,
+  data: WasteAnalyzeResponse,
+  cityId?: number | null,
+): void {
   const newCount = findingCount(data)
 
-  // Guard: never overwrite good cached data with empty/degraded data
-  if (key === WASTE_ANALYSIS_CACHE_KEY) {
-    const existingCount = readCachedFindings()
+  const primaryKey = wasteCacheKey(cityId)
+  if (key === primaryKey || key === WASTE_ANALYSIS_CACHE_KEY) {
+    const existingCount = readCachedFindings(cityId)
     if (newCount === 0 && existingCount > 0) {
-      // New data is empty but cache has good data; skip the write
       return
     }
   }
 
-  // Write the primary cache
   _writeToStorage(key, data)
 
-  // If the data has findings, also update the backup key as a safety net
   if (newCount > 0) {
-    _writeToStorage(WASTE_ANALYSIS_BACKUP_KEY, data)
+    _writeToStorage(wasteBackupKey(cityId), data)
   }
 }
 
@@ -165,18 +228,27 @@ function _writeToStorage(key: string, data: WasteAnalyzeResponse): void {
 
 /**
  * Load cached analysis from localStorage with backup fallback.
- * Tries the primary cache first, then falls back to the backup key
- * if the primary is missing or has zero findings.
+ * Tries the city-scoped cache first, then falls back to the backup key.
+ * If no city-scoped entry exists, falls back to the legacy global keys.
  */
-export function loadCachedAnalysis(): WasteAnalyzeResponse | null {
+export function loadCachedAnalysis(
+  cityId?: number | null,
+): WasteAnalyzeResponse | null {
   if (typeof window === "undefined") return null
 
-  for (const key of [WASTE_ANALYSIS_CACHE_KEY, WASTE_ANALYSIS_BACKUP_KEY]) {
+  const keysToTry = [
+    wasteCacheKey(cityId),
+    wasteBackupKey(cityId),
+    ...(cityId != null
+      ? [WASTE_ANALYSIS_CACHE_KEY, WASTE_ANALYSIS_BACKUP_KEY]
+      : []),
+  ]
+
+  for (const key of keysToTry) {
     try {
       const raw = window.localStorage.getItem(key)
       if (!raw) continue
       if (raw.length > 4_000_000) {
-        // Corrupted or oversized entry; skip but don't delete (might be the only copy)
         continue
       }
       const parsed = JSON.parse(raw) as WasteAnalyzeResponse

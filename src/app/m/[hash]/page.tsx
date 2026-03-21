@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import { useAuth0 } from "@auth0/auth0-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getPublicCityDetail } from "@/lib/publicApiClient";
 import Loader from "@/components/Loader";
@@ -101,6 +102,7 @@ export default function PublicMapPage() {
   const hash = params.hash as string;
   const isEmbedded = searchParams.get("embedded") === "true";
   const { theme } = useTheme();
+  const { loginWithRedirect } = useAuth0();
   
   const [map, setMap] = useState<SavedMap | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2346,11 +2348,23 @@ export default function PublicMapPage() {
           <div className="cta-section">
             <h3>Sign up now</h3>
             <p>
-              Get block-level data about what’s happening near you and in the places you care about—in your city and around the world.
+              Get updates, maps, and block-level context about your city and neighborhood.
             </p>
-            <a href="/" className="cta-button">
+            <button
+              type="button"
+              className="cta-button"
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  window.localStorage.setItem("transparentcity.signup_intent", "resident");
+                }
+                loginWithRedirect({
+                  authorizationParams: { screen_hint: "signup" },
+                  appState: { returnTo: "/dashboard?signup=resident" },
+                });
+              }}
+            >
               Sign up
-            </a>
+            </button>
           </div>
         </footer>
       </article>

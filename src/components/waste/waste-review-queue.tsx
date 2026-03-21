@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { TCScoreBadge } from "./tc-score-badge"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -96,10 +97,10 @@ function QueueRow({
           <div className="mt-2 flex flex-wrap gap-4 text-xs text-gray-500">
             <span>Detector: {item.finding_detector_key ?? "n/a"}</span>
             <span>Severity: {item.finding_severity ?? "n/a"}</span>
-            <span>
-              Composite:{" "}
+            <span className="inline-flex items-center gap-1">
+              Score:{" "}
               {item.composite_score != null
-                ? item.composite_score.toFixed(2)
+                ? <TCScoreBadge score={item.composite_score} size="sm" />
                 : "n/a"}
             </span>
           </div>
@@ -265,6 +266,7 @@ export function WasteReviewQueue({ cityId }: { cityId: number | null }) {
   const runAnalysisMutation = useRunWasteAnalysis()
   const latestRunQuery = useLatestWasteRun(cityId)
 
+  /* eslint-disable react-hooks/set-state-in-effect -- sync derived state from query */
   useEffect(() => {
     const latestRun = latestRunQuery.data
     if (!latestRun) {
@@ -275,6 +277,7 @@ export function WasteReviewQueue({ cityId }: { cityId: number | null }) {
       latestRun.analysis_timestamp ?? latestRun.completed_at ?? latestRun.created_at
     setLastAnalysisAt(runTimestamp ?? null)
   }, [latestRunQuery.data])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const runFreshAnalysisAndRefreshQueue = useCallback(
     async (mode: "manual" | "auto") => {
@@ -316,6 +319,7 @@ export function WasteReviewQueue({ cityId }: { cityId: number | null }) {
     await runFreshAnalysisAndRefreshQueue("manual")
   }
 
+  /* eslint-disable react-hooks/set-state-in-effect -- auto-refresh side effect with state sync */
   useEffect(() => {
     if (!cityId) return
     if (autoRefreshCityId === cityId) return
@@ -345,7 +349,9 @@ export function WasteReviewQueue({ cityId }: { cityId: number | null }) {
     runFreshAnalysisAndRefreshQueue,
     syncQueueMutation.isPending,
   ])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
+  /* eslint-disable react-hooks/set-state-in-effect -- timer state sync in effect */
   useEffect(() => {
     if (
       runSyncStartedAt == null ||
@@ -363,6 +369,7 @@ export function WasteReviewQueue({ cityId }: { cityId: number | null }) {
     }, 1000)
     return () => window.clearInterval(interval)
   }, [runSyncPhase, runSyncStartedAt])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const totalPages = useMemo(() => {
     const total = queueQuery.data?.total ?? 0

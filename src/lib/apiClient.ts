@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type */
 import { API_BASE } from "./apiBase";
+import { getImpersonationCacheKey, getImpersonationUserId } from "./impersonation";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -7,10 +9,12 @@ const savedCitiesCache: {
   promise: Promise<any[]> | null;
   timestamp: number;
   token: string | null;
+  identityKey: string | null;
 } = {
   promise: null,
   timestamp: 0,
   token: null,
+  identityKey: null,
 };
 
 const SAVED_CITIES_CACHE_TTL = 5000; // 5 seconds cache
@@ -54,6 +58,7 @@ async function request<T>(
   token?: string
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
+  const impersonationUserId = getImpersonationUserId();
 
   const headers: HeadersInit = {
     "Accept": "application/json",
@@ -61,6 +66,10 @@ async function request<T>(
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  if (impersonationUserId != null) {
+    headers["X-Impersonate-User-Id"] = String(impersonationUserId);
   }
 
   if (body && method !== "GET") {
@@ -81,6 +90,15 @@ async function request<T>(
     (error as any).status = res.status;
     (error as any).statusText = res.statusText;
     throw error;
+  }
+
+  if (res.status === 204 || res.status === 205) {
+    return undefined as T;
+  }
+
+  const contentLength = res.headers.get("content-length");
+  if (contentLength === "0") {
+    return undefined as T;
   }
 
   return (await res.json()) as T;
@@ -301,6 +319,25 @@ export function updateCity(
   token: string
 ): Promise<CityAdminData> {
   return request<CityAdminData>(`/api/admin/cities/${cityId}`, "PUT", data, token);
+}
+
+export interface DeleteCityResponse {
+  deleted: boolean;
+  city_id: number;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+export function deleteCity(
+  cityId: number,
+  token: string
+): Promise<DeleteCityResponse> {
+  return request<DeleteCityResponse>(
+    `/api/admin/cities/${cityId}`,
+    "DELETE",
+    undefined,
+    token
+  );
 }
 
 // --- Population by district (admin) ---
@@ -540,6 +577,7 @@ export function getTemplateInstantiationStatus(
 /** Optional body for template instantiation (single or all). */
 export interface InstantiateTemplateRequest {
   model_key?: string | null;
+  only_missing?: boolean;
 }
 
 export function instantiateSingleTemplate(
@@ -565,6 +603,63 @@ export function instantiateAllTemplates(
     `/api/admin/cities/${cityId}/instantiate-all-templates`,
     "POST",
     body ?? undefined,
+    token
+  );
+}
+
+export interface StructureMetricsBatchRequest {
+  city_ids: number[];
+  template_ids?: number[] | null;
+  model_key?: string | null;
+  only_missing?: boolean;
+}
+
+export function startStructureMetricsBatch(
+  payload: StructureMetricsBatchRequest,
+  token: string
+): Promise<JobResponse> {
+  return request<JobResponse>(
+    "/api/admin/structure-metrics-batch",
+    "POST",
+    payload,
+    token
+  );
+}
+
+export interface StructureMetricsLastRunSummary {
+  success?: boolean | null;
+  last_run_at?: string | null;
+  model_key?: string | null;
+  errors?: string[] | null;
+  opportunities?: string[] | null;
+}
+
+export function getStructureMetricsLastRuns(
+  cityIds: number[],
+  token: string
+): Promise<Record<string, StructureMetricsLastRunSummary>> {
+  if (cityIds.length === 0) return Promise.resolve({});
+  const query = new URLSearchParams({ city_ids: cityIds.join(",") });
+  return request<Record<string, StructureMetricsLastRunSummary>>(
+    `/api/admin/structure-metrics-last-runs?${query}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface CityDataDashboardStats {
+  total_metrics: number;
+  cities_with_metrics_count: number;
+}
+
+export function getCityDataDashboardStats(
+  token: string
+): Promise<CityDataDashboardStats> {
+  return request<CityDataDashboardStats>(
+    "/api/admin/city-data-dashboard-stats",
+    "GET",
+    undefined,
     token
   );
 }
@@ -723,6 +818,10 @@ export interface CityListItem {
   population_source_type?: string | null;
   population_source_name?: string | null;
   population_data_year?: number | null;
+  portal_type?: string | null;
+  template_metrics_attempted?: number;
+  template_metrics_instantiated?: number;
+  template_metrics_missing?: number;
 }
 
 export function listCities(
@@ -769,6 +868,18 @@ export function loadCityData(
   );
 }
 
+export function determinePortalTypes(
+  cityIds: number[],
+  token: string
+): Promise<LoadCityDataResponse> {
+  return request<LoadCityDataResponse>(
+    "/api/admin/cities/determine-portal-types",
+    "POST",
+    { city_ids: cityIds },
+    token
+  );
+}
+
 export interface BatchAnalyzeRequest {
   city_ids: number[];
 }
@@ -788,10 +899,14 @@ export function batchAnalyzeCities(
 // User Permissions API
 export interface UserPermissions {
   user_id: number;
+  session_user_id?: number;
   email: string;
   role: string;
   permissions: string[];
   is_admin: boolean;
+  is_impersonating?: boolean;
+  impersonated_by_db_user_id?: number | null;
+  impersonated_by_email?: string | null;
   city_lead_city_ids?: number[];
   is_city_lead?: boolean;
 }
@@ -2751,11 +2866,13 @@ export interface SavedCity {
 
 export function getSavedCities(token: string): Promise<SavedCity[]> {
   const now = Date.now();
+  const identityKey = getImpersonationCacheKey();
   
   // Check if we have a valid cached promise for the same token
   if (
     savedCitiesCache.promise &&
     savedCitiesCache.token === token &&
+    savedCitiesCache.identityKey === identityKey &&
     (now - savedCitiesCache.timestamp) < SAVED_CITIES_CACHE_TTL
   ) {
     return savedCitiesCache.promise as Promise<SavedCity[]>;
@@ -2766,12 +2883,14 @@ export function getSavedCities(token: string): Promise<SavedCity[]> {
   savedCitiesCache.promise = promise;
   savedCitiesCache.timestamp = now;
   savedCitiesCache.token = token;
+  savedCitiesCache.identityKey = identityKey;
   
   // Clear cache on error to allow retry
   promise.catch(() => {
     if (savedCitiesCache.promise === promise) {
       savedCitiesCache.promise = null;
       savedCitiesCache.timestamp = 0;
+      savedCitiesCache.identityKey = null;
     }
   });
   
@@ -2783,6 +2902,7 @@ export function clearSavedCitiesCache(): void {
   savedCitiesCache.promise = null;
   savedCitiesCache.timestamp = 0;
   savedCitiesCache.token = null;
+  savedCitiesCache.identityKey = null;
 }
 
 export function saveCity(cityId: number, token: string): Promise<{ message: string; city_id: number }> {
@@ -2833,6 +2953,12 @@ export interface UserPlace {
   updated_at: string | null;
 }
 
+/** Response from listMyPlaces; includes batch place-refresh time to avoid a separate API call. */
+export interface ListMyPlacesResponse {
+  places: UserPlace[];
+  place_refresh_last_run_at: string | null;
+}
+
 export interface PlaceTimeSeriesPoint {
   metric_id: number;
   period_type: string;
@@ -2861,9 +2987,9 @@ export interface PlaceAnomaly {
 export function listMyPlaces(
   token: string,
   options?: { city_id?: number }
-): Promise<UserPlace[]> {
+): Promise<ListMyPlacesResponse> {
   const query = options?.city_id != null ? `?city_id=${options.city_id}` : "";
-  return request<UserPlace[]>(`/api/users/me/places${query}`, "GET", undefined, token);
+  return request<ListMyPlacesResponse>(`/api/users/me/places${query}`, "GET", undefined, token);
 }
 
 export function createPlace(
@@ -3142,17 +3268,22 @@ export function getInboundEmail(emailId: number, token: string): Promise<Inbound
   return request<InboundEmailDetail>(`/api/admin/inbound-email/${emailId}`, "GET", undefined, token);
 }
 
-// Seymour's outbox (outbound emails)
+// Seymour's outbox (outbound emails + newsletter sends)
 export interface OutboundEmailListItem {
-  id: number;
+  id: number | string;
   to_email: string;
   subject: string;
-  body_preview: string;
+  body_preview: string | null;
   prompt_text: string | null;
   source: string;
   user_id: number | null;
   city_id: number | null;
   created_at: string | null;
+  type?: "outbound_email" | "newsletter_send";
+  intended_email?: string | null;
+  job_id?: string | null;
+  session_id?: string | null;
+  status?: string;
 }
 
 export interface OutboundEmailDetail {
@@ -3185,7 +3316,7 @@ export function listOutboundEmails(
   if (options?.offset != null) params.append("offset", String(options.offset));
   const query = params.toString();
   return request<OutboundEmailListResponse>(
-    `/api/admin/outbound-email/${query ? `?${query}` : ""}`,
+    `/api/admin/outbound-email${query ? `?${query}` : ""}`,
     "GET",
     undefined,
     token
@@ -3606,6 +3737,8 @@ export interface FeedStory {
   metadata?: Record<string, any>;
   created_at?: string | null;
   updated_at?: string | null;
+  /** Current user's AI feedback (thumbs up/down); only when authenticated. */
+  user_ai_feedback?: "up" | "down" | null;
 }
 
 export interface FeedStoriesResponse {
@@ -3759,6 +3892,30 @@ export function escalateStory(
     "POST",
     { comment: comment || "", include_name: includeName ?? true },
     token,
+  );
+}
+
+/** Set AI feedback (thumbs up/down) for a story. Requires auth. */
+export function setFeedStoryFeedback(
+  storyId: number,
+  feedback: "up" | "down",
+  token: string
+): Promise<EngagementResponse> {
+  return request<EngagementResponse>(
+    `/api/feed/story/${storyId}/feedback`,
+    "POST",
+    { feedback },
+    token
+  );
+}
+
+/** Hide story from current user's feed. Other users still see it. Requires auth. */
+export function hideFeedStory(storyId: number, token: string): Promise<EngagementResponse> {
+  return request<EngagementResponse>(
+    `/api/feed/story/${storyId}/hide`,
+    "POST",
+    undefined,
+    token
   );
 }
 
@@ -3935,9 +4092,12 @@ export interface ResearchReport {
   city_id?: number | null;
   district?: string | null;
   status: string;
-  max_iterations: number;
-  max_subquestions: number;
-  current_iteration: number;
+  max_iterations?: number;
+  max_subquestions?: number;
+  current_iteration?: number;
+  scoping_questions?: { narrative?: string; questions?: string[]; options_if_helpful?: Record<string, string[]> } | null;
+  scope_answers?: Record<string, any> | null;
+  scoped_focus?: string | null;
   agenda?: Record<string, any> | null;
   final_report_html?: string | null;
   model_key?: string | null;
@@ -3986,12 +4146,11 @@ export interface CreateResearchRequest {
   prompt: string;
   city_id?: number | null;
   district?: string | null;
-  max_iterations?: number;
-  max_subquestions?: number;
+  one_shot?: boolean;
+  require_scoping?: boolean;
   model_key?: string;
   require_agenda_approval?: boolean;
   enable_web_search?: boolean;
-  // Newsletter metadata fields (optional) - set these to create a newsletter report
   is_newsletter?: boolean;
   newsletter_frequency?: "weekly" | "monthly" | null;
   generate_feed_stories?: boolean;
@@ -4066,6 +4225,19 @@ export function getResearchItems(
     `/api/research/${reportId}/items`,
     "GET",
     undefined,
+    token
+  );
+}
+
+export function submitScopeAnswers(
+  reportId: number,
+  body: { answers: string[]; scoped_focus_text?: string | null },
+  token: string
+): Promise<{ status: string; report_id: number; message: string }> {
+  return request<{ status: string; report_id: number; message: string }>(
+    `/api/research/${reportId}/scope-answers`,
+    "POST",
+    body,
     token
   );
 }
@@ -4887,6 +5059,22 @@ export interface WasteFinding {
   finding_report: string | null;
   is_new?: boolean;
   fiscal_year?: number | null;
+  department?: string | null;
+  convergence_details?: {
+    triangle_legs?: string[];
+    triangle_legs_present?: string[];
+    convergence_score?: number;
+    composite_risk?: number;
+    convergence_multiplier?: number;
+    domains?: string[];
+    domains_flagged?: number;
+    domain_risks?: Record<string, number>;
+    finding_count?: number;
+  } | null;
+  is_recurring?: boolean;
+  recurrence_count?: number;
+  consolidated_into?: string | null;
+  supporting_findings?: string[] | null;
 }
 
 export interface WasteDataFreshness {
@@ -4917,6 +5105,8 @@ export interface WasteSummaryResponse {
   net_exposure: number | null;
   departments_affected: number;
   categories: WasteCategorySummary[];
+  suppressed_below_materiality?: number;
+  suppressed_below_confidence?: number;
 }
 
 export interface WasteAnalyzeResponse {
@@ -4965,6 +5155,83 @@ export interface WasteDetectorAccuracy {
   false_positive_count: number;
   precision_rate: number;
   updated_at: string | null;
+}
+
+export interface WasteScoreDistribution {
+  total_entities: number;
+  mean: number;
+  p50: number;
+  p90: number;
+  p95: number;
+  p99: number;
+  max_score: number;
+}
+
+export interface WasteSaturationStats {
+  count_gte_95: number;
+  pct_gte_95: number;
+  count_eq_100: number;
+  pct_eq_100: number;
+}
+
+export interface WasteDetectorPrecisionSnapshot {
+  detector_key: string;
+  total_findings: number;
+  confirmed_count: number;
+  false_positive_count: number;
+  precision_rate: number;
+  confirmed_case_hits: number;
+  confirmed_case_hit_rate: number;
+  updated_at: string | null;
+}
+
+export interface WasteTrustMetricsResponse {
+  city_id: number;
+  generated_at: string;
+  saturation: WasteSaturationStats;
+  score_distribution: WasteScoreDistribution;
+  confirmed_case_total_findings: number;
+  detector_precision: WasteDetectorPrecisionSnapshot[];
+}
+
+export interface WasteTrustReportRequest {
+  city_id: number;
+  lookback_days?: number;
+}
+
+export interface WasteDepartmentRiskProfile {
+  id: string | null;
+  city_id: number;
+  department_name: string;
+  department_match_name: string;
+  procurement_risk: number;
+  payroll_risk: number;
+  infrastructure_risk: number;
+  influence_risk: number;
+  integrity_risk: number;
+  domains_flagged: number;
+  convergence_multiplier: number;
+  composite_risk: number;
+  opportunity_score: number;
+  pressure_score: number;
+  capability_score: number;
+  triangle_legs_present: number;
+  finding_count: number;
+  finding_ids: string[];
+  top_finding_summary: string | null;
+  last_scored_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface WasteDepartmentRiskPage {
+  city_id: number;
+  generated_at: string;
+  items: WasteDepartmentRiskProfile[];
+  page: number;
+  per_page: number;
+  total: number;
+  has_next: boolean;
 }
 
 export interface WasteReviewQueueItem {
@@ -5052,11 +5319,13 @@ export interface SyncWasteReviewQueueResponse {
 export function getWasteAnalysis(
   token: string,
   category?: string,
-  forceRefresh?: boolean
+  forceRefresh?: boolean,
+  cityId?: number
 ): Promise<WasteAnalyzeResponse> {
   const params = new URLSearchParams();
   if (category) params.append("category", category);
   if (forceRefresh) params.append("force_refresh", "true");
+  if (cityId != null) params.append("city_id", String(cityId));
   const query = params.toString();
   const path = `/api/waste/analyze${query ? `?${query}` : ""}`;
   return request<WasteAnalyzeResponse>(path, "GET", undefined, token);
@@ -5070,9 +5339,13 @@ export function runWasteAnalysis(
 }
 
 export function getWasteSummary(
-  token: string
+  token: string,
+  cityId?: number
 ): Promise<WasteSummaryResponse> {
-  return request<WasteSummaryResponse>("/api/waste/summary", "GET", undefined, token);
+  const params = new URLSearchParams();
+  if (cityId != null) params.append("city_id", String(cityId));
+  const query = params.toString();
+  return request<WasteSummaryResponse>(`/api/waste/summary${query ? `?${query}` : ""}`, "GET", undefined, token);
 }
 
 export function getWasteRunResult(
@@ -5219,9 +5492,12 @@ export function syncWasteReviewQueue(
 export async function exportWasteFindings(
   token: string,
   category: string,
-  format: "csv" | "json" | "xlsx"
+  format: "csv" | "json" | "xlsx",
+  cityId?: number
 ): Promise<Blob> {
-  const url = `${API_BASE}/api/waste/export/${category}?format=${format}`;
+  const params = new URLSearchParams({ format });
+  if (cityId != null) params.append("city_id", String(cityId));
+  const url = `${API_BASE}/api/waste/export/${category}?${params.toString()}`;
   const res = await fetch(url, {
     method: "GET",
     credentials: "include",
@@ -5237,9 +5513,12 @@ export async function exportWasteFindings(
 
 export async function exportAuditorReport(
   token: string,
-  category: string = "all"
+  category: string = "all",
+  cityId?: number
 ): Promise<Blob> {
-  const url = `${API_BASE}/api/waste/export-report?category=${encodeURIComponent(category)}`;
+  const params = new URLSearchParams({ category });
+  if (cityId != null) params.append("city_id", String(cityId));
+  const url = `${API_BASE}/api/waste/export-report?${params.toString()}`;
   const res = await fetch(url, {
     method: "GET",
     credentials: "include",
@@ -5322,6 +5601,71 @@ export function getWasteEntityScores(
     `/api/waste/scores?${query.toString()}`,
     "GET",
     undefined,
+    token
+  );
+}
+
+export function getWasteTrustMetrics(
+  token: string,
+  params: {
+    city_id: number;
+    detector_precision_limit?: number;
+    detector_precision_min_findings?: number;
+  }
+): Promise<WasteTrustMetricsResponse> {
+  const query = new URLSearchParams();
+  query.set("city_id", String(params.city_id));
+  if (params.detector_precision_limit != null) {
+    query.set("detector_precision_limit", String(params.detector_precision_limit));
+  }
+  if (params.detector_precision_min_findings != null) {
+    query.set(
+      "detector_precision_min_findings",
+      String(params.detector_precision_min_findings)
+    );
+  }
+  return request<WasteTrustMetricsResponse>(
+    `/api/waste/scores/trust/metrics?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getWasteDepartmentRisk(
+  token: string,
+  params: {
+    city_id: number;
+    min_score?: number;
+    min_domains?: number;
+    page?: number;
+    per_page?: number;
+  }
+): Promise<WasteDepartmentRiskPage> {
+  const query = new URLSearchParams();
+  query.set("city_id", String(params.city_id));
+  if (params.min_score != null) query.set("min_score", String(params.min_score));
+  if (params.min_domains != null) {
+    query.set("min_domains", String(params.min_domains));
+  }
+  if (params.page != null) query.set("page", String(params.page));
+  if (params.per_page != null) query.set("per_page", String(params.per_page));
+  return request<WasteDepartmentRiskPage>(
+    `/api/waste/department-risk?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function generateWasteTrustReport(
+  token: string,
+  payload: WasteTrustReportRequest
+): Promise<WasteRunJobResponse> {
+  return request<WasteRunJobResponse>(
+    "/api/waste/scores/trust/report",
+    "POST",
+    payload,
     token
   );
 }
@@ -5507,6 +5851,174 @@ export function updateWasteThresholds(
     "/api/waste/thresholds",
     "PUT",
     { city_id: cityId, updates },
+    token
+  );
+}
+
+// ============================================================================
+// WASTE BENCHMARK
+// ============================================================================
+
+export interface BenchmarkSummaryCity {
+  city_id: number;
+  city_name: string;
+  total_findings: number;
+  critical_count: number;
+  high_count: number;
+  estimated_exposure: number | null;
+}
+
+export interface BenchmarkSummaryResponse {
+  selected_city: BenchmarkSummaryCity;
+  all_cities: BenchmarkSummaryCity[];
+  rank_by_exposure: number;
+  rank_by_findings: number;
+  total_tracked_cities: number;
+}
+
+export interface BenchmarkEntityRankItem {
+  city_id: number;
+  city_name: string;
+  entity_name: string;
+  entity_type: string;
+  composite_score: number;
+}
+
+export interface BenchmarkEntityRankResponse {
+  city_id: number;
+  top_entities: BenchmarkEntityRankItem[];
+  city_rank: number;
+  city_max_score: number;
+  total_tracked_cities: number;
+}
+
+export function getWasteBenchmarkSummary(
+  token: string,
+  cityId: number
+): Promise<BenchmarkSummaryResponse> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  return request<BenchmarkSummaryResponse>(
+    `/api/waste/benchmark/summary?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getWasteBenchmarkEntityRank(
+  token: string,
+  cityId: number,
+  entityType?: string
+): Promise<BenchmarkEntityRankResponse> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  if (entityType) query.set("entity_type", entityType);
+  return request<BenchmarkEntityRankResponse>(
+    `/api/waste/benchmark/entity-rank?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+// ============================================================================
+// WASTE METHODOLOGY
+// ============================================================================
+
+export interface MethodologyDatasetInfo {
+  logical_name: string;
+  display_name: string;
+  socrata_id: string | null;
+  available: boolean;
+  portal_url: string | null;
+  detectors_enabled: string[];
+  column_mappings: Record<string, string>;
+}
+
+export interface MethodologyBudgetYearInfo {
+  fiscal_year: string;
+  socrata_id: string;
+  portal_url: string;
+}
+
+export interface DataGapInfo {
+  id: string;
+  title: string;
+  gap_type: string;
+  priority: string;
+  description: string;
+  detectors_blocked: string[];
+  new_detectors_enabled: string[];
+  public_records_request: string;
+}
+
+export interface CityMethodologyResponse {
+  city_id: number;
+  city_key: string;
+  domain: string;
+  fiscal_year_start_month: number;
+  fiscal_year_label: string;
+  datasets: MethodologyDatasetInfo[];
+  missing_datasets: MethodologyDatasetInfo[];
+  budget_year_datasets: MethodologyBudgetYearInfo[];
+  methodology_notes: Record<string, string>;
+  data_gaps: DataGapInfo[];
+  total_detectors_available: number;
+  total_detectors_skipped: number;
+}
+
+export interface SystemCityOverview {
+  city_id: number;
+  city_key: string;
+  domain: string;
+  datasets_available: number;
+  datasets_missing: number;
+  detector_coverage_pct: number;
+}
+
+export interface SystemLearningInfo {
+  id: string;
+  title: string;
+  discovered_city: string;
+  affected_detectors: string[];
+  description: string;
+  resolution: string;
+  universal: boolean;
+}
+
+export interface SystemRequirementInfo {
+  id: string;
+  dataset_name: string;
+  why_needed: string;
+  detectors_enabled: string[];
+  alternatives: string[];
+}
+
+export interface SystemMethodologyResponse {
+  cities: SystemCityOverview[];
+  learnings: SystemLearningInfo[];
+  requirements: SystemRequirementInfo[];
+}
+
+export function getWasteCityMethodology(
+  token: string,
+  cityId: number
+): Promise<CityMethodologyResponse> {
+  const query = new URLSearchParams({ city_id: String(cityId) });
+  return request<CityMethodologyResponse>(
+    `/api/waste/methodology?${query.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getWasteSystemMethodology(
+  token: string
+): Promise<SystemMethodologyResponse> {
+  return request<SystemMethodologyResponse>(
+    "/api/waste/methodology/system",
+    "GET",
+    undefined,
     token
   );
 }

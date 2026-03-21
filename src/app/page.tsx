@@ -94,7 +94,7 @@ export default function Home() {
       window.localStorage.setItem("transparentcity.signup_intent", "resident");
     }
     await loginWithRedirect({
-      authorizationParams: { screen_hint: "signup", prompt: "login" },
+      authorizationParams: { screen_hint: "signup" },
       appState: { returnTo: "/dashboard?signup=resident" },
     });
   };
@@ -104,7 +104,7 @@ export default function Home() {
       window.localStorage.setItem("transparentcity.signup_intent", "public-servant");
     }
     await loginWithRedirect({
-      authorizationParams: { screen_hint: "signup", prompt: "login" },
+      authorizationParams: { screen_hint: "signup" },
       appState: { returnTo: "/dashboard?signup=public-servant" },
     });
   };
@@ -339,15 +339,15 @@ export default function Home() {
             {/* Use the original landing-page hero language + imagery */}
             <div className="hero-content">
               <div className="hero-text">
-                <span className="badge">📊 Block-level data, near you and around the world</span>
-                <h1 className="hero-title">What’s Happening Near You—And in the Places You Care About</h1>
+                <span className="badge">📊 Your city's data, made clear</span>
+                <h1 className="hero-title">Your City Just Got Easier to Understand</h1>
                 <p className="hero-subhead" style={{ fontSize: "1.1rem", fontWeight: 500, marginTop: "0.5rem", marginBottom: "1rem", color: "var(--text-secondary)" }}>
-                  In your city and cities worldwide. For citizens and officials &amp; city workers.
+                  For citizens and officials &amp; city workers
                 </p>
                 <p className="hero-description">
-                  Get block-level data on what’s actually going on: crime, 311, permits, and more. 
-                  See clear, source-linked metrics and trends for your block, your neighborhood, 
-                  or any place you care about—in your city or around the world.
+                  See what's changing in your city. Get clear, source-linked views 
+                  of the metrics, trends, and issues that matter to you— 
+                  so you can stay informed and engaged with what's happening in your community.
                 </p>
 
                 <div className="hero-carousel" id="hero-carousel">
@@ -428,9 +428,9 @@ export default function Home() {
 
         <section className={styles.section} id="who-this-is-for">
           <div className={styles.container}>
-            <h2 className={styles.sectionTitle}>Block-level clarity, wherever you care</h2>
+            <h2 className={styles.sectionTitle}>Giving you the clarity you want</h2>
             <p className={styles.sectionLead}>
-              For citizens: see what’s happening near you and in the places you care about—block by block, in your city and around the world. For officials &amp; city workers: track what’s changing in your area and see what’s working.
+              For citizens: understand what&apos;s going on with your city through clear, data-driven insights. For officials &amp; city workers: track what&apos;s changing in your area of focus and see what solutions are working.
             </p>
 
             <div className={styles.grid}>
@@ -440,10 +440,10 @@ export default function Home() {
                   <span className={styles.audienceTag}>For individuals</span>
                 </div>
                 <div className={styles.tileBody}>
-                  Block-level data about what’s happening near you and in the places you care about—in your city and around the world.
+                  Turn “what’s going on?” into something you can point to and share.
                 </div>
                 <ul className={styles.toolList}>
-                  <li>Block, neighborhood &amp; city views</li>
+                  <li>City search + city pages</li>
                   <li>Maps and trend views (where available)</li>
                   <li>Source-linked research writeups</li>
                 </ul>
@@ -489,7 +489,8 @@ export default function Home() {
           <div className={styles.container}>
             <h2 className={styles.sectionTitle}>Recent research</h2>
             <p className={styles.sectionLead}>
-              Block-level insights from public data: see what’s happening near you and in the places you care about, with maps and plain-language explanations you can share.
+              See how civic questions get answered with public data, maps, and 
+              plain-language explanations you can understand and share.
             </p>
 
             <div className={styles.researchGrid}>
@@ -531,12 +532,12 @@ export default function Home() {
         <section className="cta">
           <div className="container">
             <div className="cta-content">
-              <h2 className="cta-title">Ready to See What’s Happening Near You?</h2>
+              <h2 className="cta-title">Ready to See How Your City Is Really Doing?</h2>
               <p className="cta-description">
-                Block-level data for the places you care about—in your city and around the world.
                 Start with San Francisco today. Use shared, verifiable facts to
                 recognize what's working, question what isn't, and keep
-                conversations grounded in reality.
+                conversations between residents, advocates, and officials grounded
+                in reality.
               </p>
               <div className="cta-buttons">
                 <a
@@ -594,7 +595,7 @@ export default function Home() {
                 transparent<span className={styles.brandDotCity}>.city</span>
               </div>
               <div className={styles.finePrint}>
-                Block-level data for what’s happening near you and in the places you care about—in your city and around the world. Facts for residents. Evidence for city staff. Accountability for everyone.
+                Facts for residents. Evidence for city staff. Accountability for everyone.
                 <br />
                 <br />
                 All data is sourced from official city open data portals with documented queries and direct links.

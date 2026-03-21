@@ -3,10 +3,14 @@ import { request } from "./request";
 // User Permissions API
 export interface UserPermissions {
   user_id: number;
+  session_user_id?: number;
   email: string;
   role: string;
   permissions: string[];
   is_admin: boolean;
+  is_impersonating?: boolean;
+  impersonated_by_db_user_id?: number | null;
+  impersonated_by_email?: string | null;
   city_lead_city_ids?: number[];
   is_city_lead?: boolean;
 }
@@ -191,7 +195,7 @@ export function listOutboundEmails(
   if (options?.offset != null) params.append("offset", String(options.offset));
   const query = params.toString();
   return request<OutboundEmailListResponse>(
-    `/api/admin/outbound-email/${query ? `?${query}` : ""}`,
+    `/api/admin/outbound-email${query ? `?${query}` : ""}`,
     "GET",
     undefined,
     token

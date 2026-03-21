@@ -11,6 +11,7 @@ import { toast } from "sonner"
 import { WasteShell } from "./waste-shell"
 import { SeverityBadge } from "./severity-badge"
 import { ScoreBar } from "./score-bar"
+import { TCScoreBadge } from "./tc-score-badge"
 import { ActionCard } from "./action-card"
 import { DispositionSelect } from "./disposition-select"
 import { Button } from "@/components/ui/button"
@@ -254,8 +255,13 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
               {String(investigation.finding.description ?? investigation.finding.finding_description ?? "")}
             </p>
             {investigation.entity_score && (
-              <div className="mt-3 w-48">
-                <ScoreBar score={Number(investigation.entity_score.composite_score ?? 0)} />
+              <div className="mt-3 flex items-center gap-3">
+                <TCScoreBadge
+                  score={Number(investigation.entity_score.composite_score ?? 0)}
+                  size="md"
+                  showLabel
+                />
+                <ScoreBar score={Number(investigation.entity_score.composite_score ?? 0)} className="w-32" />
               </div>
             )}
           </div>

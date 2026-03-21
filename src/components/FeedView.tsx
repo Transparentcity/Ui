@@ -4,8 +4,14 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useFeedStories, useTrackFeedEngagement, useFeedPlaces, type FeedStory } from "@/lib/hooks/useFeed";
-import { useCities } from "@/lib/hooks/useCities";
+import {
+  useFeedStories,
+  useTrackFeedEngagement,
+  useHideFeedStory,
+  useFeedPlaces,
+  type FeedStory,
+} from "@/lib/hooks/useFeed";
+import { useCities, useSavedCities } from "@/lib/hooks/useCities";
 import {
   deleteFeedStory,
   deleteFeedStoriesByCity,
@@ -13,41 +19,74 @@ import {
   addFeedStoryComment,
   type FeedStoryComment,
   type FeedStoryCommentCreate,
+  type UserPlace,
 } from "@/lib/apiClient";
 import { API_BASE, getApiBaseUrlForAssets } from "@/lib/apiBase";
 import { feedKeys } from "@/lib/hooks/useFeed";
 import Loader from "./Loader";
 import styles from "./FeedView.module.css";
 
+function HideStoryIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+function ShareIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <path d="M4 10C5.10457 10 6 9.10457 6 8C6 6.89543 5.10457 6 4 6C2.89543 6 2 6.89543 2 8C2 9.10457 2.89543 10 4 10Z" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M12 6C13.1046 6 14 5.10457 14 4C14 2.89543 13.1046 2 12 2C10.8954 2 10 2.89543 10 4C10 5.10457 10.8954 6 12 6Z" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M12 14C13.1046 14 14 13.1046 14 12C14 10.8954 13.1046 10 12 10C10.8954 10 10 10.8954 10 12C10 13.1046 10.8954 14 12 14Z" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M5.7 9.1L10.3 11.4" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M10.3 4.6L5.7 6.9" stroke="currentColor" strokeWidth="1.5"/>
+    </svg>
+  );
+}
+
 interface FeedViewProps {
   cityId?: number | null;
   district?: number | null;
   /** When true, show admin filters and delete options by city. */
   isAdmin?: boolean;
+  /** When true, keep admin tools but do not widen content scope to all cities. */
+  isImpersonating?: boolean;
   /** City IDs the user leads; with isAdmin, show admin bar. */
   cityLeadCityIds?: number[];
+  /** User's saved places (for optional Place dropdown when feed has stories for that city). */
+  userPlaces?: UserPlace[];
 }
 
 /** Selected place filter: null = All; otherwise filter by this (city_id, district). district null = all districts for city. */
 type SelectedPlace = { city_id: number; district: number | null } | null;
 
-export default function FeedView({ cityId, district, isAdmin = false, cityLeadCityIds = [] }: FeedViewProps) {
+export default function FeedView({
+  cityId,
+  district,
+  isAdmin = false,
+  isImpersonating = false,
+  cityLeadCityIds = [],
+  userPlaces = [],
+}: FeedViewProps) {
   const router = useRouter();
-  const { getAccessTokenSilently } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   const queryClient = useQueryClient();
 
   const [selectedPlace, setSelectedPlace] = useState<SelectedPlace>(() =>
     cityId != null ? { city_id: cityId, district: district ?? null } : null
   );
-  const [selectedFrequency, setSelectedFrequency] = useState<string | null>(null);
-  /** When true, show only stories from "Generate example newsletter" (personal_newsletter category). */
-  const [personalNewsletterOnly, setPersonalNewsletterOnly] = useState(false);
+  /** Selected user saved place id (for Place dropdown); null = all for this city. */
+  const [selectedUserPlaceId, setSelectedUserPlaceId] = useState<number | null>(null);
   const [displayLimit, setDisplayLimit] = useState(10);
   /** Resolve map id -> short_hash for feed stories that only have map id (so image and link work). */
   const [resolvedMapHashes, setResolvedMapHashes] = useState<Record<number, string>>({});
   const { data: citiesList } = useCities();
+  const { data: savedCities = [] } = useSavedCities();
   const { data: placesData } = useFeedPlaces();
   const trackEngagement = useTrackFeedEngagement();
+  const hideStory = useHideFeedStory();
 
   const [deletingStoryId, setDeletingStoryId] = useState<number | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -59,6 +98,7 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
   const [commentSubmittingId, setCommentSubmittingId] = useState<number | null>(null);
   const [commentDraft, setCommentDraft] = useState<Record<number, string>>({});
   const [commentAuthorName, setCommentAuthorName] = useState<Record<number, string>>({});
+  const canBrowseAllCities = isAdmin && !isImpersonating;
 
   const places = placesData?.places ?? [];
 
@@ -71,6 +111,26 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
       return true;
     });
   }, [places]);
+
+  /** Regular users only see followed cities in the dropdown; admins also see remaining feed-enabled cities. */
+  const visibleCities = useMemo(() => {
+    const followedCityIds = new Set(savedCities.map((city) => city.id));
+    const followedCities = uniqueCities.filter((city) => followedCityIds.has(city.city_id));
+    if (!canBrowseAllCities) return followedCities;
+    const otherCities = uniqueCities.filter((city) => !followedCityIds.has(city.city_id));
+    return [...followedCities, ...otherCities];
+  }, [canBrowseAllCities, savedCities, uniqueCities]);
+
+  const visibleCityIds = useMemo(
+    () => new Set(visibleCities.map((city) => city.city_id)),
+    [visibleCities]
+  );
+
+  /** User's saved places in the currently selected city (for optional Place dropdown). */
+  const userPlacesInSelectedCity = useMemo(() => {
+    if (selectedPlace == null) return [];
+    return userPlaces.filter((p) => p.city_id === selectedPlace.city_id);
+  }, [selectedPlace, userPlaces]);
 
   const invalidateFeedQueries = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: feedKeys.lists() });
@@ -125,18 +185,29 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
   // Reset to first page when filters change
   useEffect(() => {
     setDisplayLimit(10);
-  }, [selectedPlace, selectedFrequency, personalNewsletterOnly]);
+  }, [selectedPlace]);
 
-  // Feed: when "Personal newsletter" is on, filter by category; otherwise filter by place/frequency
+  useEffect(() => {
+    if (selectedPlace == null) return;
+    if (visibleCityIds.has(selectedPlace.city_id)) return;
+    setSelectedPlace(null);
+    setSelectedUserPlaceId(null);
+  }, [selectedPlace, visibleCityIds]);
+
   const { data: feedData, isLoading, error } = useFeedStories({
-    city_id: personalNewsletterOnly ? undefined : selectedPlace?.city_id,
-    district: personalNewsletterOnly ? undefined : (selectedPlace != null && selectedPlace.district !== null ? selectedPlace.district : undefined),
-    newsletter_frequency: selectedFrequency ?? undefined,
-    category: personalNewsletterOnly ? "personal_newsletter" : undefined,
+    city_id: selectedPlace?.city_id,
+    district: selectedPlace != null && selectedPlace.district !== null ? selectedPlace.district : undefined,
     limit: displayLimit,
     order_by: "published_at",
-    all_cities: personalNewsletterOnly || selectedPlace == null,
+    all_cities: canBrowseAllCities && selectedPlace == null,
   });
+
+  /** Show Place dropdown only when a city is selected, user has saved places there, and feed has stories for that city. */
+  const showPlaceDropdown = useMemo(() => {
+    if (selectedPlace == null || userPlacesInSelectedCity.length === 0) return false;
+    const storiesInCity = feedData?.stories?.filter((s) => s.city_id === selectedPlace.city_id) ?? [];
+    return storiesInCity.length > 0;
+  }, [selectedPlace, userPlacesInSelectedCity.length, feedData?.stories]);
 
   const viewedStoriesRef = useRef<Set<number>>(new Set());
 
@@ -182,6 +253,7 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
         ? null
         : { city_id: place.city_id, district: place.district }
     );
+    setSelectedUserPlaceId(null);
   };
 
   /** Label for the active filter (for subtitle and removable pill). */
@@ -217,9 +289,9 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
     }
   };
 
-  const handleLike = (story: FeedStory, e: React.MouseEvent) => {
+  const handleHideStory = (story: FeedStory, e: React.MouseEvent) => {
     e.stopPropagation();
-    trackEngagement.mutate({ storyId: story.id, action: "like" });
+    hideStory.mutate({ storyId: story.id });
   };
 
   const handleToggleComments = async (storyId: number, e: React.MouseEvent) => {
@@ -311,16 +383,12 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
     return { name, emoji };
   };
 
-  const getFrequencyLabel = (freq: string | null | undefined) => {
-    if (!freq) return null;
-    return freq.charAt(0).toUpperCase() + freq.slice(1);
-  };
-
   const getMapTypeLabel = (story: FeedStory): string => {
     const mapType = story.primary_visualization?.map_type;
     const labels: Record<string, string> = {
       point: "Point Map",
       choropleth: "Choropleth",
+      delta: "Delta Map",
       symbol: "Symbol Map",
       heatmap: "Heatmap",
       multi_layer: "Multi-Layer Map",
@@ -426,11 +494,11 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
       <div className={`${styles.feedHeader} dashboard-page-header`}>
         <h1 className={styles.feedTitle}>Feed</h1>
         <p className={styles.feedSubtitle}>
-          {personalNewsletterOnly
-            ? "Sample newsletters you generated (from Settings)"
-            : selectedPlace == null
+          {selectedPlace == null
+            ? canBrowseAllCities
               ? "Latest civic data stories from all cities"
-              : `Stories for ${activeFilterLabel ?? "selected place"}`
+              : "Latest civic data stories from places you follow"
+            : `Stories for ${activeFilterLabel ?? "selected place"}`
           }
         </p>
       </div>
@@ -461,27 +529,8 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
         </div>
       )}
 
-      {/* Top-level filter: Personal newsletter vs main feed */}
-      <div className={styles.chipBar}>
-        <button
-          type="button"
-          className={`${styles.chip} ${!personalNewsletterOnly ? styles.chipActive : ""}`}
-          onClick={() => setPersonalNewsletterOnly(false)}
-        >
-          All stories
-        </button>
-        <button
-          type="button"
-          className={`${styles.chip} ${personalNewsletterOnly ? styles.chipActive : ""}`}
-          onClick={() => setPersonalNewsletterOnly(true)}
-        >
-          Personal newsletter
-        </button>
-      </div>
-
-      {/* City + District dropdowns for all users (default All / All) */}
-      {!personalNewsletterOnly && (
-        <div className={styles.filterRow}>
+      {/* City + District (+ optional Place) dropdowns */}
+      <div className={styles.filterRow}>
           <div className={styles.filterGroup}>
             <label htmlFor="feed-city-filter" className={styles.filterLabel}>
               City
@@ -491,6 +540,7 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
               value={selectedPlace?.city_id ?? ""}
               onChange={(e) => {
                 const v = e.target.value;
+                setSelectedUserPlaceId(null);
                 if (!v) {
                   setSelectedPlace(null);
                   return;
@@ -500,8 +550,8 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
               }}
               className={styles.filterSelect}
             >
-              <option value="">All</option>
-              {uniqueCities.map((c) => (
+              <option value="">{canBrowseAllCities ? "All cities" : "All followed cities"}</option>
+              {visibleCities.map((c) => (
                 <option key={c.city_id} value={c.city_id}>
                   {c.city_emoji} {c.city_name}
                 </option>
@@ -518,6 +568,7 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
               onChange={(e) => {
                 const v = e.target.value;
                 if (selectedPlace == null) return;
+                setSelectedUserPlaceId(null);
                 if (v === "") {
                   setSelectedPlace((prev) => (prev ? { ...prev, district: null } : null));
                   return;
@@ -541,11 +592,37 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
               )}
             </select>
           </div>
+          {showPlaceDropdown && (
+            <div className={styles.filterGroup}>
+              <label htmlFor="feed-place-filter" className={styles.filterLabel}>
+                Place
+              </label>
+              <select
+                id="feed-place-filter"
+                value={selectedUserPlaceId ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setSelectedUserPlaceId(v ? parseInt(v, 10) : null);
+                }}
+                className={styles.filterSelect}
+              >
+                <option value="">All</option>
+                {userPlacesInSelectedCity.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           {activeFilterLabel != null && (
             <button
               type="button"
               className={styles.filterPill}
-              onClick={() => setSelectedPlace(null)}
+              onClick={() => {
+                setSelectedUserPlaceId(null);
+                setSelectedPlace(null);
+              }}
               title="Clear filter"
             >
               <span className={styles.filterPillLabel}>{activeFilterLabel}</span>
@@ -553,32 +630,14 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
             </button>
           )}
         </div>
-      )}
-
-      {/* Frequency filter */}
-      <div className={styles.secondaryFilters}>
-        <div className={styles.filterGroup}>
-          <label htmlFor="frequency-filter">Frequency:</label>
-          <select
-            id="frequency-filter"
-            value={selectedFrequency ?? ""}
-            onChange={(e) => setSelectedFrequency(e.target.value || null)}
-            className={styles.filterSelect}
-          >
-            <option value="">All</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-        </div>
-      </div>
 
       {/* Stories */}
       {stories.length === 0 ? (
         <div className={styles.emptyState}>
           <p>
-            {personalNewsletterOnly
-              ? "No personal newsletter samples yet. Generate one from Settings → Personalized newsletter."
-              : "No feed stories found. Check back later for new newsletters!"}
+            {canBrowseAllCities
+              ? "No feed stories found. Check back later for new newsletters!"
+              : "No feed stories found for the cities you follow yet. Follow more places or check back later."}
           </p>
         </div>
       ) : (
@@ -701,32 +760,20 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
                   </div>
                 )}
 
-                {/* Footer: engagement stats + actions */}
+                {/* Footer: hide, read more, share */}
                 <div className={styles.storyFooter}>
-                  <div className={styles.storyStats} onClick={(e) => e.stopPropagation()}>
-                    <span className={styles.storyStat} title="Views">
-                      <span className={styles.storyStatIcon} aria-hidden>👁</span>
-                      {(story.view_count ?? 0).toLocaleString()}
-                    </span>
-                    <button
-                      type="button"
-                      className={styles.likeBtn}
-                      onClick={(e) => handleLike(story, e)}
-                      title="Like"
-                    >
-                      <span className={styles.storyStatIcon} aria-hidden>♥</span>
-                      {(story.like_count ?? 0).toLocaleString()}
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.commentToggleBtn}
-                      onClick={(e) => handleToggleComments(story.id, e)}
-                      title="Comments"
-                    >
-                      <span className={styles.storyStatIcon} aria-hidden>💬</span>
-                      {(story.comment_count ?? 0).toLocaleString()}
-                    </button>
-                  </div>
+                  {isAuthenticated && (
+                    <div className={styles.aiFeedbackArea} onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className={styles.hideStoryBtn}
+                        onClick={(e) => handleHideStory(story, e)}
+                        title="Hide this story from your feed"
+                      >
+                        <HideStoryIcon />
+                      </button>
+                    </div>
+                  )}
                   <button
                     className={styles.readMoreBtn}
                     onClick={(e) => {
@@ -741,14 +788,17 @@ export default function FeedView({ cityId, district, isAdmin = false, cityLeadCi
                     onClick={(e) => handleShare(story, e)}
                     title="Share story"
                   >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M4 10C5.10457 10 6 9.10457 6 8C6 6.89543 5.10457 6 4 6C2.89543 6 2 6.89543 2 8C2 9.10457 2.89543 10 4 10Z" stroke="currentColor" strokeWidth="1.5"/>
-                      <path d="M12 6C13.1046 6 14 5.10457 14 4C14 2.89543 13.1046 2 12 2C10.8954 2 10 2.89543 10 4C10 5.10457 10.8954 6 12 6Z" stroke="currentColor" strokeWidth="1.5"/>
-                      <path d="M12 14C13.1046 14 14 13.1046 14 12C14 10.8954 13.1046 10 12 10C10.8954 10 10 10.8954 10 12C10 13.1046 10.8954 14 12 14Z" stroke="currentColor" strokeWidth="1.5"/>
-                      <path d="M5.7 9.1L10.3 11.4" stroke="currentColor" strokeWidth="1.5"/>
-                      <path d="M10.3 4.6L5.7 6.9" stroke="currentColor" strokeWidth="1.5"/>
-                    </svg>
+                    <ShareIcon />
                     Share
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.commentToggleBtn}
+                    onClick={(e) => handleToggleComments(story.id, e)}
+                    title="Comments"
+                  >
+                    <span className={styles.storyStatIcon} aria-hidden>💬</span>
+                    {(story.comment_count ?? 0).toLocaleString()}
                   </button>
                 </div>
 

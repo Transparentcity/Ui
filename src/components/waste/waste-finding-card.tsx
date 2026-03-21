@@ -2,9 +2,32 @@
 
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion, AlertCircle, Sparkles, Map as MapIcon } from "lucide-react"
+import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion, AlertCircle, Sparkles, Map as MapIcon, Triangle } from "lucide-react"
 import { type WasteFinding } from "@/lib/apiClient"
 import { formatDollar, escapeSoqlLike as escapeSoqlLikeShared, escapeSoql } from "./waste-utils"
+import { TCScoreBadge } from "./tc-score-badge"
+
+const DOMAIN_LABELS: Record<string, string> = {
+  procurement: "Contracts & Procurement",
+  payroll: "Payroll & Compensation",
+  infrastructure: "Infrastructure & Services",
+  influence: "Influence & Pay-to-Play",
+  integrity: "Personnel Integrity",
+}
+
+const DOMAIN_COLORS: Record<string, string> = {
+  procurement: "bg-blue-500",
+  payroll: "bg-emerald-500",
+  infrastructure: "bg-amber-500",
+  influence: "bg-purple-500",
+  integrity: "bg-rose-500",
+}
+
+const TRIANGLE_LEG_LABELS: Record<string, { label: string; color: string }> = {
+  Opportunity: { label: "Opportunity", color: "text-blue-700 bg-blue-50 border-blue-200" },
+  Pressure: { label: "Pressure", color: "text-amber-700 bg-amber-50 border-amber-200" },
+  Capability: { label: "Capability", color: "text-rose-700 bg-rose-50 border-rose-200" },
+}
 
 const severityConfig = {
   critical: {
@@ -54,11 +77,50 @@ const confidenceConfig = {
   },
 }
 
+interface CitySocrataConfig {
+  domain: string
+  payrollDataset: string
+  vendorDataset: string
+  serviceRequestDataset: string
+  neighborhoodColumn: string
+  geoPointColumn: string
+  districtColumn: string
+}
+
+const SF_SOCRATA: CitySocrataConfig = {
+  domain: "data.sfgov.org",
+  payrollDataset: "88g8-5mnd",
+  vendorDataset: "n9pm-xkyq",
+  serviceRequestDataset: "vw6y-z8j6",
+  neighborhoodColumn: "neighborhoods_sffind_boundaries",
+  geoPointColumn: "point",
+  districtColumn: "supervisor_district",
+}
+
+const CHICAGO_SOCRATA: CitySocrataConfig = {
+  domain: "data.cityofchicago.org",
+  payrollDataset: "xzkq-xp2w",
+  vendorDataset: "s4vu-giwb",
+  serviceRequestDataset: "v6vf-nfxy",
+  neighborhoodColumn: "community_area",
+  geoPointColumn: "location",
+  districtColumn: "ward",
+}
+
+const SF_CITY_IDS = new Set([1, 2, 56837])
+const CHICAGO_CITY_IDS = new Set([3, 56838])
+
+export function getCitySocrataConfig(cityId: number): CitySocrataConfig {
+  if (CHICAGO_CITY_IDS.has(cityId)) return CHICAGO_SOCRATA
+  return SF_SOCRATA
+}
+
 interface WasteFindingCardProps {
   finding: WasteFinding
   isExpanded: boolean
   onToggle: () => void
   onAskSeymour?: (finding: WasteFinding) => void
+  cityId?: number
 }
 
 interface PayrollDetailRow {
@@ -90,6 +152,9 @@ interface InfrastructureDetailRow {
   requested_datetime?: string
   closed_date?: string
   neighborhoods_sffind_boundaries?: string
+  community_area?: string
+  ward?: string
+  [key: string]: string | undefined
 }
 
 type AnyDetailRow = PayrollDetailRow & VendorDetailRow & InfrastructureDetailRow
@@ -110,7 +175,7 @@ export function isOnRoadmap(finding: WasteFinding): boolean {
     finding.category?.toLowerCase().includes("confirmed") ||
     finding.id?.startsWith("CONF-")
   if (isConfirmed) {
-    const detectorPart = finding.subcategory.split(" - ").pop() ?? ""
+    const detectorPart = (finding.subcategory ?? "").split(" - ").pop() ?? ""
     return ROADMAP_DETECTOR_NAMES.some((p) => detectorPart.includes(p))
   }
 
@@ -123,9 +188,10 @@ function stripRoadmapLabel(text: string): string {
 
 const DETAILS_LIMIT = 20
 const PAYROLL_FETCH_LIMIT = 60
-const SOCRATA_PAYROLL = "https://data.sfgov.org/resource/88g8-5mnd.json"
-const SOCRATA_VENDOR = "https://data.sfgov.org/resource/n9pm-xkyq.json"
-const SOCRATA_311 = "https://data.sfgov.org/resource/vw6y-z8j6.json"
+
+function socrataUrl(cfg: CitySocrataConfig, dataset: string): string {
+  return `https://${cfg.domain}/resource/${dataset}.json`
+}
 
 // Keywords used by D4 Infrastructure Cluster detector (must stay in sync with infrastructure.py)
 const INFRA_KEYWORDS_311 = ["sewer", "water", "flood", "leak", "pressure", "ponding", "sinkhole", "puc"]
@@ -217,8 +283,13 @@ function getDepartmentFilter(finding: WasteFinding): string {
   return escapeSoqlLike((finding.entity || "").split("(")[0].trim())
 }
 
-export function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
-  const cat = finding.category.toLowerCase()
+export function buildSocrataDetailsUrl(finding: WasteFinding, cityId?: number): string | null {
+  const cat = (finding.category ?? "").toLowerCase()
+  const sub = finding.subcategory ?? ""
+  const cfg = getCitySocrataConfig(cityId ?? 1)
+  const PAYROLL = socrataUrl(cfg, cfg.payrollDataset)
+  const VENDOR = socrataUrl(cfg, cfg.vendorDataset)
+  const SVC_REQ = socrataUrl(cfg, cfg.serviceRequestDataset)
 
   // PAYROLL
   if (cat.includes("payroll")) {
@@ -229,30 +300,27 @@ export function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
       "year,employee_identifier,job,hours,salaries,overtime,other_salaries,total_salary"
     const baseWhere = `upper(department) like upper('%${dept}%') and hours > 0`
 
-    if (finding.subcategory === "Comp Time Manipulation") {
+    if (sub === "Comp Time Manipulation") {
       const where = `${baseWhere} and salaries > 10000 and other_salaries > 0 and (other_salaries / salaries) > 0.30`
-      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent("year desc, other_salaries desc")}&$limit=${PAYROLL_FETCH_LIMIT}`
+      return `${PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent("year desc, other_salaries desc")}&$limit=${PAYROLL_FETCH_LIMIT}`
+    }
+
+    if (sub === "Hours Feasibility" || sub === "Impossibility Check") {
+      return `${PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("year desc, hours desc")}&$limit=${PAYROLL_FETCH_LIMIT}`
     }
 
     if (
-      finding.subcategory === "Hours Feasibility" ||
-      finding.subcategory === "Impossibility Check"
+      sub === "Overtime Abuse" ||
+      sub === "Department OT Outlier" ||
+      sub === "Benford Anomaly" ||
+      sub.includes("Overtime") ||
+      (finding.tool ?? "").includes("Pareto")
     ) {
-      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("year desc, hours desc")}&$limit=${PAYROLL_FETCH_LIMIT}`
+      return `${PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("year desc, overtime desc")}&$limit=${PAYROLL_FETCH_LIMIT}`
     }
 
-    if (
-      finding.subcategory === "Overtime Abuse" ||
-      finding.subcategory === "Department OT Outlier" ||
-      finding.subcategory === "Benford Anomaly" ||
-      finding.subcategory.includes("Overtime") ||
-      finding.tool.includes("Pareto")
-    ) {
-      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("year desc, overtime desc")}&$limit=${PAYROLL_FETCH_LIMIT}`
-    }
-
-    if (finding.subcategory.includes("Pension Spiking")) {
-      return `${SOCRATA_PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("year desc, total_salary desc")}&$limit=${PAYROLL_FETCH_LIMIT}`
+    if (sub.includes("Pension Spiking")) {
+      return `${PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(baseWhere)}&$order=${encodeURIComponent("year desc, total_salary desc")}&$limit=${PAYROLL_FETCH_LIMIT}`
     }
   }
 
@@ -263,48 +331,42 @@ export function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
     
     const vendorOrder = "fiscal_year DESC,vouchers_paid DESC"
 
-    // SSS Duplicates
-    if (finding.subcategory === "Duplicate Payments" && finding.amount) {
+    if (sub === "Duplicate Payments" && finding.amount) {
       let whereClause = `vendor = '${vendorName}'`
       const amountMatch = finding.metricDetail?.match(/of \$([0-9,.]+) each/)
       if (amountMatch) {
           const amount = amountMatch[1].replace(/,/g, "")
           whereClause += ` AND vouchers_paid = ${amount}`
       }
-      return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(whereClause)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
+      return `${VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(whereClause)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
     }
 
-    // Ghost Vendor
-    if (finding.subcategory === "Unregistered Vendor" || finding.subcategory === "Ghost Vendor") {
-       return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`vendor = '${vendorName}'`)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
+    if (sub === "Unregistered Vendor" || sub === "Ghost Vendor") {
+       return `${VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`vendor = '${vendorName}'`)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
     }
     
-    // Misdirected Payment (Entity is PO)
-    if (finding.subcategory === "Misdirected Payment") {
+    if (sub === "Misdirected Payment") {
         const poMatch = (finding.entity ?? "").match(/PO\s+(.+)/)
         if (poMatch) {
             const po = escapeSoqlLike(poMatch[1])
             let whereClause = `purchase_order = '${po}'`
 
-            // Extract amount from "paid identical $90,000.00"
             const amountMatch = finding.metricDetail?.match(/paid identical \$([0-9,.]+)/)
             if (amountMatch) {
                 const amount = amountMatch[1].replace(/,/g, "")
                 whereClause += ` AND vouchers_paid = ${amount}`
             }
 
-            return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(whereClause)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
+            return `${VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(whereClause)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
         }
     }
 
-    // Benford/Statistical Anomaly (Entity is Department)
-    if (finding.subcategory === "Statistical Anomaly") {
+    if (sub === "Statistical Anomaly") {
         const dept = escapeSoqlLike(finding.entity || "")
-        return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`department = '${dept}'`)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
+        return `${VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`department = '${dept}'`)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
     }
 
-    // Threshold Avoidance (Entity is "Dept (Limit $X)")
-    if (finding.subcategory === "Threshold Avoidance") {
+    if (sub === "Threshold Avoidance") {
         const dept = escapeSoqlLike((finding.entity || "").split(" (Limit")[0].trim())
         if (!dept) return null
         const rangeMatch = finding.metricDetail?.match(/Range \$([0-9,.]+)-\$([0-9,.]+)/)
@@ -312,21 +374,21 @@ export function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
             const low = rangeMatch[1].replace(/,/g, "")
             const high = rangeMatch[2].replace(/,/g, "")
             const where = `department = '${dept}' AND vouchers_paid >= ${low} AND vouchers_paid <= ${high}`
-            return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
+            return `${VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
         }
-        return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`department = '${dept}'`)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
+        return `${VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`department = '${dept}'`)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
     }
 
     // Default vendor fallback
-    return `${SOCRATA_VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`vendor = '${vendorName}'`)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
+    return `${VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`vendor = '${vendorName}'`)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
   }
 
   // INFRASTRUCTURE
   if (cat.includes("infrastructure")) {
-    const select = "service_request_id,service_name,service_subtype,status_description,requested_datetime,closed_date,neighborhoods_sffind_boundaries"
+    const nCol = cfg.neighborhoodColumn
+    const select = `service_request_id,service_name,service_subtype,status_description,requested_datetime,closed_date,${nCol}`
     
-    // Spatial Cluster (D4): only water/sewer/infrastructure complaints that matched the detector
-    if (finding.subcategory === "Infrastructure Cluster") {
+    if (sub === "Infrastructure Cluster") {
       const keywordFilter = buildInfraKeywordFilter()
       const cutoff = new Date()
       cutoff.setDate(cutoff.getDate() - 90)
@@ -336,26 +398,24 @@ export function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
       const coords = extractCoordsFromDescription(finding.description ?? "")
       if (coords) {
         const [lat, lon] = coords
-        const where = `within_circle(point, ${lat}, ${lon}, 500) and ${keywordFilter} and ${dateFilter}`
-        return `${SOCRATA_311}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=requested_datetime DESC&$limit=${DETAILS_LIMIT}`
+        const where = `within_circle(${cfg.geoPointColumn}, ${lat}, ${lon}, 500) and ${keywordFilter} and ${dateFilter}`
+        return `${SVC_REQ}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=requested_datetime DESC&$limit=${DETAILS_LIMIT}`
       }
       const neighborhood = escapeSoqlLike(finding.entity || "")
-      const where = `neighborhoods_sffind_boundaries = '${neighborhood}' and ${keywordFilter} and ${dateFilter}`
-      return `${SOCRATA_311}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=requested_datetime DESC&$limit=${DETAILS_LIMIT}`
+      const where = `${nCol} = '${neighborhood}' and ${keywordFilter} and ${dateFilter}`
+      return `${SVC_REQ}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=requested_datetime DESC&$limit=${DETAILS_LIMIT}`
     }
     
-    // Response Time (Entity is Agency)
-    if (finding.subcategory === "Response Time Deterioration") {
+    if (sub === "Response Time Deterioration") {
         const agency = escapeSoqlLike(finding.entity || "")
-        return `${SOCRATA_311}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`agency_responsible = '${agency}'`)}&$order=requested_datetime DESC&$limit=${DETAILS_LIMIT}`
+        return `${SVC_REQ}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`agency_responsible = '${agency}'`)}&$order=requested_datetime DESC&$limit=${DETAILS_LIMIT}`
     }
 
-    // Equity Gap (Entity is "District X")
-    if (finding.subcategory === "District Equity Gap") {
+    if (sub === "District Equity Gap") {
         const distMatch = (finding.entity ?? "").match(/District\s+(\d+)/)
         if (distMatch) {
             const dist = distMatch[1]
-             return `${SOCRATA_311}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`supervisor_district = '${dist}'`)}&$order=requested_datetime DESC&$limit=${DETAILS_LIMIT}`
+             return `${SVC_REQ}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`${cfg.districtColumn} = '${dist}'`)}&$order=requested_datetime DESC&$limit=${DETAILS_LIMIT}`
         }
     }
   }
@@ -363,17 +423,102 @@ export function buildSocrataDetailsUrl(finding: WasteFinding): string | null {
   return null
 }
 
+function ConvergenceDetail({ finding }: { finding: WasteFinding }) {
+  const cd = finding.convergence_details
+  if (!cd) return null
+
+  const domainEntries = Object.entries(cd.domain_risks ?? {}).sort(
+    ([, a], [, b]) => (b as number) - (a as number)
+  )
+  const allLegs = ["Opportunity", "Pressure", "Capability"]
+
+  return (
+    <div className="space-y-4">
+      {/* Composite score header */}
+      <div className="flex items-center gap-4">
+        <TCScoreBadge score={cd.composite_risk ?? 0} size="lg" showLabel />
+        <div className="text-xs text-gray-500">
+          {cd.domains_flagged} domains flagged
+          <span className="mx-1.5 text-gray-300">|</span>
+          {cd.convergence_multiplier}x convergence multiplier
+          <span className="mx-1.5 text-gray-300">|</span>
+          {cd.finding_count} underlying findings
+        </div>
+      </div>
+
+      {/* Domain risk bars */}
+      <div className="space-y-2">
+        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Risk by Domain</span>
+        {domainEntries.map(([domain, score]) => (
+          <div key={domain} className="flex items-center gap-3">
+            <span className="text-xs text-gray-600 w-44 shrink-0">
+              {DOMAIN_LABELS[domain] ?? domain}
+            </span>
+            <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className={cn("h-full rounded-full transition-all", DOMAIN_COLORS[domain] ?? "bg-gray-400")}
+                style={{ width: `${Math.min(score as number, 100)}%` }}
+              />
+            </div>
+            <span className="text-xs font-medium text-gray-700 w-8 text-right">
+              {Math.round(score as number)}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Fraud Triangle */}
+      {(cd.triangle_legs_present?.length ?? 0) > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Triangle className="w-3.5 h-3.5 text-gray-500" />
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+              Fraud Triangle ({cd.triangle_legs_present?.length ?? 0}/3)
+            </span>
+          </div>
+          <div className="flex gap-2">
+            {allLegs.map((leg) => {
+              const active = (cd.triangle_legs ?? []).includes(leg)
+              const cfg = TRIANGLE_LEG_LABELS[leg]
+              return (
+                <span
+                  key={leg}
+                  className={cn(
+                    "inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border",
+                    active
+                      ? cfg?.color
+                      : "text-gray-400 bg-gray-50 border-gray-200"
+                  )}
+                >
+                  {cfg?.label ?? leg}
+                </span>
+              )
+            })}
+          </div>
+          {(cd.triangle_legs_present?.length ?? 0) === 3 && (
+            <p className="text-xs text-red-600 font-medium">
+              All three legs present — conditions favorable for fraud.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function WasteFindingCard({
   finding,
   isExpanded,
   onToggle,
   onAskSeymour,
+  cityId,
 }: WasteFindingCardProps) {
   const sevKey = (finding.severity?.toLowerCase() ?? "medium") as keyof typeof severityConfig
   const sev = severityConfig[sevKey] ?? severityConfig.medium
   const confKey = ((finding.confidence ?? "medium").toLowerCase()) as keyof typeof confidenceConfig
   const conf = confidenceConfig[confKey] ?? confidenceConfig.medium
   const ConfIcon = conf.icon
+  const isConvergence = finding.category?.toLowerCase().includes("convergence")
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isDetailsLoading, setIsDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
@@ -384,7 +529,7 @@ export function WasteFindingCard({
     onAskSeymour?.(finding)
   }
 
-  const detailsUrl = buildSocrataDetailsUrl(finding)
+  const detailsUrl = buildSocrataDetailsUrl(finding, cityId)
   const canShowDetails = Boolean(detailsUrl)
 
   const loadDetails = async () => {
@@ -397,7 +542,7 @@ export function WasteFindingCard({
         throw new Error(`Failed to load details (${response.status})`)
       }
       let rows = (await response.json()) as AnyDetailRow[]
-      if (finding.category.toLowerCase().includes("payroll")) {
+      if ((finding.category ?? "").toLowerCase().includes("payroll")) {
         rows = groupPayrollRows(rows).slice(0, DETAILS_LIMIT)
       } else {
         rows.sort((a, b) => {
@@ -433,7 +578,7 @@ export function WasteFindingCard({
         return <p className="px-3 py-2 text-xs text-gray-500">No matching records found.</p>
     }
 
-    const cat = finding.category.toLowerCase()
+    const cat = (finding.category ?? "").toLowerCase()
 
     if (cat.includes("contract") || cat.includes("vendor")) {
         return (
@@ -489,7 +634,7 @@ export function WasteFindingCard({
                      </td>
                      <td className="px-3 py-2 text-gray-600">{row.status_description}</td>
                      <td className="px-3 py-2 text-gray-600">{formatDate(row.requested_datetime)}</td>
-                     <td className="px-3 py-2 text-gray-600 truncate max-w-[100px]">{row.neighborhoods_sffind_boundaries || "—"}</td>
+                     <td className="px-3 py-2 text-gray-600 truncate max-w-[100px]">{row.neighborhoods_sffind_boundaries || row.community_area || row.ward || "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -501,13 +646,14 @@ export function WasteFindingCard({
     let amountHeader = "Overtime"
     let amountValue = (row: AnyDetailRow) => formatCurrency(row.overtime)
 
-    if (finding.subcategory === "Comp Time Manipulation") {
+    const sub = finding.subcategory ?? ""
+    if (sub === "Comp Time Manipulation") {
         amountHeader = "Other Salaries"
         amountValue = (row) => formatCurrency(row.other_salaries)
-    } else if (finding.subcategory.includes("Pension")) {
+    } else if (sub.includes("Pension")) {
         amountHeader = "Total Salary"
         amountValue = (row) => formatCurrency(row.total_salary)
-    } else if (finding.subcategory === "Hours Feasibility" || finding.subcategory === "Impossibility Check") {
+    } else if (sub === "Hours Feasibility" || sub === "Impossibility Check") {
         amountHeader = "Total Salary"
         amountValue = (row) => formatCurrency(row.total_salary)
     }
@@ -622,15 +768,24 @@ export function WasteFindingCard({
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Confidence indicator (compact) */}
-        <span className="hidden lg:inline-flex shrink-0" title={conf.label}>
-          <ConfIcon className={cn("w-3.5 h-3.5", conf.text)} aria-label={conf.label} />
-        </span>
+        {/* Confidence indicator (compact) — hidden for convergence */}
+        {isConvergence ? null : (
+          <span className="hidden lg:inline-flex shrink-0" title={conf.label}>
+            <ConfIcon className={cn("w-3.5 h-3.5", conf.text)} aria-label={conf.label} />
+          </span>
+        )}
 
         {/* Entity tag */}
         <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded truncate max-w-[120px] sm:max-w-none sm:whitespace-nowrap inline-flex">
           {finding.entity}
         </span>
+
+        {/* Fiscal year */}
+        {finding.fiscal_year && (
+          <span className="text-[10px] text-gray-400 whitespace-nowrap hidden sm:inline">
+            FY{finding.fiscal_year}
+          </span>
+        )}
 
         {/* Amount */}
         {finding.amount != null && finding.amount > 0 && (
@@ -663,9 +818,15 @@ export function WasteFindingCard({
             )}
           </div>
 
-          <p className="text-sm text-gray-700 leading-relaxed mb-3">
-            {finding.description}
-          </p>
+          {isConvergence ? (
+            <div className="mb-3">
+              <ConvergenceDetail finding={finding} />
+            </div>
+          ) : (
+            <p className="text-sm text-gray-700 leading-relaxed mb-3">
+              {finding.description}
+            </p>
+          )}
 
           {canShowDetails && (
             <div className="mb-3">
@@ -700,17 +861,19 @@ export function WasteFindingCard({
             </div>
           )}
 
-          {/* Confidence badge */}
-          <div className={cn(
-            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs mb-3",
-            conf.bg, conf.text, "border", conf.border
-          )}>
-            <ConfIcon className="w-3.5 h-3.5" />
-            <span className="font-medium">{conf.label}</span>
-            {finding.confidence_reason && (
-              <span className="text-gray-500 ml-1">— {finding.confidence_reason}</span>
-            )}
-          </div>
+          {/* Confidence badge — hidden for convergence meta-findings */}
+          {!isConvergence && (
+            <div className={cn(
+              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs mb-3",
+              conf.bg, conf.text, "border", conf.border
+            )}>
+              <ConfIcon className="w-3.5 h-3.5" />
+              <span className="font-medium">{conf.label}</span>
+              {finding.confidence_reason && (
+                <span className="text-gray-500 ml-1">— {finding.confidence_reason}</span>
+              )}
+            </div>
+          )}
 
           {/* Caveat / data quality warning */}
           {finding.caveat && (
@@ -743,6 +906,11 @@ export function WasteFindingCard({
                 </span>
               )}
               <span>{finding.id}</span>
+              {finding.fiscal_year && (
+                <span className="text-gray-400">
+                  FY{finding.fiscal_year}
+                </span>
+              )}
               <span className="text-gray-300">
                 Priority: {finding.priority_score ?? "—"}
               </span>

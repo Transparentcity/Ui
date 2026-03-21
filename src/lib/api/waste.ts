@@ -5,16 +5,17 @@ import { request, API_BASE } from "./request";
 
 export interface WasteFinding {
   id: string;
-  category: "payroll" | "contracts" | "infrastructure" | "integrity" | "influence" | "confirmed";
+  category: "payroll" | "contracts" | "infrastructure" | "integrity" | "influence" | "confirmed" | "convergence";
   subcategory: string;
   severity: "critical" | "high" | "medium" | "low" | "info";
   entity: string;
+  department?: string | null;
   metric: string;
   metricDetail: string;
   amount: number | null;
   description: string;
   tool: string;
-  confidence: "High" | "Medium" | "Low";
+  confidence: "High" | "Medium" | "Low" | null;
   confidence_reason: string | null;
   confidence_score: number;
   estimated_dollar_impact: number | null;
@@ -28,6 +29,17 @@ export interface WasteFinding {
   finding_report: string | null;
   is_new?: boolean;
   fiscal_year?: number | null;
+  convergence_details?: ConvergenceDetails | null;
+}
+
+export interface ConvergenceDetails {
+  domain_risks: Record<string, number>;
+  domains_flagged: number;
+  convergence_multiplier: number;
+  composite_risk: number;
+  triangle_legs: string[];
+  triangle_legs_present: number;
+  finding_count: number;
 }
 
 export interface WasteDataFreshness {

@@ -29,7 +29,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 
-type WasteCategory = "all" | "payroll" | "contracts" | "infrastructure" | "integrity"
+type WasteCategory = "all" | "convergence" | "payroll" | "contracts" | "infrastructure" | "integrity"
 const ANALYSIS_REFRESH_ESTIMATED_SECONDS = 120
 const ANALYSIS_REFRESH_TIMEOUT_MS = 120_000
 const WASTE_ANALYSIS_CACHE_KEY = "waste:last-analysis:v1"
@@ -61,6 +61,7 @@ function safeSetCache(key: string, data: WasteAnalyzeResponse): void {
 
 function normalizeWasteCategory(category: string): WasteCategory {
   const key = category.toLowerCase().trim().replace(/[_\s&.,'-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")
+  if (key === "convergence" || key.includes("convergence") || key.includes("cross_domain")) return "convergence"
   if (key === "payroll" || key.includes("payroll") || key === "payroll_compensation") return "payroll"
   if (key === "contracts" || key === "vendor" || key === "vendors" || key.includes("vendor") || key.includes("contract") || key === "vendor_procurement" || key === "contracts_procurement") return "contracts"
   if (key === "infrastructure" || key === "services" || key === "service" || key.includes("infrastructure") || key === "infrastructure_services") return "infrastructure"
@@ -71,6 +72,7 @@ function normalizeWasteCategory(category: string): WasteCategory {
 
 function formatCategoryLabel(category: WasteCategory): string {
   if (category === "all") return "All Categories"
+  if (category === "convergence") return "Cross-Domain Convergence"
   if (category === "payroll") return "Payroll & Compensation"
   if (category === "contracts") return "Contracts & Procurement"
   if (category === "integrity") return "Personnel Integrity"
@@ -1039,7 +1041,7 @@ export function WasteAnalysisContent() {
               </div>
               <div>
                 <p className="text-xs text-gray-500 uppercase">Confidence</p>
-                <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${confidenceColor(primaryFinding.confidence)}`}>{primaryFinding.confidence} ({(primaryFinding.confidence_score ?? 0).toFixed(2)})</span>
+                <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${confidenceColor(primaryFinding.confidence ?? "Medium")}`}>{primaryFinding.confidence ?? "—"} ({(primaryFinding.confidence_score ?? 0).toFixed(2)})</span>
               </div>
               <div>
                 <p className="text-xs text-gray-500 uppercase">Priority</p>
@@ -1185,7 +1187,7 @@ export function WasteAnalysisContent() {
                     <div className="px-4 pb-4 pt-1 border-t border-gray-200 space-y-3">
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                         <div><span className="text-gray-500">ID:</span> <span className="font-mono">{f.id}</span></div>
-                        <div><span className="text-gray-500">Confidence:</span> <span className={`px-1 rounded ${confidenceColor(f.confidence)}`}>{f.confidence} ({(f.confidence_score ?? 0).toFixed(2)})</span></div>
+                        <div><span className="text-gray-500">Confidence:</span> <span className={`px-1 rounded ${confidenceColor(f.confidence ?? "Medium")}`}>{f.confidence ?? "—"} ({(f.confidence_score ?? 0).toFixed(2)})</span></div>
                         <div><span className="text-gray-500">Corroboration:</span> {f.corroboration_count} signals</div>
                         <div><span className="text-gray-500">Data Completeness:</span> {((f.data_completeness ?? 0) * 100).toFixed(0)}%</div>
                         <div><span className="text-gray-500">Tool:</span> {f.tool}</div>

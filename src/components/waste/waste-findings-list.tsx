@@ -18,6 +18,7 @@ export interface GroupedSubcategory {
 interface WasteFindingsListProps {
   findings: WasteFinding[]
   onAskSeymour?: (finding: WasteFinding) => void
+  cityId?: number
 }
 
 const severityOrder = { critical: 0, high: 1, medium: 2 }
@@ -44,14 +45,22 @@ function extractDate(metric: string | undefined): Date | null {
   return null
 }
 
-/** Sort findings most-recent-first using date from metric, then priority_score */
+/** Sort findings most-recent-first: fiscal year → date from metric → priority_score */
 function sortByMostRecent(items: WasteFinding[]): WasteFinding[] {
   return [...items].sort((a, b) => {
+    // 1. Fiscal year (newest first)
+    const fyA = a.fiscal_year ?? 0
+    const fyB = b.fiscal_year ?? 0
+    if (fyA !== fyB) return fyB - fyA
+
+    // 2. Date extracted from metric text
     const dateA = extractDate(a.metric)
     const dateB = extractDate(b.metric)
     if (dateA && dateB) return dateB.getTime() - dateA.getTime()
     if (dateA) return -1
     if (dateB) return 1
+
+    // 3. Priority score
     return (b.priority_score ?? 0) - (a.priority_score ?? 0)
   })
 }
@@ -59,6 +68,7 @@ function sortByMostRecent(items: WasteFinding[]): WasteFinding[] {
 export function WasteFindingsList({
   findings,
   onAskSeymour,
+  cityId,
 }: WasteFindingsListProps) {
   const [expandedFindingId, setExpandedFindingId] = useState<string | null>(null)
 
@@ -142,6 +152,7 @@ export function WasteFindingsList({
           expandedFindingId={expandedFindingId}
           onFindingToggle={handleFindingToggle}
           onAskSeymour={onAskSeymour}
+          cityId={cityId}
         />
       ))}
     </div>

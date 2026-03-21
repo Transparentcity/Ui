@@ -181,8 +181,8 @@ export default async function DistrictPage({ params }: PageProps) {
             <h1 className="page-title">{pageTitle}</h1>
             <p className="section-description body-text">
               {leaderLabel
-                ? "District dashboard, metrics, and recent updates. Sign up for monthly updates; tap any metric for detail and charts."
-                : `Dashboard and newsletter for District ${d}. Sign up below for monthly updates; tap any metric for detail and charts.`}
+                ? "District dashboard, metrics, and block-level context. Sign up for monthly updates; tap any metric for detail and charts."
+                : `Dashboard and newsletter for District ${d}, including block-level context. Sign up below for monthly updates; tap any metric for detail and charts.`}
             </p>
             <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 10 }}>
               <Link href={base} className="btn btn-outline">
@@ -246,7 +246,7 @@ export default async function DistrictPage({ params }: PageProps) {
                 <span className="logo-city">.city</span>
               </div>
               <p className="footer-description">
-                Maps, metrics, and research built from public city data—so
+                Maps, metrics, and research built from public city data—from citywide to block level—so
                 residents and elected officials can share the same picture of
                 what’s happening.
               </p>

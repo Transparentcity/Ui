@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth0 } from "@auth0/auth0-react";
 import { emitSavedCitiesChanged } from "@/lib/uiEvents";
+import { getImpersonationCacheKey } from "@/lib/impersonation";
 import {
   getCity,
   getCityMetrics,
@@ -39,14 +40,15 @@ export const cityKeys = {
   list: (filters?: Record<string, any>) => [...cityKeys.lists(), filters] as const,
   details: () => [...cityKeys.all, "detail"] as const,
   detail: (id: number) => [...cityKeys.details(), id] as const,
-  saved: () => [...cityKeys.all, "saved"] as const,
-  savedDistricts: () => [...cityKeys.all, "savedDistricts"] as const,
+  saved: () => [...cityKeys.all, "saved", getImpersonationCacheKey()] as const,
+  savedDistricts: () =>
+    [...cityKeys.all, "savedDistricts", getImpersonationCacheKey()] as const,
   structure: (id: number) => [...cityKeys.all, "structure", id] as const,
   leaders: (id: number) => [...cityKeys.all, "leaders", id] as const,
   representativeFollowerCounts: (id: number) =>
     [...cityKeys.all, "representativeFollowerCounts", id] as const,
   representativeFollows: (id: number) =>
-    [...cityKeys.all, "representativeFollows", id] as const,
+    [...cityKeys.all, "representativeFollows", id, getImpersonationCacheKey()] as const,
   shapefiles: (id: number) => [...cityKeys.all, "shapefiles", id] as const,
   shapeLayers: (id: number, includeGeometry?: boolean) =>
     [...cityKeys.all, "shapeLayers", id, includeGeometry] as const,
