@@ -29,11 +29,15 @@ function extractRealMetrics(story: EnrichedFeedStory): Metric[] | null {
   return metricsData.slice(0, 4).map((m) => {
     const dir: Metric["direction"] =
       m.direction === "up" ? "up" : m.direction === "down" ? "down" : "flat";
+    // Format the pct value: cap absurd numbers, format to readable string
+    const rawPct = typeof m.pct === "number" ? m.pct : parseFloat(String(m.pct)) || 0;
+    const cappedPct = Math.max(Math.min(rawPct, 9999), -9999);
+    const formatted = `${cappedPct >= 0 ? "+" : ""}${Math.round(cappedPct)}%`;
     return {
       name: m.name,
       direction: dir,
       arrow: dir === "up" ? "\u2191" : dir === "down" ? "\u2193" : "\u2500",
-      percent: m.pct,
+      percent: formatted,
     };
   });
 }

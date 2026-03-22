@@ -158,13 +158,6 @@ export default function FeedDetailPage() {
       <>
         <Toaster position="bottom-center" richColors />
         <div className={styles.detailContainer}>
-          <button
-            type="button"
-            className={styles.detailBack}
-            onClick={() => router.back()}
-          >
-            {"\u2190"} Back to feed
-          </button>
           <div className={styles.loadingState}>
             <div className={styles.pullSpinner} />
           </div>
@@ -179,13 +172,6 @@ export default function FeedDetailPage() {
       <>
         <Toaster position="bottom-center" richColors />
         <div className={styles.detailContainer}>
-          <button
-            type="button"
-            className={styles.detailBack}
-            onClick={() => router.back()}
-          >
-            {"\u2190"} Back to feed
-          </button>
           <h1 className={styles.detailHeadline}>Story not found</h1>
           <p className={styles.detailDescription}>
             {error
@@ -213,14 +199,6 @@ export default function FeedDetailPage() {
     <>
       <Toaster position="bottom-center" richColors />
       <div className={styles.detailContainer}>
-        <button
-          type="button"
-          className={styles.detailBack}
-          onClick={() => router.back()}
-        >
-          {"\u2190"} Back to feed
-        </button>
-
         <div className={styles.detailHeaderRow}>
           <span className={styles.detailIcon}>{story.type_icon}</span>
           <span className={styles.detailActor}>{story.actor}</span>
@@ -247,10 +225,41 @@ export default function FeedDetailPage() {
                 {para}
               </p>
             ))
+          ) : (story.card_type === "multi_metric" || story.card_type === "my_block") && story.metadata?.metrics ? (
+            /* Multi-metric stories: show structured metric grid instead of raw text */
+            <div className={styles.metricGrid} style={{ marginTop: 8 }}>
+              {(story.metadata.metrics as Array<{ name: string; direction: string; pct: number }>)
+                .slice(0, 6)
+                .map((m, i) => {
+                  const rawPct = typeof m.pct === "number" ? m.pct : parseFloat(String(m.pct)) || 0;
+                  const cappedPct = Math.max(Math.min(rawPct, 9999), -9999);
+                  const arrow = m.direction === "up" ? "\u2191" : m.direction === "down" ? "\u2193" : "\u2500";
+                  const formatted = `${cappedPct >= 0 ? "+" : ""}${Math.round(cappedPct)}%`;
+                  return (
+                    <div key={i} className={styles.metricCell}>
+                      <span className={styles.metricName}>{m.name}</span>
+                      <span
+                        className={`${styles.metricValue} ${
+                          m.direction === "up"
+                            ? styles.metricUp
+                            : m.direction === "down"
+                              ? styles.metricDown
+                              : styles.metricFlat
+                        }`}
+                      >
+                        {arrow} {formatted}
+                      </span>
+                    </div>
+                  );
+                })}
+            </div>
           ) : (
-            <p className={styles.detailDescription}>
-              {story.summary || story.cleaned_description || story.description}
-            </p>
+            /* Fallback: show description text if available */
+            (story.summary || story.cleaned_description || story.description) ? (
+              <p className={styles.detailDescription}>
+                {story.summary || story.cleaned_description || story.description}
+              </p>
+            ) : null
           )}
         </div>
 
@@ -298,7 +307,7 @@ export default function FeedDetailPage() {
             className={styles.detailActionBtn}
             onClick={handleFlag}
           >
-            {"\u{1F6A9}"} {escalateCount > 0 ? `${escalateCount} ` : ""}Flag
+            {"\u2B06\uFE0F"} {escalateCount > 0 ? `${escalateCount} ` : ""}Escalate
           </button>
           <button
             type="button"
