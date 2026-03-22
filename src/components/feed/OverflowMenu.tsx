@@ -87,7 +87,7 @@ export default function OverflowMenu({
               onClick={handleDelete}
             >
               <span className={styles.sheetItemIcon}><Trash2 size={18} /></span>
-              Delete
+              Admin: Delete this card
             </button>
           )}
         </div>
@@ -116,7 +116,7 @@ export default function OverflowMenu({
           onClick={handleDelete}
         >
           <span className={styles.overflowItemIcon}><Trash2 size={16} /></span>
-          Delete
+          Admin: Delete this card
         </button>
       )}
     </div>

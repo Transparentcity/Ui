@@ -146,7 +146,7 @@ export default function FeedCard({ story, isAdmin, onHide, onDelete, previewMode
           onClose={() => setOverflowOpen(false)}
           onShare={handleShare}
           onHide={handleHide}
-          onDelete={undefined}
+          onDelete={handleDelete}
           mobile={isMobile}
         />
       </div>

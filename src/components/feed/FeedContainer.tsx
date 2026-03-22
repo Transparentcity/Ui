@@ -107,8 +107,8 @@ export default function FeedContainer({
     () => enriched.filter((s) => {
       if (hiddenIds.has(s.id)) return false;
       if (selectedTopic && s.card_type !== selectedTopic) return false;
-      // Multi-city client-side filter (only when >1 city selected)
-      if (selectedCityIds.size > 1 && !selectedCityIds.has(s.city_id)) return false;
+      // Single-city client-side filter (server handles it too, but belt-and-suspenders)
+      if (selectedCityIds.size === 1 && !selectedCityIds.has(s.city_id)) return false;
       return true;
     }),
     [enriched, hiddenIds, selectedTopic, selectedCityIds],
@@ -126,16 +126,12 @@ export default function FeedContainer({
 
   const atEnd = stories.length < displayLimit;
 
-  // ── City chip toggle ──
-  const toggleCity = useCallback((cid: number) => {
+  // ── City chip toggle (single-select: clicking a city selects only that one) ──
+  const selectCity = useCallback((cid: number) => {
     setSelectedCityIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(cid)) {
-        next.delete(cid);
-      } else {
-        next.add(cid);
-      }
-      return next;
+      // If already the only selected city, deselect back to "All Cities"
+      if (prev.size === 1 && prev.has(cid)) return new Set();
+      return new Set([cid]);
     });
   }, []);
 
@@ -206,7 +202,17 @@ export default function FeedContainer({
 
   // ── Render ──
 
-  const hasFilters = selectedCityIds.size > 0 || selectedTopic || selectedDistrict != null;
+  const hasSecondaryFilters = selectedTopic != null || selectedDistrict != null;
+
+  // ── Dynamic header ──
+  const selectedCityName = useMemo(() => {
+    if (selectedCityIds.size !== 1) return null;
+    const cid = [...selectedCityIds][0];
+    const city = uniqueCities.find((c) => c.city_id === cid);
+    return city?.city_name ?? null;
+  }, [selectedCityIds, uniqueCities]);
+
+  const feedTitle = selectedCityName ?? "Your Cities";
 
   return (
     <div
@@ -217,54 +223,33 @@ export default function FeedContainer({
       onTouchEnd={handleTouchEnd}
     >
       <div className={`${styles.feedHeader} dashboard-page-header`}>
-        <h1 className={styles.feedTitle}>Feed</h1>
+        <h1 className={styles.feedTitle}>{feedTitle}</h1>
       </div>
 
-      {/* Admin bar */}
-      {isAdmin && (
-        <div className={styles.adminBar}>
-          <div className={styles.adminBarActions}>
-            <button
-              type="button"
-              className={styles.adminDeleteBtn}
-              onClick={handleDeleteAllForCity}
-              disabled={bulkDeleting || !singleCityId}
-            >
-              {bulkDeleting ? "Deleting\u2026" : "Delete all for city"}
-            </button>
-            {singleCityId && selectedDistrict != null && (
-              <button
-                type="button"
-                className={styles.adminDeleteBtn}
-                onClick={handleDeleteAllForDistrict}
-                disabled={bulkDeleting}
-              >
-                {bulkDeleting ? "Deleting\u2026" : "Delete all for district"}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      {/* City chips row */}
+      <div className={styles.cityChipRow}>
+        <button
+          type="button"
+          className={`${styles.cityChip} ${selectedCityIds.size === 0 ? styles.cityChipActive : ""}`}
+          onClick={() => setSelectedCityIds(new Set())}
+        >
+          All Cities{visibleStories.length > 0 && selectedCityIds.size === 0 ? ` (${visibleStories.length})` : ""}
+        </button>
+        {uniqueCities.map((c) => (
+          <button
+            key={c.city_id}
+            type="button"
+            className={`${styles.cityChip} ${selectedCityIds.has(c.city_id) ? styles.cityChipActive : ""}`}
+            onClick={() => selectCity(c.city_id)}
+          >
+            {c.city_emoji} {c.city_name}
+          </button>
+        ))}
+      </div>
 
-      {/* City chips + filters */}
-      <div className={styles.compactFilterBar}>
-        {/* City chip row — horizontally scrollable, multi-select */}
-        {uniqueCities.length > 1 && (
-          <div className={styles.cityChipRow}>
-            {uniqueCities.map((c) => (
-              <button
-                key={c.city_id}
-                type="button"
-                className={`${styles.cityChip} ${selectedCityIds.has(c.city_id) ? styles.cityChipActive : ""}`}
-                onClick={() => toggleCity(c.city_id)}
-              >
-                {c.city_emoji} {c.city_name}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* District filter — only when exactly 1 city is selected */}
+      {/* Secondary filters row */}
+      <div className={styles.secondaryFilterRow}>
+        {/* District filter: only when exactly 1 city is selected */}
         {singleCityId && (
           <select
             id="feedv2-district"
@@ -291,29 +276,28 @@ export default function FeedContainer({
           className={styles.compactSelect}
         >
           <option value="">All topics</option>
-          <option value="safety">Safety</option>
+          <option value="safety">Public Safety</option>
           <option value="justice">Justice</option>
-          <option value="business">Business</option>
-          <option value="spending">Spending</option>
+          <option value="business">Business {"&"} Economy</option>
+          <option value="spending">City Spending</option>
           <option value="alert">Alerts</option>
           <option value="trend">Trends</option>
-          <option value="context">Context</option>
+          <option value="context">Context {"&"} Background</option>
           <option value="off_the_charts">Off the Charts</option>
-          <option value="my_block">My Block</option>
+          <option value="my_block">My Neighborhood</option>
           <option value="311_images">311 Photos</option>
         </select>
 
-        {hasFilters && (
+        {hasSecondaryFilters && (
           <button
             type="button"
             className={styles.compactClear}
             onClick={() => {
-              setSelectedCityIds(new Set());
               setSelectedDistrict(null);
               setSelectedTopic(null);
             }}
           >
-            Clear
+            Clear filters
           </button>
         )}
       </div>
