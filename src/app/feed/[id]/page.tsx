@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import { useFeedStoryDetail, useCityFeedStories, useTrackFeedEngagement } from "@/lib/hooks/useFeed";
 import { enrichStory, enrichStories } from "@/lib/feed/mockFeedData";
 import { fetchDetailNarrative, type DetailNarrative } from "@/lib/feed/fetchReportNarratives";
@@ -168,45 +168,39 @@ export default function FeedDetailPage() {
   // Loading state
   if (isLoading) {
     return (
-      <>
-        <Toaster position="bottom-center" richColors />
-        <div className={styles.detailContainer}>
-          <button
-            type="button"
-            className={styles.detailBack}
-            onClick={() => router.back()}
-          >
-            {"\u2190"} Back
-          </button>
-          <div className={styles.loadingState}>
-            <div className={styles.pullSpinner} />
-          </div>
+      <div className={styles.detailContainer}>
+        <button
+          type="button"
+          className={styles.detailBack}
+          onClick={() => router.back()}
+        >
+          {"\u2190"} Back
+        </button>
+        <div className={styles.loadingState}>
+          <div className={styles.pullSpinner} />
         </div>
-      </>
+      </div>
     );
   }
 
   // Error or not found
   if (error || !story) {
     return (
-      <>
-        <Toaster position="bottom-center" richColors />
-        <div className={styles.detailContainer}>
-          <button
-            type="button"
-            className={styles.detailBack}
-            onClick={() => router.back()}
-          >
-            {"\u2190"} Back
-          </button>
-          <h1 className={styles.detailHeadline}>Story not found</h1>
-          <p className={styles.detailDescription}>
-            {error
-              ? "Error loading story. Please try again later."
-              : `No story with ID ${storyId} exists.`}
-          </p>
-        </div>
-      </>
+      <div className={styles.detailContainer}>
+        <button
+          type="button"
+          className={styles.detailBack}
+          onClick={() => router.back()}
+        >
+          {"\u2190"} Back
+        </button>
+        <h1 className={styles.detailHeadline}>Story not found</h1>
+        <p className={styles.detailDescription}>
+          {error
+            ? "Error loading story. Please try again later."
+            : `No story with ID ${storyId} exists.`}
+        </p>
+      </div>
     );
   }
 
@@ -224,7 +218,6 @@ export default function FeedDetailPage() {
 
   return (
     <>
-      <Toaster position="bottom-center" richColors />
       <div className={styles.detailContainer}>
         <button
           type="button"

@@ -202,7 +202,16 @@ export default function FeedContainer({
   const visibleStories = useMemo(
     () => enriched.filter((s) => {
       if (hiddenIds.has(s.id)) return false;
-      if (selectedTopic && s.card_type !== selectedTopic) return false;
+      if (selectedTopic) {
+        // "my_block" is a metadata flag, not a card_type. Stories keep their
+        // real type (trend, alert, etc.) but are tagged with metadata.my_block
+        // when they belong to the user's neighborhood.
+        if (selectedTopic === "my_block") {
+          if (!s.metadata?.my_block) return false;
+        } else if (s.card_type !== selectedTopic) {
+          return false;
+        }
+      }
       // Single-city client-side filter (server handles it too, but belt-and-suspenders)
       if (selectedCityIds.size === 1 && !selectedCityIds.has(s.city_id)) return false;
       return true;

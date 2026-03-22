@@ -115,9 +115,13 @@ function deriveActor(cardType: CardType, headline: string): string {
 
 // ── Derive card_type from existing fields ───────────────────────────────────
 
+// Note: "my_block" is intentionally excluded — it's a metadata-based filter
+// (metadata.my_block = true), not a backend story_type. Stories in the user's
+// neighborhood keep their real card_type and are filtered via metadata in
+// FeedContainer.
 const KNOWN_CARD_TYPES = new Set<string>([
   "alert", "trend", "business", "spending",
-  "justice", "safety", "311_images", "my_block",
+  "justice", "safety", "311_images",
   "context", "multi_metric", "off_the_charts",
 ]);
 
