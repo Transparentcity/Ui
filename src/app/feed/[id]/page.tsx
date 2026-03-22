@@ -225,7 +225,7 @@ export default function FeedDetailPage() {
                 {para}
               </p>
             ))
-          ) : (story.card_type === "multi_metric" || story.card_type === "my_block") && story.metadata?.metrics ? (
+          ) : story.metadata?.metrics ? (
             /* Multi-metric stories: show structured metric grid instead of raw text */
             <div className={styles.metricGrid} style={{ marginTop: 8 }}>
               {(story.metadata.metrics as Array<{ name: string; direction: string; pct: number }>)
