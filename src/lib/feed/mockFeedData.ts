@@ -160,6 +160,9 @@ function deriveTemplate(story: FeedStory, cardType: CardType): TemplateType {
   if (cardType === "multi_metric" || (Array.isArray(meta.metrics) && (meta.metrics as unknown[]).length >= 2)) return "multi_metric";
 
   if (pv && (vizType === "map" || vizType === "chart" || vizType === "anomaly")) return "text_chart";
+  // 311_images stories always get the photo template (photo URL may be in
+  // image_url, metadata.311_image_url, or metadata.311_image).
+  if (cardType === "311_images") return "text_photo";
   if ((story as unknown as Record<string, unknown>).image_url || story.visualization_type === "photo" || story.metadata?.["311_image"]) return "text_photo";
 
   return "text_only";
@@ -171,6 +174,9 @@ function resolveImageUrl(story: FeedStory): string | null {
   const base = getApiBaseUrlForAssets();
   const storyAny = story as unknown as Record<string, unknown>;
   if (storyAny.image_url) return `${base}${storyAny.image_url}`;
+  // 311 photos: backend stores the Socrata photo URL in metadata.311_image_url
+  const meta311Url = story.metadata?.["311_image_url"];
+  if (typeof meta311Url === "string" && meta311Url) return meta311Url;
   const pv = story.primary_visualization;
   if (!pv) return null;
   const type = (story.visualization_type || pv.type || "").toLowerCase();
