@@ -46,7 +46,7 @@ export default function EscalateSheet({ open, headline, onClose, onSend }: Escal
   const handleSend = useCallback(() => {
     onSend(comment, includeName);
     onClose();
-    toast.success("Sent to your District Supervisor");
+    toast.success("Flagged for your District Supervisor");
   }, [onSend, onClose, comment, includeName]);
 
   const handleSkip = useCallback(() => {
@@ -71,7 +71,7 @@ export default function EscalateSheet({ open, headline, onClose, onSend }: Escal
 
           <textarea
             className={styles.escalateTextarea}
-            placeholder="Add a comment (optional, up to 150 words)"
+            placeholder="Send a comment to your local representative"
             value={comment}
             onChange={(e) => {
               const words = e.target.value.trim().split(/\s+/);

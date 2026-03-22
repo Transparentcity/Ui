@@ -255,12 +255,18 @@ export function cleanDescription(
     return orig;
   }
 
-  // 8. Trim at sentence boundary to avoid mid-sentence cutoff on cards
-  // ~3 lines at ~55 chars/line ≈ 165 chars visible. Trim at last period before 200.
-  if (cleaned.length > 200) {
-    const cut = cleaned.lastIndexOf(".", 200);
+  // 8. Trim at sentence boundary to avoid mid-sentence cutoff on cards.
+  // CSS line-clamp handles visual truncation, so we can be generous here.
+  // ~4 lines at ~65 chars/line ≈ 260 chars visible. Trim at last period
+  // before 300 so we keep full sentences when there's room.
+  if (cleaned.length > 300) {
+    const cut = cleaned.lastIndexOf(".", 300);
     if (cut > 60) {
       cleaned = cleaned.slice(0, cut + 1);
+    } else {
+      // No clean sentence break: cut at word boundary + ellipsis
+      const spaceCut = cleaned.lastIndexOf(" ", 300);
+      cleaned = cleaned.slice(0, spaceCut > 60 ? spaceCut : 300).replace(/\s+$/, "") + "...";
     }
   }
 

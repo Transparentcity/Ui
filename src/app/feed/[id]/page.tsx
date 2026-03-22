@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { Toaster, toast } from "sonner";
-import { useFeedStoryDetail, useTrackFeedEngagement } from "@/lib/hooks/useFeed";
-import { enrichStory } from "@/lib/feed/mockFeedData";
+import { useFeedStoryDetail, useCityFeedStories, useTrackFeedEngagement } from "@/lib/hooks/useFeed";
+import { enrichStory, enrichStories } from "@/lib/feed/mockFeedData";
 import { fetchDetailNarrative, type DetailNarrative } from "@/lib/feed/fetchReportNarratives";
 import EscalateSheet from "@/components/feed/EscalateSheet";
 import { Share2 } from "lucide-react";
@@ -125,6 +126,18 @@ export default function FeedDetailPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawStory?.id]);
 
+  // Fetch related stories from the same city
+  const { data: relatedData } = useCityFeedStories(
+    rawStory?.city_id ?? null,
+    { limit: 6, order_by: "published_at" },
+  );
+  const relatedStories = useMemo(() => {
+    if (!relatedData?.stories || !rawStory) return [];
+    return enrichStories(relatedData.stories)
+      .filter((s) => s.id !== rawStory.id)
+      .slice(0, 3);
+  }, [relatedData?.stories, rawStory]);
+
   const handleApplaud = () => {
     setApplaudCount((c) => c + 1);
     trackEngagement.mutate({ storyId, action: "like" });
@@ -158,6 +171,13 @@ export default function FeedDetailPage() {
       <>
         <Toaster position="bottom-center" richColors />
         <div className={styles.detailContainer}>
+          <button
+            type="button"
+            className={styles.detailBack}
+            onClick={() => router.back()}
+          >
+            {"\u2190"} Back
+          </button>
           <div className={styles.loadingState}>
             <div className={styles.pullSpinner} />
           </div>
@@ -172,6 +192,13 @@ export default function FeedDetailPage() {
       <>
         <Toaster position="bottom-center" richColors />
         <div className={styles.detailContainer}>
+          <button
+            type="button"
+            className={styles.detailBack}
+            onClick={() => router.back()}
+          >
+            {"\u2190"} Back
+          </button>
           <h1 className={styles.detailHeadline}>Story not found</h1>
           <p className={styles.detailDescription}>
             {error
@@ -199,6 +226,13 @@ export default function FeedDetailPage() {
     <>
       <Toaster position="bottom-center" richColors />
       <div className={styles.detailContainer}>
+        <button
+          type="button"
+          className={styles.detailBack}
+          onClick={() => router.back()}
+        >
+          {"\u2190"} Back
+        </button>
         <div className={styles.detailHeaderRow}>
           <span className={styles.detailIcon}>{story.type_icon}</span>
           <span className={styles.detailActor}>{story.actor}</span>
@@ -307,7 +341,7 @@ export default function FeedDetailPage() {
             className={styles.detailActionBtn}
             onClick={handleFlag}
           >
-            {"\u2B06\uFE0F"} {escalateCount > 0 ? `${escalateCount} ` : ""}Escalate
+            {"\u{1F6A9}"} {escalateCount > 0 ? `${escalateCount} ` : ""}Flag
           </button>
           <button
             type="button"
@@ -317,6 +351,31 @@ export default function FeedDetailPage() {
             <Share2 size={16} /> Share
           </button>
         </div>
+
+        {/* Related stories from the same city */}
+        {relatedStories.length > 0 && (
+          <>
+            <hr className={styles.detailDivider} />
+            <h2 className={styles.relatedTitle}>
+              More from {story.neighborhood_label?.split("\u00B7")[0]?.trim() || "this city"}
+            </h2>
+            <div className={styles.relatedList}>
+              {relatedStories.map((rs) => (
+                <Link
+                  key={rs.id}
+                  href={`/feed/${rs.id}`}
+                  className={styles.relatedCard}
+                >
+                  <span className={styles.relatedIcon}>{rs.type_icon}</span>
+                  <div className={styles.relatedContent}>
+                    <span className={styles.relatedHeadline}>{rs.headline}</span>
+                    <span className={styles.relatedMeta}>{rs.subline}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       <EscalateSheet

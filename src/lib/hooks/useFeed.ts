@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
   listFeedStories,
@@ -84,6 +84,8 @@ export function useFeedStories(options?: {
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
     enabled: true,
+    // Keep showing previous results while loading more (avoids scroll-to-top flicker)
+    placeholderData: keepPreviousData,
   });
 }
 

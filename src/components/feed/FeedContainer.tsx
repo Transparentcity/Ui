@@ -32,17 +32,82 @@ export default function FeedContainer({
   const viewedRef = useRef<Set<number>>(new Set());
   const { data: placesData } = useFeedPlaces();
 
-  // ── Filters ──
+  // ── Filters (restored from sessionStorage when navigating back) ──
+  const FILTER_STORAGE_KEY = "feed-filters";
+
+  function loadSavedFilters(): {
+    cityIds: Set<number>;
+    district: number | null;
+    frequency: string | null;
+    personalOnly: boolean;
+    topic: string | null;
+    displayLimit: number;
+  } | null {
+    try {
+      const raw = sessionStorage.getItem(FILTER_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return {
+        cityIds: new Set(parsed.cityIds ?? []),
+        district: parsed.district ?? null,
+        frequency: parsed.frequency ?? null,
+        personalOnly: parsed.personalOnly ?? false,
+        topic: parsed.topic ?? null,
+        displayLimit: parsed.displayLimit ?? 10,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  const saved = useRef(loadSavedFilters());
+
   const [selectedCityIds, setSelectedCityIds] = useState<Set<number>>(() =>
-    cityId != null ? new Set([cityId]) : new Set(),
+    saved.current?.cityIds ?? (cityId != null ? new Set([cityId]) : new Set()),
   );
   const [selectedDistrict, setSelectedDistrict] = useState<number | null>(
-    district ?? null,
+    saved.current?.district ?? district ?? null,
   );
-  const [selectedFrequency, setSelectedFrequency] = useState<string | null>(null);
-  const [personalNewsletterOnly, setPersonalNewsletterOnly] = useState(false);
-  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
-  const [displayLimit, setDisplayLimit] = useState(10);
+  const [selectedFrequency, setSelectedFrequency] = useState<string | null>(
+    saved.current?.frequency ?? null,
+  );
+  const [personalNewsletterOnly, setPersonalNewsletterOnly] = useState(
+    saved.current?.personalOnly ?? false,
+  );
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(
+    saved.current?.topic ?? null,
+  );
+  const [displayLimit, setDisplayLimit] = useState(saved.current?.displayLimit ?? 10);
+
+  // Persist filters to sessionStorage whenever they change
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        FILTER_STORAGE_KEY,
+        JSON.stringify({
+          cityIds: [...selectedCityIds],
+          district: selectedDistrict,
+          frequency: selectedFrequency,
+          personalOnly: personalNewsletterOnly,
+          topic: selectedTopic,
+          displayLimit,
+        }),
+      );
+    } catch {
+      // sessionStorage unavailable — ignore
+    }
+  }, [selectedCityIds, selectedDistrict, selectedFrequency, personalNewsletterOnly, selectedTopic, displayLimit]);
+
+  // Save scroll position on every scroll so we can restore it after back-navigation
+  const SCROLL_STORAGE_KEY = "feed-scroll-y";
+
+  useEffect(() => {
+    const handleScroll = () => {
+      try { sessionStorage.setItem(SCROLL_STORAGE_KEY, String(window.scrollY)); } catch {}
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const places = placesData?.places ?? [];
   const uniqueCities = useMemo(() => {
@@ -65,7 +130,7 @@ export default function FeedContainer({
   // Determine API params: single-city → server-side filter, multi/all → fetch all + client filter
   const singleCityId = selectedCityIds.size === 1 ? [...selectedCityIds][0] : undefined;
 
-  const { data: feedData, isLoading, error, refetch } = useFeedStories({
+  const { data: feedData, isLoading, isFetching, isPlaceholderData, error, refetch } = useFeedStories({
     city_id: personalNewsletterOnly ? undefined : singleCityId,
     district: personalNewsletterOnly ? undefined : (singleCityId ? (selectedDistrict ?? undefined) : undefined),
     newsletter_frequency: selectedFrequency ?? undefined,
@@ -78,18 +143,49 @@ export default function FeedContainer({
   const stories = feedData?.stories ?? [];
   const enriched = useMemo(() => enrichStories(stories), [stories]);
 
-  // ── Hidden stories ──
-  const [hiddenIds, setHiddenIds] = useState<Set<number>>(new Set());
+  // ── Hidden stories (persisted to localStorage with 7-day TTL) ──
+  const HIDDEN_STORAGE_KEY = "feed-hidden-stories";
+
+  function loadHiddenIds(): Set<number> {
+    try {
+      const raw = localStorage.getItem(HIDDEN_STORAGE_KEY);
+      if (!raw) return new Set();
+      const parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.ids)) return new Set();
+      // Expire after 7 days
+      if (parsed.ts && Date.now() - parsed.ts > 7 * 24 * 60 * 60 * 1000) {
+        localStorage.removeItem(HIDDEN_STORAGE_KEY);
+        return new Set();
+      }
+      return new Set(parsed.ids);
+    } catch {
+      return new Set();
+    }
+  }
+
+  function saveHiddenIds(ids: Set<number>) {
+    try {
+      localStorage.setItem(HIDDEN_STORAGE_KEY, JSON.stringify({ ids: [...ids], ts: Date.now() }));
+    } catch {}
+  }
+
+  const [hiddenIds, setHiddenIds] = useState<Set<number>>(() => loadHiddenIds());
 
   const handleHide = useCallback((storyId: number) => {
     if (storyId < 0) {
+      // Undo: remove from hidden set
       setHiddenIds((prev) => {
         const next = new Set(prev);
         next.delete(-storyId);
+        saveHiddenIds(next);
         return next;
       });
     } else {
-      setHiddenIds((prev) => new Set(prev).add(storyId));
+      setHiddenIds((prev) => {
+        const next = new Set(prev).add(storyId);
+        saveHiddenIds(next);
+        return next;
+      });
     }
   }, []);
 
@@ -113,6 +209,22 @@ export default function FeedContainer({
     }),
     [enriched, hiddenIds, selectedTopic, selectedCityIds],
   );
+
+  // Restore scroll position once stories have loaded (only on initial mount)
+  const scrollRestored = useRef(false);
+  useEffect(() => {
+    if (scrollRestored.current || visibleStories.length === 0) return;
+    scrollRestored.current = true;
+    try {
+      const savedY = sessionStorage.getItem(SCROLL_STORAGE_KEY);
+      if (savedY) {
+        // Use requestAnimationFrame to wait for DOM to paint
+        requestAnimationFrame(() => {
+          window.scrollTo(0, parseInt(savedY, 10));
+        });
+      }
+    } catch {}
+  }, [visibleStories.length]);
 
   // Track views for stories appearing in the feed
   useEffect(() => {
@@ -260,8 +372,8 @@ export default function FeedContainer({
             }}
             className={styles.compactSelect}
           >
-            <option value="">All districts</option>
-            <option value="0">City-wide</option>
+            <option value="">All (city + districts)</option>
+            <option value="0">City-wide only</option>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((d) => (
               <option key={d} value={d}>District {d}</option>
             ))}
@@ -309,8 +421,8 @@ export default function FeedContainer({
         </div>
       )}
 
-      {/* Loading skeleton */}
-      {isLoading && (
+      {/* Loading skeleton: only on true initial load (no data at all yet) */}
+      {isLoading && visibleStories.length === 0 && (
         <div className={styles.storiesList}>
           <SkeletonCard />
           <SkeletonCard />
@@ -331,13 +443,48 @@ export default function FeedContainer({
           <p>
             {personalNewsletterOnly
               ? "No personal newsletter samples yet. Generate one from Settings \u2192 Personalized newsletter."
-              : "No feed stories found. Check back later for new newsletters!"}
+              : hasSecondaryFilters || selectedCityIds.size > 0
+                ? (() => {
+                    const parts: string[] = [];
+                    if (selectedTopic) {
+                      const topicLabels: Record<string, string> = {
+                        safety: "Public Safety", justice: "Justice",
+                        business: "Business & Economy", spending: "City Spending",
+                        alert: "Alerts", trend: "Trends",
+                        context: "Context & Background", off_the_charts: "Off the Charts",
+                        my_block: "My Neighborhood", "311_images": "311 Photos",
+                      };
+                      parts.push(topicLabels[selectedTopic] ?? selectedTopic);
+                    }
+                    if (selectedCityName) parts.push(selectedCityName);
+                    if (selectedDistrict != null) {
+                      parts.push(selectedDistrict === 0 ? "city-wide" : `District ${selectedDistrict}`);
+                    }
+                    return parts.length > 0
+                      ? `No ${parts[0] ?? ""} stories found${parts.length > 1 ? ` in ${parts.slice(1).join(", ")}` : ""}. Try adjusting your filters.`
+                      : "No stories match your current filters.";
+                  })()
+                : "No feed stories found. Check back later for new newsletters!"}
           </p>
+          {(hasSecondaryFilters || selectedCityIds.size > 0) && !personalNewsletterOnly && (
+            <button
+              type="button"
+              className={styles.compactClear}
+              style={{ marginTop: 8 }}
+              onClick={() => {
+                setSelectedCityIds(new Set());
+                setSelectedDistrict(null);
+                setSelectedTopic(null);
+              }}
+            >
+              Clear all filters
+            </button>
+          )}
         </div>
       )}
 
       {/* Stories */}
-      {!isLoading && visibleStories.length > 0 && (
+      {visibleStories.length > 0 && (
         <div className={styles.storiesList}>
           {visibleStories.map((story) => (
             <FeedCard
@@ -352,20 +499,21 @@ export default function FeedContainer({
       )}
 
       {/* Load more */}
-      {!isLoading && !atEnd && stories.length > 0 && (
+      {!atEnd && stories.length > 0 && (
         <div className={styles.loadMoreWrap}>
           <button
             type="button"
             className={styles.loadMoreBtn}
+            disabled={isFetching}
             onClick={() => setDisplayLimit((l) => l + 10)}
           >
-            Load more
+            {isFetching && isPlaceholderData ? "Loading..." : "Load more"}
           </button>
         </div>
       )}
 
       {/* End state */}
-      {!isLoading && atEnd && stories.length > 0 && (
+      {!isFetching && atEnd && stories.length > 0 && (
         <FeedEndState lastUpdated={new Date()} />
       )}
     </div>

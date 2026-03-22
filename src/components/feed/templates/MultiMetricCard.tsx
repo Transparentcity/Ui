@@ -13,6 +13,22 @@ interface Metric {
 }
 
 /**
+ * Format a percentage change into a readable string.
+ * Small values: "+12%". Large values: "+24x". Absurdly large: "+999x".
+ */
+function formatPct(raw: number): string {
+  const sign = raw >= 0 ? "+" : "";
+  const abs = Math.abs(raw);
+  // Normal range: show as percentage
+  if (abs <= 999) return `${sign}${Math.round(raw)}%`;
+  // Large: convert to multiplier (e.g. +2,400% → +24x)
+  const multiplier = abs / 100;
+  if (multiplier <= 999) return `${sign}${Math.round(raw >= 0 ? multiplier : -multiplier)}x`;
+  // Absurdly large: cap display
+  return `${sign}999x`;
+}
+
+/**
  * Extract real metrics from story metadata if available.
  * Returns null if no structured metrics exist.
  */
@@ -29,10 +45,9 @@ function extractRealMetrics(story: EnrichedFeedStory): Metric[] | null {
   return metricsData.slice(0, 4).map((m) => {
     const dir: Metric["direction"] =
       m.direction === "up" ? "up" : m.direction === "down" ? "down" : "flat";
-    // Format the pct value: cap absurd numbers, format to readable string
+    // Format the pct value: make large numbers human-readable
     const rawPct = typeof m.pct === "number" ? m.pct : parseFloat(String(m.pct)) || 0;
-    const cappedPct = Math.max(Math.min(rawPct, 9999), -9999);
-    const formatted = `${cappedPct >= 0 ? "+" : ""}${Math.round(cappedPct)}%`;
+    const formatted = formatPct(rawPct);
     return {
       name: m.name,
       direction: dir,
@@ -60,9 +75,14 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
         neighborhoodLabel={story.neighborhood_label}
       />
       <h2 className={styles.cardHeadline}>{story.headline}</h2>
-      {story.cleaned_description && (
+      {/* Build description from real metrics if available (server description may have raw huge numbers) */}
+      {realMetrics && realMetrics.length > 0 ? (
+        <p className={styles.cardDescription}>
+          {realMetrics.map((m) => `${m.name} ${m.percent} ${m.direction}`).join(" · ")}
+        </p>
+      ) : story.cleaned_description ? (
         <p className={styles.cardDescription}>{story.cleaned_description}</p>
-      )}
+      ) : null}
 
       {/* Show metric grid only if real structured metrics exist in metadata */}
       {realMetrics && realMetrics.length > 0 && (
