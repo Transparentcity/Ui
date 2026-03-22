@@ -75,12 +75,8 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
         neighborhoodLabel={story.neighborhood_label}
       />
       <h2 className={styles.cardHeadline}>{story.headline}</h2>
-      {/* Build description from real metrics if available (server description may have raw huge numbers) */}
-      {realMetrics && realMetrics.length > 0 ? (
-        <p className={styles.cardDescription}>
-          {realMetrics.map((m) => `${m.name} ${m.percent} ${m.direction}`).join(" · ")}
-        </p>
-      ) : story.cleaned_description ? (
+      {/* Only show text description when there are no structured metrics to display */}
+      {!(realMetrics && realMetrics.length > 0) && story.cleaned_description ? (
         <p className={styles.cardDescription}>{story.cleaned_description}</p>
       ) : null}
 
