@@ -43,6 +43,7 @@ export default function ScheduledJobsPanel({
 
   const [editJob, setEditJob] = useState<CustomScheduledJob | null>(null);
   const [editForm, setEditForm] = useState<{
+    name: string;
     schedule_type: string;
     schedule_hour: string;
     schedule_minute: string;
@@ -75,7 +76,14 @@ export default function ScheduledJobsPanel({
   const formatDate = (dateStr: string | null | undefined): string => {
     if (!dateStr) return "N/A";
     try {
-      return new Date(dateStr).toLocaleString();
+      return new Date(dateStr).toLocaleString(undefined, {
+        weekday: "short",
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
     } catch {
       return dateStr;
     }
@@ -151,6 +159,7 @@ export default function ScheduledJobsPanel({
   const openEdit = (job: CustomScheduledJob) => {
     setEditJob(job);
     setEditForm({
+      name: job.name || "",
       schedule_type: job.schedule_type || "daily",
       schedule_hour: job.schedule_hour !== null && job.schedule_hour !== undefined ? String(job.schedule_hour) : "",
       schedule_minute: job.schedule_minute !== null && job.schedule_minute !== undefined ? String(job.schedule_minute) : "0",
@@ -182,6 +191,10 @@ export default function ScheduledJobsPanel({
         max_concurrent_cities: Number(editForm.max_concurrent_cities || "2"),
         per_city_concurrency: Number(editForm.per_city_concurrency || "2"),
       };
+      const trimmedName = editForm.name?.trim() ?? "";
+      if (trimmedName !== editJob.name) {
+        payload.name = trimmedName;
+      }
 
       if (scheduleType === "cron") {
         payload.cron_expression = editForm.cron_expression || null;
@@ -307,7 +320,7 @@ export default function ScheduledJobsPanel({
               Editable schedules managed in the database.
             </div>
           </div>
-          <div className={styles.grid}>
+          <div className={styles.list}>
             {customSchedules.map((job) => (
               <div key={job.id} className={styles.card}>
                 <div className={styles.cardHeader}>
@@ -331,10 +344,6 @@ export default function ScheduledJobsPanel({
                 <div className={styles.customMeta}>
                   <div>
                     <span className={styles.metaLabel}>Job type</span> {job.job_type}
-                  </div>
-                  <div>
-                    <span className={styles.metaLabel}>Concurrency</span>{" "}
-                    {job.max_concurrent_cities ?? 2} cities, {job.per_city_concurrency ?? 2} per city
                   </div>
                   <div>
                     <span className={styles.metaLabel}>Next run</span>{" "}
@@ -413,7 +422,7 @@ export default function ScheduledJobsPanel({
         </div>
       )}
 
-      <div className={styles.grid}>
+      <div className={styles.list}>
         {scheduleSummaries.map((schedule) => {
           const lastRun = schedule.last_run;
           const statusColor = lastRun?.status
@@ -498,10 +507,24 @@ export default function ScheduledJobsPanel({
         <div className={styles.modalOverlay} onClick={closeEdit}>
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <div className={styles.modalTitle}>Edit: {editJob.name}</div>
+              <div className={styles.modalTitle}>Edit: {editForm.name || editJob.name}</div>
               <button className={styles.iconButton} onClick={closeEdit}>
                 ✕
               </button>
+            </div>
+
+            <div className={styles.formRow}>
+              <label className={styles.label}>Job title</label>
+              <input
+                className={styles.input}
+                type="text"
+                value={editForm.name}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, name: e.target.value })
+                }
+                placeholder="e.g. Weekly research digest"
+                aria-label="Job title"
+              />
             </div>
 
             {editJob.job_config?.question != null && (
@@ -663,7 +686,11 @@ export default function ScheduledJobsPanel({
               <button className={styles.secondaryButton} onClick={closeEdit}>
                 Cancel
               </button>
-              <button className={styles.primaryButton} onClick={handleSaveEdit}>
+              <button
+                className={styles.primaryButton}
+                onClick={handleSaveEdit}
+                disabled={!editForm.name?.trim()}
+              >
                 Save
               </button>
             </div>

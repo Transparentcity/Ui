@@ -40,7 +40,6 @@ export default function CitySignupButton() {
     await loginWithRedirect({
       authorizationParams: {
         screen_hint: "signup",
-        prompt: "login",
         ...(prefillEmail && { login_hint: prefillEmail }),
       },
       appState: { returnTo: `/dashboard?signup=${intent}` },

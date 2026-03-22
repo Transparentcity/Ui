@@ -94,7 +94,7 @@ export default function Home() {
       window.localStorage.setItem("transparentcity.signup_intent", "resident");
     }
     await loginWithRedirect({
-      authorizationParams: { screen_hint: "signup", prompt: "login" },
+      authorizationParams: { screen_hint: "signup" },
       appState: { returnTo: "/dashboard?signup=resident" },
     });
   };
@@ -104,7 +104,7 @@ export default function Home() {
       window.localStorage.setItem("transparentcity.signup_intent", "public-servant");
     }
     await loginWithRedirect({
-      authorizationParams: { screen_hint: "signup", prompt: "login" },
+      authorizationParams: { screen_hint: "signup" },
       appState: { returnTo: "/dashboard?signup=public-servant" },
     });
   };

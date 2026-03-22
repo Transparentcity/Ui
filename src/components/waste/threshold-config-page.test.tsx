@@ -32,6 +32,17 @@ vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }))
 
+vi.mock("./waste-shell", () => ({
+  WasteShell: ({ children, title, description, actions }: any) => (
+    <div>
+      <h1>{title}</h1>
+      {description ? <p>{description}</p> : null}
+      {actions}
+      {children}
+    </div>
+  ),
+}))
+
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 vi.mock("@/lib/hooks/useCities", () => ({
@@ -41,15 +52,21 @@ vi.mock("@/lib/hooks/useCities", () => ({
 vi.mock("@/lib/hooks/useWaste", () => ({
   useWasteThresholds: vi.fn(),
   useUpdateWasteThresholds: vi.fn(),
+  useWasteReviewQueue: vi.fn(),
+  useWasteDetectorAccuracy: vi.fn(),
 }))
 
 import { useCities as _useCities } from "@/lib/hooks/useCities"
 import {
+  useWasteDetectorAccuracy as _useWasteDetectorAccuracy,
+  useWasteReviewQueue as _useWasteReviewQueue,
   useWasteThresholds as _useWasteThresholds,
   useUpdateWasteThresholds as _useUpdateWasteThresholds,
 } from "@/lib/hooks/useWaste"
 
 const useCities = vi.mocked(_useCities)
+const useWasteDetectorAccuracy = vi.mocked(_useWasteDetectorAccuracy)
+const useWasteReviewQueue = vi.mocked(_useWasteReviewQueue)
 const useWasteThresholds = vi.mocked(_useWasteThresholds)
 const useUpdateWasteThresholds = vi.mocked(_useUpdateWasteThresholds)
 
@@ -62,6 +79,14 @@ function setupDefaultMocks() {
       makeThreshold({ id: 1, detector_key: "overtime_hours", detector_name: "Overtime Hours", category: "payroll", current_value: 40, default_value: 40, min_value: 0, max_value: 100 }),
       makeThreshold({ id: 2, detector_key: "vendor_dup", detector_name: "Vendor Duplicates", category: "vendor", current_value: 0.85, default_value: 0.80, min_value: 0, max_value: 1 }),
     ]) as ReturnType<typeof _useWasteThresholds>
+  )
+  useWasteReviewQueue.mockReturnValue(
+    makeMockQuery({ items: [], total: 0, page: 1, per_page: 1 }) as ReturnType<
+      typeof _useWasteReviewQueue
+    >
+  )
+  useWasteDetectorAccuracy.mockReturnValue(
+    makeMockQuery([]) as ReturnType<typeof _useWasteDetectorAccuracy>
   )
   useUpdateWasteThresholds.mockReturnValue(
     makeMockMutation() as ReturnType<typeof _useUpdateWasteThresholds>
@@ -104,7 +129,7 @@ describe("ThresholdConfigPage", () => {
 
   it("renders admin gate notice", () => {
     render(<ThresholdConfigPage />)
-    expect(screen.getByText(/Only city administrators/)).toBeInTheDocument()
+    expect(screen.getByText("Administrator Access Required")).toBeInTheDocument()
   })
 
   // ── Save button ────────────────────────────────────────────────────────────
@@ -128,7 +153,7 @@ describe("ThresholdConfigPage", () => {
       makeMockMutation({ isSuccess: true }) as ReturnType<typeof _useUpdateWasteThresholds>
     )
     render(<ThresholdConfigPage />)
-    expect(screen.getByText(/Thresholds saved successfully/)).toBeInTheDocument()
+    expect(screen.getByText(/Thresholds saved\. Changes apply on the next analysis run\./)).toBeInTheDocument()
   })
 
   // ── Reset All button ───────────────────────────────────────────────────────
@@ -176,10 +201,9 @@ describe("ThresholdConfigPage", () => {
 
   // ── Per-detector reset aria-label ───────────────────────────────────────────
 
-  it("per-detector Reset button has aria-label containing detector name", () => {
+  it("per-detector Reset button is rendered with detector-specific text", () => {
     render(<ThresholdConfigPage />)
-    // Vendor Duplicates has current_value 0.85, default_value 0.80 → shows Reset button
-    const resetButton = screen.getByLabelText("Reset Vendor Duplicates to 0.80")
+    const resetButton = screen.getByText("Reset (0.80)")
     expect(resetButton).toBeInTheDocument()
   })
 })

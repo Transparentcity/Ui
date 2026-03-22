@@ -51,8 +51,22 @@
 .district-navigation-title-row {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: 6px;
   min-width: 0;
+}
+
+.district-navigation-refresh {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+}
+
+.district-navigation-results-refresh {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+  margin-left: 6px;
 }
 
 .district-navigation-follow-row {

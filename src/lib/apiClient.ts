@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type */
 import { API_BASE } from "./apiBase";
+import { getImpersonationCacheKey, getImpersonationUserId } from "./impersonation";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -8,10 +9,12 @@ const savedCitiesCache: {
   promise: Promise<any[]> | null;
   timestamp: number;
   token: string | null;
+  identityKey: string | null;
 } = {
   promise: null,
   timestamp: 0,
   token: null,
+  identityKey: null,
 };
 
 const SAVED_CITIES_CACHE_TTL = 5000; // 5 seconds cache
@@ -55,6 +58,7 @@ async function request<T>(
   token?: string
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
+  const impersonationUserId = getImpersonationUserId();
 
   const headers: HeadersInit = {
     "Accept": "application/json",
@@ -62,6 +66,10 @@ async function request<T>(
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  if (impersonationUserId != null) {
+    headers["X-Impersonate-User-Id"] = String(impersonationUserId);
   }
 
   if (body && method !== "GET") {
@@ -82,6 +90,15 @@ async function request<T>(
     (error as any).status = res.status;
     (error as any).statusText = res.statusText;
     throw error;
+  }
+
+  if (res.status === 204 || res.status === 205) {
+    return undefined as T;
+  }
+
+  const contentLength = res.headers.get("content-length");
+  if (contentLength === "0") {
+    return undefined as T;
   }
 
   return (await res.json()) as T;
@@ -302,6 +319,25 @@ export function updateCity(
   token: string
 ): Promise<CityAdminData> {
   return request<CityAdminData>(`/api/admin/cities/${cityId}`, "PUT", data, token);
+}
+
+export interface DeleteCityResponse {
+  deleted: boolean;
+  city_id: number;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+export function deleteCity(
+  cityId: number,
+  token: string
+): Promise<DeleteCityResponse> {
+  return request<DeleteCityResponse>(
+    `/api/admin/cities/${cityId}`,
+    "DELETE",
+    undefined,
+    token
+  );
 }
 
 // --- Population by district (admin) ---
@@ -541,6 +577,7 @@ export function getTemplateInstantiationStatus(
 /** Optional body for template instantiation (single or all). */
 export interface InstantiateTemplateRequest {
   model_key?: string | null;
+  only_missing?: boolean;
 }
 
 export function instantiateSingleTemplate(
@@ -566,6 +603,63 @@ export function instantiateAllTemplates(
     `/api/admin/cities/${cityId}/instantiate-all-templates`,
     "POST",
     body ?? undefined,
+    token
+  );
+}
+
+export interface StructureMetricsBatchRequest {
+  city_ids: number[];
+  template_ids?: number[] | null;
+  model_key?: string | null;
+  only_missing?: boolean;
+}
+
+export function startStructureMetricsBatch(
+  payload: StructureMetricsBatchRequest,
+  token: string
+): Promise<JobResponse> {
+  return request<JobResponse>(
+    "/api/admin/structure-metrics-batch",
+    "POST",
+    payload,
+    token
+  );
+}
+
+export interface StructureMetricsLastRunSummary {
+  success?: boolean | null;
+  last_run_at?: string | null;
+  model_key?: string | null;
+  errors?: string[] | null;
+  opportunities?: string[] | null;
+}
+
+export function getStructureMetricsLastRuns(
+  cityIds: number[],
+  token: string
+): Promise<Record<string, StructureMetricsLastRunSummary>> {
+  if (cityIds.length === 0) return Promise.resolve({});
+  const query = new URLSearchParams({ city_ids: cityIds.join(",") });
+  return request<Record<string, StructureMetricsLastRunSummary>>(
+    `/api/admin/structure-metrics-last-runs?${query}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface CityDataDashboardStats {
+  total_metrics: number;
+  cities_with_metrics_count: number;
+}
+
+export function getCityDataDashboardStats(
+  token: string
+): Promise<CityDataDashboardStats> {
+  return request<CityDataDashboardStats>(
+    "/api/admin/city-data-dashboard-stats",
+    "GET",
+    undefined,
     token
   );
 }
@@ -724,6 +818,10 @@ export interface CityListItem {
   population_source_type?: string | null;
   population_source_name?: string | null;
   population_data_year?: number | null;
+  portal_type?: string | null;
+  template_metrics_attempted?: number;
+  template_metrics_instantiated?: number;
+  template_metrics_missing?: number;
 }
 
 export function listCities(
@@ -770,6 +868,18 @@ export function loadCityData(
   );
 }
 
+export function determinePortalTypes(
+  cityIds: number[],
+  token: string
+): Promise<LoadCityDataResponse> {
+  return request<LoadCityDataResponse>(
+    "/api/admin/cities/determine-portal-types",
+    "POST",
+    { city_ids: cityIds },
+    token
+  );
+}
+
 export interface BatchAnalyzeRequest {
   city_ids: number[];
 }
@@ -789,10 +899,14 @@ export function batchAnalyzeCities(
 // User Permissions API
 export interface UserPermissions {
   user_id: number;
+  session_user_id?: number;
   email: string;
   role: string;
   permissions: string[];
   is_admin: boolean;
+  is_impersonating?: boolean;
+  impersonated_by_db_user_id?: number | null;
+  impersonated_by_email?: string | null;
   city_lead_city_ids?: number[];
   is_city_lead?: boolean;
 }
@@ -2752,11 +2866,13 @@ export interface SavedCity {
 
 export function getSavedCities(token: string): Promise<SavedCity[]> {
   const now = Date.now();
+  const identityKey = getImpersonationCacheKey();
   
   // Check if we have a valid cached promise for the same token
   if (
     savedCitiesCache.promise &&
     savedCitiesCache.token === token &&
+    savedCitiesCache.identityKey === identityKey &&
     (now - savedCitiesCache.timestamp) < SAVED_CITIES_CACHE_TTL
   ) {
     return savedCitiesCache.promise as Promise<SavedCity[]>;
@@ -2767,12 +2883,14 @@ export function getSavedCities(token: string): Promise<SavedCity[]> {
   savedCitiesCache.promise = promise;
   savedCitiesCache.timestamp = now;
   savedCitiesCache.token = token;
+  savedCitiesCache.identityKey = identityKey;
   
   // Clear cache on error to allow retry
   promise.catch(() => {
     if (savedCitiesCache.promise === promise) {
       savedCitiesCache.promise = null;
       savedCitiesCache.timestamp = 0;
+      savedCitiesCache.identityKey = null;
     }
   });
   
@@ -2784,6 +2902,7 @@ export function clearSavedCitiesCache(): void {
   savedCitiesCache.promise = null;
   savedCitiesCache.timestamp = 0;
   savedCitiesCache.token = null;
+  savedCitiesCache.identityKey = null;
 }
 
 export function saveCity(cityId: number, token: string): Promise<{ message: string; city_id: number }> {
@@ -2834,6 +2953,12 @@ export interface UserPlace {
   updated_at: string | null;
 }
 
+/** Response from listMyPlaces; includes batch place-refresh time to avoid a separate API call. */
+export interface ListMyPlacesResponse {
+  places: UserPlace[];
+  place_refresh_last_run_at: string | null;
+}
+
 export interface PlaceTimeSeriesPoint {
   metric_id: number;
   period_type: string;
@@ -2862,9 +2987,9 @@ export interface PlaceAnomaly {
 export function listMyPlaces(
   token: string,
   options?: { city_id?: number }
-): Promise<UserPlace[]> {
+): Promise<ListMyPlacesResponse> {
   const query = options?.city_id != null ? `?city_id=${options.city_id}` : "";
-  return request<UserPlace[]>(`/api/users/me/places${query}`, "GET", undefined, token);
+  return request<ListMyPlacesResponse>(`/api/users/me/places${query}`, "GET", undefined, token);
 }
 
 export function createPlace(
@@ -3143,17 +3268,22 @@ export function getInboundEmail(emailId: number, token: string): Promise<Inbound
   return request<InboundEmailDetail>(`/api/admin/inbound-email/${emailId}`, "GET", undefined, token);
 }
 
-// Seymour's outbox (outbound emails)
+// Seymour's outbox (outbound emails + newsletter sends)
 export interface OutboundEmailListItem {
-  id: number;
+  id: number | string;
   to_email: string;
   subject: string;
-  body_preview: string;
+  body_preview: string | null;
   prompt_text: string | null;
   source: string;
   user_id: number | null;
   city_id: number | null;
   created_at: string | null;
+  type?: "outbound_email" | "newsletter_send";
+  intended_email?: string | null;
+  job_id?: string | null;
+  session_id?: string | null;
+  status?: string;
 }
 
 export interface OutboundEmailDetail {
@@ -3186,7 +3316,7 @@ export function listOutboundEmails(
   if (options?.offset != null) params.append("offset", String(options.offset));
   const query = params.toString();
   return request<OutboundEmailListResponse>(
-    `/api/admin/outbound-email/${query ? `?${query}` : ""}`,
+    `/api/admin/outbound-email${query ? `?${query}` : ""}`,
     "GET",
     undefined,
     token
@@ -3216,6 +3346,7 @@ export interface User {
   government_leader_name?: string | null;
   government_city_id?: number | null;
   government_district?: number | null;
+  custom_email_prompt?: string | null;
 }
 
 export interface UpdateUserGovernmentStatusRequest {
@@ -3229,6 +3360,7 @@ export interface UserUpdateRequest {
   role?: "admin" | "analyst" | "viewer";
   is_active?: boolean;
   custom_permissions?: string[];
+  custom_email_prompt?: string | null;
 }
 
 export interface UserStats {
@@ -3605,6 +3737,8 @@ export interface FeedStory {
   metadata?: Record<string, any>;
   created_at?: string | null;
   updated_at?: string | null;
+  /** Current user's AI feedback (thumbs up/down); only when authenticated. */
+  user_ai_feedback?: "up" | "down" | null;
 }
 
 export interface FeedStoriesResponse {
@@ -3736,6 +3870,51 @@ export function trackFeedEngagement(
     `/api/feed/story/${storyId}/engage`,
     "POST",
     { action },
+    token
+  );
+}
+
+// Escalate a feed story to the user's District Supervisor
+export interface EscalateStoryResponse {
+  success: boolean;
+  message: string;
+  escalate_count: number;
+}
+
+export function escalateStory(
+  storyId: number,
+  token: string,
+  comment?: string,
+  includeName?: boolean,
+): Promise<EscalateStoryResponse> {
+  return request<EscalateStoryResponse>(
+    `/api/feed/public/story/${storyId}/escalate`,
+    "POST",
+    { comment: comment || "", include_name: includeName ?? true },
+    token,
+  );
+}
+
+/** Set AI feedback (thumbs up/down) for a story. Requires auth. */
+export function setFeedStoryFeedback(
+  storyId: number,
+  feedback: "up" | "down",
+  token: string
+): Promise<EngagementResponse> {
+  return request<EngagementResponse>(
+    `/api/feed/story/${storyId}/feedback`,
+    "POST",
+    { feedback },
+    token
+  );
+}
+
+/** Hide story from current user's feed. Other users still see it. Requires auth. */
+export function hideFeedStory(storyId: number, token: string): Promise<EngagementResponse> {
+  return request<EngagementResponse>(
+    `/api/feed/story/${storyId}/hide`,
+    "POST",
+    undefined,
     token
   );
 }
@@ -3913,9 +4092,12 @@ export interface ResearchReport {
   city_id?: number | null;
   district?: string | null;
   status: string;
-  max_iterations: number;
-  max_subquestions: number;
-  current_iteration: number;
+  max_iterations?: number;
+  max_subquestions?: number;
+  current_iteration?: number;
+  scoping_questions?: { narrative?: string; questions?: string[]; options_if_helpful?: Record<string, string[]> } | null;
+  scope_answers?: Record<string, any> | null;
+  scoped_focus?: string | null;
   agenda?: Record<string, any> | null;
   final_report_html?: string | null;
   model_key?: string | null;
@@ -3964,12 +4146,11 @@ export interface CreateResearchRequest {
   prompt: string;
   city_id?: number | null;
   district?: string | null;
-  max_iterations?: number;
-  max_subquestions?: number;
+  one_shot?: boolean;
+  require_scoping?: boolean;
   model_key?: string;
   require_agenda_approval?: boolean;
   enable_web_search?: boolean;
-  // Newsletter metadata fields (optional) - set these to create a newsletter report
   is_newsletter?: boolean;
   newsletter_frequency?: "weekly" | "monthly" | null;
   generate_feed_stories?: boolean;
@@ -4044,6 +4225,19 @@ export function getResearchItems(
     `/api/research/${reportId}/items`,
     "GET",
     undefined,
+    token
+  );
+}
+
+export function submitScopeAnswers(
+  reportId: number,
+  body: { answers: string[]; scoped_focus_text?: string | null },
+  token: string
+): Promise<{ status: string; report_id: number; message: string }> {
+  return request<{ status: string; report_id: number; message: string }>(
+    `/api/research/${reportId}/scope-answers`,
+    "POST",
+    body,
     token
   );
 }

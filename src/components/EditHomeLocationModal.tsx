@@ -114,9 +114,9 @@ export default function EditHomeLocationModal({
     setExistingPlaces([]);
     try {
       const token = await getAccessTokenSilently();
-      const places = await listMyPlaces(token, { city_id: cityId });
+      const res = await listMyPlaces(token, { city_id: cityId });
       if (placesCityIdRef.current === cityId) {
-        setExistingPlaces(places);
+        setExistingPlaces(res.places);
       }
     } catch (e) {
       if (placesCityIdRef.current === cityId) {

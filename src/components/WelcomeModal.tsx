@@ -550,7 +550,7 @@ export default function WelcomeModal({
       const token = await getAccessTokenSilently();
       const cityId = locationResult.matchedCity.id;
 
-      // Save the city to My Cities
+      // Save the city to My Places
       await saveCity(cityId, token);
 
       // Determine district to load and add to My Districts (follow representative)

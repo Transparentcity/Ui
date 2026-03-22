@@ -31,7 +31,6 @@ export default function LandingPage() {
     await loginWithRedirect({
       authorizationParams: {
         screen_hint: "signup",
-        prompt: "login",
       },
       appState: { returnTo: "/dashboard?signup=resident" },
     });
@@ -44,7 +43,6 @@ export default function LandingPage() {
     await loginWithRedirect({
       authorizationParams: {
         screen_hint: "signup",
-        prompt: "login",
       },
       appState: { returnTo: "/dashboard?signup=public-servant" },
     });
