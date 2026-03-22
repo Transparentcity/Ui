@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event"
 import { vi, describe, it, expect, beforeEach } from "vitest"
 import { WastePageContent } from "./waste-page-content"
 import { installResizeObserver } from "./test-utils"
+import { wasteCacheKey } from "./waste-utils"
 
 installResizeObserver()
 
@@ -77,9 +78,11 @@ vi.mock("@/components/Loader", () => ({
   default: () => <div>Loading...</div>,
 }))
 
+let mockSelectedCityId = 1
+
 vi.mock("./WasteCityContext", () => ({
   useWasteCity: () => ({
-    selectedCityId: 1,
+    selectedCityId: mockSelectedCityId,
     eligibleCities: [{ id: 1, name: "San Francisco", slug: "san-francisco", datasets_count: 5 }],
     isLoading: false,
     isFetching: false,
@@ -133,7 +136,7 @@ import { useWasteAnalysis as _useWasteAnalysis, useActiveWasteJob as _useActiveW
 const useWasteAnalysis = vi.mocked(_useWasteAnalysis)
 const useActiveWasteJob = vi.mocked(_useActiveWasteJob)
 
-const CACHE_KEY = "waste:last-analysis:v1"
+const CACHE_KEY = wasteCacheKey(1)
 
 const cachedAnalysis = {
   analysis_timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
@@ -161,6 +164,7 @@ describe("WastePageContent", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorageMock.clear()
+    mockSelectedCityId = 1
     useWasteAnalysis.mockReturnValue({
       data: null,
       error: null,
@@ -215,6 +219,22 @@ describe("WastePageContent", () => {
     render(<WastePageContent />)
     expect(screen.getByText(/Results are from/)).toBeInTheDocument()
     expect(screen.getByText(/Run a fresh analysis/)).toBeInTheDocument()
+  })
+
+  it("resets fallback state when switching cities", () => {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cachedAnalysis))
+
+    const { rerender } = render(<WastePageContent />)
+
+    expect(screen.getByText(/Showing saved results from/)).toBeInTheDocument()
+    expect(useWasteAnalysis).toHaveBeenLastCalledWith(undefined, false, 1)
+
+    mockSelectedCityId = 3
+    rerender(<WastePageContent />)
+
+    expect(screen.queryByText(/Showing saved results from/)).not.toBeInTheDocument()
+    expect(screen.getByTestId("empty-state")).toBeInTheDocument()
+    expect(useWasteAnalysis).toHaveBeenLastCalledWith(undefined, true, 3)
   })
 
   // ── Loading indicator / job progress tests ────────────────────────────────
