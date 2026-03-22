@@ -50,8 +50,6 @@ export const SAMPLE_STORIES: EnrichedFeedStory[] = [
     story_date: "2026-03-09",
     published_at: "2026-03-16T10:00:00Z",
     metadata: { anomaly_severity: "high" },
-    like_count: 24,
-    comment_count: 5,
     card_type: "alert",
     template: "text_only",
     applaud_count: 24,

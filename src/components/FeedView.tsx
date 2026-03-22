@@ -798,7 +798,7 @@ export default function FeedView({
                     title="Comments"
                   >
                     <span className={styles.storyStatIcon} aria-hidden>💬</span>
-                    {(story.comment_count ?? 0).toLocaleString()}
+                    {(story.escalate_count ?? story.comment_count ?? 0).toLocaleString()}
                   </button>
                 </div>
 

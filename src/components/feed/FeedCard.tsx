@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { useTrackFeedEngagement } from "@/lib/hooks/useFeed";
-import { escalateStory } from "@/lib/apiClient";
+import { applaudStory, escalateStory } from "@/lib/apiClient";
 import { useAuth0 } from "@auth0/auth0-react";
 import CardActionBar from "./CardActionBar";
 import OverflowMenu from "./OverflowMenu";
@@ -54,9 +54,14 @@ export default function FeedCard({ story, isAdmin, onHide, onDelete, previewMode
     }
   }, [router, story.id, overflowOpen, escalateOpen, previewMode, trackEngagement]);
 
-  const handleApplaud = useCallback(() => {
-    trackEngagement.mutate({ storyId: story.id, action: "like" });
-  }, [story.id, trackEngagement]);
+  const handleApplaud = useCallback(async () => {
+    try {
+      const token = await getAccessTokenSilently();
+      await applaudStory(story.id, token);
+    } catch {
+      // Fire-and-forget; the optimistic UI update in CardActionBar handles display
+    }
+  }, [story.id, getAccessTokenSilently]);
 
   const handleEscalate = useCallback(() => {
     setEscalateOpen(true);

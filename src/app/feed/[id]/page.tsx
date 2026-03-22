@@ -110,8 +110,8 @@ export default function FeedDetailPage() {
   // Initialize counts + track view on story load
   useEffect(() => {
     if (rawStory) {
-      setApplaudCount(rawStory.like_count ?? 0);
-      setEscalateCount(rawStory.comment_count ?? 0);
+      setApplaudCount(rawStory.applaud_count ?? rawStory.like_count ?? 0);
+      setEscalateCount(rawStory.escalate_count ?? rawStory.comment_count ?? 0);
       trackEngagement.mutate({ storyId: rawStory.id, action: "view" });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
