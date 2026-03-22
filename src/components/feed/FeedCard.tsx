@@ -68,7 +68,9 @@ export default function FeedCard({ story, isAdmin, onHide, onDelete, previewMode
       const token = await getAccessTokenSilently();
       await escalateStory(story.id, token, comment, includeName);
     } catch {
-      // Optimistic update already applied; silently fail
+      // Roll back optimistic update on failure
+      setLocalEscalateCount((c) => Math.max(0, c - 1));
+      toast.error("Could not submit flag. Please try again.");
     }
   }, [story.id, getAccessTokenSilently]);
 
