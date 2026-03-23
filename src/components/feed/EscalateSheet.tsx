@@ -46,7 +46,7 @@ export default function EscalateSheet({ open, headline, onClose, onSend }: Escal
   const handleSend = useCallback(() => {
     onSend(comment, includeName);
     onClose();
-    toast.success("Flagged for your District Supervisor");
+    toast.success("Your flag was sent to your District Supervisor. They'll see it in their dashboard.");
   }, [onSend, onClose, comment, includeName]);
 
   const handleSkip = useCallback(() => {
@@ -91,6 +91,8 @@ export default function EscalateSheet({ open, headline, onClose, onSend }: Escal
             <span>Include my name</span>
             <button
               type="button"
+              role="switch"
+              aria-checked={includeName}
               className={`${styles.escalateToggle} ${includeName ? styles.escalateToggleOn : ""}`}
               onClick={() => setIncludeName((v) => !v)}
               aria-label={includeName ? "Name included" : "Name not included"}

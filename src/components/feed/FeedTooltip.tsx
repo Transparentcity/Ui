@@ -36,7 +36,7 @@ const TOOLTIP_STORAGE_KEY = "tc_feed_tooltips_seen";
 
 function getSeenTooltips(): Set<string> {
   try {
-    const stored = window.sessionStorage?.getItem(TOOLTIP_STORAGE_KEY);
+    const stored = window.localStorage?.getItem(TOOLTIP_STORAGE_KEY);
     return stored ? new Set(JSON.parse(stored)) : new Set();
   } catch {
     return new Set();
@@ -47,7 +47,7 @@ function markTooltipSeen(id: string) {
   try {
     const seen = getSeenTooltips();
     seen.add(id);
-    window.sessionStorage?.setItem(TOOLTIP_STORAGE_KEY, JSON.stringify([...seen]));
+    window.localStorage?.setItem(TOOLTIP_STORAGE_KEY, JSON.stringify([...seen]));
   } catch {
     // Ignore storage errors
   }

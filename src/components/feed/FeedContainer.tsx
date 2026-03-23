@@ -38,6 +38,7 @@ export default function FeedContainer({
   const queryClient = useQueryClient();
   const trackEngagement = useTrackFeedEngagement();
   const viewedRef = useRef<Set<number>>(new Set());
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const { data: placesData } = useFeedPlaces();
 
   // ── Filters (restored from sessionStorage when navigating back) ──
@@ -96,6 +97,8 @@ export default function FeedContainer({
       return false;
     }
   });
+
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
 
   // Persist filters to sessionStorage whenever they change
   useEffect(() => {
@@ -281,6 +284,25 @@ export default function FeedContainer({
 
   const atEnd = stories.length < displayLimit;
 
+  // ── Infinite scroll: load more when sentinel enters viewport ──
+  useEffect(() => {
+    if (atEnd || isLoading || isFetching) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && !atEnd && !isFetching) {
+          setDisplayLimit((l) => l + 10);
+        }
+      },
+      { rootMargin: "200px" },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [atEnd, isLoading, isFetching]);
+
   // ── City chip toggle (single-select: clicking a city selects only that one) ──
   const selectCity = useCallback((cid: number) => {
     setSelectedCityIds((prev) => {
@@ -385,6 +407,7 @@ export default function FeedContainer({
       <div className={styles.cityChipRow}>
         <button
           type="button"
+          aria-pressed={selectedCityIds.size === 0}
           className={`${styles.cityChip} ${selectedCityIds.size === 0 ? styles.cityChipActive : ""}`}
           onClick={() => setSelectedCityIds(new Set())}
         >
@@ -394,6 +417,7 @@ export default function FeedContainer({
           <button
             key={c.city_id}
             type="button"
+            aria-pressed={selectedCityIds.has(c.city_id)}
             className={`${styles.cityChip} ${selectedCityIds.has(c.city_id) ? styles.cityChipActive : ""}`}
             onClick={() => selectCity(c.city_id)}
           >
@@ -405,9 +429,11 @@ export default function FeedContainer({
       {/* Secondary filters row */}
       <div className={styles.secondaryFilterRow}>
         {/* For You / Latest toggle */}
-        <div className={styles.feedOrderToggle}>
+        <div className={styles.feedOrderToggle} role="tablist" aria-label="Feed order">
           <button
             type="button"
+            role="tab"
+            aria-selected={feedOrder === "for_you"}
             className={`${styles.feedOrderBtn} ${feedOrder === "for_you" ? styles.feedOrderBtnActive : ""}`}
             onClick={() => setFeedOrder("for_you")}
           >
@@ -415,6 +441,8 @@ export default function FeedContainer({
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={feedOrder === "published_at"}
             className={`${styles.feedOrderBtn} ${feedOrder === "published_at" ? styles.feedOrderBtnActive : ""}`}
             onClick={() => setFeedOrder("published_at")}
           >
@@ -422,44 +450,61 @@ export default function FeedContainer({
           </button>
         </div>
 
-        {/* District filter: only when exactly 1 city is selected */}
+        {/* District filter chips: only when exactly 1 city is selected */}
         {singleCityId && (
-          <select
-            id="feedv2-district"
-            value={selectedDistrict != null ? String(selectedDistrict) : ""}
-            onChange={(e) => {
-              const v = e.target.value;
-              setSelectedDistrict(v === "" ? null : parseInt(v, 10));
-            }}
-            className={styles.compactSelect}
-          >
-            <option value="">All (city + districts)</option>
-            <option value="0">City-wide only</option>
+          <div className={styles.filterChipScroll}>
+            <button
+              type="button"
+              className={`${styles.filterChip} ${selectedDistrict === null ? styles.filterChipActive : ""}`}
+              onClick={() => setSelectedDistrict(null)}
+            >
+              All districts
+            </button>
+            <button
+              type="button"
+              className={`${styles.filterChip} ${selectedDistrict === 0 ? styles.filterChipActive : ""}`}
+              onClick={() => setSelectedDistrict(0)}
+            >
+              City-wide
+            </button>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((d) => (
-              <option key={d} value={d}>District {d}</option>
+              <button
+                key={d}
+                type="button"
+                className={`${styles.filterChip} ${selectedDistrict === d ? styles.filterChipActive : ""}`}
+                onClick={() => setSelectedDistrict(d)}
+              >
+                D{d}
+              </button>
             ))}
-          </select>
+          </div>
         )}
 
-        {/* Topic filter */}
-        <select
-          id="feedv2-topic"
-          value={selectedTopic ?? ""}
-          onChange={(e) => setSelectedTopic(e.target.value || null)}
-          className={styles.compactSelect}
-        >
-          <option value="">All topics</option>
-          <option value="safety">Public Safety</option>
-          <option value="justice">Justice</option>
-          <option value="business">Business {"&"} Economy</option>
-          <option value="spending">City Spending</option>
-          <option value="alert">Alerts</option>
-          <option value="trend">Trends</option>
-          <option value="context">Context {"&"} Background</option>
-          <option value="off_the_charts">Off the Charts</option>
-          <option value="my_block">My Neighborhood</option>
-          <option value="311_images">311 Photos</option>
-        </select>
+        {/* Topic filter chips */}
+        <div className={styles.filterChipScroll}>
+          {[
+            { value: "", label: "All topics" },
+            { value: "safety", label: "Safety" },
+            { value: "justice", label: "Justice" },
+            { value: "business", label: "Business" },
+            { value: "spending", label: "Spending" },
+            { value: "alert", label: "Alerts" },
+            { value: "trend", label: "Trends" },
+            { value: "context", label: "Context" },
+            { value: "off_the_charts", label: "Off the Charts" },
+            { value: "my_block", label: "My Block" },
+            { value: "311_images", label: "311 Photos" },
+          ].map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              className={`${styles.filterChip} ${(selectedTopic ?? "") === t.value ? styles.filterChipActive : ""}`}
+              onClick={() => setSelectedTopic(t.value || null)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
 
         {hasSecondaryFilters && (
           <button
@@ -532,7 +577,7 @@ export default function FeedContainer({
                       ? `No ${parts[0] ?? ""} stories found${parts.length > 1 ? ` in ${parts.slice(1).join(", ")}` : ""}. Try adjusting your filters.`
                       : "No stories match your current filters.";
                   })()
-                : "No feed stories found. Check back later for new newsletters!"}
+                : "No feed stories yet. New stories appear as city data updates. Check back soon!"}
           </p>
           {(hasSecondaryFilters || selectedCityIds.size > 0) && !personalNewsletterOnly && (
             <button
@@ -548,6 +593,26 @@ export default function FeedContainer({
               Clear all filters
             </button>
           )}
+        </div>
+      )}
+
+      {/* Post-onboarding welcome banner */}
+      {isFirstSession && !welcomeDismissed && visibleStories.length > 0 && selectedCityName && (
+        <div className={styles.welcomeBanner}>
+          <div className={styles.welcomeBannerContent}>
+            <p className={styles.welcomeBannerTitle}>Welcome to your feed</p>
+            <p className={styles.welcomeBannerText}>
+              Here are the latest stories for {selectedCityName}{selectedDistrict ? `, District ${selectedDistrict}` : ""}. As you applaud and flag stories, your feed will learn what matters to you.
+            </p>
+          </div>
+          <button
+            type="button"
+            className={styles.welcomeBannerClose}
+            onClick={() => setWelcomeDismissed(true)}
+            aria-label="Dismiss"
+          >
+            &times;
+          </button>
         </div>
       )}
 
@@ -575,20 +640,17 @@ export default function FeedContainer({
         </div>
       )}
 
-      {/* Load more */}
+      {/* Infinite scroll sentinel + fallback button */}
       {!atEnd && stories.length > 0 && (
-        <div className={styles.loadMoreWrap}>
-          <button
-            type="button"
-            className={styles.loadMoreBtn}
-            disabled={isFetching}
-            onClick={() => setDisplayLimit((l) => l + 10)}
-          >
-            {isFetching && isPlaceholderData ? (
-              <><BrandedLoader size="sm" /> Loading...</>
-            ) : "Load more"}
-          </button>
-        </div>
+        <>
+          <div ref={sentinelRef} className={styles.loadMoreWrap}>
+            {isFetching && isPlaceholderData && (
+              <div style={{ display: "flex", justifyContent: "center", padding: "16px 0" }}>
+                <BrandedLoader size="sm" />
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* End state */}

@@ -92,6 +92,10 @@ export default function SpendingCard({ story, children }: SpendingCardProps) {
 
       {vendor && <div className={styles.vendorLine}>Vendor: {vendor}</div>}
 
+      {story.cleaned_description && (
+        <span className={styles.readMore}>Read more →</span>
+      )}
+
       {children}
     </>
   );

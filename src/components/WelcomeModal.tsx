@@ -32,6 +32,7 @@ import {
   readNewsletterPreferenceFields,
 } from "@/lib/newsletterPreferences";
 import LocationMapSave from "./LocationMapSave";
+import { CATEGORY_PRESETS } from "@/lib/feed/categoryPresets";
 import styles from "./WelcomeModal.module.css";
 import Loader from "./Loader";
 
@@ -43,7 +44,7 @@ interface WelcomeModalProps {
   onComplete: () => void;
 }
 
-type Step = "welcome" | "leader" | "email-personalization" | "all-set" | "coming-soon";
+type Step = "welcome" | "leader" | "interests" | "notifications" | "all-set" | "coming-soon";
 
 interface LocationResult {
   cityName: string;
@@ -655,7 +656,7 @@ export default function WelcomeModal({
     if (step === "coming-soon") {
       steps = ["welcome", "coming-soon"];
     } else {
-      steps = ["welcome", "leader", "email-personalization", "all-set"];
+      steps = ["welcome", "leader", "interests", "notifications", "all-set"];
     }
     
     const currentIndex = steps.indexOf(step);
@@ -812,7 +813,7 @@ export default function WelcomeModal({
           radius_m: placeRadius,
         });
       }
-      setStep("email-personalization");
+      setStep("interests");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save. Please try again.");
     } finally {
@@ -874,6 +875,11 @@ export default function WelcomeModal({
             We have data for your city! Explore crime, safety, traffic, and more.
           </p>
         )}
+        {(mayor || councilMember) && (
+          <p className={styles.stepDescription} style={{ fontSize: "13px", marginTop: "4px" }}>
+            You can flag stories directly to {councilMember ? councilMember.name + "'s" : "your representative's"} office and applaud good work.
+          </p>
+        )}
 
         {showMapAndPlace && (
           <div className={styles.leaderStepMapSection}>
@@ -916,51 +922,8 @@ export default function WelcomeModal({
     );
   };
 
-  // One-click preset prompts for personalized newsletter; also drive metric ordering (preset id → backend category names)
-  const EMAIL_PRESETS = [
-    {
-      id: "crime-safety",
-      label: "Crime & Safety",
-      prompt:
-        "Create a newsletter focused on crime and safety trends: violent and property crime trends, 311 calls related to safety and encampments, and any notable changes or anomalies. Compare to prior period and highlight actionable insights for residents.",
-      metricCategories: ["crime", "safety"],
-    },
-    {
-      id: "economy",
-      label: "Economy & Jobs",
-      prompt:
-        "Create a newsletter focused on local economy and jobs: business permits, employment-related metrics, economic development, government spending, budgets, contracts, procurement, and key indicators. Include period-over-period comparison and notable shifts.",
-      metricCategories: ["economy", "government", "budget"],
-    },
-    {
-      id: "real-estate",
-      label: "Real Estate & Housing",
-      prompt:
-        "Create a newsletter focused on housing and real estate: permits, construction, affordability indicators, and housing-related 311 or code data. Highlight trends and anomalies relevant to residents and renters.",
-      metricCategories: ["housing"],
-    },
-    {
-      id: "transportation",
-      label: "Transportation & Traffic",
-      prompt:
-        "Create a newsletter focused on transportation and traffic: transit usage, traffic volumes, 311 street and sidewalk issues, and mobility trends. Include comparisons and notable changes.",
-      metricCategories: ["transportation", "transit", "mobility"],
-    },
-    {
-      id: "environment",
-      label: "Environment & Sustainability",
-      prompt:
-        "Create a newsletter focused on environment and sustainability: air quality, waste, green infrastructure, and sustainability metrics. Compare to prior period and highlight key takeaways.",
-      metricCategories: ["environment", "sustainability"],
-    },
-    {
-      id: "government-budget",
-      label: "Government & Budget",
-      prompt:
-        "Create a newsletter focused on government spending and budgets: contracts, procurement, city expenditures, budget variances, and fiscal transparency. Compare to prior period and highlight notable changes.",
-      metricCategories: ["government", "budget"],
-    },
-  ];
+  // One-click preset prompts for personalized newsletter; shared with settings page
+  const EMAIL_PRESETS = CATEGORY_PRESETS;
 
   /** Build newsletter prompt from selected preset ids; used to keep prompt and pills in sync. */
   const buildPromptFromSelection = (ids: string[]): string => {
@@ -985,22 +948,16 @@ export default function WelcomeModal({
     "Create a weekly newsletter report for this city and district. Focus on recent changes and trends in key metrics (crime, housing, permits, 311 calls), notable anomalies, comparative analysis (this period vs. previous, district vs. city-wide), and actionable insights for residents. Be data-driven with specific numbers; highlight both positive and concerning trends.";
 
   // Render email personalization step (dedicated screen with space)
-  const renderEmailPersonalizationStep = () => {
+  const renderInterestsStep = () => {
     if (!locationResult) return null;
-    const cityDisplayName = locationResult.state
-      ? `${locationResult.cityName}, ${locationResult.state}`
-      : locationResult.cityName;
 
     return (
       <div className={`${styles.stepContent} ${styles.emailPersonalizationStep}`}>
-        <h2 className={styles.stepTitle}>Personalize your email</h2>
+        <h2 className={styles.stepTitle}>What do you care about?</h2>
         <p className={styles.stepDescription}>
-          Choose a focus or describe what you want in your {newsletterFrequency} newsletter for {cityDisplayName}.
+          Pick the topics that matter to you. This shapes your feed and newsletter.
         </p>
 
-        <p className={styles.stepDescription} style={{ marginBottom: "12px" }}>
-          Select one or more to personalize your newsletter and dashboard—your chosen topics will appear first on your city dashboard and map.
-        </p>
         <div className={styles.presetChips}>
           {EMAIL_PRESETS.map((preset) => {
             const isActive = selectedCategoryIds.includes(preset.id);
@@ -1020,14 +977,36 @@ export default function WelcomeModal({
           })}
         </div>
 
-        <label className={styles.textInputLabel}>Sample prompt (edit if you like)</label>
-        <textarea
-          className={styles.newsletterDescriptionInput}
-          placeholder={defaultSamplePrompt}
-          value={newsletterDescription}
-          onChange={(e) => setNewsletterDescription(e.target.value)}
-          rows={5}
-        />
+        {error && <div className={styles.error}>{error}</div>}
+
+        <div className={styles.actions}>
+          <button
+            className={styles.primaryButton}
+            onClick={() => setStep("notifications")}
+            disabled={loading}
+          >
+            Continue
+          </button>
+          <button className={styles.backButton} onClick={() => setStep("leader")}>
+            Back
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderNotificationsStep = () => {
+    if (!locationResult) return null;
+    const cityDisplayName = locationResult.state
+      ? `${locationResult.cityName}, ${locationResult.state}`
+      : locationResult.cityName;
+
+    return (
+      <div className={`${styles.stepContent} ${styles.emailPersonalizationStep}`}>
+        <h2 className={styles.stepTitle}>Stay in the loop</h2>
+        <p className={styles.stepDescription}>
+          Choose how you want to hear about {cityDisplayName}.
+        </p>
 
         <div className={styles.emailOptIns}>
           <label className={styles.emailOptInOption}>
@@ -1070,7 +1049,7 @@ export default function WelcomeModal({
               "Continue"
             )}
           </button>
-          <button className={styles.backButton} onClick={() => setStep("leader")}>
+          <button className={styles.backButton} onClick={() => setStep("interests")}>
             Back
           </button>
         </div>
@@ -1262,27 +1241,33 @@ export default function WelcomeModal({
         </p>
 
         <div className={styles.allSetSummary}>
-          <div className={styles.summaryItem}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-              <polyline points="22 4 12 14.01 9 11.01" />
-            </svg>
-            <span>Personalized {newsletterFrequency} email</span>
-          </div>
-          <div className={styles.summaryItem}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-              <polyline points="22 4 12 14.01 9 11.01" />
-            </svg>
-            <span>Anomaly alerts</span>
-          </div>
-          <div className={styles.summaryItem}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-              <polyline points="22 4 12 14.01 9 11.01" />
-            </svg>
-            <span>Weekly digest &amp; monthly report</span>
-          </div>
+          {selectedCategoryIds.length > 0 && (
+            <div className={styles.summaryItem}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+              <span>Tracking: {selectedCategoryIds.map(id => EMAIL_PRESETS.find(p => p.id === id)?.label).filter(Boolean).join(", ")}</span>
+            </div>
+          )}
+          {weeklyNewsletterOptIn && (
+            <div className={styles.summaryItem}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+              <span>Personalized {newsletterFrequency} email</span>
+            </div>
+          )}
+          {alertsOptIn && (
+            <div className={styles.summaryItem}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+              <span>Anomaly alerts</span>
+            </div>
+          )}
         </div>
         <p className={styles.stepDescription} style={{ marginTop: "12px", fontSize: "13px" }}>
           You can change these anytime in Settings.
@@ -1374,7 +1359,7 @@ export default function WelcomeModal({
   };
 
   return (
-    <div className={styles.overlay} onClick={handleSkip}>
+    <div className={styles.overlay}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <button className={styles.closeButton} onClick={handleSkip} title="Close">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1387,7 +1372,8 @@ export default function WelcomeModal({
 
         {step === "welcome" && renderWelcomeStep()}
         {step === "leader" && renderLeaderStep()}
-        {step === "email-personalization" && renderEmailPersonalizationStep()}
+        {step === "interests" && renderInterestsStep()}
+        {step === "notifications" && renderNotificationsStep()}
         {step === "all-set" && renderAllSetStep()}
         {step === "coming-soon" && renderComingSoonStep()}
       </div>

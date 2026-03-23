@@ -65,6 +65,7 @@ export default function CardActionBar({
         aria-label="Applaud"
       >
         <span>{"\u{1F44F}"}</span>
+        <span className={styles.actionLabel}>Applaud</span>
         <span>{applaudCount + (applauded ? 1 : 0)}</span>
       </button>
 
@@ -75,6 +76,7 @@ export default function CardActionBar({
         aria-label="Flag"
       >
         <span>{"\u{1F6A9}"}</span>
+        <span className={styles.actionLabel}>Flag</span>
         <span>{escalateCount}</span>
       </button>
 
@@ -85,6 +87,7 @@ export default function CardActionBar({
         aria-label="Share"
       >
         <Share2 size={16} />
+        <span className={styles.actionLabel}>Share</span>
       </button>
 
       <div className={styles.actionSpacer} />
