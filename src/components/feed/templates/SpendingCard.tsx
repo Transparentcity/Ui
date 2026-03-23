@@ -18,10 +18,58 @@ function formatAmount(raw: number | string | undefined): string {
   return `$${n.toLocaleString()}`;
 }
 
+/**
+ * Extract a percentage from headline text.
+ * Matches "428% Above Average", "Up 57%", "+200%", etc.
+ */
+function extractPctFromText(text: string): number | null {
+  if (!text) return null;
+  const upMatch = text.match(/(?:up|rose|surged|jumped|increase[ds]?|grew)\s+(\d+(?:\.\d+)?)%/i);
+  if (upMatch) return parseFloat(upMatch[1]);
+  const downMatch = text.match(/(?:down|dropped|fell|declined?|decrease[ds]?|shrank)\s+(\d+(?:\.\d+)?)%/i);
+  if (downMatch) return -parseFloat(downMatch[1]);
+  const aboveMatch = text.match(/(\d+(?:\.\d+)?)%\s+(?:above|higher|more|over)/i);
+  if (aboveMatch) return parseFloat(aboveMatch[1]);
+  const belowMatch = text.match(/(\d+(?:\.\d+)?)%\s+(?:below|lower|less|under)/i);
+  if (belowMatch) return -parseFloat(belowMatch[1]);
+  const signedMatch = text.match(/([+-])(\d+(?:\.\d+)?)%/);
+  if (signedMatch) return signedMatch[1] === "-" ? -parseFloat(signedMatch[2]) : parseFloat(signedMatch[2]);
+  return null;
+}
+
+/**
+ * Extract dollar amounts from headline or description text.
+ * Matches patterns like "$1.2M", "$500K", "$1,234,567", "$45 million".
+ */
+function extractDollarAmount(text: string): number | null {
+  if (!text) return null;
+  // Match $X.XM, $XM, $X.XK, $XK
+  const shortMatch = text.match(/\$(\d+(?:\.\d+)?)\s*(M|million|B|billion|K|thousand)/i);
+  if (shortMatch) {
+    const num = parseFloat(shortMatch[1]);
+    const unit = shortMatch[2].toUpperCase();
+    if (unit === "B" || unit === "BILLION") return num * 1_000_000_000;
+    if (unit === "M" || unit === "MILLION") return num * 1_000_000;
+    if (unit === "K" || unit === "THOUSAND") return num * 1_000;
+  }
+  // Match $1,234,567 or $1234567
+  const rawMatch = text.match(/\$([\d,]+(?:\.\d{1,2})?)/);
+  if (rawMatch) {
+    const num = parseFloat(rawMatch[1].replace(/,/g, ""));
+    if (!isNaN(num) && num > 0) return num;
+  }
+  return null;
+}
+
 export default function SpendingCard({ story, children }: SpendingCardProps) {
   const meta = story.metadata ?? {};
-  const amount = meta.contract_amount as number | string | undefined;
-  const priorAmount = meta.prior_amount as number | string | undefined;
+
+  // Try explicit metadata first, then extract from headline/description
+  const amount: number | string | undefined = (meta.contract_amount as number | string | undefined)
+    ?? extractDollarAmount(story.headline ?? "")
+    ?? extractDollarAmount(story.cleaned_description ?? "")
+    ?? undefined;
+  const priorAmount = (meta.prior_amount ?? meta.comparison_period_value) as number | string | undefined;
   const vendor = meta.vendor_name as string | undefined;
 
   const amountNum = amount != null ? (typeof amount === "string" ? parseFloat(amount) : amount) : null;
@@ -29,7 +77,10 @@ export default function SpendingCard({ story, children }: SpendingCardProps) {
 
   const hasBars = amountNum != null && priorNum != null && priorNum > 0;
   const maxVal = hasBars ? Math.max(amountNum!, priorNum!) : 1;
-  const changePct = hasBars ? Math.round(((amountNum! - priorNum!) / priorNum!) * 100) : null;
+  // Prefer computed change from bars; fall back to headline-extracted percentage
+  const computedPct = hasBars ? Math.round(((amountNum! - priorNum!) / priorNum!) * 100) : null;
+  const headlinePct = extractPctFromText(story.headline ?? "");
+  const changePct = computedPct ?? headlinePct;
   // Spending increases are generally unfavorable
   const isUnfavorable = changePct != null && changePct > 0;
 
@@ -91,10 +142,6 @@ export default function SpendingCard({ story, children }: SpendingCardProps) {
       )}
 
       {vendor && <div className={styles.vendorLine}>Vendor: {vendor}</div>}
-
-      {story.cleaned_description && (
-        <span className={styles.readMore}>Read more →</span>
-      )}
 
       {children}
     </>

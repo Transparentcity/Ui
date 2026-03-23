@@ -3852,6 +3852,7 @@ export interface FeedPlace {
   city_emoji: string;
   district: number;
   label: string;
+  district_term?: string;
 }
 
 export interface FeedPlacesResponse {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import CardHeader from "../CardHeader";
 import styles from "../feed.module.css";
@@ -9,14 +10,52 @@ interface AlertCardProps {
   children: React.ReactNode;
 }
 
+/**
+ * Extract a percentage from headline text as a last resort.
+ * Matches patterns like "Up 57%", "Surged 437%", "Dropped 12%", "+200%", "428% Above Average"
+ */
+function extractPctFromHeadline(headline: string): number | null {
+  if (!headline) return null;
+  // Match "Up/Rose/Surged/Jumped/Point X%" or "Down/Dropped/Fell/Declined X%"
+  const upMatch = headline.match(/(?:up|rose|surged|jumped|point(?:ed)?|increase[ds]?|grew|spike[ds]?)\s+(\d+(?:\.\d+)?)%/i);
+  if (upMatch) return parseFloat(upMatch[1]);
+  const downMatch = headline.match(/(?:down|dropped|fell|declined?|decrease[ds]?|plunged|plummeted?|sank|shrank)\s+(\d+(?:\.\d+)?)%/i);
+  if (downMatch) return -parseFloat(downMatch[1]);
+  // Match "X% Above/Increase" or "X% Below/Decrease"
+  const aboveMatch = headline.match(/(\d+(?:\.\d+)?)%\s+(?:above|increase|higher|more|over|up)/i);
+  if (aboveMatch) return parseFloat(aboveMatch[1]);
+  const belowMatch = headline.match(/(\d+(?:\.\d+)?)%\s+(?:below|decrease|lower|less|under|down)/i);
+  if (belowMatch) return -parseFloat(belowMatch[1]);
+  // Match standalone "+X%" or "-X%"
+  const signedMatch = headline.match(/([+-])(\d+(?:\.\d+)?)%/);
+  if (signedMatch) return signedMatch[1] === "-" ? -parseFloat(signedMatch[2]) : parseFloat(signedMatch[2]);
+  // Match "Doubled" / "Tripled" keywords
+  if (/\bdoubled\b/i.test(headline)) return 100;
+  if (/\btripled\b/i.test(headline)) return 200;
+  return null;
+}
+
 export default function AlertCard({ story, children }: AlertCardProps) {
+  const [imgFailed, setImgFailed] = useState(false);
   const meta = story.metadata ?? {};
-  const value = meta.anomaly_value as string | number | undefined;
-  const changePct = meta.anomaly_change_pct as number | undefined;
-  const severity = meta.anomaly_severity as string | undefined;
+
+  // Support both legacy (anomaly_*) and current backend field names
+  const value = (meta.anomaly_value ?? meta.current_period_value) as string | number | undefined;
+  const metaPct = (meta.anomaly_change_pct ?? meta.pct_change ?? meta.trend_pct_change ?? meta.percent_change) as number | undefined;
+  // Fall back to extracting percentage from headline text
+  const changePct = metaPct ?? extractPctFromHeadline(story.headline ?? "");
+  const severity = (meta.anomaly_severity as string | undefined);
+  const priorValue = meta.comparison_period_value as string | number | undefined;
+
+  // Derive severity from pct_change magnitude if not explicitly set
+  const effectiveSeverity = severity
+    ?? (changePct != null && Math.abs(changePct) >= 100 ? "critical" : "warning");
 
   // Color based on severity
-  const color = severity === "critical" ? "var(--error, #ef4444)" : "var(--warning, #f59e0b)";
+  const color = effectiveSeverity === "critical" ? "var(--error, #ef4444)" : "var(--warning, #f59e0b)";
+
+  const hasMetrics = value != null || changePct != null;
+  const showImage = story.image_url_resolved && !imgFailed;
 
   return (
     <>
@@ -29,13 +68,13 @@ export default function AlertCard({ story, children }: AlertCardProps) {
       />
       <h2 className={styles.cardHeadline}>{story.headline}</h2>
 
-      {(value != null || changePct != null) && (
+      {hasMetrics && (
         <div className={styles.alertHero}>
           <div className={styles.alertHeroMain}>
             <div>
               {value != null && (
                 <span className={styles.alertMetricValue} style={{ color }}>
-                  {value}
+                  {typeof value === "number" ? value.toLocaleString() : value}
                 </span>
               )}
               {changePct != null && (
@@ -45,19 +84,29 @@ export default function AlertCard({ story, children }: AlertCardProps) {
               )}
             </div>
             <div className={styles.alertMetricLabel}>
-              vs. prior period average
+              {priorValue != null ? `vs. ${typeof priorValue === "number" ? priorValue.toLocaleString() : priorValue} prior period` : "vs. prior period average"}
             </div>
           </div>
-          {/* Sparkline placeholder — will be populated when backend provides trend data */}
+          {/* Sparkline placeholder */}
           <div className={styles.alertSparkline} />
+        </div>
+      )}
+
+      {/* Show chart/anomaly image when available */}
+      {showImage && (
+        <div className={styles.vizArea}>
+          <img
+            src={story.image_url_resolved!}
+            alt={story.headline}
+            className={styles.vizImage}
+            loading="lazy"
+            onError={() => setImgFailed(true)}
+          />
         </div>
       )}
 
       {story.cleaned_description && (
         <p className={styles.cardDescription}>{story.cleaned_description}</p>
-      )}
-      {story.cleaned_description && (
-        <span className={styles.readMore}>Read more →</span>
       )}
       {children}
     </>
