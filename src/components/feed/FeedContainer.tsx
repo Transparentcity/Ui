@@ -140,6 +140,19 @@ export default function FeedContainer({
     });
   }, [places]);
 
+  // Determine API params: single-city → server-side filter, multi/all → fetch all + client filter
+  const singleCityId = selectedCityIds.size === 1 ? [...selectedCityIds][0] : undefined;
+
+  // Derive district numbers and term for the selected city from places data
+  const { cityDistricts, districtTerm, districtPrefix } = useMemo(() => {
+    if (!singleCityId) return { cityDistricts: [] as number[], districtTerm: "District", districtPrefix: "D" };
+    const cityPlaces = places.filter((p) => p.city_id === singleCityId && p.district > 0);
+    const districts = [...new Set(cityPlaces.map((p) => p.district))].sort((a, b) => a - b);
+    const term = cityPlaces[0]?.district_term ?? "District";
+    const prefix = term.toLowerCase() === "ward" ? "W" : "D";
+    return { cityDistricts: districts, districtTerm: term, districtPrefix: prefix };
+  }, [singleCityId, places]);
+
   // Reset display limit when filters change
   useEffect(() => { setDisplayLimit(10); }, [selectedCityIds, selectedDistrict, selectedFrequency, personalNewsletterOnly, selectedTopic, feedOrder]);
 
@@ -147,9 +160,6 @@ export default function FeedContainer({
   useEffect(() => {
     if (selectedCityIds.size !== 1) setSelectedDistrict(null);
   }, [selectedCityIds]);
-
-  // Determine API params: single-city → server-side filter, multi/all → fetch all + client filter
-  const singleCityId = selectedCityIds.size === 1 ? [...selectedCityIds][0] : undefined;
 
   const { data: feedData, isLoading, isFetching, isPlaceholderData, error, refetch } = useFeedStories({
     city_id: personalNewsletterOnly ? undefined : singleCityId,
@@ -450,31 +460,24 @@ export default function FeedContainer({
           </button>
         </div>
 
-        {/* District filter chips: only when exactly 1 city is selected */}
-        {singleCityId && (
+        {/* District/Ward filter chips: only when exactly 1 city is selected */}
+        {singleCityId && cityDistricts.length > 0 && (
           <div className={styles.filterChipScroll}>
             <button
               type="button"
               className={`${styles.filterChip} ${selectedDistrict === null ? styles.filterChipActive : ""}`}
               onClick={() => setSelectedDistrict(null)}
             >
-              All districts
+              All
             </button>
-            <button
-              type="button"
-              className={`${styles.filterChip} ${selectedDistrict === 0 ? styles.filterChipActive : ""}`}
-              onClick={() => setSelectedDistrict(0)}
-            >
-              City-wide
-            </button>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((d) => (
+            {cityDistricts.map((d) => (
               <button
                 key={d}
                 type="button"
                 className={`${styles.filterChip} ${selectedDistrict === d ? styles.filterChipActive : ""}`}
                 onClick={() => setSelectedDistrict(d)}
               >
-                D{d}
+                {districtPrefix}{d}
               </button>
             ))}
           </div>
@@ -571,7 +574,7 @@ export default function FeedContainer({
                     }
                     if (selectedCityName) parts.push(selectedCityName);
                     if (selectedDistrict != null) {
-                      parts.push(selectedDistrict === 0 ? "city-wide" : `District ${selectedDistrict}`);
+                      parts.push(selectedDistrict === 0 ? "city-wide" : `${districtTerm} ${selectedDistrict}`);
                     }
                     return parts.length > 0
                       ? `No ${parts[0] ?? ""} stories found${parts.length > 1 ? ` in ${parts.slice(1).join(", ")}` : ""}. Try adjusting your filters.`
@@ -602,7 +605,7 @@ export default function FeedContainer({
           <div className={styles.welcomeBannerContent}>
             <p className={styles.welcomeBannerTitle}>Welcome to your feed</p>
             <p className={styles.welcomeBannerText}>
-              Here are the latest stories for {selectedCityName}{selectedDistrict ? `, District ${selectedDistrict}` : ""}. As you applaud and flag stories, your feed will learn what matters to you.
+              Here are the latest stories for {selectedCityName}{selectedDistrict ? `, ${districtTerm} ${selectedDistrict}` : ""}. As you applaud and flag stories, your feed will learn what matters to you.
             </p>
           </div>
           <button
@@ -620,12 +623,24 @@ export default function FeedContainer({
       {visibleStories.length > 0 && (
         <div className={styles.storiesList}>
           {visibleStories.map((story) => {
-            // Text-only context/trend cards render in compact mode
+            // Text-only context/trend cards render in compact mode,
+            // UNLESS they contain meaningful data (percentage in headline,
+            // metric metadata, or key insight) that deserves full card treatment.
+            const headlineHasPct = /\d+(\.\d+)?%/.test(story.headline ?? "");
+            const headlineHasKeyword = /\b(jumped|surged|dropped|doubled|tripled|plunged|spiked|soared|plummeted|low|high|record)\b/i.test(story.headline ?? "");
+            const hasMetricData = !!(
+              story.metadata?.pct_change ||
+              story.metadata?.current_period_value ||
+              story.metadata?.trend_pct_change
+            );
             const isCompact =
               story.template === "text_only" &&
               (story.card_type === "context" || story.card_type === "trend") &&
               !story.metadata?.key_insight && // context with callout stays full
-              !story.metadata?.trend_metric_name; // trend with metric strip stays full
+              !story.metadata?.trend_metric_name && // trend with metric strip stays full
+              !headlineHasPct && // stories with percentages stay full
+              !headlineHasKeyword && // stories with notable change keywords stay full
+              !hasMetricData; // stories with numeric metadata stay full
             return (
               <FeedCard
                 key={story.id}

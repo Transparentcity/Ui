@@ -126,9 +126,16 @@ export default function FeedCard({ story, isAdmin, onHide, onDelete, compact }: 
     .filter(Boolean)
     .join(" ");
 
-  // Choose template — card_type overrides take priority for redesigned types
+  // Choose template — card_type overrides take priority for redesigned types.
+  // Trend and safety stories with a percentage in the headline get AlertCard
+  // so they show the metric hero instead of a bare headline.
+  const headlineHasPct = /\d+(\.\d+)?%/.test(story.headline ?? "");
+  const trendWithData =
+    (story.card_type === "trend" || story.card_type === "safety") &&
+    (headlineHasPct || story.metadata?.pct_change != null);
+
   const Template =
-    story.card_type === "alert"
+    story.card_type === "alert" || trendWithData
       ? AlertCard
       : story.card_type === "spending"
         ? SpendingCard
