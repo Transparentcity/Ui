@@ -775,15 +775,6 @@ export default function FeedView({
                     </div>
                   )}
                   <button
-                    className={styles.readMoreBtn}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleStoryClick(story);
-                    }}
-                  >
-                    {story.cta_label ?? "Read full report"} →
-                  </button>
-                  <button
                     className={styles.shareBtn}
                     onClick={(e) => handleShare(story, e)}
                     title="Share story"
