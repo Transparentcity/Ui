@@ -160,7 +160,7 @@ export default function FeedCard({ story, isAdmin, onHide, onDelete, compact }: 
   );
 
   return (
-    <article className={cardClassName} onClick={handleCardClick}>
+    <article className={cardClassName} onClick={handleCardClick} role="link" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCardClick(); } }}>
       {compact ? (
         <CompactCard story={story}>{actionBar}</CompactCard>
       ) : (

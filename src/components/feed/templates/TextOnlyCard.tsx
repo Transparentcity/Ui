@@ -93,6 +93,9 @@ export default function TextOnlyCard({ story, children }: TextOnlyCardProps) {
       {story.cleaned_description && (
         <p className={styles.cardDescription}>{story.cleaned_description}</p>
       )}
+      {story.cleaned_description && (
+        <span className={styles.readMore}>Read more →</span>
+      )}
       {children}
     </>
   );

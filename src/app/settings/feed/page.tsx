@@ -5,16 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import TitleBar from "@/components/TitleBar";
 import Sidebar from "@/components/Sidebar";
+import { CATEGORY_PRESETS } from "@/lib/feed/categoryPresets";
 import styles from "./feedSettings.module.css";
-
-// Category presets (same as WelcomeModal EMAIL_PRESETS)
-const CATEGORY_PRESETS = [
-  { id: "crime-safety", label: "Crime & Safety" },
-  { id: "economy", label: "Economy & Jobs" },
-  { id: "real-estate", label: "Real Estate & Housing" },
-  { id: "transportation", label: "Transportation & Traffic" },
-  { id: "environment", label: "Environment & Sustainability" },
-];
 
 export default function FeedSettingsPage() {
   const { isAuthenticated, isLoading: authLoading, getAccessTokenSilently, loginWithRedirect } = useAuth0();
