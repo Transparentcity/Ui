@@ -124,12 +124,10 @@ export function getWasteCategoryDescription(category: string): string {
 
 export function formatDollar(amount: number | null | undefined): string {
   if (amount == null) return ""
-  const rounded = Math.round(amount)
-  return rounded.toLocaleString(undefined, {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  })
+  const abs = Math.abs(amount)
+  if (abs >= 1_000_000) return `$${(abs / 1_000_000).toFixed(1)}M`
+  if (abs >= 1_000) return `$${(abs / 1_000).toFixed(0)}K`
+  return `$${abs.toLocaleString()}`
 }
 
 // ── localStorage cache helper ───────────────────────────────────────────────

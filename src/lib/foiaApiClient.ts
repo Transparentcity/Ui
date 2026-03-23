@@ -79,24 +79,6 @@ export function getFoiaDashboard(token?: FoiaAuthToken): Promise<FoiaDashboardSu
   return apiFetch("/api/foia/dashboard", undefined, token)
 }
 
-/** Fetch the one-page FOIA status report PDF as a Blob (for download). */
-export async function getFoiaStatusReportPdfBlob(
-  token?: FoiaAuthToken
-): Promise<Blob> {
-  const effectiveToken = token ?? foiaAuthToken
-  const url = `${API_BASE}/api/foia/status-report`
-  const headers: HeadersInit = {}
-  if (effectiveToken) {
-    headers["Authorization"] = `Bearer ${effectiveToken}`
-  }
-  const res = await fetch(url, { headers, credentials: "include" })
-  if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    throw new Error(`FOIA status report ${res.status}: ${text || res.statusText}`)
-  }
-  return res.blob()
-}
-
 // ---------------------------------------------------------------------------
 // Requests
 // ---------------------------------------------------------------------------

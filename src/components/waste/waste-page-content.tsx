@@ -144,10 +144,8 @@ export function WastePageContent() {
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
   const [seymourRequest, setSeymourRequest] = useState<WasteSeymourRequest | null>(null)
   const { selectedCityId } = useWasteCity()
-  const cityScopeKey = String(selectedCityId ?? "default")
-  const [restoredDataByCity, setRestoredDataByCity] = useState<
-    Record<string, WasteAnalyzeResponse | null>
-  >({})
+  const [cachedData] = useState<WasteAnalyzeResponse | null>(() => loadCachedAnalysis(selectedCityId))
+  const [restoredData, setRestoredData] = useState<WasteAnalyzeResponse | null>(null)
   const now = new Date()
   const localDateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
     now.getDate()
@@ -162,11 +160,6 @@ export function WastePageContent() {
 
   // Load last persisted run from DB — instant data even when live analysis times out
   const { data: persistedData } = useLatestPersistedWasteResult(selectedCityId)
-  const cachedData = useMemo(
-    () => loadCachedAnalysis(selectedCityId),
-    [selectedCityId]
-  )
-  const restoredData = restoredDataByCity[cityScopeKey] ?? null
 
   // Only auto-fetch live analysis if we have NO fallback data (cache or persisted).
   // This avoids hammering a struggling backend when we already have good data to show.
@@ -235,10 +228,7 @@ export function WastePageContent() {
 
   const handleRefresh = () => {
     // Clear any manually-restored snapshot so it doesn't shadow fresh results
-    setRestoredDataByCity((current) => ({
-      ...current,
-      [cityScopeKey]: null,
-    }))
+    setRestoredData(null)
     // Always run all categories so a single-category run doesn't replace
     // the full persisted dataset (which would make other tabs show 0 findings).
     startJob()
@@ -377,7 +367,7 @@ export function WastePageContent() {
     }
 
     return null
-  }, [isManualRefreshing, activeJob?.status, activeJob?.error_message, startError, error, displayData, data, isDataStale])
+  }, [isManualRefreshing, hasNoData, activeJob?.status, activeJob?.error_message, startError, error, displayData, data, isDataStale])
 
   return (
     <WasteShell
@@ -607,12 +597,7 @@ export function WastePageContent() {
                       size="sm"
                       onClick={() => {
                         const backup = loadCachedAnalysis(selectedCityId)
-                        if (backup) {
-                          setRestoredDataByCity((current) => ({
-                            ...current,
-                            [cityScopeKey]: backup,
-                          }))
-                        }
+                        if (backup) setRestoredData(backup)
                       }}
                       className="text-xs border-red-300 text-red-800 hover:bg-red-100"
                     >
@@ -646,12 +631,7 @@ export function WastePageContent() {
                       size="sm"
                       onClick={() => {
                         const backup = loadCachedAnalysis(selectedCityId)
-                        if (backup) {
-                          setRestoredDataByCity((current) => ({
-                            ...current,
-                            [cityScopeKey]: backup,
-                          }))
-                        }
+                        if (backup) setRestoredData(backup)
                       }}
                       className={`${displayData ? "border-amber-300 text-amber-800 hover:bg-amber-100" : "border-red-300 text-red-800 hover:bg-red-100"}`}
                     >
@@ -685,12 +665,7 @@ export function WastePageContent() {
                       size="sm"
                       onClick={() => {
                         const backup = loadCachedAnalysis(selectedCityId)
-                        if (backup) {
-                          setRestoredDataByCity((current) => ({
-                            ...current,
-                            [cityScopeKey]: backup,
-                          }))
-                        }
+                        if (backup) setRestoredData(backup)
                       }}
                       className="border-amber-300 text-amber-800 hover:bg-amber-100"
                     >

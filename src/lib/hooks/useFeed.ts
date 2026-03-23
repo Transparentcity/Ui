@@ -174,10 +174,10 @@ export function useFeedStoryDetail(storyId: number | null) {
 export function useTrackFeedEngagement() {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   const queryClient = useQueryClient();
-  // Temporary kill switch to stop expensive engage POSTs.
-  // Disabled by default; set NEXT_PUBLIC_DISABLE_FEED_ENGAGEMENT=false to re-enable.
+  // Kill switch: set NEXT_PUBLIC_DISABLE_FEED_ENGAGEMENT=true to disable.
+  // Enabled by default so applause/engagement counts persist.
   const engagementEnabled =
-    process.env.NEXT_PUBLIC_DISABLE_FEED_ENGAGEMENT === "false";
+    process.env.NEXT_PUBLIC_DISABLE_FEED_ENGAGEMENT !== "true";
 
   return useMutation({
     mutationFn: async ({

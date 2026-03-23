@@ -95,7 +95,7 @@ export default function EscalateSheet({ open, headline, onClose, onSend }: Escal
               aria-checked={includeName}
               className={`${styles.escalateToggle} ${includeName ? styles.escalateToggleOn : ""}`}
               onClick={() => setIncludeName((v) => !v)}
-              aria-label={includeName ? "Name included" : "Name not included"}
+              aria-label="Include my name"
             />
           </div>
 

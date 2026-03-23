@@ -1,14 +1,19 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { TIER_STYLES, scoreTier } from "./tc-score-badge"
 
 function scoreColor(score: number): string {
-  return TIER_STYLES[scoreTier(score)].bg
+  if (score >= 81) return "bg-red-500"
+  if (score >= 61) return "bg-orange-500"
+  if (score >= 31) return "bg-amber-500"
+  return "bg-green-500"
 }
 
 function scoreTextColor(score: number): string {
-  return TIER_STYLES[scoreTier(score)].textDark
+  if (score >= 81) return "text-red-700"
+  if (score >= 61) return "text-orange-700"
+  if (score >= 31) return "text-amber-700"
+  return "text-green-700"
 }
 
 interface ScoreBarProps {

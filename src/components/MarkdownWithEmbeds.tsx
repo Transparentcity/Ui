@@ -15,6 +15,14 @@ interface MarkdownWithEmbedsProps {
  */
 const VIZ_URL_REGEX = /\/(a|t|m)\/([a-zA-Z0-9-]+)(?:\?embedded=true)?/;
 
+/**
+ * Matches shortcode patterns used in research reports and session output:
+ * [anomaly:123], [chart:456], [map:abc123]
+ * Session log content often contains these; we replace them with embeds so
+ * charts/maps/anomalies render inline instead of as raw text.
+ */
+const SHORTCODE_REGEX = /\[(anomaly|chart|map):([a-zA-Z0-9-]+)\]/g;
+
 function getEmbedHeight(type: string): string {
   switch (type) {
     case "a": return "400px";
@@ -120,11 +128,24 @@ type Segment =
  * inline iframe embeds. When no viz URLs are present, it renders plain
  * ReactMarkdown with zero overhead.
  */
+/** Normalize [anomaly:ID], [chart:ID], [map:HASH] shortcodes to URL form so they are picked up by VIZ_URL_REGEX. */
+function normalizeShortcodesToUrls(text: string): string {
+  return text.replace(
+    SHORTCODE_REGEX,
+    (_, type: string, id: string) => {
+      const prefix = type === "anomaly" ? "a" : type === "chart" ? "t" : "m";
+      return `/${prefix}/${id}`;
+    }
+  );
+}
+
 export default function MarkdownWithEmbeds({ content }: MarkdownWithEmbedsProps) {
   const segments = useMemo((): Segment[] => {
     if (!content) return [];
 
-    const lines = content.split("\n");
+    // So Session log and research-style output show charts: replace shortcodes with URLs first
+    const normalized = normalizeShortcodesToUrls(content);
+    const lines = normalized.split("\n");
     const result: Segment[] = [];
     let textBuffer: string[] = [];
     const embeddedIds = new Set<string>();
