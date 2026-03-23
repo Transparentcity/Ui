@@ -18,6 +18,7 @@ export interface NewFeedViewProps {
   isImpersonating?: boolean;
   cityLeadCityIds?: number[];
   userPlaces?: UserPlace[];
+  onPlaceSaved?: () => void;
 }
 
 /**
@@ -29,6 +30,8 @@ export default function NewFeedView({
   district,
   isAdmin = false,
   cityLeadCityIds = [],
+  userPlaces = [],
+  onPlaceSaved,
 }: NewFeedViewProps) {
   return (
     <FeedContainer
@@ -36,6 +39,8 @@ export default function NewFeedView({
       district={district}
       isAdmin={isAdmin}
       cityLeadCityIds={cityLeadCityIds}
+      userPlaces={userPlaces}
+      onPlaceSaved={onPlaceSaved}
     />
   );
 }

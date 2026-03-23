@@ -10,7 +10,7 @@
   max-width: 720px;
   min-width: 0;
   margin: 0 auto;
-  padding: 24px 20px;
+  padding: 16px 20px;
   color: var(--text-primary);
   box-sizing: border-box;
   overflow-x: hidden;
@@ -18,13 +18,13 @@
 }
 
 .feedHeader {
-  margin-bottom: 24px;
+  margin-bottom: 10px;
 }
 
 .feedTitle {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
-  margin: 0 0 6px 0;
+  margin: 0 0 4px 0;
   color: var(--text-primary);
   letter-spacing: -0.02em;
 }
@@ -164,7 +164,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
   flex-wrap: wrap;
 }
 
@@ -301,41 +301,25 @@
   color: #fff;
 }
 
-/* ── For You / Latest toggle ───────────────────────────────────────────────── */
+/* ── Filter chip caret (for collapsible district button) ───────────────────── */
 
-.feedOrderToggle {
-  display: inline-flex;
-  border: 1px solid var(--border-primary);
-  border-radius: 20px;
-  overflow: hidden;
-  flex-shrink: 0;
+.filterChipCaret {
+  font-size: 8px;
+  margin-left: 3px;
+  opacity: 0.7;
 }
 
-.feedOrderBtn {
-  padding: 5px 14px;
-  font-size: 13px;
-  font-weight: 500;
-  border: none;
-  background: var(--bg-primary);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  line-height: 1.4;
+/* ── District drawer (collapsible) ─────────────────────────────────────────── */
+
+.districtDrawer {
+  margin-bottom: 10px;
+  padding: 6px 0;
+  animation: drawerSlideIn 0.15s ease;
 }
 
-.feedOrderBtn:hover {
-  color: var(--text-primary);
-  background: var(--bg-secondary);
-}
-
-.feedOrderBtnActive {
-  background: var(--brand-primary, #ad35fa);
-  color: #fff;
-}
-
-.feedOrderBtnActive:hover {
-  background: var(--brand-primary-dark, #9125d6);
-  color: #fff;
+@keyframes drawerSlideIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ── Admin bar ─────────────────────────────────────────────────────────────── */
@@ -1172,6 +1156,40 @@
 
 .errorState { color: var(--error, #ef4444); }
 
+/* ── My Block empty state ──────────────────────────────────────────────────── */
+
+.myBlockEmptyTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 6px;
+}
+
+.myBlockEmptyText {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+  max-width: 320px;
+}
+
+.myBlockEmptyCta {
+  margin-top: 14px;
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--brand-primary, #ad35fa);
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.myBlockEmptyCta:hover {
+  background: var(--brand-primary-dark, #9125d6);
+}
+
 /* Branded loader centered above skeleton cards */
 .brandedLoaderWrap {
   display: flex;
@@ -1284,10 +1302,45 @@
 
 @media (max-width: 767px) {
   .feedContainer {
-    padding: 16px 8px 12px;
+    padding: 12px 8px 12px;
   }
 
-  .feedTitle { font-size: 22px; }
+  .feedHeader {
+    margin-bottom: 10px;
+  }
+
+  .feedTitle { font-size: 20px; }
+
+  .cityChipRow {
+    gap: 4px;
+    margin-bottom: 4px;
+    padding: 1px 0;
+  }
+
+  .cityChip {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
+  .secondaryFilterRow {
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+
+  .filterChipScroll {
+    gap: 4px;
+    padding: 1px 0;
+  }
+
+  .filterChip {
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+
+  .districtDrawer {
+    margin-bottom: 6px;
+    padding: 4px 0;
+  }
 
   .chipBar {
     gap: 6px;

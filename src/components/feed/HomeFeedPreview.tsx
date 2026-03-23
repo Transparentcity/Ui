@@ -76,9 +76,6 @@ export default function HomeFeedPreview() {
                   {story.cleaned_description}
                 </p>
               )}
-              <span className={homeStyles.previewCta}>
-                Read more &rarr;
-              </span>
             </Link>
           ))}
     </div>

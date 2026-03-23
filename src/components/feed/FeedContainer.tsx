@@ -14,6 +14,7 @@ import SkeletonCard from "./SkeletonCard";
 import FeedEndState from "./FeedEndState";
 import FeedTooltip from "./FeedTooltip";
 import BrandedLoader from "@/components/BrandedLoader";
+import EditHomeLocationModal from "@/components/EditHomeLocationModal";
 import styles from "./feed.module.css";
 
 /** Templates considered "visual" for the first-impression rule. */
@@ -22,17 +23,27 @@ const VISUAL_TEMPLATES = new Set([
   "alert", "spending", "off_the_charts", "311_images",
 ]);
 
+interface UserPlace {
+  id: number;
+  city_id: number;
+  label: string;
+}
+
 interface FeedContainerProps {
   cityId?: number | null;
   district?: number | null;
   isAdmin?: boolean;
   cityLeadCityIds?: number[];
+  userPlaces?: UserPlace[];
+  onPlaceSaved?: () => void;
 }
 
 export default function FeedContainer({
   cityId,
   district,
   isAdmin = false,
+  userPlaces = [],
+  onPlaceSaved,
 }: FeedContainerProps) {
   const { getAccessTokenSilently } = useAuth0();
   const queryClient = useQueryClient();
@@ -87,7 +98,10 @@ export default function FeedContainer({
     saved.current?.topic ?? null,
   );
   const [displayLimit, setDisplayLimit] = useState(saved.current?.displayLimit ?? 10);
-  const [feedOrder, setFeedOrder] = useState<"for_you" | "published_at">("for_you");
+  const feedOrder = "for_you" as const;
+  const [showDistricts, setShowDistricts] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const hasAddress = userPlaces.length > 0;
 
   // Detect first session (user just completed onboarding) for tooltip display
   const [isFirstSession] = useState<boolean>(() => {
@@ -154,7 +168,7 @@ export default function FeedContainer({
   }, [singleCityId, places]);
 
   // Reset display limit when filters change
-  useEffect(() => { setDisplayLimit(10); }, [selectedCityIds, selectedDistrict, selectedFrequency, personalNewsletterOnly, selectedTopic, feedOrder]);
+  useEffect(() => { setDisplayLimit(10); }, [selectedCityIds, selectedDistrict, selectedFrequency, personalNewsletterOnly, selectedTopic]);
 
   // Reset district when city selection changes away from a single city
   useEffect(() => {
@@ -436,57 +450,12 @@ export default function FeedContainer({
         ))}
       </div>
 
-      {/* Secondary filters row */}
+      {/* Topic filter chips */}
       <div className={styles.secondaryFilterRow}>
-        {/* For You / Latest toggle */}
-        <div className={styles.feedOrderToggle} role="tablist" aria-label="Feed order">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={feedOrder === "for_you"}
-            className={`${styles.feedOrderBtn} ${feedOrder === "for_you" ? styles.feedOrderBtnActive : ""}`}
-            onClick={() => setFeedOrder("for_you")}
-          >
-            For You
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={feedOrder === "published_at"}
-            className={`${styles.feedOrderBtn} ${feedOrder === "published_at" ? styles.feedOrderBtnActive : ""}`}
-            onClick={() => setFeedOrder("published_at")}
-          >
-            Latest
-          </button>
-        </div>
-
-        {/* District/Ward filter chips: only when exactly 1 city is selected */}
-        {singleCityId && cityDistricts.length > 0 && (
-          <div className={styles.filterChipScroll}>
-            <button
-              type="button"
-              className={`${styles.filterChip} ${selectedDistrict === null ? styles.filterChipActive : ""}`}
-              onClick={() => setSelectedDistrict(null)}
-            >
-              All
-            </button>
-            {cityDistricts.map((d) => (
-              <button
-                key={d}
-                type="button"
-                className={`${styles.filterChip} ${selectedDistrict === d ? styles.filterChipActive : ""}`}
-                onClick={() => setSelectedDistrict(d)}
-              >
-                {districtPrefix}{d}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Topic filter chips */}
         <div className={styles.filterChipScroll}>
           {[
             { value: "", label: "All topics" },
+            { value: "my_block", label: "My Block" },
             { value: "safety", label: "Safety" },
             { value: "justice", label: "Justice" },
             { value: "business", label: "Business" },
@@ -495,18 +464,40 @@ export default function FeedContainer({
             { value: "trend", label: "Trends" },
             { value: "context", label: "Context" },
             { value: "off_the_charts", label: "Off the Charts" },
-            { value: "my_block", label: "My Block" },
             { value: "311_images", label: "311 Photos" },
           ].map((t) => (
             <button
               key={t.value}
               type="button"
               className={`${styles.filterChip} ${(selectedTopic ?? "") === t.value ? styles.filterChipActive : ""}`}
-              onClick={() => setSelectedTopic(t.value || null)}
+              onClick={() => {
+                if (t.value === "my_block" && !hasAddress) {
+                  setShowLocationModal(true);
+                  return;
+                }
+                setSelectedTopic(t.value || null);
+              }}
             >
               {t.label}
             </button>
           ))}
+
+          {/* District toggle button: only when exactly 1 city is selected */}
+          {singleCityId && cityDistricts.length > 0 && (
+            <button
+              type="button"
+              className={`${styles.filterChip} ${showDistricts || selectedDistrict !== null ? styles.filterChipActive : ""}`}
+              onClick={() => setShowDistricts((v) => !v)}
+              aria-expanded={showDistricts}
+            >
+              {selectedDistrict !== null
+                ? `${districtPrefix}${selectedDistrict}`
+                : `${districtTerm}s`}
+              <span className={styles.filterChipCaret} aria-hidden="true">
+                {showDistricts ? "▲" : "▼"}
+              </span>
+            </button>
+          )}
         </div>
 
         {hasSecondaryFilters && (
@@ -516,12 +507,38 @@ export default function FeedContainer({
             onClick={() => {
               setSelectedDistrict(null);
               setSelectedTopic(null);
+              setShowDistricts(false);
             }}
           >
             Clear filters
           </button>
         )}
       </div>
+
+      {/* Expandable district chips */}
+      {singleCityId && cityDistricts.length > 0 && showDistricts && (
+        <div className={styles.districtDrawer}>
+          <div className={styles.filterChipScroll}>
+            <button
+              type="button"
+              className={`${styles.filterChip} ${selectedDistrict === null ? styles.filterChipActive : ""}`}
+              onClick={() => { setSelectedDistrict(null); setShowDistricts(false); }}
+            >
+              All {districtTerm}s
+            </button>
+            {cityDistricts.map((d) => (
+              <button
+                key={d}
+                type="button"
+                className={`${styles.filterChip} ${selectedDistrict === d ? styles.filterChipActive : ""}`}
+                onClick={() => { setSelectedDistrict(d); setShowDistricts(false); }}
+              >
+                {districtPrefix}{d}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Pull-to-refresh indicator */}
       {(pullDistance > 0 || refreshing) && (
@@ -619,6 +636,49 @@ export default function FeedContainer({
         </div>
       )}
 
+      {/* My Block empty state (client-side filter returned nothing) */}
+      {!isLoading && !error && visibleStories.length === 0 && stories.length > 0 && selectedTopic === "my_block" && (
+        <div className={styles.emptyState}>
+          {hasAddress ? (
+            <>
+              <p className={styles.myBlockEmptyTitle}>No My Block stories yet</p>
+              <p className={styles.myBlockEmptyText}>
+                We're working on generating stories for your neighborhood. Check back soon.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className={styles.myBlockEmptyTitle}>Set your location to see neighborhood stories</p>
+              <p className={styles.myBlockEmptyText}>
+                My Block shows stories about what's happening near you. Add your address to get started.
+              </p>
+              <button
+                type="button"
+                className={styles.myBlockEmptyCta}
+                onClick={() => setShowLocationModal(true)}
+              >
+                Add your address
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Generic client-side filter empty state (non-My Block topics) */}
+      {!isLoading && !error && visibleStories.length === 0 && stories.length > 0 && selectedTopic !== "my_block" && selectedTopic !== null && (
+        <div className={styles.emptyState}>
+          <p>No stories match this filter right now. Try a different topic or clear filters.</p>
+          <button
+            type="button"
+            className={styles.compactClear}
+            style={{ marginTop: 8 }}
+            onClick={() => setSelectedTopic(null)}
+          >
+            Clear filters
+          </button>
+        </div>
+      )}
+
       {/* Stories */}
       {visibleStories.length > 0 && (
         <div className={styles.storiesList}>
@@ -677,6 +737,17 @@ export default function FeedContainer({
       {visibleStories.length > 0 && (
         <FeedTooltip isFirstSession={isFirstSession} />
       )}
+
+      {/* Location modal for My Block when no address is saved */}
+      <EditHomeLocationModal
+        open={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        onSaved={() => {
+          setShowLocationModal(false);
+          setSelectedTopic("my_block");
+          onPlaceSaved?.();
+        }}
+      />
     </div>
   );
 }
