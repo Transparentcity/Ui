@@ -60,52 +60,38 @@
   color: rgba(255, 255, 255, 0.9);
 }
 
-/* Point details - full-width bottom panel (same design as gallery/311 media) */
+/* Point details - fixed to bottom of viewport when user clicks a map point (no floating popup) */
 .city-metrics-map-point-details {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  max-height: 50vh;
-  z-index: 16000;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  bottom: 80px;
+  left: 16px;
+  right: 16px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1500;
+  padding: 10px 36px 10px 12px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-primary, rgba(0, 0, 0, 0.08));
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   pointer-events: auto;
-  isolation: isolate;
-  background: var(--bg-primary, #ffffff);
-  border-top-left-radius: 16px;
-  border-top-right-radius: 16px;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
   font-size: 0.8rem;
   color: var(--text-primary);
 }
 
-.city-metrics-map-point-details-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-primary, #e5e7eb);
-  flex-shrink: 0;
-  background: var(--bg-secondary, #f9fafb);
-}
-
-.city-metrics-map-point-details-title {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: var(--text-primary);
-}
-
 .city-metrics-map-point-details-close {
-  width: 32px;
-  height: 32px;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: none;
-  border-radius: 8px;
-  background: transparent;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.06);
   color: var(--text-secondary);
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   line-height: 1;
   cursor: pointer;
   display: flex;
@@ -114,16 +100,12 @@
 }
 
 .city-metrics-map-point-details-close:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(0, 0, 0, 0.1);
   color: var(--text-primary);
 }
 
 .city-metrics-map-point-details-content {
-  padding: 12px 16px 16px;
-  overflow-y: auto;
   line-height: 1.4;
-  flex: 1;
-  min-height: 0;
 }
 
 .city-metrics-map-point-details-content strong {
@@ -132,24 +114,19 @@
 
 [data-theme="dark"] .city-metrics-map-point-details,
 .dark .city-metrics-map-point-details {
-  background: var(--bg-primary, #1f2937);
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
-}
-
-[data-theme="dark"] .city-metrics-map-point-details-header,
-.dark .city-metrics-map-point-details-header {
-  background: var(--bg-secondary, #111827);
-  border-bottom-color: var(--border-primary, #374151);
+  background: rgba(30, 30, 30, 0.92);
+  border-color: var(--border-primary, rgba(255, 255, 255, 0.12));
 }
 
 [data-theme="dark"] .city-metrics-map-point-details-close,
 .dark .city-metrics-map-point-details-close {
+  background: rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.7);
 }
 
 [data-theme="dark"] .city-metrics-map-point-details-close:hover,
 .dark .city-metrics-map-point-details-close:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.15);
   color: var(--text-primary);
 }
 

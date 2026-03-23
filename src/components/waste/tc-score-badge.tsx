@@ -10,11 +10,30 @@ import {
 
 // ── Canonical TC Score thresholds ────────────────────────────────────────────
 
-export function scoreTier(score: number): "critical" | "high" | "medium" | "low" {
-  if (score >= 81) return "critical"
-  if (score >= 61) return "high"
-  if (score >= 31) return "medium"
-  return "low"
+export type TCScoreTier = "critical" | "high" | "medium" | "low" | "info"
+
+export function scoreTier(score: number): TCScoreTier {
+  if (score >= 80) return "critical"
+  if (score >= 60) return "high"
+  if (score >= 40) return "medium"
+  if (score >= 20) return "low"
+  return "info"
+}
+
+export function scoreTierRangeLabel(tier: TCScoreTier): string {
+  switch (tier) {
+    case "critical":
+      return "80-100"
+    case "high":
+      return "60-79"
+    case "medium":
+      return "40-59"
+    case "low":
+      return "20-39"
+    case "info":
+    default:
+      return "0-19"
+  }
 }
 
 const TIER_STYLES = {
@@ -49,6 +68,14 @@ const TIER_STYLES = {
     textDark: "text-green-700",
     border: "border-green-200",
     label: "Low",
+  },
+  info: {
+    bg: "bg-slate-500",
+    bgLight: "bg-slate-100",
+    text: "text-white",
+    textDark: "text-slate-700",
+    border: "border-slate-200",
+    label: "Info",
   },
 } as const
 
@@ -112,7 +139,7 @@ export function TCScoreBadge({
 
   const tooltipText =
     tooltipBasis ||
-    `TC Score ${clamped.toFixed(1)} — ${style.label} risk (${tier === "critical" ? "81-100" : tier === "high" ? "61-80" : tier === "medium" ? "31-60" : "0-30"})`
+    `TC Score ${clamped.toFixed(1)} — ${style.label} risk (${scoreTierRangeLabel(tier)})`
 
   return (
     <TooltipProvider delayDuration={200}>

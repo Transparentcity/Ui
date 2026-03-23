@@ -7,6 +7,7 @@ import {
   useWasteReviewQueue,
   useWasteInvestigations,
   useWasteDetectorAccuracy,
+  useLatestWasteTrustReport,
 } from "@/lib/hooks/useWaste"
 import { useWasteCity } from "./WasteCityContext"
 import { WasteShell } from "./waste-shell"
@@ -22,6 +23,7 @@ import {
   Inbox,
   FolderOpen,
   Gauge,
+  ShieldCheck,
 } from "lucide-react"
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -188,6 +190,7 @@ export function CommandCenterPage() {
     perPage: 1,
   })
   const accuracyQ = useWasteDetectorAccuracy(cityId)
+  const trustReportQ = useLatestWasteTrustReport({ cityId })
 
   // Fetch top entities to compute average score_delta for trend
   const topEntitiesQ = useWasteEntityScores({
@@ -246,6 +249,23 @@ export function CommandCenterPage() {
     }
   }, [avgPrecision])
 
+  const laneEntries = useMemo(() => {
+    const lanes = trustReportQ.data?.report?.policy_lane_summary?.lanes ?? {}
+    return Object.entries(lanes).sort(([left], [right]) => {
+      if (left === "default") return 1
+      if (right === "default") return -1
+      return left.localeCompare(right)
+    })
+  }, [trustReportQ.data])
+
+  const trustReportGeneratedAt = useMemo(() => {
+    const generatedAt = trustReportQ.data?.report?.generated_at
+    if (!generatedAt) return null
+    const parsed = new Date(generatedAt)
+    if (Number.isNaN(parsed.getTime())) return null
+    return parsed.toLocaleString()
+  }, [trustReportQ.data])
+
   return (
     <WasteShell
       title="Workspace"
@@ -297,6 +317,96 @@ export function CommandCenterPage() {
           trend={precisionTrend}
           trendHint="vs 50% baseline - higher is better"
         />
+      </div>
+
+      <div className="bg-white rounded-lg border border-gray-200 p-5 mb-8">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <ShieldCheck className="w-4 h-4 text-violet-600" />
+              <h2 className="text-sm font-semibold text-gray-900">
+                Calibration Snapshot
+              </h2>
+            </div>
+            <p className="text-sm text-gray-500">
+              Latest trust-report lane mix for review-only calibration policy.
+            </p>
+          </div>
+          {trustReportGeneratedAt && (
+            <span className="text-xs text-gray-400 whitespace-nowrap">
+              {trustReportGeneratedAt}
+            </span>
+          )}
+        </div>
+
+        {trustReportQ.isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="h-20 rounded-lg bg-gray-100 animate-pulse" />
+            <div className="h-20 rounded-lg bg-gray-100 animate-pulse" />
+            <div className="h-20 rounded-lg bg-gray-100 animate-pulse" />
+          </div>
+        ) : trustReportQ.data?.report?.policy_lane_summary ? (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              <div className="rounded-lg border border-violet-100 bg-violet-50 p-4">
+                <div className="text-xs font-medium uppercase tracking-wider text-violet-700">
+                  Policy-Controlled
+                </div>
+                <div className="mt-1 text-2xl font-semibold text-violet-900 tabular-nums">
+                  {trustReportQ.data.report.policy_lane_summary.policy_controlled_detectors}
+                </div>
+                <div className="text-xs text-violet-700/80 mt-1">
+                  detectors with active Phase 2 lane handling
+                </div>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div className="text-xs font-medium uppercase tracking-wider text-gray-600">
+                  Total Detectors
+                </div>
+                <div className="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">
+                  {trustReportQ.data.report.policy_lane_summary.total_detectors}
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  included in latest trust report
+                </div>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div className="text-xs font-medium uppercase tracking-wider text-gray-600">
+                  Lane Types
+                </div>
+                <div className="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">
+                  {laneEntries.length}
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  distinct policy lanes present
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {laneEntries.map(([lane, count]) => (
+                <span
+                  key={lane}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium",
+                    lane === "suppressed" && "bg-red-50 text-red-700",
+                    lane === "heavily_demoted" && "bg-orange-50 text-orange-700",
+                    lane === "lower_trust_contextual" && "bg-amber-50 text-amber-700",
+                    lane === "benchmark_protected" && "bg-emerald-50 text-emerald-700",
+                    lane === "default" && "bg-gray-100 text-gray-600"
+                  )}
+                >
+                  <span className="capitalize">{lane.replaceAll("_", " ")}</span>
+                  <span className="tabular-nums">{count}</span>
+                </span>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">
+            No completed trust report is available for this city yet.
+          </div>
+        )}
       </div>
 
       {/* Quick links */}

@@ -34,8 +34,7 @@ export default function EmailAdmin() {
   const [outboundTotal, setOutboundTotal] = useState(0);
   const [outboundOffset, setOutboundOffset] = useState(0);
   const [outboundLoading, setOutboundLoading] = useState(false);
-  const [selectedOutboundId, setSelectedOutboundId] = useState<number | string | null>(null);
-  const [selectedNewsletterSend, setSelectedNewsletterSend] = useState<OutboundEmailListItem | null>(null);
+  const [selectedOutboundId, setSelectedOutboundId] = useState<number | null>(null);
   const [outboundDetail, setOutboundDetail] = useState<OutboundEmailDetail | null>(null);
   const [outboundDetailLoading, setOutboundDetailLoading] = useState(false);
 
@@ -108,22 +107,12 @@ export default function EmailAdmin() {
   useEffect(() => {
     if (selectedOutboundId == null) {
       setOutboundDetail(null);
-      setSelectedNewsletterSend(null);
       return;
     }
-    const isNewsletterSend = typeof selectedOutboundId === "string" && String(selectedOutboundId).startsWith("ns-");
-    if (isNewsletterSend) {
-      const item = outboundEmails.find((e) => e.id === selectedOutboundId);
-      setSelectedNewsletterSend(item || null);
-      setOutboundDetail(null);
-      setOutboundDetailLoading(false);
-      return;
-    }
-    setSelectedNewsletterSend(null);
     let cancelled = false;
     setOutboundDetailLoading(true);
     getAccessTokenSilently()
-      .then((token) => getOutboundEmail(selectedOutboundId as number, token))
+      .then((token) => getOutboundEmail(selectedOutboundId, token))
       .then((d) => {
         if (!cancelled) setOutboundDetail(d);
       })
@@ -136,7 +125,7 @@ export default function EmailAdmin() {
     return () => {
       cancelled = true;
     };
-  }, [selectedOutboundId, outboundEmails, getAccessTokenSilently]);
+  }, [selectedOutboundId, getAccessTokenSilently]);
 
   const formatDate = (s: string | null) => {
     if (!s) return "—";
@@ -405,39 +394,6 @@ export default function EmailAdmin() {
                 <p className={styles.muted}>Select an email to view subject, prompt, and body.</p>
               ) : outboundDetailLoading ? (
                 <p className={styles.muted}>Loading…</p>
-              ) : selectedNewsletterSend ? (
-                <div className={styles.detailContent}>
-                  <div className={styles.detailRow}>
-                    <strong>To:</strong> {selectedNewsletterSend.to_email}
-                  </div>
-                  {selectedNewsletterSend.intended_email && (
-                    <div className={styles.detailRow}>
-                      <strong>Intended recipient:</strong> {selectedNewsletterSend.intended_email}
-                    </div>
-                  )}
-                  <div className={styles.detailRow}>
-                    <strong>Subject:</strong> {selectedNewsletterSend.subject || "(no subject)"}
-                  </div>
-                  <div className={styles.detailRow}>
-                    <strong>Sent:</strong> {formatDate(selectedNewsletterSend.created_at)}
-                  </div>
-                  <div className={styles.detailRow}>
-                    <strong>Source:</strong> {selectedNewsletterSend.source}
-                  </div>
-                  {selectedNewsletterSend.job_id && (
-                    <div className={styles.detailRow}>
-                      <strong>Job ID:</strong> {selectedNewsletterSend.job_id}
-                    </div>
-                  )}
-                  {selectedNewsletterSend.session_id && (
-                    <div className={styles.detailRow}>
-                      <strong>Session ID:</strong> {selectedNewsletterSend.session_id}
-                    </div>
-                  )}
-                  <p className={styles.muted} style={{ marginTop: 12, fontSize: "12px" }}>
-                    Weekly newsletter sends are logged here. Full content is in the session.
-                  </p>
-                </div>
               ) : outboundDetail ? (
                 <div className={styles.detailContent}>
                   <div className={styles.detailRow}>

@@ -207,8 +207,8 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
               </h1>
               <p className="hero-description">
                 {city
-                  ? `Browse ${city.datasets_count} public datasets and source-linked civic context, from citywide to block level.`
-                  : "Browse public datasets and source-linked civic context, from citywide to block level."}
+                  ? `Browse ${city.datasets_count} public datasets and source-linked civic context.`
+                  : "Browse public datasets and source-linked civic context."}
               </p>
 
               {/* City official (mayor): same treatment as district – follow + claim */}
@@ -235,29 +235,27 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         </div>
       </section>
 
-      <div className="container">
-        {city?.id ? (
-          <CityDashboardSectionWithOrdering
-            cityId={city.id}
-            cityDisplayName={cityDisplayName}
-            slug={slug}
-            metrics={cityDetail?.metrics ?? []}
-            comparisonsMap={comparisonsMap}
-            districts={districts}
-            maps={maps}
-            leaders={leaders}
-          />
-        ) : (
-          <CityDashboardSection
-            cityDisplayName={cityDisplayName}
-            slug={slug}
-            metrics={cityDetail?.metrics ?? []}
-            comparisonsMap={comparisonsMap}
-            districts={districts}
-            maps={maps}
-          />
-        )}
-      </div>
+      {city?.id ? (
+        <CityDashboardSectionWithOrdering
+          cityId={city.id}
+          cityDisplayName={cityDisplayName}
+          slug={slug}
+          metrics={cityDetail?.metrics ?? []}
+          comparisonsMap={comparisonsMap}
+          districts={districts}
+          maps={maps}
+          leaders={leaders}
+        />
+      ) : (
+        <CityDashboardSection
+          cityDisplayName={cityDisplayName}
+          slug={slug}
+          metrics={cityDetail?.metrics ?? []}
+          comparisonsMap={comparisonsMap}
+          districts={districts}
+          maps={maps}
+        />
+      )}
 
       {/* Category / subcategory-level dashboard links - below citywide dashboard */}
       {(uniqueCategories.length > 0 || (city?.id && (cityDetail?.metrics?.length ?? 0) > 0)) && (
@@ -298,7 +296,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                 <span className="logo-city">.city</span>
               </div>
               <p className="footer-description">
-                Maps, metrics, and research built from public city data—from citywide to block level—so
+                Maps, metrics, and research built from public city data—so
                 residents and elected officials can share the same picture of what’s
                 happening.
               </p>

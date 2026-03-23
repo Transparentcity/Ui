@@ -149,18 +149,6 @@
   color: var(--text-tertiary, #9ca3af);
 }
 
-:global([data-theme="dark"]) .externalTitleMain {
-  color: #f8fafc;
-}
-
-:global([data-theme="dark"]) .externalTitleSub {
-  color: #e2e8f0;
-}
-
-:global([data-theme="dark"]) .titleSeparator {
-  color: #94a3b8;
-}
-
 @media (max-width: 640px) {
   .externalTitleMain {
     font-size: 0.9375rem;

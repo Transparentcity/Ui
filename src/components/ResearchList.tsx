@@ -46,10 +46,6 @@ export default function ResearchList({
   const lastUpdateRef = useRef<number>(0);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const visibleResearch = isAdmin
-    ? research
-    : research.filter((report) => !currentUserId || report.user_id === currentUserId);
-
   const loadResearch = async () => {
     try {
       const token = await getAccessTokenSilently();
@@ -370,7 +366,7 @@ export default function ResearchList({
     );
   }
 
-  if (visibleResearch.length === 0) {
+  if (research.length === 0) {
     return (
       <div className={styles.list}>
         {isAdmin && onCreateNew ? (
@@ -403,7 +399,7 @@ export default function ResearchList({
   return (
     <>
       <div className={styles.list} ref={rootRef}>
-        {visibleResearch.map((report) => {
+        {research.map((report) => {
           // For admins, identify research that belongs to other users
           const isOtherUserResearch = isAdmin && currentUserId && report.user_id && report.user_id !== currentUserId;
           

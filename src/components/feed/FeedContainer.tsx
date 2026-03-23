@@ -78,6 +78,7 @@ export default function FeedContainer({
     saved.current?.topic ?? null,
   );
   const [displayLimit, setDisplayLimit] = useState(saved.current?.displayLimit ?? 10);
+  const [feedOrder, setFeedOrder] = useState<"for_you" | "published_at">("for_you");
 
   // Persist filters to sessionStorage whenever they change
   useEffect(() => {
@@ -120,7 +121,7 @@ export default function FeedContainer({
   }, [places]);
 
   // Reset display limit when filters change
-  useEffect(() => { setDisplayLimit(10); }, [selectedCityIds, selectedDistrict, selectedFrequency, personalNewsletterOnly, selectedTopic]);
+  useEffect(() => { setDisplayLimit(10); }, [selectedCityIds, selectedDistrict, selectedFrequency, personalNewsletterOnly, selectedTopic, feedOrder]);
 
   // Reset district when city selection changes away from a single city
   useEffect(() => {
@@ -136,7 +137,7 @@ export default function FeedContainer({
     newsletter_frequency: selectedFrequency ?? undefined,
     category: personalNewsletterOnly ? "personal_newsletter" : undefined,
     limit: displayLimit,
-    order_by: "published_at",
+    order_by: feedOrder,
     all_cities: personalNewsletterOnly || !singleCityId,
   });
 
@@ -370,6 +371,24 @@ export default function FeedContainer({
 
       {/* Secondary filters row */}
       <div className={styles.secondaryFilterRow}>
+        {/* For You / Latest toggle */}
+        <div className={styles.feedOrderToggle}>
+          <button
+            type="button"
+            className={`${styles.feedOrderBtn} ${feedOrder === "for_you" ? styles.feedOrderBtnActive : ""}`}
+            onClick={() => setFeedOrder("for_you")}
+          >
+            For You
+          </button>
+          <button
+            type="button"
+            className={`${styles.feedOrderBtn} ${feedOrder === "published_at" ? styles.feedOrderBtnActive : ""}`}
+            onClick={() => setFeedOrder("published_at")}
+          >
+            Latest
+          </button>
+        </div>
+
         {/* District filter: only when exactly 1 city is selected */}
         {singleCityId && (
           <select

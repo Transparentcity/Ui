@@ -5,9 +5,7 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import TitleBar from "@/components/TitleBar";
 import Sidebar from "@/components/Sidebar";
-// Old feed kept as fallback: import FeedView from "@/components/FeedView";
-import FeedView from "@/components/feed/NewFeedView";
-import ImpersonationBanner from "@/components/ImpersonationBanner";
+import FeedView from "@/components/FeedView";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
   getMyPermissions,
@@ -46,13 +44,6 @@ import {
   mergeNewsletterPreferenceFields,
   readNewsletterPreferenceFields,
 } from "@/lib/newsletterPreferences";
-import {
-  clearImpersonation,
-  getImpersonationState,
-  IMPERSONATION_CHANGED_EVENT,
-  setImpersonation,
-  type ImpersonationState,
-} from "@/lib/impersonation";
 import styles from "./page.module.css";
 import dynamic from "next/dynamic";
 
@@ -114,12 +105,8 @@ export default function DashboardPage() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [isAdmin, setIsAdmin] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [cityLeadCityIds, setCityLeadCityIds] = useState<number[]>([]);
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
-  const [impersonationState, setImpersonationState] = useState<ImpersonationState | null>(
-    () => getImpersonationState(),
-  );
   // Initialize sidebar state - always start with false to match server render
   // Will be updated on client mount based on screen size
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -143,8 +130,6 @@ export default function DashboardPage() {
   const [governmentClaimContext, setGovernmentClaimContext] = useState<ClaimContext | null>(null);
   const hasAutoSelectedCity = useRef(false);
   const hasCheckedOnboarding = useRef(false);
-  const activeCityIdRef = useRef<number | null>(null);
-  activeCityIdRef.current = activeCityId;
   const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null);
   const [govVerificationStatus, setGovVerificationStatus] = useState<GovernmentVerificationStatus | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -163,70 +148,6 @@ export default function DashboardPage() {
   const [generatingSampleNewsletter, setGeneratingSampleNewsletter] = useState(false);
   const [sampleNewsletterReportUrl, setSampleNewsletterReportUrl] = useState<string | null>(null);
   const [showEditHomeLocationModal, setShowEditHomeLocationModal] = useState(false);
-  const identityScopeKey = impersonationState
-    ? `impersonated:${impersonationState.userId}`
-    : "self";
-  const isImpersonating = impersonationState !== null;
-  const previousIdentityScopeKey = useRef(identityScopeKey);
-  const identityScopeKeyRef = useRef(identityScopeKey);
-  identityScopeKeyRef.current = identityScopeKey;
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const syncImpersonationState = () => {
-      setImpersonationState(getImpersonationState());
-    };
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === null || event.key === "tc_impersonation") {
-        syncImpersonationState();
-      }
-    };
-
-    window.addEventListener(
-      IMPERSONATION_CHANGED_EVENT,
-      syncImpersonationState as EventListener,
-    );
-    window.addEventListener("storage", handleStorage);
-
-    return () => {
-      window.removeEventListener(
-        IMPERSONATION_CHANGED_EVENT,
-        syncImpersonationState as EventListener,
-      );
-      window.removeEventListener("storage", handleStorage);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (previousIdentityScopeKey.current === identityScopeKey) {
-      return;
-    }
-
-    previousIdentityScopeKey.current = identityScopeKey;
-    hasCheckedOnboarding.current = isImpersonating;
-    setCurrentView("feed");
-    setCurrentSessionId(null);
-    setIsCurrentSessionJobSession(false);
-    setSelectedCityId(null);
-    setActiveCityId(null);
-    setInitialDistrict(null);
-    setCurrentResearchId(null);
-    setInitialChatPrompt(null);
-    setGpsLocation(null);
-    setRequestOpenDistrictModal(null);
-    setInitialPlaceId(null);
-    setCitySelection({ district: null, placeId: null });
-    setAllUserPlaces([]);
-    setShowWelcomeModal(false);
-    setShowGovernmentOnboardingModal(false);
-    setGovernmentClaimContext(null);
-    setSettingsOpen(false);
-    setUserPreferences(null);
-    setGovVerificationStatus(null);
-    setUserEmail(null);
-    setHomeCity(null);
-  }, [identityScopeKey, isImpersonating]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -265,12 +186,9 @@ export default function DashboardPage() {
     }
   }, [isAuthenticated, isLoading]);
 
-  // Track signup completion and login; set initial view to feed only when not already on a city/location
+  // Track signup completion and login
   useEffect(() => {
     if (!isAuthenticated || isLoading || !user) return;
-
-    // Read current selection from ref so we don't reset to feed when user has already opened a city
-    const currentActiveCityId = activeCityIdRef.current;
 
     // Check if this is a signup completion (from URL params)
     const urlParams = new URLSearchParams(window.location.search);
@@ -280,15 +198,14 @@ export default function DashboardPage() {
       // User just completed signup: show feed view by default
       trackSignupComplete(signupIntent, user.sub);
       trackUserActivation("signup_complete");
-      // Don't overwrite view if user has already navigated to a city/district/place
-      setCurrentView((prev) => (currentActiveCityId != null && prev === "city" ? "city" : "feed"));
+      setCurrentView("feed");
       // Clean up URL
       const newUrl = window.location.pathname;
       window.history.replaceState({}, "", newUrl);
     } else {
       // Regular login: default to feed for all users
       trackLogin(user.sub);
-      setCurrentView((prev) => (currentActiveCityId != null && prev === "city" ? "city" : "feed"));
+      setCurrentView("feed");
     }
   }, [isAuthenticated, isLoading, user]);
 
@@ -320,7 +237,7 @@ export default function DashboardPage() {
     migratePendingMetricOrder();
   }, [isAuthenticated, isLoading]);
 
-  // Load all user places for sidebar (My Places list)
+  // Load all user places for sidebar (My Cities list)
   useEffect(() => {
     if (!isAuthenticated || isLoading) {
       setAllUserPlaces([]);
@@ -329,14 +246,14 @@ export default function DashboardPage() {
     let cancelled = false;
     getAccessTokenSilently()
       .then((token) => listMyPlaces(token))
-      .then((res) => {
-        if (!cancelled) setAllUserPlaces(res.places);
+      .then((list) => {
+        if (!cancelled) setAllUserPlaces(list);
       })
       .catch(() => {
         if (!cancelled) setAllUserPlaces([]);
       });
     return () => { cancelled = true; };
-  }, [isAuthenticated, isLoading, getAccessTokenSilently, identityScopeKey]);
+  }, [isAuthenticated, isLoading, getAccessTokenSilently]);
 
   // Reload preferences when settings view becomes active
   useEffect(() => {
@@ -344,7 +261,7 @@ export default function DashboardPage() {
       loadUserSettings();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentView, isAuthenticated, isLoading, identityScopeKey]);
+  }, [currentView, isAuthenticated, isLoading]);
 
   // Set initial sidebar state based on screen size after mount
   useEffect(() => {
@@ -389,22 +306,23 @@ export default function DashboardPage() {
 
     const loadPermissionsAndGov = async () => {
       try {
-        if (!cancelled) {
-          setIsCheckingAdmin(true);
-        }
         const token = await getAccessTokenSilently();
         const [permissions, govStatus] = await Promise.all([
           getMyPermissions(token),
           getGovernmentVerificationStatus(token).catch(() => null),
         ]);
         if (cancelled) return;
-        setCurrentUserId(permissions.session_user_id || permissions.user_id || null);
         setIsAdmin(permissions.is_admin || false);
         setCityLeadCityIds(permissions.city_lead_city_ids || []);
         setGovVerificationStatus(govStatus ?? null);
         console.log("Admin status checked:", { isAdmin: permissions.is_admin, role: permissions.role });
       } catch (error) {
         console.error("Error checking admin status:", error);
+        if (!cancelled) {
+          setIsAdmin(false);
+          setCityLeadCityIds([]);
+          setGovVerificationStatus(null);
+        }
       } finally {
         if (!cancelled) setIsCheckingAdmin(false);
       }
@@ -414,7 +332,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, user, getAccessTokenSilently, identityScopeKey]);
+  }, [isAuthenticated, user, getAccessTokenSilently]);
 
   // Check if user needs onboarding (first-time user check)
   useEffect(() => {
@@ -424,7 +342,6 @@ export default function DashboardPage() {
         !isAuthenticated ||
         isLoading ||
         isCheckingAdmin ||
-        isImpersonating ||
         hasCheckedOnboarding.current
       ) {
         return;
@@ -502,7 +419,7 @@ export default function DashboardPage() {
     if (isAuthenticated && !isLoading && !isCheckingAdmin) {
       checkOnboardingStatus();
     }
-  }, [isAuthenticated, isLoading, isCheckingAdmin, getAccessTokenSilently, isImpersonating]);
+  }, [isAuthenticated, isLoading, isCheckingAdmin, getAccessTokenSilently]);
 
   // Listen for research creation from embedded research-new view
   useEffect(() => {
@@ -555,7 +472,7 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // Do not auto-select a city on landing. Only Feed is selected; user picks a city from My Places when they want.
+  // Do not auto-select a city on landing. Only Feed is selected; user picks a city from My Cities when they want.
 
   const handleMenuToggle = () => {
     setSidebarOpen(!sidebarOpen);
@@ -650,34 +567,25 @@ export default function DashboardPage() {
     setGpsLocation(null);
   };
 
-  const refreshAllUserPlaces = useCallback(
-    (expectedIdentityScopeKey: string = identityScopeKey) => {
-      getAccessTokenSilently()
-        .then((token) => listMyPlaces(token))
-        .then((res) => {
-          if (identityScopeKeyRef.current === expectedIdentityScopeKey) {
-            setAllUserPlaces(res.places);
-          }
-        })
-        .catch(() => {
-          if (identityScopeKeyRef.current === expectedIdentityScopeKey) {
-            setAllUserPlaces([]);
-          }
-        });
-    },
-    [getAccessTokenSilently, identityScopeKey]
-  );
-
   const handlePlaceSaved = () => {
-    refreshAllUserPlaces();
+    getAccessTokenSilently()
+      .then((token) => listMyPlaces(token))
+      .then(setAllUserPlaces)
+      .catch(() => setAllUserPlaces([]));
   };
 
   const handlePlaceRenamed = () => {
-    refreshAllUserPlaces();
+    getAccessTokenSilently()
+      .then((token) => listMyPlaces(token))
+      .then(setAllUserPlaces)
+      .catch(() => setAllUserPlaces([]));
   };
 
   const handlePlaceDeleted = (placeId: number) => {
-    refreshAllUserPlaces();
+    getAccessTokenSilently()
+      .then((token) => listMyPlaces(token))
+      .then(setAllUserPlaces)
+      .catch(() => setAllUserPlaces([]));
     if (citySelection.placeId === placeId) {
       setCitySelection((prev) => ({ ...prev, placeId: null }));
       setInitialPlaceId(null);
@@ -863,7 +771,8 @@ export default function DashboardPage() {
           prompt: fullPrompt,
           city_id: cityId,
           district: district ? String(district) : null,
-          one_shot: true,
+          max_iterations: 1,
+          max_subquestions: 2,
           is_newsletter: true,
           newsletter_frequency: editableNewsletterFrequency,
           generate_feed_stories: true,
@@ -895,7 +804,10 @@ export default function DashboardPage() {
     hasAutoSelectedCity.current = true;
     // Refresh My Places so the new block appears in the sidebar
     if (placeId != null) {
-      refreshAllUserPlaces();
+      getAccessTokenSilently()
+        .then((token) => listMyPlaces(token))
+        .then(setAllUserPlaces)
+        .catch(() => {});
     }
   };
 
@@ -963,14 +875,6 @@ export default function DashboardPage() {
     }
   };
 
-  const handleLoginAsUser = useCallback((targetUser: { id: number; email: string }) => {
-    setImpersonation(targetUser.id, targetUser.email);
-  }, []);
-
-  const handleStopImpersonating = useCallback(() => {
-    clearImpersonation();
-  }, []);
-
   const handleSwitchGovernmentMode = async (enable: boolean) => {
     try {
       setGovModeToggling(true);
@@ -1014,7 +918,6 @@ export default function DashboardPage() {
       />
       
       <Sidebar
-        key={`sidebar-${identityScopeKey}`}
         isOpen={sidebarOpen}
         isAdmin={isAdmin}
         cityLeadCityIds={cityLeadCityIds}
@@ -1090,12 +993,6 @@ export default function DashboardPage() {
       />
 
       <main className={`${styles.mainContent} ${sidebarOpen ? "" : styles.mainContentCollapsed}`} id="main-content">
-        {impersonationState && (
-          <ImpersonationBanner
-            email={impersonationState.email}
-            onStop={handleStopImpersonating}
-          />
-        )}
         {hasGovernmentBanner && (
           <div className={styles.governmentBanner} role="banner">
             Government mode
@@ -1144,10 +1041,7 @@ export default function DashboardPage() {
           {currentView === "user-management" && (
             <div id="user-management-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
               <div className={styles.adminContainer}>
-                <UserManagement
-                  currentUserId={currentUserId}
-                  onLoginAsUser={handleLoginAsUser}
-                />
+                <UserManagement />
               </div>
             </div>
           )}
@@ -1192,7 +1086,7 @@ export default function DashboardPage() {
             <div id="city-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
               <div className={`${styles.adminContainer} ${styles.cityViewContainer}`}>
                 <CityView
-                  key={`${activeCityId}-${identityScopeKey}`}
+                  key={activeCityId}
                   cityId={activeCityId}
                   isAdmin={isAdmin || cityLeadCityIds.includes(activeCityId)}
                   gpsLocation={gpsLocation}
@@ -1237,15 +1131,7 @@ export default function DashboardPage() {
 
           {currentView === "feed" && (
             <div id="feed-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
-              <FeedView
-                key={`feed-${identityScopeKey}`}
-                cityId={null}
-                district={null}
-                isAdmin={isAdmin}
-                isImpersonating={isImpersonating}
-                cityLeadCityIds={cityLeadCityIds}
-                userPlaces={allUserPlaces}
-              />
+              <FeedView cityId={null} district={null} />
             </div>
           )}
         </div>

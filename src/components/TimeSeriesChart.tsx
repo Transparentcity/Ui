@@ -54,7 +54,6 @@ export interface TimeSeriesChartProps {
   hidePeriodSelector?: boolean; // If true, hides the period selector
   showExternalTitle?: boolean; // If true, shows title above chart instead of inside
   onPeriodChange?: (period: PeriodType) => void; // Callback when period selector changes
-  forcedTheme?: "light" | "dark";
 }
 
 /**
@@ -580,10 +579,8 @@ export default function TimeSeriesChart({
   hidePeriodSelector = false,
   showExternalTitle = false,
   onPeriodChange,
-  forcedTheme,
 }: TimeSeriesChartProps) {
   const { theme } = useTheme();
-  const resolvedTheme = forcedTheme ?? theme;
   
   // Use explicitly passed defaultPeriod first (e.g., "ytd" from modal)
   // Only fall back to metadata.period_type if no explicit default was provided
@@ -998,22 +995,13 @@ export default function TimeSeriesChart({
   }, [aggregatedByGroup, stackedView, hasGroups, periodType]);
 
   // Use lighter, more visible colors in dark mode
-  const textColor = resolvedTheme === "dark" ? "#f8fafc" : "#222222";
-  const axisLineColor = resolvedTheme === "dark" ? "#475569" : "#e5e7eb";
-  const gridColor =
-    resolvedTheme === "dark"
-      ? "rgba(203, 213, 225, 0.3)"
-      : "rgba(232, 233, 235, 0.5)";
-  const gridColorLight =
-    resolvedTheme === "dark"
-      ? "rgba(203, 213, 225, 0.2)"
-      : "rgba(232, 233, 235, 0.3)";
-  const hoverBgColor = resolvedTheme === "dark" ? "#1e293b" : "#FFFFFF";
-  const hoverTextColor = resolvedTheme === "dark" ? "#f8fafc" : "#222222";
-  const legendBgColor =
-    resolvedTheme === "dark"
-      ? "rgba(30, 41, 59, 0.8)"
-      : "rgba(246, 241, 234, 0.7)";
+  const textColor = theme === "dark" ? "#f1f5f9" : "#222222";
+  const axisLineColor = theme === "dark" ? "#475569" : "#e5e7eb";
+  const gridColor = theme === "dark" ? "rgba(203, 213, 225, 0.3)" : "rgba(232, 233, 235, 0.5)";
+  const gridColorLight = theme === "dark" ? "rgba(203, 213, 225, 0.2)" : "rgba(232, 233, 235, 0.3)";
+  const hoverBgColor = theme === "dark" ? "#1e293b" : "#FFFFFF";
+  const hoverTextColor = theme === "dark" ? "#f1f5f9" : "#222222";
+  const legendBgColor = theme === "dark" ? "rgba(30, 41, 59, 0.8)" : "rgba(246, 241, 234, 0.7)";
 
   const layout = useMemo(() => {
     // Special layout for YTD charts
@@ -1225,7 +1213,7 @@ export default function TimeSeriesChart({
       },
       height,
     };
-  }, [chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, hoverBgColor, hoverTextColor, legendBgColor]);
+  }, [chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, theme, textColor, axisLineColor, gridColor, hoverBgColor, hoverTextColor, legendBgColor]);
 
   const config = {
     responsive: true,

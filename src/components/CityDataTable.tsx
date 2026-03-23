@@ -6,17 +6,11 @@ import { useEffect, useState, useMemo } from "react";
 import {
   listCities,
   CityListItem,
-  StructureMetricsLastRunSummary,
   loadCityData,
-  determinePortalTypes,
   batchAnalyzeCities,
-  startStructureMetricsBatch,
-  getStructureMetricsLastRuns,
-  getCityDataDashboardStats,
   getSavedCities,
   saveCity,
   unsaveCity,
-  deleteCity,
   getCityStats,
   refreshAllAcs,
 } from "@/lib/apiClient";
@@ -59,10 +53,8 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
   const [citySearchQuery, setCitySearchQuery] = useState("");
   const [countryFilter, setCountryFilter] = useState("United States");
   const [showOnlyPortals, setShowOnlyPortals] = useState(false);
-  const [showOnlyInstantiated, setShowOnlyInstantiated] = useState(false);
   const [showAddCityForm, setShowAddCityForm] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
-  const [determiningPortalTypes, setDeterminingPortalTypes] = useState(false);
   const [structuringCities, setStructuringCities] = useState(false);
   const [vectorStatsLoadingCityIds, setVectorStatsLoadingCityIds] = useState<
     Set<number>
@@ -71,49 +63,16 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
     Set<number>
   >(() => new Set());
   const [refreshAcsLoading, setRefreshAcsLoading] = useState(false);
-  const [showStructureMetricsModal, setShowStructureMetricsModal] = useState(false);
-  const [structuringMetrics, setStructuringMetrics] = useState(false);
-  const [lastRunsByCityId, setLastRunsByCityId] = useState<Record<string, StructureMetricsLastRunSummary>>({});
-  const [activeTab, setActiveTab] = useState<"city-list" | "dashboard">("city-list");
-  const [dashboardStats, setDashboardStats] = useState<{
-    total_metrics: number;
-    cities_with_metrics_count: number;
-  } | null>(null);
-  const [dashboardStatsLoading, setDashboardStatsLoading] = useState(false);
   const [refreshAcsResult, setRefreshAcsResult] = useState<{
     refreshed_count: number;
     error_count: number;
     refreshed?: Array<{ city_name?: string; rows_written?: number }>;
     errors?: Array<{ city_name?: string; city_id?: number; error: string }>;
   } | null>(null);
-  const [cityToDelete, setCityToDelete] = useState<CityListItem | null>(null);
-  const [deletingCityId, setDeletingCityId] = useState<number | null>(null);
 
   useEffect(() => {
     loadCities();
   }, []);
-
-  const cityIdsForLastRuns = useMemo(() => cities.map((c) => c.city_id), [cities]);
-  useEffect(() => {
-    if (cityIdsForLastRuns.length === 0) {
-      setLastRunsByCityId({});
-      return;
-    }
-    getAccessTokenSilently()
-      .then((token) => getStructureMetricsLastRuns(cityIdsForLastRuns, token))
-      .then(setLastRunsByCityId)
-      .catch(() => setLastRunsByCityId({}));
-  }, [cityIdsForLastRuns.join(",")]);
-
-  useEffect(() => {
-    if (activeTab !== "dashboard") return;
-    setDashboardStatsLoading(true);
-    getAccessTokenSilently()
-      .then((token) => getCityDataDashboardStats(token))
-      .then(setDashboardStats)
-      .catch(() => setDashboardStats(null))
-      .finally(() => setDashboardStatsLoading(false));
-  }, [activeTab, getAccessTokenSilently]);
 
   const loadCities = async () => {
     try {
@@ -185,29 +144,6 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
     }
   };
 
-  const handleConfirmDeleteCity = async () => {
-    if (!cityToDelete) return;
-    const id = cityToDelete.city_id;
-    setDeletingCityId(id);
-    try {
-      const token = await getAccessTokenSilently();
-      await deleteCity(id, token);
-      setCityToDelete(null);
-      setSavedCityIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-      emitSavedCitiesChanged();
-      await loadCities();
-    } catch (err) {
-      console.error("Error deleting city:", err);
-      alert(err instanceof Error ? err.message : "Failed to delete city. Please try again.");
-    } finally {
-      setDeletingCityId(null);
-    }
-  };
-
   const stats = useMemo<CityStats>(() => {
     const usCities = cities.filter((c) => c.country === "United States");
     const citiesWithPortals = cities.filter((c) => hasPortal(c));
@@ -240,10 +176,6 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
       filtered = filtered.filter((c) => hasPortal(c));
     }
 
-    if (showOnlyInstantiated) {
-      filtered = filtered.filter((c) => (c.template_metrics_instantiated ?? 0) > 0);
-    }
-
     if (countryFilter) {
       filtered = filtered.filter((c) => c.country === countryFilter);
     }
@@ -274,7 +206,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
     });
 
     return filtered;
-  }, [cities, showOnlyPortals, showOnlyInstantiated, countryFilter, citySearchQuery]);
+  }, [cities, showOnlyPortals, countryFilter, citySearchQuery]);
 
   const citiesByState = useMemo(() => {
     const groups: Record<string, CityListItem[]> = {};
@@ -356,28 +288,6 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
     }
   };
 
-  const handleDeterminePortalTypes = async () => {
-    if (selectedCityIds.length === 0) return;
-
-    try {
-      setDeterminingPortalTypes(true);
-      const token = await getAccessTokenSilently();
-      const result = await determinePortalTypes(selectedCityIds, token);
-      notifyJobCreated(result.job_id);
-      alert(
-        `Portal type determination started for ${selectedCityIds.length} cities!\n\n` +
-          `Job ID: ${result.job_id}\n\n` +
-          `You can monitor progress in the jobs badge at the top of the page.`
-      );
-      clearSelectedCities();
-      setTimeout(() => loadCities(), 2000);
-    } catch (err: any) {
-      alert("Failed to determine portal types: " + (err as Error).message);
-    } finally {
-      setDeterminingPortalTypes(false);
-    }
-  };
-
   const handleStructureCities = async () => {
     if (selectedCityIds.length === 0) return;
 
@@ -401,32 +311,11 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
     }
   };
 
-  const handleStructureMetrics = async (onlyMissing: boolean) => {
-    if (selectedCityIds.length === 0) return;
-    setShowStructureMetricsModal(false);
-    try {
-      setStructuringMetrics(true);
-      const token = await getAccessTokenSilently();
-      const result = await startStructureMetricsBatch(
-        { city_ids: selectedCityIds, only_missing: onlyMissing },
-        token
-      );
-      notifyJobCreated(result.job_id);
-      alert(`Structure metrics job started. Track progress in the Jobs panel.`);
-      clearSelectedCities();
-      setTimeout(() => loadCities(), 2000);
-    } catch (err: any) {
-      alert("Failed to start structure metrics: " + err.message);
-    } finally {
-      setStructuringMetrics(false);
-    }
-  };
-
   const handleRefreshAcs = async () => {
     const cityIds = selectedCityIds.length > 0 ? selectedCityIds : undefined;
     const message = cityIds
-      ? `Refresh population from Census ACS for ${cityIds.length} selected city(ies)? Cities without GEOID will be looked up automatically.`
-      : "Refresh population from Census ACS for all cities? Cities without GEOID will be looked up automatically. This may take a few minutes.";
+      ? `Refresh population from Census ACS for ${cityIds.length} selected city(ies) that have an ACS source?`
+      : "Refresh population from Census ACS for all cities with an ACS source? This may take a minute.";
     if (!confirm(message)) return;
     setRefreshAcsResult(null);
     setRefreshAcsLoading(true);
@@ -442,8 +331,9 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
         refreshed: result.refreshed,
         errors: result.errors,
       });
-      // Always reload cities so population and source info reflect latest state
-      loadCities();
+      if (result.refreshed_count > 0) {
+        loadCities();
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setRefreshAcsResult({
@@ -547,38 +437,26 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
     return num.toLocaleString();
   };
 
-  const formatLastRunAt = (date: string | null | undefined) => {
-    if (!date) return "Unknown";
+  const formatLastFetch = (date: string | null | undefined) => {
+    if (!date) return "Never";
     try {
-      return new Date(date).toLocaleString();
+      return new Date(date).toLocaleDateString();
     } catch {
       return "Invalid";
     }
   };
 
-  const getStructRunStatusLabel = (
-    run: StructureMetricsLastRunSummary | undefined
-  ) => {
-    if (!run) return "No recent run";
-    if (run.success === true) return "Success";
-    if (run.success === false) return "Failed";
-    return "Unknown";
+  const formatStatus = (status: string | null | undefined) => {
+    if (!status) return "N/A";
+    return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
   };
 
-  const getStructRunTooltip = (
-    run: StructureMetricsLastRunSummary | undefined
-  ) => {
-    if (!run) return "No recent metrics structuring run";
-    return `Last metrics run: ${getStructRunStatusLabel(run)}${
-      run.last_run_at ? ` on ${formatLastRunAt(run.last_run_at)}` : ""
-    }`;
-  };
-
-  const getStructIssueTooltip = (
-    run: StructureMetricsLastRunSummary | undefined
-  ) => {
-    const issue = run?.errors?.[0] ?? run?.opportunities?.[0];
-    return issue || "No recent structuring issue";
+  const getStatusClass = (status: string | null | undefined) => {
+    if (!status) return "unknown";
+    const s = status.toLowerCase();
+    if (s === "success") return "success";
+    if (s === "error" || s === "failed") return "error";
+    return "unknown";
   };
 
   const getStateAbbreviation = (state: string | null | undefined) => {
@@ -643,28 +521,12 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
   };
 
   const getPlatformType = (city: CityListItem) => {
-    if (city.portal_type) {
-      const p = city.portal_type;
-      if (p === "socrata") return "Socrata";
-      if (p === "arcgis") return "ArcGIS";
-      if (p === "ckan") return "CKAN";
-      if (p === "data.gov") return "Data.gov";
-      if (p === "dcat_ap") return "DCAT-AP";
-      return p.charAt(0).toUpperCase() + p.slice(1).replace(/_/g, " ");
-    }
+    // Simple heuristic - could be enhanced
     const url = city.main_portal_url || "";
     if (url.includes("socrata")) return "Socrata";
     if (url.includes("arcgis")) return "ArcGIS";
     if (url.includes("ckan")) return "CKAN";
     return "Other";
-  };
-
-  const getCityAvatar = (city: CityListItem) => {
-    const emoji = city.emoji?.trim();
-    if (emoji) return emoji;
-
-    const initial = city.city_name?.trim()?.charAt(0)?.toUpperCase();
-    return initial || "🏙️";
   };
 
   if (loading) {
@@ -678,50 +540,136 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
 
   return (
     <div className={styles.container}>
-      {/* Tabs: City list | Dashboard */}
-      <div
-        className={styles.tabBar}
-        style={{
-          display: "flex",
-          gap: "4px",
-          marginBottom: "16px",
-          borderBottom: "1px solid var(--border-color, #e5e7eb)",
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setActiveTab("city-list")}
-          style={{
-            padding: "10px 20px",
-            border: "none",
-            borderBottom: activeTab === "city-list" ? "2px solid var(--brand-primary)" : "2px solid transparent",
-            background: "none",
-            cursor: "pointer",
-            fontWeight: activeTab === "city-list" ? 600 : 400,
-            color: activeTab === "city-list" ? "var(--brand-primary)" : "var(--text-secondary)",
-          }}
-        >
-          City list
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("dashboard")}
-          style={{
-            padding: "10px 20px",
-            border: "none",
-            borderBottom: activeTab === "dashboard" ? "2px solid var(--brand-primary)" : "2px solid transparent",
-            background: "none",
-            cursor: "pointer",
-            fontWeight: activeTab === "dashboard" ? 600 : 400,
-            color: activeTab === "dashboard" ? "var(--brand-primary)" : "var(--text-secondary)",
-          }}
-        >
-          Dashboard
-        </button>
+      {/* Stats Header */}
+      <div className={styles.card}>
+        <div className="city-stats-header">
+          {/* Worldwide Row */}
+          <div className="stats-row" style={{ marginBottom: "24px" }}>
+            <div className="stats-row-label" style={{ fontWeight: 600, marginBottom: "12px" }}>
+              Worldwide
+            </div>
+            <div
+              className={styles.cityStatsGrid}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                gap: "16px",
+              }}
+            >
+              <div className="stat-item">
+                <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                  Countries
+                </span>
+                <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
+                  {formatNumber(stats.totalCountriesCount)}
+                </span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                  Cities
+                </span>
+                <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
+                  {formatNumber(stats.totalCitiesCount)}
+                </span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                  Population
+                </span>
+                <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
+                  {formatTotalPopulation(stats.totalPopulation)}
+                </span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                  Portals
+                </span>
+                <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
+                  {formatNumber(stats.citiesWithPortalsCount)}
+                </span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                  Datasets
+                </span>
+                <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
+                  {formatNumber(stats.totalDatasetsCount)}
+                </span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                  Pop Covered by Data
+                </span>
+                <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
+                  {formatTotalPopulation(stats.worldwidePopCoveredByData)}
+                </span>
+              </div>
+            </div>
+          </div>
+          {/* US Row */}
+          <div className="stats-row">
+            <div className="stats-row-label" style={{ fontWeight: 600, marginBottom: "12px" }}>US</div>
+            <div
+              className={styles.cityStatsGrid}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                gap: "16px",
+              }}
+            >
+              <div className="stat-item">
+                <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                  Countries
+                </span>
+                <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
+                  {formatNumber(stats.usCountriesCount)}
+                </span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                  Cities
+                </span>
+                <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
+                  {formatNumber(stats.usCitiesCount)}
+                </span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                  Population
+                </span>
+                <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
+                  {formatTotalPopulation(stats.usPopulation)}
+                </span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                  Portals
+                </span>
+                <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
+                  {formatNumber(stats.usCitiesWithPortalsCount)}
+                </span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                  Datasets
+                </span>
+                <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
+                  {formatNumber(stats.usDatasetsCount)}
+                </span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                  Pop Covered by Data
+                </span>
+                <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
+                  {formatTotalPopulation(stats.usPopCoveredByData)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {activeTab === "city-list" && (
-        <>
       {/* Action Buttons */}
       <div className={styles.card}>
         <div className="city-actions-header" style={{ marginBottom: "16px" }}>
@@ -750,24 +698,6 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
             {loadingData ? "Loading..." : `📥 Load Metadata (${selectedCityIds.length} cities)`}
           </button>
           <button
-            onClick={handleDeterminePortalTypes}
-            disabled={selectedCityIds.length === 0 || determiningPortalTypes}
-            title="Detect and update platform type (Socrata, CKAN, ArcGIS, etc.) for selected cities"
-            style={{
-              padding: "10px 20px",
-              background: "#7c3aed",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              cursor: selectedCityIds.length === 0 || determiningPortalTypes ? "not-allowed" : "pointer",
-              opacity: selectedCityIds.length === 0 || determiningPortalTypes ? 0.6 : 1,
-            }}
-          >
-            {determiningPortalTypes
-              ? "Determining…"
-              : `🏷️ Determine Portal Type (${selectedCityIds.length} cities)`}
-          </button>
-          <button
             onClick={handleStructureCities}
             disabled={selectedCityIds.length === 0 || structuringCities}
             className="btn btn-primary"
@@ -785,73 +715,6 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
               ? "Structuring..."
               : `🏗️ Structure Selected Cities (${selectedCityIds.length} cities)`}
           </button>
-          <button
-            onClick={() => setShowStructureMetricsModal(true)}
-            disabled={selectedCityIds.length === 0 || structuringMetrics}
-            style={{
-              padding: "10px 20px",
-              background: "#6366f1",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              cursor: selectedCityIds.length === 0 || structuringMetrics ? "not-allowed" : "pointer",
-              opacity: selectedCityIds.length === 0 || structuringMetrics ? 0.6 : 1,
-            }}
-          >
-            {structuringMetrics ? "Starting…" : `📊 Structure metrics (${selectedCityIds.length} cities)`}
-          </button>
-          {showStructureMetricsModal && (
-            <div
-              style={{
-                position: "fixed",
-                inset: 0,
-                background: "rgba(0,0,0,0.4)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                zIndex: 1000,
-              }}
-              onClick={() => setShowStructureMetricsModal(false)}
-            >
-              <div
-                style={{
-                  background: "var(--bg-primary, #fff)",
-                  padding: "24px",
-                  borderRadius: "8px",
-                  maxWidth: "420px",
-                  boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <p style={{ margin: "0 0 16px", fontSize: "14px" }}>
-                  Structure metrics for selected cities. Existing metrics will be kept; only missing templates will be instantiated.
-                </p>
-                <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", flexWrap: "wrap" }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowStructureMetricsModal(false)}
-                    style={{ padding: "8px 16px", border: "1px solid #ccc", borderRadius: "6px", cursor: "pointer" }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleStructureMetrics(false)}
-                    style={{ padding: "8px 16px", background: "#eab308", color: "#000", border: "none", borderRadius: "6px", cursor: "pointer" }}
-                  >
-                    Override: structure all templates
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleStructureMetrics(true)}
-                    style={{ padding: "8px 16px", background: "var(--brand-primary)", color: "white", border: "none", borderRadius: "6px", cursor: "pointer" }}
-                  >
-                    Confirm
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
           <button
             onClick={handleRefreshAcs}
             disabled={refreshAcsLoading}
@@ -947,14 +810,6 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
               />
               <span>Has Portal</span>
             </label>
-            <label style={{ display: "flex", alignItems: "center", gap: "8px", whiteSpace: "nowrap" }}>
-              <input
-                type="checkbox"
-                checked={showOnlyInstantiated}
-                onChange={(e) => setShowOnlyInstantiated(e.target.checked)}
-              />
-              <span>Has Instantiated Metrics</span>
-            </label>
           </div>
           <div
             className="city-list-actions"
@@ -1021,98 +876,42 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
           <table className={styles.cityTable} style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <th
-                  rowSpan={2}
-                  className={styles.checkboxCol}
-                  style={{ padding: "12px", textAlign: "left", width: "40px" }}
-                >
+                <th className={styles.checkboxCol} style={{ padding: "12px", textAlign: "left", width: "40px" }}>
                   <input
                     type="checkbox"
                     checked={allCitiesSelected}
                     onChange={toggleAllCities}
                   />
                 </th>
-                <th
-                  rowSpan={2}
-                  className={styles.nameCol}
-                  style={{ padding: "12px", textAlign: "left" }}
-                >
+                <th className={styles.nameCol} style={{ padding: "12px", textAlign: "left" }}>
                   City Name
                 </th>
-                <th
-                  colSpan={3}
-                  style={{ padding: "12px 8px 6px", textAlign: "center" }}
-                >
-                  Metrics
-                </th>
-                <th
-                  rowSpan={2}
-                  className={styles.stateCol}
-                  style={{ padding: "12px", textAlign: "left" }}
-                >
+                <th className={styles.stateCol} style={{ padding: "12px", textAlign: "left" }}>
                   State
                 </th>
-                <th
-                  rowSpan={2}
-                  className={styles.populationCol}
-                  style={{ padding: "12px", textAlign: "left" }}
-                >
+                <th className={styles.countryCol} style={{ padding: "12px", textAlign: "left" }}>
+                  Country
+                </th>
+                <th className={styles.populationCol} style={{ padding: "12px", textAlign: "left" }}>
                   Population
                 </th>
-                <th
-                  rowSpan={2}
-                  className={styles.popSourceCol}
-                  style={{ padding: "12px", textAlign: "left" }}
-                >
+                <th className={styles.popSourceCol} style={{ padding: "12px", textAlign: "left" }}>
                   Pop source
                 </th>
-                <th
-                  rowSpan={2}
-                  className={styles.platformCol}
-                  style={{ padding: "12px", textAlign: "left" }}
-                >
+                <th className={styles.platformCol} style={{ padding: "12px", textAlign: "left" }}>
                   Platform
                 </th>
-                <th
-                  rowSpan={2}
-                  className={styles.datasetsCol}
-                  style={{ padding: "12px", textAlign: "left" }}
-                >
+                <th className={styles.datasetsCol} style={{ padding: "12px", textAlign: "left" }}>
                   Datasets
                 </th>
-                <th
-                  rowSpan={2}
-                  className={styles.vectorDbCol}
-                  style={{ padding: "12px", textAlign: "left" }}
-                >
+                <th className={styles.vectorDbCol} style={{ padding: "12px", textAlign: "left" }}>
                   Vector DB
                 </th>
-                <th
-                  rowSpan={2}
-                  className={styles.actionsCol}
-                  style={{ padding: "12px", textAlign: "left", width: "56px" }}
-                >
-                  Actions
+                <th className={styles.lastFetchCol} style={{ padding: "12px", textAlign: "left" }}>
+                  Last Fetch
                 </th>
-              </tr>
-              <tr>
-                <th
-                  style={{ padding: "6px 8px 12px", textAlign: "center", width: "52px" }}
-                  title="Template metrics attempted"
-                >
-                  Att
-                </th>
-                <th
-                  style={{ padding: "6px 8px 12px", textAlign: "center", width: "56px" }}
-                  title="Template metrics instantiated"
-                >
-                  Inst
-                </th>
-                <th
-                  style={{ padding: "6px 8px 12px", textAlign: "center", width: "56px" }}
-                  title="Template metrics missing"
-                >
-                  Miss
+                <th className={styles.statusCol} style={{ padding: "12px", textAlign: "left" }}>
+                  Status
                 </th>
               </tr>
             </thead>
@@ -1121,7 +920,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
                 <React.Fragment key={`state-${stateGroup.state}`}>
                   <tr className={styles.stateHeaderRow}>
                     <td
-                      colSpan={12}
+                      colSpan={11}
                       className={styles.stateHeaderCell}
                       style={{
                         padding: "12px",
@@ -1142,9 +941,6 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
                     const isSelected = selectedCityIds.includes(city.city_id);
                     const isSaved = savedCityIds.has(city.city_id);
                     const isSaving = savingCityIds.has(city.city_id);
-                    const lastRun = lastRunsByCityId[String(city.city_id)];
-                    const structIssue =
-                      lastRun?.errors?.[0] ?? lastRun?.opportunities?.[0];
 
                     return (
                       <tr
@@ -1162,20 +958,20 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
                           />
                         </td>
                         <td className={styles.nameCol} style={{ padding: "12px" }}>
-                          <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                             <button
                               type="button"
                               onClick={() => handleToggleSavedCity(city.city_id)}
                               disabled={isSaving}
                               title={
                                 isSaved
-                                  ? "Remove from My Places"
-                                  : "Save to My Places"
+                                  ? "Remove from My Cities"
+                                  : "Save to My Cities"
                               }
                               aria-label={
                                 isSaved
-                                  ? "Remove from My Places"
-                                  : "Save to My Places"
+                                  ? "Remove from My Cities"
+                                  : "Save to My Cities"
                               }
                               style={{
                                 background: "transparent",
@@ -1207,138 +1003,32 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
                                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
                               </svg>
                             </button>
-                            <div
-                              aria-hidden="true"
+                            <button
+                              type="button"
+                              className="city-name"
+                              onClick={() => onOpenCity && onOpenCity(city.city_id)}
                               style={{
-                                width: "32px",
-                                height: "32px",
-                                borderRadius: "999px",
-                                background: "var(--bg-secondary, #f3f4f6)",
-                                border: "1px solid var(--border-primary, #e5e7eb)",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: city.emoji ? "18px" : "13px",
-                                fontWeight: 700,
-                                flexShrink: 0,
+                                cursor: onOpenCity ? "pointer" : "default",
+                                background: "transparent",
+                                border: "none",
+                                padding: 0,
+                                margin: 0,
+                                textAlign: "left",
+                                color: "var(--text-primary)",
+                                fontSize: "13px",
+                                fontWeight: 600,
                               }}
-                              title={city.city_name || "City"}
+                              title="Open city view"
                             >
-                              {getCityAvatar(city)}
-                            </div>
-                            <div
-                              style={{
-                                display: "flex",
-                                flexDirection: "column",
-                                minWidth: 0,
-                              }}
-                            >
-                              <button
-                                type="button"
-                                className="city-name"
-                                onClick={() => onOpenCity && onOpenCity(city.city_id)}
-                                style={{
-                                  cursor: onOpenCity ? "pointer" : "default",
-                                  background: "transparent",
-                                  border: "none",
-                                  padding: 0,
-                                  margin: 0,
-                                  textAlign: "left",
-                                  color: "var(--text-primary)",
-                                  fontSize: "13px",
-                                  fontWeight: 600,
-                                }}
-                                title="Open city view"
-                              >
-                                {city.city_name || "—"}
-                              </button>
-                            </div>
-                          </div>
-                        </td>
-                        <td
-                          style={{
-                            padding: "12px 8px",
-                            textAlign: "center",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                          }}
-                          title="Template metrics attempted"
-                        >
-                          {city.template_metrics_attempted ?? 0}
-                        </td>
-                        <td
-                          style={{
-                            padding: "12px 8px",
-                            textAlign: "center",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                          }}
-                          title="Template metrics instantiated"
-                        >
-                          <div
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              gap: "4px",
-                            }}
-                          >
-                            <span>{city.template_metrics_instantiated ?? 0}</span>
-                            {lastRun ? (
-                              <span
-                                aria-label={getStructRunTooltip(lastRun)}
-                                title={getStructRunTooltip(lastRun)}
-                                style={{
-                                  color:
-                                    lastRun.success === false
-                                      ? "var(--error, #dc2626)"
-                                      : "var(--text-secondary, #6b7280)",
-                                  fontSize: "11px",
-                                  lineHeight: 1,
-                                  cursor: "help",
-                                }}
-                              >
-                                i
-                              </span>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td
-                          style={{
-                            padding: "12px 8px",
-                            textAlign: "center",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                          }}
-                          title="Template metrics missing"
-                        >
-                          <div
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              gap: "4px",
-                            }}
-                          >
-                            <span>{city.template_metrics_missing ?? 0}</span>
-                            {structIssue ? (
-                              <span
-                                aria-label={getStructIssueTooltip(lastRun)}
-                                title={getStructIssueTooltip(lastRun)}
-                                style={{
-                                  color: "var(--error, #dc2626)",
-                                  fontSize: "12px",
-                                  lineHeight: 1,
-                                  cursor: "help",
-                                }}
-                              >
-                                !
-                              </span>
-                            ) : null}
+                              {city.city_name || "—"}
+                            </button>
                           </div>
                         </td>
                         <td className={styles.stateCol} style={{ padding: "12px" }}>
                           {getStateAbbreviation(city.state)}
+                        </td>
+                        <td className={styles.countryCol} style={{ padding: "12px" }}>
+                          {city.country || "—"}
                         </td>
                         <td className={styles.populationCol} style={{ padding: "12px" }}>
                           {formatPopulation(city.population)}
@@ -1451,30 +1141,23 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
                             </button>
                           )}
                         </td>
-                        <td className={styles.actionsCol} style={{ padding: "12px" }}>
-                          <button
-                            type="button"
-                            onClick={() => setCityToDelete(city)}
-                            disabled={!!deletingCityId}
-                            title="Delete city"
-                            aria-label={`Delete ${city.city_name || "city"}`}
-                            style={{
-                              background: "transparent",
-                              border: "none",
-                              padding: "6px",
-                              borderRadius: "6px",
-                              cursor: deletingCityId ? "not-allowed" : "pointer",
-                              color: "var(--text-secondary)",
-                              opacity: deletingCityId ? 0.5 : 1,
-                            }}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                              <polyline points="3 6 5 6 21 6" />
-                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                              <line x1="10" y1="11" x2="10" y2="17" />
-                              <line x1="14" y1="11" x2="14" y2="17" />
-                            </svg>
-                          </button>
+                        <td className={styles.lastFetchCol} style={{ padding: "12px", fontSize: "12px" }}>
+                          {formatLastFetch(city.last_fetch_at)}
+                        </td>
+                        <td className={styles.statusCol} style={{ padding: "12px" }}>{(() => {
+                          const status = getStatusClass(city.last_fetch_status);
+                          const statusClassName =
+                            status === "success"
+                              ? styles.statusSuccess
+                              : status === "error"
+                              ? styles.statusError
+                              : styles.statusUnknown;
+                          return (
+                            <span className={`${styles.statusBadge} ${statusClassName}`}>
+                              {formatStatus(city.last_fetch_status)}
+                            </span>
+                          );
+                        })()}
                         </td>
                       </tr>
                     );
@@ -1490,257 +1173,6 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
           )}
         </div>
       </div>
-        </>
-      )}
-
-      {/* Delete city confirm modal */}
-      {cityToDelete && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="delete-city-title"
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-          onClick={() => !deletingCityId && setCityToDelete(null)}
-        >
-          <div
-            style={{
-              background: "var(--bg-primary)",
-              padding: "24px",
-              borderRadius: "8px",
-              maxWidth: "420px",
-              width: "90%",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 id="delete-city-title" style={{ margin: "0 0 12px", fontSize: "18px", fontWeight: 600 }}>
-              Delete city?
-            </h3>
-            <p style={{ margin: "0 0 20px", color: "var(--text-secondary)", fontSize: "14px" }}>
-              This will permanently remove <strong>{cityToDelete.city_name || "this city"}</strong> and all its data
-              (metrics, datasets, structure, cache). This cannot be undone.
-            </p>
-            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
-              <button
-                type="button"
-                onClick={() => !deletingCityId && setCityToDelete(null)}
-                disabled={!!deletingCityId}
-                style={{
-                  padding: "8px 16px",
-                  border: "1px solid var(--border-primary)",
-                  borderRadius: "6px",
-                  background: "var(--bg-primary)",
-                  cursor: deletingCityId ? "not-allowed" : "pointer",
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDeleteCity}
-                disabled={!!deletingCityId}
-                style={{
-                  padding: "8px 16px",
-                  border: "none",
-                  borderRadius: "6px",
-                  background: "var(--error, #dc2626)",
-                  color: "white",
-                  cursor: deletingCityId ? "not-allowed" : "pointer",
-                }}
-              >
-                {deletingCityId ? "Deleting…" : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === "dashboard" && (
-        <>
-          <div className={styles.card}>
-            <div className="city-stats-header">
-              <h3 style={{ margin: "0 0 16px", fontSize: "18px", fontWeight: 600 }}>
-                Dashboard
-              </h3>
-              {dashboardStatsLoading ? (
-                <span style={{ color: "var(--text-secondary)" }}>Loading…</span>
-              ) : dashboardStats ? (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                    gap: "16px",
-                  }}
-                >
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Total cities</span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>{formatNumber(stats.totalCitiesCount)}</span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Total metrics</span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>{formatNumber(dashboardStats.total_metrics)}</span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Cities with metrics</span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>{formatNumber(dashboardStats.cities_with_metrics_count)}</span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Portals</span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>{formatNumber(stats.citiesWithPortalsCount)}</span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Datasets</span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>{formatNumber(stats.totalDatasetsCount)}</span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Pop covered by data</span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>{formatTotalPopulation(stats.worldwidePopCoveredByData)}</span>
-                  </div>
-                </div>
-              ) : (
-                <span style={{ color: "var(--text-secondary)" }}>Unable to load dashboard stats.</span>
-              )}
-            </div>
-          </div>
-
-          <div className={styles.card}>
-            <div className="city-stats-header">
-              <div className="stats-row" style={{ marginBottom: "24px" }}>
-                <div className="stats-row-label" style={{ fontWeight: 600, marginBottom: "12px" }}>
-                  Worldwide
-                </div>
-                <div
-                  className={styles.cityStatsGrid}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                    gap: "16px",
-                  }}
-                >
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Countries
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatNumber(stats.totalCountriesCount)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Cities
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatNumber(stats.totalCitiesCount)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Population
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatTotalPopulation(stats.totalPopulation)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Portals
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatNumber(stats.citiesWithPortalsCount)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Datasets
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatNumber(stats.totalDatasetsCount)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Pop Covered by Data
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatTotalPopulation(stats.worldwidePopCoveredByData)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div className="stats-row">
-                <div className="stats-row-label" style={{ fontWeight: 600, marginBottom: "12px" }}>
-                  US
-                </div>
-                <div
-                  className={styles.cityStatsGrid}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                    gap: "16px",
-                  }}
-                >
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Countries
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatNumber(stats.usCountriesCount)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Cities
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatNumber(stats.usCitiesCount)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Population
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatTotalPopulation(stats.usPopulation)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Portals
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatNumber(stats.usCitiesWithPortalsCount)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Datasets
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatNumber(stats.usDatasetsCount)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Pop Covered by Data
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatTotalPopulation(stats.usPopCoveredByData)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
     </div>
   );
 }

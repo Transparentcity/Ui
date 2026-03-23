@@ -1612,7 +1612,7 @@
   transform: scale(0.98);
 }
 
-/* ===== MY PLACES ITEMS ===== */
+/* ===== MY CITIES ITEMS ===== */
 .my-cities-item {
   padding: var(--space-xs) var(--space-md);
   cursor: pointer;

@@ -216,10 +216,6 @@
   margin: 0.5rem 0;
 }
 
-.research-content .report-html .feed-story {
-  scroll-margin-top: 24px;
-}
-
 /* Dark mode overrides for report content on public pages */
 [data-theme="dark"] .research-content .report-html,
 .dark .research-content .report-html {

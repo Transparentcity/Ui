@@ -52,12 +52,9 @@ export interface ResearchReport {
   city_id?: number | null;
   district?: string | null;
   status: string;
-  max_iterations?: number;
-  max_subquestions?: number;
-  current_iteration?: number;
-  scoping_questions?: { narrative?: string; questions?: string[]; options_if_helpful?: Record<string, string[]> } | null;
-  scope_answers?: Record<string, any> | null;
-  scoped_focus?: string | null;
+  max_iterations: number;
+  max_subquestions: number;
+  current_iteration: number;
   agenda?: Record<string, any> | null;
   final_report_html?: string | null;
   model_key?: string | null;
@@ -106,11 +103,12 @@ export interface CreateResearchRequest {
   prompt: string;
   city_id?: number | null;
   district?: string | null;
-  one_shot?: boolean;
-  require_scoping?: boolean;
+  max_iterations?: number;
+  max_subquestions?: number;
   model_key?: string;
   require_agenda_approval?: boolean;
   enable_web_search?: boolean;
+  // Newsletter metadata fields (optional) - set these to create a newsletter report
   is_newsletter?: boolean;
   newsletter_frequency?: "weekly" | "monthly" | null;
   generate_feed_stories?: boolean;

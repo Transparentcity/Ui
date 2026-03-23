@@ -26,7 +26,12 @@ export interface FeedStory {
   view_count: number;
   click_count: number;
   share_count: number;
+  applaud_count?: number;
+  escalate_count?: number;
+  investigate_count?: number;
+  /** @deprecated Use applaud_count. Kept for backward compat with pre-074 API responses. */
   like_count?: number;
+  /** @deprecated Use escalate_count. Kept for backward compat with pre-074 API responses. */
   comment_count?: number;
   priority_score: number;
   is_featured: boolean;

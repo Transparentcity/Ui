@@ -93,6 +93,7 @@ export default function Header({
     await loginWithRedirect({
       authorizationParams: {
         screen_hint: "signup",
+        prompt: "login",
       },
       appState: { returnTo: `/dashboard?signup=${intent}` },
     });

@@ -21,27 +21,6 @@ import { getInitialMapView, INITIAL_ZOOM_CITYWIDE } from "@/lib/mapUtils";
 import type { MetricDateRange } from "@/lib/dateRange";
 import type { AnomalyResult } from "@/lib/hooks/useAnomalies";
 
-/** Mapbox expects [lng, lat]; lat must be -90..90, lng -180..180. Returns a valid center or fallback. */
-const FALLBACK_MAP_CENTER: [number, number] = [-98.5795, 39.8283];
-
-function isValidLngLat(center: [number, number]): boolean {
-  const [lng, lat] = center;
-  return (
-    typeof lng === "number" &&
-    !Number.isNaN(lng) &&
-    lng >= -180 &&
-    lng <= 180 &&
-    typeof lat === "number" &&
-    !Number.isNaN(lat) &&
-    lat >= -90 &&
-    lat <= 90
-  );
-}
-
-function getValidMapCenter(center: [number, number] | null): [number, number] {
-  return center && isValidLngLat(center) ? center : FALLBACK_MAP_CENTER;
-}
-
 // Helper function to check if a point is inside a polygon (ray casting algorithm)
 function pointInPolygon(point: [number, number], polygon: [number, number][]): boolean {
   const [x, y] = point;
@@ -449,16 +428,7 @@ export default function CityMapView({
         // Set city data immediately so UI can render
         setCityData(city);
 
-        // Show base map immediately with city-based center (no geometry required).
-        // Structure and shapefiles will load in background and we'll recenter when ready.
-        if (city) {
-          const initialView = getInitialMapView(city);
-          setMapCenter(initialView.center);
-          setMapZoom(initialView.zoom);
-        }
-        setLoading(false);
-
-        // Load structure and shapefiles in background for bounds/center and layers.
+        // Wait for structure and shapefiles so we have the location's actual center before showing the map.
         let structureData = null;
         try {
           structureData = await getCityStructure(cityId, token).catch((err) => {
@@ -589,7 +559,7 @@ export default function CityMapView({
         }
         
         // Update map center/zoom with calculated values from shapefiles
-        if (calculatedCenter && isValidLngLat(calculatedCenter)) {
+        if (calculatedCenter) {
           setMapCenter(calculatedCenter);
           setMapZoom(calculatedZoom);
           if (mapInstanceRef.current?.loaded()) {
@@ -712,8 +682,8 @@ export default function CityMapView({
         console.log("Waiting for map center calculation...");
         return;
       }
-
-      const center = getValidMapCenter(mapCenter);
+      
+      const center: [number, number] = mapCenter;
       const zoom = mapZoom;
 
       // Determine map style based on theme
@@ -807,9 +777,8 @@ export default function CityMapView({
         return;
       }
       if (mapCenter && mapZoom !== null) {
-        const center = getValidMapCenter(mapCenter);
         map.flyTo({
-          center,
+          center: mapCenter,
           zoom: mapZoom,
           duration: 0, // Recenter ASAP
           essential: true,
@@ -1259,9 +1228,8 @@ export default function CityMapView({
     if (!mapCenter || mapZoom == null) return;
 
     const map = mapInstanceRef.current;
-    const center = getValidMapCenter(mapCenter);
     map.flyTo({
-      center,
+      center: mapCenter,
       zoom: mapZoom,
       duration: 0, // Recenter ASAP
       essential: true,

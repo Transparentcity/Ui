@@ -34,115 +34,6 @@ import type { AnomalyResult } from "@/lib/hooks/useAnomalies";
 // Brand purple color for anomaly mode
 const ANOMALY_MODE_COLOR = "#AD35FA";
 
-type MapBoundsBox = {
-  sw: [number, number];
-  ne: [number, number];
-};
-
-function parseShapeGeometryData(rawGeometryData: any): any | null {
-  if (!rawGeometryData) return null;
-  if (typeof rawGeometryData === "string") {
-    try {
-      return JSON.parse(rawGeometryData);
-    } catch {
-      return null;
-    }
-  }
-  return rawGeometryData;
-}
-
-function extendBoundsWithFeatureGeometry(
-  bounds: MapBoundsBox,
-  geometry: any,
-): boolean {
-  if (!geometry?.coordinates) return false;
-
-  let changed = false;
-  const extendCoord = (coord: [number, number]) => {
-    const [lng, lat] = coord;
-    if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
-    bounds.sw[0] = Math.min(bounds.sw[0], lng);
-    bounds.sw[1] = Math.min(bounds.sw[1], lat);
-    bounds.ne[0] = Math.max(bounds.ne[0], lng);
-    bounds.ne[1] = Math.max(bounds.ne[1], lat);
-    changed = true;
-  };
-
-  if (geometry.type === "Polygon") {
-    geometry.coordinates?.[0]?.forEach(extendCoord);
-  } else if (geometry.type === "MultiPolygon") {
-    geometry.coordinates?.forEach((polygon: any) => {
-      polygon?.[0]?.forEach(extendCoord);
-    });
-  }
-
-  return changed;
-}
-
-function buildFeatureBounds(feature: any): MapBoundsBox | null {
-  const bounds: MapBoundsBox = {
-    sw: [Infinity, Infinity],
-    ne: [-Infinity, -Infinity],
-  };
-
-  return extendBoundsWithFeatureGeometry(bounds, feature?.geometry) ? bounds : null;
-}
-
-function buildShapefileBounds(shapefiles: any[]): MapBoundsBox | null {
-  const bounds: MapBoundsBox = {
-    sw: [Infinity, Infinity],
-    ne: [-Infinity, -Infinity],
-  };
-  let hasBounds = false;
-
-  shapefiles.forEach((shapefile) => {
-    const geometryData = parseShapeGeometryData(shapefile?.geometry_data);
-    if (!geometryData || geometryData.type !== "FeatureCollection") return;
-
-    geometryData.features?.forEach((feature: any) => {
-      hasBounds = extendBoundsWithFeatureGeometry(bounds, feature?.geometry) || hasBounds;
-    });
-  });
-
-  return hasBounds ? bounds : null;
-}
-
-function coerceDistrictIdentifier(value: unknown): number | string | null {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return Number.isInteger(value) ? value : parseInt(String(value), 10);
-  }
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    const parsed = parseInt(trimmed, 10);
-    return Number.isNaN(parsed) ? trimmed : parsed;
-  }
-  return null;
-}
-
-function boundsExceedScope(
-  candidateBounds: MapBoundsBox,
-  scopeBounds: MapBoundsBox,
-): boolean {
-  return (
-    candidateBounds.sw[0] < scopeBounds.sw[0] ||
-    candidateBounds.sw[1] < scopeBounds.sw[1] ||
-    candidateBounds.ne[0] > scopeBounds.ne[0] ||
-    candidateBounds.ne[1] > scopeBounds.ne[1]
-  );
-}
-
-function getClampedBounds(
-  candidateBounds: MapBoundsBox | null,
-  scopeBounds: MapBoundsBox | null,
-): MapBoundsBox | null {
-  if (!candidateBounds) return scopeBounds;
-  if (!scopeBounds) return candidateBounds;
-  return boundsExceedScope(candidateBounds, scopeBounds)
-    ? scopeBounds
-    : candidateBounds;
-}
-
 interface CityMetricsMapProps {
   cityId: number;
   isActive?: boolean;
@@ -472,7 +363,70 @@ export default function CityMetricsMap({
         .join(","),
     [metricsForLayerSelector]
   );
-  // Compute sorted metrics and position-based color mapping (needed for default layer selection)
+  const hasSavedMetricPreference = !!orderedMetricIds && orderedMetricIds.size > 0;
+
+  // Default layer selection:
+  // - If the user has saved metric preferences, use that same chosen set across map scopes.
+  // - Otherwise keep the legacy defaults (My Block = map-capable metrics on; City/District = all off).
+  useEffect(() => {
+    if (orderingQuery.isLoading) {
+      return;
+    }
+
+    if (placeCircle) {
+      if (metricsForLayerSelector.length > 0) {
+        const newIds = new Set(metricsForLayerSelector.map((m) => String(m.id)));
+        setSelectedMetricIds((prev) => {
+          if (prev.size !== newIds.size || [...prev].some((id) => !newIds.has(id))) {
+            return newIds;
+          }
+          return prev;
+        });
+        setHiddenLayers((prev) => (prev.size > 0 ? new Set() : prev));
+        blockDefaultsSetRef.current = true;
+      } else {
+        setSelectedMetricIds((prev) => (prev.size > 0 ? new Set() : prev));
+        setHiddenLayers((prev) => (prev.size > 0 ? new Set() : prev));
+      }
+      previousPlaceCircleRef.current = true;
+      return;
+    }
+
+    // Citywide or District view: use chosen metrics when available; otherwise preserve legacy all-off default.
+    blockDefaultsSetRef.current = false;
+    const shouldApplyCityDefault =
+      previousPlaceCircleRef.current || !defaultMetricsSetRef.current;
+    previousPlaceCircleRef.current = false;
+
+    if (!shouldApplyCityDefault || availableMetrics.length === 0) {
+      return;
+    }
+
+    const nextDefaultIds = hasSavedMetricPreference
+      ? new Set(metricsForLayerSelector.map((m) => String(m.id)))
+      : new Set<string>();
+
+    setSelectedMetricIds((prev) => {
+      if (prev.size !== nextDefaultIds.size || [...prev].some((id) => !nextDefaultIds.has(id))) {
+        return nextDefaultIds;
+      }
+      return prev;
+    });
+    setHiddenLayers((prev) => (prev.size > 0 ? new Set() : prev));
+    defaultMetricsSetRef.current = true;
+  // Depend on stable keys so we don't re-run when object/array refs change; metricsWithMapCapability is read from closure when effect runs
+  }, [
+    availableMetrics,
+    placeCircleKey,
+    mapCapableIdsKey,
+    layerSelectorMetricIdsKey,
+    hasSavedMetricPreference,
+    placeCircle,
+    metricsForLayerSelector,
+    orderingQuery.isLoading,
+  ]);
+
+  // Compute sorted metrics and position-based color mapping
   // This ensures each metric gets a unique, stable color based on its position in the list
   // Colors remain the same whether the metric is toggled on or off
   const metricColorMapping = useMemo(() => {
@@ -527,15 +481,7 @@ export default function CityMetricsMap({
       positionMap.set(String(metric.id), index % LAYER_COLOR_PALETTE.length);
     });
 
-    // First metric in user's sorted list that has map capability (map_query or has_map_fields)
-    const hasMapCapability = (m: AdminMetricListItem) => {
-      const hasMapQuery = m.map_query != null && String(m.map_query).trim().length > 0;
-      return hasMapQuery || m.has_map_fields === true;
-    };
-    const firstMapCapableMetricId =
-      sortedMetrics.find(hasMapCapability)?.id ?? null;
-
-    return { positionMap, orderingMap, sortedMetrics, firstMapCapableMetricId };
+    return { positionMap, orderingMap, sortedMetrics };
   }, [metricsForLayerSelector, orderingData]);
 
   // Get color index for a metric based on its position in the sorted list
@@ -551,67 +497,6 @@ export default function CityMetricsMap({
     // Fallback for metrics not in the sorted list (shouldn't happen normally)
     return parseInt(metricId, 10) % LAYER_COLOR_PALETTE.length;
   }, [metricColorMapping.positionMap]);
-
-  // Default layer selection:
-  // - My Block (placeCircle): all map-capable metrics on.
-  // - Citywide/District: only the first metric in the user's sorted list that has a map query (map capability).
-  useEffect(() => {
-    if (orderingQuery.isLoading) {
-      return;
-    }
-
-    if (placeCircle) {
-      if (metricsForLayerSelector.length > 0) {
-        const newIds = new Set(metricsForLayerSelector.map((m) => String(m.id)));
-        setSelectedMetricIds((prev) => {
-          if (prev.size !== newIds.size || [...prev].some((id) => !newIds.has(id))) {
-            return newIds;
-          }
-          return prev;
-        });
-        setHiddenLayers((prev) => (prev.size > 0 ? new Set() : prev));
-        blockDefaultsSetRef.current = true;
-      } else {
-        setSelectedMetricIds((prev) => (prev.size > 0 ? new Set() : prev));
-        setHiddenLayers((prev) => (prev.size > 0 ? new Set() : prev));
-      }
-      previousPlaceCircleRef.current = true;
-      return;
-    }
-
-    // Citywide or District view: default to a single metric — the first in the user's sorted list that has a map query.
-    blockDefaultsSetRef.current = false;
-    const shouldApplyCityDefault =
-      previousPlaceCircleRef.current || !defaultMetricsSetRef.current;
-    previousPlaceCircleRef.current = false;
-
-    if (!shouldApplyCityDefault || availableMetrics.length === 0) {
-      return;
-    }
-
-    const firstMapCapableId = metricColorMapping.firstMapCapableMetricId;
-    const nextDefaultIds =
-      firstMapCapableId != null
-        ? new Set([String(firstMapCapableId)])
-        : new Set<string>();
-
-    setSelectedMetricIds((prev) => {
-      if (prev.size !== nextDefaultIds.size || [...prev].some((id) => !nextDefaultIds.has(id))) {
-        return nextDefaultIds;
-      }
-      return prev;
-    });
-    setHiddenLayers((prev) => (prev.size > 0 ? new Set() : prev));
-    defaultMetricsSetRef.current = true;
-  }, [
-    availableMetrics,
-    placeCircleKey,
-    layerSelectorMetricIdsKey,
-    placeCircle,
-    metricsForLayerSelector,
-    orderingQuery.isLoading,
-    metricColorMapping.firstMapCapableMetricId,
-  ]);
 
   // Note: React Query now handles tracking loaded/attempted metrics via its cache
   // The useMapLayersData hook provides automatic caching with 15-minute staleTime
@@ -1064,20 +949,14 @@ export default function CityMetricsMap({
         // Fit map to anomaly data bounds
         if (hasValidBounds && (window as any).mapboxgl) {
           try {
-            const fittedBounds = getClampedBounds(
-              { sw: [minLng, minLat], ne: [maxLng, maxLat] },
-              scopeBoundaryBounds,
-            );
-            if (fittedBounds) {
-              const bounds = new (window as any).mapboxgl.LngLatBounds();
-              bounds.extend(fittedBounds.sw);
-              bounds.extend(fittedBounds.ne);
-              map.fitBounds(bounds, {
-                padding: 50,
-                maxZoom: 15,
-                duration: 500,
-              });
-            }
+            const bounds = new (window as any).mapboxgl.LngLatBounds();
+            bounds.extend([minLng, minLat]);
+            bounds.extend([maxLng, maxLat]);
+            map.fitBounds(bounds, {
+              padding: 50,
+              maxZoom: 15,
+              duration: 500,
+            });
           } catch {
             // ignore bounds fitting errors
           }
@@ -1516,52 +1395,6 @@ export default function CityMetricsMap({
 
     return null;
   }, []);
-
-  const scopeBoundaryBounds = useMemo((): MapBoundsBox | null => {
-    const structureData = structureQuery.data;
-    const shapefiles = Array.isArray(structureData?.shapefiles)
-      ? structureData.shapefiles
-      : [];
-    if (shapefiles.length === 0) return null;
-
-    const districtInfo = findDistrictField(structureData);
-    const preferredShapefiles =
-      districtInfo?.shapefile != null ? [districtInfo.shapefile] : shapefiles;
-
-    if (selectedDistrict != null && selectedDistrict !== 0) {
-      const normalizedSelectedDistrict = coerceDistrictIdentifier(selectedDistrict);
-      const searchSets = [
-        preferredShapefiles,
-        shapefiles.filter((shapefile: { id?: number; geometry_data?: unknown; identifier_field?: string | null }) => !preferredShapefiles.includes(shapefile)),
-      ];
-
-      for (const shapefileSet of searchSets) {
-        for (const shapefile of shapefileSet) {
-          const geometryData = parseShapeGeometryData(shapefile?.geometry_data);
-          if (!geometryData || geometryData.type !== "FeatureCollection") continue;
-
-          for (const feature of geometryData.features || []) {
-            const rawIdentifier =
-              shapefile?.identifier_field != null
-                ? feature?.properties?.[shapefile.identifier_field]
-                : null;
-            const normalizedIdentifier = coerceDistrictIdentifier(rawIdentifier);
-
-            if (
-              normalizedIdentifier != null &&
-              normalizedSelectedDistrict != null &&
-              normalizedIdentifier === normalizedSelectedDistrict
-            ) {
-              const featureBounds = buildFeatureBounds(feature);
-              if (featureBounds) return featureBounds;
-            }
-          }
-        }
-      }
-    }
-
-    return buildShapefileBounds(preferredShapefiles) ?? buildShapefileBounds(shapefiles);
-  }, [structureQuery.data, selectedDistrict, findDistrictField]);
 
   // Collect all features for timeline (must be before any conditional returns)
   const allFeatures = useMemo(() => {
@@ -2332,19 +2165,10 @@ export default function CityMetricsMap({
           if (sw && ne && 
               !isNaN(sw[0]) && !isNaN(sw[1]) && !isNaN(ne[0]) && !isNaN(ne[1]) &&
               isFinite(sw[0]) && isFinite(sw[1]) && isFinite(ne[0]) && isFinite(ne[1])) {
-            const fittedBounds = getClampedBounds(
-              { sw: [sw[0], sw[1]], ne: [ne[0], ne[1]] },
-              scopeBoundaryBounds,
-            );
-            if (fittedBounds) {
-              const boundsToFit = new (window as any).mapboxgl.LngLatBounds();
-              boundsToFit.extend(fittedBounds.sw);
-              boundsToFit.extend(fittedBounds.ne);
-              map.fitBounds(boundsToFit, {
-                padding: 50,
-                maxZoom: 15,
-              });
-            }
+            map.fitBounds(bounds, {
+              padding: 50,
+              maxZoom: 15,
+            });
           }
         }
       } catch (err) {
@@ -2354,7 +2178,7 @@ export default function CityMetricsMap({
     
     // Update opacity after adding layers
     updateLayerOpacity(map);
-  }, [maps, mapFeatures, selectedMetricIds, hiddenLayers, updateLayerOpacity, structureQuery.data, findDistrictField, availableMetrics, gpsLocation, scopeBoundaryBounds]);
+  }, [maps, mapFeatures, selectedMetricIds, hiddenLayers, updateLayerOpacity, structureQuery.data, findDistrictField, availableMetrics, gpsLocation]);
 
   // Update layers when maps change or district (citywide vs specific) changes
   // Re-running when selectedDistrict changes ensures dots re-appear for citywide after the "remove on district change" effect runs
@@ -2574,19 +2398,6 @@ export default function CityMetricsMap({
     };
   }, []);
 
-  // Sort shape layers so enabled ones appear at the top (must be before any early return to keep hook order stable)
-  const sortedShapeLayers = useMemo(
-    () =>
-      [...shapeLayers].sort((a, b) => {
-        const aEnabled = enabledShapeLayerInstanceIds?.has(a.instance_id) ?? false;
-        const bEnabled = enabledShapeLayerInstanceIds?.has(b.instance_id) ?? false;
-        if (aEnabled && !bEnabled) return -1;
-        if (!aEnabled && bEnabled) return 1;
-        return 0;
-      }),
-    [shapeLayers, enabledShapeLayerInstanceIds]
-  );
-
   if (!isActive) return null;
 
   // Use pre-computed sorted metrics and ordering map from metricColorMapping
@@ -2636,6 +2447,18 @@ export default function CityMetricsMap({
   // Flatten grouped metrics for emoji view (maintains order)
   const flatMetricsForEmoji = groupedMetrics.flatMap((group) => group.metrics);
   const hasShapeLayers = shapeLayers.length > 0;
+  // Sort shape layers so enabled (pre-selected) ones appear at the top
+  const sortedShapeLayers = useMemo(
+    () =>
+      [...shapeLayers].sort((a, b) => {
+        const aEnabled = enabledShapeLayerInstanceIds?.has(a.instance_id) ?? false;
+        const bEnabled = enabledShapeLayerInstanceIds?.has(b.instance_id) ?? false;
+        if (aEnabled && !bEnabled) return -1;
+        if (!aEnabled && bEnabled) return 1;
+        return 0;
+      }),
+    [shapeLayers, enabledShapeLayerInstanceIds]
+  );
   if (!hasMetricLayers && !hasShapeLayers) return null;
 
   return (
@@ -2659,20 +2482,17 @@ export default function CityMetricsMap({
         />
       )}
 
-      {/* Point details (from map point click) - full-width bottom panel (same as gallery/311 media) */}
+      {/* Point details (from map point click) - shown in bottom panel instead of floating popup */}
       {selectedPointDetails && (
         <div className="city-metrics-map-point-details">
-          <div className="city-metrics-map-point-details-header">
-            <span className="city-metrics-map-point-details-title">Point details</span>
-            <button
-              type="button"
-              className="city-metrics-map-point-details-close"
-              onClick={() => setSelectedPointDetails(null)}
-              aria-label="Close point details"
-            >
-              ×
-            </button>
-          </div>
+          <button
+            type="button"
+            className="city-metrics-map-point-details-close"
+            onClick={() => setSelectedPointDetails(null)}
+            aria-label="Close point details"
+          >
+            ×
+          </button>
           <div
             className="city-metrics-map-point-details-content"
             dangerouslySetInnerHTML={{ __html: selectedPointDetails }}
@@ -2866,8 +2686,8 @@ export default function CityMetricsMap({
                   style={{
                     width: "36px",
                     height: "36px",
-                    background: isVisible && hasNoPoints ? "#888" : isVisible && !hasNoPoints ? layerColor : "transparent",
-                    border: isVisible && hasNoPoints ? "2px solid #888" : isVisible && !hasNoPoints ? `2px solid ${layerColor}` : `2px solid ${theme === "dark" ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.15)"}`,
+                    background: isVisible && !hasNoPoints ? layerColor : "transparent",
+                    border: isVisible && !hasNoPoints ? `2px solid ${layerColor}` : `2px solid ${theme === "dark" ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.15)"}`,
                     borderRadius: "50%",
                     cursor: "pointer",
                     display: "flex",
@@ -2876,9 +2696,9 @@ export default function CityMetricsMap({
                     padding: 0,
                     position: "relative",
                     transition: "all 0.2s ease, transform 0.15s ease",
-                    opacity: hasNoPoints ? 0.7 : isVisible ? 1 : 0.3,
+                    opacity: hasNoPoints ? 0.4 : isVisible ? 1 : 0.3,
                     flexShrink: 0,
-                    color: isVisible ? "#fff" : (theme === "dark" ? "rgba(255, 255, 255, 0.6)" : "rgba(0, 0, 0, 0.6)"),
+                    color: isVisible && !hasNoPoints ? "#fff" : (theme === "dark" ? "rgba(255, 255, 255, 0.6)" : "rgba(0, 0, 0, 0.6)"),
                     fontSize: "1.2rem",
                     fontWeight: "normal",
                     fontFamily: "Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif",
@@ -3120,11 +2940,7 @@ export default function CityMetricsMap({
                             <span
                               className="city-metrics-map-slider"
                               style={{
-                                backgroundColor: hasNoPoints
-                                  ? "#888"
-                                  : isVisible
-                                    ? layerColor
-                                    : "#ccc",
+                                backgroundColor: isVisible ? layerColor : "#ccc",
                               }}
                             />
                           </label>

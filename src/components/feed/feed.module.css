@@ -254,6 +254,43 @@
   color: #fff;
 }
 
+/* ── For You / Latest toggle ───────────────────────────────────────────────── */
+
+.feedOrderToggle {
+  display: inline-flex;
+  border: 1px solid var(--border-primary);
+  border-radius: 20px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.feedOrderBtn {
+  padding: 5px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  line-height: 1.4;
+}
+
+.feedOrderBtn:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.feedOrderBtnActive {
+  background: var(--brand-primary, #ad35fa);
+  color: #fff;
+}
+
+.feedOrderBtnActive:hover {
+  background: var(--brand-primary-dark, #9125d6);
+  color: #fff;
+}
+
 /* ── Admin bar ─────────────────────────────────────────────────────────────── */
 
 .adminBar {
@@ -431,7 +468,7 @@
 /* ── Visualization area ────────────────────────────────────────────────────── */
 
 .vizArea {
-  margin: 8px 0;
+  margin: 12px 0;
   border-radius: 8px;
   overflow: hidden;
   background: var(--bg-secondary);
@@ -447,7 +484,7 @@
 .vizImage {
   width: 100%;
   height: auto;
-  max-height: 160px;
+  max-height: 240px;
   object-fit: contain;
   display: block;
 }
@@ -460,7 +497,7 @@
 /* Non-interactive iframe thumbnail for chart/map cards */
 .vizIframeThumb {
   width: 100%;
-  height: 160px;
+  height: 240px;
   border: none;
   pointer-events: none;
   overflow: hidden;

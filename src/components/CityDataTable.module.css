@@ -141,19 +141,6 @@
   min-width: 100px;
 }
 
-.tabBar {
-  /* Tab bar for City list / Dashboard */
-}
-
-.structStatusCol {
-  min-width: 90px;
-}
-
-.structErrorsCol {
-  min-width: 140px;
-  max-width: 200px;
-}
-
 .datasetsCol {
   min-width: 80px;
   text-align: center;
@@ -170,11 +157,6 @@
 
 .statusCol {
   min-width: 100px;
-}
-
-.actionsCol {
-  min-width: 56px;
-  text-align: center;
 }
 
 .platformBadge {

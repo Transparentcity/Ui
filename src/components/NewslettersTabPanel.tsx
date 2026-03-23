@@ -124,9 +124,11 @@ Format as a newsletter-style summary that could be emailed to subscribers intere
         prompt,
         city_id: cityId,
         district: selectedDistrict === 0 ? null : selectedDistrict.toString(),
-        one_shot: true,
+        max_iterations: 1,
+        max_subquestions: 1,
         model_key: "gpt-5.1",
         enable_web_search: true,
+        // Mark this as a newsletter so it appears in the newsletter list
         is_newsletter: true,
         newsletter_frequency: selectedFrequency as "weekly" | "monthly",
       };

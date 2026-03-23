@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
-import { getSession } from "@/lib/apiClient";
+import { API_BASE } from "@/lib/apiBase";
 
 interface Message {
   id: string;
@@ -69,7 +69,22 @@ export default function ChatSessionLoader({
         setLoading(true);
         onLoadingChange?.(true);
         const token = await getAccessTokenSilently();
-        const session = await getSession(sessionId, token) as Session;
+
+        const response = await fetch(
+          `${API_BASE}/api/chat/sessions/${sessionId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to load session");
+        }
+
+        const session: Session = await response.json();
         
         // Only update if not cancelled
         if (!cancelled) {

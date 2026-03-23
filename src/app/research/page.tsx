@@ -122,8 +122,8 @@ export default function ResearchListPage() {
               <div className="card-meta">
                 <div className="meta-row">
                   <span>Model: {report.model_key || "Not specified"}</span>
-                  {(report.actual_cost_usd != null || report.estimated_cost_usd != null) && (
-                    <span>Cost: ${Number(report.actual_cost_usd ?? report.estimated_cost_usd).toFixed(4)}</span>
+                  {report.estimated_cost_usd && (
+                    <span>Cost: ${report.estimated_cost_usd}</span>
                   )}
                 </div>
                 <div className="meta-row">

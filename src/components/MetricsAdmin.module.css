@@ -668,20 +668,6 @@
   border-color: rgba(239, 68, 68, 0.25);
 }
 
-/* Metric + Actions cell: name on first line, action buttons on second line (like city-level admin) */
-.metricNameContent {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.metricActionsRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
 .actions {
   display: inline-flex;
   align-items: center;

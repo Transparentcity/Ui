@@ -165,14 +165,6 @@ export default function MetricsAdmin() {
     last_execution_status: selectedLastRunStatus || undefined,
     include_record_counts: false,
   });
-
-  // Template metrics: always fetch global templates (metric_type=template, no city filter)
-  // so the Template Order Editor shows actual templates even when the main list is filtered by city.
-  const templatesQuery = useMetrics({
-    metric_type: "template",
-    limit: 200,
-    include_record_counts: false,
-  });
   
   // Mutation hooks
   const createMetricMutation = useCreateMetric();
@@ -711,9 +703,9 @@ export default function MetricsAdmin() {
         </div>
       </div>
 
-      {/* Template Ordering: use dedicated templates query so real templates show even when list is filtered by city */}
+      {/* Template Ordering */}
       <TemplateOrderEditor
-        templates={templatesQuery.data ?? []}
+        templates={metrics.filter((m) => m.metric_type === "template")}
       />
 
       {/* Filters */}
@@ -997,12 +989,13 @@ export default function MetricsAdmin() {
                 <th className={`${styles.th} ${styles.hideNarrow}`} title="Location, category, map, districts">
                   Setup
                 </th>
+                <th className={styles.th}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
-                  <td className={styles.td} colSpan={8}>
+                  <td className={styles.td} colSpan={9}>
                     <span className={styles.muted}>Loading…</span>
                   </td>
                 </tr>
@@ -1010,7 +1003,7 @@ export default function MetricsAdmin() {
 
               {tableEmpty && (
                 <tr>
-                  <td className={styles.td} colSpan={8}>
+                  <td className={styles.td} colSpan={9}>
                     <span className={styles.muted}>No metrics found matching the current filters.</span>
                   </td>
                 </tr>
@@ -1020,28 +1013,13 @@ export default function MetricsAdmin() {
                 metrics.map((m) => (
                   <tr key={m.id} className={styles.rowHover}>
                     <td className={styles.td}>
-                      <div className={styles.metricNameContent}>
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: 13 }}>{m.metric_name}</div>
-                          <div className={styles.muted} style={{ fontSize: 11 }}>
-                            {m.metric_key}
-                          </div>
-                          {!m.is_active && (
-                            <span className={`${styles.badge} ${styles.badgeRed}`} style={{ marginTop: 4, fontSize: 10 }}>Inactive</span>
-                          )}
-                        </div>
-                        <div className={styles.metricActionsRow} onClick={(e) => e.stopPropagation()}>
-                          <MetricActions
-                            metricId={m.id}
-                            onEdit={() => openEditModal(m.id)}
-                            onViewCharts={() => openCharts(m.id)}
-                            onViewMaps={() => openMaps(m.id)}
-                            onExecute={() => openExecuteModal(m.id)}
-                            onPurgeData={() => purgeMetricData(m.id, m.metric_name)}
-                            onDelete={() => deleteMetric(m.id)}
-                          />
-                        </div>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{m.metric_name}</div>
+                      <div className={styles.muted} style={{ fontSize: 11 }}>
+                        {m.metric_key}
                       </div>
+                      {!m.is_active && (
+                        <span className={`${styles.badge} ${styles.badgeRed}`} style={{ marginTop: 4, fontSize: 10 }}>Inactive</span>
+                      )}
                     </td>
                     <td className={`${styles.td} ${styles.hideNarrow}`}>
                       <span className={styles.muted}>{m.city_name || "—"}</span>
@@ -1094,6 +1072,17 @@ export default function MetricsAdmin() {
                           <i className="fas fa-border-all" style={{ opacity: m.supports_districts ? 1 : 0.35 }} />
                         </span>
                       </div>
+                    </td>
+                    <td className={styles.td}>
+                      <MetricActions
+                        metricId={m.id}
+                        onEdit={() => openEditModal(m.id)}
+                        onViewCharts={() => openCharts(m.id)}
+                        onViewMaps={() => openMaps(m.id)}
+                        onExecute={() => openExecuteModal(m.id)}
+                        onPurgeData={() => purgeMetricData(m.id, m.metric_name)}
+                        onDelete={() => deleteMetric(m.id)}
+                      />
                     </td>
                   </tr>
                 ))}

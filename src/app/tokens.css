@@ -119,25 +119,3 @@
   color: var(--text-primary);
   background: var(--bg-primary);
 }
-
-/* Scrollbar: dark track in dark mode so it doesn’t look bright */
-[data-theme="dark"],
-.dark {
-  scrollbar-color: var(--bg-tertiary) var(--bg-secondary);
-}
-
-[data-theme="dark"] ::-webkit-scrollbar-track,
-.dark ::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
-}
-
-[data-theme="dark"] ::-webkit-scrollbar-thumb,
-.dark ::-webkit-scrollbar-thumb {
-  background: var(--bg-tertiary);
-  border-radius: 9999px;
-}
-
-[data-theme="dark"] ::-webkit-scrollbar-thumb:hover,
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: var(--border-primary);
-}

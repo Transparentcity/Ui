@@ -4,12 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import Loader from "./Loader";
 import RenameDialog from "./RenameDialog";
-import {
-  deleteSession as apiDeleteSession,
-  listSessions,
-  toggleSessionPublic,
-  updateSessionTitle,
-} from "@/lib/apiClient";
+import { updateSessionTitle } from "@/lib/apiClient";
 import styles from "./SidebarLists.module.css";
 
 interface Session {
@@ -30,6 +25,9 @@ interface SessionListProps {
   isCurrentSessionJobSession?: boolean;
   onSessionDeleted?: (sessionId: string) => void;
 }
+
+import { API_BASE } from "@/lib/apiBase";
+
 export default function SessionList({
   onSessionClick,
   currentSessionId,
@@ -65,7 +63,18 @@ export default function SessionList({
       setError(null);
 
       const token = await getAccessTokenSilently();
-      const data = await listSessions(20, 0, token) as Session[];
+      const response = await fetch(`${API_BASE}/api/chat/sessions?limit=20&offset=0`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to load sessions");
+      }
+
+      const data: Session[] = await response.json();
       
       // Merge with optimistic titles - preserve locally updated titles if they're newer
       // This prevents the "flash back to New Chat" issue during race conditions
@@ -262,7 +271,17 @@ export default function SessionList({
 
     try {
       const token = await getAccessTokenSilently();
-      await apiDeleteSession(sessionId, token);
+      const response = await fetch(`${API_BASE}/api/chat/sessions/${sessionId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete session");
+      }
 
       // Remove from local state
       setSessions((prev) => prev.filter((s) => s.session_id !== sessionId));
@@ -330,7 +349,21 @@ export default function SessionList({
       
       // If session is not public, make it public first
       if (!session.is_public || !session.short_hash) {
-        const toggleData = await toggleSessionPublic(session.session_id, true, token);
+        const toggleResponse = await fetch(`${API_BASE}/api/chat/sessions/${session.session_id}/toggle-public`, {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ is_public: true }),
+        });
+
+        if (!toggleResponse.ok) {
+          throw new Error("Failed to make session public");
+        }
+
+        const toggleData = await toggleResponse.json();
         const url = toggleData.public_url 
           ? `${window.location.origin}${toggleData.public_url}`
           : `${window.location.origin}/chat/${session.short_hash}`;

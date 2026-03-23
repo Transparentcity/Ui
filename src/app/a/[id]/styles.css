@@ -166,12 +166,6 @@
   justify-self: start;
 }
 
-[data-theme="dark"] .anomaly-badge,
-.dark .anomaly-badge {
-  background: rgba(255, 107, 90, 0.18);
-  border-color: rgba(255, 107, 90, 0.4);
-}
-
 .badge-icon {
   font-size: 1rem;
 }
