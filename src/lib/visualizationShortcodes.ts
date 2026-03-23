@@ -28,6 +28,16 @@ const DEFAULT_CONFIG: Required<EmbedConfig> = {
   className: "visualization-embed",
 };
 
+function getEmbedThemeQuery(): string {
+  if (typeof document === "undefined") return "";
+  const root = document.documentElement;
+  const theme =
+    root.getAttribute("data-theme") === "dark" || root.classList.contains("dark")
+      ? "dark"
+      : null;
+  return theme ? `&theme=${theme}` : "";
+}
+
 /** Escape HTML for safe use in attributes and text. */
 function escapeHtml(s: string): string {
   return s
@@ -46,8 +56,9 @@ export function getChartEmbed(chartId: string | number, config: EmbedConfig = {}
   const height = cfg.chartHeight || cfg.height;
   const shortcode = `[chart:${chartId}]`;
   const shortcodeEscaped = escapeHtml(shortcode);
+  const themeQuery = getEmbedThemeQuery();
   // Relative URL - /t/{id} is a frontend route in this same app
-  const url = `/t/${chartId}?embedded=true`;
+  const url = `/t/${chartId}?embedded=true${themeQuery}`;
   
   return `
     <div class="${cfg.className} chart-embed" data-chart-id="${chartId}" data-shortcode="${shortcodeEscaped}">
@@ -74,8 +85,9 @@ export function getMapEmbed(shortHash: string, config: EmbedConfig = {}): string
   const height = cfg.mapHeight || cfg.height;
   const shortcode = `[map:${shortHash}]`;
   const shortcodeEscaped = escapeHtml(shortcode);
+  const themeQuery = getEmbedThemeQuery();
   // Relative URL - /m/{hash} is a frontend route in this same app
-  const url = `/m/${shortHash}?embedded=true`;
+  const url = `/m/${shortHash}?embedded=true${themeQuery}`;
   
   return `
     <div class="${cfg.className} map-embed" data-map-hash="${shortHash}" data-shortcode="${shortcodeEscaped}">
@@ -102,8 +114,9 @@ export function getAnomalyEmbed(resultId: string | number, config: EmbedConfig =
   const height = cfg.anomalyHeight || cfg.height;
   const shortcode = `[anomaly:${resultId}]`;
   const shortcodeEscaped = escapeHtml(shortcode);
+  const themeQuery = getEmbedThemeQuery();
   // Relative URL - /a/{id} is a frontend route
-  const url = `/a/${resultId}?embedded=true`;
+  const url = `/a/${resultId}?embedded=true${themeQuery}`;
   
   return `
     <div class="${cfg.className} anomaly-embed" data-anomaly-id="${resultId}" data-shortcode="${shortcodeEscaped}">

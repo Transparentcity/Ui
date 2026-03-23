@@ -552,11 +552,10 @@ export function ReviewQueuePage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All score tiers</SelectItem>
-            <SelectItem value="critical">Critical (80–100)</SelectItem>
-            <SelectItem value="high">High (60–79)</SelectItem>
-            <SelectItem value="medium">Medium (40–59)</SelectItem>
-            <SelectItem value="low">Low (20–39)</SelectItem>
-            <SelectItem value="info">Info (0–19)</SelectItem>
+            <SelectItem value="critical">Critical (81–100)</SelectItem>
+            <SelectItem value="high">High (61–80)</SelectItem>
+            <SelectItem value="medium">Medium (31–60)</SelectItem>
+            <SelectItem value="low">Low (0–30)</SelectItem>
           </SelectContent>
         </Select>
 

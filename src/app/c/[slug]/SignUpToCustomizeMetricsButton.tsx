@@ -10,7 +10,7 @@ export default function SignUpToCustomizeMetricsButton() {
 
   const handleClick = () => {
     loginWithRedirect({
-      authorizationParams: { screen_hint: "signup", prompt: "login" },
+      authorizationParams: { screen_hint: "signup" },
       appState: { returnTo },
     });
   };

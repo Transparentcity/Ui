@@ -21,8 +21,6 @@ import {
   getWasteInvestigations,
   getWasteReviewQueue,
   getWasteDepartmentRisk,
-  getWasteBenchmarkSummary,
-  getLatestWasteTrustReport,
   getWasteSummary,
   getWasteTrustMetrics,
   generateWasteTrustReport,
@@ -43,7 +41,6 @@ import {
   type UpdateThresholdRequest,
   type WasteDetectorAccuracy,
   type WasteDepartmentRiskPage,
-  type BenchmarkSummaryResponse,
   type WasteDisposition,
   type WasteEntityScoresPage,
   type WasteInvestigation,
@@ -56,7 +53,6 @@ import {
   type WasteRunJobResponse,
   type WasteSummaryResponse,
   type WasteThreshold,
-  type WasteTrustReportResponse,
   type CityMethodologyResponse,
   type SystemMethodologyResponse,
 } from "@/lib/apiClient"
@@ -803,183 +799,6 @@ export function useGenerateWasteTrustReport() {
   })
 }
 
-export function useLatestWasteTrustReport(params: {
-  cityId: number | null
-  enabled?: boolean
-}) {
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
-  const enabled =
-    isAuthenticated && !!params.cityId && (params.enabled ?? true)
-
-  return useQuery<{ jobId: string; report: WasteTrustReportResponse } | null>({
-    queryKey: ["waste", "trust", "report", params.cityId],
-    queryFn: async () => {
-      if (!params.cityId) throw new Error("City ID required")
-      const token = await getAccessTokenSilently()
-      const latest = await getLatestWasteTrustReport(token, params.cityId)
-      if (!latest.job_id || !latest.report) {
-        return null
-      }
-
-      return {
-        jobId: latest.job_id,
-        report: latest.report,
-      }
-    },
-    enabled,
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
-  })
-}
-
-export function useWasteTrustReportRunner(params: {
-  cityId: number | null
-  lookbackDays?: number
-  enabled?: boolean
-}) {
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
-  const queryClient = useQueryClient()
-  const [activeJobState, setActiveJobState] = useState<{
-    cityId: number
-    jobId: string
-  } | null>(null)
-  const enabled =
-    isAuthenticated && !!params.cityId && (params.enabled ?? true)
-  const activeJobId =
-    params.cityId != null && activeJobState?.cityId === params.cityId
-      ? activeJobState.jobId
-      : null
-
-  useEffect(() => {
-    if (!enabled || !params.cityId || activeJobId) return
-    let cancelled = false
-    const cityId = params.cityId
-
-    ;(async () => {
-      try {
-        const token = await getAccessTokenSilently()
-        const running = await listJobs(
-          token,
-          10,
-          "running",
-          undefined,
-          "waste_trust_report"
-        )
-        const runningMatch = running.jobs.find((job) => {
-          const jobCityId = Number(job.job_metadata?.city_id ?? NaN)
-          return jobCityId === cityId
-        })
-        if (!cancelled && runningMatch) {
-          setActiveJobState({
-            cityId,
-            jobId: runningMatch.job_id,
-          })
-          return
-        }
-
-        const pending = await listJobs(
-          token,
-          10,
-          "pending",
-          undefined,
-          "waste_trust_report"
-        )
-        const pendingMatch = pending.jobs.find((job) => {
-          const jobCityId = Number(job.job_metadata?.city_id ?? NaN)
-          return jobCityId === cityId
-        })
-        if (!cancelled && pendingMatch) {
-          setActiveJobState({
-            cityId,
-            jobId: pendingMatch.job_id,
-          })
-        }
-      } catch {
-        // ignore background job lookup failures
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [activeJobId, enabled, getAccessTokenSilently, params.cityId])
-
-  const generateMutation = useMutation({
-    mutationFn: async () => {
-      if (!params.cityId) throw new Error("City ID required")
-      const token = await getAccessTokenSilently()
-      return generateWasteTrustReport(token, {
-        city_id: params.cityId,
-        lookback_days: params.lookbackDays ?? 30,
-      })
-    },
-    onSuccess: (result) => {
-      const jobId = result.job_id ?? result.existing_job_id ?? null
-      if (jobId && params.cityId) {
-        setActiveJobState({
-          cityId: params.cityId,
-          jobId,
-        })
-      }
-      queryClient.invalidateQueries({
-        queryKey: ["waste", "trust", "metrics", params.cityId],
-      })
-    },
-  })
-
-  const activeJobQuery = useQuery<Job | null>({
-    queryKey: ["waste", "trust", "report-job", activeJobId],
-    enabled: enabled && !!activeJobId,
-    queryFn: async () => {
-      if (!activeJobId) return null
-      const token = await getAccessTokenSilently()
-      return getJob(activeJobId, token)
-    },
-    refetchInterval: (query) => {
-      const status = query.state.data?.status
-      if (status === "completed" || status === "failed" || status === "cancelled") {
-        return false
-      }
-      return 2000
-    },
-    refetchOnWindowFocus: false,
-  })
-
-  useEffect(() => {
-    const status = activeJobQuery.data?.status
-    if (!status || !params.cityId) return
-    if (status === "completed") {
-      queryClient.invalidateQueries({
-        queryKey: ["waste", "trust", "report", params.cityId],
-      })
-      queryClient.invalidateQueries({
-        queryKey: ["waste", "trust", "metrics", params.cityId],
-      })
-    }
-  }, [activeJobQuery.data?.status, params.cityId, queryClient])
-
-  const activeJob =
-    activeJobQuery.data?.status === "pending" ||
-    activeJobQuery.data?.status === "running"
-      ? activeJobQuery.data
-      : null
-
-  return {
-    generateReport: () => generateMutation.mutate(),
-    isGenerating:
-      generateMutation.isPending ||
-      activeJobQuery.data?.status === "pending" ||
-      activeJobQuery.data?.status === "running",
-    activeJob,
-    error:
-      (generateMutation.error instanceof Error
-        ? generateMutation.error.message
-        : null) ??
-      activeJobQuery.data?.error_message ??
-      null,
-  }
-}
-
 // ── Investigations ─────────────────────────────────────────────────────────
 
 export function useWasteInvestigations(params: {
@@ -1091,22 +910,6 @@ export function useWasteThresholds(cityId: number | null) {
       if (!cityId) throw new Error("City ID required")
       const token = await getAccessTokenSilently()
       return getWasteThresholds(token, cityId)
-    },
-    enabled: isAuthenticated && !!cityId,
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
-  })
-}
-
-export function useWasteBenchmarkSummary(cityId: number | null) {
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
-
-  return useQuery<BenchmarkSummaryResponse>({
-    queryKey: ["waste", "benchmark", "summary", cityId],
-    queryFn: async () => {
-      if (!cityId) throw new Error("City ID required")
-      const token = await getAccessTokenSilently()
-      return getWasteBenchmarkSummary(token, cityId)
     },
     enabled: isAuthenticated && !!cityId,
     staleTime: 60_000,

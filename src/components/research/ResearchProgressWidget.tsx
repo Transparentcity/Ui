@@ -126,13 +126,6 @@ export function ResearchProgressWidget({
                 {progress.completed_items} / {progress.total_items} items
               </span>
             </div>
-            
-            <div className="detail-row">
-              <span className="detail-label">Iteration:</span>
-              <span className="detail-value">
-                {progress.current_iteration} / {progress.max_iterations}
-              </span>
-            </div>
           </div>
           
           {progress.error_message && (

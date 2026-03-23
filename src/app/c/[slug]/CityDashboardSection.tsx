@@ -314,11 +314,18 @@ export default function CityDashboardSection({
                           const absDiff = hasValid
                             ? (curr as number) - (prior as number)
                             : null;
-                          const pct =
+                          const rawPct =
                             hasValid && prior !== 0
                               ? (((curr as number) - (prior as number)) /
                                   (prior as number)) *
                                 100
+                              : null;
+                          // Cap at ±999% — larger values almost always
+                          // indicate a near-zero prior period, not a
+                          // real change.
+                          const pct =
+                            rawPct != null
+                              ? Math.max(-999, Math.min(999, rawPct))
                               : null;
 
                           const isIncrease = absDiff != null && absDiff > 0;
