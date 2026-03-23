@@ -286,7 +286,7 @@ export default function EmailAdmin() {
                         <button
                           type="button"
                           className={styles.emailItemBtn}
-                          onClick={() => setSelectedOutboundId(e.id)}
+                          onClick={() => setSelectedOutboundId(Number(e.id))}
                         >
                           <span className={styles.emailFrom}>{e.to_email}</span>
                           <span className={styles.emailSubject}>

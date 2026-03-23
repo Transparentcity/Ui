@@ -4195,6 +4195,8 @@ export interface CreateResearchRequest {
   model_key?: string;
   require_agenda_approval?: boolean;
   enable_web_search?: boolean;
+  max_iterations?: number;
+  max_subquestions?: number;
   is_newsletter?: boolean;
   newsletter_frequency?: "weekly" | "monthly" | null;
   generate_feed_stories?: boolean;
@@ -5243,6 +5245,52 @@ export interface WasteTrustReportRequest {
   lookback_days?: number;
 }
 
+export interface WasteThresholdChangeSummary {
+  detector_key: string;
+  threshold_field: string;
+  old_value: number;
+  new_value: number;
+  modified_at: string | null;
+}
+
+export interface WasteWeightDeltaSummary {
+  detector_key: string;
+  base_weight: number;
+  adjusted_weight: number;
+  delta_pct: number;
+}
+
+export interface WastePolicyLaneSummary {
+  total_detectors: number;
+  policy_controlled_detectors: number;
+  lanes: Record<string, number>;
+}
+
+export interface WasteEvaluationSnapshotItem {
+  id: string;
+  title: string;
+  expected_outcome: string;
+  status: "on_track" | "needs_review" | "manual_review";
+  detector_families: string[];
+  evidence: string[];
+}
+
+export interface WasteTrustReportResponse {
+  city_id: number;
+  lookback_days: number;
+  generated_at: string;
+  trust_metrics: WasteTrustMetricsResponse;
+  threshold_changes: WasteThresholdChangeSummary[];
+  policy_lane_summary: WastePolicyLaneSummary;
+  evaluation_snapshot: WasteEvaluationSnapshotItem[];
+  top_weight_deltas: WasteWeightDeltaSummary[];
+}
+
+export interface LatestWasteTrustReportResponse {
+  job_id: string | null;
+  report: WasteTrustReportResponse | null;
+}
+
 export interface WasteDepartmentRiskProfile {
   id: string | null;
   city_id: number;
@@ -5714,6 +5762,18 @@ export function generateWasteTrustReport(
   );
 }
 
+export function getLatestWasteTrustReport(
+  token: string,
+  cityId: number
+): Promise<LatestWasteTrustReportResponse> {
+  return request<LatestWasteTrustReportResponse>(
+    `/api/waste/scores/trust/report/latest?city_id=${cityId}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
 // ============================================================================
 // WASTE INVESTIGATIONS
 // ============================================================================
@@ -5995,6 +6055,35 @@ export interface DataGapInfo {
   public_records_request: string;
 }
 
+export interface CityReviewNoteInfo {
+  id: string;
+  title: string;
+  lane: string;
+  detector_families: string[];
+  summary: string;
+  operator_guidance: string;
+}
+
+export interface MetadataWorkstreamInfo {
+  id: string;
+  title: string;
+  scope: string;
+  detector_families: string[];
+  required_metadata: string[];
+  why_blocked: string;
+  recommended_sources: string[];
+}
+
+export interface EvalExpectationInfo {
+  id: string;
+  title: string;
+  scope: string;
+  expected_outcome: string;
+  detector_families: string[];
+  rationale: string;
+  pass_criteria: string[];
+}
+
 export interface CityMethodologyResponse {
   city_id: number;
   city_key: string;
@@ -6005,6 +6094,9 @@ export interface CityMethodologyResponse {
   missing_datasets: MethodologyDatasetInfo[];
   budget_year_datasets: MethodologyBudgetYearInfo[];
   methodology_notes: Record<string, string>;
+  city_review_notes: CityReviewNoteInfo[];
+  metadata_workstreams: MetadataWorkstreamInfo[];
+  eval_expectations: EvalExpectationInfo[];
   data_gaps: DataGapInfo[];
   total_detectors_available: number;
   total_detectors_skipped: number;
@@ -6148,5 +6240,4 @@ export function getCostBasket(
     token
   );
 }
-
 

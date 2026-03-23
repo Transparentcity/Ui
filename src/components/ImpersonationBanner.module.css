@@ -1,0 +1,55 @@
+.banner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px;
+  background: rgba(37, 99, 235, 0.1);
+  border-bottom: 1px solid rgba(37, 99, 235, 0.2);
+  color: #1d4ed8;
+}
+
+.content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.email {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.stopButton {
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  background: var(--bg-primary);
+  color: inherit;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.stopButton:hover {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+@media (max-width: 768px) {
+  .banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
