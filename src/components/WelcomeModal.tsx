@@ -72,7 +72,6 @@ export default function WelcomeModal({
   const [locationInput, setLocationInput] = useState("");
   const [locationResult, setLocationResult] = useState<LocationResult | null>(null);
   const [leadSubmitted, setLeadSubmitted] = useState(false);
-  const [trackBoth, setTrackBoth] = useState(true);
   const [homeCoordinates, setHomeCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [placeLabel, setPlaceLabel] = useState("My block");
   const [placeRadius, setPlaceRadius] = useState(DEFAULT_PLACE_RADIUS_M);
@@ -101,7 +100,6 @@ export default function WelcomeModal({
       setLocationResult(null);
       setError(null);
       setLeadSubmitted(false);
-      setTrackBoth(true);
       setHomeCoordinates(null);
       setPlaceLabel("My block");
       setPlaceRadius(DEFAULT_PLACE_RADIUS_M);
@@ -293,29 +291,6 @@ export default function WelcomeModal({
       district,
       isActive,
     };
-  };
-
-  const handleCitySelectFromSearch = async (city: PublicCitySearchResult) => {
-    setShowAddressDropdown(false);
-    setLocationInput(city.display_name);
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await fetchCityDetailsAndLeaders(city, null);
-      setLocationResult(result);
-
-      if (result.isActive) {
-        setStep("leader");
-      } else {
-        setStep("coming-soon");
-      }
-    } catch (err) {
-      console.error("Error processing city:", err);
-      setError("Failed to load city information. Please try again.");
-    } finally {
-      setLoading(false);
-    }
   };
 
   const processLocationAndFindCity = async (
@@ -534,81 +509,6 @@ export default function WelcomeModal({
     }
   };
 
-  const handleGoToCity = async () => {
-    if (!locationResult?.matchedCity) return;
-
-    setLoading(true);
-    try {
-      const token = await getAccessTokenSilently();
-      const cityId = locationResult.matchedCity.id;
-
-      // Save the city to My Places
-      await saveCity(cityId, token);
-
-      // Determine district to load and add to My Districts (follow representative)
-      const districtToLoad = locationResult.councilMember?.district ?? locationResult.district ?? null;
-      if (districtToLoad !== null && districtToLoad !== undefined) {
-        try {
-          await followRepresentative(cityId, String(districtToLoad), token);
-        } catch {
-          // ignore if already following or follow fails
-        }
-      }
-
-      // If we have coordinates, create a place (My block) so it appears in My places
-      let createdPlaceId: number | null = null;
-      if (homeCoordinates) {
-        try {
-          const createdPlace = await createPlace(token, {
-            city_id: cityId,
-            label: placeLabel?.trim() || "My block",
-            lat: homeCoordinates.lat,
-            lng: homeCoordinates.lng,
-            radius_m: placeRadius ?? DEFAULT_PLACE_RADIUS_M,
-          });
-          createdPlaceId = createdPlace?.id ?? null;
-        } catch {
-          // ignore if place creation fails
-        }
-      }
-
-      // Save home location (coordinates and district) to preferences for future use
-      const homeLocation = homeCoordinates
-        ? {
-            city_id: cityId,
-            district: districtToLoad,
-            coordinates: homeCoordinates,
-          }
-        : districtToLoad !== null
-        ? {
-            city_id: cityId,
-            district: districtToLoad,
-          }
-        : null;
-
-      // Merge with existing preferences so we don't overwrite saved_cities, etc.
-      const latest = await getUserPreferences(token);
-      const currentExtra = latest.extra || {};
-      await updateUserPreferences(
-        {
-          has_completed_onboarding: true,
-          extra: homeLocation ? { ...currentExtra, home_location: homeLocation } : currentExtra,
-        },
-        token
-      );
-
-      // Navigate to city (and block-level view when we created a place)
-      onCitySelected(cityId, districtToLoad, createdPlaceId);
-      onComplete();
-      onClose();
-    } catch (err) {
-      console.error("Error saving city:", err);
-      setError("Failed to save city. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleNotifyMe = async () => {
     if (!locationResult) return;
 
@@ -796,7 +696,7 @@ export default function WelcomeModal({
     </div>
   );
 
-  // Save city + place (if location) on Continue from leader step
+  // Save city on Continue from leader step (place creation deferred to final save to avoid duplicates)
   const handleLeaderContinue = async () => {
     if (!locationResult?.matchedCity) return;
     setLoading(true);
@@ -804,15 +704,6 @@ export default function WelcomeModal({
     try {
       const token = await getAccessTokenSilently();
       await saveCity(locationResult.matchedCity.id, token);
-      if (homeCoordinates) {
-        await createPlace(token, {
-          city_id: locationResult.matchedCity.id,
-          label: placeLabel.trim() || "My block",
-          lat: homeCoordinates.lat,
-          lng: homeCoordinates.lng,
-          radius_m: placeRadius,
-        });
-      }
       setStep("interests");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save. Please try again.");
@@ -835,7 +726,7 @@ export default function WelcomeModal({
     return (
       <div className={`${styles.stepContent} ${styles.leaderStepContent}`}>
         <div className={styles.successIcon}>
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
             <polyline points="22 4 12 14.01 9 11.01" />
           </svg>
@@ -876,7 +767,7 @@ export default function WelcomeModal({
           </p>
         )}
         {(mayor || councilMember) && (
-          <p className={styles.stepDescription} style={{ fontSize: "13px", marginTop: "4px" }}>
+          <p className={styles.locationHint}>
             You can flag stories directly to {councilMember ? councilMember.name + "'s" : "your representative's"} office and applaud good work.
           </p>
         )}
@@ -944,10 +835,7 @@ export default function WelcomeModal({
     setNewsletterDescription(buildPromptFromSelection(next));
   };
 
-  const defaultSamplePrompt =
-    "Create a weekly newsletter report for this city and district. Focus on recent changes and trends in key metrics (crime, housing, permits, 311 calls), notable anomalies, comparative analysis (this period vs. previous, district vs. city-wide), and actionable insights for residents. Be data-driven with specific numbers; highlight both positive and concerning trends.";
-
-  // Render email personalization step (dedicated screen with space)
+  // Render interests step (dedicated screen with category pills)
   const renderInterestsStep = () => {
     if (!locationResult) return null;
 
@@ -1229,47 +1117,46 @@ export default function WelcomeModal({
     return (
       <div className={styles.stepContent}>
         <div className={styles.successIcon}>
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
             <polyline points="22 4 12 14.01 9 11.01" />
           </svg>
         </div>
-        
+
         <h2 className={styles.stepTitle}>You&apos;re all set!</h2>
         <p className={styles.stepDescription}>
-          Thanks for setting up your preferences. We&apos;ll keep you informed about {cityDisplayName}.
+          Your preferences are saved. We&apos;ll keep you informed about {cityDisplayName}.
         </p>
 
         <div className={styles.allSetSummary}>
           {selectedCategoryIds.length > 0 && (
             <div className={styles.summaryItem}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
               </svg>
               <span>Tracking: {selectedCategoryIds.map(id => EMAIL_PRESETS.find(p => p.id === id)?.label).filter(Boolean).join(", ")}</span>
             </div>
           )}
           {weeklyNewsletterOptIn && (
             <div className={styles.summaryItem}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                <polyline points="22,6 12,13 2,6" />
               </svg>
               <span>Personalized {newsletterFrequency} email</span>
             </div>
           )}
           {alertsOptIn && (
             <div className={styles.summaryItem}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
               </svg>
               <span>Anomaly alerts</span>
             </div>
           )}
         </div>
-        <p className={styles.stepDescription} style={{ marginTop: "12px", fontSize: "13px" }}>
+        <p className={styles.disclaimer}>
           You can change these anytime in Settings.
         </p>
 

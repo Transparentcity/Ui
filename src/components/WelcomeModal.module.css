@@ -24,40 +24,44 @@
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
+  overflow-x: hidden;
   position: relative;
-  box-shadow: var(--shadow-xl, 0 25px 50px -12px rgba(0, 0, 0, 0.25));
-  animation: slideUp 0.3s ease-out;
+  box-shadow:
+    0 25px 50px -12px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(24px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .closeButton {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: 14px;
+  right: 14px;
   background: none;
   border: none;
   cursor: pointer;
   color: var(--text-tertiary, #9ca3af);
-  padding: 8px;
+  padding: 6px;
   border-radius: var(--radius-sm, 6px);
   transition: all 0.15s ease;
   z-index: 10;
+  line-height: 0;
 }
 
 .closeButton:hover {
   background: var(--bg-tertiary, #f3f4f6);
-  color: var(--text-primary, #111827);
+  color: var(--text-secondary, #6b7280);
 }
 
 /* Step Indicator */
 .stepIndicator {
   display: flex;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   padding: 20px 24px 0;
 }
 
@@ -66,17 +70,19 @@
   height: 8px;
   border-radius: 50%;
   background: var(--border-secondary, #d1d5db);
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .stepDotActive {
   background: var(--brand-primary, #ad35fa);
   width: 24px;
   border-radius: 4px;
+  box-shadow: 0 0 0 3px rgba(173, 53, 250, 0.12);
 }
 
 .stepDotComplete {
-  background: var(--success, #10b981);
+  background: var(--brand-primary, #ad35fa);
+  opacity: 0.4;
 }
 
 /* Step Content */
@@ -86,6 +92,12 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
+  animation: stepFadeIn 0.25s ease-out;
+}
+
+@keyframes stepFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Brand Logo */
@@ -304,14 +316,21 @@
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
   transition: all 0.15s ease;
+  letter-spacing: 0.01em;
 }
 
 .primaryButton:hover:not(:disabled) {
   background: var(--brand-primary-hover, #9333ea);
+  box-shadow: 0 4px 12px rgba(173, 53, 250, 0.3);
+}
+
+.primaryButton:active:not(:disabled) {
+  transform: scale(0.985);
+  box-shadow: 0 2px 6px rgba(173, 53, 250, 0.2);
 }
 
 .primaryButton:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
@@ -328,12 +347,14 @@
   color: var(--text-secondary, #6b7280);
   background: none;
   border: none;
+  border-radius: var(--radius-md, 8px);
   cursor: pointer;
-  transition: color 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .backButton:hover {
   color: var(--text-primary, #111827);
+  background: var(--bg-secondary, #f8f9fa);
 }
 
 .skipButton {
@@ -342,12 +363,14 @@
   color: var(--text-tertiary, #9ca3af);
   background: none;
   border: none;
+  border-radius: var(--radius-md, 8px);
   cursor: pointer;
-  transition: color 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .skipButton:hover {
   color: var(--text-secondary, #6b7280);
+  background: var(--bg-secondary, #f8f9fa);
 }
 
 /* Disclaimer */
@@ -426,11 +449,12 @@
 }
 
 .leaderCardCompact {
-  padding: 12px 14px;
-  background: linear-gradient(135deg, var(--brand-primary-light, rgba(173, 53, 250, 0.08)) 0%, var(--bg-secondary, #f8f9fa) 100%);
-  border: 1px solid var(--brand-primary, #ad35fa);
+  padding: 14px 16px;
+  background: linear-gradient(135deg, var(--brand-primary-light, rgba(173, 53, 250, 0.06)) 0%, var(--bg-secondary, #f8f9fa) 100%);
+  border: 1px solid rgba(173, 53, 250, 0.25);
   border-radius: var(--radius-md, 8px);
   text-align: center;
+  transition: border-color 0.15s ease;
 }
 
 .leaderCardCompact .leaderLabel {
@@ -512,9 +536,10 @@
   width: 100%;
   text-align: left;
   margin: 12px 0 16px;
-  padding: 16px;
+  padding: 16px 18px;
   background: var(--bg-secondary, #f8f9fa);
-  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-lg, 12px);
 }
 
 .leadBenefits p {
@@ -532,7 +557,8 @@
 .leadBenefits li {
   font-size: 13px;
   color: var(--text-secondary, #6b7280);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  line-height: 1.4;
 }
 
 /* Result Icons */
@@ -546,6 +572,13 @@
   color: var(--success, #10b981);
   border-radius: 50%;
   margin-bottom: 16px;
+  animation: iconPop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes iconPop {
+  0% { opacity: 0; transform: scale(0.8); }
+  60% { transform: scale(1.05); }
+  100% { opacity: 1; transform: scale(1); }
 }
 
 .comingSoonIcon {
@@ -558,6 +591,7 @@
   color: var(--brand-primary, #ad35fa);
   border-radius: 50%;
   margin-bottom: 16px;
+  animation: iconPop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Messages */
@@ -566,9 +600,11 @@
   padding: 10px 14px;
   font-size: 13px;
   color: var(--error, #ef4444);
-  background: rgba(239, 68, 68, 0.1);
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.15);
   border-radius: var(--radius-md, 8px);
   margin-bottom: 12px;
+  line-height: 1.4;
 }
 
 .successMessage {
@@ -579,9 +615,11 @@
   padding: 12px 16px;
   font-size: 14px;
   color: var(--success, #10b981);
-  background: rgba(16, 185, 129, 0.1);
+  background: rgba(16, 185, 129, 0.06);
+  border: 1px solid rgba(16, 185, 129, 0.15);
   border-radius: var(--radius-md, 8px);
   margin-bottom: 16px;
+  line-height: 1.4;
 }
 
 /* Mobile Responsive */
@@ -623,6 +661,24 @@
   .leaderName {
     font-size: 20px;
   }
+}
+
+/* Scrollbar styling */
+.modal::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal::-webkit-scrollbar-thumb {
+  background: var(--border-secondary, #d1d5db);
+  border-radius: 3px;
+}
+
+.modal::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary, #9ca3af);
 }
 
 /* Dark mode */
@@ -875,15 +931,16 @@
   align-items: flex-start;
   gap: 10px;
   cursor: pointer;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color, #e5e7eb);
+  padding: 12px 14px;
+  border-radius: var(--radius-md, 8px);
+  border: 1.5px solid var(--border-primary, #e5e7eb);
   background: var(--bg-secondary, #f9fafb);
-  transition: border-color 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .emailOptInOption:hover {
   border-color: var(--brand-primary, #ad35fa);
+  background: rgba(173, 53, 250, 0.02);
 }
 
 .emailOptInOption input[type="checkbox"] {
@@ -941,11 +998,12 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   margin: 20px 0;
-  padding: 16px;
+  padding: 16px 18px;
   background: var(--bg-secondary, #f8f9fa);
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-lg, 12px);
+  border: 1px solid var(--border-primary, #e5e7eb);
 }
 
 .summaryItem {
@@ -954,11 +1012,14 @@
   gap: 10px;
   font-size: 14px;
   color: var(--text-secondary, #6b7280);
+  line-height: 1.4;
 }
 
 .summaryItem svg {
   color: var(--success, #10b981);
   flex-shrink: 0;
+  width: 18px;
+  height: 18px;
 }
 
 /* Button Loader */
@@ -993,27 +1054,29 @@
 }
 
 .presetChip {
-  padding: 10px 14px;
+  padding: 10px 16px;
   font-size: 13px;
   font-weight: 500;
   color: var(--text-secondary, #6b7280);
   background: var(--bg-secondary, #f8f9fa);
-  border: 1px solid var(--border-primary, #e5e7eb);
-  border-radius: var(--radius-md, 8px);
+  border: 1.5px solid var(--border-primary, #e5e7eb);
+  border-radius: 20px;
   cursor: pointer;
   transition: all 0.15s ease;
+  user-select: none;
 }
 
 .presetChip:hover {
   border-color: var(--brand-primary, #ad35fa);
   color: var(--brand-primary, #ad35fa);
-  background: var(--bg-tertiary, #f3f4f6);
+  background: rgba(173, 53, 250, 0.04);
 }
 
 .presetChipActive {
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.1));
   border-color: var(--brand-primary, #ad35fa);
   color: var(--brand-primary, #ad35fa);
+  box-shadow: 0 0 0 2px rgba(173, 53, 250, 0.08);
 }
 
 .emailPersonalizationStep .textInputLabel {
