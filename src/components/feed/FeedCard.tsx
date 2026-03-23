@@ -119,6 +119,7 @@ export default function FeedCard({ story, isAdmin, onHide, onDelete, compact }: 
   const cardClassName = [
     styles.card,
     compact ? styles.cardCompact : "",
+    story.card_type === "off_the_charts" ? styles.cardOffTheCharts : "",
     hiding ? styles.cardHiding : "",
     overflowOpen ? styles.cardMenuOpen : "",
   ]

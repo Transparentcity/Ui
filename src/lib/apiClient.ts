@@ -6085,4 +6085,68 @@ export function createChatJob(
   return request<ChatJobResponse>("/api/chat/jobs", "POST", payload, token);
 }
 
+// ---------------------------------------------------------------------------
+// Cost Basket (city-vs-city cost comparison)
+// ---------------------------------------------------------------------------
+
+export interface CostCityResult {
+  cost: number;
+  budget: number | null;
+  volume: number | null;
+  cost_basis_label: string;
+  government_level: string;
+  source_name: string;
+  source_year: string;
+  source_url?: string;
+  quality_label?: string;
+  quality_value?: string;
+}
+
+export interface CostMetricResult {
+  metric_key: string;
+  label: string;
+  short_label: string;
+  unit: string;
+  icon: string;
+  category: string;
+  ratio: number;
+  rpp_adjusted_ratio: number;
+  methodology_note: string;
+  caveats: string[];
+  city_a: CostCityResult;
+  city_b: CostCityResult;
+}
+
+export interface CostBasketCategory {
+  category_key: string;
+  category_label: string;
+  metrics: CostMetricResult[];
+}
+
+export interface CostBasketResponse {
+  city_a_name: string;
+  city_b_name: string;
+  basket_index: number;
+  rpp_adjusted_basket_index: number;
+  more_expensive_city: string;
+  metrics_available: number;
+  biggest_gap_metric: string;
+  biggest_gap_ratio: number;
+  data_freshness: string;
+  categories: CostBasketCategory[];
+}
+
+export function getCostBasket(
+  token: string,
+  cityAId: number,
+  cityBId: number
+): Promise<CostBasketResponse> {
+  return request<CostBasketResponse>(
+    `/api/cost/basket?city_a_id=${cityAId}&city_b_id=${cityBId}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
 
