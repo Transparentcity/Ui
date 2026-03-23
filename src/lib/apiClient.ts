@@ -3727,8 +3727,13 @@ export interface FeedStory {
   view_count: number;
   click_count: number;
   share_count: number;
-  like_count: number;
-  comment_count: number;
+  applaud_count: number;
+  escalate_count: number;
+  investigate_count: number;
+  /** @deprecated Use applaud_count */
+  like_count?: number;
+  /** @deprecated Use escalate_count */
+  comment_count?: number;
   priority_score: number;
   is_featured: boolean;
   status: string;
@@ -3891,6 +3896,45 @@ export function escalateStory(
     `/api/feed/public/story/${storyId}/escalate`,
     "POST",
     { comment: comment || "", include_name: includeName ?? true },
+    token,
+  );
+}
+
+// Applaud a feed story (positive sentiment signal)
+export interface ApplaudStoryResponse {
+  success: boolean;
+  message: string;
+  applaud_count: number;
+}
+
+export function applaudStory(
+  storyId: number,
+  token?: string,
+): Promise<ApplaudStoryResponse> {
+  return request<ApplaudStoryResponse>(
+    `/api/feed/public/story/${storyId}/applaud`,
+    "POST",
+    {},
+    token,
+  );
+}
+
+// Investigate a feed story (official research queue)
+export interface InvestigateStoryResponse {
+  success: boolean;
+  message: string;
+  investigate_count: number;
+}
+
+export function investigateStory(
+  storyId: number,
+  token: string,
+  notes?: string,
+): Promise<InvestigateStoryResponse> {
+  return request<InvestigateStoryResponse>(
+    `/api/feed/story/${storyId}/investigate`,
+    "POST",
+    { notes: notes || null },
     token,
   );
 }

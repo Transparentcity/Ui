@@ -76,15 +76,11 @@ export default function WelcomeModal({
   const [placeLabel, setPlaceLabel] = useState("My block");
   const [placeRadius, setPlaceRadius] = useState(DEFAULT_PLACE_RADIUS_M);
 
-  // Preferences state
-  // All email types pre-defaulted on; user can edit in Settings later
-  const [personalizedEmail, setPersonalizedEmail] = useState(true);
-  const [anomalyAlerts, setAnomalyAlerts] = useState(true);
-  const [weeklyDigest, setWeeklyDigest] = useState(true);
-  const [monthlyReport, setMonthlyReport] = useState(true);
-  const [reportScope, setReportScope] = useState<"district" | "city">("district");
+  // Preferences state — two opt-ins: alerts + custom weekly newsletter
+  const [alertsOptIn, setAlertsOptIn] = useState(true);
+  const [weeklyNewsletterOptIn, setWeeklyNewsletterOptIn] = useState(true);
   const [newsletterDescription, setNewsletterDescription] = useState("");
-  const [newsletterFrequency, setNewsletterFrequency] = useState<"weekly" | "monthly">("weekly");
+  const newsletterFrequency = "weekly" as const;
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
 
   // Address autocomplete state
@@ -110,14 +106,10 @@ export default function WelcomeModal({
       setPlaceRadius(DEFAULT_PLACE_RADIUS_M);
       setAddressSuggestions([]);
       setShowAddressDropdown(false);
-      // Reset preferences (all emails on by default)
-      setPersonalizedEmail(true);
-      setAnomalyAlerts(true);
-      setWeeklyDigest(true);
-      setMonthlyReport(true);
-      setReportScope("district");
+      // Reset preferences (both opt-ins on by default)
+      setAlertsOptIn(true);
+      setWeeklyNewsletterOptIn(true);
       setNewsletterDescription("");
-      setNewsletterFrequency("weekly");
       setSelectedCategoryIds([]);
 
       const loadSavedNewsletterPreferences = async () => {
@@ -126,10 +118,9 @@ export default function WelcomeModal({
           const preferences = await getUserPreferences(token);
           if (cancelled) return;
 
-          const { newsletterDescription, newsletterFrequency } =
+          const { newsletterDescription } =
             readNewsletterPreferenceFields(preferences.extra);
           setNewsletterDescription(newsletterDescription);
-          setNewsletterFrequency(newsletterFrequency);
         } catch (err) {
           console.error("Error loading saved newsletter preferences:", err);
         }
@@ -962,6 +953,13 @@ export default function WelcomeModal({
         "Create a newsletter focused on environment and sustainability: air quality, waste, green infrastructure, and sustainability metrics. Compare to prior period and highlight key takeaways.",
       metricCategories: ["environment", "sustainability"],
     },
+    {
+      id: "government-budget",
+      label: "Government & Budget",
+      prompt:
+        "Create a newsletter focused on government spending and budgets: contracts, procurement, city expenditures, budget variances, and fiscal transparency. Compare to prior period and highlight notable changes.",
+      metricCategories: ["government", "budget"],
+    },
   ];
 
   /** Build newsletter prompt from selected preset ids; used to keep prompt and pills in sync. */
@@ -1031,25 +1029,28 @@ export default function WelcomeModal({
           rows={5}
         />
 
-        <div className={styles.frequencySelector}>
-          <span className={styles.frequencyLabel}>Frequency:</span>
-          <label className={styles.frequencyOption}>
+        <div className={styles.emailOptIns}>
+          <label className={styles.emailOptInOption}>
             <input
-              type="radio"
-              name="newsletterFrequencyEmail"
-              checked={newsletterFrequency === "weekly"}
-              onChange={() => setNewsletterFrequency("weekly")}
+              type="checkbox"
+              checked={alertsOptIn}
+              onChange={() => setAlertsOptIn(!alertsOptIn)}
             />
-            <span>Weekly</span>
+            <div>
+              <span className={styles.emailOptInTitle}>Alerts</span>
+              <span className={styles.emailOptInDesc}>Get notified when something unusual happens in your selected topics</span>
+            </div>
           </label>
-          <label className={styles.frequencyOption}>
+          <label className={styles.emailOptInOption}>
             <input
-              type="radio"
-              name="newsletterFrequencyEmail"
-              checked={newsletterFrequency === "monthly"}
-              onChange={() => setNewsletterFrequency("monthly")}
+              type="checkbox"
+              checked={weeklyNewsletterOptIn}
+              onChange={() => setWeeklyNewsletterOptIn(!weeklyNewsletterOptIn)}
             />
-            <span>Monthly</span>
+            <div>
+              <span className={styles.emailOptInTitle}>Custom weekly newsletter</span>
+              <span className={styles.emailOptInDesc}>A personalized weekly digest based on your selected topics</span>
+            </div>
           </label>
         </div>
 
@@ -1195,13 +1196,12 @@ export default function WelcomeModal({
         has_completed_onboarding: true,
         extra: {
           ...currentExtra,
+          selected_category_ids: selectedCategoryIds,
           communication_preferences: {
             ...communicationPreferences,
-            personalized_email: true,
-            anomaly_alerts: true,
-            weekly_digest: true,
-            monthly_report: true,
-            report_scope: "district",
+            anomaly_alerts: alertsOptIn,
+            personalized_email: weeklyNewsletterOptIn,
+            weekly_digest: weeklyNewsletterOptIn,
           },
         },
       };
