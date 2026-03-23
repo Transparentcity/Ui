@@ -8,12 +8,18 @@ import { useTrackFeedEngagement } from "@/lib/hooks/useFeed";
 import { applaudStory, escalateStory } from "@/lib/apiClient";
 import { useAuth0 } from "@auth0/auth0-react";
 import CardActionBar from "./CardActionBar";
+import CompactCardActionBar from "./CompactCardActionBar";
 import OverflowMenu from "./OverflowMenu";
 import EscalateSheet from "./EscalateSheet";
 import TextOnlyCard from "./templates/TextOnlyCard";
 import TextChartCard from "./templates/TextChartCard";
 import TextPhotoCard from "./templates/TextPhotoCard";
 import MultiMetricCard from "./templates/MultiMetricCard";
+import AlertCard from "./templates/AlertCard";
+import SpendingCard from "./templates/SpendingCard";
+import OffTheChartsCard from "./templates/OffTheChartsCard";
+import PhotoCard from "./templates/PhotoCard";
+import CompactCard from "./templates/CompactCard";
 import { useIsMobile } from "./useIsMobile";
 import styles from "./feed.module.css";
 
@@ -22,10 +28,12 @@ interface FeedCardProps {
   isAdmin?: boolean;
   onHide: (storyId: number) => void;
   onDelete?: (storyId: number) => void;
+  /** @deprecated previewMode is no longer used; feed-preview routes have been removed */
   previewMode?: boolean;
+  compact?: boolean;
 }
 
-export default function FeedCard({ story, isAdmin, onHide, onDelete, previewMode }: FeedCardProps) {
+export default function FeedCard({ story, isAdmin, onHide, onDelete, compact }: FeedCardProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
   const { getAccessTokenSilently } = useAuth0();
@@ -47,12 +55,8 @@ export default function FeedCard({ story, isAdmin, onHide, onDelete, previewMode
     // Don't navigate when an overlay is open
     if (overflowOpen || escalateOpen) return;
     trackEngagement.mutate({ storyId: story.id, action: "click" });
-    if (previewMode) {
-      router.push(`/feed-preview/${story.id}`);
-    } else {
-      router.push(`/feed/${story.id}`);
-    }
-  }, [router, story.id, overflowOpen, escalateOpen, previewMode, trackEngagement]);
+    router.push(`/feed/${story.id}`);
+  }, [router, story.id, overflowOpen, escalateOpen, trackEngagement]);
 
   const handleApplaud = useCallback(async () => {
     try {
@@ -114,6 +118,7 @@ export default function FeedCard({ story, isAdmin, onHide, onDelete, previewMode
 
   const cardClassName = [
     styles.card,
+    compact ? styles.cardCompact : "",
     story.card_type === "off_the_charts" ? styles.cardOffTheCharts : "",
     hiding ? styles.cardHiding : "",
     overflowOpen ? styles.cardMenuOpen : "",
@@ -121,17 +126,29 @@ export default function FeedCard({ story, isAdmin, onHide, onDelete, previewMode
     .filter(Boolean)
     .join(" ");
 
-  // Choose template
+  // Choose template — card_type overrides take priority for redesigned types
   const Template =
-    story.template === "multi_metric"
-      ? MultiMetricCard
-      : story.template === "text_chart"
-        ? TextChartCard
-        : story.template === "text_photo"
-          ? TextPhotoCard
-          : TextOnlyCard;
+    story.card_type === "alert"
+      ? AlertCard
+      : story.card_type === "spending"
+        ? SpendingCard
+        : story.card_type === "off_the_charts"
+          ? OffTheChartsCard
+          : story.card_type === "311_images"
+            ? PhotoCard
+            : story.template === "multi_metric"
+              ? MultiMetricCard
+              : story.template === "text_chart"
+                ? TextChartCard
+                : story.template === "text_photo"
+                  ? TextPhotoCard
+                  : TextOnlyCard;
 
-  const actionBar = (
+  const actionBar = compact ? (
+    <CompactCardActionBar
+      onOverflow={() => setOverflowOpen((o) => !o)}
+    />
+  ) : (
     <CardActionBar
       applaudCount={story.applaud_count}
       escalateCount={localEscalateCount}
@@ -144,7 +161,11 @@ export default function FeedCard({ story, isAdmin, onHide, onDelete, previewMode
 
   return (
     <article className={cardClassName} onClick={handleCardClick}>
-      <Template story={story}>{actionBar}</Template>
+      {compact ? (
+        <CompactCard story={story}>{actionBar}</CompactCard>
+      ) : (
+        <Template story={story}>{actionBar}</Template>
+      )}
 
       {/* Overflow menu anchor (positioned relative to action bar ···) */}
       <div className={styles.overflowAnchor} style={{ position: "absolute", right: 16, bottom: 16 }}>

@@ -17,7 +17,6 @@ const mockListFoiaAttachments = vi.fn()
 const mockListFoiaRequestEvents = vi.fn()
 const mockListFoiaTasks = vi.fn()
 const mockListFoiaSubmissionAttempts = vi.fn()
-const mockSubmitFoiaRequest = vi.fn()
 
 vi.mock("@auth0/auth0-react", () => ({
   useAuth0: () => ({
@@ -36,12 +35,18 @@ vi.mock("@/lib/foiaApiClient", () => ({
   markFoiaExternallyFiled: vi.fn(),
   updateFoiaRequest: vi.fn(),
   aiDraftFoiaRequest: vi.fn(),
-  submitFoiaRequest: (...args: unknown[]) => mockSubmitFoiaRequest(...args),
-  changeFoiaRequestStatus: vi.fn(),
+}))
+
+const mockSubmitFoiaRequest = vi.fn()
+
+vi.mock("@/app/actions/foia", () => ({
   createFoiaMessage: vi.fn(),
   completeFoiaTask: vi.fn(),
   createFoiaTask: vi.fn(),
+  submitFoiaRequest: (...args: unknown[]) => mockSubmitFoiaRequest(...args),
+  updateRequestStatus: vi.fn(),
   uploadFoiaFile: vi.fn(),
+  rewriteFoiaRequest: vi.fn(),
 }))
 
 vi.mock("@/lib/apiBase", () => ({

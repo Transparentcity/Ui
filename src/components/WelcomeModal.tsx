@@ -929,8 +929,8 @@ export default function WelcomeModal({
       id: "economy",
       label: "Economy & Jobs",
       prompt:
-        "Create a newsletter focused on local economy and jobs: business permits, employment-related metrics, economic development, and key indicators. Include period-over-period comparison and notable shifts.",
-      metricCategories: ["economy"],
+        "Create a newsletter focused on local economy and jobs: business permits, employment-related metrics, economic development, government spending, budgets, contracts, procurement, and key indicators. Include period-over-period comparison and notable shifts.",
+      metricCategories: ["economy", "government", "budget"],
     },
     {
       id: "real-estate",

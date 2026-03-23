@@ -36,19 +36,13 @@ export const mapLayerKeys = {
 /**
  * Cache configuration for map layers
  * Map data changes infrequently, so we use long cache times to avoid re-fetching
- * when toggling layers on/off or when changing location and then coming back.
- *
- * Cache key includes location (districts + placeCircle), so changing district or
- * "My Block" correctly triggers a new fetch for that location. Returning to a
- * previously visited location uses the cache.
+ * when toggling layers on/off
  */
 const MAP_LAYER_CACHE_CONFIG = {
   // Data is considered fresh for 15 minutes - won't refetch during this time
   staleTime: 15 * 60 * 1000,
   // Keep data in cache for 30 minutes even when unused
   gcTime: 30 * 60 * 1000,
-  // Don't refetch when the component remounts (e.g. after city switch) if we have cached data
-  refetchOnMount: false,
   // Don't refetch on window focus for map layers
   refetchOnWindowFocus: false,
   // Don't refetch on reconnect
@@ -221,8 +215,7 @@ export function useMapLayersData(
         metricId,
         params.startDate,
         params.endDate,
-        params.districts,
-        params.placeCircle ?? null
+        params.districts
       );
       return queryClient.getQueryData<MapData>(cacheKey);
     },
@@ -232,8 +225,7 @@ export function useMapLayersData(
         metricId,
         params.startDate,
         params.endDate,
-        params.districts,
-        params.placeCircle ?? null
+        params.districts
       );
       // Only prefetch if not already in cache
       const existing = queryClient.getQueryData<MapData>(cacheKey);
@@ -245,9 +237,6 @@ export function useMapLayersData(
             start_date: params.startDate ?? null,
             end_date: params.endDate ?? null,
             districts: params.districts,
-            center_lat: params.placeCircle?.lat ?? null,
-            center_lon: params.placeCircle?.lng ?? null,
-            radius_m: params.placeCircle?.radius_m ?? null,
           };
           const response = await getMetricMapData(request, token);
           if (response.status === "success" && response.map_data) {
@@ -267,8 +256,7 @@ export function useMapLayersData(
             metricId,
             params.startDate,
             params.endDate,
-            params.districts,
-            params.placeCircle ?? null
+            params.districts
           ),
         });
       });
@@ -295,9 +283,8 @@ export function useCachedMapLayerData(
     metricId,
     params.startDate,
     params.endDate,
-    params.districts,
-    params.placeCircle ?? null
+    params.districts
   );
-
+  
   return queryClient.getQueryData<MapData>(cacheKey);
 }

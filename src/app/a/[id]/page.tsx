@@ -7,7 +7,6 @@ import Link from "next/link";
 import { getPublicMetric, getPublicCityDetail, type PublicMetricDetail, type PublicCityDetail } from "@/lib/publicApiClient";
 import { parseLocalDate } from "@/lib/dateRange";
 import Loader from "@/components/Loader";
-import { useTheme } from "@/contexts/ThemeContext";
 import "./styles.css";
 
 // Dynamically import AnomalyMap to avoid SSR issues with Mapbox
@@ -135,16 +134,8 @@ function calculateZScore(difference: number, stdDev: number): number | null {
 export default function AnomalyChartPage() {
   const params = useParams();
   const searchParams = useSearchParams();
-  const { theme } = useTheme();
   const anomalyId = params.id as string;
   const isEmbedded = searchParams.get("embedded") === "true";
-  const forcedTheme =
-    searchParams.get("theme") === "dark"
-      ? "dark"
-      : searchParams.get("theme") === "light"
-        ? "light"
-        : undefined;
-  const effectiveTheme = forcedTheme ?? theme;
 
   const [anomaly, setAnomaly] = useState<Anomaly | null>(null);
   const [loading, setLoading] = useState(true);
@@ -157,18 +148,6 @@ export default function AnomalyChartPage() {
   const [metricDetail, setMetricDetail] = useState<PublicMetricDetail | null>(null);
   const [cityDetail, setCityDetail] = useState<PublicCityDetail | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!forcedTheme || typeof document === "undefined") return;
-    const root = document.documentElement;
-    if (forcedTheme === "dark") {
-      root.setAttribute("data-theme", "dark");
-      root.classList.add("dark");
-      return;
-    }
-    root.removeAttribute("data-theme");
-    root.classList.remove("dark");
-  }, [forcedTheme]);
 
   // Fetch anomaly data
   useEffect(() => {
@@ -641,27 +620,13 @@ export default function AnomalyChartPage() {
           title += `<br>${groupField}: <b>${groupValue}</b>`;
         }
         
-        const subtitleColor =
-          effectiveTheme === "dark" ? "#e2e8f0" : "#666666";
-
         if (recentDateDisplay) {
-          title += `<br><span style="font-size: 0.9em; color: ${subtitleColor};">${recentDateDisplay}</span>`;
+          title += `<br><span style="font-size: 0.9em; color: #666;">${recentDateDisplay}</span>`;
         }
         
         return title;
       })()
     : "";
-
-  const plotTextColor = effectiveTheme === "dark" ? "#f8fafc" : "#222222";
-  const plotSecondaryTextColor =
-    effectiveTheme === "dark" ? "#e2e8f0" : "#666666";
-  const plotAxisLineColor = effectiveTheme === "dark" ? "#475569" : "#e5e7eb";
-  const plotGridColor =
-    effectiveTheme === "dark"
-      ? "rgba(203, 213, 225, 0.25)"
-      : "rgba(232, 233, 235, 0.5)";
-  const plotHoverBgColor = effectiveTheme === "dark" ? "#1e293b" : "#F6F1EA";
-  const plotHoverTextColor = effectiveTheme === "dark" ? "#f8fafc" : "#222222";
 
   const yAxisLabel =
     anomaly?.metadata?.y_axis_label ||
@@ -881,7 +846,7 @@ export default function AnomalyChartPage() {
                   font: {
                     family: "Inter, Arial, sans-serif",
                     size: 14,
-                    color: plotTextColor,
+                    color: "var(--text-primary, #222222)",
                   },
                   y: 0.95,
                   x: 0.5,
@@ -896,12 +861,12 @@ export default function AnomalyChartPage() {
                   tickfont: {
                     family: "IBM Plex Sans, Arial, sans-serif",
                     size: 9,
-                    color: plotTextColor,
+                    color: "var(--text-primary, #222222)",
                   },
                   ticklen: 3,
-                  tickcolor: plotTextColor,
+                  tickcolor: "var(--text-primary, #222222)",
                   showline: true,
-                  linecolor: plotAxisLineColor,
+                  linecolor: "#e5e7eb",
                   linewidth: 1,
                   tickpadding: 10,
                 },
@@ -912,16 +877,16 @@ export default function AnomalyChartPage() {
                     font: {
                       family: "IBM Plex Sans, Arial, sans-serif",
                       size: 10,
-                      color: plotTextColor,
+                      color: "var(--text-primary, #222222)",
                     },
                   },
                   showgrid: true,
-                  gridcolor: plotGridColor,
+                  gridcolor: "rgba(232, 233, 235, 0.5)",
                   zeroline: false,
                   tickfont: {
                     family: "IBM Plex Sans, Arial, sans-serif",
                     size: 9,
-                    color: plotTextColor,
+                    color: "var(--text-primary, #222222)",
                   },
                 },
                 showlegend: true,
@@ -934,7 +899,7 @@ export default function AnomalyChartPage() {
                   font: {
                     family: "IBM Plex Sans, Arial, sans-serif",
                     size: 9,
-                    color: plotTextColor,
+                    color: "var(--text-primary, #222222)",
                   },
                 },
                 margin: { t: 40, b: 25, l: 50, r: 45 },
@@ -943,12 +908,12 @@ export default function AnomalyChartPage() {
                 plot_bgcolor: "transparent",
                 hovermode: "closest",
                 hoverlabel: {
-                  bgcolor: plotHoverBgColor,
+                  bgcolor: "var(--soft-sand, #F6F1EA)",
                   bordercolor: "var(--brand-primary, #ad35fa)",
                   font: {
                     family: "IBM Plex Sans, Arial, sans-serif",
                     size: 9,
-                    color: plotHoverTextColor,
+                    color: "#222222",
                   },
                 },
               }}
@@ -1090,21 +1055,21 @@ export default function AnomalyChartPage() {
                     title: "",
                     showgrid: false,
                     ...xAxisTicks,
-                    tickfont: { family: "IBM Plex Sans, Arial, sans-serif", size: 11, color: plotTextColor },
+                    tickfont: { family: "IBM Plex Sans, Arial, sans-serif", size: 11, color: "var(--text-primary, #222222)" },
                     ticklen: 3,
-                    tickcolor: plotTextColor,
+                    tickcolor: "var(--text-primary, #222222)",
                     showline: true,
-                    linecolor: plotAxisLineColor,
+                    linecolor: "#e5e7eb",
                     linewidth: 1,
                     tickpadding: 10,
                   },
                   yaxis: {
                     visible: true,
-                    title: { text: yAxisLabel, font: { family: "IBM Plex Sans, Arial, sans-serif", size: 12, color: plotTextColor } },
+                    title: { text: yAxisLabel, font: { family: "IBM Plex Sans, Arial, sans-serif", size: 12, color: "var(--text-primary, #222222)" } },
                     showgrid: true,
-                    gridcolor: plotGridColor,
+                    gridcolor: "rgba(232, 233, 235, 0.5)",
                     zeroline: false,
-                    tickfont: { family: "IBM Plex Sans, Arial, sans-serif", size: 11, color: plotTextColor },
+                    tickfont: { family: "IBM Plex Sans, Arial, sans-serif", size: 11, color: "var(--text-primary, #222222)" },
                   },
                   showlegend: true,
                   legend: {
@@ -1113,7 +1078,7 @@ export default function AnomalyChartPage() {
                     y: -0.08,
                     xanchor: "center",
                     yanchor: "top",
-                    font: { family: "IBM Plex Sans, Arial, sans-serif", size: 10, color: plotTextColor },
+                    font: { family: "IBM Plex Sans, Arial, sans-serif", size: 10, color: "var(--text-primary, #222222)" },
                   },
                   margin: { t: 20, b: 60, l: 60, r: 30 },
                   height: 400,
@@ -1121,9 +1086,9 @@ export default function AnomalyChartPage() {
                   plot_bgcolor: "transparent",
                   hovermode: "closest",
                   hoverlabel: {
-                    bgcolor: plotHoverBgColor,
+                    bgcolor: "var(--soft-sand, #F6F1EA)",
                     bordercolor: "var(--brand-primary, #ad35fa)",
-                    font: { family: "IBM Plex Sans, Arial, sans-serif", size: 10, color: plotHoverTextColor },
+                    font: { family: "IBM Plex Sans, Arial, sans-serif", size: 10, color: "#222222" },
                   },
                 }}
                 config={{ responsive: true, displayModeBar: false }}

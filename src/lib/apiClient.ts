@@ -4195,6 +4195,8 @@ export interface CreateResearchRequest {
   model_key?: string;
   require_agenda_approval?: boolean;
   enable_web_search?: boolean;
+  max_iterations?: number;
+  max_subquestions?: number;
   is_newsletter?: boolean;
   newsletter_frequency?: "weekly" | "monthly" | null;
   generate_feed_stories?: boolean;

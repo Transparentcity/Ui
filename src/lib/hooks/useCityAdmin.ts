@@ -399,17 +399,16 @@ export function useInstantiateAllTemplates() {
     mutationFn: async ({
       cityId,
       modelKey,
-      onlyMissing = true,
     }: {
       cityId: number;
       modelKey?: string | null;
-      onlyMissing?: boolean;
     }) => {
       const token = await getAccessTokenSilently();
-      return instantiateAllTemplates(cityId, token, {
-        ...(modelKey != null ? { model_key: modelKey } : {}),
-        only_missing: onlyMissing,
-      });
+      return instantiateAllTemplates(
+        cityId,
+        token,
+        modelKey != null ? { model_key: modelKey } : undefined
+      );
     },
     onSuccess: (_, variables) => {
       const cityId = typeof variables === "number" ? variables : variables.cityId;

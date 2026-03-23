@@ -197,21 +197,20 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         <CitySignupButton />
       </PublicNavBar>
 
-      <section className="hero" style={{ paddingTop: 96 }}>
+      {/* Compact hero: city name + quick context, then straight into the dashboard */}
+      <section className="city-hero" style={{ paddingTop: 96 }}>
         <div className="container">
-          <div className="hero-content">
-            <div className="hero-text">
-              <span className="badge">City page</span>
-              <h1 className="hero-title">
+          <div className="city-hero-inner">
+            <div className="city-hero-left">
+              <h1 className="city-hero-title">
                 {city ? `${city.emoji || "🏙️"} ${city.display}` : slug}
               </h1>
-              <p className="hero-description">
+              <p className="city-hero-subtitle">
                 {city
-                  ? `Browse ${city.datasets_count} public datasets and source-linked civic context, from citywide to block level.`
-                  : "Browse public datasets and source-linked civic context, from citywide to block level."}
+                  ? `${city.datasets_count} public datasets tracked, from citywide to block level.`
+                  : "Public datasets tracked, from citywide to block level."}
               </p>
-
-              {/* City official (mayor): same treatment as district – follow + claim */}
+              {/* City official (mayor) */}
               {(cityDetail?.mayor || cityDetail?.mayor_subscriber_count != null) && city?.id && (
                 <div className="hero-mayor-subscribers hero-official-row">
                   <span className="hero-mayor-name">
@@ -220,22 +219,43 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                   <DistrictFollowClaimBlock cityId={city.id} district={0} slug={slug} />
                 </div>
               )}
-              
-              {/* Single sign-up for updates */}
-              <div className="hero-newsletter">
-                <CityHeroNewsletter cityName={city?.display ?? slug} />
-              </div>
+            </div>
+            <div className="city-hero-right">
+              <CityHeroNewsletter cityName={city?.display ?? slug} />
             </div>
           </div>
-        </div>
-        <div className="hero-background">
-          <div className="gradient-orb orb-1" />
-          <div className="gradient-orb orb-2" />
-          <div className="gradient-orb orb-3" />
+          {/* Category pills */}
+          {uniqueCategories.length > 0 && (
+            <div className="city-hero-categories">
+              {uniqueCategories.map((cat) => (
+                <Link
+                  key={cat}
+                  href={`/c/${slug}/category/${encodeURIComponent(cat)}`}
+                  className="hero-category-link"
+                >
+                  {cat}
+                </Link>
+              ))}
+              {city?.id && (cityDetail?.metrics?.length ?? 0) > 0 && (
+                <CustomizeMetricsTrigger
+                  cityId={city.id}
+                  cityName={city.display}
+                  metrics={(cityDetail!.metrics ?? []).map((m) => ({
+                    id: m.id,
+                    metric_name: m.metric_name,
+                    category: m.category,
+                    subcategory: m.subcategory ?? null,
+                    sub_category: m.subcategory ?? null,
+                  }))}
+                />
+              )}
+            </div>
+          )}
         </div>
       </section>
 
-      <div className="container">
+      {/* Dashboard: the main event */}
+      <div className="container city-dashboard-wrapper">
         {city?.id ? (
           <CityDashboardSectionWithOrdering
             cityId={city.id}
@@ -259,37 +279,53 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         )}
       </div>
 
-      {/* Category / subcategory-level dashboard links - below citywide dashboard */}
-      {(uniqueCategories.length > 0 || (city?.id && (cityDetail?.metrics?.length ?? 0) > 0)) && (
-        <div className="dashboard-below-links container" style={{ marginTop: 24, marginBottom: 24 }}>
-          <div className="hero-category-links">
-            {uniqueCategories.map((cat) => (
-              <Link
-                key={cat}
-                href={`/c/${slug}/category/${encodeURIComponent(cat)}`}
-                className="hero-category-link"
-              >
-                {cat}
-              </Link>
-            ))}
-            {city?.id && (cityDetail?.metrics?.length ?? 0) > 0 && (
-              <CustomizeMetricsTrigger
-                cityId={city.id}
-                cityName={city.display}
-                metrics={(cityDetail!.metrics ?? []).map((m) => ({
-                  id: m.id,
-                  metric_name: m.metric_name,
-                  category: m.category,
-                  subcategory: m.subcategory ?? null,
-                  sub_category: m.subcategory ?? null,
-                }))}
-              />
-            )}
+      {/* Benefits + sign-up CTA */}
+      <section className="city-benefits-section">
+        <div className="container">
+          <h2 className="city-benefits-heading">
+            This is just the public view. Sign up (free) to unlock the full picture.
+          </h2>
+          <div className="city-benefits-grid">
+            <div className="city-benefit-card">
+              <span className="city-benefit-icon">📊</span>
+              <h3 className="city-benefit-title">Personalized dashboard</h3>
+              <p className="city-benefit-desc">
+                Customize which metrics you see, reorder categories, and save your
+                layout so you can track the issues you care about most.
+              </p>
+            </div>
+            <div className="city-benefit-card">
+              <span className="city-benefit-icon">🗺️</span>
+              <h3 className="city-benefit-title">Block-level maps</h3>
+              <p className="city-benefit-desc">
+                Interactive maps that show data at the neighborhood and block level,
+                not just city averages. See what is happening where you actually live.
+              </p>
+            </div>
+            <div className="city-benefit-card">
+              <span className="city-benefit-icon">🔔</span>
+              <h3 className="city-benefit-title">Alerts and updates</h3>
+              <p className="city-benefit-desc">
+                Follow your district or specific metrics and get notified when new data
+                drops or when something changes significantly.
+              </p>
+            </div>
+            <div className="city-benefit-card">
+              <span className="city-benefit-icon">📝</span>
+              <h3 className="city-benefit-title">Source-linked research</h3>
+              <p className="city-benefit-desc">
+                Every number links back to the public source it came from. Read AI-assisted
+                research writeups that explain what the data actually means.
+              </p>
+            </div>
+          </div>
+          <div className="city-benefits-cta">
+            <CitySignupButton />
           </div>
         </div>
-      )}
+      </section>
 
-      <footer className="footer">
+      <footer className="footer city-footer">
         <div className="container">
           <div className="footer-content">
             <div className="footer-column">
@@ -298,19 +334,44 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                 <span className="logo-city">.city</span>
               </div>
               <p className="footer-description">
-                Maps, metrics, and research built from public city data—from citywide to block level—so
-                residents and elected officials can share the same picture of what’s
-                happening.
+                Maps, metrics, and research built from public city data so residents and
+                elected officials can share the same picture of what is happening.
               </p>
             </div>
             <div className="footer-column">
-              <h4 className="footer-title">Resources</h4>
+              <h4 className="footer-title">Explore</h4>
               <Link href={`/c/${slug}/methodology`} className="footer-link">
                 Methodology
               </Link>
               <Link href="/sitemap" className="footer-link">
-                Site Map
+                All cities
               </Link>
+              <Link href="/" className="footer-link">
+                Home
+              </Link>
+            </div>
+            <div className="footer-column">
+              <h4 className="footer-title">Get involved</h4>
+              <Link href="/pro" className="footer-link">
+                Add your city
+              </Link>
+              <Link href="/claim" className="footer-link">
+                Elected officials
+              </Link>
+              <a
+                href="https://www.transparentsf.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-link"
+              >
+                Newsletter
+              </a>
+            </div>
+            <div className="footer-column">
+              <h4 className="footer-title">Contact</h4>
+              <a href="mailto:hello@transparentcity.com" className="footer-link">
+                hello@transparentcity.com
+              </a>
             </div>
           </div>
           <div className="footer-bottom">

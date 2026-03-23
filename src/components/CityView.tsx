@@ -9,7 +9,7 @@ import DistrictNavigation from "@/components/DistrictNavigation";
 import AnomaliesTabPanel from "@/components/AnomaliesTabPanel";
 import { useCity, useSavedCities, useSaveCity, useUnsaveCity, useCityLeaders, useRepresentativeFollowerCounts, usePublicCityDistricts, useRepresentativeFollows, useFollowRepresentative, useUnfollowRepresentative } from "@/lib/hooks/useCities";
 import type { CityLeader } from "@/lib/apiClient";
-import { listMyPlaces, getPlaceMetrics, getPlaceAnomalies, runPlaceMetricsAndAnomaliesAsJob, getJob, type PlaceTimeSeriesPoint, type PlaceAnomaly } from "@/lib/apiClient";
+import { listMyPlaces, getPlaceMetrics, getPlaceAnomalies, runPlaceMetricsAndAnomaliesAsJob, getJob, getPlaceRefreshLastRun, type PlaceTimeSeriesPoint, type PlaceAnomaly } from "@/lib/apiClient";
 import { useUserMetricOrdering } from "@/lib/hooks/useCityAdmin";
 import { emitSavedCitiesChanged, SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEvents";
 import { getPresetMetricDateRange, getDefaultDateRangeFromMetrics, type MetricDateRange } from "@/lib/dateRange";
@@ -30,7 +30,7 @@ interface CityViewProps {
   isAdmin: boolean;
   gpsLocation?: { lat: number; lng: number } | null;
   initialDistrict?: number | null;
-  /** When set, select this saved place in the dashboard scope (e.g. from sidebar My Places). */
+  /** When set, select this saved place in the dashboard scope (e.g. from sidebar My Cities). */
   initialPlaceId?: number | null;
   /** When set to this cityId, open the Find Your District modal (e.g. from Search Cities). */
   requestOpenDistrictModal?: number | null;
@@ -1808,11 +1808,11 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
     getPresetMetricDateRange("mtd")
   );
   // Use initialDistrict if provided, otherwise default to 0 (mayor/citywide)
-  // When initialPlaceId is set (My block), we use place scope so district is 0 and place is set from the start to avoid flashing "Citywide".
+  // If initialDistrict is explicitly null, use 0 (citywide); if undefined, also use 0
   const [selectedDistrict, setSelectedDistrict] = useState<number | null>(
-    initialPlaceId != null ? 0 : (initialDistrict !== undefined && initialDistrict !== null ? initialDistrict : 0)
+    initialDistrict !== undefined && initialDistrict !== null ? initialDistrict : 0
   );
-  const [selectedPlaceId, setSelectedPlaceId] = useState<number | null>(initialPlaceId ?? null);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<number | null>(null);
   const [userPlaces, setUserPlaces] = useState<{ id: number; label: string; city_id: number; lat?: number; lng?: number; radius_m?: number }[]>([]);
   const [placesRefreshKey, setPlacesRefreshKey] = useState(0);
   const [districtGPSLocation, setDistrictGPSLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -1900,17 +1900,31 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
               radius_m: p.radius_m,
             }))
           );
-          setLastPlaceRefreshAt(res.place_refresh_last_run_at ?? null);
         }
       })
       .catch(() => {
-        if (!cancelled) {
-          setUserPlaces([]);
-          setLastPlaceRefreshAt(null);
-        }
+        if (!cancelled) setUserPlaces([]);
       });
     return () => { cancelled = true; };
   }, [cityId, cityLoaded, isAuthenticated, getAccessTokenSilently, placesRefreshKey]);
+
+  // Fetch last place refresh time for dashboard header (authenticated users only)
+  useEffect(() => {
+    if (!cityLoaded || !isAuthenticated) {
+      setLastPlaceRefreshAt(null);
+      return;
+    }
+    let cancelled = false;
+    getAccessTokenSilently()
+      .then((token) => getPlaceRefreshLastRun(token))
+      .then((res) => {
+        if (!cancelled && res.last_run_at) setLastPlaceRefreshAt(res.last_run_at);
+      })
+      .catch(() => {
+        if (!cancelled) setLastPlaceRefreshAt(null);
+      });
+    return () => { cancelled = true; };
+  }, [cityLoaded, isAuthenticated, getAccessTokenSilently]);
 
   // Determine if current city is saved (still used for sidebar/onboarding, not header)
   const isCitySaved = useMemo(() => {
@@ -2039,8 +2053,8 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
     }
   };
 
-  // Only show full loading when we have no data yet (initial load). If we have cached city data, keep showing it during refetch to avoid "load → disappear → re-load" flash.
-  const loading = loadingCity && !cityData;
+  // Only block on city + metrics so dashboard can show first; saved cities load in background
+  const loading = loadingCity;
   const error = cityError ? (cityError as Error).message : null;
 
   if (loading) {
@@ -2120,21 +2134,11 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
                 }}
                 onPlaceSaved={() => setPlacesRefreshKey((k) => k + 1)}
                 openTrigger={openDistrictTrigger}
-                placeRefreshLastRunAt={lastPlaceRefreshAt}
               />
             </div>
           ) : (
             <div className="city-view-place-selector-row city-view-place-selector-fallback">
-              <span className="city-view-place-selector-label">
-                {selectedPlaceId != null
-                  ? (userPlaces.find((p) => p.id === selectedPlaceId)?.label ?? "My block")
-                  : "Citywide"}
-                {selectedPlaceId != null && lastPlaceRefreshAt && (
-                  <span className="city-view-place-selector-refresh">
-                    {" "}(refreshed {new Date(lastPlaceRefreshAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })})
-                  </span>
-                )}
-              </span>
+              <span className="city-view-place-selector-label">Citywide</span>
             </div>
           )}
         </header>

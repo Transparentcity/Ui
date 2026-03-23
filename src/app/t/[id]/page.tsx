@@ -67,12 +67,6 @@ export default function TimeSeriesChartPage() {
   const searchParams = useSearchParams();
   const chartId = params.id as string;
   const isEmbedded = searchParams.get("embedded") === "true";
-  const forcedTheme =
-    searchParams.get("theme") === "dark"
-      ? "dark"
-      : searchParams.get("theme") === "light"
-        ? "light"
-        : undefined;
 
   const [timeSeries, setTimeSeries] = useState<TimeSeriesResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -111,18 +105,6 @@ export default function TimeSeriesChartPage() {
 
     return () => { mounted = false; };
   }, [chartId]);
-
-  useEffect(() => {
-    if (!forcedTheme || typeof document === "undefined") return;
-    const root = document.documentElement;
-    if (forcedTheme === "dark") {
-      root.setAttribute("data-theme", "dark");
-      root.classList.add("dark");
-      return;
-    }
-    root.removeAttribute("data-theme");
-    root.classList.remove("dark");
-  }, [forcedTheme]);
 
   useEffect(() => {
     if (timeSeries?.metadata) {
@@ -237,7 +219,6 @@ export default function TimeSeriesChartPage() {
             fullBleed={true}
             hidePeriodSelector={false}
             showExternalTitle={false}
-            forcedTheme={forcedTheme}
           />
         </div>
       </div>
@@ -317,7 +298,6 @@ export default function TimeSeriesChartPage() {
             fullBleed={true}
             hidePeriodSelector={false}
             showExternalTitle={true}
-            forcedTheme={forcedTheme}
           />
         </div>
 

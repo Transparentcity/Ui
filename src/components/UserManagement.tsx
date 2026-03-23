@@ -27,15 +27,7 @@ import {
 import Loader from "./Loader";
 import styles from "./UserManagement.module.css";
 
-interface UserManagementProps {
-  currentUserId?: number | null;
-  onLoginAsUser?: (user: User) => void;
-}
-
-export default function UserManagement({
-  currentUserId = null,
-  onLoginAsUser,
-}: UserManagementProps) {
+export default function UserManagement() {
   const { getAccessTokenSilently } = useAuth0();
   const [stats, setStats] = useState<UserStats | null>(null);
   const [dbSize, setDbSize] = useState<DatabaseSizeResponse | null>(null);
@@ -176,7 +168,6 @@ export default function UserManagement({
     setEditForm({
       role: user.role as "admin" | "analyst" | "viewer",
       is_active: user.is_active,
-      custom_email_prompt: user.custom_email_prompt ?? null,
     });
     setEditCityLeadCityIds(user.city_lead_city_ids || []);
     setEditCityLeadDirty(false);
@@ -344,21 +335,6 @@ export default function UserManagement({
       console.error("Error making user admin:", err);
       setError(err instanceof Error ? err.message : "Failed to make user admin");
     }
-  };
-
-  const handleLoginAsUser = (user: User) => {
-    if (!onLoginAsUser) {
-      return;
-    }
-
-    const confirmed = confirm(
-      `Start a proxy session as ${user.email}? Your admin session will stay available until you end the proxy.`,
-    );
-    if (!confirmed) {
-      return;
-    }
-
-    onLoginAsUser(user);
   };
 
   const formatSubLabel = (sub: NewsletterSubscription): string => {
@@ -894,15 +870,6 @@ export default function UserManagement({
                         >
                           <i className="fas fa-edit"></i>
                         </button>
-                        {onLoginAsUser && user.id !== currentUserId && (
-                          <button
-                            onClick={() => handleLoginAsUser(user)}
-                            className={styles.actionBtn}
-                            title="Log in as this user"
-                          >
-                            <i className="fas fa-sign-in-alt"></i>
-                          </button>
-                        )}
                         {user.role !== "admin" && (
                           <button
                             onClick={() => handleMakeAdmin(user.id)}
@@ -1154,24 +1121,7 @@ export default function UserManagement({
                       </button>
                     )}
                   </>
-                    )}
-              </div>
-
-              <div className={styles.formGroup}>
-                <label className={styles.formLabel}>Custom email prompt</label>
-                <p className={styles.helpText} style={{ marginBottom: 6 }}>
-                  Optional instructions for this user&apos;s newsletter/email content (e.g. focus on housing, keep it brief).
-                </p>
-                <textarea
-                  value={editForm.custom_email_prompt ?? ""}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, custom_email_prompt: e.target.value || null })
-                  }
-                  className={styles.formInput}
-                  rows={4}
-                  placeholder="e.g. Focus on housing and permits. Keep to 2–3 sentences."
-                  style={{ resize: "vertical", minHeight: 80 }}
-                />
+                )}
               </div>
 
               <div className={styles.formGroup}>

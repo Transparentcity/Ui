@@ -640,7 +640,7 @@ export default function CityTypeahead({
                   className="city-typeahead-save-btn"
                   onClick={(e) => handleToggleSave(city.id, e)}
                   disabled={saving}
-                  title={savedCityIds.has(city.id) ? "Remove from My Places" : "Save to My Places"}
+                  title={savedCityIds.has(city.id) ? "Remove from My Cities" : "Save to My Cities"}
                 >
                   <svg
                     width="14"
@@ -695,7 +695,7 @@ export default function CityTypeahead({
                   className="city-typeahead-save-btn"
                   onClick={(e) => handleToggleSave(city.id, e)}
                   disabled={saving}
-                  title={savedCityIds.has(city.id) ? "Remove from My Places" : "Save to My Places"}
+                  title={savedCityIds.has(city.id) ? "Remove from My Cities" : "Save to My Cities"}
                 >
                   <svg
                     width="14"

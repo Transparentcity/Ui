@@ -31,13 +31,13 @@ interface SidebarProps {
   onCityClick?: (cityId: number) => void;
   onDistrictClick?: (cityId: number, district: number) => void;
   activeCityId?: number | null;
-  /** Active district when viewing a city (for highlighting in My Places). */
+  /** Active district when viewing a city (for highlighting in My Cities). */
   activeDistrict?: string | number | null;
-  /** User's saved places (for My Places list). When set, shown under each city. */
+  /** User's saved places (for My Cities list). When set, shown under each city. */
   userPlaces?: Array<{ id: number; city_id: number; label: string }>;
   /** Currently selected place id (for active state in sidebar). */
   activePlaceId?: number | null;
-  /** Called when user clicks a saved place in My Places: open city with this place selected. */
+  /** Called when user clicks a saved place in My Cities: open city with this place selected. */
   onPlaceClick?: (cityId: number, placeId: number) => void;
   onResearchClick?: (reportId: number) => void;
   currentResearchId?: number | null;
@@ -394,7 +394,7 @@ export default function Sidebar({
           {/* Spacing */}
           <div className={styles.navSectionSpacer}></div>
 
-          {/* My Places & Districts Section */}
+          {/* My Cities & Districts Section */}
           <MyCities
             onCityClick={(cityId) => {
               if (onCityClick) {

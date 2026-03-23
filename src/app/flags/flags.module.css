@@ -1,0 +1,254 @@
+/* Flag Dashboard styles */
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+.header { margin-bottom: 24px; }
+
+.title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 6px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tab:hover { color: var(--text-primary); }
+.tabActive { color: var(--brand-primary); border-bottom-color: var(--brand-primary); }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--error);
+  border-radius: 10px;
+}
+
+.badgeResolved {
+  composes: badge;
+  background: var(--success);
+}
+
+/* List */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.statusOpen { background: var(--error); }
+.statusResolved { background: var(--success); }
+
+.cardStatus {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+  color: var(--text-secondary);
+}
+
+.timestamp {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-left: auto;
+}
+
+.cardTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+
+.commentBlock {
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+
+.commentAuthor {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.commentText {
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.resolutionBlock {
+  background: rgba(16, 185, 129, 0.06);
+  border-left: 2px solid var(--success);
+  border-radius: 0 6px 6px 0;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+
+.resolutionLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--success);
+  margin-bottom: 4px;
+}
+
+.resolutionText {
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.resolveForm {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.resolveInput {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  resize: vertical;
+  font-family: inherit;
+}
+
+.resolveInput:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+}
+
+.resolveButtons {
+  display: flex;
+  gap: 8px;
+}
+
+.primaryBtn {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--brand-primary);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  text-decoration: none;
+}
+
+.primaryBtn:hover { opacity: 0.9; }
+
+.secondaryBtn {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-decoration: none;
+}
+
+.secondaryBtn:hover {
+  border-color: var(--border-secondary);
+  color: var(--text-primary);
+}
+
+.resolvedTimestamp {
+  font-size: 12px;
+  color: var(--success);
+  font-weight: 500;
+  padding-top: 8px;
+}
+
+/* States */
+.loadingState,
+.emptyState {
+  text-align: center;
+  padding: 60px 24px;
+  color: var(--text-secondary);
+  font-size: 15px;
+}
+
+@media (max-width: 640px) {
+  .container { padding: 16px 12px; }
+  .title { font-size: 20px; }
+  .card { padding: 12px; }
+}

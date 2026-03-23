@@ -11,79 +11,14 @@ import {
   searchPublicCities,
   type PublicCitySearchResult,
 } from "@/lib/publicApiClient";
+import { listPublicFeedPlaces, listPublicFeedStories, type FeedPlace } from "@/lib/apiClient";
 import Loader from "@/components/Loader";
 import Header from "@/components/Header";
+import HomeFeedPreview from "@/components/feed/HomeFeedPreview";
 import { trackSearchReferrer } from "@/lib/analytics";
 
 import "./landing.css";
 
-/** Static research item shown on the homepage */
-type ResearchCard = {
-  id: number;
-  title: string;
-  text: string;
-  href: string;
-  meta: string;
-  created_at: string;
-};
-
-/** Curated list of recent public research reports (2026 data) */
-const STATIC_RESEARCH: ResearchCard[] = [
-  {
-    id: 95,
-    title:
-      "Property Crime Down 36% Citywide in January; SoMa/Tenderloin District Drops 49%",
-    text: "January 2026 recorded 1,399 property crimes vs. a 6-month average of 2,184. Larceny theft fell 31%, burglary 31%, motor vehicle theft ~74%. District 6 saw the steepest decline at 49%. Year-over-year: 1,399 vs. 2,476 incidents, a 43.5% drop.",
-    href: "https://app.transparent.city/r/QTTC2LmP",
-    meta: "Research",
-    created_at: "2026-02-11",
-  },
-  {
-    id: 93,
-    title:
-      "January 2026: Property Crime Down 47% Over Two Years; Shoplifting Bucks the Trend at +28%",
-    text: "Motor vehicle theft plunged 59% since Jan 2024 (718 to 291). Larceny and burglary each fell 45%. But shoplifting rose to 271 incidents vs. 212 last January. Arrests presented to the DA dropped 35% even as crime fell only 19%.",
-    href: "https://app.transparent.city/r/aunhq3W3",
-    meta: "Monthly Report",
-    created_at: "2026-02-11",
-  },
-  {
-    id: 90,
-    title:
-      "Weekly: Total Police Incidents Down 16.6% YTD; Property Crime Off 42% vs. Last Year",
-    text: "Weekly incidents at 1,650\u20131,800 vs. 1,800\u20131,950 a year ago. Property crime weeks averaging 280\u2013380 incidents, down from 500\u2013600. Violent crime 18\u201323% lower. Homeless 311 cases down 49% YoY but still at 600\u2013650/week. Building permits steady at 450\u2013550/week.",
-    href: "https://app.transparent.city/r/55fy7avL",
-    meta: "Weekly Report",
-    created_at: "2026-02-05",
-  },
-  {
-    id: 87,
-    title:
-      "District 3: Property Crime Down 28%, Permits Up 10\u201315% Above Typical Levels",
-    text: "Total D3 incidents dropped 6% (898 over 4 weeks vs. 954 prior) while citywide ticked up 1.8%. Homeless 311 still 17% above the prior month. Building permit applications running 10\u201315% above their normal weekly level.",
-    href: "https://app.transparent.city/r/LPKodZkg",
-    meta: "District 3",
-    created_at: "2026-02-04",
-  },
-  {
-    id: 72,
-    title:
-      "130,466 311 Requests in January; Sidewalk Parking Complaints Spike 39.5%",
-    text: "311 volume up 13.1% vs. December (130,466 vs. 115,328) and flat (+1.1%) year-over-year. Sidewalk parking complaints hit 918/week vs. a 658 average. Top categories: street cleaning, parking enforcement, graffiti, encampments, homeless concerns.",
-    href: "https://app.transparent.city/r/nNNQNzMR",
-    meta: "311 Data",
-    created_at: "2026-01-29",
-  },
-  {
-    id: 67,
-    title:
-      "District 2 Property Crime Drops 52% in One Week: 18 Incidents vs. 37.6 Average",
-    text: "District 2 logged just 18 property crimes in the latest week, a z-score of 2.9 (statistical outlier). Citywide property crime dipped ~25%, but D2 doubled that. Most other districts still posting 30\u201390+ incidents per week.",
-    href: "https://app.transparent.city/r/9KCLSrmp",
-    meta: "District 2",
-    created_at: "2026-01-27",
-  },
-];
 
 export default function Home() {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
@@ -119,6 +54,11 @@ export default function Home() {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const searchTimeoutRef = useRef<number | null>(null);
   const lastRequestIdRef = useRef(0);
+
+  // Live cities and stats from public APIs
+  type LiveCity = { city_id: number; city_name: string; city_emoji: string; slug: string };
+  const [liveCities, setLiveCities] = useState<LiveCity[]>([]);
+  const [storyCount, setStoryCount] = useState<number | null>(null);
 
   // Landing-hero screenshot carousel (matches original landing page)
   const [activeSlide, setActiveSlide] = useState(0);
@@ -239,7 +179,39 @@ export default function Home() {
     return () => window.clearInterval(interval);
   }, []);
 
-  // Research items are statically curated (STATIC_RESEARCH constant above)
+  // Load live cities and story count from public APIs
+  useEffect(() => {
+    let cancelled = false;
+    async function loadStats() {
+      try {
+        const [placesRes, storiesRes] = await Promise.all([
+          listPublicFeedPlaces(),
+          listPublicFeedStories({ limit: 1 }),
+        ]);
+        if (cancelled) return;
+        // Deduplicate by city_id (places include per-district entries)
+        const seen = new Set<number>();
+        const unique: LiveCity[] = [];
+        for (const p of placesRes.places) {
+          if (!seen.has(p.city_id)) {
+            seen.add(p.city_id);
+            unique.push({
+              city_id: p.city_id,
+              city_name: p.city_name,
+              city_emoji: p.city_emoji,
+              slug: slugify(p.city_name),
+            });
+          }
+        }
+        setLiveCities(unique);
+        if (storiesRes.count > 0) setStoryCount(storiesRes.count);
+      } catch {
+        // Non-critical; page still works without stats
+      }
+    }
+    void loadStats();
+    return () => { cancelled = true; };
+  }, []);
 
   // Track search referrer on mount
   useEffect(() => {
@@ -334,252 +306,230 @@ export default function Home() {
       />
 
       <main>
+        {/* ── Hero ──────────────────────────────────────────────────────── */}
         <section className={styles.hero}>
           <div className={styles.container}>
-            {/* Use the original landing-page hero language + imagery */}
-            <div className="hero-content">
-              <div className="hero-text">
-                <span className="badge">📊 Your city's data, made clear</span>
-                <h1 className="hero-title">Your City Just Got Easier to Understand</h1>
-                <p className="hero-subhead" style={{ fontSize: "1.1rem", fontWeight: 500, marginTop: "0.5rem", marginBottom: "1rem", color: "var(--text-secondary)" }}>
-                  For citizens and officials &amp; city workers
-                </p>
-                <p className="hero-description">
-                  See what's changing in your city. Get clear, source-linked views 
-                  of the metrics, trends, and issues that matter to you— 
-                  so you can stay informed and engaged with what's happening in your community.
-                </p>
+            <div className={styles.heroCentered}>
+              <h1 className={styles.headline}>
+                Know what&apos;s actually happening in your city
+              </h1>
+              <p className={styles.subhead}>
+                Crime trending down? Permits spiking? 311 complaints changing?
+                We turn your city&apos;s open data into clear, source-linked stories
+                you can read in 30 seconds.
+              </p>
 
-                <div className="hero-carousel" id="hero-carousel">
-                  <div className="hero-carousel-inner">
-                    <div className={`hero-slide ${activeSlide === 0 ? "is-active" : ""}`}>
-                      <div className="android-phone-mockup">
-                        <div className="phone-frame">
-                          <div className="phone-bezel-top">
-                            <div className="phone-camera" />
-                            <div className="phone-speaker" />
-                          </div>
-                          <div className="phone-screen">
-                            <Image
-                              src="/images/app-screenshot-dashboard.png"
-                              alt="Transparent.city district dashboard showing key metrics and trends across services"
-                              className="phone-screenshot"
-                              width={1080}
-                              height={1920}
-                              priority
-                            />
-                          </div>
-                          <div className="phone-bezel-bottom" />
-                          <div className="phone-button-volume-up" />
-                          <div className="phone-button-volume-down" />
-                          <div className="phone-button-power" />
-                        </div>
-                        <div className="phone-shadow" />
-                      </div>
+              {/* Stats bar */}
+              {(liveCities.length > 0 || storyCount) && (
+                <div className={styles.statsBar}>
+                  {liveCities.length > 0 && (
+                    <div className={styles.stat}>
+                      <span className={styles.statNumber}>{liveCities.length}</span>
+                      <span className={styles.statLabel}>{liveCities.length === 1 ? "city tracked" : "cities tracked"}</span>
                     </div>
-
-                    <div className={`hero-slide ${activeSlide === 1 ? "is-active" : ""}`}>
-                      <div className="android-phone-mockup">
-                        <div className="phone-frame">
-                          <div className="phone-bezel-top">
-                            <div className="phone-camera" />
-                            <div className="phone-speaker" />
-                          </div>
-                          <div className="phone-screen">
-                            <Image
-                              src="/images/app-screenshot-2.png"
-                              alt="Transparent.city alert view showing a spike on a district map and time series"
-                              className="phone-screenshot"
-                              width={1080}
-                              height={1920}
-                              priority={false}
-                            />
-                          </div>
-                          <div className="phone-bezel-bottom" />
-                          <div className="phone-button-volume-up" />
-                          <div className="phone-button-volume-down" />
-                          <div className="phone-button-power" />
-                        </div>
-                        <div className="phone-shadow" />
-                      </div>
+                  )}
+                  {storyCount && (
+                    <div className={styles.stat}>
+                      <span className={styles.statNumber}>{storyCount.toLocaleString()}+</span>
+                      <span className={styles.statLabel}>stories generated</span>
                     </div>
-                  </div>
-
-                  <div className="hero-carousel-dots" aria-label="Screenshot selector">
-                    <button
-                      type="button"
-                      className={`hero-dot ${activeSlide === 0 ? "is-active" : ""}`}
-                      aria-label="District dashboard view"
-                      onClick={() => setActiveSlide(0)}
-                    />
-                    <button
-                      type="button"
-                      className={`hero-dot ${activeSlide === 1 ? "is-active" : ""}`}
-                      aria-label="Alert map view"
-                      onClick={() => setActiveSlide(1)}
-                    />
+                  )}
+                  <div className={styles.stat}>
+                    <span className={styles.statNumber}>100%</span>
+                    <span className={styles.statLabel}>sourced from open data</span>
                   </div>
                 </div>
+              )}
 
+              <div className={styles.heroCtas}>
+                <button
+                  type="button"
+                  onClick={handleSignupCitizen}
+                  className={`${styles.button} ${styles.buttonPrimary} ${styles.heroBtn}`}
+                >
+                  Get your city feed, free
+                </button>
+
+                {liveCities.length > 0 && (
+                  <div className={styles.heroExplore}>
+                    <span className={styles.heroExploreLabel}>or explore:</span>
+                    {liveCities.slice(0, 4).map((c) => (
+                      <Link
+                        key={c.city_id}
+                        href={`/c/${c.slug}`}
+                        className={styles.heroCityLink}
+                      >
+                        {c.city_emoji ? `${c.city_emoji} ` : ""}{c.city_name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </section>
 
-        <section className={styles.section} id="who-this-is-for">
-          <div className={styles.container}>
-            <h2 className={styles.sectionTitle}>Giving you the clarity you want</h2>
-            <p className={styles.sectionLead}>
-              For citizens: understand what&apos;s going on with your city through clear, data-driven insights. For officials &amp; city workers: track what&apos;s changing in your area of focus and see what solutions are working.
-            </p>
-
-            <div className={styles.grid}>
-              <div className={`${styles.card} ${styles.tile}`}>
-                <div className={styles.audienceCardHeader}>
-                  <div className={styles.tileTitle}>Citizens</div>
-                  <span className={styles.audienceTag}>For individuals</span>
-                </div>
-                <div className={styles.tileBody}>
-                  Turn “what’s going on?” into something you can point to and share.
-                </div>
-                <ul className={styles.toolList}>
-                  <li>City search + city pages</li>
-                  <li>Maps and trend views (where available)</li>
-                  <li>Source-linked research writeups</li>
-                </ul>
-                <div style={{ marginTop: "1rem" }}>
-                  <button type="button" onClick={handleSignupCitizen} className={styles.link} style={{ fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit" }}>
-                    Sign up as citizen
-                  </button>
-                </div>
-                <div style={{ marginTop: "0.5rem" }}>
-                  <Link href="/claim" className={styles.link} style={{ fontSize: "0.9rem" }}>
-                    For officials →
-                  </Link>
-                </div>
-              </div>
-
-              <div className={`${styles.card} ${styles.tile}`}>
-                <div className={styles.audienceCardHeader}>
-                  <div className={styles.tileTitle}>Officials &amp; city workers</div>
-                  <span className={styles.audienceTag}>For government</span>
-                </div>
-                <div className={styles.tileBody}>
-                  A shared baseline for decisions and public communication.
-                </div>
-                <ul className={styles.toolList}>
-                  <li>Briefings and context for operational clarity</li>
-                  <li>Consistent measurement across topics</li>
-                  <li>Secure tools for .gov email addresses</li>
-                </ul>
-                <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: 8 }}>
-                  <Link href="/claim" className={styles.link} style={{ fontWeight: 600 }}>
-                    I&apos;m an elected official
-                  </Link>
-                  <button type="button" onClick={handleSignupCityStaff} className={styles.link} style={{ fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left", font: "inherit" }}>
-                    I&apos;m city staff
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
+        {/* ── Feed preview (proof) ──────────────────────────────────────── */}
         <section className={styles.section}>
           <div className={styles.container}>
-            <h2 className={styles.sectionTitle}>Recent research</h2>
-            <p className={styles.sectionLead}>
-              See how civic questions get answered with public data, maps, and 
-              plain-language explanations you can understand and share.
-            </p>
+            <div className={styles.feedPreviewHeader}>
+              <h2 className={styles.sectionTitle}>See what the feed looks like</h2>
+              <p className={styles.sectionLead}>
+                These are real stories from the last few days, generated automatically from public data.
+                Sign up to follow your city and get stories tailored to your district.
+              </p>
+            </div>
+            <HomeFeedPreview />
+          </div>
+        </section>
 
-            <div className={styles.researchGrid}>
-              {STATIC_RESEARCH.map((item) => {
-                const dateStr = new Date(item.created_at).toLocaleDateString(
-                  "en-US",
-                  { month: "short", day: "numeric", year: "numeric" },
-                );
-
-                return (
-                  <a
-                    key={item.id}
-                    href={item.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={styles.researchCard}
-                  >
-                    <div className={styles.researchContent}>
-                      <div className={styles.researchTopRow}>
-                        <span className={styles.researchMeta}>{item.meta}</span>
-                        <span className={styles.researchDate}>{dateStr}</span>
-                      </div>
-
-                      <h3 className={styles.researchHeadline}>{item.title}</h3>
-                      <p className={styles.researchDescription}>{item.text}</p>
-
-                      <span className={styles.researchReadMore}>
-                        Read full report &rarr;
-                      </span>
-                    </div>
-                  </a>
-                );
-              })}
+        {/* ── How it works ──────────────────────────────────────────────── */}
+        <section className={styles.section}>
+          <div className={styles.container}>
+            <h2 className={styles.sectionTitle}>How it works</h2>
+            <div className={styles.stepsRow}>
+              <div className={styles.step}>
+                <div className={styles.stepNumber}>1</div>
+                <h3 className={styles.stepTitle}>Pick your city</h3>
+                <p className={styles.stepDesc}>
+                  Search for your city and we&apos;ll pull the latest open data
+                  from official portals automatically.
+                </p>
+              </div>
+              <div className={styles.step}>
+                <div className={styles.stepNumber}>2</div>
+                <h3 className={styles.stepTitle}>Get your feed</h3>
+                <p className={styles.stepDesc}>
+                  We analyze trends, anomalies, and changes, then write
+                  plain-language stories with charts and source links.
+                </p>
+              </div>
+              <div className={styles.step}>
+                <div className={styles.stepNumber}>3</div>
+                <h3 className={styles.stepTitle}>Stay informed</h3>
+                <p className={styles.stepDesc}>
+                  New stories appear as data updates. Get alerts for
+                  spikes, weekly digests, or browse whenever you want.
+                </p>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* CTA Section */}
+        {/* ── Audience cards ────────────────────────────────────────────── */}
+        <section className={styles.section} id="who-this-is-for">
+          <div className={styles.container}>
+            <h2 className={styles.sectionTitle}>Built for two audiences</h2>
+            <div className={styles.audienceGrid}>
+              <div className={styles.audienceCard}>
+                <div className={styles.audienceIconWrap}>
+                  <span className={styles.audienceIcon}>&#x1F3D8;&#xFE0F;</span>
+                </div>
+                <div className={styles.audienceCardHeader}>
+                  <div className={styles.audienceTitle}>Residents</div>
+                  <span className={styles.audienceTag}>Free</span>
+                </div>
+                <p className={styles.audienceBody}>
+                  Stop guessing about what&apos;s happening in your neighborhood.
+                  Get concrete numbers you can share and reference, and flag
+                  what matters directly to your district supervisor.
+                </p>
+                <ul className={styles.audienceFeatures}>
+                  <li>
+                    <span className={styles.featureCheck}>&#x2713;</span>
+                    See crime, permits, and 311 trends for your district
+                  </li>
+                  <li>
+                    <span className={styles.featureCheck}>&#x2713;</span>
+                    Get alerted when something spikes or drops
+                  </li>
+                  <li>
+                    <span className={styles.featureCheck}>&#x2713;</span>
+                    Flag any story to send feedback to your rep
+                  </li>
+                  <li>
+                    <span className={styles.featureCheck}>&#x2713;</span>
+                    Every number links back to the source data
+                  </li>
+                </ul>
+                <div className={styles.audienceActions}>
+                  <button
+                    type="button"
+                    onClick={handleSignupCitizen}
+                    className={styles.audiencePrimaryBtn}
+                  >
+                    Sign up free
+                  </button>
+                </div>
+              </div>
+
+              <div className={styles.audienceCard}>
+                <div className={styles.audienceIconWrap}>
+                  <span className={styles.audienceIcon}>&#x1F3DB;&#xFE0F;</span>
+                </div>
+                <div className={styles.audienceCardHeader}>
+                  <div className={styles.audienceTitle}>Officials &amp; city staff</div>
+                  <span className={styles.audienceTag}>Free for .gov</span>
+                </div>
+                <p className={styles.audienceBody}>
+                  See the same data your constituents see. Claim your verified
+                  profile, respond to resident feedback, and use shared metrics
+                  as the baseline for public communication.
+                </p>
+                <ul className={styles.audienceFeatures}>
+                  <li>
+                    <span className={styles.featureCheck}>&#x2713;</span>
+                    Verified .gov profile so residents know it&apos;s you
+                  </li>
+                  <li>
+                    <span className={styles.featureCheck}>&#x2713;</span>
+                    Receive and respond to flagged citizen feedback
+                  </li>
+                  <li>
+                    <span className={styles.featureCheck}>&#x2713;</span>
+                    Ready-to-share briefings for meetings and emails
+                  </li>
+                  <li>
+                    <span className={styles.featureCheck}>&#x2713;</span>
+                    Track whether policies and interventions are working
+                  </li>
+                </ul>
+                <div className={styles.audienceActions}>
+                  <Link href="/claim" className={styles.audiencePrimaryBtn}>
+                    Claim your official profile
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleSignupCityStaff}
+                    className={styles.audienceSecondaryLink}
+                    style={{ background: "none", border: "none", cursor: "pointer", font: "inherit" }}
+                  >
+                    I&apos;m city staff {"\u2192"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Final CTA ─────────────────────────────────────────────────── */}
         <section className="cta">
           <div className="container">
             <div className="cta-content">
-              <h2 className="cta-title">Ready to See How Your City Is Really Doing?</h2>
+              <h2 className="cta-title">Your city publishes the data. We make it useful.</h2>
               <p className="cta-description">
-                Start with San Francisco today. Use shared, verifiable facts to
-                recognize what's working, question what isn't, and keep
-                conversations between residents, advocates, and officials grounded
-                in reality.
+                Sign up in 30 seconds. Pick your city. Start reading stories backed by real numbers.
               </p>
               <div className="cta-buttons">
-                <a
+                <button
+                  type="button"
+                  onClick={handleSignupCitizen}
                   className="btn btn-primary btn-large"
-                  href="https://dashboard.transparentsf.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
                 >
-                  Open the SF Dashboard
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M4 10H16M16 10L12 6M16 10L12 14"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </a>
+                  Get started free
+                </button>
                 <a href="/pro" className="btn btn-outline btn-large">
-                  Partner or Join the Team
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+                  Add your city
                 </a>
               </div>
             </div>

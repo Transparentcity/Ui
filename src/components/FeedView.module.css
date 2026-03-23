@@ -204,53 +204,6 @@
   line-height: 1;
 }
 
-/* ── Filter row (City + District dropdowns + removable pill) ── */
-
-.filterRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.filterLabel {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
-.filterPill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px 6px 12px;
-  font-size: 13px;
-  font-weight: 500;
-  border-radius: 999px;
-  border: 1px solid var(--brand-primary, #ad35fa);
-  background: var(--brand-primary-light, rgba(173, 53, 250, 0.1));
-  color: var(--brand-primary, #ad35fa);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.filterPill:hover {
-  background: var(--brand-primary-light, rgba(173, 53, 250, 0.18));
-  border-color: var(--brand-primary-dark, #9420e0);
-}
-
-.filterPillLabel {
-  white-space: nowrap;
-}
-
-.filterPillRemove {
-  font-size: 16px;
-  line-height: 1;
-  opacity: 0.8;
-}
-
 /* ── Secondary filters ── */
 
 .secondaryFilters {
@@ -429,7 +382,7 @@
   white-space: nowrap;
 }
 
-/* District badge: city-wide vs district-level story (clickable to filter) */
+/* District badge: city-wide vs district-level story */
 .districtBadge {
   display: inline-block;
   padding: 2px 8px;
@@ -442,30 +395,6 @@
   background: var(--bg-tertiary);
   color: var(--text-secondary);
   border: 1px solid var(--border-primary);
-}
-
-.districtBadgeButton {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  border-radius: 4px;
-  white-space: nowrap;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-primary);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-family: inherit;
-}
-
-.districtBadgeButton:hover {
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
-  background: var(--brand-primary-light, rgba(173, 53, 250, 0.08));
 }
 
 .featuredBadge {
@@ -606,67 +535,6 @@
   padding-top: 12px;
   border-top: 1px solid var(--border-primary);
   margin-top: 4px;
-}
-
-/* AI feedback area: thumbs up/down + hide (BRAND_KIT: spruce-green, warm-coral, brand-primary) */
-.aiFeedbackArea {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-right: auto;
-}
-
-.aiFeedbackLabel {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  margin-right: 4px;
-}
-
-.feedbackBtn,
-.hideStoryBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: 1px solid var(--border-primary);
-  border-radius: 8px;
-  background: var(--bg-primary);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
-}
-
-.feedbackBtn:hover,
-.hideStoryBtn:hover {
-  background: var(--bg-tertiary);
-  border-color: var(--border-secondary);
-  color: var(--text-primary);
-}
-
-.feedbackBtnUp.feedbackBtnActiveUp {
-  background: rgba(74, 116, 99, 0.12);
-  border-color: var(--spruce-green, #4A7463);
-  color: var(--spruce-green, #4A7463);
-}
-
-.feedbackBtnDown.feedbackBtnActiveDown {
-  background: rgba(255, 107, 90, 0.12);
-  border-color: var(--warm-coral, #FF6B5A);
-  color: var(--warm-coral, #FF6B5A);
-}
-
-.hideStoryBtn {
-  width: 32px;
-  height: 32px;
-  margin-left: 4px;
-}
-
-.hideStoryBtn:hover {
-  border-color: var(--text-secondary);
-  color: var(--text-primary);
 }
 
 .storyStats {
@@ -997,24 +865,23 @@
     -webkit-line-clamp: 3;
   }
 
-  /* No padding on image card in narrow mode: only feed card (.storyCard) has padding */
   .storyVisualization {
     margin: 12px 0;
-    padding: 0;
+    padding: 0 12px 12px 12px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
 
   .storyVisualization > .vizTypeBadge {
-    margin-left: 0;
-    margin-right: 0;
-    width: 100%;
+    margin-left: -12px;
+    margin-right: -12px;
+    width: calc(100% + 24px);
   }
 
   .storyVisualization > .visualizationPlaceholder {
-    margin-left: 0;
-    margin-right: 0;
-    width: 100%;
+    margin-left: -12px;
+    margin-right: -12px;
+    width: calc(100% + 24px);
   }
 
   .storyFooter {

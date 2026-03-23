@@ -5,7 +5,6 @@ import { useAuth0 } from "@auth0/auth0-react";
 import {
   getResearch,
   getResearchItems,
-  submitScopeAnswers,
   runResearchFromAgenda,
   cancelResearch,
   ResearchItem,
@@ -51,8 +50,6 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
   const [feedStoriesCount, setFeedStoriesCount] = useState<number | null>(null);
   const [isCheckingFeedStories, setIsCheckingFeedStories] = useState(false);
   const [isGeneratingFeedStories, setIsGeneratingFeedStories] = useState(false);
-  const [scopeAnswerValues, setScopeAnswerValues] = useState<string[]>([]);
-  const [isSubmittingScope, setIsSubmittingScope] = useState(false);
 
   const loadAll = useCallback(async (skipLoadingState = false) => {
     try {
@@ -132,8 +129,9 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
   useEffect(() => {
     if (!research) return;
     
-    // Poll when waiting for scoping or agenda (draft / scoping_ready)
-    const shouldPoll = research.status === "draft" || research.status === "scoping_ready";
+    // Only poll when research is waiting for agenda (draft status)
+    // Once agenda_ready or running, WebSocket takes over
+    const shouldPoll = research.status === "draft";
     if (!shouldPoll) {
       return;
     }
@@ -225,34 +223,6 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
       }
     };
   }, [reportId, loadAll]);
-
-  const handleSubmitScopeAndRun = async () => {
-    if (!research || research.status !== "scoping_ready") return;
-    const sq = research.scoping_questions;
-    const questions = sq?.questions ?? [];
-    const answers = questions.length > 0
-      ? scopeAnswerValues.slice(0, questions.length).map((a) => a.trim()).filter(Boolean)
-      : [research.original_prompt];
-    if (answers.length === 0) {
-      alert("Please answer at least one scoping question or describe your focus.");
-      return;
-    }
-    setIsSubmittingScope(true);
-    try {
-      const token = await getAccessTokenSilently();
-      await submitScopeAnswers(reportId, { answers }, token);
-      const resp = await runResearchFromAgenda(reportId, token);
-      if (resp?.job_id && typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("jobCreated", { detail: resp.job_id }));
-      }
-      await loadAll();
-    } catch (err: any) {
-      console.error("Failed to submit scope and run:", err);
-      alert(err.message || "Failed to start research");
-    } finally {
-      setIsSubmittingScope(false);
-    }
-  };
 
   const handleRun = async () => {
     if (!research) return;
@@ -444,7 +414,6 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
       case "failed": return styles.statusFailed;
       case "running": return styles.statusRunning;
       case "synthesizing": return styles.statusSynthesizing;
-      case "scoping_ready": return styles.statusDraft;
       default: return styles.statusDraft;
     }
   };
@@ -485,8 +454,8 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
         
         <div className={styles.meta}>
           <span>Model: {research.model_key || "Not specified"}</span>
-          {research.actual_cost_usd != null && (
-            <span>Cost: ${Number(research.actual_cost_usd).toFixed(4)}</span>
+          {research.estimated_cost_usd && (
+            <span>Est. Cost: ${research.estimated_cost_usd}</span>
           )}
           <span>Created: {research.created_at ? new Date(research.created_at).toLocaleString() : "Unknown"}</span>
           {isAdmin && research.session_id && (
@@ -519,42 +488,6 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
           <h2>Research Question</h2>
           <p className={styles.prompt}>{research.original_prompt}</p>
         </div>
-
-        {/* Scoping: when status is scoping_ready, show questions and submit + run */}
-        {research.status === "scoping_ready" && research.scoping_questions && (
-          <div className={styles.section}>
-            <h2>Narrow your focus</h2>
-            {research.scoping_questions.narrative && (
-              <p className={styles.prompt}>{research.scoping_questions.narrative}</p>
-            )}
-            <div className={styles.agendaContainer}>
-              {(research.scoping_questions.questions ?? []).map((q: string, idx: number) => (
-                <div key={idx} className={styles.agendaListItem}>
-                  <label className={styles.agendaItemQuestion}>{q}</label>
-                  <input
-                    type="text"
-                    className={styles.copyButton}
-                    style={{ display: "block", marginTop: 4, padding: 8, width: "100%", maxWidth: 480 }}
-                    placeholder="Your answer..."
-                    value={scopeAnswerValues[idx] ?? ""}
-                    onChange={(e) => {
-                      const next = [...scopeAnswerValues];
-                      next[idx] = e.target.value;
-                      setScopeAnswerValues(next);
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-            <button
-              onClick={handleSubmitScopeAndRun}
-              disabled={isSubmittingScope}
-              className={styles.publishButton}
-            >
-              {isSubmittingScope ? "Starting…" : "Submit focus & Start research"}
-            </button>
-          </div>
-        )}
 
         {/* Agenda (plan) - Show when agenda exists and status is agenda_ready */}
         {/* Only show "Start Research Run" button when status is agenda_ready */}

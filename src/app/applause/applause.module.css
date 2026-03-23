@@ -1,0 +1,246 @@
+/* Applause Dashboard styles */
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+.header {
+  margin-bottom: 24px;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 6px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+}
+
+.tabActive {
+  color: var(--brand-primary);
+  border-bottom-color: var(--brand-primary);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--brand-primary);
+  border-radius: 10px;
+}
+
+/* Card list */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.cardMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.statusChip {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status_pending_draft {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.status_draft {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--warning);
+}
+
+.status_queued {
+  background: rgba(96, 165, 250, 0.1);
+  color: #60a5fa;
+}
+
+.status_sent {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+}
+
+.status_failed {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--error);
+}
+
+.department {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.timestamp {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.cardTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+
+.emailPreview {
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.emailSubject {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.emailTo {
+  color: var(--text-secondary);
+}
+
+.emailBody {
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.primaryBtn {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--brand-primary);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.primaryBtn:hover {
+  opacity: 0.9;
+}
+
+.secondaryBtn {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.secondaryBtn:hover {
+  border-color: var(--border-secondary);
+  color: var(--text-primary);
+}
+
+.sentTimestamp {
+  font-size: 12px;
+  color: var(--success);
+  font-weight: 500;
+}
+
+/* States */
+.loadingState,
+.emptyState {
+  text-align: center;
+  padding: 60px 24px;
+  color: var(--text-secondary);
+  font-size: 15px;
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding: 16px 12px;
+  }
+
+  .title {
+    font-size: 20px;
+  }
+
+  .card {
+    padding: 12px;
+  }
+}

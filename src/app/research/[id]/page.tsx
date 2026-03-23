@@ -94,9 +94,9 @@ export default function ResearchDetailPage() {
         <div className="meta-item">
           <strong>Created:</strong> {research.created_at ? new Date(research.created_at).toLocaleString() : "Unknown"}
         </div>
-        {(research.actual_cost_usd != null || research.estimated_cost_usd != null) && (
+        {research.estimated_cost_usd && (
           <div className="meta-item">
-            <strong>Cost:</strong> ${Number(research.actual_cost_usd ?? research.estimated_cost_usd).toFixed(4)}
+            <strong>Estimated Cost:</strong> ${research.estimated_cost_usd}
           </div>
         )}
         {research.session_id && (

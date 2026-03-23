@@ -12,7 +12,15 @@ import { enrichStories, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import FeedCard from "./FeedCard";
 import SkeletonCard from "./SkeletonCard";
 import FeedEndState from "./FeedEndState";
+import FeedTooltip from "./FeedTooltip";
+import BrandedLoader from "@/components/BrandedLoader";
 import styles from "./feed.module.css";
+
+/** Templates considered "visual" for the first-impression rule. */
+const VISUAL_TEMPLATES = new Set([
+  "text_chart", "text_photo", "multi_metric",
+  "alert", "spending", "off_the_charts", "311_images",
+]);
 
 interface FeedContainerProps {
   cityId?: number | null;
@@ -78,6 +86,16 @@ export default function FeedContainer({
     saved.current?.topic ?? null,
   );
   const [displayLimit, setDisplayLimit] = useState(saved.current?.displayLimit ?? 10);
+  const [feedOrder, setFeedOrder] = useState<"for_you" | "published_at">("for_you");
+
+  // Detect first session (user just completed onboarding) for tooltip display
+  const [isFirstSession] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem("tc_feed_tooltips_seen") === null;
+    } catch {
+      return false;
+    }
+  });
 
   // Persist filters to sessionStorage whenever they change
   useEffect(() => {
@@ -120,7 +138,7 @@ export default function FeedContainer({
   }, [places]);
 
   // Reset display limit when filters change
-  useEffect(() => { setDisplayLimit(10); }, [selectedCityIds, selectedDistrict, selectedFrequency, personalNewsletterOnly, selectedTopic]);
+  useEffect(() => { setDisplayLimit(10); }, [selectedCityIds, selectedDistrict, selectedFrequency, personalNewsletterOnly, selectedTopic, feedOrder]);
 
   // Reset district when city selection changes away from a single city
   useEffect(() => {
@@ -136,7 +154,7 @@ export default function FeedContainer({
     newsletter_frequency: selectedFrequency ?? undefined,
     category: personalNewsletterOnly ? "personal_newsletter" : undefined,
     limit: displayLimit,
-    order_by: "published_at",
+    order_by: feedOrder,
     all_cities: personalNewsletterOnly || !singleCityId,
   });
 
@@ -199,25 +217,41 @@ export default function FeedContainer({
     }
   }, [getAccessTokenSilently, queryClient]);
 
-  const visibleStories = useMemo(
-    () => enriched.filter((s) => {
+  const visibleStories = useMemo(() => {
+    const filtered = enriched.filter((s) => {
       if (hiddenIds.has(s.id)) return false;
       if (selectedTopic) {
-        // "my_block" is a metadata flag, not a card_type. Stories keep their
-        // real type (trend, alert, etc.) but are tagged with metadata.my_block
-        // when they belong to the user's neighborhood.
         if (selectedTopic === "my_block") {
           if (!s.metadata?.my_block) return false;
         } else if (s.card_type !== selectedTopic) {
           return false;
         }
       }
-      // Single-city client-side filter (server handles it too, but belt-and-suspenders)
       if (selectedCityIds.size === 1 && !selectedCityIds.has(s.city_id)) return false;
       return true;
-    }),
-    [enriched, hiddenIds, selectedTopic, selectedCityIds],
-  );
+    });
+
+    // First-impression rule: ensure at least one visual card in the top 3
+    // so new users see something engaging right away.
+    if (filtered.length > 3) {
+      const hasVisualInTop3 = filtered
+        .slice(0, 3)
+        .some((s) => VISUAL_TEMPLATES.has(s.template));
+      if (!hasVisualInTop3) {
+        const visualIdx = filtered.findIndex(
+          (s, i) => i >= 3 && VISUAL_TEMPLATES.has(s.template),
+        );
+        if (visualIdx !== -1) {
+          const reordered = [...filtered];
+          const [visual] = reordered.splice(visualIdx, 1);
+          reordered.splice(2, 0, visual); // insert at position 3 (index 2)
+          return reordered;
+        }
+      }
+    }
+
+    return filtered;
+  }, [enriched, hiddenIds, selectedTopic, selectedCityIds]);
 
   // Restore scroll position once stories have loaded (only on initial mount)
   const scrollRestored = useRef(false);
@@ -370,6 +404,24 @@ export default function FeedContainer({
 
       {/* Secondary filters row */}
       <div className={styles.secondaryFilterRow}>
+        {/* For You / Latest toggle */}
+        <div className={styles.feedOrderToggle}>
+          <button
+            type="button"
+            className={`${styles.feedOrderBtn} ${feedOrder === "for_you" ? styles.feedOrderBtnActive : ""}`}
+            onClick={() => setFeedOrder("for_you")}
+          >
+            For You
+          </button>
+          <button
+            type="button"
+            className={`${styles.feedOrderBtn} ${feedOrder === "published_at" ? styles.feedOrderBtnActive : ""}`}
+            onClick={() => setFeedOrder("published_at")}
+          >
+            Latest
+          </button>
+        </div>
+
         {/* District filter: only when exactly 1 city is selected */}
         {singleCityId && (
           <select
@@ -426,17 +478,24 @@ export default function FeedContainer({
       {/* Pull-to-refresh indicator */}
       {(pullDistance > 0 || refreshing) && (
         <div className={styles.pullIndicator} style={{ height: refreshing ? 40 : pullDistance }}>
-          <div className={styles.pullSpinner} />
+          <BrandedLoader size="sm" color="brand" />
         </div>
       )}
 
-      {/* Loading skeleton: only on true initial load (no data at all yet) */}
+      {/* Loading: branded loader + skeleton cards on initial load */}
       {isLoading && visibleStories.length === 0 && (
-        <div className={styles.storiesList}>
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
+        <>
+          <div className={styles.brandedLoaderWrap}>
+            <BrandedLoader size="lg" label="Loading your feed..." />
+          </div>
+          <div className={styles.storiesList}>
+            <SkeletonCard variant="default" />
+            <SkeletonCard variant="alert" />
+            <SkeletonCard variant="photo" />
+            <SkeletonCard variant="metric" />
+            <SkeletonCard variant="spending" />
+          </div>
+        </>
       )}
 
       {/* Error */}
@@ -495,15 +554,24 @@ export default function FeedContainer({
       {/* Stories */}
       {visibleStories.length > 0 && (
         <div className={styles.storiesList}>
-          {visibleStories.map((story) => (
-            <FeedCard
-              key={story.id}
-              story={story}
-              isAdmin={isAdmin}
-              onHide={handleHide}
-              onDelete={isAdmin ? handleDelete : undefined}
-            />
-          ))}
+          {visibleStories.map((story) => {
+            // Text-only context/trend cards render in compact mode
+            const isCompact =
+              story.template === "text_only" &&
+              (story.card_type === "context" || story.card_type === "trend") &&
+              !story.metadata?.key_insight && // context with callout stays full
+              !story.metadata?.trend_metric_name; // trend with metric strip stays full
+            return (
+              <FeedCard
+                key={story.id}
+                story={story}
+                isAdmin={isAdmin}
+                onHide={handleHide}
+                onDelete={isAdmin ? handleDelete : undefined}
+                compact={isCompact}
+              />
+            );
+          })}
         </div>
       )}
 
@@ -516,7 +584,9 @@ export default function FeedContainer({
             disabled={isFetching}
             onClick={() => setDisplayLimit((l) => l + 10)}
           >
-            {isFetching && isPlaceholderData ? "Loading..." : "Load more"}
+            {isFetching && isPlaceholderData ? (
+              <><BrandedLoader size="sm" /> Loading...</>
+            ) : "Load more"}
           </button>
         </div>
       )}
@@ -524,6 +594,11 @@ export default function FeedContainer({
       {/* End state */}
       {!isFetching && atEnd && stories.length > 0 && (
         <FeedEndState lastUpdated={new Date()} />
+      )}
+
+      {/* First-session tooltip for action education */}
+      {visibleStories.length > 0 && (
+        <FeedTooltip isFirstSession={isFirstSession} />
       )}
     </div>
   );

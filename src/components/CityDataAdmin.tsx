@@ -60,7 +60,6 @@ import {
   useDeleteMetric,
   useExecuteMetric,
   useMetric,
-  useAggregatedStructuringNotes,
 } from "@/lib/hooks/useMetrics";
 import {
   useAnomalies,
@@ -453,7 +452,6 @@ export default function CityDataAdmin({
   const { jobs } = useJobWebSocketContext();
   const [runningSingleJobByTemplateId, setRunningSingleJobByTemplateId] = useState<Record<number, string>>({});
   const [runningAllJobId, setRunningAllJobId] = useState<string | null>(null);
-  const [showRunAllTemplatesModal, setShowRunAllTemplatesModal] = useState(false);
   const [templateStructuringModelKey, setTemplateStructuringModelKey] = useState<string>("");
   const [structuringNotesTarget, setStructuringNotesTarget] = useState<{
     metricId?: number | null;
@@ -659,7 +657,6 @@ export default function CityDataAdmin({
           ? `Ingested ${result.rows_written} district-level value(s) from ${result.source_name ?? "source"}.`
           : "Refresh completed.";
         alert(msg);
-        refetchCity();
         getAccessTokenSilently().then((t) =>
           getPopulationSource(cityId, t).then((c) =>
             setPopulationSource(c.configured === false ? "none" : c)
@@ -1012,7 +1009,6 @@ export default function CityDataAdmin({
   const loading = loadingCity || loadingStructure;
   const cityDataTyped = cityData as CityData | null;
   const structureDataTyped = structureData as CityStructure | null;
-  const aggregatedNotes = useAggregatedStructuringNotes(cityDataTyped?.metrics ?? null);
   const availableModels = availableModelsData || [];
   const errorMessage = error || (cityError as Error)?.message || null;
 
@@ -3860,104 +3856,6 @@ export default function CityDataAdmin({
       {/* Metrics Tab */}
       {activeTab === "metrics" && (
         <div>
-          {/* Aggregated structuring notes for all metrics in this city */}
-          {cityDataTyped?.metrics && cityDataTyped.metrics.length > 0 && (
-            <div
-              style={{
-                marginBottom: "24px",
-                padding: "16px",
-                background: "var(--bg-secondary, #f8f9fa)",
-                borderRadius: "8px",
-                border: "1px solid var(--border-color, #e5e7eb)",
-              }}
-            >
-              <h4 style={{
-                margin: "0 0 12px 0",
-                paddingBottom: "8px",
-                borderBottom: "1px solid var(--border-color, #e5e7eb)",
-                fontSize: "14px",
-                fontWeight: 600,
-                color: "var(--text-primary)",
-              }}>
-                <i className="fas fa-clipboard-list" style={{ marginRight: "8px" }} />
-                Aggregated structuring notes
-              </h4>
-              {aggregatedNotes.isLoading ? (
-                <div style={{ padding: "12px 0", color: "var(--text-secondary)", fontSize: "13px" }}>
-                  <Loader size="sm" color="dark" /> Loading notes for {cityDataTyped.metrics.length} metrics…
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {aggregatedNotes.byMetric.map(({ metricId, metricName, data, error }) => {
-                    const notes = data?.structuring_notes ?? {};
-                    const hasContent = data?.has_structured_notes
-                      || notes.agent_observations
-                      || notes.date_field
-                      || notes.freshness
-                      || (notes.field_searches?.length ?? 0) > 0
-                      || (notes.validation_history?.length ?? 0) > 0
-                      || notes.trial_execution
-                      || (notes.warnings?.length ?? 0) > 0
-                      || notes.error_context;
-                    return (
-                      <div
-                        key={metricId}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          flexWrap: "wrap",
-                          gap: "8px",
-                          padding: "8px 12px",
-                          background: "var(--bg-primary, #fff)",
-                          borderRadius: "6px",
-                          border: "1px solid var(--border-color, #e5e7eb)",
-                          fontSize: "13px",
-                        }}
-                      >
-                        <span style={{ fontWeight: 500, color: "var(--text-primary)" }}>
-                          {metricName ?? `Metric #${metricId}`}
-                        </span>
-                        {error ? (
-                          <span style={{ color: "var(--color-error, #ef4444)", fontSize: "12px" }}>Failed to load</span>
-                        ) : !hasContent ? (
-                          <span style={{ color: "var(--text-tertiary)", fontSize: "12px" }}>No notes</span>
-                        ) : (
-                          <span style={{ color: "var(--text-secondary)", fontSize: "12px" }}>
-                            {notes.overall_confidence != null && (
-                              <span style={{ marginRight: "8px" }}>{Math.round(notes.overall_confidence * 100)}% confidence</span>
-                            )}
-                            {(notes.warnings?.length ?? 0) > 0 && (
-                              <span style={{ marginRight: "8px", color: "var(--color-warning, #eab308)" }}>
-                                {notes.warnings.length} warning{(notes.warnings.length ?? 0) !== 1 ? "s" : ""}
-                              </span>
-                            )}
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setStructuringNotesTarget({ metricId, templateId: 0 })}
-                          style={{
-                            padding: "4px 10px",
-                            fontSize: "12px",
-                            background: "var(--brand-primary, #0066cc)",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                            fontWeight: 500,
-                          }}
-                        >
-                          View notes
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
               <h3 style={{ margin: 0 }}>Metric system dashboard</h3>
@@ -4077,7 +3975,18 @@ export default function CityDataAdmin({
                     </select>
                   </label>
                   <button
-                    onClick={() => setShowRunAllTemplatesModal(true)}
+                    onClick={async () => {
+                      try {
+                        const result = await instantiateAllMutation.mutateAsync({
+                          cityId,
+                          modelKey: templateStructuringModelKey || undefined,
+                        });
+                        setRunningAllJobId(result.job_id);
+                        notifyJobCreated(result.job_id);
+                      } catch (err: unknown) {
+                        alert("Failed to start: " + (err instanceof Error ? err.message : String(err)));
+                      }
+                    }}
                     disabled={instantiateAllMutation.isPending || !!runningAllJobId}
                     style={{
                       padding: "6px 12px",
@@ -4092,84 +4001,6 @@ export default function CityDataAdmin({
                   >
                     {runningAllJobId ? "Running all…" : instantiateAllMutation.isPending ? "Starting…" : "Run all templates"}
                   </button>
-                  {showRunAllTemplatesModal && (
-                    <div
-                      style={{
-                        position: "fixed",
-                        inset: 0,
-                        background: "rgba(0,0,0,0.4)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        zIndex: 1000,
-                      }}
-                      onClick={() => setShowRunAllTemplatesModal(false)}
-                    >
-                      <div
-                        style={{
-                          background: "var(--bg-primary, #fff)",
-                          padding: "24px",
-                          borderRadius: "8px",
-                          maxWidth: "420px",
-                          boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <p style={{ margin: "0 0 16px", fontSize: "14px" }}>
-                          Run all templates for this city. Only templates without an existing metric will be run.
-                        </p>
-                        <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", flexWrap: "wrap" }}>
-                          <button
-                            type="button"
-                            onClick={() => setShowRunAllTemplatesModal(false)}
-                            style={{ padding: "8px 16px", border: "1px solid #ccc", borderRadius: "6px", cursor: "pointer" }}
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              setShowRunAllTemplatesModal(false);
-                              try {
-                                const result = await instantiateAllMutation.mutateAsync({
-                                  cityId,
-                                  modelKey: templateStructuringModelKey || undefined,
-                                  onlyMissing: false,
-                                });
-                                setRunningAllJobId(result.job_id);
-                                notifyJobCreated(result.job_id);
-                              } catch (err: unknown) {
-                                alert("Failed to start: " + (err instanceof Error ? err.message : String(err)));
-                              }
-                            }}
-                            style={{ padding: "8px 16px", background: "#eab308", color: "#000", border: "none", borderRadius: "6px", cursor: "pointer" }}
-                          >
-                            Run all (including existing)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              setShowRunAllTemplatesModal(false);
-                              try {
-                                const result = await instantiateAllMutation.mutateAsync({
-                                  cityId,
-                                  modelKey: templateStructuringModelKey || undefined,
-                                  onlyMissing: true,
-                                });
-                                setRunningAllJobId(result.job_id);
-                                notifyJobCreated(result.job_id);
-                              } catch (err: unknown) {
-                                alert("Failed to start: " + (err instanceof Error ? err.message : String(err)));
-                              }
-                            }}
-                            style={{ padding: "8px 16px", background: "var(--brand-primary)", color: "white", border: "none", borderRadius: "6px", cursor: "pointer" }}
-                          >
-                            Confirm
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </span>
               </h4>
               <div className={styles.metricsTableContainer}>

@@ -1163,6 +1163,47 @@
   margin-right: auto;
 }
 
+.cta-cities {
+  margin-bottom: 32px;
+}
+
+.cta-cities-label {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.7;
+  margin-bottom: 12px;
+}
+
+.cta-city-chips {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.cta-city-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.cta-city-chip:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-1px);
+}
+
 .cta-buttons {
   display: flex;
   gap: 16px;
@@ -1555,6 +1596,169 @@
 
 .hero-newsletter {
   margin: 32px 0;
+}
+
+/* ── City dashboard page: compact hero ── */
+.city-hero {
+  position: relative;
+  padding: 120px 0 32px;
+  background: var(--bg-primary, #ffffff);
+  border-bottom: 1px solid var(--border-primary, rgba(17, 24, 39, 0.08));
+}
+
+.city-hero-inner {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.city-hero-left {
+  flex: 1 1 400px;
+  min-width: 0;
+}
+
+.city-hero-title {
+  font-family: var(--font-heading);
+  font-size: 36px;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin: 0 0 8px;
+}
+
+.city-hero-subtitle {
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin: 0 0 12px;
+}
+
+.city-hero-right {
+  flex: 0 0 340px;
+  max-width: 380px;
+}
+
+.city-hero-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+  padding-bottom: 4px;
+}
+
+/* Dashboard wrapper: visual prominence */
+.city-dashboard-wrapper {
+  padding-top: 32px;
+  padding-bottom: 48px;
+}
+
+/* ── Benefits / sign-up section ── */
+.city-benefits-section {
+  padding: 64px 0;
+  background: var(--bg-secondary, #f8f9fa);
+  border-top: 1px solid var(--border-primary, rgba(17, 24, 39, 0.08));
+}
+
+.city-benefits-heading {
+  font-family: var(--font-heading);
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text-primary);
+  margin: 0 0 40px;
+  letter-spacing: -0.01em;
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.city-benefits-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  margin-bottom: 40px;
+}
+
+.city-benefit-card {
+  background: var(--bg-primary, #ffffff);
+  border: 1px solid var(--border-primary, rgba(17, 24, 39, 0.08));
+  border-radius: 12px;
+  padding: 28px 24px;
+  text-align: left;
+}
+
+.city-benefit-icon {
+  font-size: 28px;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.city-benefit-title {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 8px;
+}
+
+.city-benefit-desc {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.city-benefits-cta {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+/* Wider footer on city pages */
+.city-footer .footer-content {
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+}
+
+@media (max-width: 1024px) {
+  .city-benefits-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .city-footer .footer-content {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .city-hero {
+    padding: 100px 0 24px;
+  }
+  .city-hero-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 20px;
+  }
+  .city-hero-title {
+    font-size: 28px;
+  }
+  .city-hero-right {
+    flex: 1 1 auto;
+    max-width: 100%;
+    width: 100%;
+  }
+  .city-benefits-grid {
+    grid-template-columns: 1fr;
+  }
+  .city-benefits-heading {
+    font-size: 22px;
+  }
+  .city-footer .footer-content {
+    grid-template-columns: 1fr;
+  }
 }
 
 .hero-category-links {

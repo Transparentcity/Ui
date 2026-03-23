@@ -31,49 +31,6 @@ vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }))
 
-vi.mock("./WasteCityContext", () => ({
-  useWasteCity: () => ({
-    selectedCityId: 1,
-    eligibleCities: [{ id: 1, name: "San Francisco", datasets_count: 5 }],
-    isLoading: false,
-    isFetching: false,
-    cityLoadError: null,
-    isCityFallback: false,
-    setSelectedCityId: vi.fn(),
-    selectedCityName: "San Francisco",
-  }),
-}))
-
-vi.mock("./waste-shell", () => ({
-  WasteShell: ({ children, title, description }: any) => (
-    <div>
-      <h1>{title}</h1>
-      {description ? <p>{description}</p> : null}
-      {children}
-    </div>
-  ),
-}))
-
-vi.mock("./trust-metrics-snapshot", () => ({
-  TrustMetricsSnapshot: () => <div>Trust Metrics Snapshot</div>,
-}))
-
-vi.mock("./department-trust-table", () => ({
-  DepartmentTrustTable: () => <div>Department Trust Table</div>,
-}))
-
-vi.mock("./trust-detector-table", () => ({
-  TrustDetectorTable: () => <div>Trust Detector Table</div>,
-}))
-
-vi.mock("./trust-methodology-note", () => ({
-  TrustMethodologyNote: () => <div>Trust Methodology Note</div>,
-}))
-
-vi.mock("./score-explainer", () => ({
-  ScoreExplainer: () => <div>Signal Breakdown</div>,
-}))
-
 vi.mock("@tanstack/react-query", async () => {
   const actual = await vi.importActual("@tanstack/react-query") as Record<string, unknown>
   return {
@@ -95,19 +52,11 @@ vi.mock("@/lib/publicApiClient", () => ({
 
 vi.mock("@/lib/hooks/useWaste", () => ({
   useWasteEntityScores: vi.fn(),
-  useWasteTrustMetrics: vi.fn(),
-  useWasteDepartmentRisk: vi.fn(),
 }))
 
-import {
-  useWasteDepartmentRisk as _useWasteDepartmentRisk,
-  useWasteEntityScores as _useWasteEntityScores,
-  useWasteTrustMetrics as _useWasteTrustMetrics,
-} from "@/lib/hooks/useWaste"
+import { useWasteEntityScores as _useWasteEntityScores } from "@/lib/hooks/useWaste"
 
-const useWasteDepartmentRisk = vi.mocked(_useWasteDepartmentRisk)
 const useWasteEntityScores = vi.mocked(_useWasteEntityScores)
-const useWasteTrustMetrics = vi.mocked(_useWasteTrustMetrics)
 
 function setupDefaultMocks() {
   const items = [
@@ -117,17 +66,6 @@ function setupDefaultMocks() {
   ]
   useWasteEntityScores.mockReturnValue(
     makeMockQuery({ items, total: 3, page: 1, per_page: 25 }) as ReturnType<typeof _useWasteEntityScores>
-  )
-  useWasteTrustMetrics.mockReturnValue(
-    makeMockQuery({
-      overview: { total_entities: 3 },
-      detectors: [],
-    }) as ReturnType<typeof _useWasteTrustMetrics>
-  )
-  useWasteDepartmentRisk.mockReturnValue(
-    makeMockQuery({ items: [], total: 0, page: 1, per_page: 8 }) as ReturnType<
-      typeof _useWasteDepartmentRisk
-    >
   )
 }
 

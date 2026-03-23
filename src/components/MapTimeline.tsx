@@ -238,64 +238,40 @@ export default function MapTimeline({
     ? dateCounts.findIndex((d) => d.date === selectedDate)
     : -1;
 
-  const hasDates = dateCounts.length > 0;
-  const displayLabel = selectedDate
-    ? (() => {
-        const d = new Date(selectedDate);
-        return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-      })()
-    : hasDates
-      ? (() => {
-          const first = new Date(dateCounts[0].date);
-          const last = new Date(dateCounts[dateCounts.length - 1].date);
-          const fmt = (d: Date) =>
-            d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-          return first.getTime() === last.getTime() ? fmt(first) : `${fmt(first)} – ${fmt(last)}`;
-        })()
-      : null;
-
   return (
     <>
-      {/* Bottom-left: clock toggle + current date / range always visible */}
-      <div className="map-timeline-bottom-left">
-        <button
-          className={`map-timeline-toggle ${isOpen ? "open" : ""}`}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsOpen(!isOpen);
-          }}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          aria-label="Toggle timeline"
-          title="Timeline"
-          style={{ pointerEvents: "auto" }}
-          type="button"
+      {/* Clock icon button - bottom left */}
+      <button
+        className={`map-timeline-toggle ${isOpen ? "open" : ""}`}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        aria-label="Toggle timeline"
+        title="Timeline"
+        style={{ pointerEvents: "auto" }}
+        type="button"
+      >
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ pointerEvents: "none" }}
         >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ pointerEvents: "none" }}
-          >
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
-        </button>
-        {hasDates && displayLabel && (
-          <div className="map-timeline-date-clock" aria-live="polite">
-            <span className="map-timeline-date-clock-value">{displayLabel}</span>
-            {isPlaying && <span className="map-timeline-date-clock-playing" aria-hidden>▶</span>}
-          </div>
-        )}
-      </div>
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+      </button>
 
       {/* Timeline panel */}
       <div 

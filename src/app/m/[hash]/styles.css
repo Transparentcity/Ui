@@ -498,14 +498,9 @@
   background: var(--brand-primary-hover);
 }
 
-/* Map Footer – gutters match landing .container (BRAND_KIT) */
+/* Map Footer */
 .map-footer {
   margin-top: 2rem;
-  padding-left: 24px;
-  padding-right: 24px;
-  max-width: 1280px;
-  margin-left: auto;
-  margin-right: auto;
 }
 
 /* Share Sheet */
@@ -618,40 +613,37 @@
   background: var(--bg-secondary);
 }
 
-/* CTA Section – BRAND_KIT: --bright-purple, Inter, clear spacing */
+/* CTA Section */
 .cta-section {
-  padding: 2rem 24px;
-  background: linear-gradient(135deg, var(--bright-purple, #ad35fa) 0%, var(--brand-primary-hover, #8b2cc7) 50%, rgba(173, 53, 250, 0.85) 100%);
-  border-radius: var(--radius-lg, 14px);
+  padding: 2.5rem;
+  background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 50%, #c4b5fd 100%);
+  border-radius: 16px;
   text-align: center;
 }
 
 .cta-section h3 {
   margin: 0 0 0.5rem 0;
   font-size: 1.5rem;
-  font-family: var(--font-heading, "Inter", sans-serif);
+  font-family: var(--font-heading, "DM Sans", sans-serif);
   color: white;
 }
 
 .cta-section p {
   margin: 0 0 1.5rem 0;
-  color: rgba(255, 255, 255, 0.92);
+  color: rgba(255, 255, 255, 0.9);
   font-size: 1rem;
-  font-family: var(--font-body, "IBM Plex Sans", sans-serif);
 }
 
 .cta-button {
   display: inline-block;
   padding: 0.875rem 2rem;
   background: white;
-  color: var(--bright-purple, #ad35fa);
+  color: #7c3aed;
   text-decoration: none;
-  border: none;
   border-radius: 8px;
   font-weight: 700;
   font-size: 1rem;
-  font-family: var(--font-heading, "Inter", sans-serif);
-  cursor: pointer;
+  font-family: var(--font-heading, "DM Sans", sans-serif);
   transition: all 0.2s;
 }
 
@@ -806,16 +798,11 @@
   }
   
   .cta-section {
-    padding: 1.5rem 16px;
+    padding: 1.5rem;
   }
   
   .cta-section h3 {
     font-size: 1.25rem;
-  }
-  
-  .map-footer {
-    padding-left: 16px;
-    padding-right: 16px;
   }
 }
 

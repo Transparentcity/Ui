@@ -28,28 +28,34 @@ describe("ScoreBar", () => {
     expect(screen.getByText("43")).toBeInTheDocument();
   });
 
-  it("applies red color for scores >= 81", () => {
+  it("applies red color for scores >= 80", () => {
     const { container } = render(<ScoreBar score={85} />);
     const bar = container.querySelector("[style]");
     expect(bar?.className).toContain("bg-red-500");
   });
 
-  it("applies orange color for scores 61-80", () => {
+  it("applies orange color for scores 60-79", () => {
     const { container } = render(<ScoreBar score={65} />);
     const bar = container.querySelector("[style]");
     expect(bar?.className).toContain("bg-orange-500");
   });
 
-  it("applies amber color for scores 31-60", () => {
+  it("applies yellow color for scores 40-59", () => {
     const { container } = render(<ScoreBar score={45} />);
     const bar = container.querySelector("[style]");
-    expect(bar?.className).toContain("bg-amber-500");
+    expect(bar?.className).toContain("bg-yellow-500");
   });
 
-  it("applies green color for scores <= 30", () => {
+  it("applies blue color for scores 20-39", () => {
     const { container } = render(<ScoreBar score={25} />);
     const bar = container.querySelector("[style]");
-    expect(bar?.className).toContain("bg-green-500");
+    expect(bar?.className).toContain("bg-blue-500");
+  });
+
+  it("applies gray color for scores < 20", () => {
+    const { container } = render(<ScoreBar score={10} />);
+    const bar = container.querySelector("[style]");
+    expect(bar?.className).toContain("bg-gray-400");
   });
 
   it("sets correct width style on the bar element", () => {

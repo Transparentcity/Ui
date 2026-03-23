@@ -154,7 +154,7 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
     event.stopPropagation();
     setOpenMenuId(null);
 
-    if (!confirm(`Remove ${cityName} from My Places?`)) {
+    if (!confirm(`Remove ${cityName} from My Cities?`)) {
       return;
     }
 
@@ -225,7 +225,7 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
         id="my-cities-header"
         onClick={() => setExpanded(!expanded)}
       >
-        <span>My Places</span>
+        <span>My Cities</span>
         <span id="my-cities-chevron" className={styles.sectionChevron}>
           {expanded ? "▼" : "▶"}
         </span>
@@ -284,7 +284,7 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
                           handleUnsaveCity(e, city.id, city.display_name)
                         }
                       >
-                        🗑️ Remove from My Places
+                        🗑️ Remove from My Cities
                       </div>
                     </div>
                   </div>

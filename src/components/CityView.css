@@ -53,12 +53,6 @@
   font-weight: 500;
 }
 
-.city-view-place-selector-refresh {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
 .city-view-scroll-body {
   flex: 1;
   display: flex;
@@ -331,11 +325,6 @@
 [data-theme="dark"] .city-view-sticky-header,
 .dark .city-view-sticky-header {
   background: rgba(17, 24, 39, 0.95);
-}
-
-[data-theme="dark"] .city-view-place-selector-row,
-.dark .city-view-place-selector-row {
-  background: rgba(17, 24, 39, 0.7);
 }
 
 [data-theme="dark"] .city-view-dashboard-section,

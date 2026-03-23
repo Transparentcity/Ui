@@ -61,8 +61,6 @@ interface DistrictNavigationProps {
   onPlaceSaved?: (place: { id: number }) => void;
   /** When this value changes and is > 0, open the modal (e.g. from Search Cities "Find your district"). */
   openTrigger?: number;
-  /** When the batch place-refresh job last ran (ISO string); shown next to place name. */
-  placeRefreshLastRunAt?: string | null;
 }
 
 // Helper function to check if a point is inside a polygon
@@ -183,7 +181,6 @@ export default function DistrictNavigation({
   onPlaceSelect,
   onPlaceSaved,
   openTrigger,
-  placeRefreshLastRunAt,
 }: DistrictNavigationProps) {
   const district = selectedDistrict ?? 0;
   const isPlaceScope = selectedPlaceId != null && selectedPlaceId > 0;
@@ -674,9 +671,8 @@ export default function DistrictNavigation({
   if (!mounted) return null;
 
   // Determine display name and label (place scope overrides district)
-  // When place is selected but selectedPlace not yet loaded (userPlaces still fetching), show "My block" to avoid flashing "Citywide"
-  const displayName = isPlaceScope
-    ? (selectedPlace ? selectedPlace.label : "My block")
+  const displayName = isPlaceScope && selectedPlace
+    ? selectedPlace.label
     : currentRepresentative
     ? currentRepresentative.name
     : isMayor
@@ -706,11 +702,6 @@ export default function DistrictNavigation({
           <div className="district-navigation-title-row">
             <span className="district-navigation-label">{labelText}</span>
             <span className="district-navigation-name">{displayName}</span>
-            {isPlaceScope && placeRefreshLastRunAt && (
-              <span className="district-navigation-refresh">
-                (refreshed {new Date(placeRefreshLastRunAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })})
-              </span>
-            )}
           </div>
         </div>
         <div className="district-navigation-actions">
@@ -896,11 +887,6 @@ export default function DistrictNavigation({
                   <div className="district-navigation-results">
                     <div className="district-navigation-results-header">
                       My block:
-                      {placeRefreshLastRunAt && (
-                        <span className="district-navigation-results-refresh">
-                          {" "}Last refreshed {new Date(placeRefreshLastRunAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}
-                        </span>
-                      )}
                     </div>
                     {userPlaces.map((place) => {
                       const isSelected = selectedPlaceId === place.id;

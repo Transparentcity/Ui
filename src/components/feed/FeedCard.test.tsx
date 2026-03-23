@@ -136,13 +136,12 @@ describe("FeedCard", () => {
     vi.clearAllMocks();
   });
 
-  function renderCard(storyOverrides: Partial<EnrichedFeedStory> = {}, props: { previewMode?: boolean } = {}) {
+  function renderCard(storyOverrides: Partial<EnrichedFeedStory> = {}) {
     return render(
       <FeedCard
         story={makeEnrichedStory(storyOverrides)}
         onHide={onHide}
         onDelete={onDelete}
-        previewMode={props.previewMode}
       />
     );
   }
@@ -205,15 +204,8 @@ describe("FeedCard", () => {
 
   // ── Navigation ────────────────────────────────────────────────────────
 
-  it("navigates to preview route in preview mode", () => {
-    renderCard({}, { previewMode: true });
-    const article = screen.getByRole("article");
-    fireEvent.click(article);
-    expect(mockPush).toHaveBeenCalledWith("/feed-preview/42");
-  });
-
-  it("navigates to feed route when not in preview mode", () => {
-    renderCard({}, { previewMode: false });
+  it("navigates to feed detail route on click", () => {
+    renderCard({});
     const article = screen.getByRole("article");
     fireEvent.click(article);
     expect(mockPush).toHaveBeenCalledWith("/feed/42");
