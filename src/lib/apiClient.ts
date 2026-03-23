@@ -2078,7 +2078,7 @@ export async function listJobs(
 
   try {
     return await request<JobsListResponse>(path, "GET", undefined, token);
-  } catch (error) {
+  } catch {
     // Return empty result if jobs API is unavailable
     // This makes the jobs system optional for CRM-only usage
     return { jobs: [], total: 0 };
@@ -2409,7 +2409,7 @@ export async function sendChatMessageStream(
     if (abortSignal?.aborted) return;
 
     try {
-      const { eventCount } = await _executeChatStream(
+      await _executeChatStream(
         url,
         request,
         token,
@@ -6177,67 +6177,92 @@ export function createChatJob(
   return request<ChatJobResponse>("/api/chat/jobs", "POST", payload, token);
 }
 
-// ---------------------------------------------------------------------------
-// Cost Basket (city-vs-city cost comparison)
-// ---------------------------------------------------------------------------
+// ============================================================================
+// COST COMPARISON API
+// ============================================================================
 
 export interface CostCityResult {
   cost: number;
-  budget: number | null;
   volume: number | null;
+  budget: number | null;
+  quality_value: string | null;
+  quality_label: string | null;
   cost_basis_label: string;
-  government_level: string;
   source_name: string;
+  source_url: string | null;
   source_year: string;
-  source_url?: string;
-  quality_label?: string;
-  quality_value?: string;
+  government_level: string;
+  is_estimate: boolean;
 }
 
 export interface CostMetricResult {
   metric_key: string;
   label: string;
   short_label: string;
-  unit: string;
-  icon: string;
   category: string;
+  icon: string;
+  unit: string;
+  tier: string;
+  city_a: CostCityResult;
+  city_b: CostCityResult;
   ratio: number;
   rpp_adjusted_ratio: number;
   methodology_note: string;
   caveats: string[];
-  city_a: CostCityResult;
-  city_b: CostCityResult;
 }
 
-export interface CostBasketCategory {
-  category_key: string;
-  category_label: string;
+export interface CostCategoryGroup {
+  category: string;
+  label: string;
   metrics: CostMetricResult[];
 }
 
 export interface CostBasketResponse {
   city_a_name: string;
   city_b_name: string;
+  city_a_id: number;
+  city_b_id: number;
+  categories: CostCategoryGroup[];
   basket_index: number;
   rpp_adjusted_basket_index: number;
   more_expensive_city: string;
-  metrics_available: number;
   biggest_gap_metric: string;
   biggest_gap_ratio: number;
+  metrics_available: number;
   data_freshness: string;
-  categories: CostBasketCategory[];
 }
 
 export function getCostBasket(
   token: string,
-  cityAId: number,
-  cityBId: number
+  cityAId?: number,
+  cityBId?: number
 ): Promise<CostBasketResponse> {
+  const params = new URLSearchParams();
+  if (cityAId != null) params.append("city_a", String(cityAId));
+  if (cityBId != null) params.append("city_b", String(cityBId));
+  const query = params.toString();
   return request<CostBasketResponse>(
-    `/api/cost/basket?city_a_id=${cityAId}&city_b_id=${cityBId}`,
+    `/api/comparison/cost-basket${query ? `?${query}` : ""}`,
     "GET",
     undefined,
     token
   );
 }
 
+export function getCostMetricDetail(
+  token: string,
+  metricKey: string,
+  cityAId?: number,
+  cityBId?: number
+): Promise<CostMetricResult> {
+  const params = new URLSearchParams();
+  if (cityAId != null) params.append("city_a", String(cityAId));
+  if (cityBId != null) params.append("city_b", String(cityBId));
+  const query = params.toString();
+  return request<CostMetricResult>(
+    `/api/comparison/cost-basket/${metricKey}${query ? `?${query}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}

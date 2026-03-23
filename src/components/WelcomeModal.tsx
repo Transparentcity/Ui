@@ -953,6 +953,13 @@ export default function WelcomeModal({
         "Create a newsletter focused on environment and sustainability: air quality, waste, green infrastructure, and sustainability metrics. Compare to prior period and highlight key takeaways.",
       metricCategories: ["environment", "sustainability"],
     },
+    {
+      id: "government-budget",
+      label: "Government & Budget",
+      prompt:
+        "Create a newsletter focused on government spending and budgets: contracts, procurement, city expenditures, budget variances, and fiscal transparency. Compare to prior period and highlight notable changes.",
+      metricCategories: ["government", "budget"],
+    },
   ];
 
   /** Build newsletter prompt from selected preset ids; used to keep prompt and pills in sync. */
