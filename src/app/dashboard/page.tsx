@@ -246,8 +246,8 @@ export default function DashboardPage() {
     let cancelled = false;
     getAccessTokenSilently()
       .then((token) => listMyPlaces(token))
-      .then((list) => {
-        if (!cancelled) setAllUserPlaces(list);
+      .then((res) => {
+        if (!cancelled) setAllUserPlaces(res.places);
       })
       .catch(() => {
         if (!cancelled) setAllUserPlaces([]);
@@ -570,21 +570,21 @@ export default function DashboardPage() {
   const handlePlaceSaved = () => {
     getAccessTokenSilently()
       .then((token) => listMyPlaces(token))
-      .then(setAllUserPlaces)
+      .then((res) => setAllUserPlaces(res.places))
       .catch(() => setAllUserPlaces([]));
   };
 
   const handlePlaceRenamed = () => {
     getAccessTokenSilently()
       .then((token) => listMyPlaces(token))
-      .then(setAllUserPlaces)
+      .then((res) => setAllUserPlaces(res.places))
       .catch(() => setAllUserPlaces([]));
   };
 
   const handlePlaceDeleted = (placeId: number) => {
     getAccessTokenSilently()
       .then((token) => listMyPlaces(token))
-      .then(setAllUserPlaces)
+      .then((res) => setAllUserPlaces(res.places))
       .catch(() => setAllUserPlaces([]));
     if (citySelection.placeId === placeId) {
       setCitySelection((prev) => ({ ...prev, placeId: null }));
@@ -806,7 +806,7 @@ export default function DashboardPage() {
     if (placeId != null) {
       getAccessTokenSilently()
         .then((token) => listMyPlaces(token))
-        .then(setAllUserPlaces)
+        .then((res) => setAllUserPlaces(res.places))
         .catch(() => {});
     }
   };

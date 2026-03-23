@@ -1888,10 +1888,10 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
     let cancelled = false;
     getAccessTokenSilently()
       .then((token) => listMyPlaces(token, { city_id: cityId }))
-      .then((list) => {
+      .then((res) => {
         if (!cancelled) {
           setUserPlaces(
-            list.map((p) => ({
+            res.places.map((p) => ({
               id: p.id,
               label: p.label,
               city_id: p.city_id,

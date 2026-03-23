@@ -1,11 +1,13 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
   listFeedStories,
   getFeedStory,
   trackFeedEngagement,
+  setFeedStoryFeedback,
+  hideFeedStory,
   listFeedPlaces,
   listPublicFeedStories,
   getPublicFeedStory,
@@ -82,6 +84,8 @@ export function useFeedStories(options?: {
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
     enabled: true,
+    // Keep showing previous results while loading more (avoids scroll-to-top flicker)
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -199,6 +203,58 @@ export function useTrackFeedEngagement() {
       queryClient.invalidateQueries({ queryKey: feedKeys.detail(variables.storyId) });
       // Also invalidate lists to refresh counts in list views
       queryClient.invalidateQueries({ queryKey: feedKeys.lists() });
+    },
+  });
+}
+
+/**
+ * Hook to set AI feedback (thumbs up/down) for a feed story.
+ * Invalidates feed list so story shows updated user_ai_feedback.
+ */
+export function useSetFeedStoryFeedback() {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      storyId,
+      feedback,
+    }: {
+      storyId: number;
+      feedback: "up" | "down";
+    }) => {
+      if (!isAuthenticated) {
+        return { success: false, message: "Not authenticated" };
+      }
+      const token = await getAccessTokenSilently();
+      return setFeedStoryFeedback(storyId, feedback, token);
+    },
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: feedKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: feedKeys.detail(variables.storyId) });
+    },
+  });
+}
+
+/**
+ * Hook to hide a story from the current user's feed.
+ * Invalidates feed list so the story is removed from the list.
+ */
+export function useHideFeedStory() {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ storyId }: { storyId: number }) => {
+      if (!isAuthenticated) {
+        return { success: false, message: "Not authenticated" };
+      }
+      const token = await getAccessTokenSilently();
+      return hideFeedStory(storyId, token);
+    },
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: feedKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: feedKeys.detail(variables.storyId) });
     },
   });
 }

@@ -2078,7 +2078,7 @@ export async function listJobs(
 
   try {
     return await request<JobsListResponse>(path, "GET", undefined, token);
-  } catch (error) {
+  } catch {
     // Return empty result if jobs API is unavailable
     // This makes the jobs system optional for CRM-only usage
     return { jobs: [], total: 0 };
@@ -2409,7 +2409,7 @@ export async function sendChatMessageStream(
     if (abortSignal?.aborted) return;
 
     try {
-      const { eventCount } = await _executeChatStream(
+      await _executeChatStream(
         url,
         request,
         token,
@@ -4195,6 +4195,8 @@ export interface CreateResearchRequest {
   model_key?: string;
   require_agenda_approval?: boolean;
   enable_web_search?: boolean;
+  max_iterations?: number;
+  max_subquestions?: number;
   is_newsletter?: boolean;
   newsletter_frequency?: "weekly" | "monthly" | null;
   generate_feed_stories?: boolean;
@@ -5243,6 +5245,52 @@ export interface WasteTrustReportRequest {
   lookback_days?: number;
 }
 
+export interface WasteThresholdChangeSummary {
+  detector_key: string;
+  threshold_field: string;
+  old_value: number;
+  new_value: number;
+  modified_at: string | null;
+}
+
+export interface WasteWeightDeltaSummary {
+  detector_key: string;
+  base_weight: number;
+  adjusted_weight: number;
+  delta_pct: number;
+}
+
+export interface WastePolicyLaneSummary {
+  total_detectors: number;
+  policy_controlled_detectors: number;
+  lanes: Record<string, number>;
+}
+
+export interface WasteEvaluationSnapshotItem {
+  id: string;
+  title: string;
+  expected_outcome: string;
+  status: "on_track" | "needs_review" | "manual_review";
+  detector_families: string[];
+  evidence: string[];
+}
+
+export interface WasteTrustReportResponse {
+  city_id: number;
+  lookback_days: number;
+  generated_at: string;
+  trust_metrics: WasteTrustMetricsResponse;
+  threshold_changes: WasteThresholdChangeSummary[];
+  policy_lane_summary: WastePolicyLaneSummary;
+  evaluation_snapshot: WasteEvaluationSnapshotItem[];
+  top_weight_deltas: WasteWeightDeltaSummary[];
+}
+
+export interface LatestWasteTrustReportResponse {
+  job_id: string | null;
+  report: WasteTrustReportResponse | null;
+}
+
 export interface WasteDepartmentRiskProfile {
   id: string | null;
   city_id: number;
@@ -5714,6 +5762,18 @@ export function generateWasteTrustReport(
   );
 }
 
+export function getLatestWasteTrustReport(
+  token: string,
+  cityId: number
+): Promise<LatestWasteTrustReportResponse> {
+  return request<LatestWasteTrustReportResponse>(
+    `/api/waste/scores/trust/report/latest?city_id=${cityId}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
 // ============================================================================
 // WASTE INVESTIGATIONS
 // ============================================================================
@@ -5995,6 +6055,35 @@ export interface DataGapInfo {
   public_records_request: string;
 }
 
+export interface CityReviewNoteInfo {
+  id: string;
+  title: string;
+  lane: string;
+  detector_families: string[];
+  summary: string;
+  operator_guidance: string;
+}
+
+export interface MetadataWorkstreamInfo {
+  id: string;
+  title: string;
+  scope: string;
+  detector_families: string[];
+  required_metadata: string[];
+  why_blocked: string;
+  recommended_sources: string[];
+}
+
+export interface EvalExpectationInfo {
+  id: string;
+  title: string;
+  scope: string;
+  expected_outcome: string;
+  detector_families: string[];
+  rationale: string;
+  pass_criteria: string[];
+}
+
 export interface CityMethodologyResponse {
   city_id: number;
   city_key: string;
@@ -6005,6 +6094,9 @@ export interface CityMethodologyResponse {
   missing_datasets: MethodologyDatasetInfo[];
   budget_year_datasets: MethodologyBudgetYearInfo[];
   methodology_notes: Record<string, string>;
+  city_review_notes: CityReviewNoteInfo[];
+  metadata_workstreams: MetadataWorkstreamInfo[];
+  eval_expectations: EvalExpectationInfo[];
   data_gaps: DataGapInfo[];
   total_detectors_available: number;
   total_detectors_skipped: number;
@@ -6085,68 +6177,92 @@ export function createChatJob(
   return request<ChatJobResponse>("/api/chat/jobs", "POST", payload, token);
 }
 
-// ---------------------------------------------------------------------------
-// Cost Basket (city-vs-city cost comparison)
-// ---------------------------------------------------------------------------
+// ============================================================================
+// COST COMPARISON API
+// ============================================================================
 
 export interface CostCityResult {
   cost: number;
-  budget: number | null;
   volume: number | null;
+  budget: number | null;
+  quality_value: string | null;
+  quality_label: string | null;
   cost_basis_label: string;
-  government_level: string;
   source_name: string;
+  source_url: string | null;
   source_year: string;
-  source_url?: string;
-  quality_label?: string;
-  quality_value?: string;
+  government_level: string;
+  is_estimate: boolean;
 }
 
 export interface CostMetricResult {
   metric_key: string;
   label: string;
   short_label: string;
-  unit: string;
-  icon: string;
   category: string;
+  icon: string;
+  unit: string;
+  tier: string;
+  city_a: CostCityResult;
+  city_b: CostCityResult;
   ratio: number;
   rpp_adjusted_ratio: number;
   methodology_note: string;
   caveats: string[];
-  city_a: CostCityResult;
-  city_b: CostCityResult;
 }
 
-export interface CostBasketCategory {
-  category_key: string;
-  category_label: string;
+export interface CostCategoryGroup {
+  category: string;
+  label: string;
   metrics: CostMetricResult[];
 }
 
 export interface CostBasketResponse {
   city_a_name: string;
   city_b_name: string;
+  city_a_id: number;
+  city_b_id: number;
+  categories: CostCategoryGroup[];
   basket_index: number;
   rpp_adjusted_basket_index: number;
   more_expensive_city: string;
-  metrics_available: number;
   biggest_gap_metric: string;
   biggest_gap_ratio: number;
+  metrics_available: number;
   data_freshness: string;
-  categories: CostBasketCategory[];
 }
 
 export function getCostBasket(
   token: string,
-  cityAId: number,
-  cityBId: number
+  cityAId?: number,
+  cityBId?: number
 ): Promise<CostBasketResponse> {
+  const params = new URLSearchParams();
+  if (cityAId != null) params.append("city_a", String(cityAId));
+  if (cityBId != null) params.append("city_b", String(cityBId));
+  const query = params.toString();
   return request<CostBasketResponse>(
-    `/api/cost/basket?city_a_id=${cityAId}&city_b_id=${cityBId}`,
+    `/api/comparison/cost-basket${query ? `?${query}` : ""}`,
     "GET",
     undefined,
     token
   );
 }
 
-
+export function getCostMetricDetail(
+  token: string,
+  metricKey: string,
+  cityAId?: number,
+  cityBId?: number
+): Promise<CostMetricResult> {
+  const params = new URLSearchParams();
+  if (cityAId != null) params.append("city_a", String(cityAId));
+  if (cityBId != null) params.append("city_b", String(cityBId));
+  const query = params.toString();
+  return request<CostMetricResult>(
+    `/api/comparison/cost-basket/${metricKey}${query ? `?${query}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
