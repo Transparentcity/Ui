@@ -29,11 +29,15 @@ import {
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 
-const STATUS_BADGE: Record<string, string> = {
-  open: "bg-blue-100 text-blue-700",
-  in_progress: "bg-yellow-100 text-yellow-700",
-  pending_response: "bg-orange-100 text-orange-700",
-  closed: "bg-gray-100 text-gray-600",
+// Simplified 3-state display model
+function displayStatus(status: string, finalDisposition?: string | null): { label: string; className: string } {
+  if (status === "closed") {
+    if (finalDisposition === "confirmed_fraud") {
+      return { label: "Escalated", className: "bg-red-100 text-red-700" }
+    }
+    return { label: "Resolved", className: "bg-gray-100 text-gray-600" }
+  }
+  return { label: "Open", className: "bg-blue-100 text-blue-700" }
 }
 
 export function InvestigationsListPage() {
@@ -66,11 +70,9 @@ export function InvestigationsListPage() {
             <SelectValue placeholder="All statuses" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="all">All</SelectItem>
             <SelectItem value="open">Open</SelectItem>
-            <SelectItem value="in_progress">In Progress</SelectItem>
-            <SelectItem value="pending_response">Pending Response</SelectItem>
-            <SelectItem value="closed">Closed</SelectItem>
+            <SelectItem value="closed">Resolved / Escalated</SelectItem>
           </SelectContent>
         </Select>
         {data && (
@@ -92,8 +94,8 @@ export function InvestigationsListPage() {
             <TableRow className="bg-gray-50">
               <TableHead>Title</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Notes</TableHead>
               <TableHead>Lead Auditor</TableHead>
-              <TableHead>Finding ID</TableHead>
               <TableHead>Opened</TableHead>
               <TableHead className="w-10" />
             </TableRow>
@@ -116,40 +118,44 @@ export function InvestigationsListPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              data?.items.map((inv) => (
-                <TableRow key={inv.id}>
-                  <TableCell className="font-medium">
-                    <Link
-                      href={`/waste/investigations/${inv.id}`}
-                      className="text-purple-600 hover:text-purple-800 hover:underline"
-                    >
-                      {inv.title}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={cn(
-                        "inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize",
-                        STATUS_BADGE[inv.status] ?? STATUS_BADGE.open
-                      )}
-                    >
-                      {inv.status.replace("_", " ")}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-gray-600">{inv.lead_auditor_id ?? "—"}</TableCell>
-                  <TableCell className="text-xs text-gray-500">
-                    #{inv.finding_id}
-                  </TableCell>
-                  <TableCell className="text-xs text-gray-400">
-                    {inv.opened_at ? new Date(inv.opened_at).toLocaleDateString() : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/waste/investigations/${inv.id}`}>
-                      <ExternalLink className="w-4 h-4 text-gray-400 hover:text-purple-600" />
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))
+              data?.items.map((inv) => {
+                const ds = displayStatus(inv.status, inv.final_disposition)
+                const notesCount = inv.actions?.length ?? 0
+                return (
+                  <TableRow key={inv.id}>
+                    <TableCell className="font-medium">
+                      <Link
+                        href={`/waste/investigations/${inv.id}`}
+                        className="text-purple-600 hover:text-purple-800 hover:underline"
+                      >
+                        {inv.title}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={cn(
+                          "inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                          ds.className
+                        )}
+                      >
+                        {ds.label}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-500 tabular-nums">
+                      {notesCount}
+                    </TableCell>
+                    <TableCell className="text-gray-600">{inv.lead_auditor_id ?? "—"}</TableCell>
+                    <TableCell className="text-xs text-gray-400">
+                      {inv.opened_at ? new Date(inv.opened_at).toLocaleDateString() : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Link href={`/waste/investigations/${inv.id}`}>
+                        <ExternalLink className="w-4 h-4 text-gray-400 hover:text-purple-600" />
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                )
+              })
             )}
           </TableBody>
         </Table>

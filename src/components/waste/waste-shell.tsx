@@ -14,12 +14,16 @@ import {
   ArrowLeft,
   LogIn,
   MapPin,
+  FileText,
+  Settings,
+  Eye,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Loader from "@/components/Loader"
 import { useWasteCity } from "./WasteCityContext"
 import { WasteCityPicker } from "./waste-city-picker"
 import { useLatestWasteRun } from "@/lib/hooks/useWaste"
+import { WasteViewModeProvider, useWasteViewMode } from "./WasteViewModeContext"
 
 type TabItem = {
   key: string
@@ -28,17 +32,24 @@ type TabItem = {
   icon: React.ComponentType<{ className?: string }>
 }
 
-const TOP_TABS: TabItem[] = [
+// Auditor-facing tabs — clean, focused
+const AUDITOR_TABS: TabItem[] = [
   { key: "workspace", name: "Workspace", href: "/waste", icon: LayoutGrid },
+  { key: "investigations", name: "Dashboard", href: "/waste/dashboard", icon: Activity },
   { key: "api", name: "Guardrails API", href: "/waste/api", icon: Code2 },
-  { key: "investigations", name: "Investigations", href: "/waste/dashboard", icon: Activity },
-  { key: "backtrace", name: "Backtrace", href: "/waste/forensics", icon: Search },
+]
+
+// Admin-only tabs — shown in admin mode
+const ADMIN_EXTRA_TABS: TabItem[] = [
+  { key: "backtrace", name: "Forensics", href: "/waste/forensics", icon: Search },
+  { key: "executive", name: "Backtrace", href: "/waste/executive", icon: FileText },
   { key: "thresholds", name: "Thresholds", href: "/waste/settings/thresholds", icon: SlidersHorizontal },
 ]
 
 const FOLDED_ROUTES: Record<string, string[]> = {
   investigations: ["/waste/dashboard", "/waste/queue", "/waste/investigations", "/waste/scores"],
-  backtrace: ["/waste/forensics", "/waste/executive"],
+  backtrace: ["/waste/forensics"],
+  executive: ["/waste/executive"],
   thresholds: ["/waste/settings/thresholds", "/waste/methodology"],
 }
 
@@ -53,7 +64,15 @@ interface WasteShellProps {
   onCategoryChange?: (category: string) => void
 }
 
-export function WasteShell({
+export function WasteShell(props: WasteShellProps) {
+  return (
+    <WasteViewModeProvider>
+      <WasteShellInner {...props} />
+    </WasteViewModeProvider>
+  )
+}
+
+function WasteShellInner({
   children,
   title,
   description,
@@ -63,6 +82,11 @@ export function WasteShell({
   const { isAuthenticated, isLoading: authLoading, loginWithRedirect } = useAuth0()
   const { selectedCityId, eligibleCities, isLoading: citiesLoading, isFetching, setSelectedCityId, selectedCityName } = useWasteCity()
   const { data: latestRun, isLoading: latestRunLoading } = useLatestWasteRun(selectedCityId)
+  const { viewMode, toggle: toggleViewMode } = useWasteViewMode()
+
+  const visibleTabs = viewMode === "admin"
+    ? [...AUDITOR_TABS, ...ADMIN_EXTRA_TABS]
+    : AUDITOR_TABS
 
   const lastPullLabel = (() => {
     if (!latestRun) return null
@@ -189,6 +213,24 @@ export function WasteShell({
               ) : null}
             </div>
 
+            {/* View mode toggle */}
+            <button
+              onClick={toggleViewMode}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors border",
+                viewMode === "admin"
+                  ? "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100"
+                  : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
+              )}
+              title={viewMode === "admin" ? "Switch to Auditor view" : "Switch to Admin view"}
+            >
+              {viewMode === "admin" ? (
+                <><Eye className="w-3.5 h-3.5" /> Auditor View</>
+              ) : (
+                <><Settings className="w-3.5 h-3.5" /> Admin View</>
+              )}
+            </button>
+
             <Link
               href="/dashboard"
               className="flex items-center gap-1.5 text-xs text-gray-400 no-underline hover:text-purple-600 transition-colors"
@@ -201,7 +243,7 @@ export function WasteShell({
 
         {/* Tab bar */}
         <nav className="flex items-center gap-0 px-4 lg:px-6 overflow-x-auto scrollbar-hide">
-          {TOP_TABS.map((tab) => {
+          {visibleTabs.map((tab) => {
             const Icon = tab.icon
             const active = isTabActive(tab)
             return (

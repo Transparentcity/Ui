@@ -22,14 +22,7 @@ const ACTION_TYPE_META: Record<
   subpoena: { icon: Gavel, label: "Subpoena" },
   referral: { icon: ExternalLink, label: "Referral" },
   note: { icon: StickyNote, label: "Note" },
-  evidence_collected: { icon: FolderSearch, label: "Evidence Collected" },
-}
-
-const STATUS_STYLES: Record<string, string> = {
-  pending: "bg-gray-100 text-gray-700",
-  in_progress: "bg-blue-100 text-blue-700",
-  completed: "bg-emerald-100 text-emerald-700",
-  cancelled: "bg-red-100 text-red-700",
+  evidence_collected: { icon: FolderSearch, label: "Evidence" },
 }
 
 interface ActionCardProps {
@@ -40,57 +33,41 @@ interface ActionCardProps {
 export function ActionCard({ action, className }: ActionCardProps) {
   const meta = ACTION_TYPE_META[action.action_type] ?? ACTION_TYPE_META.note
   const Icon = meta.icon
-  const isOverdue =
-    action.status !== "completed" &&
-    action.status !== "cancelled" &&
-    action.due_date &&
-    new Date(action.due_date) < new Date()
+
+  const timestamp = action.created_at
+    ? new Date(action.created_at).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : null
 
   return (
     <div
       className={cn(
-        "flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-4",
-        isOverdue && "border-red-200 bg-red-50/30",
+        "rounded-lg border border-gray-200 bg-white p-3",
         className
       )}
     >
-      <div className="rounded-md bg-gray-100 p-2 shrink-0">
-        <Icon className="w-4 h-4 text-gray-600" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-gray-900 truncate">
-            {action.title}
-          </span>
-          <span className="text-[10px] text-gray-500 uppercase tracking-wide">
-            {meta.label}
-          </span>
-          <span
-            className={cn(
-              "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize",
-              STATUS_STYLES[action.status] ?? STATUS_STYLES.pending
-            )}
-          >
-            {action.status.replace("_", " ")}
-          </span>
+      <div className="flex items-start gap-2.5">
+        <div className="rounded-md bg-gray-100 p-1.5 shrink-0 mt-0.5">
+          <Icon className="w-3.5 h-3.5 text-gray-500" />
         </div>
-        {action.description && (
-          <p className="mt-1 text-xs text-gray-500 line-clamp-2">
-            {action.description}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            {timestamp && (
+              <span className="text-[11px] text-gray-400">{timestamp}</span>
+            )}
+            {action.action_type !== "note" && (
+              <span className="text-[10px] text-gray-400 uppercase tracking-wide bg-gray-50 px-1.5 py-0.5 rounded">
+                {meta.label}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">
+            {action.description || action.title}
           </p>
-        )}
-        <div className="mt-2 flex items-center gap-3 text-[11px] text-gray-400">
-          {action.assigned_to && <span>Assigned to {action.assigned_to}</span>}
-          {action.due_date && (
-            <span className={isOverdue ? "text-red-600 font-medium" : ""}>
-              Due {new Date(action.due_date).toLocaleDateString()}
-            </span>
-          )}
-          {action.completed_at && (
-            <span className="text-emerald-600">
-              Completed {new Date(action.completed_at).toLocaleDateString()}
-            </span>
-          )}
         </div>
       </div>
     </div>

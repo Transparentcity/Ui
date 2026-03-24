@@ -4025,6 +4025,53 @@ export function deleteResearchQueueItem(
   );
 }
 
+// Daily Constituent Report
+export interface DailyReportPreview {
+  subject: string;
+  html: string;
+  escalation_count: number;
+  applause_count: number;
+  flag_count: number;
+}
+
+export function previewDailyReport(
+  token: string,
+  params?: { city_id?: number; city_name?: string; days?: number }
+): Promise<DailyReportPreview> {
+  const query = new URLSearchParams();
+  if (params?.city_id) query.set("city_id", String(params.city_id));
+  if (params?.city_name) query.set("city_name", params.city_name);
+  if (params?.days) query.set("days", String(params.days));
+  return request<DailyReportPreview>(
+    `/api/signals/daily-report/preview${query.toString() ? `?${query}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface DailyReportSendResult {
+  sent_count: number;
+  failed_count: number;
+  report_date: string;
+}
+
+export function generateDailyReport(
+  token: string,
+  params?: { city_id?: number; city_name?: string; days?: number }
+): Promise<DailyReportSendResult> {
+  const query = new URLSearchParams();
+  if (params?.city_id) query.set("city_id", String(params.city_id));
+  if (params?.city_name) query.set("city_name", params.city_name);
+  if (params?.days) query.set("days", String(params.days));
+  return request<DailyReportSendResult>(
+    `/api/signals/daily-report/generate${query.toString() ? `?${query}` : ""}`,
+    "POST",
+    undefined,
+    token
+  );
+}
+
 // Admin feed delete (requires admin)
 export interface DeleteFeedStoryResponse {
   success: boolean;
@@ -5164,6 +5211,8 @@ export interface WasteFinding {
   truncated_total: number | null;
   caveat: string | null;
   narrative: string | null;
+  headline: string | null;
+  signal_tier: "primary" | "supporting" | null;
   finding_report: string | null;
   is_new?: boolean;
   fiscal_year?: number | null;

@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import type { WasteFinding } from "@/lib/apiClient"
+import type { WasteFinding, WasteDispositionType } from "@/lib/apiClient"
+import { WasteFindingCard } from "./waste-finding-card"
 import { WasteSubcategoryGroup } from "./waste-subcategory-group"
 
 export interface SubGroup {
@@ -15,9 +16,14 @@ export interface GroupedSubcategory {
   subGroups?: SubGroup[]
 }
 
+export type FindingSortMode = "severity" | "amount" | "demo"
+
 interface WasteFindingsListProps {
   findings: WasteFinding[]
   onAskSeymour?: (finding: WasteFinding) => void
+  onDispose?: (finding: WasteFinding, disposition: WasteDispositionType) => void
+  onSkip?: (finding: WasteFinding) => void
+  sortMode?: FindingSortMode
   cityId?: number
 }
 
@@ -68,6 +74,9 @@ function sortByMostRecent(items: WasteFinding[]): WasteFinding[] {
 export function WasteFindingsList({
   findings,
   onAskSeymour,
+  onDispose,
+  onSkip,
+  sortMode = "severity",
   cityId,
 }: WasteFindingsListProps) {
   const [expandedFindingId, setExpandedFindingId] = useState<string | null>(null)
@@ -75,6 +84,30 @@ export function WasteFindingsList({
   const handleFindingToggle = (id: string) => {
     setExpandedFindingId((prev) => (prev === id ? null : id))
   }
+
+  // Demo-quality sorted findings (flat list, no grouping)
+  const demoSorted = useMemo(() => {
+    if (sortMode !== "demo") return null
+    return [...findings].sort((a, b) => {
+      const scoreA =
+        (a.amount ?? 0) *
+        (a.signal_tier === "primary" ? 2 : 1) *
+        (a.priority_score ?? 1)
+      const scoreB =
+        (b.amount ?? 0) *
+        (b.signal_tier === "primary" ? 2 : 1) *
+        (b.priority_score ?? 1)
+      return scoreB - scoreA
+    })
+  }, [findings, sortMode])
+
+  // Amount-sorted findings (flat list)
+  const amountSorted = useMemo(() => {
+    if (sortMode !== "amount") return null
+    return [...findings].sort(
+      (a, b) => (b.amount ?? 0) - (a.amount ?? 0)
+    )
+  }, [findings, sortMode])
 
   // Group findings by subcategory, then merge subcategories that share a
   // common "Parent - Child" prefix into a single parent group with nested
@@ -141,6 +174,33 @@ export function WasteFindingsList({
     )
   }
 
+  // Flat list for demo or amount sort modes
+  const flatList = demoSorted ?? amountSorted
+  if (flatList) {
+    return (
+      <div className="space-y-2">
+        {flatList.map((finding, i) => (
+          <div key={finding.id} className="relative">
+            {sortMode === "demo" && (
+              <span className="absolute -left-8 top-3 text-xs font-bold text-gray-300 tabular-nums">
+                #{i + 1}
+              </span>
+            )}
+            <WasteFindingCard
+              finding={finding}
+              isExpanded={expandedFindingId === finding.id}
+              onToggle={() => handleFindingToggle(finding.id)}
+              onAskSeymour={onAskSeymour}
+              onDispose={onDispose}
+              onSkip={onSkip}
+              cityId={cityId}
+            />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-2">
       {grouped.map((group) => (
@@ -152,6 +212,8 @@ export function WasteFindingsList({
           expandedFindingId={expandedFindingId}
           onFindingToggle={handleFindingToggle}
           onAskSeymour={onAskSeymour}
+          onDispose={onDispose}
+          onSkip={onSkip}
           cityId={cityId}
         />
       ))}

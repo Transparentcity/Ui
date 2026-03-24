@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
+import { cn } from "@/lib/utils"
 import { useWasteAnalysis, useActiveWasteJob, useLatestPersistedWasteResult } from "@/lib/hooks/useWaste"
 import { useWasteCity } from "./WasteCityContext"
 import { WasteShell } from "./waste-shell"
@@ -10,12 +11,13 @@ import type {
   WasteAnalyzeResponse,
   WasteDataFreshness,
   WasteFinding,
+  WasteDispositionType,
 } from "@/lib/apiClient"
 
 import { WasteStatBar } from "./waste-stat-bar"
 import { WasteCategoryTabs } from "./waste-category-tabs"
 import { WasteSeverityFilter } from "./waste-severity-filter"
-import { WasteFindingsList } from "./waste-findings-list"
+import { WasteFindingsList, type FindingSortMode } from "./waste-findings-list"
 import { WasteExport } from "./waste-export"
 import { WasteClusterMap } from "./waste-cluster-map"
 import {
@@ -37,6 +39,7 @@ import {
 } from "./waste-utils"
 
 type SeverityFilter = "all" | "critical" | "high" | "medium"
+type SignalTierFilter = "primary" | "all"
 
 const WASTE_ANALYSIS_ESTIMATED_SECONDS = 900
 const STALE_DATA_WARNING_DAYS = 7
@@ -142,6 +145,43 @@ function DataSourceDetails({ freshness }: { freshness: WasteDataFreshness[] }) {
 export function WastePageContent() {
   const [activeCategory, setActiveCategory] = useState<WasteCategoryKey>("overview")
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
+  const [signalTierFilter, setSignalTierFilter] = useState<SignalTierFilter>("primary")
+  const [sortMode, setSortMode] = useState<FindingSortMode>("severity")
+
+  // Flagged finding IDs (persisted in localStorage)
+  const [flaggedIds, setFlaggedIds] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set()
+    try {
+      const raw = window.localStorage.getItem("waste:flagged_findings")
+      return raw ? new Set(JSON.parse(raw)) : new Set()
+    } catch { return new Set() }
+  })
+
+  const toggleFlag = (findingId: string) => {
+    setFlaggedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(findingId)) next.delete(findingId)
+      else next.add(findingId)
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("waste:flagged_findings", JSON.stringify([...next]))
+      }
+      return next
+    })
+  }
+
+  const handleDispose = (finding: WasteFinding, disposition: WasteDispositionType) => {
+    if (disposition === "under_investigation") {
+      // Flag action — bookmark this finding
+      toggleFlag(finding.id)
+    }
+    // For dismiss actions (false_positive, data_error, inconclusive),
+    // the full disposition API call would go here once connected to backend.
+    // For now, just flag/unflag locally.
+  }
+
+  const handleSkip = (_finding: WasteFinding) => {
+    // No-op: skip just collapses the card. Could move to bottom of list in future.
+  }
   const [seymourRequest, setSeymourRequest] = useState<WasteSeymourRequest | null>(null)
   const { selectedCityId } = useWasteCity()
   const [cachedData] = useState<WasteAnalyzeResponse | null>(() => loadCachedAnalysis(selectedCityId))
@@ -257,11 +297,17 @@ export function WastePageContent() {
       .filter((f) => normalizeWasteCategory(f.category) === activeCategory)
   }, [displayData, activeCategory])
 
-  // Filter by severity
+  // Filter by severity and signal tier
   const filteredFindings = useMemo(() => {
-    if (severityFilter === "all") return categoryFindings
-    return categoryFindings.filter((f) => f.severity?.toLowerCase() === severityFilter)
-  }, [categoryFindings, severityFilter])
+    let result = categoryFindings
+    if (signalTierFilter === "primary") {
+      result = result.filter((f) => f.signal_tier === "primary" || !f.signal_tier)
+    }
+    if (severityFilter !== "all") {
+      result = result.filter((f) => f.severity?.toLowerCase() === severityFilter)
+    }
+    return result
+  }, [categoryFindings, severityFilter, signalTierFilter])
 
   // Get infrastructure findings for cluster map
   const infraFindings = useMemo(() => {
@@ -766,12 +812,59 @@ export function WastePageContent() {
 
               {/* Filter row */}
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                <WasteSeverityFilter
-                  findings={categoryFindings}
-                  activeFilter={severityFilter}
-                  onFilterChange={setSeverityFilter}
-                />
-                <WasteExport category={activeCategory} cityId={selectedCityId} />
+                <div className="flex items-center gap-3">
+                  <WasteSeverityFilter
+                    findings={categoryFindings}
+                    activeFilter={severityFilter}
+                    onFilterChange={setSeverityFilter}
+                  />
+                  {/* Signal tier toggle */}
+                  <div className="flex items-center rounded-md border border-gray-200 overflow-hidden text-xs">
+                    <button
+                      onClick={() => setSignalTierFilter("primary")}
+                      className={cn(
+                        "px-3 py-1.5 font-medium transition-colors",
+                        signalTierFilter === "primary"
+                          ? "bg-purple-50 text-purple-700 border-r border-purple-200"
+                          : "bg-white text-gray-500 border-r border-gray-200 hover:bg-gray-50"
+                      )}
+                    >
+                      Primary Signals
+                    </button>
+                    <button
+                      onClick={() => setSignalTierFilter("all")}
+                      className={cn(
+                        "px-3 py-1.5 font-medium transition-colors",
+                        signalTierFilter === "all"
+                          ? "bg-purple-50 text-purple-700"
+                          : "bg-white text-gray-500 hover:bg-gray-50"
+                      )}
+                    >
+                      All Signals
+                    </button>
+                  </div>
+                  {/* Sort mode selector */}
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                    <span>Sort:</span>
+                    <select
+                      value={sortMode}
+                      onChange={(e) => setSortMode(e.target.value as FindingSortMode)}
+                      className="text-xs border border-gray-200 rounded px-2 py-1 bg-white text-gray-700 cursor-pointer"
+                    >
+                      <option value="severity">Severity</option>
+                      <option value="demo">Demo Quality</option>
+                      <option value="amount">Dollar Amount</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {flaggedIds.size > 0 && (
+                    <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded">
+                      {flaggedIds.size} flagged
+                    </span>
+                  )}
+                  <WasteExport category={activeCategory} cityId={selectedCityId} />
+                </div>
               </div>
 
               {/* Cluster map for infrastructure */}
@@ -790,6 +883,9 @@ export function WastePageContent() {
                 <WasteFindingsList
                   findings={filteredFindings}
                   onAskSeymour={handleAskSeymour}
+                  onDispose={handleDispose}
+                  onSkip={handleSkip}
+                  sortMode={sortMode}
                   cityId={selectedCityId}
                 />
               )}

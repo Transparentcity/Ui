@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { ChevronRight, Map as MapIcon } from "lucide-react"
-import type { WasteFinding } from "@/lib/apiClient"
+import type { WasteFinding, WasteDispositionType } from "@/lib/apiClient"
 import { WasteFindingCard } from "./waste-finding-card"
 import type { SubGroup } from "./waste-findings-list"
 import { formatDollar } from "./waste-utils"
@@ -60,6 +60,8 @@ interface WasteSubcategoryGroupProps {
   expandedFindingId: string | null
   onFindingToggle: (id: string) => void
   onAskSeymour?: (finding: WasteFinding) => void
+  onDispose?: (finding: WasteFinding, disposition: WasteDispositionType) => void
+  onSkip?: (finding: WasteFinding) => void
   cityId?: number
 }
 
@@ -70,6 +72,8 @@ export function WasteSubcategoryGroup({
   expandedFindingId,
   onFindingToggle,
   onAskSeymour,
+  onDispose,
+  onSkip,
   cityId,
 }: WasteSubcategoryGroupProps) {
   const [isCollapsed, setIsCollapsed] = useState(true)
@@ -147,6 +151,8 @@ export function WasteSubcategoryGroup({
                           isExpanded={expandedFindingId === finding.id}
                           onToggle={() => onFindingToggle(finding.id)}
                           onAskSeymour={onAskSeymour}
+                          onDispose={onDispose}
+                          onSkip={onSkip}
                           cityId={cityId}
                         />
                       ))}
@@ -164,6 +170,8 @@ export function WasteSubcategoryGroup({
                 isExpanded={expandedFindingId === finding.id}
                 onToggle={() => onFindingToggle(finding.id)}
                 onAskSeymour={onAskSeymour}
+                onDispose={onDispose}
+                onSkip={onSkip}
                 cityId={cityId}
               />
             ))
