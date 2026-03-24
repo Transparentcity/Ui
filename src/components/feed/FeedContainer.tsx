@@ -712,7 +712,7 @@ export default function FeedContainer({
       {/* Stories */}
       {visibleStories.length > 0 && (
         <div className={styles.storiesList}>
-          {visibleStories.map((story) => {
+          {visibleStories.map((story, storyIdx) => {
             // Text-only context/trend cards render in compact mode,
             // UNLESS they contain meaningful data (percentage in headline,
             // metric metadata, or key insight) that deserves full card treatment.
@@ -740,6 +740,7 @@ export default function FeedContainer({
                 onHide={handleHide}
                 onDelete={isAdmin ? handleDelete : undefined}
                 compact={isCompact}
+                showTooltips={storyIdx === 0}
               />
             );
           })}

@@ -32,9 +32,11 @@ interface FeedCardProps {
   /** @deprecated previewMode is no longer used; feed-preview routes have been removed */
   previewMode?: boolean;
   compact?: boolean;
+  /** Show action tooltips on first card for new users. */
+  showTooltips?: boolean;
 }
 
-export default function FeedCard({ story, isAdmin, isOfficial, onHide, onDelete, compact }: FeedCardProps) {
+export default function FeedCard({ story, isAdmin, isOfficial, onHide, onDelete, compact, showTooltips }: FeedCardProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
   const { getAccessTokenSilently } = useAuth0();
@@ -177,6 +179,7 @@ export default function FeedCard({ story, isAdmin, isOfficial, onHide, onDelete,
       escalateCount={localEscalateCount}
       investigateCount={story.investigate_count ?? 0}
       isOfficial={isOfficial}
+      showTooltips={showTooltips}
       onApplaud={handleApplaud}
       onEscalate={handleEscalate}
       onInvestigate={handleInvestigate}

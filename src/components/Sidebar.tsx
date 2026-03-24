@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useId } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import UserProfile from "./UserProfile";
 import SessionList from "./SessionList";
 import JobSessionList from "./JobSessionList";
@@ -114,6 +115,8 @@ export default function Sidebar({
   const baseId = useId();
   const logoMaskIdBl = `${baseId}-logo-mask-bl`;
   const logoMaskIdTr = `${baseId}-logo-mask-tr`;
+
+  const pathname = usePathname();
 
   // Research and New Research Report: admin or government mode
   const canAccessResearch = isAdmin || governmentVerified;
@@ -348,7 +351,7 @@ export default function Sidebar({
           {canAccessResearch && (
             <Link
               href="/research-queue"
-              className={`${styles.navItem} ${styles.newChatBtn}`}
+              className={`${styles.navItem} ${styles.newChatBtn} ${pathname === "/research-queue" ? styles.navItemActive : ""}`}
               id="research-queue-btn"
               onClick={() => {
                 if (isNarrowScreen() && onClose) onClose();
@@ -376,7 +379,7 @@ export default function Sidebar({
           {canAccessResearch && (
             <Link
               href="/applause"
-              className={`${styles.navItem} ${styles.newChatBtn}`}
+              className={`${styles.navItem} ${styles.newChatBtn} ${pathname === "/applause" ? styles.navItemActive : ""}`}
               id="applause-dashboard-btn"
               onClick={() => {
                 if (isNarrowScreen() && onClose) onClose();
@@ -395,7 +398,7 @@ export default function Sidebar({
           {canAccessResearch && (
             <Link
               href="/flags"
-              className={`${styles.navItem} ${styles.newChatBtn}`}
+              className={`${styles.navItem} ${styles.newChatBtn} ${pathname === "/flags" ? styles.navItemActive : ""}`}
               id="flag-dashboard-btn"
               onClick={() => {
                 if (isNarrowScreen() && onClose) onClose();
@@ -414,7 +417,7 @@ export default function Sidebar({
           {canAccessResearch && (
             <Link
               href="/signals"
-              className={`${styles.navItem} ${styles.newChatBtn}`}
+              className={`${styles.navItem} ${styles.newChatBtn} ${pathname === "/signals" ? styles.navItemActive : ""}`}
               id="signals-dashboard-btn"
               onClick={() => {
                 if (isNarrowScreen() && onClose) onClose();
@@ -464,7 +467,7 @@ export default function Sidebar({
 
           <Link
             href="/settings/feed"
-            className={`${styles.navItem} ${styles.newChatBtn}`}
+            className={`${styles.navItem} ${styles.newChatBtn} ${pathname === "/settings/feed" ? styles.navItemActive : ""}`}
             id="feed-settings-btn"
             onClick={() => {
               if (isNarrowScreen() && onClose) onClose();
