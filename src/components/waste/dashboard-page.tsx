@@ -603,8 +603,8 @@ export function DashboardPage() {
 
   return (
     <WasteShell
-      title="Investigations"
-      description="Operational monitoring and risk overview"
+      title="Dashboard"
+      description="Risk overview and audit triage"
       actions={
         lastRunDate ? (
           <span className="text-xs text-gray-400 flex items-center gap-1.5">
