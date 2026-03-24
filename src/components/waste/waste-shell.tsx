@@ -34,7 +34,7 @@ type TabItem = {
 
 // Auditor-facing tabs — clean, focused
 const AUDITOR_TABS: TabItem[] = [
-  { key: "workspace", name: "Workspace", href: "/waste", icon: LayoutGrid },
+  { key: "workspace", name: "Findings", href: "/waste", icon: LayoutGrid },
   { key: "investigations", name: "Dashboard", href: "/waste/dashboard", icon: Activity },
   { key: "api", name: "Guardrails API", href: "/waste/api", icon: Code2 },
 ]
@@ -189,19 +189,13 @@ function WasteShellInner({
             {/* City selector + indicator */}
             <div className="flex items-center gap-2">
               <MapPin className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-              {eligibleCities.length > 1 ? (
-                <WasteCityPicker
-                  selectedCityId={selectedCityId}
-                  cities={eligibleCities}
-                  isLoading={citiesLoading}
-                  isFetching={isFetching}
-                  onChange={setSelectedCityId}
-                />
-              ) : (
-                <span className="text-sm font-medium text-gray-700">
-                  {citiesLoading ? "Loading…" : selectedCityName}
-                </span>
-              )}
+              <WasteCityPicker
+                selectedCityId={selectedCityId}
+                cities={eligibleCities}
+                isLoading={citiesLoading}
+                isFetching={isFetching}
+                onChange={setSelectedCityId}
+              />
               {lastPullLabel ? (
                 <span className="text-[11px] text-gray-400 whitespace-nowrap" title="Most recent data pull">
                   Data: {lastPullLabel}

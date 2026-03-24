@@ -289,7 +289,7 @@
 }
 
 .hero {
-  padding: 64px 0 32px;
+  padding: 48px 0 16px;
 }
 
 .heroCentered {
@@ -304,7 +304,7 @@
   display: flex;
   justify-content: center;
   gap: 40px;
-  margin: 28px 0 28px;
+  margin: 20px 0 20px;
   flex-wrap: wrap;
 }
 
@@ -335,7 +335,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
+  margin-top: 20px;
 }
 
 .heroBtn {
@@ -379,7 +380,7 @@
 /* ── Feed preview header ───────────────────────────────────────────────── */
 
 .feedPreviewHeader {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   text-align: center;
 }
 
@@ -397,14 +398,14 @@
 .stepsRow {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
+  gap: 16px;
   max-width: 780px;
-  margin: 16px auto 0;
+  margin: 20px auto 0;
 }
 
 .step {
   text-align: center;
-  padding: 20px 14px;
+  padding: 16px 14px;
 }
 
 .stepNumber {
@@ -458,7 +459,7 @@
 }
 
 .headline {
-  margin: 0 0 14px 0;
+  margin: 0 0 12px 0;
   font-size: 42px;
   line-height: 1.12;
   letter-spacing: -0.035em;
@@ -535,7 +536,7 @@
   font-size: 22px;
   font-weight: 750;
   letter-spacing: -0.025em;
-  margin: 0 0 6px 0;
+  margin: 0 0 8px 0;
   color: var(--text-primary, rgba(17, 24, 39, 0.95));
 }
 
@@ -543,7 +544,7 @@
   font-size: 15px;
   color: var(--text-secondary, rgba(17, 24, 39, 0.6));
   line-height: 1.55;
-  margin: 0 0 20px 0;
+  margin: 0 0 4px 0;
   max-width: 60ch;
 }
 
@@ -554,7 +555,7 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 20px;
   max-width: 800px;
-  margin: 16px auto 0;
+  margin: 20px auto 0;
 }
 
 .audienceCard {
@@ -586,14 +587,14 @@
 }
 
 .audienceIconWrap {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
   background: linear-gradient(135deg, rgba(173, 53, 250, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .audienceIcon {
@@ -634,16 +635,16 @@
   font-size: 14.5px;
   line-height: 1.6;
   color: var(--text-secondary, rgba(17, 24, 39, 0.68));
-  margin: 0 0 16px 0;
+  margin: 0 0 14px 0;
 }
 
 .audienceFeatures {
   list-style: none;
   padding: 0;
-  margin: 0 0 20px 0;
+  margin: 0 0 16px 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .audienceFeatures li {
@@ -671,11 +672,11 @@
 
 .audienceActions {
   margin-top: auto;
-  padding-top: 18px;
+  padding-top: 14px;
   border-top: 1px solid var(--border-primary, rgba(17, 24, 39, 0.07));
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .audiencePrimaryBtn {
@@ -933,7 +934,7 @@
 /* ── Final CTA ─────────────────────────────────────────────────────────── */
 
 .ctaSection {
-  padding: 64px 0;
+  padding: 48px 0;
   background: linear-gradient(135deg, var(--brand-primary, #ad35fa) 0%, var(--brand-primary-hover, #8b5cf6) 100%);
   color: #ffffff;
   text-align: center;
@@ -956,7 +957,7 @@
   font-size: 16px;
   line-height: 1.5;
   opacity: 0.88;
-  margin: 0 0 28px 0;
+  margin: 0 0 24px 0;
 }
 
 .ctaButtons {
@@ -1023,7 +1024,7 @@
 
 .footer {
   border-top: 1px solid var(--border-primary, rgba(17, 24, 39, 0.08));
-  padding: 32px 0;
+  padding: 28px 0;
   margin-top: 0;
   background: var(--bg-primary, rgba(255, 255, 255, 0.72));
   transition: background-color 0.2s ease, border-color 0.2s ease;
@@ -1049,7 +1050,7 @@
   }
 
   .hero {
-    padding: 48px 0 24px;
+    padding: 36px 0 12px;
   }
 
   .headline {
@@ -1058,6 +1059,10 @@
 
   .subhead {
     font-size: 16px;
+  }
+
+  .section {
+    padding: 32px 0;
   }
 
   .stepsRow {
@@ -1087,7 +1092,7 @@
   }
 
   .ctaSection {
-    padding: 48px 0;
+    padding: 40px 0;
   }
 
   .ctaTitle {
@@ -1136,13 +1141,13 @@
   }
 
   .feedPreviewHeader {
-    margin-bottom: 16px;
+    margin-bottom: 12px;
   }
 }
 
 @media (max-width: 480px) {
   .hero {
-    padding: 36px 0 20px;
+    padding: 32px 0 16px;
   }
 
   .headline {

@@ -16,7 +16,7 @@ export type WasteCategoryKey =
   | "accuracy"
 
 export const WASTE_CATEGORY_LABELS: Record<WasteCategoryKey, string> = {
-  overview: "Workspace",
+  overview: "Findings",
   convergence: "Cross-Domain Risk",
   payroll: "Payroll & Personnel",
   contracts: "Contracts & Procurement",
@@ -102,7 +102,7 @@ export function getWasteCategoryLabel(category: string): string {
 }
 
 export const WASTE_CATEGORY_DESCRIPTIONS: Record<WasteCategoryKey, string> = {
-  overview: "Entry points and headline risk indicators",
+  overview: "Review flagged transactions across contracts and payroll",
   convergence: "Departments flagged across multiple independent risk domains",
   payroll: "Overtime, compensation anomalies, and personnel integrity",
   contracts: "Vendor concentration, procurement patterns, and influence",
