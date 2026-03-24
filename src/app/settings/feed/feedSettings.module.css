@@ -166,6 +166,25 @@
   animation: fadeInUp 0.2s ease;
 }
 
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.toggleCheckbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--brand-primary, #ad35fa);
+  cursor: pointer;
+}
+
+.toggleLabel {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
 @keyframes fadeInUp {
   from {
     opacity: 0;

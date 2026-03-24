@@ -373,6 +373,64 @@ export default function Sidebar({
             </Link>
           )}
 
+          {canAccessResearch && (
+            <Link
+              href="/applause"
+              className={`${styles.navItem} ${styles.newChatBtn}`}
+              id="applause-dashboard-btn"
+              onClick={() => {
+                if (isNarrowScreen() && onClose) onClose();
+              }}
+            >
+              <span className={styles.navIcon}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M7 10v12"></path>
+                  <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"></path>
+                </svg>
+              </span>
+              <span>Applause Dashboard</span>
+            </Link>
+          )}
+
+          {canAccessResearch && (
+            <Link
+              href="/flags"
+              className={`${styles.navItem} ${styles.newChatBtn}`}
+              id="flag-dashboard-btn"
+              onClick={() => {
+                if (isNarrowScreen() && onClose) onClose();
+              }}
+            >
+              <span className={styles.navIcon}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                  <line x1="4" y1="22" x2="4" y2="15"></line>
+                </svg>
+              </span>
+              <span>Flag Dashboard</span>
+            </Link>
+          )}
+
+          {canAccessResearch && (
+            <Link
+              href="/signals"
+              className={`${styles.navItem} ${styles.newChatBtn}`}
+              id="signals-dashboard-btn"
+              onClick={() => {
+                if (isNarrowScreen() && onClose) onClose();
+              }}
+            >
+              <span className={styles.navIcon}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="20" x2="18" y2="10"></line>
+                  <line x1="12" y1="20" x2="12" y2="4"></line>
+                  <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg>
+              </span>
+              <span>Constituent Signals</span>
+            </Link>
+          )}
+
           <button
             className={`${styles.navItem} ${styles.newChatBtn} ${currentView === "feed" ? styles.navItemActive : ""}`}
             id="feed-btn"
@@ -403,6 +461,30 @@ export default function Sidebar({
             </span>
             <span>Feed</span>
           </button>
+
+          <Link
+            href="/settings/feed"
+            className={`${styles.navItem} ${styles.newChatBtn}`}
+            id="feed-settings-btn"
+            onClick={() => {
+              if (isNarrowScreen() && onClose) onClose();
+            }}
+          >
+            <span className={styles.navIcon}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="4" y1="21" x2="4" y2="14"></line>
+                <line x1="4" y1="10" x2="4" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12" y2="3"></line>
+                <line x1="20" y1="21" x2="20" y2="16"></line>
+                <line x1="20" y1="12" x2="20" y2="3"></line>
+                <line x1="1" y1="14" x2="7" y2="14"></line>
+                <line x1="9" y1="8" x2="15" y2="8"></line>
+                <line x1="17" y1="16" x2="23" y2="16"></line>
+              </svg>
+            </span>
+            <span>Feed Settings</span>
+          </Link>
 
           {/* City Search */}
           {onCitySelect && (
