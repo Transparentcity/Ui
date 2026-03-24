@@ -3964,6 +3964,67 @@ export function hideFeedStory(storyId: number, token: string): Promise<Engagemen
   );
 }
 
+// ── Research Queue (officials) ──────────────────────────────────────────────
+
+export interface ResearchQueueItem {
+  id: number;
+  story_id: number;
+  headline: string | null;
+  story_type: string | null;
+  city_id: number | null;
+  district: number | null;
+  status: "queued" | "in_progress" | "resolved";
+  notes: string | null;
+  added_at: string | null;
+}
+
+export interface ResearchQueueListResponse {
+  items: ResearchQueueItem[];
+  total: number;
+}
+
+export function listResearchQueue(
+  token: string,
+  params?: { status?: string; limit?: number; offset?: number }
+): Promise<ResearchQueueListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set("status", params.status);
+  if (params?.limit) qs.set("limit", String(params.limit));
+  if (params?.offset) qs.set("offset", String(params.offset));
+  const query = qs.toString();
+  return request<ResearchQueueListResponse>(
+    `/api/feed/research-queue${query ? `?${query}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function updateResearchQueueItem(
+  token: string,
+  queueId: number,
+  body: { status?: string; notes?: string }
+): Promise<ResearchQueueItem> {
+  return request<ResearchQueueItem>(
+    `/api/feed/research-queue/${queueId}`,
+    "PUT",
+    body,
+    token
+  );
+}
+
+export function deleteResearchQueueItem(
+  token: string,
+  queueId: number
+): Promise<{ success: boolean; message: string }> {
+  return request<{ success: boolean; message: string }>(
+    `/api/feed/research-queue/${queueId}`,
+    "DELETE",
+    undefined,
+    token
+  );
+}
+
 // Admin feed delete (requires admin)
 export interface DeleteFeedStoryResponse {
   success: boolean;

@@ -36,6 +36,41 @@
   margin: 0;
 }
 
+/* ── For You / Latest toggle ────────────────────────────────────────────── */
+
+.feedOrderToggle {
+  display: inline-flex;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  padding: 3px;
+  margin-bottom: 12px;
+  gap: 2px;
+}
+
+.feedOrderBtn {
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.feedOrderBtn:hover {
+  color: var(--text-primary);
+}
+
+.feedOrderBtnActive {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+
 /* ── Filter chips / bar (carried from old feed) ───────────────────────────── */
 
 .chipBar {

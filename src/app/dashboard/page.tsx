@@ -1242,6 +1242,7 @@ export default function DashboardPage() {
                 cityId={null}
                 district={null}
                 isAdmin={isAdmin}
+                isOfficial={govVerificationStatus?.government_verified ?? false}
                 isImpersonating={isImpersonating}
                 cityLeadCityIds={cityLeadCityIds}
                 userPlaces={allUserPlaces}

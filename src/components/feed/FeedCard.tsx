@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { useTrackFeedEngagement } from "@/lib/hooks/useFeed";
-import { applaudStory, escalateStory } from "@/lib/apiClient";
+import { applaudStory, escalateStory, investigateStory } from "@/lib/apiClient";
 import { useAuth0 } from "@auth0/auth0-react";
 import CardActionBar from "./CardActionBar";
 import CompactCardActionBar from "./CompactCardActionBar";
@@ -26,6 +26,7 @@ import styles from "./feed.module.css";
 interface FeedCardProps {
   story: EnrichedFeedStory;
   isAdmin?: boolean;
+  isOfficial?: boolean;
   onHide: (storyId: number) => void;
   onDelete?: (storyId: number) => void;
   /** @deprecated previewMode is no longer used; feed-preview routes have been removed */
@@ -33,7 +34,7 @@ interface FeedCardProps {
   compact?: boolean;
 }
 
-export default function FeedCard({ story, isAdmin, onHide, onDelete, compact }: FeedCardProps) {
+export default function FeedCard({ story, isAdmin, isOfficial, onHide, onDelete, compact }: FeedCardProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
   const { getAccessTokenSilently } = useAuth0();
@@ -82,6 +83,21 @@ export default function FeedCard({ story, isAdmin, onHide, onDelete, compact }: 
       toast.error("Could not submit flag. Please try again.");
     }
   }, [story.id, getAccessTokenSilently]);
+
+  const handleInvestigate = useCallback(async () => {
+    try {
+      const token = await getAccessTokenSilently();
+      await investigateStory(story.id, token);
+      toast("Added to Research Queue", {
+        action: {
+          label: "View",
+          onClick: () => router.push("/research-queue"),
+        },
+      });
+    } catch {
+      toast.error("Could not investigate. Please try again.");
+    }
+  }, [story.id, getAccessTokenSilently, router]);
 
   const handleShare = useCallback(() => {
     trackEngagement.mutate({ storyId: story.id, action: "share" });
@@ -159,8 +175,11 @@ export default function FeedCard({ story, isAdmin, onHide, onDelete, compact }: 
     <CardActionBar
       applaudCount={story.applaud_count}
       escalateCount={localEscalateCount}
+      investigateCount={story.investigate_count ?? 0}
+      isOfficial={isOfficial}
       onApplaud={handleApplaud}
       onEscalate={handleEscalate}
+      onInvestigate={handleInvestigate}
       onShare={handleShare}
       onOverflow={() => setOverflowOpen((o) => !o)}
     />

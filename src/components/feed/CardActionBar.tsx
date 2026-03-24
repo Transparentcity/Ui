@@ -7,8 +7,11 @@ import styles from "./feed.module.css";
 interface CardActionBarProps {
   applaudCount: number;
   escalateCount: number;
+  investigateCount?: number;
+  isOfficial?: boolean;
   onApplaud: () => void;
   onEscalate: () => void;
+  onInvestigate?: () => void;
   onShare: () => void;
   onOverflow: () => void;
 }
@@ -16,20 +19,25 @@ interface CardActionBarProps {
 export default function CardActionBar({
   applaudCount,
   escalateCount,
+  investigateCount = 0,
+  isOfficial,
   onApplaud,
   onEscalate,
+  onInvestigate,
   onShare,
   onOverflow,
 }: CardActionBarProps) {
   const [applauded, setApplauded] = useState(false);
+  const [investigated, setInvestigated] = useState(false);
 
   const handleApplaud = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
+      if (applauded) return;
       setApplauded(true);
       onApplaud();
     },
-    [onApplaud],
+    [onApplaud, applauded],
   );
 
   const handleEscalate = useCallback(
@@ -38,6 +46,16 @@ export default function CardActionBar({
       onEscalate();
     },
     [onEscalate],
+  );
+
+  const handleInvestigate = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (investigated) return;
+      setInvestigated(true);
+      onInvestigate?.();
+    },
+    [onInvestigate, investigated],
   );
 
   const handleShare = useCallback(
@@ -69,16 +87,29 @@ export default function CardActionBar({
         <span>{applaudCount + (applauded ? 1 : 0)}</span>
       </button>
 
-      <button
-        type="button"
-        className={styles.actionBtn}
-        onClick={handleEscalate}
-        aria-label="Flag"
-      >
-        <span>{"\u{1F6A9}"}</span>
-        <span className={styles.actionLabel}>Flag</span>
-        <span>{escalateCount}</span>
-      </button>
+      {isOfficial ? (
+        <button
+          type="button"
+          className={`${styles.actionBtn} ${investigated ? styles.actionBtnActive : ""}`}
+          onClick={handleInvestigate}
+          aria-label="Investigate"
+        >
+          <span>{"\uD83D\uDD0D"}</span>
+          <span className={styles.actionLabel}>Investigate</span>
+          <span>{investigateCount + (investigated ? 1 : 0)}</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          className={styles.actionBtn}
+          onClick={handleEscalate}
+          aria-label="Flag"
+        >
+          <span>{"\u{1F6A9}"}</span>
+          <span className={styles.actionLabel}>Flag</span>
+          <span>{escalateCount}</span>
+        </button>
+      )}
 
       <button
         type="button"
