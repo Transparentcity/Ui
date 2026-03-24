@@ -2,10 +2,11 @@
 
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion, AlertCircle, Sparkles, Map as MapIcon, Triangle } from "lucide-react"
-import { type WasteFinding } from "@/lib/apiClient"
+import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion, AlertCircle, Sparkles, Map as MapIcon, Triangle, Copy, Check } from "lucide-react"
+import { type WasteFinding, type WasteDispositionType } from "@/lib/apiClient"
 import { formatDollar, escapeSoqlLike as escapeSoqlLikeShared, escapeSoql } from "./waste-utils"
 import { TCScoreBadge } from "./tc-score-badge"
+import { QuickDisposition } from "./disposition-select"
 
 const DOMAIN_LABELS: Record<string, string> = {
   procurement: "Contracts & Procurement",
@@ -120,6 +121,8 @@ interface WasteFindingCardProps {
   isExpanded: boolean
   onToggle: () => void
   onAskSeymour?: (finding: WasteFinding) => void
+  onDispose?: (finding: WasteFinding, disposition: WasteDispositionType) => void
+  onSkip?: (finding: WasteFinding) => void
   cityId?: number
 }
 
@@ -506,11 +509,53 @@ function ConvergenceDetail({ finding }: { finding: WasteFinding }) {
   )
 }
 
+function CopyCaseStudyButton({ finding }: { finding: WasteFinding }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const parts: string[] = []
+    if (finding.headline) parts.push(finding.headline)
+    else parts.push(`${finding.entity} — ${finding.metric} ${finding.metricDetail}`)
+    if (finding.amount) parts.push(`Amount at risk: ${formatDollar(finding.amount)}`)
+    parts.push("")
+    parts.push(finding.description)
+    if (finding.fiscal_year) parts.push(`\nFiscal Year: ${finding.fiscal_year}`)
+    parts.push(`Severity: ${finding.severity} | Confidence: ${finding.confidence ?? "N/A"}`)
+    parts.push(`Detector: ${finding.tool}`)
+
+    navigator.clipboard.writeText(parts.join("\n")).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <button
+      onClick={handleCopy}
+      className={cn(
+        "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+        copied
+          ? "bg-green-50 text-green-700 border border-green-200"
+          : "bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100"
+      )}
+    >
+      {copied ? (
+        <><Check className="w-3.5 h-3.5" /> Copied</>
+      ) : (
+        <><Copy className="w-3.5 h-3.5" /> Copy Case Study</>
+      )}
+    </button>
+  )
+}
+
 export function WasteFindingCard({
   finding,
   isExpanded,
   onToggle,
   onAskSeymour,
+  onDispose,
+  onSkip,
   cityId,
 }: WasteFindingCardProps) {
   const sevKey = (finding.severity?.toLowerCase() ?? "medium") as keyof typeof severityConfig
@@ -755,15 +800,28 @@ export function WasteFindingCard({
           </span>
         )}
 
-        {/* Metric headline */}
-        <span className={cn("font-semibold text-sm whitespace-nowrap", sev.metricColor)}>
-          {finding.metric}
-        </span>
+        {/* Signal tier badge */}
+        {finding.signal_tier === "primary" && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-700 border border-red-200 uppercase tracking-wide shrink-0">
+            Primary
+          </span>
+        )}
 
-        {/* Metric detail */}
-        <span className="text-sm text-gray-600 truncate">
-          {finding.metricDetail}
-        </span>
+        {/* Headline (plain-English) or fallback to metric */}
+        {finding.headline ? (
+          <span className="text-sm text-gray-800 font-medium truncate">
+            {finding.headline}
+          </span>
+        ) : (
+          <>
+            <span className={cn("font-semibold text-sm whitespace-nowrap", sev.metricColor)}>
+              {finding.metric}
+            </span>
+            <span className="text-sm text-gray-600 truncate">
+              {finding.metricDetail}
+            </span>
+          </>
+        )}
 
         {/* Spacer */}
         <div className="flex-1" />
@@ -823,9 +881,16 @@ export function WasteFindingCard({
               <ConvergenceDetail finding={finding} />
             </div>
           ) : (
-            <p className="text-sm text-gray-700 leading-relaxed mb-3">
-              {finding.description}
-            </p>
+            <div className="mb-3">
+              {finding.headline && (
+                <p className="text-sm font-semibold text-gray-900 leading-relaxed mb-1">
+                  {finding.headline}
+                </p>
+              )}
+              <p className="text-sm text-gray-700 leading-relaxed">
+                {finding.description}
+              </p>
+            </div>
           )}
 
           {canShowDetails && (
@@ -893,6 +958,15 @@ export function WasteFindingCard({
             </div>
           )}
 
+          {/* Quick disposition: Flag / Dismiss / Skip */}
+          {onDispose && (
+            <QuickDisposition
+              onDispose={(disposition) => onDispose(finding, disposition)}
+              onSkip={onSkip ? () => onSkip(finding) : undefined}
+              className="mb-3"
+            />
+          )}
+
           {/* Tool tag + Ask Seymour */}
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 text-xs text-gray-400">
@@ -916,18 +990,23 @@ export function WasteFindingCard({
               </span>
             </div>
 
-            {/* Ask Seymour button */}
-            <button
-              onClick={handleAskSeymour}
-              className={cn(
-                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium",
-                "bg-violet-50 text-violet-700 border border-violet-200",
-                "hover:bg-violet-100 hover:border-violet-300 transition-colors"
-              )}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              Ask Seymour for analysis
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Copy Case Study */}
+              <CopyCaseStudyButton finding={finding} />
+
+              {/* Ask Seymour button */}
+              <button
+                onClick={handleAskSeymour}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium",
+                  "bg-violet-50 text-violet-700 border border-violet-200",
+                  "hover:bg-violet-100 hover:border-violet-300 transition-colors"
+                )}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Ask Seymour for analysis
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -13,26 +13,8 @@ import { SeverityBadge } from "./severity-badge"
 import { ScoreBar } from "./score-bar"
 import { TCScoreBadge } from "./tc-score-badge"
 import { ActionCard } from "./action-card"
-import { DispositionSelect } from "./disposition-select"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog"
 import {
   Download,
   Plus,
@@ -48,22 +30,13 @@ import type {
 } from "@/lib/apiClient"
 import { exportInvestigationEvidence } from "@/lib/apiClient"
 
-const STATUS_BADGE: Record<string, string> = {
-  open: "bg-blue-100 text-blue-700",
-  in_progress: "bg-yellow-100 text-yellow-700",
-  pending_response: "bg-orange-100 text-orange-700",
-  closed: "bg-gray-100 text-gray-600",
+// Simplified status display
+const DISPLAY_STATUS: Record<string, { label: string; className: string }> = {
+  open: { label: "Open", className: "bg-blue-100 text-blue-700" },
+  in_progress: { label: "Open", className: "bg-blue-100 text-blue-700" },
+  pending_response: { label: "Open", className: "bg-yellow-100 text-yellow-700" },
+  closed: { label: "Resolved", className: "bg-gray-100 text-gray-600" },
 }
-
-const ACTION_TYPES: { value: WasteInvestigationAction["action_type"]; label: string }[] = [
-  { value: "document_request", label: "Document Request" },
-  { value: "interview", label: "Interview" },
-  { value: "site_visit", label: "Site Visit" },
-  { value: "subpoena", label: "Subpoena" },
-  { value: "referral", label: "Referral" },
-  { value: "note", label: "Note" },
-  { value: "evidence_collected", label: "Evidence Collected" },
-]
 
 interface InvestigationDetailPageProps {
   investigationId: string
@@ -75,62 +48,32 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
   const addActionMutation = useCreateInvestigationAction()
   const closeMutation = useCloseInvestigation()
 
-  const [showAddAction, setShowAddAction] = useState(false)
-  const [showClose, setShowClose] = useState(false)
   const [exporting, setExporting] = useState(false)
 
-  // Add action form state
-  const [actionType, setActionType] = useState<WasteInvestigationAction["action_type"]>("note")
-  const [actionTitle, setActionTitle] = useState("")
-  const [actionDesc, setActionDesc] = useState("")
-  const [actionAssignee, setActionAssignee] = useState("")
-  const [actionDue, setActionDue] = useState("")
+  // Simplified note input
+  const [noteText, setNoteText] = useState("")
 
-  // Close form state
-  const [closeDisposition, setCloseDisposition] = useState<WasteDispositionType | undefined>()
-
-  const handleAddAction = useCallback(() => {
-    if (!actionTitle.trim()) return
+  const handleAddNote = useCallback(() => {
+    const text = noteText.trim()
+    if (!text) return
     addActionMutation.mutate(
       {
         investigationId,
         data: {
-          action_type: actionType,
-          title: actionTitle.trim(),
-          description: actionDesc.trim(),
-          assigned_to: actionAssignee.trim() || undefined,
-          due_date: actionDue || undefined,
+          action_type: "note",
+          title: text.length > 80 ? text.slice(0, 80) + "…" : text,
+          description: text,
         },
       },
       {
         onSuccess: () => {
-          setShowAddAction(false)
-          setActionTitle("")
-          setActionDesc("")
-          setActionAssignee("")
-          setActionDue("")
-          setActionType("note")
-          toast.success("Action added")
+          setNoteText("")
+          toast.success("Note added")
         },
-        onError: () => toast.error("Failed to add action"),
+        onError: () => toast.error("Failed to add note"),
       }
     )
-  }, [investigationId, actionType, actionTitle, actionDesc, actionAssignee, actionDue, addActionMutation])
-
-  const handleClose = useCallback(() => {
-    if (!closeDisposition) return
-    closeMutation.mutate(
-      { investigationId, data: { final_disposition: closeDisposition } },
-      {
-        onSuccess: () => {
-          setShowClose(false)
-          setCloseDisposition(undefined)
-          toast.success("Investigation closed")
-        },
-        onError: () => toast.error("Failed to close investigation"),
-      }
-    )
-  }, [investigationId, closeDisposition, closeMutation])
+  }, [investigationId, noteText, addActionMutation])
 
   const handleExport = useCallback(async () => {
     setExporting(true)
@@ -150,6 +93,45 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
       setExporting(false)
     }
   }, [getAccessTokenSilently, investigationId])
+
+  const handleResolve = useCallback(() => {
+    closeMutation.mutate(
+      { investigationId, data: { final_disposition: "inconclusive" as WasteDispositionType } },
+      {
+        onSuccess: () => toast.success("Investigation resolved"),
+        onError: () => toast.error("Failed to resolve investigation"),
+      }
+    )
+  }, [investigationId, closeMutation])
+
+  const handleEscalate = useCallback(async () => {
+    // Add escalation note, close, and export evidence
+    addActionMutation.mutate(
+      {
+        investigationId,
+        data: {
+          action_type: "referral",
+          title: "Escalated for further review",
+          description: "Case escalated to Inspector General / appropriate authority.",
+        },
+      },
+      {
+        onSuccess: () => {
+          closeMutation.mutate(
+            { investigationId, data: { final_disposition: "confirmed_fraud" as WasteDispositionType } },
+            {
+              onSuccess: () => {
+                handleExport()
+                toast.success("Investigation escalated and evidence exported")
+              },
+              onError: () => toast.error("Failed to escalate investigation"),
+            }
+          )
+        },
+        onError: () => toast.error("Failed to add escalation note"),
+      }
+    )
+  }, [investigationId, addActionMutation, closeMutation, handleExport])
 
   if (isLoading) {
     return (
@@ -195,13 +177,14 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
             Export Evidence
           </Button>
           {investigation.status !== "closed" && (
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => setShowClose(true)}
-            >
-              <XCircle className="w-4 h-4 mr-1" /> Close Investigation
-            </Button>
+            <>
+              <Button size="sm" variant="outline" onClick={handleResolve} disabled={closeMutation.isPending}>
+                <CheckCircle2 className="w-4 h-4 mr-1" /> Resolve
+              </Button>
+              <Button size="sm" variant="destructive" onClick={handleEscalate} disabled={closeMutation.isPending || addActionMutation.isPending}>
+                <XCircle className="w-4 h-4 mr-1" /> Escalate
+              </Button>
+            </>
           )}
         </div>
       }
@@ -218,9 +201,9 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
       <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
         <div className="flex items-center gap-3 flex-wrap mb-4">
           <span
-            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold capitalize ${STATUS_BADGE[investigation.status] ?? STATUS_BADGE.open}`}
+            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${(DISPLAY_STATUS[investigation.status] ?? DISPLAY_STATUS.open).className}`}
           >
-            {investigation.status.replace("_", " ")}
+            {(DISPLAY_STATUS[investigation.status] ?? DISPLAY_STATUS.open).label}
           </span>
           {investigation.lead_auditor_id && (
             <span className="text-sm text-gray-600">
@@ -268,22 +251,15 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
         )}
       </div>
 
-      {/* Action timeline */}
+      {/* Notes thread */}
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-700">
-            Action Timeline ({sortedActions.length})
-          </h3>
-          {investigation.status !== "closed" && (
-            <Button size="sm" variant="outline" onClick={() => setShowAddAction(true)}>
-              <Plus className="w-4 h-4 mr-1" /> Add Action
-            </Button>
-          )}
-        </div>
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">
+          Notes ({sortedActions.length})
+        </h3>
 
         {sortedActions.length === 0 ? (
           <p className="text-sm text-gray-400 py-8 text-center">
-            No actions yet. Add the first action to begin the investigation timeline.
+            No notes yet. Add the first note to start tracking this case.
           </p>
         ) : (
           <div className="relative pl-6 space-y-3">
@@ -296,125 +272,39 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
             ))}
           </div>
         )}
-      </div>
 
-      {/* Add Action Dialog */}
-      <Dialog open={showAddAction} onOpenChange={setShowAddAction}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add Investigation Action</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div>
-              <Label className="text-xs">Action Type</Label>
-              <Select value={actionType} onValueChange={(v) => setActionType(v as WasteInvestigationAction["action_type"])}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ACTION_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      {t.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Title</Label>
-              <Input
-                className="mt-1"
-                value={actionTitle}
-                onChange={(e) => setActionTitle(e.target.value)}
-                placeholder="Action title"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Description</Label>
-              <Textarea
-                className="mt-1"
-                rows={3}
-                value={actionDesc}
-                onChange={(e) => setActionDesc(e.target.value)}
-                placeholder="Describe the action…"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Assignee</Label>
-                <Input
-                  className="mt-1"
-                  value={actionAssignee}
-                  onChange={(e) => setActionAssignee(e.target.value)}
-                  placeholder="Name"
-                />
-              </div>
-              <div>
-                <Label className="text-xs">Due Date</Label>
-                <Input
-                  type="date"
-                  className="mt-1"
-                  value={actionDue}
-                  onChange={(e) => setActionDue(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setShowAddAction(false)}>
-              Cancel
-            </Button>
+        {/* Inline note input */}
+        {investigation.status !== "closed" && (
+          <div className="mt-4 flex gap-2">
+            <Textarea
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="Add a note…"
+              rows={2}
+              className="flex-1 text-sm"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  handleAddNote()
+                }
+              }}
+            />
             <Button
-              disabled={!actionTitle.trim() || addActionMutation.isPending}
-              onClick={handleAddAction}
+              size="sm"
+              onClick={handleAddNote}
+              disabled={!noteText.trim() || addActionMutation.isPending}
+              className="self-end"
             >
               {addActionMutation.isPending ? (
-                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Plus className="w-4 h-4 mr-1" />
+                <Plus className="w-4 h-4" />
               )}
-              Add Action
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Close Investigation Dialog */}
-      <Dialog open={showClose} onOpenChange={setShowClose}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Close Investigation</DialogTitle>
-            <DialogDescription>
-              Closing &ldquo;{investigation.title}&rdquo;. Select a final disposition.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="mt-2">
-            <Label className="text-xs">Final Disposition</Label>
-            <DispositionSelect
-              value={closeDisposition}
-              onValueChange={setCloseDisposition}
-              className="mt-1"
-            />
           </div>
-          <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setShowClose(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={!closeDisposition || closeMutation.isPending}
-              onClick={handleClose}
-            >
-              {closeMutation.isPending ? (
-                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-              ) : (
-                <CheckCircle2 className="w-4 h-4 mr-1" />
-              )}
-              Close Investigation
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
+      </div>
+
+      {/* Dialogs removed — notes are inline, resolve/escalate are header buttons */}
     </WasteShell>
   )
 }

@@ -111,6 +111,57 @@ function buildAnalysisPrompt(finding: WasteFinding): string {
   return lines.join("\n")
 }
 
+/** Build contextual follow-up prompts based on finding category and content. */
+function buildSuggestedPrompts(finding: WasteFinding): { label: string; prompt: string }[] {
+  const entity = finding.entity ?? "this entity"
+  const category = (finding.subcategory ?? finding.category ?? "").toLowerCase()
+  const suggestions: { label: string; prompt: string }[] = []
+
+  // Universal prompts
+  suggestions.push({
+    label: "Summarize all findings",
+    prompt: `Summarize all the waste detection findings for "${entity}" in plain language. What is the overall picture of risk for this entity?`,
+  })
+  suggestions.push({
+    label: "Total dollar exposure",
+    prompt: `What is the total dollar exposure and financial risk associated with "${entity}" across all findings? Break it down by category.`,
+  })
+
+  // Category-specific prompts
+  if (category.includes("vendor") || category.includes("contract") || category.includes("payment")) {
+    suggestions.push({
+      label: "Draft document request",
+      prompt: `Draft a formal letter requesting documentation from "${entity}" regarding the suspicious patterns identified. Include specific records to request (invoices, contracts, bank statements) and a reasonable response deadline.`,
+    })
+    suggestions.push({
+      label: "Check for shell company indicators",
+      prompt: `Based on the findings for "${entity}", what are the indicators that this could be a shell company or fictitious vendor? What additional checks should an auditor perform?`,
+    })
+  } else if (category.includes("payroll") || category.includes("overtime") || category.includes("compensation")) {
+    suggestions.push({
+      label: "Compare to department norms",
+      prompt: `How does this overtime/payroll pattern compare to normal patterns in the ${finding.department ?? "relevant"} department? What would be considered acceptable vs. suspicious?`,
+    })
+    suggestions.push({
+      label: "Draft supervisor inquiry",
+      prompt: `Draft a memo to the department supervisor inquiring about the overtime patterns identified for employees in ${finding.department ?? "this department"}. Ask about approval processes and justification.`,
+    })
+  } else if (category.includes("integrity") || category.includes("revolving")) {
+    suggestions.push({
+      label: "Check conflict of interest",
+      prompt: `What conflict of interest concerns exist for "${entity}"? Are there any legal or policy requirements that may have been violated?`,
+    })
+  }
+
+  // Always offer cross-city comparison
+  suggestions.push({
+    label: "Similar patterns in other cities",
+    prompt: `Are there similar patterns of potential waste or fraud in other cities that match what we see with "${entity}"? What precedents exist for this type of finding?`,
+  })
+
+  return suggestions.slice(0, 5) // max 5 suggestions
+}
+
 async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
@@ -441,6 +492,31 @@ export function WasteSeymourPanel({
             </div>
           ) : null}
         </div>
+
+        {/* Contextual follow-up prompts */}
+        {finding && !isAnalyzing && analysisResult && (
+          <div className="space-y-2">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">
+              Follow up
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {buildSuggestedPrompts(finding).map((s) => (
+                <button
+                  key={s.label}
+                  type="button"
+                  onClick={() => {
+                    setPromptDraft(s.prompt)
+                    void runAnalysis(s.prompt)
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 hover:border-purple-300 transition-colors"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="p-4 border-t border-gray-200 flex items-center gap-2">

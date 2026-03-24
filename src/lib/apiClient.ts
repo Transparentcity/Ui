@@ -5164,6 +5164,8 @@ export interface WasteFinding {
   truncated_total: number | null;
   caveat: string | null;
   narrative: string | null;
+  headline: string | null;
+  signal_tier: "primary" | "supporting" | null;
   finding_report: string | null;
   is_new?: boolean;
   fiscal_year?: number | null;

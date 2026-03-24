@@ -2,6 +2,7 @@
 
 import { useMemo } from "react"
 import Link from "next/link"
+import { useWasteViewMode } from "./WasteViewModeContext"
 import {
   useWasteEntityScores,
   useWasteReviewQueue,
@@ -561,6 +562,7 @@ function RecentInvestigations({ cityId }: { cityId: number }) {
 
 export function DashboardPage() {
   const { selectedCityId: cityId } = useWasteCity()
+  const { viewMode } = useWasteViewMode()
 
   // Get findings from the latest persisted analysis for the risk feed
   const { data: analysisData } = useLatestPersistedWasteResult(cityId)
@@ -649,28 +651,44 @@ export function DashboardPage() {
         <QueueSummary cityId={cityId} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
-        <DepartmentRiskTable cityId={cityId} />
-        <DetectorPerformance cityId={cityId} />
-      </div>
-
+      {/* Recent investigations — always visible */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
         <RecentInvestigations cityId={cityId} />
-        <ModelHealth cityId={cityId} />
+        {viewMode === "admin" ? (
+          <ModelHealth cityId={cityId} />
+        ) : (
+          <div /> /* spacer in auditor mode */
+        )}
       </div>
 
-      {/* Charts & breakdowns */}
-      <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-        Charts &amp; Breakdowns
-      </h2>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
-        <SeverityDonut cityId={cityId} />
-        <AccuracyBars cityId={cityId} />
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <QueueStatus cityId={cityId} />
-        <InvestigationSummary cityId={cityId} />
-      </div>
+      {/* Admin-only analytics sections */}
+      {viewMode === "admin" && (
+        <>
+          <div className="border-t border-gray-200 mt-4 mb-5 pt-4">
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
+              Admin Analytics
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+            <DepartmentRiskTable cityId={cityId} />
+            <DetectorPerformance cityId={cityId} />
+          </div>
+
+          {/* Charts & breakdowns */}
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+            Charts &amp; Breakdowns
+          </h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+            <SeverityDonut cityId={cityId} />
+            <AccuracyBars cityId={cityId} />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <QueueStatus cityId={cityId} />
+            <InvestigationSummary cityId={cityId} />
+          </div>
+        </>
+      )}
       </InvestigationsShell>
     </WasteShell>
   )
