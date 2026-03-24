@@ -844,6 +844,11 @@ export default function WelcomeModal({
         <h2 className={styles.stepTitle}>What do you care about?</h2>
         <p className={styles.stepDescription}>
           Pick the topics that matter to you. This shapes your feed and newsletter.
+          {selectedCategoryIds.length > 0 && (
+            <span style={{ display: "block", marginTop: 4, fontWeight: 600, color: "var(--brand-primary, #ad35fa)" }}>
+              {selectedCategoryIds.length} selected
+            </span>
+          )}
         </p>
 
         <div className={styles.presetChips}>

@@ -184,7 +184,8 @@
 }
 
 .primaryBtn {
-  padding: 8px 16px;
+  padding: 10px 18px;
+  min-height: 44px;
   font-size: 13px;
   font-weight: 600;
   color: #fff;
@@ -200,7 +201,8 @@
 }
 
 .secondaryBtn {
-  padding: 8px 16px;
+  padding: 10px 18px;
+  min-height: 44px;
   font-size: 13px;
   font-weight: 500;
   color: var(--text-secondary);

@@ -54,6 +54,7 @@ export default function OverflowMenu({
   const handleDelete = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
+      if (!confirm("Permanently delete this story? This cannot be undone.")) return;
       onDelete?.();
       onClose();
     },
