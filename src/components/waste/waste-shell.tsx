@@ -34,7 +34,7 @@ type TabItem = {
 
 // Auditor-facing tabs — clean, focused
 const AUDITOR_TABS: TabItem[] = [
-  { key: "workspace", name: "Workspace", href: "/waste", icon: LayoutGrid },
+  { key: "workspace", name: "Findings", href: "/waste", icon: LayoutGrid },
   { key: "investigations", name: "Dashboard", href: "/waste/dashboard", icon: Activity },
   { key: "api", name: "Guardrails API", href: "/waste/api", icon: Code2 },
 ]
