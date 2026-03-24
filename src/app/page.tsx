@@ -57,6 +57,7 @@ export default function Home() {
   type LiveCity = { city_id: number; city_name: string; city_emoji: string; slug: string };
   const [liveCities, setLiveCities] = useState<LiveCity[]>([]);
   const [storyCount, setStoryCount] = useState<number | null>(null);
+  const [cityCount, setCityCount] = useState<number | null>(null);
 
   // Landing-hero screenshot carousel (matches original landing page)
   const [activeSlide, setActiveSlide] = useState(0);
@@ -203,6 +204,8 @@ export default function Home() {
         }
         setLiveCities(unique);
         if (storiesRes.count > 0) setStoryCount(storiesRes.count);
+        const metricCities = placesRes.cities_with_metrics_count;
+        if (metricCities && metricCities > 0) setCityCount(metricCities);
       } catch {
         // Non-critical; page still works without stats
       }
@@ -318,12 +321,12 @@ export default function Home() {
               </p>
 
               {/* Stats bar */}
-              {(liveCities.length > 0 || storyCount) && (
+              {(cityCount || liveCities.length > 0 || storyCount) && (
                 <div className={styles.statsBar}>
-                  {liveCities.length > 0 && (
+                  {(cityCount ?? liveCities.length) > 0 && (
                     <div className={styles.stat}>
-                      <span className={styles.statNumber}>{liveCities.length}</span>
-                      <span className={styles.statLabel}>{liveCities.length === 1 ? "city tracked" : "cities tracked"}</span>
+                      <span className={styles.statNumber}>{cityCount ?? liveCities.length}</span>
+                      <span className={styles.statLabel}>{(cityCount ?? liveCities.length) === 1 ? "city tracked" : "cities tracked"}</span>
                     </div>
                   )}
                   {storyCount && (

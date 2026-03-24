@@ -113,6 +113,7 @@ export interface FeedPlace {
 
 export interface FeedPlacesResponse {
   places: FeedPlace[];
+  cities_with_metrics_count?: number;
 }
 
 export function listFeedPlaces(token: string): Promise<FeedPlacesResponse> {
