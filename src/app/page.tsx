@@ -17,8 +17,6 @@ import Header from "@/components/Header";
 import HomeFeedPreview from "@/components/feed/HomeFeedPreview";
 import { trackSearchReferrer } from "@/lib/analytics";
 
-import "./landing.css";
-
 
 export default function Home() {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
