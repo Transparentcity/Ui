@@ -213,23 +213,35 @@ function WasteShellInner({
               ) : null}
             </div>
 
-            {/* View mode toggle */}
-            <button
-              onClick={toggleViewMode}
-              className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors border",
-                viewMode === "admin"
-                  ? "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100"
-                  : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
-              )}
-              title={viewMode === "admin" ? "Switch to Auditor view" : "Switch to Admin view"}
-            >
-              {viewMode === "admin" ? (
-                <><Eye className="w-3.5 h-3.5" /> Auditor View</>
-              ) : (
-                <><Settings className="w-3.5 h-3.5" /> Admin View</>
-              )}
-            </button>
+            {/* View mode indicator + toggle */}
+            <div className="flex items-center gap-1">
+              <span
+                className={cn(
+                  "flex items-center gap-1 px-2 py-1 rounded-l-md text-xs font-medium border border-r-0",
+                  viewMode === "admin"
+                    ? "bg-purple-50 text-purple-700 border-purple-200"
+                    : "bg-blue-50 text-blue-700 border-blue-200"
+                )}
+              >
+                {viewMode === "admin" ? (
+                  <><Settings className="w-3.5 h-3.5" /> Admin</>
+                ) : (
+                  <><Eye className="w-3.5 h-3.5" /> Auditor</>
+                )}
+              </span>
+              <button
+                onClick={toggleViewMode}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-1 rounded-r-md text-xs font-medium transition-colors border",
+                  viewMode === "admin"
+                    ? "bg-white text-gray-500 border-purple-200 hover:bg-purple-50 hover:text-purple-600"
+                    : "bg-white text-gray-500 border-blue-200 hover:bg-blue-50 hover:text-blue-600"
+                )}
+                title={viewMode === "admin" ? "Switch to Auditor view" : "Switch to Admin view"}
+              >
+                {viewMode === "admin" ? "Auditor" : "Admin"} →
+              </button>
+            </div>
 
             <Link
               href="/dashboard"
