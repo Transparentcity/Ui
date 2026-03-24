@@ -65,6 +65,7 @@ export default function FeedCard({ story, isAdmin, isOfficial, onHide, onDelete,
     try {
       const token = await getAccessTokenSilently();
       await applaudStory(story.id, token);
+      toast.success("Applause sent! The responsible team will be recognized.");
     } catch {
       // Fire-and-forget; the optimistic UI update in CardActionBar handles display
     }

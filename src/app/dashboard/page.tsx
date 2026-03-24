@@ -8,6 +8,7 @@ import Sidebar from "@/components/Sidebar";
 // Old feed kept as fallback: import FeedView from "@/components/FeedView";
 import FeedView from "@/components/feed/NewFeedView";
 import ImpersonationBanner from "@/components/ImpersonationBanner";
+import { toast } from "sonner";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
   getMyPermissions,
@@ -901,6 +902,7 @@ export default function DashboardPage() {
 
   const handleWelcomeComplete = () => {
     setShowWelcomeModal(false);
+    toast.success("You\u2019re all set! Your personalized feed is ready.");
     if (user?.sub) {
       trackOnboardingComplete(user.sub);
       trackUserActivation("onboarding_complete");
@@ -910,6 +912,7 @@ export default function DashboardPage() {
   const handleGovernmentOnboardingComplete = () => {
     setShowGovernmentOnboardingModal(false);
     setGovernmentClaimContext(null);
+    toast.success("Verification submitted! We\u2019ll notify you once approved.");
     if (user?.sub) {
       trackOnboardingComplete(user.sub);
       trackUserActivation("onboarding_complete");
@@ -1234,6 +1237,23 @@ export default function DashboardPage() {
             </div>
           )}
 
+
+          {currentView === "feed" && govVerificationStatus?.government_pending_verification && !govVerificationStatus?.government_verified && (
+            <div style={{
+              padding: "12px 16px",
+              margin: "0 0 12px",
+              background: "var(--bg-secondary, #f3f4f6)",
+              borderRadius: 8,
+              fontSize: 13,
+              color: "var(--text-secondary)",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}>
+              <span style={{ fontSize: 18 }}>{"\u23F3"}</span>
+              <span>Your government verification is pending review. You&apos;ll get full official access once approved.</span>
+            </div>
+          )}
 
           {currentView === "feed" && (
             <div id="feed-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
