@@ -478,6 +478,8 @@
   font-size: 13px;
   font-weight: 500;
   color: var(--text-secondary);
+  min-width: 0;
+  flex: 1;
 }
 
 .cardTypeIcon {
@@ -490,6 +492,8 @@
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cardTimestamp {
@@ -512,6 +516,7 @@
   background: var(--bg-secondary);
   padding: 2px 8px;
   border-radius: 999px;
+  flex-shrink: 0;
 }
 
 /* ── Card content ──────────────────────────────────────────────────────────── */
@@ -1935,8 +1940,9 @@
   font-size: 14px;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  -webkit-line-clamp: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   margin-bottom: 0;
 }
 
@@ -1949,6 +1955,7 @@
   align-items: center;
   gap: 8px;
   min-height: 28px;
+  flex-wrap: wrap;
 }
 
 .compactHeaderSection {
@@ -1988,6 +1995,10 @@
 
   .cardCompact .cardHeadline {
     font-size: 13px;
+  }
+
+  .cardCompact .cardActor {
+    max-width: calc(50vw - 60px);
   }
 }
 
