@@ -33,6 +33,7 @@ interface FeedContainerProps {
   cityId?: number | null;
   district?: number | null;
   isAdmin?: boolean;
+  isOfficial?: boolean;
   cityLeadCityIds?: number[];
   userPlaces?: UserPlace[];
   onPlaceSaved?: () => void;
@@ -42,6 +43,7 @@ export default function FeedContainer({
   cityId,
   district,
   isAdmin = false,
+  isOfficial = false,
   userPlaces = [],
   onPlaceSaved,
 }: FeedContainerProps) {
@@ -98,7 +100,12 @@ export default function FeedContainer({
     saved.current?.topic ?? null,
   );
   const [displayLimit, setDisplayLimit] = useState(saved.current?.displayLimit ?? 10);
-  const feedOrder = "for_you" as const;
+  const [feedOrder, setFeedOrder] = useState<"for_you" | "published_at">(() => {
+    try {
+      const saved = sessionStorage.getItem("feed-order");
+      return saved === "published_at" ? "published_at" : "for_you";
+    } catch { return "for_you"; }
+  });
   const [showDistricts, setShowDistricts] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const hasAddress = userPlaces.length > 0;
@@ -166,6 +173,11 @@ export default function FeedContainer({
     const prefix = term.toLowerCase() === "ward" ? "W" : "D";
     return { cityDistricts: districts, districtTerm: term, districtPrefix: prefix };
   }, [singleCityId, places]);
+
+  // Persist feed order to sessionStorage
+  useEffect(() => {
+    try { sessionStorage.setItem("feed-order", feedOrder); } catch {}
+  }, [feedOrder]);
 
   // Reset display limit when filters change
   useEffect(() => { setDisplayLimit(10); }, [selectedCityIds, selectedDistrict, selectedFrequency, personalNewsletterOnly, selectedTopic]);
@@ -425,6 +437,24 @@ export default function FeedContainer({
     >
       <div className={`${styles.feedHeader} dashboard-page-header`}>
         <h1 className={styles.feedTitle}>{feedTitle}</h1>
+      </div>
+
+      {/* For You / Latest toggle */}
+      <div className={styles.feedOrderToggle}>
+        <button
+          type="button"
+          className={`${styles.feedOrderBtn} ${feedOrder === "for_you" ? styles.feedOrderBtnActive : ""}`}
+          onClick={() => setFeedOrder("for_you")}
+        >
+          For You
+        </button>
+        <button
+          type="button"
+          className={`${styles.feedOrderBtn} ${feedOrder === "published_at" ? styles.feedOrderBtnActive : ""}`}
+          onClick={() => setFeedOrder("published_at")}
+        >
+          Latest
+        </button>
       </div>
 
       {/* City chips row */}
@@ -706,6 +736,7 @@ export default function FeedContainer({
                 key={story.id}
                 story={story}
                 isAdmin={isAdmin}
+                isOfficial={isOfficial}
                 onHide={handleHide}
                 onDelete={isAdmin ? handleDelete : undefined}
                 compact={isCompact}
