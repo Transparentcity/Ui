@@ -289,11 +289,11 @@
 }
 
 .hero {
-  padding: 80px 0 40px;
+  padding: 64px 0 32px;
 }
 
 .heroCentered {
-  max-width: 760px;
+  max-width: 720px;
   margin: 0 auto;
   text-align: center;
 }
@@ -303,8 +303,8 @@
 .statsBar {
   display: flex;
   justify-content: center;
-  gap: 32px;
-  margin: 28px 0 32px;
+  gap: 40px;
+  margin: 28px 0 28px;
   flex-wrap: wrap;
 }
 
@@ -335,13 +335,13 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
 }
 
 .heroBtn {
-  padding: 14px 28px !important;
-  font-size: 16px !important;
-  border-radius: 14px !important;
+  padding: 13px 32px !important;
+  font-size: 15px !important;
+  border-radius: 12px !important;
 }
 
 .heroExplore {
@@ -379,7 +379,17 @@
 /* ── Feed preview header ───────────────────────────────────────────────── */
 
 .feedPreviewHeader {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.feedPreviewHeader .sectionTitle {
   margin-bottom: 8px;
+}
+
+.feedPreviewHeader .sectionLead {
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* ── How it works steps ────────────────────────────────────────────────── */
@@ -387,14 +397,14 @@
 .stepsRow {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-  max-width: 860px;
-  margin: 0 auto;
+  gap: 20px;
+  max-width: 780px;
+  margin: 16px auto 0;
 }
 
 .step {
   text-align: center;
-  padding: 24px 16px;
+  padding: 20px 14px;
 }
 
 .stepNumber {
@@ -448,19 +458,20 @@
 }
 
 .headline {
-  margin-top: 0;
-  font-size: 48px;
-  line-height: 1.08;
-  letter-spacing: -0.04em;
+  margin: 0 0 14px 0;
+  font-size: 42px;
+  line-height: 1.12;
+  letter-spacing: -0.035em;
   font-weight: 800;
+  text-wrap: balance;
 }
 
 .subhead {
-  margin: 18px auto 0;
-  font-size: 18px;
-  line-height: 1.6;
-  color: var(--text-secondary, rgba(17, 24, 39, 0.65));
-  max-width: 56ch;
+  margin: 0 auto;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.6));
+  max-width: 52ch;
 }
 
 .ctaRow {
@@ -517,20 +528,23 @@
 }
 
 .section {
-  padding: 34px 0;
+  padding: 40px 0;
 }
 
 .sectionTitle {
-  font-size: 18px;
-  letter-spacing: -0.02em;
-  margin-bottom: 10px;
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+  margin: 0 0 6px 0;
+  color: var(--text-primary, rgba(17, 24, 39, 0.95));
 }
 
 .sectionLead {
-  color: var(--text-secondary, rgba(17, 24, 39, 0.7));
-  line-height: 1.6;
-  margin-bottom: 16px;
-  max-width: 75ch;
+  font-size: 15px;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.6));
+  line-height: 1.55;
+  margin: 0 0 20px 0;
+  max-width: 60ch;
 }
 
 /* ── Audience cards (polished) ──────────────────────────────────────────── */
@@ -539,8 +553,8 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 20px;
-  max-width: 860px;
-  margin: 0 auto;
+  max-width: 800px;
+  margin: 16px auto 0;
 }
 
 .audienceCard {
@@ -916,10 +930,89 @@
   border: 1px solid var(--border-primary, rgba(17, 24, 39, 0.06));
 }
 
+/* ── Final CTA ─────────────────────────────────────────────────────────── */
+
+.ctaSection {
+  padding: 64px 0;
+  background: linear-gradient(135deg, var(--brand-primary, #ad35fa) 0%, var(--brand-primary-hover, #8b5cf6) 100%);
+  color: #ffffff;
+  text-align: center;
+}
+
+.ctaContent {
+  max-width: 580px;
+  margin: 0 auto;
+}
+
+.ctaTitle {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 0 0 12px 0;
+}
+
+.ctaDescription {
+  font-size: 16px;
+  line-height: 1.5;
+  opacity: 0.88;
+  margin: 0 0 28px 0;
+}
+
+.ctaButtons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.ctaBtnPrimary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 13px 28px;
+  font-size: 15px;
+  font-weight: 650;
+  border-radius: 12px;
+  border: none;
+  background: #ffffff;
+  color: var(--brand-primary, #ad35fa);
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ctaBtnPrimary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.ctaBtnOutline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 13px 28px;
+  font-size: 15px;
+  font-weight: 650;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.ctaBtnOutline:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
+}
+
 .footer {
   border-top: 1px solid var(--border-primary, rgba(17, 24, 39, 0.08));
-  padding: 26px 0;
-  margin-top: 34px;
+  padding: 32px 0;
+  margin-top: 0;
   background: var(--bg-primary, rgba(255, 255, 255, 0.72));
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
@@ -927,14 +1020,15 @@
 .footerGrid {
   display: grid;
   grid-template-columns: 1.4fr 0.6fr 0.6fr;
-  gap: 18px;
+  gap: 24px;
   align-items: start;
 }
 
 .finePrint {
-  margin-top: 10px;
+  margin: 4px 0 0 0;
   font-size: 12.5px;
-  color: var(--text-secondary, rgba(17, 24, 39, 0.6));
+  line-height: 1.5;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.5));
 }
 
 @media (max-width: 960px) {
@@ -943,7 +1037,7 @@
   }
 
   .headline {
-    font-size: 36px;
+    font-size: 32px;
   }
 
   .stepsRow {
