@@ -32,9 +32,11 @@ interface FeedCardProps {
   /** @deprecated previewMode is no longer used; feed-preview routes have been removed */
   previewMode?: boolean;
   compact?: boolean;
+  /** Show action tooltips on first card for new users. */
+  showTooltips?: boolean;
 }
 
-export default function FeedCard({ story, isAdmin, isOfficial, onHide, onDelete, compact }: FeedCardProps) {
+export default function FeedCard({ story, isAdmin, isOfficial, onHide, onDelete, compact, showTooltips }: FeedCardProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
   const { getAccessTokenSilently } = useAuth0();
@@ -63,6 +65,7 @@ export default function FeedCard({ story, isAdmin, isOfficial, onHide, onDelete,
     try {
       const token = await getAccessTokenSilently();
       await applaudStory(story.id, token);
+      toast.success("Applause sent! The responsible team will be recognized.");
     } catch {
       // Fire-and-forget; the optimistic UI update in CardActionBar handles display
     }
@@ -177,6 +180,7 @@ export default function FeedCard({ story, isAdmin, isOfficial, onHide, onDelete,
       escalateCount={localEscalateCount}
       investigateCount={story.investigate_count ?? 0}
       isOfficial={isOfficial}
+      showTooltips={showTooltips}
       onApplaud={handleApplaud}
       onEscalate={handleEscalate}
       onInvestigate={handleInvestigate}

@@ -282,6 +282,9 @@ export default function GovernmentOnboardingModal({
             <p className={styles.stepDescription}>
               To authorize you for free government use, we need to verify your email. We’ll send a one-time code to the address you provide. Our team will then manually confirm your eligibility.
             </p>
+            <p className={styles.stepDescription} style={{ marginTop: 0, fontSize: 12, color: "var(--text-tertiary, #9ca3af)" }}>
+              Any format works — e.g. firstname.lastname@sfgov.org, jdoe@cityofexample.gov, etc.
+            </p>
             <div className={styles.locationSection}>
               <div className={styles.inputGroup}>
                 <input
@@ -362,6 +365,18 @@ export default function GovernmentOnboardingModal({
                 ) : (
                   "Verify"
                 )}
+              </button>
+              <button
+                type="button"
+                className={styles.backButton}
+                onClick={() => {
+                  setCode("");
+                  setError(null);
+                  handleSendCode();
+                }}
+                disabled={loading}
+              >
+                Resend code
               </button>
               <button
                 type="button"

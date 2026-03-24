@@ -386,7 +386,7 @@ export default function Home() {
         {/* ── How it works ──────────────────────────────────────────────── */}
         <section className={styles.section}>
           <div className={styles.container}>
-            <h2 className={styles.sectionTitle}>How it works</h2>
+            <h2 className={styles.sectionTitle} style={{ textAlign: "center" }}>How it works</h2>
             <div className={styles.stepsRow}>
               <div className={styles.step}>
                 <div className={styles.stepNumber}>1</div>
@@ -419,7 +419,7 @@ export default function Home() {
         {/* ── Audience cards ────────────────────────────────────────────── */}
         <section className={styles.section} id="who-this-is-for">
           <div className={styles.container}>
-            <h2 className={styles.sectionTitle}>Built for two audiences</h2>
+            <h2 className={styles.sectionTitle} style={{ textAlign: "center" }}>Built for two audiences</h2>
             <div className={styles.audienceGrid}>
               <div className={styles.audienceCard}>
                 <div className={styles.audienceIconWrap}>
@@ -513,22 +513,22 @@ export default function Home() {
         </section>
 
         {/* ── Final CTA ─────────────────────────────────────────────────── */}
-        <section className="cta">
-          <div className="container">
-            <div className="cta-content">
-              <h2 className="cta-title">Your city publishes the data. We make it useful.</h2>
-              <p className="cta-description">
+        <section className={styles.ctaSection}>
+          <div className={styles.container}>
+            <div className={styles.ctaContent}>
+              <h2 className={styles.ctaTitle}>Your city publishes the data. We make it useful.</h2>
+              <p className={styles.ctaDescription}>
                 Sign up in 30 seconds. Pick your city. Start reading stories backed by real numbers.
               </p>
-              <div className="cta-buttons">
+              <div className={styles.ctaButtons}>
                 <button
                   type="button"
                   onClick={handleSignupCitizen}
-                  className="btn btn-primary btn-large"
+                  className={styles.ctaBtnPrimary}
                 >
                   Get started free
                 </button>
-                <a href="/pro" className="btn btn-outline btn-large">
+                <a href="/pro" className={styles.ctaBtnOutline}>
                   Add your city
                 </a>
               </div>
@@ -544,15 +544,15 @@ export default function Home() {
               <div className={styles.brandText}>
                 transparent<span className={styles.brandDotCity}>.city</span>
               </div>
-              <div className={styles.finePrint}>
+              <p className={styles.finePrint}>
                 Facts for residents. Evidence for city staff. Accountability for everyone.
-                <br />
-                <br />
-                All data is sourced from official city open data portals with documented queries and direct links.
-                <br />
-                <br />
+              </p>
+              <p className={styles.finePrint}>
+                All data sourced from official city open data portals with documented queries and direct links.
+              </p>
+              <p className={styles.finePrint} style={{ marginTop: 12 }}>
                 &copy; 2026 Transparent.city
-              </div>
+              </p>
             </div>
             <div>
               <div className={styles.sideTitle}>Start</div>
