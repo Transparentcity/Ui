@@ -1009,6 +1009,18 @@
   transform: translateY(-1px);
 }
 
+/* Dark mode: CTA section sits on gradient so mostly fine, but tweak button contrast */
+[data-theme="dark"] .ctaBtnPrimary,
+.dark .ctaBtnPrimary {
+  background: #ffffff;
+  color: var(--brand-primary, #ad35fa);
+}
+
+[data-theme="dark"] .ctaBtnOutline,
+.dark .ctaBtnOutline {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
 .footer {
   border-top: 1px solid var(--border-primary, rgba(17, 24, 39, 0.08));
   padding: 32px 0;
@@ -1036,8 +1048,16 @@
     grid-template-columns: 1fr;
   }
 
+  .hero {
+    padding: 48px 0 24px;
+  }
+
   .headline {
     font-size: 32px;
+  }
+
+  .subhead {
+    font-size: 16px;
   }
 
   .stepsRow {
@@ -1051,6 +1071,7 @@
 
   .audienceGrid {
     grid-template-columns: 1fr;
+    max-width: 480px;
   }
 
   .researchList {
@@ -1063,6 +1084,23 @@
 
   .cityPicker {
     display: none;
+  }
+
+  .ctaSection {
+    padding: 48px 0;
+  }
+
+  .ctaTitle {
+    font-size: 24px;
+  }
+
+  .ctaDescription {
+    font-size: 15px;
+  }
+
+  .footerGrid {
+    grid-template-columns: 1fr;
+    gap: 20px;
   }
 }
 
@@ -1088,9 +1126,34 @@
     white-space: nowrap;
     min-width: auto;
   }
+
+  .section {
+    padding: 32px 0;
+  }
+
+  .sectionTitle {
+    font-size: 20px;
+  }
+
+  .feedPreviewHeader {
+    margin-bottom: 16px;
+  }
 }
 
 @media (max-width: 480px) {
+  .hero {
+    padding: 36px 0 20px;
+  }
+
+  .headline {
+    font-size: 28px;
+  }
+
+  .subhead {
+    font-size: 15px;
+    max-width: 100%;
+  }
+
   .brand {
     min-width: auto;
   }
@@ -1111,6 +1174,31 @@
   .menuWrap .buttonPrimary {
     padding: 10px 14px;
     font-size: 13px;
+  }
+
+  .heroBtn {
+    padding: 12px 24px !important;
+    font-size: 14px !important;
+    width: 100%;
+  }
+
+  .ctaButtons {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .ctaBtnPrimary,
+  .ctaBtnOutline {
+    width: 100%;
+    max-width: 280px;
+  }
+
+  .statsBar {
+    gap: 24px;
+  }
+
+  .audienceCard {
+    padding: 22px 20px 20px;
   }
 }
 
