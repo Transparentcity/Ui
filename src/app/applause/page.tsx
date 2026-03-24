@@ -85,7 +85,9 @@ export default function ApplauseDashboard() {
   }, [loadItems]);
 
   const handleSend = useCallback(
-    async (id: number) => {
+    async (id: number, recipientName?: string | null) => {
+      const target = recipientName || "the recipient";
+      if (!confirm(`Send this email to ${target}?`)) return;
       try {
         const token = await getAccessTokenSilently();
         await sendEmail(token, id);
@@ -138,7 +140,10 @@ export default function ApplauseDashboard() {
               <div className={styles.cardHeader}>
                 <div className={styles.cardMeta}>
                   <span className={`${styles.statusChip} ${styles[`status_${item.email_status}`] || ""}`}>
-                    {item.email_status === "pending_draft" ? "Drafting..." : item.email_status}
+                    {item.email_status === "pending_draft" ? "Drafting\u2026" : item.email_status}
+                    {item.email_status === "pending_draft" && (
+                      <span title="AI is composing a congratulatory email" style={{ cursor: "help", marginLeft: 4 }}>{"\u2139\uFE0F"}</span>
+                    )}
                   </span>
                   {item.department && (
                     <span className={styles.department}>{item.department}</span>
@@ -179,7 +184,7 @@ export default function ApplauseDashboard() {
                 {item.email_status === "draft" && (
                   <button
                     className={styles.primaryBtn}
-                    onClick={() => handleSend(item.id)}
+                    onClick={() => handleSend(item.id, item.recipient_name || item.recipient_email)}
                   >
                     Send Email
                   </button>

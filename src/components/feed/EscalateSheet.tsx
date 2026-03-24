@@ -60,7 +60,10 @@ export default function EscalateSheet({ open, headline, onClose, onSend }: Escal
 
   return createPortal(
     <>
-      <div className={styles.sheetBackdrop} onClick={onClose} />
+      <div className={styles.sheetBackdrop} onClick={() => {
+        if (comment.trim() && !confirm("You have unsaved feedback. Close anyway?")) return;
+        onClose();
+      }} />
       <div
         className={styles.sheet}
         onClick={(e) => e.stopPropagation()}
@@ -82,8 +85,8 @@ export default function EscalateSheet({ open, headline, onClose, onSend }: Escal
             rows={3}
           />
           {wordCount > 0 && (
-            <div style={{ fontSize: 12, color: "var(--text-tertiary)", textAlign: "right", marginTop: 2 }}>
-              {wordCount}/150 words
+            <div style={{ fontSize: 12, color: wordCount >= 140 ? "var(--error, #ef4444)" : "var(--text-tertiary)", textAlign: "right", marginTop: 2 }}>
+              {wordCount}/150 words{wordCount >= 140 ? " — approaching limit" : ""}
             </div>
           )}
 

@@ -437,6 +437,19 @@ export default function FeedContainer({
     >
       <div className={`${styles.feedHeader} dashboard-page-header`}>
         <h1 className={styles.feedTitle}>{feedTitle}</h1>
+        <button
+          type="button"
+          className={styles.refreshBtn}
+          onClick={() => refetch()}
+          aria-label="Refresh feed"
+          title="Refresh feed"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+        </button>
       </div>
 
       {/* For You / Latest toggle */}
@@ -596,7 +609,14 @@ export default function FeedContainer({
       {/* Error */}
       {error && (
         <div className={styles.errorState}>
-          <p>Error loading feed stories. Please try again later.</p>
+          <p>Error loading feed stories.</p>
+          <button
+            type="button"
+            className={styles.retryBtn}
+            onClick={() => refetch()}
+          >
+            Retry
+          </button>
         </div>
       )}
 

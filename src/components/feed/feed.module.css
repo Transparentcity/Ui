@@ -18,6 +18,9 @@
 }
 
 .feedHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 10px;
 }
 
@@ -324,6 +327,13 @@
 .cityChip:hover {
   border-color: var(--border-secondary);
   color: var(--text-primary);
+}
+
+.cityChip:focus-visible,
+.actionBtn:focus-visible,
+.feedOrderBtn:focus-visible {
+  outline: 2px solid var(--brand-primary, #ad35fa);
+  outline-offset: 2px;
 }
 .cityChipActive {
   background: var(--brand-primary, #ad35fa);
@@ -935,8 +945,8 @@
 }
 
 .escalateToggle {
-  width: 44px;
-  height: 24px;
+  width: 48px;
+  height: 28px;
   border-radius: 12px;
   border: none;
   background: var(--border-secondary);
@@ -1210,6 +1220,42 @@
 }
 
 .errorState { color: var(--error, #ef4444); }
+
+.retryBtn {
+  margin-top: 12px;
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.retryBtn:hover {
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary, #ad35fa);
+}
+
+.refreshBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+
+.refreshBtn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
 
 /* ── My Block empty state ──────────────────────────────────────────────────── */
 

@@ -363,8 +363,9 @@ export default function SignalsDashboard() {
                       {rows.map((row, i) => (
                         <div key={i} className={styles.digestRow}>
                           <span className={styles.digestLabel}>
-                            D{row.district ?? "?"} / {row.story_type} /{" "}
-                            {row.reaction_type}
+                            {row.district != null ? `District ${row.district}` : "City-wide"}{" \u00B7 "}
+                            {(row.story_type || "").replace(/_/g, " ")}{" \u00B7 "}
+                            {row.count} {row.reaction_type}{row.count !== 1 ? "s" : ""}
                           </span>
                           <span className={styles.digestCount}>{row.count}</span>
                         </div>
