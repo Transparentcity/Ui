@@ -101,13 +101,8 @@ export default function GovernmentOnboardingModal({
     }
   };
 
-  const handleConfirmProfileYes = async () => {
+  const handleConfirmProfileYes = () => {
     setError(null);
-    if (leader && claimContext?.leader_id == null && claimContext) {
-      // Optionally persist leader_id to claim_context on backend so we can create claim later
-      setStep("government-email");
-      return;
-    }
     setStep("government-email");
   };
 
@@ -278,12 +273,12 @@ export default function GovernmentOnboardingModal({
         {/* Email verification (any email; verification is manual) */}
         {step === "government-email" && (
           <div className={styles.stepContent}>
-            <h2 className={styles.stepTitle}>Verify your email</h2>
+            <h2 className={styles.stepTitle}>Verify your government email</h2>
             <p className={styles.stepDescription}>
-              To authorize you for free government use, we need to verify your email. We’ll send a one-time code to the address you provide. Our team will then manually confirm your eligibility.
+              Enter your government email so we can confirm your role. We&apos;ll send a code to verify you have access.
             </p>
             <p className={styles.stepDescription} style={{ marginTop: 0, fontSize: 12, color: "var(--text-tertiary, #9ca3af)" }}>
-              Any format works — e.g. firstname.lastname@sfgov.org, jdoe@cityofexample.gov, etc.
+              Don&apos;t have a .gov address? Enter the email your office uses and our team will verify manually.
             </p>
             <div className={styles.locationSection}>
               <div className={styles.inputGroup}>
@@ -328,8 +323,8 @@ export default function GovernmentOnboardingModal({
             <h2 className={styles.stepTitle}>Enter verification code</h2>
             <p className={styles.stepDescription}>
               {devCode
-                ? "The email could not be sent (e.g. SendGrid not configured). Use the code below to continue."
-                : `We sent a 6-digit code to ${codeSentTo ?? "your email"}. Enter it below.`}
+                ? "Email delivery is not configured. Use the code below."
+                : `We sent a 6-digit code to ${codeSentTo ?? "your email"}.`}
             </p>
             {devCode && (
               <p className={styles.stepDescription} style={{ marginTop: 8, fontWeight: 600 }}>
@@ -401,7 +396,7 @@ export default function GovernmentOnboardingModal({
             </div>
             <h2 className={styles.stepTitle}>Submitted for verification</h2>
             <p className={styles.stepDescription}>
-              We’ve received your email. Our team will verify it manually and you’ll be notified once approved. You can claim your official profile from your district page if you haven’t already.
+              We&apos;ll verify your email and notify you once approved. You can claim your official profile from your district page anytime.
             </p>
             <button
               type="button"

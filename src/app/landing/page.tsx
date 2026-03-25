@@ -25,9 +25,6 @@ export default function LandingPage() {
   }, []);
 
   const handleSignupCitizen = async () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("transparentcity.signup_intent", "resident");
-    }
     await loginWithRedirect({
       authorizationParams: {
         screen_hint: "signup",
@@ -37,9 +34,6 @@ export default function LandingPage() {
   };
 
   const handleSignupCityStaff = async () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("transparentcity.signup_intent", "public-servant");
-    }
     await loginWithRedirect({
       authorizationParams: {
         screen_hint: "signup",

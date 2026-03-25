@@ -44,7 +44,7 @@ interface WelcomeModalProps {
   onComplete: () => void;
 }
 
-type Step = "welcome" | "leader" | "interests" | "notifications" | "all-set" | "coming-soon";
+type Step = "welcome" | "leader" | "preferences" | "all-set" | "coming-soon";
 
 interface LocationResult {
   cityName: string;
@@ -549,6 +549,22 @@ export default function WelcomeModal({
     }
   };
 
+  /** After notify-me success, send user to an active city instead of an empty dashboard. */
+  const handleBrowseActiveCity = async () => {
+    try {
+      const token = await getAccessTokenSilently();
+      await updateUserPreferences({ has_completed_onboarding: true }, token);
+    } catch {
+      // non-blocking
+    }
+    onComplete();
+    onClose();
+    // Navigate to the first active city (San Francisco as default)
+    if (typeof window !== "undefined") {
+      window.location.href = "/c/san-francisco";
+    }
+  };
+
   // Render step indicator
   const renderStepIndicator = () => {
     // Determine steps based on current flow (no separate "preferences" step)
@@ -556,7 +572,7 @@ export default function WelcomeModal({
     if (step === "coming-soon") {
       steps = ["welcome", "coming-soon"];
     } else {
-      steps = ["welcome", "leader", "interests", "notifications", "all-set"];
+      steps = ["welcome", "leader", "preferences", "all-set"];
     }
     
     const currentIndex = steps.indexOf(step);
@@ -579,41 +595,17 @@ export default function WelcomeModal({
       <div className={styles.brandLogo}>
         <Loader size="lg" color="purple" className="loaderStatic" />
       </div>
-      
-      <h1 className={styles.title}>Know your city</h1>
+
+      <h1 className={styles.title}>Where do you live?</h1>
       <p className={styles.subtitle}>
-        Find out who represents you and how your neighborhood is really doing.
+        We&apos;ll show you who represents you and what&apos;s happening in your neighborhood.
       </p>
-      
-      <div className={styles.valuePropsCompact}>
-        <div className={styles.valuePropCompact}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
-          <span>Your representative</span>
-        </div>
-        <div className={styles.valuePropCompact}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z" />
-            <circle cx="12" cy="10" r="3" />
-          </svg>
-          <span>Crime &amp; safety</span>
-        </div>
-        <div className={styles.valuePropCompact}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-          </svg>
-          <span>City performance</span>
-        </div>
-      </div>
 
       {error && <div className={styles.error}>{error}</div>}
 
-      {/* Location Input Section: address, or GPS / map in next step */}
       <div className={styles.locationSection}>
         <p className={styles.locationHint}>
-          Enter your address, or use the GPS button to use your current location. You can fine-tune your spot on the map in the next step.
+          Enter your address or tap GPS. You can adjust your exact spot next.
         </p>
         <div className={styles.inputGroup} ref={locationInputRef}>
           <div className={styles.inputWithGPS}>
@@ -696,20 +688,10 @@ export default function WelcomeModal({
     </div>
   );
 
-  // Save city on Continue from leader step (place creation deferred to final save to avoid duplicates)
-  const handleLeaderContinue = async () => {
+  // Advance from leader step — city is saved in the final preferences step to avoid duplicates
+  const handleLeaderContinue = () => {
     if (!locationResult?.matchedCity) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const token = await getAccessTokenSilently();
-      await saveCity(locationResult.matchedCity.id, token);
-      setStep("interests");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    setStep("preferences");
   };
 
   // Render leader step - show representative info
@@ -768,7 +750,7 @@ export default function WelcomeModal({
         )}
         {(mayor || councilMember) && (
           <p className={styles.locationHint}>
-            You can flag stories directly to {councilMember ? councilMember.name + "'s" : "your representative's"} office and applaud good work.
+            Flag stories to {councilMember ? councilMember.name : "your rep"} or applaud good work.
           </p>
         )}
 
@@ -835,20 +817,18 @@ export default function WelcomeModal({
     setNewsletterDescription(buildPromptFromSelection(next));
   };
 
-  // Render interests step (dedicated screen with category pills)
-  const renderInterestsStep = () => {
+  // Render combined preferences step (topics + notification toggles)
+  const renderPreferencesStep = () => {
     if (!locationResult) return null;
+    const cityDisplayName = locationResult.state
+      ? `${locationResult.cityName}, ${locationResult.state}`
+      : locationResult.cityName;
 
     return (
       <div className={`${styles.stepContent} ${styles.emailPersonalizationStep}`}>
         <h2 className={styles.stepTitle}>What do you care about?</h2>
         <p className={styles.stepDescription}>
-          Pick the topics that matter to you. This shapes your feed and newsletter.
-          {selectedCategoryIds.length > 0 && (
-            <span style={{ display: "block", marginTop: 4, fontWeight: 600, color: "var(--brand-primary, #ad35fa)" }}>
-              {selectedCategoryIds.length} selected
-            </span>
-          )}
+          Pick topics to shape your feed for {cityDisplayName}.
         </p>
 
         <div className={styles.presetChips}>
@@ -870,37 +850,6 @@ export default function WelcomeModal({
           })}
         </div>
 
-        {error && <div className={styles.error}>{error}</div>}
-
-        <div className={styles.actions}>
-          <button
-            className={styles.primaryButton}
-            onClick={() => setStep("notifications")}
-            disabled={loading}
-          >
-            Continue
-          </button>
-          <button className={styles.backButton} onClick={() => setStep("leader")}>
-            Back
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  const renderNotificationsStep = () => {
-    if (!locationResult) return null;
-    const cityDisplayName = locationResult.state
-      ? `${locationResult.cityName}, ${locationResult.state}`
-      : locationResult.cityName;
-
-    return (
-      <div className={`${styles.stepContent} ${styles.emailPersonalizationStep}`}>
-        <h2 className={styles.stepTitle}>Stay in the loop</h2>
-        <p className={styles.stepDescription}>
-          Choose how you want to hear about {cityDisplayName}.
-        </p>
-
         <div className={styles.emailOptIns}>
           <label className={styles.emailOptInOption}>
             <input
@@ -909,8 +858,8 @@ export default function WelcomeModal({
               onChange={() => setAlertsOptIn(!alertsOptIn)}
             />
             <div>
-              <span className={styles.emailOptInTitle}>Alerts</span>
-              <span className={styles.emailOptInDesc}>Get notified when something unusual happens in your selected topics</span>
+              <span className={styles.emailOptInTitle}>Anomaly alerts</span>
+              <span className={styles.emailOptInDesc}>Get notified when something unusual happens</span>
             </div>
           </label>
           <label className={styles.emailOptInOption}>
@@ -920,8 +869,8 @@ export default function WelcomeModal({
               onChange={() => setWeeklyNewsletterOptIn(!weeklyNewsletterOptIn)}
             />
             <div>
-              <span className={styles.emailOptInTitle}>Custom weekly newsletter</span>
-              <span className={styles.emailOptInDesc}>A personalized weekly digest based on your selected topics</span>
+              <span className={styles.emailOptInTitle}>Weekly digest</span>
+              <span className={styles.emailOptInDesc}>A personalized email based on your topics</span>
             </div>
           </label>
         </div>
@@ -942,7 +891,7 @@ export default function WelcomeModal({
               "Continue"
             )}
           </button>
-          <button className={styles.backButton} onClick={() => setStep("interests")}>
+          <button className={styles.backButton} onClick={() => setStep("leader")}>
             Back
           </button>
         </div>
@@ -1130,7 +1079,7 @@ export default function WelcomeModal({
 
         <h2 className={styles.stepTitle}>You&apos;re all set!</h2>
         <p className={styles.stepDescription}>
-          Your preferences are saved. We&apos;ll keep you informed about {cityDisplayName}.
+          You&apos;re set up for {cityDisplayName}.
         </p>
 
         <div className={styles.allSetSummary}>
@@ -1194,23 +1143,15 @@ export default function WelcomeModal({
             <polyline points="12 6 12 12 16 14" />
           </svg>
         </div>
-        <h2 className={styles.stepTitle}>Coming Soon to {cityDisplayName}</h2>
+        <h2 className={styles.stepTitle}>{cityDisplayName} is coming soon</h2>
         <p className={styles.stepDescription}>
-          We&apos;re working to bring transparent.city to your area. Be the first to know when we launch!
+          We don&apos;t have your city yet. Sign up to be notified when we launch there.
         </p>
 
         {error && <div className={styles.error}>{error}</div>}
 
         {!leadSubmitted ? (
           <>
-            <div className={styles.leadBenefits}>
-              <p>When we launch in {locationResult.cityName}, you&apos;ll be able to:</p>
-              <ul>
-                <li>See who represents your neighborhood</li>
-                <li>Track crime, safety, and traffic trends</li>
-                <li>Get alerts on significant changes</li>
-              </ul>
-            </div>
             <div className={styles.actions}>
               <button
                 className={styles.primaryButton}
@@ -1222,9 +1163,6 @@ export default function WelcomeModal({
               <button className={styles.backButton} onClick={() => setStep("welcome")}>
                 Try a different city
               </button>
-              <button className={styles.skipButton} onClick={handleFinish}>
-                Browse available cities
-              </button>
             </div>
           </>
         ) : (
@@ -1234,11 +1172,11 @@ export default function WelcomeModal({
                 <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                 <polyline points="22 4 12 14.01 9 11.01" />
               </svg>
-              You&apos;re on the list! We&apos;ll notify you when {cityDisplayName} launches.
+              You&apos;re on the list! We&apos;ll email you when {cityDisplayName} launches.
             </div>
             <div className={styles.actions}>
-              <button className={styles.primaryButton} onClick={handleFinish}>
-                Browse available cities
+              <button className={styles.primaryButton} onClick={handleBrowseActiveCity}>
+                Explore an active city
               </button>
               <button className={styles.backButton} onClick={() => setStep("welcome")}>
                 Try a different city
@@ -1264,8 +1202,7 @@ export default function WelcomeModal({
 
         {step === "welcome" && renderWelcomeStep()}
         {step === "leader" && renderLeaderStep()}
-        {step === "interests" && renderInterestsStep()}
-        {step === "notifications" && renderNotificationsStep()}
+        {step === "preferences" && renderPreferencesStep()}
         {step === "all-set" && renderAllSetStep()}
         {step === "coming-soon" && renderComingSoonStep()}
       </div>
