@@ -13,7 +13,6 @@ import OverflowMenu from "./OverflowMenu";
 import EscalateSheet from "./EscalateSheet";
 import TextOnlyCard from "./templates/TextOnlyCard";
 import TextChartCard from "./templates/TextChartCard";
-import TextPhotoCard from "./templates/TextPhotoCard";
 import MultiMetricCard from "./templates/MultiMetricCard";
 import AlertCard from "./templates/AlertCard";
 import SpendingCard from "./templates/SpendingCard";
@@ -153,22 +152,24 @@ export default function FeedCard({ story, isAdmin, isOfficial, onHide, onDelete,
     (story.card_type === "trend" || story.card_type === "safety") &&
     (headlineHasPct || story.metadata?.pct_change != null);
 
+  // Determine which template to use and any variant props
+  const isTextPhoto = story.template === "text_photo" && story.card_type !== "311_images";
   const Template =
     story.card_type === "alert" || trendWithData
       ? AlertCard
       : story.card_type === "spending"
         ? SpendingCard
-        : story.card_type === "off_the_charts"
+        : story.card_type === "off_the_charts" || story.card_type === "milestone"
           ? OffTheChartsCard
-          : story.card_type === "311_images"
+          : story.card_type === "311_images" || isTextPhoto
             ? PhotoCard
-            : story.template === "multi_metric"
+            : story.card_type === "comparison" || story.template === "multi_metric"
               ? MultiMetricCard
               : story.template === "text_chart"
                 ? TextChartCard
-                : story.template === "text_photo"
-                  ? TextPhotoCard
-                  : TextOnlyCard;
+                : TextOnlyCard;
+  // PhotoCard variant: "generic" for text_photo stories, "311" (default) for 311_images
+  const photoVariant = isTextPhoto ? "generic" as const : undefined;
 
   const actionBar = compact ? (
     <CompactCardActionBar
@@ -193,6 +194,8 @@ export default function FeedCard({ story, isAdmin, isOfficial, onHide, onDelete,
     <article className={cardClassName} onClick={handleCardClick} role="link" tabIndex={0} onKeyDown={(e) => { const tag = (e.target as HTMLElement).tagName; if (tag === "TEXTAREA" || tag === "INPUT") return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCardClick(); } }}>
       {compact ? (
         <CompactCard story={story}>{actionBar}</CompactCard>
+      ) : Template === PhotoCard ? (
+        <PhotoCard story={story} variant={photoVariant}>{actionBar}</PhotoCard>
       ) : (
         <Template story={story}>{actionBar}</Template>
       )}

@@ -533,6 +533,8 @@ export default function FeedContainer({
             { value: "trend", label: "Trends" },
             { value: "context", label: "Context" },
             { value: "off_the_charts", label: "Off the Charts" },
+            { value: "comparison", label: "Your District" },
+            { value: "milestone", label: "Milestones" },
             { value: "311_images", label: "311 Photos" },
           ].flatMap((t) => {
             const chip = (
@@ -669,6 +671,7 @@ export default function FeedContainer({
                         business: "Business & Economy", spending: "City Spending",
                         alert: "Alerts", trend: "Trends",
                         context: "Context & Background", off_the_charts: "Off the Charts",
+                        comparison: "Your District", milestone: "Milestones",
                         my_block: "My Neighborhood", "311_images": "311 Photos",
                       };
                       parts.push(topicLabels[selectedTopic] ?? selectedTopic);
@@ -777,6 +780,7 @@ export default function FeedContainer({
               story.metadata?.current_period_value ||
               story.metadata?.trend_pct_change
             );
+            const hasDescription = !!(story.cleaned_description && story.cleaned_description.length > 30);
             const isCompact =
               story.template === "text_only" &&
               (story.card_type === "context" || story.card_type === "trend") &&
@@ -784,7 +788,8 @@ export default function FeedContainer({
               !story.metadata?.trend_metric_name && // trend with metric strip stays full
               !headlineHasPct && // stories with percentages stay full
               !headlineHasKeyword && // stories with notable change keywords stay full
-              !hasMetricData; // stories with numeric metadata stay full
+              !hasMetricData && // stories with numeric metadata stay full
+              !hasDescription; // stories with real descriptions stay full
             return (
               <FeedCard
                 key={story.id}

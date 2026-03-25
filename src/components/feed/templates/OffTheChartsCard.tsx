@@ -59,8 +59,16 @@ function deriveStatFromMeta(meta: Record<string, unknown>): {
   return { stat: null, label: null, multiplier: null };
 }
 
+const MILESTONE_BADGES: Record<string, { emoji: string; label: string }> = {
+  record_low: { emoji: "\u{1F4C9}", label: "Record Low" },
+  record_high: { emoji: "\u{1F4C8}", label: "Record High" },
+  round_number: { emoji: "\u{1F3AF}", label: "Milestone" },
+};
+
 export default function OffTheChartsCard({ story, children }: OffTheChartsCardProps) {
   const meta = story.metadata ?? {};
+  const isMilestone = story.story_type === "milestone";
+  const milestoneType = meta.milestone_type as string | undefined;
 
   // Prefer explicit otc_* metadata; fall back to deriving from pct_change data
   const explicitStat = meta.otc_stat as string | number | undefined;
@@ -73,11 +81,14 @@ export default function OffTheChartsCard({ story, children }: OffTheChartsCardPr
   const multiplier = (meta.otc_multiplier as string | undefined) ?? derived?.multiplier;
 
   const hasStat = stat != null;
+  const badge = isMilestone && milestoneType
+    ? MILESTONE_BADGES[milestoneType] ?? { emoji: "\u{1F3AF}", label: "Milestone" }
+    : { emoji: "\u{1F92F}", label: "Off the Charts" };
 
   return (
     <>
-      <div className={styles.otcBadge}>
-        {"\u{1F92F}"} Off the Charts
+      <div className={`${styles.otcBadge} ${isMilestone ? styles.milestoneBadge : ""}`}>
+        {badge.emoji} {badge.label}
       </div>
 
       <h2 className={styles.cardHeadline}>{story.headline}</h2>

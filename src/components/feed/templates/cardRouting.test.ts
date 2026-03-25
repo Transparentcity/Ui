@@ -446,3 +446,44 @@ describe("graceful fallbacks", () => {
     expect(story.card_type).toBe("alert");
   });
 });
+
+// ── New story type routing tests ──────────────────────────────────────────
+
+describe("card routing for new story types", () => {
+  it("comparison story routes to multi_metric template", () => {
+    const story = enrichStory(makeStory({
+      story_type: "comparison",
+      headline: "Your district improved twice as fast as the city average",
+      metadata: {
+        comparison_type: "district_vs_city",
+        metrics: [
+          { name: "Crime", direction: "down", pct: 22 },
+          { name: "Crime", direction: "down", pct: 11 },
+        ],
+      },
+    }));
+    expect(story.card_type).toBe("comparison");
+    expect(story.template).toBe("multi_metric");
+    expect(story.type_icon).toBeTruthy();
+    expect(story.type_label).toBe("Your District");
+  });
+
+  it("milestone story enriches cleanly", () => {
+    const story = enrichStory(makeStory({
+      story_type: "milestone",
+      headline: "Fewest robberies since January 2019",
+      metadata: { milestone_type: "record_low", last_occurrence: "2019-01" },
+    }));
+    expect(story.card_type).toBe("milestone");
+    expect(story.type_label).toBe("Milestone");
+  });
+
+  it("comparison story is NEVER compact", () => {
+    const story = enrichStory(makeStory({
+      story_type: "comparison",
+      headline: "Your ward vs. the city",
+    }));
+    // comparison is not trend/context, so isCompact = false
+    expect(story.card_type).toBe("comparison");
+  });
+});
