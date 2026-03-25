@@ -208,10 +208,17 @@ export default function FeedContainer({
   useEffect(() => {
     if (stories.length === 0 || stories === prevStoriesRef.current) return;
     prevStoriesRef.current = stories;
+    let stale = false;
 
-    fetchNarratives(stories).then((narrs) => {
-      if (narrs.size > 0) setNarratives(narrs);
-    });
+    fetchNarratives(stories)
+      .then((narrs) => {
+        if (!stale && narrs.size > 0) setNarratives(narrs);
+      })
+      .catch(() => {
+        // Non-critical — stories keep their existing descriptions
+      });
+
+    return () => { stale = true; };
   }, [stories]);
 
   // Merge fetched narratives into enriched stories

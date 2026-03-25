@@ -73,7 +73,7 @@ export default function AlertCard({ story, children }: AlertCardProps) {
       <h2 className={styles.cardHeadline}>{story.headline}</h2>
 
       {/* Streak badge — shown when 3+ consecutive periods move same direction */}
-      {streakCount != null && streakCount >= 3 && (
+      {streakCount != null && streakCount >= 3 && streakDirection && (
         <div className={styles.streakBadge}>
           {streakDirection === "down" ? "\u2193" : "\u2191"} {streakCount} in a row
         </div>

@@ -7,6 +7,7 @@
  */
 
 import type { FeedStory } from "@/lib/hooks/useFeed";
+import { API_BASE } from "@/lib/api/request";
 
 // ── Strip HTML to plain text ────────────────────────────────────────────────
 
@@ -228,7 +229,7 @@ export async function fetchNarratives(
   // Fetch each unique report
   const fetches = Array.from(byHash.entries()).map(async ([hash, groupStories]) => {
     try {
-      const res = await fetch(`/api/research/by-hash/${hash}`);
+      const res = await fetch(`${API_BASE}/api/research/by-hash/${hash}`);
       if (!res.ok) return;
       const data = await res.json();
       const html = data.final_report_html;
@@ -263,7 +264,7 @@ export async function fetchDetailNarrative(
   if (!hash) return null;
 
   try {
-    const res = await fetch(`/api/research/by-hash/${hash}`);
+    const res = await fetch(`${API_BASE}/api/research/by-hash/${hash}`);
     if (!res.ok) return null;
     const data = await res.json();
     const html = data.final_report_html;

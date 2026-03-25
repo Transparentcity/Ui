@@ -277,6 +277,7 @@ describe("compact mode decisions", () => {
       story.metadata?.current_period_value ||
       story.metadata?.trend_pct_change
     );
+    const hasDescription = !!(story.cleaned_description && story.cleaned_description.length > 30);
     return (
       story.template === "text_only" &&
       (story.card_type === "context" || story.card_type === "trend") &&
@@ -284,7 +285,8 @@ describe("compact mode decisions", () => {
       !story.metadata?.trend_metric_name &&
       !headlineHasPct &&
       !headlineHasKeyword &&
-      !hasMetricData
+      !hasMetricData &&
+      !hasDescription
     );
   }
 
