@@ -79,6 +79,8 @@ export interface WasteAnalyzeResponse {
   analysis_timestamp: string | null;
   errors: string[];
   data_freshness: WasteDataFreshness[];
+  run_id?: number | null;
+  persisted?: boolean;
 }
 
 export type WasteDispositionType =
@@ -198,11 +200,13 @@ export interface SyncWasteReviewQueueResponse {
 export function getWasteAnalysis(
   token: string,
   category?: string,
-  forceRefresh?: boolean
+  forceRefresh?: boolean,
+  cityId?: number
 ): Promise<WasteAnalyzeResponse> {
   const params = new URLSearchParams();
   if (category) params.append("category", category);
   if (forceRefresh) params.append("force_refresh", "true");
+  if (cityId != null) params.append("city_id", String(cityId));
   const query = params.toString();
   const path = `/api/waste/analyze${query ? `?${query}` : ""}`;
   // 45s timeout for the direct analysis endpoint (longer since it does the work inline)
@@ -229,9 +233,14 @@ export function runWasteAnalysis(
 }
 
 export function getWasteSummary(
-  token: string
+  token: string,
+  cityId?: number
 ): Promise<WasteSummaryResponse> {
-  return request<WasteSummaryResponse>("/api/waste/summary", "GET", undefined, token);
+  const params = new URLSearchParams();
+  if (cityId != null) params.append("city_id", String(cityId));
+  const query = params.toString();
+  const path = `/api/waste/summary${query ? `?${query}` : ""}`;
+  return request<WasteSummaryResponse>(path, "GET", undefined, token);
 }
 
 export function getWasteRunResult(
@@ -506,6 +515,35 @@ export interface WasteInvestigationAction {
   created_by: string | null;
 }
 
+export interface WasteInvestigationFindingSummary {
+  id: number;
+  detector_key: string;
+  category: string;
+  subcategory: string | null;
+  severity: string;
+  entity_name: string;
+  description: string | null;
+  narrative: string | null;
+}
+
+export interface WasteInvestigationEntityScoreSummary {
+  id: string;
+  composite_score: number;
+  severity_tier: string;
+}
+
+export interface WasteInvestigationDisposition {
+  id: string;
+  finding_id: number;
+  entity_id: string | null;
+  city_id: number;
+  disposition: WasteDispositionType;
+  auditor_id: string;
+  notes: string | null;
+  evidence_links: string[];
+  created_at: string | null;
+}
+
 export interface WasteInvestigation {
   id: string;
   city_id: number;
@@ -513,11 +551,11 @@ export interface WasteInvestigation {
   status: "open" | "in_progress" | "pending_response" | "closed";
   lead_auditor_id: string | null;
   finding_id: number | null;
-  finding: Record<string, unknown> | null;
-  entity_score: Record<string, unknown> | null;
+  finding: WasteInvestigationFindingSummary | null;
+  entity_score: WasteInvestigationEntityScoreSummary | null;
   final_disposition: WasteDispositionType | null;
   actions: WasteInvestigationAction[];
-  dispositions: Record<string, unknown>[];
+  dispositions: WasteInvestigationDisposition[];
   opened_at: string | null;
   closed_at: string | null;
   created_at: string | null;
