@@ -243,6 +243,10 @@ export function getPublicFeedStory(storyId: number): Promise<FeedStoryResponse> 
   return request<FeedStoryResponse>(`/api/feed/public/story/${storyId}`, "GET", undefined);
 }
 
+export function getPublicFeedStoryByHash(hash: string): Promise<FeedStoryResponse> {
+  return request<FeedStoryResponse>(`/api/feed/public/story/by-hash/${hash}`, "GET", undefined);
+}
+
 export function listPublicFeedPlaces(): Promise<FeedPlacesResponse> {
   return request<FeedPlacesResponse>(`/api/feed/public/places`, "GET", undefined);
 }

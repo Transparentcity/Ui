@@ -273,20 +273,16 @@ export default function FeedView({
 
   const handleStoryClick = (story: FeedStory) => {
     trackEngagement.mutate({ storyId: story.id, action: "click" });
-    if (story.detail_url) {
-      router.push(story.detail_url);
-    }
+    router.push(`/feed/${story.id}`);
   };
 
   const handleShare = (story: FeedStory, e: React.MouseEvent) => {
     e.stopPropagation();
     trackEngagement.mutate({ storyId: story.id, action: "share" });
-    if (story.detail_url) {
-      const fullUrl = `${window.location.origin}${story.detail_url}`;
-      navigator.clipboard.writeText(fullUrl).then(() => {
-        alert("Link copied to clipboard!");
-      });
-    }
+    const fullUrl = `${window.location.origin}/feed/${story.id}`;
+    navigator.clipboard.writeText(fullUrl).then(() => {
+      alert("Link copied to clipboard!");
+    });
   };
 
   const handleHideStory = (story: FeedStory, e: React.MouseEvent) => {
