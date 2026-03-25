@@ -67,7 +67,7 @@ const MILESTONE_BADGES: Record<string, { emoji: string; label: string }> = {
 
 export default function OffTheChartsCard({ story, children }: OffTheChartsCardProps) {
   const meta = story.metadata ?? {};
-  const isMilestone = story.story_type === "milestone";
+  const isMilestone = story.card_type === "milestone";
   const milestoneType = meta.milestone_type as string | undefined;
 
   // Prefer explicit otc_* metadata; fall back to deriving from pct_change data
