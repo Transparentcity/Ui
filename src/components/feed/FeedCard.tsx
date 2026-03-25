@@ -215,6 +215,7 @@ export default function FeedCard({ story, isAdmin, isOfficial, onHide, onDelete,
       <EscalateSheet
         open={escalateOpen}
         headline={story.headline}
+        isOfficial={isOfficial}
         onClose={() => setEscalateOpen(false)}
         onSend={handleEscalateSend}
       />
