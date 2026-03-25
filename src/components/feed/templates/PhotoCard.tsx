@@ -8,9 +8,43 @@ import styles from "../feed.module.css";
 interface PhotoCardProps {
   story: EnrichedFeedStory;
   children: React.ReactNode;
+  /** "311" for full 311-specific layout, "generic" for simple text+photo. */
+  variant?: "311" | "generic";
 }
 
-export default function PhotoCard({ story, children }: PhotoCardProps) {
+export default function PhotoCard({ story, children, variant }: PhotoCardProps) {
+  // Generic variant: simple header + headline + description + photo
+  if (variant === "generic") {
+    return (
+      <>
+        <CardHeader
+          typeIcon={story.type_icon}
+          typeLabel={story.type_label}
+          actor={story.actor}
+          subline={story.subline}
+          neighborhoodLabel={story.neighborhood_label}
+        />
+        <h2 className={styles.cardHeadline}>{story.headline}</h2>
+        {story.cleaned_description && (
+          <p className={styles.cardDescription}>{story.cleaned_description}</p>
+        )}
+        <div className={`${styles.vizArea} ${styles.vizAreaPhoto}`}>
+          {story.image_url_resolved ? (
+            <img
+              src={story.image_url_resolved}
+              alt={story.headline}
+              className={`${styles.vizImage} ${styles.vizImagePhoto}`}
+              loading="lazy"
+            />
+          ) : (
+            <div className={styles.vizPlaceholder}>{"\u{1F4F8}"} Photo</div>
+          )}
+        </div>
+        {children}
+      </>
+    );
+  }
+
   const [imgFailed, setImgFailed] = useState(false);
   const meta = story.metadata ?? {};
 
@@ -36,6 +70,12 @@ export default function PhotoCard({ story, children }: PhotoCardProps) {
   const agency = (meta.assigned_agency as string) ?? null;
   const resolutionDays = meta.resolution_days as number | undefined;
 
+  // Calculate days open for unresolved complaints
+  const filedDate = (meta.filed_date ?? story.story_date) as string | undefined;
+  const daysOpen = statusLower === "open" && filedDate
+    ? Math.floor((Date.now() - new Date(filedDate).getTime()) / 86400000)
+    : null;
+
   const showImage = story.image_url_resolved && !imgFailed;
 
   return (
@@ -55,6 +95,22 @@ export default function PhotoCard({ story, children }: PhotoCardProps) {
           </div>
         )}
         <span className={styles.categoryBadge}>{category}</span>
+
+        {/* Resolution status overlay */}
+        {(statusLower === "resolved" || statusLower === "closed") && (
+          <div className={styles.photoResolutionBadge}>
+            <span className={styles.photoResolutionIcon}>{"\u2713"}</span>
+            <span className={styles.photoResolutionText}>RESOLVED</span>
+            {resolutionDays != null && (
+              <span className={styles.photoResolutionDays}>{resolutionDays}d</span>
+            )}
+          </div>
+        )}
+        {statusLower === "open" && daysOpen != null && daysOpen > 0 && (
+          <div className={styles.photoOpenBadge}>
+            {daysOpen}d open
+          </div>
+        )}
       </div>
 
       <CardHeader

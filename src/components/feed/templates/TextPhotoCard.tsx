@@ -25,12 +25,7 @@ export default function TextPhotoCard({ story, children }: TextPhotoCardProps) {
       )}
 
       <div className={`${styles.vizArea} ${styles.vizAreaPhoto}`}>
-        {story.card_type === "311_images" && !story.image_url_resolved ? (
-          <div className={styles.vizPlaceholderComingSoon}>
-            <span>{"\u{1F4F8}"} 311 Photos</span>
-            <span className={styles.comingSoonBadge}>Coming Soon</span>
-          </div>
-        ) : story.image_url_resolved ? (
+        {story.image_url_resolved ? (
           <img
             src={story.image_url_resolved}
             alt={story.headline}
