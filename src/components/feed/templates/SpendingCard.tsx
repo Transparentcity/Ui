@@ -71,6 +71,7 @@ export default function SpendingCard({ story, children }: SpendingCardProps) {
     ?? undefined;
   const priorAmount = (meta.prior_amount ?? meta.comparison_period_value) as number | string | undefined;
   const vendor = meta.vendor_name as string | undefined;
+  const contractPurpose = (meta.contract_purpose ?? meta.contract_description) as string | undefined;
 
   const amountNum = amount != null ? (typeof amount === "string" ? parseFloat(amount) : amount) : null;
   const priorNum = priorAmount != null ? (typeof priorAmount === "string" ? parseFloat(priorAmount) : priorAmount) : null;
@@ -141,7 +142,18 @@ export default function SpendingCard({ story, children }: SpendingCardProps) {
         <p className={styles.cardDescription}>{story.cleaned_description}</p>
       )}
 
-      {vendor && <div className={styles.vendorLine}>Vendor: {vendor}</div>}
+      {(vendor || contractPurpose) && (
+        <div className={styles.vendorBlock}>
+          {vendor && (
+            <div className={styles.vendorLine}>
+              <span className={styles.vendorLineLabel}>Paid to:</span> {vendor}
+            </div>
+          )}
+          {contractPurpose && (
+            <div className={styles.vendorPurpose}>{contractPurpose}</div>
+          )}
+        </div>
+      )}
 
       {children}
     </>

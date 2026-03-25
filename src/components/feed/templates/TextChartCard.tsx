@@ -12,6 +12,9 @@ interface TextChartCardProps {
 
 export default function TextChartCard({ story, children }: TextChartCardProps) {
   const [imgFailed, setImgFailed] = useState(false);
+  const meta = story.metadata ?? {};
+  const isMapFocus = meta.map_focus === true;
+  const hotspots = (meta.hotspot_neighborhoods as string[] | undefined) ?? [];
 
   const showImage = story.image_url_resolved && !imgFailed;
 
@@ -29,12 +32,12 @@ export default function TextChartCard({ story, children }: TextChartCardProps) {
         <p className={styles.cardDescription}>{story.cleaned_description}</p>
       )}
 
-      <div className={styles.vizArea}>
+      <div className={`${styles.vizArea} ${isMapFocus ? styles.vizAreaMapFocus : ""}`}>
         {showImage ? (
           <img
             src={story.image_url_resolved!}
             alt={story.headline}
-            className={styles.vizImage}
+            className={`${styles.vizImage} ${isMapFocus ? styles.vizImageMapFocus : ""}`}
             loading="lazy"
             onError={() => setImgFailed(true)}
           />
@@ -52,6 +55,15 @@ export default function TextChartCard({ story, children }: TextChartCardProps) {
           </div>
         )}
       </div>
+
+      {/* Hotspot neighborhood chips for map-focused stories */}
+      {isMapFocus && hotspots.length > 0 && (
+        <div className={styles.mapHotspots}>
+          {hotspots.slice(0, 3).map((name) => (
+            <span key={name} className={styles.mapHotspotChip}>{name}</span>
+          ))}
+        </div>
+      )}
 
       {children}
     </>

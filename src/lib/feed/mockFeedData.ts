@@ -22,7 +22,9 @@ export type CardType =
   | "my_block"
   | "context"
   | "multi_metric"
-  | "off_the_charts";
+  | "off_the_charts"
+  | "comparison"
+  | "milestone";
 
 export type TemplateType = "text_only" | "text_chart" | "text_photo" | "multi_metric";
 
@@ -58,6 +60,8 @@ const TYPE_ICONS: Record<CardType, string> = {
   context: "\u{1F9ED}",        // 🧭
   multi_metric: "\u{1F4CB}",   // 📋
   off_the_charts: "\u{1F92F}", // 🤯
+  comparison: "\u{1F504}",     // 🔄
+  milestone: "\u{1F3AF}",      // 🎯
 };
 
 const TYPE_LABELS: Record<CardType, string> = {
@@ -72,6 +76,8 @@ const TYPE_LABELS: Record<CardType, string> = {
   context: "Context",
   multi_metric: "This Week",
   off_the_charts: "Off the Charts",
+  comparison: "Your District",
+  milestone: "Milestone",
 };
 
 // ── Actor (city department) derivation ──────────────────────────────────────
@@ -109,6 +115,8 @@ function deriveActor(cardType: CardType, headline: string): string {
     case "context": return "City Hall";
     case "multi_metric": return "City Hall";
     case "off_the_charts": return "City Hall";
+    case "comparison": return "City Hall";
+    case "milestone": return "City Hall";
     default: return "City Hall";
   }
 }
@@ -123,6 +131,7 @@ const KNOWN_CARD_TYPES = new Set<string>([
   "alert", "trend", "business", "spending",
   "justice", "safety", "311_images",
   "context", "multi_metric", "off_the_charts",
+  "comparison", "milestone",
 ]);
 
 function deriveCardType(story: FeedStory): CardType {
@@ -156,6 +165,8 @@ function deriveTemplate(story: FeedStory, cardType: CardType): TemplateType {
   const vizType = (story.visualization_type ?? pv?.type ?? "").toLowerCase();
   const meta = story.metadata ?? {};
 
+  // Comparison stories use the multi-metric template with "vs." layout
+  if (cardType === "comparison") return "multi_metric";
   // Multi-metric cards: 3+ metrics in metadata
   if (cardType === "multi_metric" || (Array.isArray(meta.metrics) && (meta.metrics as unknown[]).length >= 2)) return "multi_metric";
 
@@ -173,7 +184,11 @@ function deriveTemplate(story: FeedStory, cardType: CardType): TemplateType {
 function resolveImageUrl(story: FeedStory): string | null {
   const base = getApiBaseUrlForAssets();
   const storyAny = story as unknown as Record<string, unknown>;
-  if (storyAny.image_url) return `${base}${storyAny.image_url}`;
+  if (storyAny.image_url) {
+    const url = storyAny.image_url as string;
+    // External URLs (e.g. Cloudinary 311 photos) are already absolute
+    return url.startsWith("http") ? url : `${base}${url}`;
+  }
   // 311 photos: backend stores the Socrata photo URL in metadata.311_image_url
   const meta311Url = story.metadata?.["311_image_url"];
   if (typeof meta311Url === "string" && meta311Url) return meta311Url;

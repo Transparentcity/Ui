@@ -47,6 +47,10 @@ export default function AlertCard({ story, children }: AlertCardProps) {
   const severity = (meta.anomaly_severity as string | undefined);
   const priorValue = meta.comparison_period_value as string | number | undefined;
 
+  // Streak metadata (set by backend when 3+ consecutive periods move same direction)
+  const streakCount = meta.streak_count as number | undefined;
+  const streakDirection = meta.streak_direction as "up" | "down" | undefined;
+
   // Derive severity from pct_change magnitude if not explicitly set
   const effectiveSeverity = severity
     ?? (changePct != null && Math.abs(changePct) >= 100 ? "critical" : "warning");
@@ -67,6 +71,13 @@ export default function AlertCard({ story, children }: AlertCardProps) {
         neighborhoodLabel={story.neighborhood_label}
       />
       <h2 className={styles.cardHeadline}>{story.headline}</h2>
+
+      {/* Streak badge — shown when 3+ consecutive periods move same direction */}
+      {streakCount != null && streakCount >= 3 && (
+        <div className={styles.streakBadge}>
+          {streakDirection === "down" ? "\u2193" : "\u2191"} {streakCount} in a row
+        </div>
+      )}
 
       {hasMetrics && (
         <div className={styles.alertHero}>

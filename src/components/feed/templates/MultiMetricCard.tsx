@@ -67,6 +67,63 @@ interface MultiMetricCardProps {
 
 export default function MultiMetricCard({ story, children }: MultiMetricCardProps) {
   const realMetrics = useMemo(() => extractRealMetrics(story), [story]);
+  const meta = story.metadata ?? {};
+  const isComparison = meta.comparison_type === "district_vs_city";
+
+  // Find the lead metric (largest absolute % change) for highlighting
+  const leadIdx = useMemo(() => {
+    if (!realMetrics || realMetrics.length <= 1) return -1;
+    let maxAbs = 0;
+    let idx = -1;
+    for (let i = 0; i < realMetrics.length; i++) {
+      const abs = Math.abs(parseFloat(realMetrics[i].percent) || 0);
+      if (abs > maxAbs) { maxAbs = abs; idx = i; }
+    }
+    return maxAbs > 0 ? idx : -1;
+  }, [realMetrics]);
+
+  // Comparison variant: 2-column "district vs. city" layout
+  if (isComparison && realMetrics && realMetrics.length >= 2) {
+    const districtMetric = realMetrics[0];
+    const cityMetric = realMetrics[1];
+    const ratio = meta.comparison_ratio as string | undefined;
+    return (
+      <>
+        <CardHeader
+          typeIcon={story.type_icon}
+          typeLabel={story.type_label}
+          actor={story.actor}
+          subline={story.subline}
+          neighborhoodLabel={story.neighborhood_label}
+        />
+        <h2 className={styles.cardHeadline}>{story.headline}</h2>
+        <div className={styles.comparisonGrid}>
+          <div className={styles.comparisonSide}>
+            <div className={styles.comparisonSideLabel}>Your District</div>
+            <div className={`${styles.comparisonSideValue} ${
+              districtMetric.favorable ? styles.metricFavorable : styles.metricUnfavorable
+            }`}>
+              {districtMetric.arrow} {districtMetric.percent}
+            </div>
+            <div className={styles.comparisonSideMetric}>{districtMetric.name}</div>
+          </div>
+          <div className={styles.comparisonVs}>
+            {ratio ?? "vs."}
+          </div>
+          <div className={styles.comparisonSide}>
+            <div className={styles.comparisonSideLabel}>Citywide</div>
+            <div className={`${styles.comparisonSideValue} ${
+              cityMetric.favorable ? styles.metricFavorable : styles.metricUnfavorable
+            }`}>
+              {cityMetric.arrow} {cityMetric.percent}
+            </div>
+            <div className={styles.comparisonSideMetric}>{cityMetric.name}</div>
+          </div>
+        </div>
+        {children}
+      </>
+    );
+  }
 
   return (
     <>
@@ -86,7 +143,7 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
       {realMetrics && realMetrics.length > 0 && (
         <div className={styles.metricGridRedesigned}>
           {realMetrics.map((m, i) => (
-            <div key={i} className={styles.metricTile}>
+            <div key={i} className={`${styles.metricTile} ${i === leadIdx ? styles.metricTileLead : ""}`}>
               <div className={styles.metricTileMain}>
                 <div
                   className={`${styles.metricNumber} ${
