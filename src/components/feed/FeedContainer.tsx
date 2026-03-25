@@ -9,6 +9,7 @@ import {
   deleteFeedStoriesByCity,
 } from "@/lib/apiClient";
 import { enrichStories, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
+import { fetchNarratives } from "@/lib/feed/fetchReportNarratives";
 import FeedCard from "./FeedCard";
 import SkeletonCard from "./SkeletonCard";
 import FeedEndState from "./FeedEndState";
@@ -200,6 +201,31 @@ export default function FeedContainer({
   const stories = feedData?.stories ?? [];
   const enriched = useMemo(() => enrichStories(stories), [stories]);
 
+  // Fetch narrative text from research reports for stories with thin descriptions
+  const [narratives, setNarratives] = useState<Map<number, string>>(new Map());
+  const prevStoriesRef = useRef<typeof stories>(undefined);
+
+  useEffect(() => {
+    if (stories.length === 0 || stories === prevStoriesRef.current) return;
+    prevStoriesRef.current = stories;
+
+    fetchNarratives(stories).then((narrs) => {
+      if (narrs.size > 0) setNarratives(narrs);
+    });
+  }, [stories]);
+
+  // Merge fetched narratives into enriched stories
+  const enrichedWithNarratives = useMemo(() => {
+    if (narratives.size === 0) return enriched;
+    return enriched.map((s) => {
+      const narrative = narratives.get(s.id);
+      if (narrative && !s.cleaned_description) {
+        return { ...s, cleaned_description: narrative };
+      }
+      return s;
+    });
+  }, [enriched, narratives]);
+
   // ── Hidden stories (persisted to localStorage with 7-day TTL) ──
   const HIDDEN_STORAGE_KEY = "feed-hidden-stories";
 
@@ -257,7 +283,7 @@ export default function FeedContainer({
   }, [getAccessTokenSilently, queryClient]);
 
   const visibleStories = useMemo(() => {
-    const filtered = enriched.filter((s) => {
+    const filtered = enrichedWithNarratives.filter((s) => {
       if (hiddenIds.has(s.id)) return false;
       if (selectedTopic) {
         if (selectedTopic === "my_block") {
@@ -290,7 +316,7 @@ export default function FeedContainer({
     }
 
     return filtered;
-  }, [enriched, hiddenIds, selectedTopic, selectedCityIds]);
+  }, [enrichedWithNarratives, hiddenIds, selectedTopic, selectedCityIds]);
 
   // Restore scroll position once stories have loaded (only on initial mount)
   const scrollRestored = useRef(false);
@@ -508,39 +534,47 @@ export default function FeedContainer({
             { value: "context", label: "Context" },
             { value: "off_the_charts", label: "Off the Charts" },
             { value: "311_images", label: "311 Photos" },
-          ].map((t) => (
-            <button
-              key={t.value}
-              type="button"
-              className={`${styles.filterChip} ${(selectedTopic ?? "") === t.value ? styles.filterChipActive : ""}`}
-              onClick={() => {
-                if (t.value === "my_block" && !hasAddress) {
-                  setShowLocationModal(true);
-                  return;
-                }
-                setSelectedTopic(t.value || null);
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
+          ].flatMap((t) => {
+            const chip = (
+              <button
+                key={t.value}
+                type="button"
+                className={`${styles.filterChip} ${(selectedTopic ?? "") === t.value ? styles.filterChipActive : ""}`}
+                onClick={() => {
+                  if (t.value === "my_block" && !hasAddress) {
+                    setShowLocationModal(true);
+                    return;
+                  }
+                  setSelectedTopic(t.value || null);
+                }}
+              >
+                {t.label}
+              </button>
+            );
 
-          {/* District toggle button: only when exactly 1 city is selected */}
-          {singleCityId && cityDistricts.length > 0 && (
-            <button
-              type="button"
-              className={`${styles.filterChip} ${showDistricts || selectedDistrict !== null ? styles.filterChipActive : ""}`}
-              onClick={() => setShowDistricts((v) => !v)}
-              aria-expanded={showDistricts}
-            >
-              {selectedDistrict !== null
-                ? `${districtPrefix}${selectedDistrict}`
-                : `${districtTerm}s`}
-              <span className={styles.filterChipCaret} aria-hidden="true">
-                {showDistricts ? "▲" : "▼"}
-              </span>
-            </button>
-          )}
+            // Insert district toggle button right after "My Block"
+            if (t.value === "my_block" && singleCityId && cityDistricts.length > 0) {
+              return [
+                chip,
+                <button
+                  key="district-toggle"
+                  type="button"
+                  className={`${styles.filterChip} ${showDistricts || selectedDistrict !== null ? styles.filterChipActive : ""}`}
+                  onClick={() => setShowDistricts((v) => !v)}
+                  aria-expanded={showDistricts}
+                >
+                  {selectedDistrict !== null
+                    ? `${districtPrefix}${selectedDistrict}`
+                    : `${districtTerm}s`}
+                  <span className={styles.filterChipCaret} aria-hidden="true">
+                    {showDistricts ? "▲" : "▼"}
+                  </span>
+                </button>,
+              ];
+            }
+
+            return [chip];
+          })}
         </div>
 
         {hasSecondaryFilters && (
