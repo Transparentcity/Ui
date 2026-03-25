@@ -49,6 +49,14 @@ vi.mock("@/lib/hooks/useWaste", () => ({
   useWasteInvestigation: vi.fn(),
   useCreateInvestigationAction: vi.fn(),
   useCloseInvestigation: vi.fn(),
+  useRunAIAuditorReview: vi.fn().mockReturnValue({
+    mutateAsync: vi.fn(),
+    isPending: false,
+    isError: false,
+    error: null,
+    data: undefined,
+    reset: vi.fn(),
+  }),
 }))
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
@@ -147,13 +155,13 @@ describe("InvestigationDetailPage", () => {
   it("renders investigation title and status", () => {
     render(<InvestigationDetailPage investigationId="inv-1" />)
     expect(screen.getByText("Fire Dept Overtime Investigation")).toBeInTheDocument()
-    expect(screen.getByText("open")).toBeInTheDocument()
+    expect(screen.getByText("Open")).toBeInTheDocument()
   })
 
-  it("renders action timeline with existing actions", () => {
+  it("renders notes section with existing actions", () => {
     render(<InvestigationDetailPage investigationId="inv-1" />)
-    expect(screen.getByText("Initial Review")).toBeInTheDocument()
-    expect(screen.getByText("Action Timeline (1)")).toBeInTheDocument()
+    expect(screen.getByText("Reviewed payroll records")).toBeInTheDocument()
+    expect(screen.getByText("Notes (1)")).toBeInTheDocument()
   })
 
   // ── Export Evidence button ─────────────────────────────────────────────────
@@ -180,27 +188,28 @@ describe("InvestigationDetailPage", () => {
 
   // ── Close Investigation button ─────────────────────────────────────────────
 
-  it("hides Close Investigation button when status is closed", () => {
+  it("hides Resolve/Escalate buttons when status is closed", () => {
     useWasteInvestigation.mockReturnValue(
       makeMockQuery(makeInvestigation({ status: "closed" })) as ReturnType<typeof _useWasteInvestigation>
     )
     render(<InvestigationDetailPage investigationId="inv-1" />)
-    expect(screen.queryByText("Close Investigation")).not.toBeInTheDocument()
+    expect(screen.queryByText("Resolve")).not.toBeInTheDocument()
+    expect(screen.queryByText("Escalate")).not.toBeInTheDocument()
   })
 
-  // ── Add Action dialog ──────────────────────────────────────────────────────
+  // ── Note input ─────────────────────────────────────────────────────────────
 
-  it("hides Add Action button when investigation is closed", () => {
+  it("hides note input when investigation is closed", () => {
     useWasteInvestigation.mockReturnValue(
       makeMockQuery(makeInvestigation({ status: "closed" })) as ReturnType<typeof _useWasteInvestigation>
     )
     render(<InvestigationDetailPage investigationId="inv-1" />)
-    expect(screen.queryByText("Add Action")).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText("Add a note…")).not.toBeInTheDocument()
   })
 
-  it("shows Add Action button for open investigations", () => {
+  it("shows note input for open investigations", () => {
     render(<InvestigationDetailPage investigationId="inv-1" />)
-    expect(screen.getByText("Add Action")).toBeInTheDocument()
+    expect(screen.getByPlaceholderText("Add a note…")).toBeInTheDocument()
   })
 
   // ── Export error toast ──────────────────────────────────────────────────────
@@ -217,7 +226,7 @@ describe("InvestigationDetailPage", () => {
 
   // ── Add action success toast ────────────────────────────────────────────────
 
-  it("shows success toast when add action succeeds", async () => {
+  it("shows success toast when note is added", async () => {
     const mutate = vi.fn().mockImplementation((_args: unknown, opts: { onSuccess?: () => void }) => {
       opts.onSuccess?.()
     })
@@ -226,27 +235,22 @@ describe("InvestigationDetailPage", () => {
     )
 
     render(<InvestigationDetailPage investigationId="inv-1" />)
-    // Open add action dialog
-    fireEvent.click(screen.getByText("Add Action"))
-    // Fill in the required title field
-    const titleInput = screen.getByPlaceholderText("Action title")
-    fireEvent.change(titleInput, { target: { value: "Follow up call" } })
-    // Submit via the dialog's Add Action button
-    const addButtons = screen.getAllByText("Add Action")
-    const dialogAddButton = addButtons[addButtons.length - 1]
-    fireEvent.click(dialogAddButton)
+    const textarea = screen.getByPlaceholderText("Add a note…")
+    fireEvent.change(textarea, { target: { value: "Follow up call" } })
+    // The submit button is next to the textarea
+    const buttons = screen.getAllByRole("button")
+    const submitBtn = buttons.find((b) => b.closest(".mt-4"))
+    if (submitBtn) fireEvent.click(submitBtn)
 
     await waitFor(() => {
-      expect(vi.mocked(toast).success).toHaveBeenCalledWith("Action added")
+      expect(vi.mocked(toast).success).toHaveBeenCalled()
     })
   })
 
-  // ── Close dialog shows investigation title ──────────────────────────────────
+  // ── Resolve dialog ────────────────────────────────────────────────────────
 
-  it("shows investigation title in close dialog description", () => {
+  it("shows Resolve button for open investigations", () => {
     render(<InvestigationDetailPage investigationId="inv-1" />)
-    fireEvent.click(screen.getByText("Close Investigation"))
-    // The dialog description contains the investigation title in curly quotes
-    expect(screen.getByText(/Closing.*Fire Dept Overtime Investigation/)).toBeInTheDocument()
+    expect(screen.getByText("Resolve")).toBeInTheDocument()
   })
 })

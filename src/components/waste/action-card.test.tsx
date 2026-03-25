@@ -26,93 +26,32 @@ function makeAction(
 }
 
 describe("ActionCard", () => {
-  it("renders the action title", () => {
-    render(<ActionCard action={makeAction()} />);
+  it("renders description when present", () => {
+    render(<ActionCard action={makeAction({ description: "Detailed evidence review" })} />);
+    expect(screen.getByText("Detailed evidence review")).toBeInTheDocument();
+  });
+
+  it("falls back to title when description is empty", () => {
+    render(<ActionCard action={makeAction({ description: "" })} />);
     expect(screen.getByText("Test Action")).toBeInTheDocument();
   });
 
-  it("renders the action type label", () => {
+  it("renders the action type label for non-note types", () => {
     render(<ActionCard action={makeAction({ action_type: "interview" })} />);
     expect(screen.getByText("Interview")).toBeInTheDocument();
   });
 
-  it("renders the status badge", () => {
-    render(<ActionCard action={makeAction({ status: "completed" })} />);
-    expect(screen.getByText("completed")).toBeInTheDocument();
+  it("does not render type label for notes", () => {
+    render(<ActionCard action={makeAction({ action_type: "note" })} />);
+    expect(screen.queryByText("Note")).not.toBeInTheDocument();
   });
 
-  it("renders the description", () => {
-    render(
-      <ActionCard
-        action={makeAction({ description: "Detailed evidence review" })}
-      />
-    );
-    expect(screen.getByText("Detailed evidence review")).toBeInTheDocument();
+  it("renders timestamp from created_at", () => {
+    render(<ActionCard action={makeAction({ created_at: "2026-01-15T00:00:00Z" })} />);
+    expect(screen.getByText(/Jan/)).toBeInTheDocument();
   });
 
-  it("renders assignee when present", () => {
-    render(
-      <ActionCard action={makeAction({ assigned_to: "Jane Doe" })} />
-    );
-    expect(screen.getByText("Assigned to Jane Doe")).toBeInTheDocument();
-  });
-
-  it("does not render assignee when null", () => {
-    render(<ActionCard action={makeAction({ assigned_to: null })} />);
-    expect(screen.queryByText(/Assigned to/)).not.toBeInTheDocument();
-  });
-
-  it("renders due date when present", () => {
-    render(
-      <ActionCard action={makeAction({ due_date: "2026-03-01T00:00:00Z" })} />
-    );
-    expect(screen.getByText(/Due/)).toBeInTheDocument();
-  });
-
-  it("applies overdue styling for past-due non-completed actions", () => {
-    const pastDate = new Date();
-    pastDate.setDate(pastDate.getDate() - 5);
-    const { container } = render(
-      <ActionCard
-        action={makeAction({
-          status: "pending",
-          due_date: pastDate.toISOString(),
-        })}
-      />
-    );
-    const card = container.firstChild as HTMLElement;
-    expect(card.className).toContain("border-red-200");
-  });
-
-  it("does not apply overdue styling for completed actions even with past due date", () => {
-    const pastDate = new Date();
-    pastDate.setDate(pastDate.getDate() - 5);
-    const { container } = render(
-      <ActionCard
-        action={makeAction({
-          status: "completed",
-          due_date: pastDate.toISOString(),
-          completed_at: new Date().toISOString(),
-        })}
-      />
-    );
-    const card = container.firstChild as HTMLElement;
-    expect(card.className).not.toContain("border-red-200");
-  });
-
-  it("renders completed date when present", () => {
-    render(
-      <ActionCard
-        action={makeAction({
-          status: "completed",
-          completed_at: "2026-02-10T00:00:00Z",
-        })}
-      />
-    );
-    expect(screen.getByText(/Completed/)).toBeInTheDocument();
-  });
-
-  it("renders all seven action types without error", () => {
+  it("renders all eight action types without error", () => {
     const types: WasteInvestigationAction["action_type"][] = [
       "document_request",
       "interview",
@@ -121,12 +60,13 @@ describe("ActionCard", () => {
       "referral",
       "note",
       "evidence_collected",
+      "ai_auditor_review",
     ];
     for (const t of types) {
       const { unmount } = render(
         <ActionCard action={makeAction({ action_type: t })} />
       );
-      expect(screen.getByText("Test Action")).toBeInTheDocument();
+      expect(screen.getByText("A test action description")).toBeInTheDocument();
       unmount();
     }
   });

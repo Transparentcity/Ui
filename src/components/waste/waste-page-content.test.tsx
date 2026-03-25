@@ -133,7 +133,7 @@ import { useWasteAnalysis as _useWasteAnalysis, useActiveWasteJob as _useActiveW
 const useWasteAnalysis = vi.mocked(_useWasteAnalysis)
 const useActiveWasteJob = vi.mocked(_useActiveWasteJob)
 
-const CACHE_KEY = "waste:last-analysis:v1"
+const CACHE_KEY = "waste:last-analysis:1:v2"
 
 const cachedAnalysis = {
   analysis_timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),

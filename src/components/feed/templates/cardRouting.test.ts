@@ -345,6 +345,7 @@ describe("compact mode decisions", () => {
     const story = enrichStory(makeStory({
       story_type: "trend",
       headline: "General Update on City Services",
+      description: "",
     }));
     expect(isCompact(story)).toBe(true);
   });
@@ -353,6 +354,7 @@ describe("compact mode decisions", () => {
     const story = enrichStory(makeStory({
       story_type: "context",
       headline: "Background on Recent Policy Changes",
+      description: "",
     }));
     expect(isCompact(story)).toBe(true);
   });
