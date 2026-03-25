@@ -211,6 +211,9 @@ export function cleanDescription(
 
   let cleaned = description.trim();
 
+  // 0a. Strip markdown bold/italic markers (LLM output sometimes includes these)
+  cleaned = cleaned.replace(/\*{1,3}/g, "");
+
   // 0. Clean up metadata breadcrumb prefix (strip city name already in card header)
   cleaned = cleanMetadataBreadcrumb(cleaned, cityName);
 
