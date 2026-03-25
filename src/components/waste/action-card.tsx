@@ -9,6 +9,7 @@ import {
   ExternalLink,
   StickyNote,
   FolderSearch,
+  Bot,
 } from "lucide-react"
 import type { WasteInvestigationAction } from "@/lib/apiClient"
 
@@ -23,6 +24,7 @@ const ACTION_TYPE_META: Record<
   referral: { icon: ExternalLink, label: "Referral" },
   note: { icon: StickyNote, label: "Note" },
   evidence_collected: { icon: FolderSearch, label: "Evidence" },
+  ai_auditor_review: { icon: Bot, label: "AI Auditor Review" },
 }
 
 interface ActionCardProps {

@@ -5,6 +5,7 @@ import {
   useWasteInvestigation,
   useCreateInvestigationAction,
   useCloseInvestigation,
+  useRunAIAuditorReview,
 } from "@/lib/hooks/useWaste"
 import { useAuth0 } from "@auth0/auth0-react"
 import { toast } from "sonner"
@@ -13,9 +14,11 @@ import { SeverityBadge } from "./severity-badge"
 import { ScoreBar } from "./score-bar"
 import { TCScoreBadge } from "./tc-score-badge"
 import { ActionCard } from "./action-card"
+import { AIAuditorStepCard, AIAuditorSummary } from "./ai-auditor-step-card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  Bot,
   Download,
   Plus,
   XCircle,
@@ -25,6 +28,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import type {
+  AIAuditorReport,
   WasteDispositionType,
   WasteInvestigationAction,
 } from "@/lib/apiClient"
@@ -47,11 +51,33 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
   const { data: investigation, isLoading, error } = useWasteInvestigation(investigationId)
   const addActionMutation = useCreateInvestigationAction()
   const closeMutation = useCloseInvestigation()
+  const aiAuditorMutation = useRunAIAuditorReview()
 
   const [exporting, setExporting] = useState(false)
+  const [aiAuditorReport, setAIAuditorReport] = useState<AIAuditorReport | null>(null)
 
   // Simplified note input
   const [noteText, setNoteText] = useState("")
+
+  const handleRunAIAuditor = useCallback(() => {
+    if (!investigation?.finding) return
+    const findingId = Number(investigation.finding.id ?? investigation.finding_id)
+    const cityId = investigation.city_id
+    if (!findingId || !cityId) {
+      toast.error("Missing finding or city data")
+      return
+    }
+    aiAuditorMutation.mutate(
+      { finding_id: findingId, city_id: cityId },
+      {
+        onSuccess: (result) => {
+          setAIAuditorReport(result.report)
+          toast.success("AI Auditor review complete")
+        },
+        onError: (err) => toast.error(`AI Auditor failed: ${err.message}`),
+      }
+    )
+  }, [investigation, aiAuditorMutation])
 
   const handleAddNote = useCallback(() => {
     const text = noteText.trim()
@@ -172,6 +198,22 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
       description={`Investigation #${investigation.id}`}
       actions={
         <div className="flex items-center gap-2">
+          {investigation.status !== "closed" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleRunAIAuditor}
+              disabled={aiAuditorMutation.isPending}
+              className="border-purple-200 text-purple-700 hover:bg-purple-50"
+            >
+              {aiAuditorMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+              ) : (
+                <Bot className="w-4 h-4 mr-1" />
+              )}
+              {aiAuditorMutation.isPending ? "Reviewing…" : "AI Auditor Review"}
+            </Button>
+          )}
           <Button size="sm" variant="outline" onClick={handleExport} disabled={exporting}>
             {exporting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
             Export Evidence
@@ -250,6 +292,29 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
           </div>
         )}
       </div>
+
+      {/* AI Auditor Report */}
+      {aiAuditorReport && (
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-purple-700 mb-3 flex items-center gap-1.5">
+            <Bot className="w-4 h-4" />
+            AI Auditor Investigation ({aiAuditorReport.steps.length} steps)
+          </h3>
+          <div className="space-y-2 mb-4">
+            {aiAuditorReport.steps.map((step) => (
+              <AIAuditorStepCard key={step.step_number} step={step} />
+            ))}
+          </div>
+          <AIAuditorSummary
+            classification={aiAuditorReport.classification}
+            confidence={aiAuditorReport.confidence}
+            summary={aiAuditorReport.summary}
+            estimatedHumanHours={aiAuditorReport.estimated_human_hours}
+            actualAISeconds={aiAuditorReport.actual_ai_seconds}
+            recommendedActions={aiAuditorReport.recommended_actions}
+          />
+        </div>
+      )}
 
       {/* Notes thread */}
       <div className="mb-6">
