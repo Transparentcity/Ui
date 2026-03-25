@@ -4423,35 +4423,18 @@ export function cancelResearch(
 }
 
 export function getResearchByHash(hash: string): Promise<ResearchReport> {
-  // Use public endpoint - fetch directly without auth credentials
-  // Try public endpoint first, fallback to regular endpoint if needed
-  return fetch(`${API_BASE}/api/research/public/by-hash/${hash}`, {
+  // The backend exposes /api/research/by-hash/{hash} as a public endpoint
+  // (no auth required, but report must be marked public).
+  // Note: /api/research/public/by-hash/ does NOT exist on the backend, and
+  // a Next.js filesystem route at /api/research/public/ intercepts it before
+  // the rewrite proxy can forward it, causing a 404.
+  return fetch(`${API_BASE}/api/research/by-hash/${hash}`, {
     method: "GET",
     headers: {
       "Accept": "application/json",
     },
-    credentials: "omit", // Don't send cookies/auth for public endpoint
+    credentials: "omit",
   }).then(async (res) => {
-    // If public endpoint doesn't exist (404), try the regular endpoint
-    if (res.status === 404) {
-      return fetch(`${API_BASE}/api/research/by-hash/${hash}`, {
-        method: "GET",
-        headers: {
-          "Accept": "application/json",
-        },
-        credentials: "omit", // Don't send cookies/auth
-      }).then(async (res2) => {
-        if (!res2.ok) {
-          const text = await res2.text().catch(() => "");
-          const error = new Error(`Failed to fetch research: ${res2.status} ${text}`);
-          (error as any).status = res2.status;
-          (error as any).statusText = res2.statusText;
-          throw error;
-        }
-        return res2.json() as Promise<ResearchReport>;
-      });
-    }
-    
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       const error = new Error(`Failed to fetch research: ${res.status} ${text}`);
