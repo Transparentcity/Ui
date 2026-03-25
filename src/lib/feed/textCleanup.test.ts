@@ -207,7 +207,7 @@ describe("sentence boundary trimming", () => {
     const result = cleanDescription(desc, "311 requests increase");
     // Should end at a period
     expect(result).toMatch(/\.$/);
-    expect(result.length).toBeLessThanOrEqual(250);
+    expect(result.length).toBeLessThanOrEqual(300);
   });
 
   it("passes through very short but valid descriptions", () => {

@@ -85,10 +85,8 @@ describe("WasteShell", () => {
 
   it("renders tab navigation links", () => {
     render(<WasteShell title="Test">Content</WasteShell>)
-    expect(screen.getByText("Workspace")).toBeInTheDocument()
+    expect(screen.getByText("Findings")).toBeInTheDocument()
+    expect(screen.getByText("Dashboard")).toBeInTheDocument()
     expect(screen.getByText("Guardrails API")).toBeInTheDocument()
-    expect(screen.getByText("Investigations")).toBeInTheDocument()
-    expect(screen.getByText("Backtrace")).toBeInTheDocument()
-    expect(screen.getByText("Thresholds")).toBeInTheDocument()
   })
 })

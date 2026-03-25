@@ -206,7 +206,7 @@ describe("FeedCard", () => {
 
   it("navigates to feed detail route on click", () => {
     renderCard({});
-    const article = screen.getByRole("article");
+    const article = screen.getByRole("link");
     fireEvent.click(article);
     expect(mockPush).toHaveBeenCalledWith("/feed/42");
   });

@@ -75,7 +75,7 @@ describe("WasteExport", () => {
     fireEvent.click(screen.getByText("CSV"))
 
     await waitFor(() => {
-      expect(mockExportFindings).toHaveBeenCalledWith("mock-token", "payroll", "csv")
+      expect(mockExportFindings).toHaveBeenCalledWith("mock-token", "payroll", "csv", undefined)
     })
   })
 
@@ -87,7 +87,7 @@ describe("WasteExport", () => {
     fireEvent.click(screen.getByText("JSON"))
 
     await waitFor(() => {
-      expect(mockExportFindings).toHaveBeenCalledWith("mock-token", "payroll", "json")
+      expect(mockExportFindings).toHaveBeenCalledWith("mock-token", "payroll", "json", undefined)
     })
   })
 

@@ -69,7 +69,7 @@ describe("EscalateSheet", () => {
 
   it("passes comment text to onSend", async () => {
     renderSheet();
-    const textarea = screen.getByPlaceholderText(/Add a comment/i);
+    const textarea = screen.getByPlaceholderText(/comment/i);
     await userEvent.type(textarea, "This is unacceptable");
 
     fireEvent.click(screen.getByText("Send"));
@@ -78,7 +78,7 @@ describe("EscalateSheet", () => {
 
   it("passes includeName=false when toggle is off", async () => {
     renderSheet();
-    const toggle = screen.getByLabelText(/Name included/i);
+    const toggle = screen.getByLabelText(/Include my name/i);
     fireEvent.click(toggle); // Toggle OFF
 
     fireEvent.click(screen.getByText("Send"));
@@ -89,11 +89,11 @@ describe("EscalateSheet", () => {
     renderSheet();
 
     // Type a comment
-    const textarea = screen.getByPlaceholderText(/Add a comment/i);
+    const textarea = screen.getByPlaceholderText(/comment/i);
     await userEvent.type(textarea, "Fix this please");
 
     // Toggle off name
-    const toggle = screen.getByLabelText(/Name included/i);
+    const toggle = screen.getByLabelText(/Include my name/i);
     fireEvent.click(toggle);
 
     fireEvent.click(screen.getByText("Send"));
@@ -115,7 +115,7 @@ describe("EscalateSheet", () => {
 
   it("shows word count after typing", async () => {
     renderSheet();
-    const textarea = screen.getByPlaceholderText(/Add a comment/i);
+    const textarea = screen.getByPlaceholderText(/comment/i);
     await userEvent.type(textarea, "one two three");
 
     expect(screen.getByText("3/150 words")).toBeInTheDocument();
@@ -127,7 +127,7 @@ describe("EscalateSheet", () => {
     );
 
     // Type something
-    const textarea = screen.getByPlaceholderText(/Add a comment/i);
+    const textarea = screen.getByPlaceholderText(/comment/i);
     await userEvent.type(textarea, "some text");
 
     // Close
@@ -140,7 +140,7 @@ describe("EscalateSheet", () => {
       <EscalateSheet open={true} headline="H" onClose={onClose} onSend={onSend} />
     );
 
-    const newTextarea = screen.getByPlaceholderText(/Add a comment/i);
+    const newTextarea = screen.getByPlaceholderText(/comment/i);
     expect(newTextarea).toHaveValue("");
   });
 });

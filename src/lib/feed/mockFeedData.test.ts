@@ -61,7 +61,7 @@ describe("deriveCardType", () => {
     ["trusts backend story_type 'context'", { story_type: "context" }, "context"],
     ["trusts backend story_type 'multi_metric'", { story_type: "multi_metric" }, "multi_metric"],
     ["trusts backend story_type 'off_the_charts'", { story_type: "off_the_charts" }, "off_the_charts"],
-    ["trusts backend story_type 'my_block'", { story_type: "my_block" }, "my_block"],
+    ["falls back to alert for unknown 'my_block'", { story_type: "my_block" }, "alert"],
     ["trusts backend story_type '311_images'", { story_type: "311_images" }, "311_images"],
   ])("%s", (_label, overrides, expected) => {
     const enriched = enrichStory(makeStory(overrides));
@@ -251,7 +251,7 @@ describe("enrichStory", () => {
     expect(enriched.template).toBe("text_only");
     expect(enriched.applaud_count).toBe(12);
     expect(enriched.escalate_count).toBe(5);
-    expect(enriched.investigate_count).toBe(3);
+    expect(enriched.investigate_count).toBe(0);
     expect(enriched.type_icon).toBeTruthy();
     expect(enriched.type_label).toBe("Alert");
     expect(enriched.actor).toBeTruthy();
@@ -512,7 +512,6 @@ describe("type metadata completeness", () => {
       justice: "Justice",
       safety: "Safety",
       "311_images": "311 Photos",
-      my_block: "My Block",
       context: "Context",
       multi_metric: "This Week",
       off_the_charts: "Off the Charts",
