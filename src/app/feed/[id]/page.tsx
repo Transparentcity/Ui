@@ -309,8 +309,8 @@ export default function FeedDetailPage() {
           </div>
         )}
 
-        {/* CTA to full research report */}
-        {story.detail_url && (
+        {/* CTA to full research report (hide when detail_url is just the story's own /s/ short-link) */}
+        {story.detail_url && !story.detail_url.startsWith("/s/") && (
           <a
             href={story.detail_url}
             className={styles.detailReportLink}
