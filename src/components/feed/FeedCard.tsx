@@ -190,7 +190,7 @@ export default function FeedCard({ story, isAdmin, isOfficial, onHide, onDelete,
   );
 
   return (
-    <article className={cardClassName} onClick={handleCardClick} role="link" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCardClick(); } }}>
+    <article className={cardClassName} onClick={handleCardClick} role="link" tabIndex={0} onKeyDown={(e) => { const tag = (e.target as HTMLElement).tagName; if (tag === "TEXTAREA" || tag === "INPUT") return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCardClick(); } }}>
       {compact ? (
         <CompactCard story={story}>{actionBar}</CompactCard>
       ) : (

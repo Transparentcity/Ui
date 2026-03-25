@@ -5893,7 +5893,7 @@ export function getLatestWasteTrustReport(
 export interface WasteInvestigationAction {
   id: string;
   investigation_id: string;
-  action_type: "document_request" | "interview" | "site_visit" | "subpoena" | "referral" | "note" | "evidence_collected";
+  action_type: "document_request" | "interview" | "site_visit" | "subpoena" | "referral" | "note" | "evidence_collected" | "ai_auditor_review";
   title: string;
   description: string;
   status: "pending" | "in_progress" | "completed" | "cancelled";
@@ -6020,6 +6020,55 @@ export function exportInvestigationEvidence(
     if (!res.ok) throw new Error(`Evidence export failed: ${res.status}`);
     return res.blob();
   });
+}
+
+// ============================================================================
+// AI AUDITOR REVIEW
+// ============================================================================
+
+export interface AIAuditorStepResult {
+  step_number: number;
+  step_name: string;
+  status: "pending" | "running" | "completed" | "failed";
+  reasoning: string;
+  sources: string[];
+  duration_seconds: number;
+}
+
+export interface AIAuditorReport {
+  entity_name: string;
+  city_name: string;
+  classification: "false_positive" | "likely_false_positive" | "inconclusive" | "corroborated_concern" | "confirmed";
+  confidence: "high" | "moderate" | "low";
+  summary: string;
+  steps: AIAuditorStepResult[];
+  sources: string[];
+  estimated_human_hours: number;
+  actual_ai_seconds: number;
+  recommended_actions: string[];
+  created_at: string;
+}
+
+export interface RunAIAuditorReviewRequest {
+  finding_id: number;
+  city_id: number;
+}
+
+export interface RunAIAuditorReviewResponse {
+  investigation_id: string;
+  report: AIAuditorReport;
+}
+
+export function runAIAuditorReview(
+  token: string,
+  payload: RunAIAuditorReviewRequest
+): Promise<RunAIAuditorReviewResponse> {
+  return request<RunAIAuditorReviewResponse>(
+    `/api/waste/ai-auditor-review`,
+    "POST",
+    payload,
+    token
+  );
 }
 
 // ============================================================================

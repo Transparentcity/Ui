@@ -8,6 +8,7 @@ import {
   bulkDisposeWasteFindings,
   closeInvestigation,
   createInvestigationAction,
+  runAIAuditorReview,
   createWasteDisposition,
   cancelJob,
   getJob,
@@ -38,6 +39,8 @@ import {
   type CreateWasteDispositionRequest,
   type RunWasteAnalysisRequest,
   type SyncWasteReviewQueueRequest,
+  type RunAIAuditorReviewRequest,
+  type RunAIAuditorReviewResponse,
   type UpdateThresholdRequest,
   type WasteDetectorAccuracy,
   type WasteDepartmentRiskPage,
@@ -895,6 +898,28 @@ export function useCloseInvestigation() {
         queryKey: ["waste", "investigation", payload.investigationId],
       })
       queryClient.invalidateQueries({ queryKey: ["waste", "investigations"] })
+    },
+  })
+}
+
+// ── AI Auditor Review ─────────────────────────────────────────────────
+
+export function useRunAIAuditorReview() {
+  const { getAccessTokenSilently } = useAuth0()
+  const queryClient = useQueryClient()
+
+  return useMutation<
+    RunAIAuditorReviewResponse,
+    Error,
+    RunAIAuditorReviewRequest
+  >({
+    mutationFn: async (payload) => {
+      const token = await getAccessTokenSilently()
+      return runAIAuditorReview(token, payload)
+    },
+    onSuccess: (_res, _payload) => {
+      queryClient.invalidateQueries({ queryKey: ["waste", "investigations"] })
+      queryClient.invalidateQueries({ queryKey: ["waste", "queue"] })
     },
   })
 }
