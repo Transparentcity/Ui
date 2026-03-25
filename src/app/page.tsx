@@ -23,9 +23,6 @@ export default function Home() {
   const router = useRouter();
 
   const handleSignupCitizen = async () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("transparentcity.signup_intent", "resident");
-    }
     await loginWithRedirect({
       authorizationParams: { screen_hint: "signup" },
       appState: { returnTo: "/dashboard?signup=resident" },
@@ -33,9 +30,6 @@ export default function Home() {
   };
 
   const handleSignupCityStaff = async () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("transparentcity.signup_intent", "public-servant");
-    }
     await loginWithRedirect({
       authorizationParams: { screen_hint: "signup" },
       appState: { returnTo: "/dashboard?signup=public-servant" },
@@ -271,17 +265,8 @@ export default function Home() {
     }
   };
 
-  // Show loader while checking auth status or redirecting authenticated users
-  if (isLoading) {
-    return (
-      <div className={styles.loaderScreen}>
-        <Loader />
-      </div>
-    );
-  }
-
-  // If authenticated, show loader briefly while redirect happens
-  if (isAuthenticated) {
+  // Show loader while checking auth or redirecting authenticated users to dashboard
+  if (isLoading || isAuthenticated) {
     return (
       <div className={styles.loaderScreen}>
         <Loader />
