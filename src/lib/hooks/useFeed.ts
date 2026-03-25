@@ -68,6 +68,8 @@ export function useFeedStories(options?: {
   order_by?: string;
   /** When true and no city_id, return all active stories (ignore follows). Use for "All Cities" view. */
   all_cities?: boolean;
+  /** Filter by story type (e.g. 'off_the_charts', 'alert', 'trend'). */
+  story_type?: string | null;
 }) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
 
