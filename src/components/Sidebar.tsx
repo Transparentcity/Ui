@@ -315,7 +315,7 @@ export default function Sidebar({
             <span>New Chat</span>
           </button>
 
-          {canAccessResearch && (
+          {(canAccessResearch || isAdmin) && (
             <button
               className={`${styles.navItem} ${styles.newChatBtn}`}
               id="new-research-report-btn"
@@ -530,8 +530,8 @@ export default function Sidebar({
           {/* Spacing */}
           <div className={styles.navSectionSpacer}></div>
 
-          {/* Research Section - Admin only */}
-          {canAccessResearch && (
+          {/* Research Section - Admin or government-verified */}
+          {(canAccessResearch || isAdmin) && (
             <>
               <div id="research-section">
                 <div
