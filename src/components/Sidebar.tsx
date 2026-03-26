@@ -118,8 +118,8 @@ export default function Sidebar({
 
   const pathname = usePathname();
 
-  // Research and New Research Report: admin or government mode
-  const canAccessResearch = isAdmin || governmentVerified;
+  // Research and New Research Report: government-verified users only
+  const canAccessResearch = governmentVerified;
 
   // Helper to close sidebar in narrow mode after action
   const handleActionWithClose = (action: () => void) => {
