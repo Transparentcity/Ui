@@ -237,7 +237,7 @@ export default function SidebarCitySearch({
       await saveCity(pendingCityAndCoords.city.id, token);
       const place = await createPlace(token, {
         city_id: pendingCityAndCoords.city.id,
-        label: opts.label.trim() || "My block",
+        label: opts.label.trim() || "My Block",
         lat: pendingCityAndCoords.coords.lat,
         lng: pendingCityAndCoords.coords.lng,
         radius_m: opts.radius_m,

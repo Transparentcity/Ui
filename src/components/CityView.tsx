@@ -2127,7 +2127,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             <div className="city-view-place-selector-row city-view-place-selector-fallback">
               <span className="city-view-place-selector-label">
                 {selectedPlaceId != null
-                  ? (userPlaces.find((p) => p.id === selectedPlaceId)?.label ?? "My block")
+                  ? (userPlaces.find((p) => p.id === selectedPlaceId)?.label ?? "My Block")
                   : "Citywide"}
                 {selectedPlaceId != null && lastPlaceRefreshAt && (
                   <span className="city-view-place-selector-refresh">

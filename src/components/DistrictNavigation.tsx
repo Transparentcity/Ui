@@ -494,7 +494,7 @@ export default function DistrictNavigation({
       const token = await getAccessTokenSilently();
       const place = await createPlace(token, {
         city_id: cityId,
-        label: opts.label.trim() || "My block",
+        label: opts.label.trim() || "My Block",
         lat: pendingPoint.lat,
         lng: pendingPoint.lng,
         radius_m: opts.radius_m,
@@ -676,7 +676,7 @@ export default function DistrictNavigation({
   // Determine display name and label (place scope overrides district)
   // When place is selected but selectedPlace not yet loaded (userPlaces still fetching), show "My block" to avoid flashing "Citywide"
   const displayName = isPlaceScope
-    ? (selectedPlace ? selectedPlace.label : "My block")
+    ? (selectedPlace ? selectedPlace.label : "My Block")
     : currentRepresentative
     ? currentRepresentative.name
     : isMayor
