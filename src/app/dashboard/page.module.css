@@ -19,12 +19,6 @@
   border-bottom: 1px solid var(--brand-primary-light, rgba(173, 53, 250, 0.2));
 }
 
-.governmentBannerCitizen {
-  background: var(--bg-secondary, #f3f4f6);
-  color: var(--text-secondary, #6b7280);
-  border-bottom-color: var(--border, #e5e7eb);
-}
-
 .governmentBannerAdmin {
   background: rgba(239, 68, 68, 0.08);
   color: #dc2626;

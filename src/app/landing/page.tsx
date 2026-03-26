@@ -24,21 +24,12 @@ export default function LandingPage() {
     return () => window.clearInterval(interval);
   }, []);
 
-  const handleSignupCitizen = async () => {
+  const handleSignup = async () => {
     await loginWithRedirect({
       authorizationParams: {
         screen_hint: "signup",
       },
-      appState: { returnTo: "/dashboard?signup=resident" },
-    });
-  };
-
-  const handleSignupCityStaff = async () => {
-    await loginWithRedirect({
-      authorizationParams: {
-        screen_hint: "signup",
-      },
-      appState: { returnTo: "/dashboard?signup=public-servant" },
+      appState: { returnTo: "/dashboard" },
     });
   };
 
@@ -175,7 +166,7 @@ export default function LandingPage() {
                 <button
                   id="hero-signup-btn"
                   className="btn btn-primary btn-large"
-                  onClick={handleSignupCitizen}
+                  onClick={handleSignup}
                   disabled={isLoading}
                 >
                   {isAuthenticated ? "Go to Dashboard" : "Sign up as citizen"}
@@ -328,7 +319,7 @@ export default function LandingPage() {
               <div className="user-type-cta">
                 <button
                   className="btn btn-primary"
-                  onClick={handleSignupCitizen}
+                  onClick={handleSignup}
                   disabled={isLoading}
                 >
                   Sign up as citizen
@@ -394,7 +385,7 @@ export default function LandingPage() {
                 <button
                   id="city-staff-signup-btn"
                   className="btn btn-outline"
-                  onClick={handleSignupCityStaff}
+                  onClick={handleSignup}
                   disabled={isLoading}
                 >
                   Sign up as city staff
@@ -594,7 +585,7 @@ export default function LandingPage() {
               </ul>
               <button
                 className="btn btn-primary pricing-btn"
-                onClick={handleSignupCitizen}
+                onClick={handleSignup}
                 disabled={isLoading}
               >
                 Start Free
@@ -622,7 +613,7 @@ export default function LandingPage() {
                 </Link>
                 <button
                   className="btn btn-outline pricing-btn"
-                  onClick={handleSignupCityStaff}
+                  onClick={handleSignup}
                   disabled={isLoading}
                 >
                   Sign up as city staff
@@ -648,7 +639,7 @@ export default function LandingPage() {
               </ul>
               <button
                 className="btn btn-outline pricing-btn"
-                onClick={handleSignupCitizen}
+                onClick={handleSignup}
                 disabled={isLoading}
               >
                 Start Free Trial

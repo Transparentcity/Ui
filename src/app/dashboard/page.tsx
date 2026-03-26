@@ -526,8 +526,8 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // Redirect away from research and research-new unless admin or government mode
-  const canAccessResearch = isAdmin || !!govVerificationStatus?.government_verified;
+  // Redirect away from research and research-new unless government-verified
+  const canAccessResearch = !!govVerificationStatus?.government_verified;
   useEffect(() => {
     if (!isCheckingAdmin && !canAccessResearch && (currentView === "research" || currentView === "research-new")) {
       setCurrentView("chat");
@@ -1118,9 +1118,16 @@ export default function DashboardPage() {
             onStop={handleStopImpersonating}
           />
         )}
-        <div className={`${styles.governmentBanner} ${isAdmin ? styles.governmentBannerAdmin : hasGovernmentBanner ? "" : styles.governmentBannerCitizen}`} role="banner">
-          {isAdmin ? "Admin View" : hasGovernmentBanner ? "Government View" : "Citizen View"}
-        </div>
+        {isAdmin && (
+          <div className={`${styles.governmentBanner} ${styles.governmentBannerAdmin}`} role="banner">
+            Admin View
+          </div>
+        )}
+        {!isAdmin && hasGovernmentBanner && (
+          <div className={styles.governmentBanner} role="banner">
+            Government View
+          </div>
+        )}
         <div className={styles.viewsContainer}>
           {currentView === "chat" && (
             <div className={`${styles.contentView} ${styles.contentViewActive}`}>
