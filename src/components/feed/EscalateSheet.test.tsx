@@ -1,6 +1,11 @@
 /**
  * Tests for EscalateSheet component.
  *
+ * NOTE: EscalateSheet is currently dead code — the component is no longer
+ * imported or rendered by any active component after the UI simplification
+ * that removed Applaud/Flag/Investigate actions from feed cards.
+ * These tests are skipped until the component is either removed or re-enabled.
+ *
  * Covers: rendering, comment/includeName passing via onSend, word limit,
  * toggle behavior, skip/close, keyboard dismiss.
  */
@@ -24,7 +29,7 @@ vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
 }));
 
-describe("EscalateSheet", () => {
+describe.skip("EscalateSheet (dead code — component no longer rendered)", () => {
   let onClose: ReturnType<typeof vi.fn>;
   let onSend: ReturnType<typeof vi.fn>;
 

@@ -1,12 +1,12 @@
 /**
  * Tests for FeedCard component.
  *
- * Covers: rendering, escalate API wiring, share behavior, template selection,
- * off_the_charts styling, hide functionality.
+ * Covers: rendering, share behavior, template selection,
+ * off_the_charts styling, hide functionality, navigation.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 
 // ── jsdom polyfills ──────────────────────────────────────────────────────
@@ -42,12 +42,11 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
 }));
 
-const mockGetAccessTokenSilently = vi.fn().mockResolvedValue("test-token");
 vi.mock("@auth0/auth0-react", () => ({
   useAuth0: () => ({
     isAuthenticated: true,
     isLoading: false,
-    getAccessTokenSilently: mockGetAccessTokenSilently,
+    getAccessTokenSilently: vi.fn().mockResolvedValue("test-token"),
   }),
 }));
 
@@ -56,21 +55,12 @@ vi.mock("@/lib/hooks/useFeed", () => ({
   useTrackFeedEngagement: () => ({ mutate: mockMutate }),
 }));
 
-const mockEscalateStory = vi.fn().mockResolvedValue({
-  success: true,
-  message: "Escalated",
-  escalate_count: 4,
-});
-vi.mock("@/lib/apiClient", () => ({
-  escalateStory: (...args: unknown[]) => mockEscalateStory(...args),
-}));
-
 // Mock sonner
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
 }));
 
-// Mock createPortal for EscalateSheet
+// Mock createPortal
 vi.mock("react-dom", async () => {
   const actual = await vi.importActual<typeof import("react-dom")>("react-dom");
   return {
@@ -115,7 +105,7 @@ function makeEnrichedStory(overrides: Partial<EnrichedFeedStory> = {}): Enriched
     template: "text_only",
     applaud_count: 8,
     escalate_count: 3,
-    investigate_count: 2,
+    investigate_count: 0,
     type_icon: "🔴",
     type_label: "Alert",
     actor: "Police",
@@ -154,9 +144,16 @@ describe("FeedCard", () => {
     expect(screen.getByText("Motor vehicle thefts spike in D6")).toBeInTheDocument();
   });
 
-  it("renders escalate count in action bar", () => {
-    renderCard({ escalate_count: 3 });
-    expect(screen.getByText("3")).toBeInTheDocument();
+  it("renders Share button in action bar", () => {
+    renderCard();
+    expect(screen.getByLabelText("Share")).toBeInTheDocument();
+  });
+
+  it("does not render Applaud or Flag buttons", () => {
+    renderCard();
+    expect(screen.queryByLabelText("Applaud")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Flag")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Investigate")).not.toBeInTheDocument();
   });
 
   it("applies off_the_charts CSS class for OTC stories", () => {
@@ -169,38 +166,6 @@ describe("FeedCard", () => {
     const { container } = renderCard({ card_type: "alert" });
     const article = container.querySelector("article");
     expect(article?.className).not.toContain("cardOffTheCharts");
-  });
-
-  // ── Escalate flow ─────────────────────────────────────────────────────
-
-  it("opens escalate sheet when Escalate button is clicked", () => {
-    renderCard();
-    // Find and click the escalate button (via the action bar)
-    const buttons = screen.getAllByRole("button");
-    // Escalate button is typically the second action button
-    const escalateBtn = buttons.find((b) => b.textContent?.includes("3"));
-    if (escalateBtn) {
-      fireEvent.click(escalateBtn);
-      expect(screen.getByText("Send")).toBeInTheDocument();
-    }
-  });
-
-  it("calls escalateStory API with comment and includeName on Send", async () => {
-    renderCard();
-
-    // Open escalate sheet — find the button with the escalate count
-    const buttons = screen.getAllByRole("button");
-    const escalateBtn = buttons.find((b) => b.textContent?.includes("3"));
-    if (!escalateBtn) return; // Skip if not found (action bar layout varies)
-    fireEvent.click(escalateBtn);
-
-    // Click Send (default: empty comment, includeName true)
-    fireEvent.click(screen.getByText("Send"));
-
-    await waitFor(() => {
-      expect(mockGetAccessTokenSilently).toHaveBeenCalled();
-      expect(mockEscalateStory).toHaveBeenCalledWith(42, "test-token", "", true);
-    });
   });
 
   // ── Navigation ────────────────────────────────────────────────────────
@@ -224,14 +189,8 @@ describe("FeedCard", () => {
 
   it("tracks share engagement when share is clicked", () => {
     renderCard();
-    // Find the Share button in overflow (we test the share handler via the Share action)
-    const buttons = screen.getAllByRole("button");
-    const shareBtn = buttons.find(
-      (b) => b.getAttribute("aria-label")?.includes("Share") || b.textContent?.includes("Share")
-    );
-    if (shareBtn) {
-      fireEvent.click(shareBtn);
-      expect(mockMutate).toHaveBeenCalledWith({ storyId: 42, action: "share" });
-    }
+    const shareBtn = screen.getByLabelText("Share");
+    fireEvent.click(shareBtn);
+    expect(mockMutate).toHaveBeenCalledWith({ storyId: 42, action: "share" });
   });
 });

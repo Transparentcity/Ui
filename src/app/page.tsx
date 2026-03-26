@@ -22,17 +22,10 @@ export default function Home() {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const router = useRouter();
 
-  const handleSignupCitizen = async () => {
+  const handleSignup = async () => {
     await loginWithRedirect({
       authorizationParams: { screen_hint: "signup" },
-      appState: { returnTo: "/dashboard?signup=resident" },
-    });
-  };
-
-  const handleSignupCityStaff = async () => {
-    await loginWithRedirect({
-      authorizationParams: { screen_hint: "signup" },
-      appState: { returnTo: "/dashboard?signup=public-servant" },
+      appState: { returnTo: "/dashboard" },
     });
   };
   const [cityQuery, setCityQuery] = useState("");
@@ -330,7 +323,7 @@ export default function Home() {
               <div className={styles.heroCtas}>
                 <button
                   type="button"
-                  onClick={handleSignupCitizen}
+                  onClick={handleSignup}
                   className={`${styles.button} ${styles.buttonPrimary} ${styles.heroBtn}`}
                 >
                   Get your city feed, free
@@ -402,102 +395,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ── Audience cards ────────────────────────────────────────────── */}
-        <section className={styles.section} id="who-this-is-for">
-          <div className={styles.container}>
-            <h2 className={styles.sectionTitle} style={{ textAlign: "center" }}>Built for two audiences</h2>
-            <div className={styles.audienceGrid}>
-              <div className={styles.audienceCard}>
-                <div className={styles.audienceIconWrap}>
-                  <span className={styles.audienceIcon}>&#x1F3D8;&#xFE0F;</span>
-                </div>
-                <div className={styles.audienceCardHeader}>
-                  <div className={styles.audienceTitle}>Residents</div>
-                  <span className={styles.audienceTag}>Free</span>
-                </div>
-                <p className={styles.audienceBody}>
-                  Stop guessing about what&apos;s happening in your neighborhood.
-                  Get concrete numbers you can share and reference, and flag
-                  what matters directly to your district supervisor.
-                </p>
-                <ul className={styles.audienceFeatures}>
-                  <li>
-                    <span className={styles.featureCheck}>&#x2713;</span>
-                    See crime, permits, and 311 trends for your district
-                  </li>
-                  <li>
-                    <span className={styles.featureCheck}>&#x2713;</span>
-                    Get alerted when something spikes or drops
-                  </li>
-                  <li>
-                    <span className={styles.featureCheck}>&#x2713;</span>
-                    Flag any story to send feedback to your rep
-                  </li>
-                  <li>
-                    <span className={styles.featureCheck}>&#x2713;</span>
-                    Every number links back to the source data
-                  </li>
-                </ul>
-                <div className={styles.audienceActions}>
-                  <button
-                    type="button"
-                    onClick={handleSignupCitizen}
-                    className={styles.audiencePrimaryBtn}
-                  >
-                    Sign up free
-                  </button>
-                </div>
-              </div>
-
-              <div className={styles.audienceCard}>
-                <div className={styles.audienceIconWrap}>
-                  <span className={styles.audienceIcon}>&#x1F3DB;&#xFE0F;</span>
-                </div>
-                <div className={styles.audienceCardHeader}>
-                  <div className={styles.audienceTitle}>Officials &amp; city staff</div>
-                  <span className={styles.audienceTag}>Free for .gov</span>
-                </div>
-                <p className={styles.audienceBody}>
-                  See the same data your constituents see. Claim your verified
-                  profile, respond to resident feedback, and use shared metrics
-                  as the baseline for public communication.
-                </p>
-                <ul className={styles.audienceFeatures}>
-                  <li>
-                    <span className={styles.featureCheck}>&#x2713;</span>
-                    Verified .gov profile so residents know it&apos;s you
-                  </li>
-                  <li>
-                    <span className={styles.featureCheck}>&#x2713;</span>
-                    Receive and respond to flagged citizen feedback
-                  </li>
-                  <li>
-                    <span className={styles.featureCheck}>&#x2713;</span>
-                    Ready-to-share briefings for meetings and emails
-                  </li>
-                  <li>
-                    <span className={styles.featureCheck}>&#x2713;</span>
-                    Track whether policies and interventions are working
-                  </li>
-                </ul>
-                <div className={styles.audienceActions}>
-                  <Link href="/claim" className={styles.audiencePrimaryBtn}>
-                    Claim your official profile
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={handleSignupCityStaff}
-                    className={styles.audienceSecondaryLink}
-                    style={{ background: "none", border: "none", cursor: "pointer", font: "inherit" }}
-                  >
-                    I&apos;m city staff {"\u2192"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* ── Final CTA ─────────────────────────────────────────────────── */}
         <section className={styles.ctaSection}>
           <div className={styles.container}>
@@ -509,7 +406,7 @@ export default function Home() {
               <div className={styles.ctaButtons}>
                 <button
                   type="button"
-                  onClick={handleSignupCitizen}
+                  onClick={handleSignup}
                   className={styles.ctaBtnPrimary}
                 >
                   Get started free

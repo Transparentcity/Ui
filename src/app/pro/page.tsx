@@ -30,7 +30,7 @@ export default function AddYourCityPage() {
         screen_hint: "signup",
         prompt: "login",
       },
-      appState: { returnTo: "/dashboard?signup=public-servant" },
+      appState: { returnTo: "/dashboard" },
     });
   };
 

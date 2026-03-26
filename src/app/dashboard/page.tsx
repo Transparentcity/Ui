@@ -1118,9 +1118,11 @@ export default function DashboardPage() {
             onStop={handleStopImpersonating}
           />
         )}
-        <div className={`${styles.governmentBanner} ${isAdmin ? styles.governmentBannerAdmin : hasGovernmentBanner ? "" : styles.governmentBannerCitizen}`} role="banner">
-          {isAdmin ? "Admin View" : hasGovernmentBanner ? "Government View" : "Citizen View"}
-        </div>
+        {(isAdmin || hasGovernmentBanner) && (
+          <div className={`${styles.governmentBanner} ${isAdmin ? styles.governmentBannerAdmin : ""}`} role="banner">
+            {isAdmin ? "Admin View" : "Government View"}
+          </div>
+        )}
         <div className={styles.viewsContainer}>
           {currentView === "chat" && (
             <div className={`${styles.contentView} ${styles.contentViewActive}`}>

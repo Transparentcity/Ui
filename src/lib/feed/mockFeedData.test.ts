@@ -249,6 +249,7 @@ describe("enrichStory", () => {
 
     expect(enriched.card_type).toBe("alert");
     expect(enriched.template).toBe("text_only");
+    // Engagement counts are still mapped from the backend but no longer rendered in the UI
     expect(enriched.applaud_count).toBe(12);
     expect(enriched.escalate_count).toBe(5);
     expect(enriched.investigate_count).toBe(0);
@@ -309,6 +310,7 @@ describe("enrichStory", () => {
   });
 
   it("defaults engagement counts to 0 when null", () => {
+    // Engagement counts are still mapped from the backend but no longer rendered in the UI
     const enriched = enrichStory(
       makeStory({ like_count: 0, comment_count: 0, share_count: 0 })
     );

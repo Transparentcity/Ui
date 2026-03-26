@@ -13,16 +13,10 @@ interface TooltipStep {
 
 const FEED_TOOLTIP_STEPS: TooltipStep[] = [
   {
-    id: "applaud",
-    target: "[aria-label='Applaud']",
-    title: "Applaud great work",
-    body: "Tap the clap button to recognize departments doing a good job. Officials can send a thank-you email directly.",
-  },
-  {
-    id: "escalate",
-    target: "[aria-label='Flag']",
-    title: "Flag for attention",
-    body: "See something concerning? Flag it to let your representatives know. You can add a comment explaining why.",
+    id: "share",
+    target: "[aria-label='Share']",
+    title: "Share stories",
+    body: "Found something interesting? Share it with your neighbors or on social media.",
   },
   {
     id: "overflow",
@@ -60,7 +54,7 @@ interface FeedTooltipProps {
 
 /**
  * Inline tooltip system for first-session action education.
- * Shows a sequence of tooltips pointing to Applaud, Escalate, and Overflow
+ * Shows a sequence of tooltips pointing to Share and Overflow
  * buttons on the first card the user sees after onboarding.
  */
 export default function FeedTooltip({ isFirstSession }: FeedTooltipProps) {

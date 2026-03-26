@@ -2355,11 +2355,11 @@ export default function PublicMapPage() {
               className="cta-button"
               onClick={() => {
                 if (typeof window !== "undefined") {
-                  window.localStorage.setItem("transparentcity.signup_intent", "resident");
+                  window.localStorage.setItem("transparentcity.signup_intent", "subscriber");
                 }
                 loginWithRedirect({
                   authorizationParams: { screen_hint: "signup" },
-                  appState: { returnTo: "/dashboard?signup=resident" },
+                  appState: { returnTo: "/dashboard" },
                 });
               }}
             >
