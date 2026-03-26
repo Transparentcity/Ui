@@ -165,7 +165,7 @@ describe("My Block address gating", () => {
   });
 
   it("should set topic to my_block when user has saved places", () => {
-    const userPlaces = [{ id: 1, city_id: 57260, label: "My block" }];
+    const userPlaces = [{ id: 1, city_id: 57260, label: "My Block" }];
     const hasAddress = userPlaces.length > 0;
 
     let showLocationModal = false;

@@ -40,7 +40,7 @@ export default function LocationMapSave({
   cityId,
   lat,
   lng,
-  defaultLabel = "My block",
+  defaultLabel = "My Block",
   defaultRadiusM = DEFAULT_PLACE_RADIUS_M,
   valueLabel,
   valueRadiusM,

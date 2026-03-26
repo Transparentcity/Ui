@@ -77,6 +77,8 @@ export function listFeedStories(
     order_by?: string;
     /** When true and no city_id, return all active stories (ignore subscription/follows). Use for "All Cities" view. */
     all_cities?: boolean;
+    /** Filter by story type (e.g. 'off_the_charts', 'alert', 'trend'). */
+    story_type?: string | null;
   }
 ): Promise<FeedStoriesResponse> {
   const params = new URLSearchParams();
@@ -95,6 +97,7 @@ export function listFeedStories(
   if (options?.limit) params.append("limit", options.limit.toString());
   if (options?.order_by) params.append("order_by", options.order_by);
   if (options?.all_cities) params.append("all_cities", "true");
+  if (options?.story_type) params.append("story_type", options.story_type);
 
   const query = params.toString();
   const path = `/api/feed${query ? `?${query}` : ""}`;
@@ -220,6 +223,7 @@ export function listPublicFeedStories(
     newsletter_frequency?: string | null;
     limit?: number;
     order_by?: string;
+    story_type?: string | null;
   }
 ): Promise<FeedStoriesResponse> {
   const params = new URLSearchParams();
@@ -233,6 +237,7 @@ export function listPublicFeedStories(
   }
   if (options?.limit) params.append("limit", options.limit.toString());
   if (options?.order_by) params.append("order_by", options.order_by);
+  if (options?.story_type) params.append("story_type", options.story_type);
 
   const query = params.toString();
   const path = `/api/feed/public${query ? `?${query}` : ""}`;

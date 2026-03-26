@@ -8,11 +8,12 @@ import styles from "./feed.module.css";
 interface EscalateSheetProps {
   open: boolean;
   headline: string;
+  isOfficial?: boolean;
   onClose: () => void;
   onSend: (comment: string, includeName: boolean) => void;
 }
 
-export default function EscalateSheet({ open, headline, onClose, onSend }: EscalateSheetProps) {
+export default function EscalateSheet({ open, headline, isOfficial, onClose, onSend }: EscalateSheetProps) {
   // Reset key increments each time sheet opens, resetting controlled inputs
   const [resetKey, setResetKey] = useState(0);
   const prevOpen = useRef(false);
@@ -44,10 +45,14 @@ export default function EscalateSheet({ open, headline, onClose, onSend }: Escal
   }, [open, onClose]);
 
   const handleSend = useCallback(() => {
-    onSend(comment, includeName);
+    onSend(comment, isOfficial ? true : includeName);
     onClose();
-    toast.success("Your flag was sent to your District Supervisor. They'll see it in their dashboard.");
-  }, [onSend, onClose, comment, includeName]);
+    toast.success(
+      isOfficial
+        ? "Added to your Research Queue."
+        : "Your flag was sent to your District Supervisor. They'll see it in their dashboard.",
+    );
+  }, [onSend, onClose, comment, includeName, isOfficial]);
 
   const handleSkip = useCallback(() => {
     onClose();
@@ -74,7 +79,11 @@ export default function EscalateSheet({ open, headline, onClose, onSend }: Escal
 
           <textarea
             className={styles.escalateTextarea}
-            placeholder="Send a comment to your local representative"
+            placeholder={
+              isOfficial
+                ? "Add a note for your research queue (optional)"
+                : "Send a comment to your local representative"
+            }
             value={comment}
             onChange={(e) => {
               const words = e.target.value.trim().split(/\s+/);
@@ -90,20 +99,28 @@ export default function EscalateSheet({ open, headline, onClose, onSend }: Escal
             </div>
           )}
 
-          <div className={styles.escalateToggleRow}>
-            <span>Include my name</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={includeName}
-              className={`${styles.escalateToggle} ${includeName ? styles.escalateToggleOn : ""}`}
-              onClick={() => setIncludeName((v) => !v)}
-              aria-label="Include my name"
-            />
-          </div>
+          {!isOfficial && (
+            <div className={styles.escalateToggleRow}>
+              <span>Include my name</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={includeName}
+                className={`${styles.escalateToggle} ${includeName ? styles.escalateToggleOn : ""}`}
+                onClick={() => setIncludeName((v) => !v)}
+                aria-label="Include my name"
+              />
+            </div>
+          )}
+
+          {isOfficial && (
+            <p style={{ fontSize: 12, color: "var(--text-tertiary)", margin: "8px 0 0" }}>
+              This will be added to your Research Queue. Your name is included automatically.
+            </p>
+          )}
 
           <button type="button" className={styles.escalateSendBtn} onClick={handleSend}>
-            Send
+            {isOfficial ? "Flag for Research" : "Send"}
           </button>
 
           <button type="button" className={styles.escalateSkip} onClick={handleSkip}>

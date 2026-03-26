@@ -73,7 +73,7 @@ export default function WelcomeModal({
   const [locationResult, setLocationResult] = useState<LocationResult | null>(null);
   const [leadSubmitted, setLeadSubmitted] = useState(false);
   const [homeCoordinates, setHomeCoordinates] = useState<{ lat: number; lng: number } | null>(null);
-  const [placeLabel, setPlaceLabel] = useState("My block");
+  const [placeLabel, setPlaceLabel] = useState("My Block");
   const [placeRadius, setPlaceRadius] = useState(DEFAULT_PLACE_RADIUS_M);
 
   // Preferences state — two opt-ins: alerts + custom weekly newsletter
@@ -101,7 +101,7 @@ export default function WelcomeModal({
       setError(null);
       setLeadSubmitted(false);
       setHomeCoordinates(null);
-      setPlaceLabel("My block");
+      setPlaceLabel("My Block");
       setPlaceRadius(DEFAULT_PLACE_RADIUS_M);
       setAddressSuggestions([]);
       setShowAddressDropdown(false);
@@ -764,7 +764,7 @@ export default function WelcomeModal({
               valueRadiusM={placeRadius}
               onLabelChange={setPlaceLabel}
               onRadiusChange={setPlaceRadius}
-              defaultLabel="My block"
+              defaultLabel="My Block"
               defaultRadiusM={DEFAULT_PLACE_RADIUS_M}
               className={styles.leaderStepLocationMapSave}
             />
@@ -973,7 +973,7 @@ export default function WelcomeModal({
         try {
           await createPlace(token, {
             city_id: cityId,
-            label: placeLabel?.trim() || "My block",
+            label: placeLabel?.trim() || "My Block",
             lat: homeCoordinates.lat,
             lng: homeCoordinates.lng,
             radius_m: placeRadius ?? DEFAULT_PLACE_RADIUS_M,

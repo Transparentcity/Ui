@@ -188,6 +188,9 @@ export default function FeedContainer({
     if (selectedCityIds.size !== 1) setSelectedDistrict(null);
   }, [selectedCityIds]);
 
+  // Pass story_type to the API for server-side filtering (skip for my_block which is metadata-based)
+  const apiStoryType = selectedTopic && selectedTopic !== "my_block" ? selectedTopic : undefined;
+
   const { data: feedData, isLoading, isFetching, isPlaceholderData, error, refetch } = useFeedStories({
     city_id: personalNewsletterOnly ? undefined : singleCityId,
     district: personalNewsletterOnly ? undefined : (singleCityId ? (selectedDistrict ?? undefined) : undefined),
@@ -196,6 +199,7 @@ export default function FeedContainer({
     limit: displayLimit,
     order_by: feedOrder,
     all_cities: personalNewsletterOnly || !singleCityId,
+    story_type: apiStoryType,
   });
 
   const stories = feedData?.stories ?? [];
