@@ -2,7 +2,9 @@
 
 import React from "react";
 import { useAuth0 } from "@auth0/auth0-react";
-import { useEffect, useState, useMemo } from "react";
+import dynamic from "next/dynamic";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   listCities,
   CityListItem,
@@ -25,8 +27,20 @@ import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import Loader from "./Loader";
 import styles from "./CityDataTable.module.css";
 
+const ScheduleHealthDashboard = dynamic(() => import("./ScheduleHealthDashboard"), {
+  ssr: false,
+  loading: () => (
+    <div className={styles.loadingContainer}>
+      <Loader size="sm" color="dark" />
+      <span>Loading city health…</span>
+    </div>
+  ),
+});
+
 interface CityDataTableProps {
   onOpenCity?: (cityId: number) => void;
+  /** When set (e.g. from dashboard shell), opens job logs view with the given job. */
+  onViewJob?: (jobId: string) => void;
 }
 
 interface CityStats {
@@ -44,8 +58,10 @@ interface CityStats {
   usPopCoveredByData: number;
 }
 
-export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
+export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTableProps) {
   const { getAccessTokenSilently } = useAuth0();
+  const router = useRouter();
+  const pathname = usePathname();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cities, setCities] = useState<CityListItem[]>([]);
@@ -74,7 +90,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
   const [showStructureMetricsModal, setShowStructureMetricsModal] = useState(false);
   const [structuringMetrics, setStructuringMetrics] = useState(false);
   const [lastRunsByCityId, setLastRunsByCityId] = useState<Record<string, StructureMetricsLastRunSummary>>({});
-  const [activeTab, setActiveTab] = useState<"city-list" | "dashboard">("city-list");
+  const [activeTab, setActiveTab] = useState<"city-list" | "city-health">("city-list");
   const [dashboardStats, setDashboardStats] = useState<{
     total_metrics: number;
     cities_with_metrics_count: number;
@@ -106,7 +122,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
   }, [cityIdsForLastRuns.join(",")]);
 
   useEffect(() => {
-    if (activeTab !== "dashboard") return;
+    if (activeTab !== "city-health") return;
     setDashboardStatsLoading(true);
     getAccessTokenSilently()
       .then((token) => getCityDataDashboardStats(token))
@@ -114,6 +130,19 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
       .catch(() => setDashboardStats(null))
       .finally(() => setDashboardStatsLoading(false));
   }, [activeTab, getAccessTokenSilently]);
+
+  const handleViewJob = useCallback(
+    (jobId: string) => {
+      if (onViewJob) {
+        onViewJob(jobId);
+        return;
+      }
+      const base = pathname || "/dashboard";
+      const q = new URLSearchParams({ tab: "logs", job_id: jobId });
+      router.push(`${base}?${q.toString()}`);
+    },
+    [onViewJob, pathname, router]
+  );
 
   const loadCities = async () => {
     try {
@@ -678,7 +707,7 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
 
   return (
     <div className={styles.container}>
-      {/* Tabs: City list | Dashboard */}
+      {/* Tabs: City list | City Health */}
       <div
         className={styles.tabBar}
         style={{
@@ -705,18 +734,18 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab("dashboard")}
+          onClick={() => setActiveTab("city-health")}
           style={{
             padding: "10px 20px",
             border: "none",
-            borderBottom: activeTab === "dashboard" ? "2px solid var(--brand-primary)" : "2px solid transparent",
+            borderBottom: activeTab === "city-health" ? "2px solid var(--brand-primary)" : "2px solid transparent",
             background: "none",
             cursor: "pointer",
-            fontWeight: activeTab === "dashboard" ? 600 : 400,
-            color: activeTab === "dashboard" ? "var(--brand-primary)" : "var(--text-secondary)",
+            fontWeight: activeTab === "city-health" ? 600 : 400,
+            color: activeTab === "city-health" ? "var(--brand-primary)" : "var(--text-secondary)",
           }}
         >
-          Dashboard
+          City Health
         </button>
       </div>
 
@@ -1563,12 +1592,12 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
         </div>
       )}
 
-      {activeTab === "dashboard" && (
+      {activeTab === "city-health" && (
         <>
           <div className={styles.card}>
             <div className="city-stats-header">
               <h3 style={{ margin: "0 0 16px", fontSize: "18px", fontWeight: 600 }}>
-                Dashboard
+                Summary
               </h3>
               {dashboardStatsLoading ? (
                 <span style={{ color: "var(--text-secondary)" }}>Loading…</span>
@@ -1606,12 +1635,12 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
                   </div>
                 </div>
               ) : (
-                <span style={{ color: "var(--text-secondary)" }}>Unable to load dashboard stats.</span>
+                <span style={{ color: "var(--text-secondary)" }}>Unable to load summary stats.</span>
               )}
             </div>
           </div>
 
-          <div className={styles.card}>
+          <div className={styles.card} style={{ marginTop: "16px" }}>
             <div className="city-stats-header">
               <div className="stats-row" style={{ marginBottom: "24px" }}>
                 <div className="stats-row-label" style={{ fontWeight: 600, marginBottom: "12px" }}>
@@ -1738,6 +1767,14 @@ export default function CityDataTable({ onOpenCity }: CityDataTableProps) {
                 </div>
               </div>
             </div>
+          </div>
+
+          <div style={{ marginTop: "16px" }}>
+            <ScheduleHealthDashboard
+              token={null}
+              getAccessTokenSilently={getAccessTokenSilently}
+              onViewJob={handleViewJob}
+            />
           </div>
         </>
       )}

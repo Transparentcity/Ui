@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 
 import "../../landing.css";
 
@@ -85,6 +86,7 @@ export async function generateMetadata({
 }
 
 export default async function CityLandingPage({ params, searchParams }: PageProps) {
+  noStore();
   const { slug } = await params;
   const sp = (await searchParams) || {};
   const idParam = Array.isArray(sp.id) ? sp.id[0] : sp.id;

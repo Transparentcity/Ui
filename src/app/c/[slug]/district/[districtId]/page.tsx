@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { unstable_noStore as noStore } from "next/cache";
 
 import "../../../../landing.css";
 
@@ -54,6 +55,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function DistrictPage({ params }: PageProps) {
+  noStore();
   const { slug, districtId } = await params;
   const d = parseInt(districtId, 10);
   if (!Number.isFinite(d) || d < 1) notFound();

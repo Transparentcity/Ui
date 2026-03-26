@@ -37,7 +37,7 @@ interface RunAllMetricsModalProps {
   metrics: Metric[];
 }
 
-type PeriodType = "day" | "month" | "year" | "auto";
+type PeriodType = "day" | "week" | "month" | "year" | "auto";
 
 /**
  * RunAllMetricsModal - Modal for batch executing metrics
@@ -423,6 +423,19 @@ export default function RunAllMetricsModal({
                       onChange={() => setPeriodType("day")}
                     />
                     <span>Day</span>
+                  </label>
+                  <label className={styles.radioLabel}>
+                    <input
+                      type="radio"
+                      name="periodType"
+                      value="week"
+                      checked={periodType === "week"}
+                      onChange={() => setPeriodType("week")}
+                    />
+                    <span>Week</span>
+                    <span className={styles.hint}>
+                      Weekly time series and weekly anomaly detection
+                    </span>
                   </label>
                   <label className={styles.radioLabel}>
                     <input

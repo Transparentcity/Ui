@@ -229,6 +229,8 @@ export default function CityMetricsMap({
   const blockDefaultsSetRef = useRef(false);
   const previousCityIdRef = useRef<number | null>(null);
   const previousPlaceCircleRef = useRef<boolean>(false);
+  // Track whether we've already fit to initial data bounds for the current place/city load
+  const hasFitInitialBoundsRef = useRef(false);
 
   // Load metric ordering to match dashboard order and visible metric selection.
   // This is user-scoped and falls back to city ordering when no user override exists.
@@ -430,6 +432,7 @@ export default function CityMetricsMap({
       defaultMetricsSetRef.current = false;
       blockDefaultsSetRef.current = false;
       previousPlaceCircleRef.current = false;
+      hasFitInitialBoundsRef.current = false;
 
       // Remove all metric layers from map
       if (mapInstanceRef.current) {
@@ -2322,9 +2325,8 @@ export default function CityMetricsMap({
       }
     });
 
-    // Fit map to bounds if we have valid bounds
-    // Skip dynamic zooming if GPS is active - keep map centered on GPS location
-    if (hasValidBounds && bounds && !gpsLocation) {
+    // Fit map to bounds on initial load only — skip if GPS is active or already fit once
+    if (hasValidBounds && bounds && !gpsLocation && !hasFitInitialBoundsRef.current) {
       try {
         const boundsArray = bounds.toArray();
         if (boundsArray && boundsArray.length >= 2) {
@@ -2344,6 +2346,7 @@ export default function CityMetricsMap({
                 padding: 50,
                 maxZoom: 15,
               });
+              hasFitInitialBoundsRef.current = true;
             }
           }
         }
@@ -2373,7 +2376,7 @@ export default function CityMetricsMap({
     }
   }, [maps, mapFeatures, isActive, mapInstanceRef, addLayersToMap, mapStyleVersion, selectedDistrict]);
 
-  // Update layer visibility when visibleLayers changes
+  // Keep metric fill + choropleth stroke visibility in sync with selection / hiddenLayers
   useEffect(() => {
     if (!mapInstanceRef.current || !isActive) return;
     
@@ -2385,16 +2388,17 @@ export default function CityMetricsMap({
     maps.forEach((mapData) => {
       const uniqueId = String(mapData.metric_id);
       const layerId = `metric-layer-${uniqueId}`;
+      const strokeLayerId = `${layerId}-stroke`;
       const metricIdStr = String(mapData.metric_id);
       const isSelected = selectedMetricIds.has(metricIdStr);
       const shouldBeVisible = isSelected && !hiddenLayers.has(uniqueId);
+      const targetVisibility = shouldBeVisible ? "visible" : "none";
 
-      if (map.getLayer(layerId)) {
-        const currentVisibility = map.getLayoutProperty(layerId, "visibility");
-        const targetVisibility = shouldBeVisible ? "visible" : "none";
-
+      for (const id of [layerId, strokeLayerId]) {
+        if (!map.getLayer(id)) continue;
+        const currentVisibility = map.getLayoutProperty(id, "visibility");
         if (currentVisibility !== targetVisibility) {
-          map.setLayoutProperty(layerId, "visibility", targetVisibility);
+          map.setLayoutProperty(id, "visibility", targetVisibility);
         }
       }
     });
@@ -2418,16 +2422,25 @@ export default function CityMetricsMap({
     const metricId = uniqueId;
     const isSelected = selectedMetricIds.has(metricId);
     const isCurrentlyVisible = isSelected && !hiddenLayers.has(uniqueId);
-    
+    const map = mapInstanceRef.current;
+    const layerId = `metric-layer-${uniqueId}`;
+    const strokeLayerId = `${layerId}-stroke`;
+
+    const applyVisibility = (visible: boolean) => {
+      if (!map) return;
+      const v = visible ? "visible" : "none";
+      if (map.getLayer(layerId)) {
+        map.setLayoutProperty(layerId, "visibility", v);
+      }
+      if (map.getLayer(strokeLayerId)) {
+        map.setLayoutProperty(strokeLayerId, "visibility", v);
+      }
+    };
+
     if (isCurrentlyVisible) {
       // Hide the layer by adding it to hiddenLayers
       setHiddenLayers((prev) => new Set(prev).add(uniqueId));
-      if (mapInstanceRef.current) {
-        const layerId = `metric-layer-${uniqueId}`;
-        if (mapInstanceRef.current.getLayer(layerId)) {
-          mapInstanceRef.current.setLayoutProperty(layerId, "visibility", "none");
-        }
-      }
+      applyVisibility(false);
     } else {
       // Show the layer by removing it from hiddenLayers
       setHiddenLayers((prev) => {
@@ -2435,16 +2448,16 @@ export default function CityMetricsMap({
         updated.delete(uniqueId);
         return updated;
       });
-      if (mapInstanceRef.current) {
-        const layerId = `metric-layer-${uniqueId}`;
-        if (mapInstanceRef.current.getLayer(layerId)) {
-          mapInstanceRef.current.setLayoutProperty(layerId, "visibility", "visible");
-        }
-      }
+      applyVisibility(true);
     }
   };
 
   const handleMetricToggle = (metricId: string) => {
+    setHiddenLayers((prev) => {
+      const next = new Set(prev);
+      next.delete(metricId);
+      return next;
+    });
     setSelectedMetricIds((prev) => {
       const updated = new Set(prev);
       if (updated.has(metricId)) {
@@ -2853,8 +2866,8 @@ export default function CityMetricsMap({
                     e.stopPropagation();
                     hideDockLabel();
                     if (isVisible) {
-                      // If visible, deselect the metric (remove from selectedMetricIds)
-                      handleMetricToggle(metricId);
+                      // Hide on map but keep metric selected (avoids remove/re-add race with Mapbox)
+                      toggleLayer(uniqueId);
                     } else if (isSelected) {
                       // If hidden but still selected, show it again (remove from hiddenLayers)
                       toggleLayer(uniqueId);
@@ -3106,8 +3119,8 @@ export default function CityMetricsMap({
                               checked={isVisible}
                               onChange={() => {
                                 if (isVisible) {
-                                  // If visible, deselect the metric (remove from selectedMetricIds)
-                                  handleMetricToggle(metricId);
+                                  // Hide on map but keep metric selected (avoids remove/re-add race with Mapbox)
+                                  toggleLayer(uniqueId);
                                 } else if (isSelected) {
                                   // If hidden but still selected, show it again (remove from hiddenLayers)
                                   toggleLayer(uniqueId);

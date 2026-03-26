@@ -1,8 +1,8 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
-import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import {
   getJobStats,
   JobStats,
@@ -40,11 +40,14 @@ export default function JobLogsViewer() {
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const tabParam = searchParams.get("tab");
   const jobIdParam = searchParams.get("job_id");
-  const [activeTab, setActiveTab] = useState<TabId>(
-    tabParam === "scheduled" ? "scheduled" : "logs"
-  );
+  const [activeTab, setActiveTab] = useState<TabId>(() => {
+    if (tabParam === "scheduled") return "scheduled";
+    return "logs";
+  });
 
   const { jobs: webSocketJobs, isConnected, refreshJobs } = useJobWebSocketContext();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -54,6 +57,16 @@ export default function JobLogsViewer() {
     if (tabParam === "scheduled") setActiveTab("scheduled");
     else if (tabParam === "logs" || jobIdParam) setActiveTab("logs");
   }, [tabParam, jobIdParam]);
+
+  const handleViewJob = useCallback(
+    (jobId: string) => {
+      const base = pathname || "/dashboard";
+      const q = new URLSearchParams({ tab: "logs", job_id: jobId });
+      router.push(`${base}?${q.toString()}`);
+      setActiveTab("logs");
+    },
+    [pathname, router]
+  );
 
   // Get token for API calls
   useEffect(() => {
@@ -187,7 +200,15 @@ export default function JobLogsViewer() {
           <button
             key={tab.id}
             className={`${styles.tabButton} ${activeTab === tab.id ? styles.tabButtonActive : ""}`}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              setActiveTab(tab.id);
+              const base = pathname || "/dashboard";
+              if (tab.id === "scheduled") {
+                router.replace(`${base}?tab=scheduled`, { scroll: false });
+              } else {
+                router.replace(`${base}?tab=logs`, { scroll: false });
+              }
+            }}
           >
             <span className={styles.tabIcon}>{tab.icon}</span>
             <span className={styles.tabLabel}>{tab.label}</span>

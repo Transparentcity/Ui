@@ -2,7 +2,7 @@
 
 import { useAuth0 } from "@auth0/auth0-react";
 import { useCallback, useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import TitleBar from "@/components/TitleBar";
 import Sidebar from "@/components/Sidebar";
 // Old feed kept as fallback: import FeedView from "@/components/FeedView";
@@ -113,6 +113,7 @@ export default function DashboardPage() {
   const { isAuthenticated, isLoading, user, getAccessTokenSilently } =
     useAuth0();
   const router = useRouter();
+  const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
@@ -134,6 +135,7 @@ export default function DashboardPage() {
   const [currentResearchId, setCurrentResearchId] = useState<number | null>(null);
   const [initialChatPrompt, setInitialChatPrompt] = useState<string | null>(null);
   const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [initialPlaceGps, setInitialPlaceGps] = useState<{ lat: number; lng: number; radius_m: number } | null>(null);
   const [requestOpenDistrictModal, setRequestOpenDistrictModal] = useState<number | null>(null);
   const [initialPlaceId, setInitialPlaceId] = useState<number | null>(null);
   /** Official Selector selection (district / place) so left nav can stay in sync; only when currentView === "city". */
@@ -623,14 +625,23 @@ export default function DashboardPage() {
       setActiveCityId(null);
       setInitialDistrict(null); // Clear initial district when leaving city view
       setGpsLocation(null); // Clear GPS location when leaving city view
+      setInitialPlaceGps(null);
     }
     // Don't close sidebar when navigating - only close on hamburger click
   };
+
+  const handleOpenJobLogsFromCityData = useCallback((jobId: string) => {
+    setCurrentView("job-logs");
+    const base = pathname || "/dashboard";
+    const q = new URLSearchParams({ tab: "logs", job_id: jobId });
+    router.replace(`${base}?${q.toString()}`, { scroll: false });
+  }, [pathname, router]);
 
   const handleCityClick = (cityId: number) => {
     setActiveCityId(cityId);
     setInitialDistrict(null);
     setInitialPlaceId(null);
+    setInitialPlaceGps(null);
     setCitySelection({ district: null, placeId: null });
     setCurrentView("city");
     setCurrentSessionId(null);
@@ -640,9 +651,17 @@ export default function DashboardPage() {
   };
 
   const handlePlaceClick = (cityId: number, placeId: number) => {
+    // Look up place GPS data immediately so the map can start at block level
+    // without waiting for the userPlaces API call inside CityView.
+    const place = allUserPlaces.find((p) => p.id === placeId);
     setActiveCityId(cityId);
     setInitialDistrict(null);
     setInitialPlaceId(placeId);
+    setInitialPlaceGps(
+      place?.lat != null && place?.lng != null
+        ? { lat: place.lat, lng: place.lng, radius_m: place.radius_m ?? 500 }
+        : null
+    );
     setCitySelection({ district: null, placeId });
     setCurrentView("city");
     setCurrentSessionId(null);
@@ -1138,6 +1157,7 @@ export default function DashboardPage() {
               ) : (
                 <CityDataTable
                   onOpenCity={(cityId) => handleCityClick(cityId)}
+                  onViewJob={handleOpenJobLogsFromCityData}
                 />
               )}
             </div>
@@ -1201,6 +1221,7 @@ export default function DashboardPage() {
                   gpsLocation={gpsLocation}
                   initialDistrict={initialDistrict}
                   initialPlaceId={initialPlaceId}
+                  initialPlaceGps={initialPlaceGps}
                   requestOpenDistrictModal={requestOpenDistrictModal}
                   onClearDistrictModalRequest={() => setRequestOpenDistrictModal(null)}
                   onOfficialSelectionChange={onOfficialSelectionChange}

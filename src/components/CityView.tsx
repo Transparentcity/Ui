@@ -32,6 +32,9 @@ interface CityViewProps {
   initialDistrict?: number | null;
   /** When set, select this saved place in the dashboard scope (e.g. from sidebar My Places). */
   initialPlaceId?: number | null;
+  /** Pre-loaded GPS coordinates for the initial place so the map can start at block level immediately,
+   *  without waiting for the userPlaces API call to complete. */
+  initialPlaceGps?: { lat: number; lng: number; radius_m: number } | null;
   /** When set to this cityId, open the Find Your District modal (e.g. from Search Cities). */
   requestOpenDistrictModal?: number | null;
   onClearDistrictModalRequest?: () => void;
@@ -1248,7 +1251,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
   // Build the dashboard title based on selected leader or place
   const dashboardTitle = useMemo(() => {
     if (selectedPlaceId && selectedPlace) {
-      return `${selectedPlace.label} (${selectedPlace.radius_m}M radius) personalized dashboard`;
+      return `${selectedPlace.label} (${selectedPlace.radius_m}m map box) personalized dashboard`;
     }
     if (selectedLeader) {
       const districtText = selectedLeader.district 
@@ -1799,7 +1802,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
   );
 }
 
-export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict, initialPlaceId, requestOpenDistrictModal, onClearDistrictModalRequest, onOfficialSelectionChange }: CityViewProps) {
+export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict, initialPlaceId, initialPlaceGps, requestOpenDistrictModal, onClearDistrictModalRequest, onOfficialSelectionChange }: CityViewProps) {
   const [adminDrawerOpen, setAdminDrawerOpen] = useState(false);
   const [alertsSectionVisible, setAlertsSectionVisible] = useState(false);
   const [openDistrictTrigger, setOpenDistrictTrigger] = useState(0);
@@ -2143,11 +2146,17 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             selectedPlaceId != null
               ? userPlaces.find((p) => p.id === selectedPlaceId)
               : null;
+          // Fall back to initialPlaceGps before userPlaces finishes loading so the map
+          // can start at block level immediately instead of snapping from city zoom later.
           const selectedPlaceGps =
             selectedPlace?.lat != null && selectedPlace?.lng != null
               ? { lat: selectedPlace.lat, lng: selectedPlace.lng }
-              : undefined;
-          const selectedPlaceRadiusM = selectedPlace?.radius_m ?? undefined;
+              : selectedPlaceId != null && initialPlaceGps != null
+                ? { lat: initialPlaceGps.lat, lng: initialPlaceGps.lng }
+                : undefined;
+          const selectedPlaceRadiusM =
+            selectedPlace?.radius_m ??
+            (selectedPlaceId != null ? initialPlaceGps?.radius_m : undefined);
 
           return (
             <>

@@ -18,6 +18,10 @@ import CityMetricsMap from "./CityMetricsMap";
 import "./CityMapView.css";
 import { LAYER_COLOR_PALETTE, type LayerColor } from "@/lib/layerColors";
 import { getInitialMapView, INITIAL_ZOOM_CITYWIDE } from "@/lib/mapUtils";
+import {
+  getPlaceRadiusBoundingBox,
+  getPlaceRadiusBoundingBoxPolygon,
+} from "@/lib/placeBounds";
 import type { MetricDateRange } from "@/lib/dateRange";
 import type { AnomalyResult } from "@/lib/hooks/useAnomalies";
 
@@ -181,26 +185,7 @@ function addGPSMarker(map: any, lat: number, lng: number, markerRef: React.Mutab
   return marker;
 }
 
-// Create a GeoJSON polygon approximating a circle (center lat/lng, radius in meters)
-function circleToPolygon(
-  lat: number,
-  lng: number,
-  radiusMeters: number,
-  points = 64
-): { type: "Polygon"; coordinates: [number, number][][] } {
-  const coords: [number, number][] = [];
-  const latRad = (lat * Math.PI) / 180;
-  const mPerDegLat = 111320;
-  const mPerDegLng = (111320 * Math.cos(latRad)) || 0.0001;
-  for (let i = 0; i <= points; i++) {
-    const angle = (i / points) * 2 * Math.PI;
-    const dy = (radiusMeters / mPerDegLat) * Math.cos(angle);
-    const dx = (radiusMeters / mPerDegLng) * Math.sin(angle);
-    coords.push([lng + dx, lat + dy]);
-  }
-  return { type: "Polygon", coordinates: [coords] };
-}
-
+/** My Block overlay: lat/lon bounding box (same geometry as place metrics + map pin filter). */
 const PLACE_RADIUS_SOURCE_ID = "place-radius-source";
 const PLACE_RADIUS_LAYER_ID = "place-radius-fill";
 
@@ -210,17 +195,22 @@ function addPlaceRadiusCircle(
   lng: number,
   radiusMeters: number
 ): void {
+  const polygon = getPlaceRadiusBoundingBoxPolygon(lat, lng, radiusMeters);
+  const geojson = { type: "Feature", properties: {}, geometry: polygon };
+
+  // Prefer updating existing source data in-place to avoid remove/re-add race conditions.
+  const existingSource = map.getSource(PLACE_RADIUS_SOURCE_ID);
+  if (existingSource) {
+    existingSource.setData(geojson);
+    return;
+  }
+
+  // Source doesn't exist yet — clean up any orphaned layer then add fresh.
   try {
     if (map.getLayer(PLACE_RADIUS_LAYER_ID)) map.removeLayer(PLACE_RADIUS_LAYER_ID);
-    if (map.getSource(PLACE_RADIUS_SOURCE_ID)) map.removeSource(PLACE_RADIUS_SOURCE_ID);
-  } catch {
-    // ignore
-  }
-  const polygon = circleToPolygon(lat, lng, radiusMeters);
-  map.addSource(PLACE_RADIUS_SOURCE_ID, {
-    type: "geojson",
-    data: { type: "Feature", properties: {}, geometry: polygon },
-  });
+  } catch { /* ignore */ }
+
+  map.addSource(PLACE_RADIUS_SOURCE_ID, { type: "geojson", data: geojson });
   map.addLayer({
     id: PLACE_RADIUS_LAYER_ID,
     type: "fill",
@@ -258,12 +248,16 @@ function zoomToGPSLocation(
         ? map.getContainer().clientWidth
         : 1024;
     const targetDiameterPx = Math.max(220, Math.min(containerWidth * 0.7, 720));
-    // Use 1.5x the diameter so the circle fits with padding and stays on screen (zoom out a bit)
-    const diameterMeters = radiusMeters * 2 * 1.5;
+    const b = getPlaceRadiusBoundingBox(lat, lng, radiusMeters);
+    const latSpan = Math.max(1e-8, b.latHi - b.latLo);
+    const lonSpan = Math.max(1e-8, b.lonHi - b.lonLo);
+    const diagMetersApprox = Math.sqrt(
+      (latSpan * 111320) ** 2 + (lonSpan * 111320 * Math.cos(latRad)) ** 2
+    );
+    const diameterMeters = diagMetersApprox * 1.35;
     const metersPerPixel = diameterMeters / targetDiameterPx;
     const computed =
       Math.log2((156543.03392 * Math.cos(latRad)) / Math.max(metersPerPixel, 0.0001));
-    // Default block view zoomed out 2 levels so more neighborhood context is visible
     zoom = Math.max(9, Math.min(19, computed - 2));
   }
   map.flyTo({
@@ -272,6 +266,25 @@ function zoomToGPSLocation(
     duration: 0, // Recenter ASAP
     essential: true,
   });
+}
+
+/** Fit the map to the My Block bounding box (preferred over center+zoom when radius is set). */
+function zoomToPlaceBoundingBox(map: any, lat: number, lng: number, radiusMeters: number) {
+  const mapboxgl = (window as any).mapboxgl;
+  const b = getPlaceRadiusBoundingBox(lat, lng, radiusMeters);
+  if (mapboxgl?.LngLatBounds) {
+    const bounds = new mapboxgl.LngLatBounds();
+    bounds.extend([b.lonLo, b.latLo]);
+    bounds.extend([b.lonHi, b.latHi]);
+    map.fitBounds(bounds, {
+      padding: { top: 88, bottom: 88, left: 48, right: 48 },
+      duration: 0,
+      maxZoom: 19,
+      essential: true,
+    });
+    return;
+  }
+  zoomToGPSLocation(map, lat, lng, radiusMeters);
 }
 
 // Zoom to district bounds containing GPS location
@@ -588,11 +601,13 @@ export default function CityMapView({
           });
         }
         
-        // Update map center/zoom with calculated values from shapefiles
+        // Update map center/zoom with calculated values from shapefiles.
+        // Skip the flyTo if GPS/place location is already set — the map is already
+        // at the right block-level position and we don't want to zoom back out to city.
         if (calculatedCenter && isValidLngLat(calculatedCenter)) {
           setMapCenter(calculatedCenter);
           setMapZoom(calculatedZoom);
-          if (mapInstanceRef.current?.loaded()) {
+          if (mapInstanceRef.current?.loaded() && !gpsLocationRef.current) {
             mapInstanceRef.current.flyTo({
               center: calculatedCenter,
               zoom: calculatedZoom,
@@ -713,8 +728,30 @@ export default function CityMapView({
         return;
       }
 
-      const center = getValidMapCenter(mapCenter);
-      const zoom = mapZoom;
+      // If GPS/place location is already known (e.g. from initialPlaceGps), start the map
+      // there immediately instead of at the city center so there is no jarring snap later.
+      const initialGps = gpsLocationRef.current;
+      const initialRadius = selectedPlaceRadiusMRef.current;
+      let initialCenter: [number, number];
+      let initialZoom: number;
+      if (initialGps) {
+        initialCenter = [initialGps.lng, initialGps.lat];
+        // Mirror the zoom calculation in zoomToGPSLocation
+        if (initialRadius != null && Number.isFinite(initialRadius) && initialRadius > 0) {
+          const latRad = (initialGps.lat * Math.PI) / 180;
+          const containerWidth = mapContainerRef.current?.clientWidth || 1024;
+          const targetDiameterPx = Math.max(220, Math.min(containerWidth * 0.7, 720));
+          const diameterMeters = initialRadius * 2 * 1.5;
+          const metersPerPixel = diameterMeters / targetDiameterPx;
+          const computed = Math.log2((156543.03392 * Math.cos(latRad)) / Math.max(metersPerPixel, 0.0001));
+          initialZoom = Math.max(9, Math.min(19, computed - 2));
+        } else {
+          initialZoom = 18;
+        }
+      } else {
+        initialCenter = getValidMapCenter(mapCenter);
+        initialZoom = mapZoom;
+      }
 
       // Determine map style based on theme
       const mapStyle = theme === "dark" 
@@ -725,8 +762,8 @@ export default function CityMapView({
       const map = new mapboxgl.Map({
         container: mapContainerRef.current,
         style: mapStyle,
-        center: center,
-        zoom: zoom,
+        center: initialCenter,
+        zoom: initialZoom,
       });
 
       mapInstanceRef.current = map;
@@ -743,11 +780,16 @@ export default function CityMapView({
           updateMapWithEnabledLayersRef.current(map);
         }
         // Signal to child components that the map style is ready (initial load).
+        // This triggers a re-render which fires the gpsLocation/placeCircle useLayoutEffects
+        // to add the GPS marker, radius circle, and zoom — no need to duplicate that here.
         setMapStyleVersion((v) => v + 1);
-        
-        // Zoom to GPS location if provided
-        if (gpsLocation) {
-          zoomToGPSLocation(map, gpsLocation.lat, gpsLocation.lng, selectedPlaceRadiusM);
+
+        // Only zoom if the map was NOT already initialized at the GPS location.
+        // If initialGps was set, the map started there already; otherwise zoom now.
+        const loc = gpsLocationRef.current;
+        const radius = selectedPlaceRadiusMRef.current;
+        if (loc && !initialGps) {
+          zoomToGPSLocation(map, loc.lat, loc.lng, radius);
         }
       });
 
@@ -787,14 +829,14 @@ export default function CityMapView({
     };
   }, []);
 
-  // Handle GPS location: add marker, place radius circle (My Block), find district, zoom.
+  // Handle GPS location: add marker, My Block bounding box overlay, find district, zoom.
   // useLayoutEffect so we re-zoom immediately when map refresh starts (before paint).
   useLayoutEffect(() => {
     if (!mapInstanceRef.current) return;
 
     const map = mapInstanceRef.current;
 
-    // If GPS location is null, remove marker and place circle
+    // If GPS location is null, remove marker and place extent overlay
     if (!gpsLocation) {
       if (gpsMarkerRef.current) {
         gpsMarkerRef.current.remove();
@@ -825,10 +867,14 @@ export default function CityMapView({
     const handleGPSLocation = () => {
       addGPSMarker(map, lat, lng, gpsMarkerRef);
 
-      // My Block: show radius circle, center and zoom to fit the circle
+      // My Block: show bounding box (same as place metrics lat/lon filter), fit map to box
       if (radiusM != null && radiusM > 0) {
-        addPlaceRadiusCircle(map, lat, lng, radiusM);
-        zoomToGPSLocation(map, lat, lng, radiusM);
+        try {
+          addPlaceRadiusCircle(map, lat, lng, radiusM);
+        } catch {
+          /* continue to zoom even if overlay update fails */
+        }
+        zoomToPlaceBoundingBox(map, lat, lng, radiusM);
         return;
       }
 
@@ -884,8 +930,12 @@ export default function CityMapView({
       if (!mapInstanceRef.current) return;
       const m = mapInstanceRef.current;
       addGPSMarker(m, lat, lng, gpsMarkerRef);
-      addPlaceRadiusCircle(m, lat, lng, radius_m);
-      zoomToGPSLocation(m, lat, lng, radius_m);
+      try {
+        addPlaceRadiusCircle(m, lat, lng, radius_m);
+      } catch {
+        /* continue to zoom even if overlay update fails */
+      }
+      zoomToPlaceBoundingBox(m, lat, lng, radius_m);
     };
     if (map.loaded()) {
       runZoom();

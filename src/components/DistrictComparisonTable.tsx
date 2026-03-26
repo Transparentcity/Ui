@@ -44,7 +44,7 @@ export default function DistrictComparisonTable({
     setLoading(true);
     setError(null);
 
-    getPublicMetricDistrictComparisons(metricId, comparisonType)
+    getPublicMetricDistrictComparisons(metricId, comparisonType, currentPeriodEnd)
       .then((res) => {
         if (mounted) {
           setData(res);
@@ -64,7 +64,7 @@ export default function DistrictComparisonTable({
     return () => {
       mounted = false;
     };
-  }, [metricId, comparisonType]);
+  }, [metricId, comparisonType, currentPeriodEnd]);
 
   const sortedDistricts = useMemo(() => {
     if (!data?.districts) return [];

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { unstable_noStore as noStore } from "next/cache";
 
 import "../../../../landing.css";
 
@@ -91,6 +92,7 @@ export default async function CityCategoryPage({
   params,
   searchParams,
 }: PageProps) {
+  noStore();
   const { slug, category } = await params;
   const sp = (await searchParams) || {};
   const idParam = Array.isArray(sp.id) ? sp.id[0] : sp.id;

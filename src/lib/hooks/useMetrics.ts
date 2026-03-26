@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
   listAdminMetrics,
@@ -164,49 +164,6 @@ export function useTemplateStructuringNotes(
     enabled: !!templateId && !!cityId,
     staleTime: 5 * 60 * 1000,
   });
-}
-
-export interface MetricForAggregatedNotes {
-  id: number;
-  metric_name: string;
-}
-
-/**
- * Fetches structuring notes for all given metrics in parallel.
- * Use for the City Data Admin Metrics tab to show aggregated notes at the top.
- */
-export function useAggregatedStructuringNotes(
-  metrics: MetricForAggregatedNotes[] | null
-) {
-  const { getAccessTokenSilently } = useAuth0();
-
-  const enabled = !!metrics && metrics.length > 0;
-  const queries = useQueries({
-    queries: (metrics ?? []).map((m) => ({
-      queryKey: ["structuringNotes", m.id],
-      queryFn: async () => {
-        const token = await getAccessTokenSilently();
-        return getStructuringNotes(m.id, token);
-      },
-      staleTime: 10 * 60 * 1000,
-      enabled,
-    })),
-  });
-
-  const byMetric = (metrics ?? []).map((m, i) => {
-    const q = queries[i];
-    return {
-      metricId: m.id,
-      metricName: m.metric_name,
-      data: q?.data ?? null,
-      isLoading: q?.isLoading ?? false,
-      error: q?.error ?? null,
-    };
-  });
-
-  const isLoading = queries.some((q) => q.isLoading);
-
-  return { byMetric, isLoading };
 }
 
 /**

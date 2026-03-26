@@ -388,6 +388,10 @@ export interface PopulationSyncResult {
   districts?: number;
   error?: string;
   message?: string;
+  /** When true, no dashboard metric was updated; city population row may still be synced */
+  metric_sync_skipped?: boolean;
+  city_population?: number | null;
+  city_population_updated?: boolean;
 }
 
 export function syncPopulationToMetric(cityId: number, token: string): Promise<PopulationSyncResult> {
@@ -1679,7 +1683,10 @@ export interface GetMapDataRequest {
   start_date?: string | null;
   end_date?: string | null;
   districts?: number[] | null;
-  /** When set (e.g. My Block), only points within radius_m of (center_lat, center_lon) are returned */
+  /**
+   * When set (e.g. My Block), spatial filter matches saved-place metrics: lat/lon metrics use
+   * the same bounding box as the purple map overlay; point-geometry metrics use a geodesic circle.
+   */
   center_lat?: number | null;
   center_lon?: number | null;
   radius_m?: number | null;
@@ -2150,6 +2157,76 @@ export function getScheduledJobSummary(token: string): Promise<ScheduledJobSumma
     undefined,
     token
   ).then((res) => res.schedules);
+}
+
+/** City Health dashboard: execution + data freshness per schedule */
+export interface CityFreshness {
+  total_metrics: number;
+  fresh_daily: number;
+  fresh_weekly: number;
+  fresh_monthly: number;
+  no_data: number;
+  newest_data_date: string | null;
+  oldest_data_date: string | null;
+}
+
+export type FreshnessMetricBucket = "no_data" | "current" | "slightly_stale" | "stale";
+
+export interface CityFreshnessMetricRow {
+  metric_id: number;
+  metric_name: string;
+  most_recent_data_date: string | null;
+  days_old: number | null;
+  bucket: FreshnessMetricBucket;
+}
+
+export interface CityScheduleRun {
+  job_id: string;
+  status: "pending" | "running" | "completed" | "failed" | "cancelled";
+  created_at: string | null;
+  updated_at: string | null;
+  completed_at: string | null;
+  duration_seconds: number | null;
+  metrics_total: number | null;
+  metrics_completed: number | null;
+  metrics_failed: number | null;
+  failed_metric_names: string[];
+  is_overdue: boolean;
+}
+
+export interface CityScheduleSlot {
+  last_run: CityScheduleRun | null;
+  recent_runs: CityScheduleRun[];
+  is_overdue: boolean;
+}
+
+export interface CityScheduleHealth {
+  city_id: number;
+  city_name: string;
+  freshness: CityFreshness;
+  freshness_metrics: CityFreshnessMetricRow[];
+  schedules: Record<string, CityScheduleSlot>;
+}
+
+export interface CityScheduleHealthResponse {
+  status: string;
+  cities: CityScheduleHealth[];
+}
+
+export function getCityScheduleHealth(
+  token: string,
+  options?: { scheduleKey?: string; daysBack?: number }
+): Promise<CityScheduleHealthResponse> {
+  const params = new URLSearchParams();
+  if (options?.scheduleKey) params.set("schedule_key", options.scheduleKey);
+  if (options?.daysBack != null) params.set("days_back", String(options.daysBack));
+  const q = params.toString();
+  return request<CityScheduleHealthResponse>(
+    `/api/jobs/schedules/city-health${q ? `?${q}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
 }
 
 export type CustomScheduleStatus = "active" | "paused" | "disabled";
@@ -5091,7 +5168,7 @@ export function resetUserMetricOrdering(
 export interface BatchExecuteMetricsRequest {
   city_id: number;
   metric_ids?: number[] | null;
-  period_type?: "day" | "month" | "year" | null;
+  period_type?: "day" | "week" | "month" | "year" | null;
   start_date?: string | null;
   end_date?: string | null;
   max_concurrent?: number;

@@ -60,7 +60,6 @@ import {
   useDeleteMetric,
   useExecuteMetric,
   useMetric,
-  useAggregatedStructuringNotes,
 } from "@/lib/hooks/useMetrics";
 import {
   useAnomalies,
@@ -683,10 +682,22 @@ export default function CityDataAdmin({
       const token = await getAccessTokenSilently();
       const result = await syncPopulationToMetric(cityId, token);
       if (result.success) {
-        const msg = result.charts_updated != null
-          ? `Synced population to metric (${result.charts_updated} chart(s) updated).`
-          : "Sync completed.";
+        let msg: string;
+        if (result.metric_sync_skipped) {
+          msg =
+            result.city_population_updated && result.city_population != null
+              ? `Updated city population to ${result.city_population.toLocaleString()} from cached data (no population metric configured).`
+              : result.message ??
+                "No population metric configured; city population was not changed (no citywide cached value).";
+        } else if (result.charts_updated != null) {
+          msg = `Synced population to metric (${result.charts_updated} chart(s) updated).`;
+        } else {
+          msg = result.message ?? "Sync completed.";
+        }
         alert(msg);
+        if (result.city_population_updated) {
+          refetchCity();
+        }
       } else {
         setPopulationSyncError(result.error ?? "Sync failed");
       }
@@ -1012,7 +1023,6 @@ export default function CityDataAdmin({
   const loading = loadingCity || loadingStructure;
   const cityDataTyped = cityData as CityData | null;
   const structureDataTyped = structureData as CityStructure | null;
-  const aggregatedNotes = useAggregatedStructuringNotes(cityDataTyped?.metrics ?? null);
   const availableModels = availableModelsData || [];
   const errorMessage = error || (cityError as Error)?.message || null;
 
@@ -3860,104 +3870,6 @@ export default function CityDataAdmin({
       {/* Metrics Tab */}
       {activeTab === "metrics" && (
         <div>
-          {/* Aggregated structuring notes for all metrics in this city */}
-          {cityDataTyped?.metrics && cityDataTyped.metrics.length > 0 && (
-            <div
-              style={{
-                marginBottom: "24px",
-                padding: "16px",
-                background: "var(--bg-secondary, #f8f9fa)",
-                borderRadius: "8px",
-                border: "1px solid var(--border-color, #e5e7eb)",
-              }}
-            >
-              <h4 style={{
-                margin: "0 0 12px 0",
-                paddingBottom: "8px",
-                borderBottom: "1px solid var(--border-color, #e5e7eb)",
-                fontSize: "14px",
-                fontWeight: 600,
-                color: "var(--text-primary)",
-              }}>
-                <i className="fas fa-clipboard-list" style={{ marginRight: "8px" }} />
-                Aggregated structuring notes
-              </h4>
-              {aggregatedNotes.isLoading ? (
-                <div style={{ padding: "12px 0", color: "var(--text-secondary)", fontSize: "13px" }}>
-                  <Loader size="sm" color="dark" /> Loading notes for {cityDataTyped.metrics.length} metrics…
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {aggregatedNotes.byMetric.map(({ metricId, metricName, data, error }) => {
-                    const notes = data?.structuring_notes ?? {};
-                    const hasContent = data?.has_structured_notes
-                      || notes.agent_observations
-                      || notes.date_field
-                      || notes.freshness
-                      || (notes.field_searches?.length ?? 0) > 0
-                      || (notes.validation_history?.length ?? 0) > 0
-                      || notes.trial_execution
-                      || (notes.warnings?.length ?? 0) > 0
-                      || notes.error_context;
-                    return (
-                      <div
-                        key={metricId}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          flexWrap: "wrap",
-                          gap: "8px",
-                          padding: "8px 12px",
-                          background: "var(--bg-primary, #fff)",
-                          borderRadius: "6px",
-                          border: "1px solid var(--border-color, #e5e7eb)",
-                          fontSize: "13px",
-                        }}
-                      >
-                        <span style={{ fontWeight: 500, color: "var(--text-primary)" }}>
-                          {metricName ?? `Metric #${metricId}`}
-                        </span>
-                        {error ? (
-                          <span style={{ color: "var(--color-error, #ef4444)", fontSize: "12px" }}>Failed to load</span>
-                        ) : !hasContent ? (
-                          <span style={{ color: "var(--text-tertiary)", fontSize: "12px" }}>No notes</span>
-                        ) : (
-                          <span style={{ color: "var(--text-secondary)", fontSize: "12px" }}>
-                            {notes.overall_confidence != null && (
-                              <span style={{ marginRight: "8px" }}>{Math.round(notes.overall_confidence * 100)}% confidence</span>
-                            )}
-                            {(notes.warnings?.length ?? 0) > 0 && (
-                              <span style={{ marginRight: "8px", color: "var(--color-warning, #eab308)" }}>
-                                {notes.warnings.length} warning{(notes.warnings.length ?? 0) !== 1 ? "s" : ""}
-                              </span>
-                            )}
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setStructuringNotesTarget({ metricId, templateId: 0 })}
-                          style={{
-                            padding: "4px 10px",
-                            fontSize: "12px",
-                            background: "var(--brand-primary, #0066cc)",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                            fontWeight: 500,
-                          }}
-                        >
-                          View notes
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
               <h3 style={{ margin: 0 }}>Metric system dashboard</h3>

@@ -175,20 +175,7 @@ export default function MetricDetailContent({
   initialTimeSeriesSummary,
 }: MetricDetailContentProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<"ytd" | "mtd" | "mtd_prior_year">("ytd");
-  const [definitionExpanded, setDefinitionExpanded] = useState(false);
   const selectedDistrict = district ?? null; // null = citywide, number = specific district
-
-  // Expand "About this data" when linking from the title ? icon (#about-this-data)
-  useEffect(() => {
-    const checkHash = () => {
-      if (typeof window !== "undefined" && window.location.hash === "#about-this-data") {
-        setDefinitionExpanded(true);
-      }
-    };
-    checkHash();
-    window.addEventListener("hashchange", checkHash);
-    return () => window.removeEventListener("hashchange", checkHash);
-  }, []);
 
   const comparisonsQuery = usePublicMetricComparisons(
     metric.id,
@@ -209,7 +196,7 @@ export default function MetricDetailContent({
     setCompletenessLoading(false);
   }, [metric.id]);
   useEffect(() => {
-    if (!definitionExpanded || completenessDaily) return;
+    if (completenessDaily) return;
     setCompletenessLoading(true);
     getPublicMetricCompletenessDaily(metric.id, "day", 90)
       .then(setCompletenessDaily)
@@ -218,16 +205,16 @@ export default function MetricDetailContent({
         setCompletenessDaily(null);
       })
       .finally(() => setCompletenessLoading(false));
-  }, [metric.id, definitionExpanded, completenessDaily]);
+  }, [metric.id, completenessDaily]);
   useEffect(() => {
-    if (!definitionExpanded || completenessStats) return;
+    if (completenessStats) return;
     getPublicMetricCompletenessStats(metric.id)
       .then(setCompletenessStats)
       .catch((err) => {
         console.warn("Failed to load completeness stats:", err);
         setCompletenessStats(null);
       });
-  }, [metric.id, definitionExpanded, completenessStats]);
+  }, [metric.id, completenessStats]);
   useEffect(() => {
     if (!metric.city_id) return;
     let mounted = true;
@@ -735,18 +722,7 @@ export default function MetricDetailContent({
           })()}
         </div>
 
-        {/* Expand for technical details */}
-        <button
-          className="metric-more-btn"
-          onClick={() => setDefinitionExpanded((prev) => !prev)}
-          style={{ marginTop: "1rem" }}
-        >
-          {definitionExpanded ? "Hide info" : "More info"}
-        </button>
-
-        {/* Expanded technical details */}
-        {definitionExpanded && (
-          <div className="metric-definition-extra" style={{ marginTop: "1rem" }}>
+        <div className="metric-definition-extra" style={{ marginTop: "1rem" }}>
             {(metric.earliest_data_date || metric.most_recent_data_date) && (
               <div className="provenance-item">
                 <h3 className="provenance-label">Coverage</h3>
@@ -814,8 +790,7 @@ export default function MetricDetailContent({
                 </div>
               </div>
             ) : null}
-          </div>
-        )}
+        </div>
       </section>
     </div>
   );

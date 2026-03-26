@@ -106,7 +106,11 @@ async function requestPublic<T>(path: string): Promise<T> {
   }
 }
 
-async function requestPublicPost<T>(path: string, body: object): Promise<T> {
+async function requestPublicPost<T>(
+  path: string,
+  body: object,
+  fetchOptions?: { cache?: RequestCache }
+): Promise<T> {
   const url = `${API_BASE}${path}`;
   try {
     const res = await fetch(url, {
@@ -118,6 +122,7 @@ async function requestPublicPost<T>(path: string, body: object): Promise<T> {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      ...(fetchOptions?.cache != null ? { cache: fetchOptions.cache } : {}),
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
@@ -515,6 +520,8 @@ export function getPublicMetricComparisonsBatch(
     return Promise.resolve({});
   }
   const cacheKey = `metric-comparisons-batch:${request.metric_ids.join(",")}:${request.district ?? 0}:${(request.comparison_types ?? ["ytd"]).join(",")}`;
+  // No TTL / no fetch cache: comparisons change when metrics re-run; ISR pages
+  // used to serve stale YTD for up to revalidate seconds without this.
   return getCachedOrFetch(
     cacheKey,
     async () => {
@@ -524,7 +531,8 @@ export function getPublicMetricComparisonsBatch(
           metric_ids: request.metric_ids,
           district: request.district ?? 0,
           comparison_types: request.comparison_types ?? ["ytd"],
-        }
+        },
+        { cache: "no-store" }
       );
       const result: Record<number, PublicMetricComparisons> = {};
       for (const [idStr, comps] of Object.entries(raw)) {
@@ -539,7 +547,7 @@ export function getPublicMetricComparisonsBatch(
       }
       return result;
     },
-    120000
+    0
   );
 }
 
@@ -680,10 +688,19 @@ export type PublicDistrictComparisonsResponse = {
 
 export function getPublicMetricDistrictComparisons(
   metricId: number,
-  comparisonType: string = "ytd"
+  comparisonType: string = "ytd",
+  /** ISO date string (YYYY-MM-DD or full ISO) from the already-loaded citywide
+   *  comparison. When provided the backend anchors district rows to the same
+   *  period window so totals are directly comparable to the headline numbers. */
+  currentPeriodEnd?: string | null
 ): Promise<PublicDistrictComparisonsResponse> {
+  const params = new URLSearchParams({ comparison_type: comparisonType });
+  if (currentPeriodEnd) {
+    // Send just the date part so the backend comparison is unambiguous
+    params.set("current_period_end", currentPeriodEnd.slice(0, 10));
+  }
   return requestPublic<PublicDistrictComparisonsResponse>(
-    `/api/public/metrics/${metricId}/district-comparisons?comparison_type=${comparisonType}`
+    `/api/public/metrics/${metricId}/district-comparisons?${params.toString()}`
   );
 }
 

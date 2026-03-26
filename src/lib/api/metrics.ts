@@ -914,7 +914,7 @@ export function resetUserMetricOrdering(
 export interface BatchExecuteMetricsRequest {
   city_id: number;
   metric_ids?: number[] | null;
-  period_type?: "day" | "month" | "year" | null;
+  period_type?: "day" | "week" | "month" | "year" | null;
   start_date?: string | null;
   end_date?: string | null;
   max_concurrent?: number;

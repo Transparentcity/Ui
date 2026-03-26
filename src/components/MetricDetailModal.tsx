@@ -138,7 +138,6 @@ export default function MetricDetailModal({
   district,
 }: MetricDetailModalProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<"ytd" | "mtd" | "mtd_prior_year">("ytd");
-  const [definitionExpanded, setDefinitionExpanded] = useState(false);
   const selectedDistrict = district ?? null; // null = citywide, number = specific district
 
   const metricQuery = usePublicMetric(metricId);
@@ -161,7 +160,7 @@ export default function MetricDetailModal({
     setCompletenessLoading(false);
   }, [metricId]);
   useEffect(() => {
-    if (!metricId || !definitionExpanded || completenessDaily) return;
+    if (!isOpen || !metricId || completenessDaily) return;
     setCompletenessLoading(true);
     getPublicMetricCompletenessDaily(metricId, "day", 90)
       .then(setCompletenessDaily)
@@ -170,16 +169,16 @@ export default function MetricDetailModal({
         setCompletenessDaily(null);
       })
       .finally(() => setCompletenessLoading(false));
-  }, [metricId, definitionExpanded, completenessDaily]);
+  }, [isOpen, metricId, completenessDaily]);
   useEffect(() => {
-    if (!metricId || !definitionExpanded || completenessStats) return;
+    if (!isOpen || !metricId || completenessStats) return;
     getPublicMetricCompletenessStats(metricId)
       .then(setCompletenessStats)
       .catch((err) => {
         console.warn("Failed to load completeness stats:", err);
         setCompletenessStats(null);
       });
-  }, [metricId, definitionExpanded, completenessStats]);
+  }, [isOpen, metricId, completenessStats]);
   useEffect(() => {
     if (!metric?.city_id) return;
     let mounted = true;
@@ -779,18 +778,7 @@ export default function MetricDetailModal({
                   })()}
                 </div>
 
-                {/* Expand for technical details */}
-                <button
-                  className="metric-more-btn"
-                  onClick={() => setDefinitionExpanded((prev) => !prev)}
-                  style={{ marginTop: "1rem" }}
-                >
-                  {definitionExpanded ? "Hide info" : "More info"}
-                </button>
-
-                {/* Expanded technical details */}
-                {definitionExpanded && (
-                  <div className="metric-definition-extra" style={{ marginTop: "1rem" }}>
+                <div className="metric-definition-extra" style={{ marginTop: "1rem" }}>
                     {(metric.earliest_data_date || metric.most_recent_data_date) && (
                       <div className="provenance-item">
                         <h3 className="provenance-label">Coverage</h3>
@@ -858,8 +846,7 @@ export default function MetricDetailModal({
                         </div>
                       </div>
                     ) : null}
-                  </div>
-                )}
+                </div>
               </section>
 
             </div>
