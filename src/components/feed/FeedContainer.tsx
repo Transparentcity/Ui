@@ -13,7 +13,6 @@ import { fetchNarratives } from "@/lib/feed/fetchReportNarratives";
 import FeedCard from "./FeedCard";
 import SkeletonCard from "./SkeletonCard";
 import FeedEndState from "./FeedEndState";
-import FeedTooltip from "./FeedTooltip";
 import BrandedLoader from "@/components/BrandedLoader";
 import EditHomeLocationModal from "@/components/EditHomeLocationModal";
 import styles from "./feed.module.css";
@@ -835,10 +834,6 @@ export default function FeedContainer({
         <FeedEndState lastUpdated={new Date()} />
       )}
 
-      {/* First-session tooltip for action education */}
-      {visibleStories.length > 0 && (
-        <FeedTooltip isFirstSession={isFirstSession} />
-      )}
 
       {/* Location modal for My Block when no address is saved */}
       <EditHomeLocationModal
