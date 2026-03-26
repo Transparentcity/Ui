@@ -57,8 +57,8 @@ export default function FeedCard({ story, isAdmin, isOfficial, onHide, onDelete,
     // Don't navigate when an overlay is open
     if (overflowOpen || escalateOpen) return;
     trackEngagement.mutate({ storyId: story.id, action: "click" });
-    router.push(`/feed/${story.id}`);
-  }, [router, story.id, overflowOpen, escalateOpen, trackEngagement]);
+    router.push(story.canonical_url);
+  }, [router, story.canonical_url, overflowOpen, escalateOpen, trackEngagement]);
 
   const handleApplaud = useCallback(async () => {
     try {

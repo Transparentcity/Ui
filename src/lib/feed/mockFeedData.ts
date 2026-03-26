@@ -8,6 +8,7 @@
 import type { FeedStory } from "@/lib/hooks/useFeed";
 import { getApiBaseUrlForAssets } from "@/lib/apiBase";
 import { cleanDescription } from "./textCleanup";
+import { resolveCanonicalUrl } from "./canonicalUrl";
 
 // ── Card types ──────────────────────────────────────────────────────────────
 
@@ -44,6 +45,7 @@ export interface EnrichedFeedStory extends FeedStory {
   image_url_resolved: string | null;
   embed_url_resolved: string | null;
   cleaned_description: string;
+  canonical_url: string;
 }
 
 // ── Type metadata maps ──────────────────────────────────────────────────────
@@ -312,7 +314,7 @@ export function enrichStory(story: FeedStory, placeMap?: PlaceMap): EnrichedFeed
       ? story.description
       : story.summary || story.description;
 
-  return {
+  const enriched: EnrichedFeedStory = {
     ...story,
     card_type: cardType,
     template,
@@ -329,7 +331,10 @@ export function enrichStory(story: FeedStory, placeMap?: PlaceMap): EnrichedFeed
     cleaned_description: cleanDescription(descriptionSource, story.headline, story.city_name ?? undefined, neighborhoodLabel)
       || story.summary?.trim()
       || "",
+    canonical_url: "", // placeholder, resolved below
   };
+  enriched.canonical_url = resolveCanonicalUrl(enriched);
+  return enriched;
 }
 
 /** Enrich an array of stories and interleave viz stories among text-only. */

@@ -124,6 +124,7 @@ function makeEnrichedStory(overrides: Partial<EnrichedFeedStory> = {}): Enriched
     image_url_resolved: null,
     embed_url_resolved: null,
     cleaned_description: "Thefts have increased 25% this month in the district.",
+    canonical_url: "/feed/42",
     ...overrides,
   };
 }
