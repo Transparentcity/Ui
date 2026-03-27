@@ -125,6 +125,13 @@ export default function DashboardPage() {
   // Initialize sidebar state - always start with false to match server render
   // Will be updated on client mount based on screen size
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("sidebar-width");
+      return saved ? Number(saved) : 280;
+    }
+    return 280;
+  });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [currentView, setCurrentView] = useState<ViewType>("feed");
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -357,6 +364,16 @@ export default function DashboardPage() {
     // Set initial state based on screen width
     const isNarrow = isNarrowScreen();
     setSidebarOpen(!isNarrow);
+  }, []);
+
+  // Keep --sidebar-width CSS variable in sync with sidebarWidth state
+  useEffect(() => {
+    document.documentElement.style.setProperty("--sidebar-width", `${sidebarWidth}px`);
+  }, [sidebarWidth]);
+
+  const handleSidebarWidthChange = useCallback((width: number) => {
+    setSidebarWidth(width);
+    localStorage.setItem("sidebar-width", String(width));
   }, []);
 
   // Handle window resize to update sidebar state for mobile/desktop
@@ -1038,6 +1055,8 @@ export default function DashboardPage() {
       <Sidebar
         key={`sidebar-${identityScopeKey}`}
         isOpen={sidebarOpen}
+        sidebarWidth={sidebarWidth}
+        onWidthChange={handleSidebarWidthChange}
         isAdmin={isAdmin}
         cityLeadCityIds={cityLeadCityIds}
         currentView={currentView}

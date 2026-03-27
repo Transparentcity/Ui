@@ -439,3 +439,8 @@
   background: var(--button-secondary-hover);
   border-color: var(--border-secondary);
 }
+
+/* Disable transitions while dragging the sidebar resize handle */
+:global(.sidebar-resizing) .mainContent {
+  transition: none !important;
+}
