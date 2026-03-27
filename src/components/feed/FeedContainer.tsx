@@ -110,7 +110,6 @@ export default function FeedContainer({
   const [showLocationModal, setShowLocationModal] = useState(false);
   const hasAddress = userPlaces.length > 0;
 
-
   // Persist filters to sessionStorage whenever they change
   useEffect(() => {
     try {
@@ -702,7 +701,6 @@ export default function FeedContainer({
           )}
         </div>
       )}
-
 
       {/* My Block empty state (client-side filter returned nothing) */}
       {!isLoading && !error && visibleStories.length === 0 && stories.length > 0 && selectedTopic === "my_block" && (
