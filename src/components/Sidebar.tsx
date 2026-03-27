@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useId } from "react";
+import { useState, useEffect, useRef, useCallback, useId } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import UserProfile from "./UserProfile";
@@ -55,6 +55,10 @@ interface SidebarProps {
   onOpenFindDistrict?: () => void;
   onMenuToggle?: () => void;
   currentView?: string;
+  /** Current sidebar width in pixels (for resizable sidebar). */
+  sidebarWidth?: number;
+  /** Called when the user drags the resize handle. */
+  onWidthChange?: (width: number) => void;
 }
 
 // Mobile breakpoint (matches CSS media query)
@@ -102,6 +106,8 @@ export default function Sidebar({
   onOpenFindDistrict,
   onMenuToggle,
   currentView,
+  sidebarWidth,
+  onWidthChange,
 }: SidebarProps) {
   const governmentApproved =
     governmentVerified &&
@@ -118,6 +124,43 @@ export default function Sidebar({
 
   const pathname = usePathname();
 
+  // --- Resizable sidebar drag logic ---
+  const isResizing = useRef(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleResizeMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (!onWidthChange) return;
+      e.preventDefault();
+      isResizing.current = true;
+      setIsDragging(true);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      document.documentElement.classList.add("sidebar-resizing");
+
+      const onMouseMove = (ev: MouseEvent) => {
+        if (!isResizing.current) return;
+        // Clamp between 200 and 600px
+        const newWidth = Math.min(600, Math.max(200, ev.clientX));
+        onWidthChange(newWidth);
+      };
+
+      const onMouseUp = () => {
+        isResizing.current = false;
+        setIsDragging(false);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        document.documentElement.classList.remove("sidebar-resizing");
+        window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("mouseup", onMouseUp);
+      };
+
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+    },
+    [onWidthChange]
+  );
+
   // Research and New Research Report: government-verified users only
   const canAccessResearch = governmentVerified;
 
@@ -132,7 +175,21 @@ export default function Sidebar({
 
   return (
     <>
-      <aside className={`${styles.sidebar} ${isOpen ? styles.open : styles.collapsed}`} id="sidebar">
+      <aside
+        className={`${styles.sidebar} ${isOpen ? styles.open : styles.collapsed}`}
+        id="sidebar"
+        style={{
+          ...(sidebarWidth && isOpen ? { width: sidebarWidth } : {}),
+          ...(isDragging ? { transition: "none" } : {}),
+        }}
+      >
+        {/* Resize handle on right edge */}
+        {isOpen && onWidthChange && (
+          <div
+            className={styles.resizeHandle}
+            onMouseDown={handleResizeMouseDown}
+          />
+        )}
         {/* Integrated Header with Logo and Hamburger */}
         <div className={styles.sidebarHeader}>
           <button 
@@ -315,6 +372,37 @@ export default function Sidebar({
             <span>New Chat</span>
           </button>
 
+          <button
+            className={`${styles.navItem} ${styles.newChatBtn} ${currentView === "feed" ? styles.navItemActive : ""}`}
+            id="feed-btn"
+            onClick={() =>
+              handleActionWithClose(() => {
+                if (onViewChange) {
+                  onViewChange("feed");
+                }
+              })
+            }
+          >
+            <span className={styles.navIcon}>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path>
+                <path d="M18 14h-8"></path>
+                <path d="M15 18h-5"></path>
+                <path d="M10 6h8v4h-8V6Z"></path>
+              </svg>
+            </span>
+            <span>Feed</span>
+          </button>
+
           {(canAccessResearch || isAdmin) && (
             <button
               className={`${styles.navItem} ${styles.newChatBtn}`}
@@ -433,38 +521,6 @@ export default function Sidebar({
               <span>Constituent Signals</span>
             </Link>
           )}
-
-          <button
-            className={`${styles.navItem} ${styles.newChatBtn} ${currentView === "feed" ? styles.navItemActive : ""}`}
-            id="feed-btn"
-            onClick={() =>
-              handleActionWithClose(() => {
-                if (onViewChange) {
-                  onViewChange("feed");
-                }
-              })
-            }
-          >
-            <span className={styles.navIcon}>
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path>
-                <path d="M18 14h-8"></path>
-                <path d="M15 18h-5"></path>
-                <path d="M10 6h8v4h-8V6Z"></path>
-              </svg>
-            </span>
-            <span>Feed</span>
-          </button>
-
 
           {/* City Search */}
           {onCitySelect && (
