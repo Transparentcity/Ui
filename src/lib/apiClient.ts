@@ -2338,6 +2338,10 @@ export function runCustomScheduledJob(jobId: number, token: string): Promise<any
   return request(`/api/jobs/schedules/custom/${jobId}/run`, "POST", {}, token);
 }
 
+export function runCustomScheduledJobForCurrentUser(jobId: number, token: string): Promise<any> {
+  return request(`/api/jobs/schedules/custom/${jobId}/run`, "POST", { use_current_user: true }, token);
+}
+
 export interface RunScheduleRequest {
   schedule_key: string;
   max_concurrent_cities?: number;
@@ -3821,6 +3825,10 @@ export interface FeedStory {
   updated_at?: string | null;
   /** Current user's AI feedback (thumbs up/down); only when authenticated. */
   user_ai_feedback?: "up" | "down" | null;
+  short_hash?: string | null;
+  public_url?: string | null;
+  /** Long-form HTML for the canonical public story page (feed-producer stories). */
+  article_html?: string | null;
 }
 
 export interface FeedStoriesResponse {

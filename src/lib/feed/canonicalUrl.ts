@@ -2,13 +2,14 @@
  * Resolves the canonical page URL for a feed story based on its type and data.
  *
  * Routing priority:
- * 1. multi_metric / comparison → city dashboard or district page
- * 2. Single-metric stories with metric_key → metric detail page
- * 3. Single metric in metrics array → metric detail page
- * 4. Anomaly viz (no metric_key) → anomaly page
- * 5. Map viz → map page
- * 6. Research with /r/ detail_url → research page
- * 7. Default → feed story page (/feed/{id})
+ * 1. Feed-producer stories with short_hash → canonical story page (/s/{hash})
+ * 2. multi_metric / comparison (legacy, no short_hash) → city dashboard or district page
+ * 3. Single-metric stories with metric_key → metric detail page
+ * 4. Single metric in metrics array → metric detail page
+ * 5. Anomaly viz (no metric_key) → anomaly page
+ * 6. Map viz → map page
+ * 7. Research with /r/ detail_url → research page
+ * 8. Default → feed story page (/feed/{id})
  */
 
 import { slugify } from "@/lib/utils";
@@ -30,7 +31,14 @@ export function resolveCanonicalUrl(story: EnrichedFeedStory): string {
     | Array<{ metric_key?: string }>
     | undefined;
 
-  // Multi-metric "This Week" / comparison → city or district page
+  // Feed-producer stories always have a short_hash → use canonical story page.
+  // This takes priority over all other routing so multi_metric/alert/etc. stories
+  // created by the feed producer land on their own page, not the city or metric page.
+  if (story.short_hash) {
+    return `/s/${story.short_hash}`;
+  }
+
+  // Multi-metric "This Week" / comparison (legacy, no short_hash) → city or district page
   if (story.card_type === "multi_metric" || story.card_type === "comparison") {
     if (slug && district > 0) return `/c/${slug}/district/${district}`;
     if (slug) return `/c/${slug}`;
@@ -67,4 +75,21 @@ export function resolveCanonicalUrl(story: EnrichedFeedStory): string {
 
   // Default: feed story page (spending, justice, narrative, context, 311_images, etc.)
   return `/feed/${story.id}`;
+}
+
+/**
+ * URL to share or link as the public canonical story page.
+ * Prefers `/c/{city}/stories/{hash}` when both city slug and short_hash exist
+ * (matches SEO canonical on the city story page); otherwise same rules as
+ * {@link resolveCanonicalUrl} with `/s/{hash}` when city slug is missing.
+ */
+export function resolveOutboundCanonicalPath(story: EnrichedFeedStory): string {
+  const slug = story.city_name ? slugify(story.city_name) : null;
+  if (story.short_hash && slug) {
+    return `/c/${slug}/stories/${story.short_hash}`;
+  }
+  if (story.short_hash) {
+    return `/s/${story.short_hash}`;
+  }
+  return resolveCanonicalUrl(story);
 }

@@ -43,6 +43,10 @@ export interface FeedStory {
   updated_at?: string | null;
   /** Current user's AI feedback (thumbs up/down); only when authenticated. */
   user_ai_feedback?: "up" | "down" | null;
+  short_hash?: string | null;
+  public_url?: string | null;
+  /** Long-form HTML for the canonical public story page (feed-producer stories). */
+  article_html?: string | null;
 }
 
 export interface FeedStoriesResponse {

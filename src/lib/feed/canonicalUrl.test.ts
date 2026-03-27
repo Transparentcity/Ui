@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveCanonicalUrl } from "./canonicalUrl";
+import { resolveCanonicalUrl, resolveOutboundCanonicalPath } from "./canonicalUrl";
 import type { EnrichedFeedStory } from "./mockFeedData";
 
 /** Minimal enriched story factory for testing. */
@@ -42,6 +42,27 @@ function makeStory(overrides: Partial<EnrichedFeedStory> = {}): EnrichedFeedStor
 }
 
 describe("resolveCanonicalUrl", () => {
+  // ── Feed-producer stories with short_hash → /s/{hash} ──────────────────
+
+  it("routes any story with short_hash to canonical story page", () => {
+    const story = makeStory({ short_hash: "abc123" });
+    expect(resolveCanonicalUrl(story)).toBe("/s/abc123");
+  });
+
+  it("prefers short_hash over multi_metric city routing", () => {
+    const story = makeStory({ card_type: "multi_metric", short_hash: "xyz789", district: 0 });
+    expect(resolveCanonicalUrl(story)).toBe("/s/xyz789");
+  });
+
+  it("prefers short_hash over metric detail routing", () => {
+    const story = makeStory({
+      card_type: "alert",
+      short_hash: "fed123",
+      metadata: { metric_key: "crime-incidents" },
+    });
+    expect(resolveCanonicalUrl(story)).toBe("/s/fed123");
+  });
+
   // ── Multi-metric → city/district page ──────────────────────────────────
 
   it("routes multi_metric citywide to city dashboard", () => {
@@ -201,5 +222,22 @@ describe("resolveCanonicalUrl", () => {
   it("routes context without special viz to feed story page", () => {
     const story = makeStory({ card_type: "context", story_type: "context", detail_url: "/some/other" });
     expect(resolveCanonicalUrl(story)).toBe("/feed/1");
+  });
+});
+
+describe("resolveOutboundCanonicalPath", () => {
+  it("uses city story path when city and short_hash exist", () => {
+    const story = makeStory({ short_hash: "abc123", city_name: "San Francisco" });
+    expect(resolveOutboundCanonicalPath(story)).toBe("/c/san-francisco/stories/abc123");
+  });
+
+  it("uses /s/{hash} when short_hash exists but no city name", () => {
+    const story = makeStory({ short_hash: "abc123", city_name: null });
+    expect(resolveOutboundCanonicalPath(story)).toBe("/s/abc123");
+  });
+
+  it("matches resolveCanonicalUrl when no short_hash", () => {
+    const story = makeStory({ card_type: "spending" });
+    expect(resolveOutboundCanonicalPath(story)).toBe(resolveCanonicalUrl(story));
   });
 });

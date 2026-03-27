@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
+import { resolveOutboundCanonicalPath } from "@/lib/feed/canonicalUrl";
 import { useTrackFeedEngagement } from "@/lib/hooks/useFeed";
 import { applaudStory, escalateStory, investigateStory } from "@/lib/apiClient";
 import { useAuth0 } from "@auth0/auth0-react";
@@ -33,9 +34,23 @@ interface FeedCardProps {
   compact?: boolean;
   /** Show action tooltips on first card for new users. */
   showTooltips?: boolean;
+  /**
+   * When set, stories whose in-app target is `/feed/{id}` open here instead of navigating.
+   * Other {@link EnrichedFeedStory.canonical_url} targets still use client navigation.
+   */
+  onOpenFeedDetail?: (story: EnrichedFeedStory) => void;
 }
 
-export default function FeedCard({ story, isAdmin, isOfficial, onHide, onDelete, compact, showTooltips }: FeedCardProps) {
+export default function FeedCard({
+  story,
+  isAdmin,
+  isOfficial,
+  onHide,
+  onDelete,
+  compact,
+  showTooltips,
+  onOpenFeedDetail,
+}: FeedCardProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
   const { getAccessTokenSilently } = useAuth0();
@@ -57,8 +72,21 @@ export default function FeedCard({ story, isAdmin, isOfficial, onHide, onDelete,
     // Don't navigate when an overlay is open
     if (overflowOpen || escalateOpen) return;
     trackEngagement.mutate({ storyId: story.id, action: "click" });
+    const openModal =
+      onOpenFeedDetail != null && story.canonical_url.startsWith("/feed/");
+    if (openModal) {
+      onOpenFeedDetail(story);
+      return;
+    }
     router.push(story.canonical_url);
-  }, [router, story.canonical_url, overflowOpen, escalateOpen, trackEngagement]);
+  }, [
+    router,
+    story,
+    onOpenFeedDetail,
+    overflowOpen,
+    escalateOpen,
+    trackEngagement,
+  ]);
 
   const handleApplaud = useCallback(async () => {
     try {
@@ -103,7 +131,8 @@ export default function FeedCard({ story, isAdmin, isOfficial, onHide, onDelete,
 
   const handleShare = useCallback(() => {
     trackEngagement.mutate({ storyId: story.id, action: "share" });
-    const url = `${window.location.origin}/feed/${story.id}`;
+    const path = resolveOutboundCanonicalPath(story);
+    const url = `${window.location.origin}${path}`;
 
     if (typeof navigator.share === "function") {
       navigator.share({ title: story.headline, url }).catch(() => {});
