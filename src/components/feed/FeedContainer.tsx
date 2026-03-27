@@ -48,7 +48,7 @@ export default function FeedContainer({
   userPlaces = [],
   onPlaceSaved,
 }: FeedContainerProps) {
-  const { getAccessTokenSilently } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   const queryClient = useQueryClient();
   const trackEngagement = useTrackFeedEngagement();
   const viewedRef = useRef<Set<number>>(new Set());
@@ -197,6 +197,8 @@ export default function FeedContainer({
     order_by: feedOrder,
     all_cities: personalNewsletterOnly || !singleCityId,
     story_type: apiStoryType,
+    user_place_id:
+      isAuthenticated && selectedPlaceId != null ? selectedPlaceId : undefined,
   });
 
   const stories = feedData?.stories ?? [];
@@ -295,12 +297,14 @@ export default function FeedContainer({
       if (hiddenIds.has(s.id)) return false;
       if (selectedTopic && s.card_type !== selectedTopic) return false;
       if (selectedPlaceId !== null) {
-        const placeIds: number[] = Array.isArray(s.metadata?.user_place_ids)
+        const legacyIds: number[] = Array.isArray(s.metadata?.user_place_ids)
           ? s.metadata.user_place_ids
           : s.metadata?.my_block
             ? userPlaces.map((p) => p.id)
             : [];
-        if (!placeIds.includes(selectedPlaceId)) return false;
+        const matchesColumn = s.user_place_id === selectedPlaceId;
+        const matchesLegacy = legacyIds.includes(selectedPlaceId);
+        if (!matchesColumn && !matchesLegacy) return false;
       }
       if (selectedCityIds.size === 1 && !selectedCityIds.has(s.city_id)) return false;
       return true;

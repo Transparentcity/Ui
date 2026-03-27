@@ -10,6 +10,8 @@ export interface FeedStory {
   city_name?: string | null;
   city_emoji?: string | null;
   district: number;
+  /** When set, story is tagged for a saved place (user_places.id). */
+  user_place_id?: number | null;
   research_report_id: number;
   newsletter_frequency?: string | null;
   newsletter_period_start?: string | null;
@@ -83,6 +85,8 @@ export function listFeedStories(
     all_cities?: boolean;
     /** Filter by story type (e.g. 'off_the_charts', 'alert', 'trend'). */
     story_type?: string | null;
+    /** Saved place (user_places.id); API verifies ownership. */
+    user_place_id?: number | null;
   }
 ): Promise<FeedStoriesResponse> {
   const params = new URLSearchParams();
@@ -102,6 +106,9 @@ export function listFeedStories(
   if (options?.order_by) params.append("order_by", options.order_by);
   if (options?.all_cities) params.append("all_cities", "true");
   if (options?.story_type) params.append("story_type", options.story_type);
+  if (options?.user_place_id != null) {
+    params.append("user_place_id", String(options.user_place_id));
+  }
 
   const query = params.toString();
   const path = `/api/feed${query ? `?${query}` : ""}`;

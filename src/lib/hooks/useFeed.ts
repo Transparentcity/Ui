@@ -70,6 +70,8 @@ export function useFeedStories(options?: {
   all_cities?: boolean;
   /** Filter by story type (e.g. 'off_the_charts', 'alert', 'trend'). */
   story_type?: string | null;
+  /** Saved place filter (user_places.id); authenticated API only. */
+  user_place_id?: number | null;
 }) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
 
