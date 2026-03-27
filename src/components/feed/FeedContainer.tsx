@@ -110,16 +110,6 @@ export default function FeedContainer({
   const [showLocationModal, setShowLocationModal] = useState(false);
   const hasAddress = userPlaces.length > 0;
 
-  // Detect first session (user just completed onboarding) for tooltip display
-  const [isFirstSession] = useState<boolean>(() => {
-    try {
-      return sessionStorage.getItem("tc_feed_tooltips_seen") === null;
-    } catch {
-      return false;
-    }
-  });
-
-  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
 
   // Persist filters to sessionStorage whenever they change
   useEffect(() => {
@@ -713,25 +703,6 @@ export default function FeedContainer({
         </div>
       )}
 
-      {/* Post-onboarding welcome banner */}
-      {isFirstSession && !welcomeDismissed && visibleStories.length > 0 && selectedCityName && (
-        <div className={styles.welcomeBanner}>
-          <div className={styles.welcomeBannerContent}>
-            <p className={styles.welcomeBannerTitle}>Welcome to your feed</p>
-            <p className={styles.welcomeBannerText}>
-              Here are the latest stories for {selectedCityName}{selectedDistrict ? `, ${districtTerm} ${selectedDistrict}` : ""}. As you applaud and flag stories, your feed will learn what matters to you.
-            </p>
-          </div>
-          <button
-            type="button"
-            className={styles.welcomeBannerClose}
-            onClick={() => setWelcomeDismissed(true)}
-            aria-label="Dismiss"
-          >
-            &times;
-          </button>
-        </div>
-      )}
 
       {/* My Block empty state (client-side filter returned nothing) */}
       {!isLoading && !error && visibleStories.length === 0 && stories.length > 0 && selectedTopic === "my_block" && (
