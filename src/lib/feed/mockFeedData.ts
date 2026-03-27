@@ -156,6 +156,8 @@ function deriveCardType(story: FeedStory): CardType {
   if (/911|response time/.test(headline)) return "safety";
   if (storyType.includes("business") || /restaurant|retail|opens|closes/.test(headline)) return "business";
   if (story.visualization_type === "photo" || meta["311_image"]) return "311_images";
+  // Photo-worthy 311 keywords in headline (catches manual stories that weren't typed correctly)
+  if (/graffiti|pothole|sidewalk|litter|dumping|rodent|blocked|streetlight/.test(headline)) return "311_images";
 
   return "alert";
 }
@@ -341,9 +343,10 @@ export function enrichStory(story: FeedStory, placeMap?: PlaceMap): EnrichedFeed
 export function enrichStories(stories: FeedStory[], placeMap?: PlaceMap): EnrichedFeedStory[] {
   const enriched = stories.map((s) => enrichStory(s, placeMap));
 
-  // Separate stories with visualizations from text-only
-  const withViz = enriched.filter((s) => s.embed_url_resolved);
-  const textOnly = enriched.filter((s) => !s.embed_url_resolved);
+  // Separate visual stories (embeds OR photos) from text-only
+  const isVisual = (s: EnrichedFeedStory) => s.embed_url_resolved || s.template === "text_photo";
+  const withViz = enriched.filter(isVisual);
+  const textOnly = enriched.filter((s) => !isVisual(s));
 
   // Interleave: insert a viz story every 2-3 text stories
   if (withViz.length === 0) return enriched;
