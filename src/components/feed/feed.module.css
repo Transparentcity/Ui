@@ -1239,6 +1239,14 @@
   color: var(--text-primary);
 }
 
+.refreshBtnIconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
 /* ── My Block empty state ──────────────────────────────────────────────────── */
 
 .myBlockEmptyTitle {
@@ -1321,6 +1329,38 @@
 .detailDescription { font-size: 16px; line-height: 1.7; color: var(--text-primary); margin: 0 0 16px; }
 .detailDescription:last-child { margin-bottom: 0; }
 .detailNarrativeSection { margin: 0 0 24px; }
+.detailArticleBody {
+  font-size: 16px;
+  line-height: 1.75;
+  color: var(--text-primary);
+}
+.detailArticleBody h2 {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 32px 0 12px;
+  color: var(--text-primary);
+}
+.detailArticleBody p {
+  margin: 0 0 18px;
+}
+.detailArticleBody a {
+  color: var(--brand-primary, #ad35fa);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.detailArticleBody .visualization-embed {
+  margin: 24px 0;
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-secondary);
+}
+.detailArticleBody .visualization-embed iframe {
+  display: block;
+  width: 100%;
+  border: none;
+}
 .detailVizArea { background: var(--bg-secondary); border-radius: 12px; overflow: hidden; margin-bottom: 24px; min-height: 250px; display: flex; align-items: center; justify-content: center; position: relative; }
 .detailVizPlaceholder { text-align: center; padding: 40px; color: var(--text-secondary); }
 .detailVizLabel { font-size: 48px; display: block; margin-bottom: 12px; }

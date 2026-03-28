@@ -3829,6 +3829,8 @@ export interface FeedStory {
   user_ai_feedback?: "up" | "down" | null;
   short_hash?: string | null;
   public_url?: string | null;
+  /** Server-computed canonical URL path (e.g. /c/san-francisco/stories/abc123). Present on all active stories. */
+  canonical_path?: string | null;
   /** Long-form HTML for the canonical public story page (feed-producer stories). */
   article_html?: string | null;
 }
@@ -3911,6 +3913,8 @@ export function listFeedStories(
     story_type?: string | null;
     /** Saved place (user_places.id); API verifies ownership. */
     user_place_id?: number | null;
+    /** When true, only stories for any of the user's saved places (auth only). */
+    only_my_saved_places?: boolean;
   }
 ): Promise<FeedStoriesResponse> {
   const params = new URLSearchParams();
@@ -3932,6 +3936,9 @@ export function listFeedStories(
   if (options?.story_type) params.append("story_type", options.story_type);
   if (options?.user_place_id != null) {
     params.append("user_place_id", String(options.user_place_id));
+  }
+  if (options?.only_my_saved_places) {
+    params.append("only_my_saved_places", "true");
   }
 
   const query = params.toString();

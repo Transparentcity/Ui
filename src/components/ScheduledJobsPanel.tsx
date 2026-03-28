@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ScheduledJobSummary,
@@ -14,6 +14,13 @@ import {
   runCustomScheduledJobForCurrentUser,
 } from "@/lib/apiClient";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
+import {
+  buildStandardFeedProducerDefaultPrompt,
+  cityIdsFromJobConfig,
+  parseCityIdsFromCsv,
+  parseStoryTypesFromCsv,
+  storyTypesFromJobConfig,
+} from "@/lib/jobs/feedProducerDefaultPrompt";
 import Loader from "./Loader";
 import styles from "./ScheduledJobsPanel.module.css";
 
@@ -62,6 +69,27 @@ export default function ScheduledJobsPanel({
     story_types: string;
     test_user_id: string;
   } | null>(null);
+
+  /** When true, prompt text tracks city IDs + story types (until user edits the textarea). */
+  const [feedProducerUsesLiveTemplate, setFeedProducerUsesLiveTemplate] =
+    useState(false);
+
+  useEffect(() => {
+    if (!editForm) return;
+    if (editForm.job_type !== "feed_producer" && editForm.job_type !== "feed_stories") {
+      return;
+    }
+    if (!feedProducerUsesLiveTemplate) return;
+    const ids = parseCityIdsFromCsv(editForm.city_ids);
+    const types = parseStoryTypesFromCsv(editForm.story_types);
+    const next = buildStandardFeedProducerDefaultPrompt(ids, types) ?? "";
+    setEditForm((f) => (f ? { ...f, question: next } : f));
+  }, [
+    editForm?.city_ids,
+    editForm?.story_types,
+    feedProducerUsesLiveTemplate,
+    editForm?.job_type,
+  ]);
 
   const getStatusColor = (status: string): string => {
     switch (status) {
@@ -166,6 +194,31 @@ export default function ScheduledJobsPanel({
   const openEdit = (job: CustomScheduledJob) => {
     setEditJob(job);
     const cfg = job.job_config || {};
+    const cfgRec = cfg as Record<string, unknown>;
+    const isFeedJob =
+      job.job_type === "feed_producer" || job.job_type === "feed_stories";
+    const explicitStored =
+      (typeof cfg.prompt === "string" && cfg.prompt.trim() !== "") ||
+      (typeof cfg.question === "string" && cfg.question.trim() !== "");
+
+    let initialPromptText = "";
+    if (isFeedJob && !explicitStored) {
+      initialPromptText =
+        buildStandardFeedProducerDefaultPrompt(
+          cityIdsFromJobConfig(cfgRec),
+          storyTypesFromJobConfig(cfgRec),
+        ) ?? "";
+      setFeedProducerUsesLiveTemplate(true);
+    } else {
+      initialPromptText =
+        typeof cfg.prompt === "string"
+          ? cfg.prompt
+          : typeof cfg.question === "string"
+            ? cfg.question
+            : "";
+      setFeedProducerUsesLiveTemplate(false);
+    }
+
     setEditForm({
       name: job.name || "",
       job_type: job.job_type || "",
@@ -178,7 +231,7 @@ export default function ScheduledJobsPanel({
       max_concurrent_cities: job.max_concurrent_cities !== null && job.max_concurrent_cities !== undefined ? String(job.max_concurrent_cities) : "2",
       per_city_concurrency: job.per_city_concurrency !== null && job.per_city_concurrency !== undefined ? String(job.per_city_concurrency) : "2",
       cron_expression: job.cron_expression || "",
-      question: cfg.question || "",
+      question: initialPromptText,
       feed_producer_mode: Boolean(cfg.feed_producer_mode),
       city_ids: Array.isArray(cfg.city_ids) ? cfg.city_ids.join(", ") : (cfg.city_ids || ""),
       story_types: Array.isArray(cfg.story_types) ? cfg.story_types.join(", ") : (cfg.story_types || ""),
@@ -189,6 +242,7 @@ export default function ScheduledJobsPanel({
   const closeEdit = () => {
     setEditJob(null);
     setEditForm(null);
+    setFeedProducerUsesLiveTemplate(false);
   };
 
   const handleSaveEdit = async () => {
@@ -233,8 +287,43 @@ export default function ScheduledJobsPanel({
       const origCfg = editJob.job_config || {};
       const newCfg: Record<string, any> = { ...origCfg };
 
-      if (editForm.question !== (origCfg.question ?? "")) {
-        newCfg.question = editForm.question;
+      const trimmedDraft = editForm.question.trim();
+      const origDraft = String(
+        typeof origCfg.prompt === "string"
+          ? origCfg.prompt
+          : typeof origCfg.question === "string"
+            ? origCfg.question
+            : "",
+      ).trim();
+      const promptFieldChanged = trimmedDraft !== origDraft;
+
+      if (editForm.job_type === "research") {
+        if (promptFieldChanged) {
+          if (trimmedDraft) {
+            newCfg.question = trimmedDraft;
+          } else {
+            delete newCfg.question;
+          }
+          delete newCfg.prompt;
+        }
+      } else if (editForm.job_type === "feed_producer" || editForm.job_type === "feed_stories") {
+        if (trimmedDraft) {
+          newCfg.prompt = trimmedDraft;
+          delete newCfg.question;
+        } else {
+          delete newCfg.prompt;
+          delete newCfg.question;
+        }
+      } else if (editForm.job_type === "personalized_feed_producer") {
+        if (promptFieldChanged) {
+          if (trimmedDraft) {
+            newCfg.prompt = trimmedDraft;
+            delete newCfg.question;
+          } else {
+            delete newCfg.prompt;
+            delete newCfg.question;
+          }
+        }
       }
 
       newCfg.feed_producer_mode = editForm.feed_producer_mode;
@@ -627,7 +716,31 @@ export default function ScheduledJobsPanel({
               <select
                 className={styles.input}
                 value={editForm.job_type}
-                onChange={(e) => setEditForm({ ...editForm, job_type: e.target.value })}
+                onChange={(e) => {
+                  const nextType = e.target.value;
+                  if (!editForm) return;
+                  const wasFeed =
+                    editForm.job_type === "feed_producer" ||
+                    editForm.job_type === "feed_stories";
+                  const nowFeed =
+                    nextType === "feed_producer" || nextType === "feed_stories";
+                  if (nowFeed && !wasFeed) {
+                    setFeedProducerUsesLiveTemplate(true);
+                    const ids = parseCityIdsFromCsv(editForm.city_ids);
+                    const types = parseStoryTypesFromCsv(editForm.story_types);
+                    setEditForm({
+                      ...editForm,
+                      job_type: nextType,
+                      question:
+                        buildStandardFeedProducerDefaultPrompt(ids, types) ?? "",
+                    });
+                    return;
+                  }
+                  if (!nowFeed) {
+                    setFeedProducerUsesLiveTemplate(false);
+                  }
+                  setEditForm({ ...editForm, job_type: nextType });
+                }}
                 aria-label="Job type"
               >
                 {[
@@ -676,7 +789,14 @@ export default function ScheduledJobsPanel({
 
             {(editForm.job_type === "feed_producer" || editForm.job_type === "feed_stories" || editForm.job_type === "context_stories") && (
               <div className={styles.formRow}>
-                <label className={styles.label}>City IDs <span style={{ fontWeight: 400 }}>(comma-separated; leave blank for all active cities)</span></label>
+                <label className={styles.label}>
+                  City IDs{" "}
+                  <span style={{ fontWeight: 400 }}>
+                    {editForm.job_type === "context_stories"
+                      ? "(comma-separated; optional — defaults to all cities with active metrics)"
+                      : "(comma-separated; required)"}
+                  </span>
+                </label>
                 <input
                   className={styles.input}
                   type="text"
@@ -724,7 +844,7 @@ export default function ScheduledJobsPanel({
               </div>
             )}
 
-            {editJob.job_config?.question != null && (
+            {editForm.job_type === "research" && (
               <div className={styles.formRow}>
                 <label className={styles.label}>Research prompt</label>
                 <p className={styles.promptVariablesNote}>
@@ -741,6 +861,73 @@ export default function ScheduledJobsPanel({
                   rows={14}
                   spellCheck={false}
                   aria-label="Research prompt"
+                />
+              </div>
+            )}
+
+            {(editForm.job_type === "feed_producer" || editForm.job_type === "feed_stories") && (
+              <div className={styles.formRow}>
+                <label className={styles.label}>Feed producer prompt</label>
+                <p className={styles.promptVariablesNote}>
+                  This is the exact text sent to{" "}
+                  <code>run_feed_producer_job</code> (Seymour, feed_producer tools). It is saved as{" "}
+                  <code>prompt</code> in job config. We pre-fill the same template the API would use when{" "}
+                  <code>prompt</code> was unset, so you edit the default instead of an &quot;override&quot;.
+                  Clear the field and save to drop <code>prompt</code> and let the server build the default again
+                  from city IDs and story types at run time.
+                </p>
+                {feedProducerUsesLiveTemplate && (
+                  <p className={styles.promptVariablesNote} style={{ color: "#0369a1" }}>
+                    Prompt is <strong>linked</strong> to City IDs and Story types — change those fields to refresh
+                    the opening lines, or edit this text to detach.
+                  </p>
+                )}
+                <textarea
+                  className={styles.promptInput}
+                  value={editForm.question}
+                  onChange={(e) => {
+                    setFeedProducerUsesLiveTemplate(false);
+                    setEditForm({ ...editForm, question: e.target.value });
+                  }}
+                  rows={12}
+                  spellCheck={false}
+                  placeholder="Add city IDs above to generate the default template, or type a custom prompt…"
+                  aria-label="Feed producer prompt"
+                />
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  style={{ marginTop: "0.5rem" }}
+                  onClick={() => {
+                    if (!editForm) return;
+                    setFeedProducerUsesLiveTemplate(true);
+                    const ids = parseCityIdsFromCsv(editForm.city_ids);
+                    const types = parseStoryTypesFromCsv(editForm.story_types);
+                    const next = buildStandardFeedProducerDefaultPrompt(ids, types) ?? "";
+                    setEditForm({ ...editForm, question: next });
+                  }}
+                >
+                  Reset prompt from city IDs &amp; story types
+                </button>
+              </div>
+            )}
+
+            {editForm.job_type === "personalized_feed_producer" && (
+              <div className={styles.formRow}>
+                <label className={styles.label}>Custom prompt template (optional)</label>
+                <p className={styles.promptVariablesNote}>
+                  Placeholders: <code>{`{user_places}`}</code>, <code>{`{user_id}`}</code>,{" "}
+                  <code>{`{story_types}`}</code>. Leave empty for built-in per-user instructions.
+                </p>
+                <textarea
+                  className={styles.promptInput}
+                  value={editForm.question}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, question: e.target.value })
+                  }
+                  rows={8}
+                  spellCheck={false}
+                  aria-label="Personalized feed producer prompt template"
                 />
               </div>
             )}

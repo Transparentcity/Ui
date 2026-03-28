@@ -35,8 +35,8 @@ interface FeedCardProps {
   /** Show action tooltips on first card for new users. */
   showTooltips?: boolean;
   /**
-   * When set, stories whose in-app target is `/feed/{id}` open here instead of navigating.
-   * Other {@link EnrichedFeedStory.canonical_url} targets still use client navigation.
+   * When set, open the story in the in-app feed detail surface instead of
+   * navigating away from the feed.
    */
   onOpenFeedDetail?: (story: EnrichedFeedStory) => void;
 }
@@ -72,9 +72,7 @@ export default function FeedCard({
     // Don't navigate when an overlay is open
     if (overflowOpen || escalateOpen) return;
     trackEngagement.mutate({ storyId: story.id, action: "click" });
-    const openModal =
-      onOpenFeedDetail != null && story.canonical_url.startsWith("/feed/");
-    if (openModal) {
+    if (onOpenFeedDetail) {
       onOpenFeedDetail(story);
       return;
     }

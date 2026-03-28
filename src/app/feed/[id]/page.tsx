@@ -129,15 +129,15 @@ export default function FeedDetailPage() {
         {"\u2190"} Back
       </button>
 
-      <div className="mb-4 flex flex-wrap items-center gap-3 border-b border-gray-200 pb-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3 border-b border-gray-200 pb-3 dark:border-slate-600">
         <Link
           href={outboundPath}
-          className="inline-flex items-center gap-2 text-sm font-medium text-purple-700 hover:text-purple-900 hover:underline"
+          className="inline-flex items-center gap-2 text-sm font-medium text-purple-700 hover:text-purple-900 hover:underline dark:text-purple-400 dark:hover:text-purple-300"
           target="_blank"
           rel="noopener noreferrer"
         >
           <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
-          Open canonical page
+          Open page
         </Link>
       </div>
 

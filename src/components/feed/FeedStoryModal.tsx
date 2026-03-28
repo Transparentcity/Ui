@@ -118,19 +118,19 @@ export default function FeedStoryModal({
           <DialogTitle>{story?.headline ?? "Story"}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 pr-12">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 pr-12 dark:border-slate-600 dark:bg-slate-800/90">
           {story && outboundPath ? (
             <Link
               href={outboundPath}
-              className="inline-flex items-center gap-2 text-sm font-medium text-purple-700 hover:text-purple-900 hover:underline"
+              className="inline-flex items-center gap-2 text-sm font-medium text-purple-700 hover:text-purple-900 hover:underline dark:text-purple-400 dark:hover:text-purple-300"
               target="_blank"
               rel="noopener noreferrer"
             >
               <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
-              Open canonical page
+              Open page
             </Link>
           ) : (
-            <span className="text-sm text-gray-500">Loading…</span>
+            <span className="text-sm text-gray-500 dark:text-slate-400">Loading…</span>
           )}
         </div>
 

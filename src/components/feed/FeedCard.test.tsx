@@ -176,24 +176,7 @@ describe("FeedCard", () => {
     expect(mockPush).toHaveBeenCalledWith("/feed/42");
   });
 
-  it("opens in-app feed detail when onOpenFeedDetail is set and canonical is /feed/", () => {
-    const onOpenFeedDetail = vi.fn();
-    render(
-      <FeedCard
-        story={makeEnrichedStory({ canonical_url: "/feed/42" })}
-        onHide={onHide}
-        onDelete={onDelete}
-        onOpenFeedDetail={onOpenFeedDetail}
-      />,
-    );
-    fireEvent.click(screen.getByRole("link"));
-    expect(onOpenFeedDetail).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 42, canonical_url: "/feed/42" }),
-    );
-    expect(mockPush).not.toHaveBeenCalled();
-  });
-
-  it("still navigates for non-feed canonical URLs when onOpenFeedDetail is set", () => {
+  it("opens in-app feed detail when onOpenFeedDetail is set", () => {
     const onOpenFeedDetail = vi.fn();
     render(
       <FeedCard
@@ -208,8 +191,13 @@ describe("FeedCard", () => {
       />,
     );
     fireEvent.click(screen.getByRole("link"));
-    expect(onOpenFeedDetail).not.toHaveBeenCalled();
-    expect(mockPush).toHaveBeenCalledWith("/c/san-francisco/metrics/crime-incidents");
+    expect(onOpenFeedDetail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 42,
+        canonical_url: "/c/san-francisco/metrics/crime-incidents",
+      }),
+    );
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   // ── Template selection ─────────────────────────────────────────────────

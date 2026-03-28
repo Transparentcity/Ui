@@ -66,6 +66,7 @@ export default function FeedContainer({
     personalOnly: boolean;
     topic: string | null;
     displayLimit: number;
+    onlyMySavedPlaces: boolean;
   } | null {
     try {
       const raw = sessionStorage.getItem(FILTER_STORAGE_KEY);
@@ -79,6 +80,8 @@ export default function FeedContainer({
         personalOnly: parsed.personalOnly ?? false,
         topic: parsed.topic ?? null,
         displayLimit: parsed.displayLimit ?? 10,
+        onlyMySavedPlaces:
+          parsed.placeId != null ? false : (parsed.onlyMySavedPlaces ?? false),
       };
     } catch {
       return null;
@@ -103,6 +106,9 @@ export default function FeedContainer({
     saved.current?.topic ?? null,
   );
   const [displayLimit, setDisplayLimit] = useState(saved.current?.displayLimit ?? 10);
+  const [onlyMySavedPlacesFeed, setOnlyMySavedPlacesFeed] = useState(
+    saved.current?.onlyMySavedPlaces ?? false,
+  );
   const [feedOrder, setFeedOrder] = useState<"for_you" | "published_at">(() => {
     try {
       const saved = sessionStorage.getItem("feed-order");
@@ -131,12 +137,22 @@ export default function FeedContainer({
           personalOnly: personalNewsletterOnly,
           topic: selectedTopic,
           displayLimit,
+          onlyMySavedPlaces: onlyMySavedPlacesFeed,
         }),
       );
     } catch {
       // sessionStorage unavailable — ignore
     }
-  }, [selectedCityIds, selectedDistrict, selectedPlaceId, selectedFrequency, personalNewsletterOnly, selectedTopic, displayLimit]);
+  }, [
+    selectedCityIds,
+    selectedDistrict,
+    selectedPlaceId,
+    selectedFrequency,
+    personalNewsletterOnly,
+    selectedTopic,
+    displayLimit,
+    onlyMySavedPlacesFeed,
+  ]);
 
   // Save scroll position on every scroll so we can restore it after back-navigation
   const SCROLL_STORAGE_KEY = "feed-scroll-y";
@@ -178,7 +194,17 @@ export default function FeedContainer({
   }, [feedOrder]);
 
   // Reset display limit when filters change
-  useEffect(() => { setDisplayLimit(10); }, [selectedCityIds, selectedDistrict, selectedPlaceId, selectedFrequency, personalNewsletterOnly, selectedTopic]);
+  useEffect(() => {
+    setDisplayLimit(10);
+  }, [
+    selectedCityIds,
+    selectedDistrict,
+    selectedPlaceId,
+    selectedFrequency,
+    personalNewsletterOnly,
+    selectedTopic,
+    onlyMySavedPlacesFeed,
+  ]);
 
   // Reset district when city selection changes away from a single city
   useEffect(() => {
@@ -188,7 +214,21 @@ export default function FeedContainer({
   // Pass story_type to the API for server-side filtering
   const apiStoryType = selectedTopic ?? undefined;
 
-  const { data: feedData, isLoading, isFetching, isPlaceholderData, error, refetch } = useFeedStories({
+  const apiOnlyMySavedPlaces =
+    isAuthenticated &&
+    onlyMySavedPlacesFeed &&
+    selectedPlaceId == null &&
+    !personalNewsletterOnly &&
+    userPlaces.length > 0;
+
+  const {
+    data: feedData,
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    error,
+    refetch,
+  } = useFeedStories({
     city_id: personalNewsletterOnly ? undefined : singleCityId,
     district: personalNewsletterOnly ? undefined : (singleCityId ? (selectedDistrict ?? undefined) : undefined),
     newsletter_frequency: selectedFrequency ?? undefined,
@@ -199,6 +239,7 @@ export default function FeedContainer({
     story_type: apiStoryType,
     user_place_id:
       isAuthenticated && selectedPlaceId != null ? selectedPlaceId : undefined,
+    only_my_saved_places: apiOnlyMySavedPlaces,
   });
 
   const stories = feedData?.stories ?? [];
@@ -460,9 +501,31 @@ export default function FeedContainer({
     pulling.current = false;
   }, [pullDistance, refreshing, refetch]);
 
+  /** Header / retry refetch: tied to refetch() promise so the loader stops when the request finishes. */
+  const explicitRefetchInFlight = useRef(0);
+  const [headerRefetchBusy, setHeaderRefetchBusy] = useState(false);
+
+  const runExplicitFeedRefetch = useCallback(() => {
+    explicitRefetchInFlight.current += 1;
+    setHeaderRefetchBusy(true);
+    void refetch().finally(() => {
+      explicitRefetchInFlight.current -= 1;
+      if (explicitRefetchInFlight.current <= 0) {
+        explicitRefetchInFlight.current = 0;
+        setHeaderRefetchBusy(false);
+      }
+    });
+  }, [refetch]);
+
+  const headerRefreshSpinning = refreshing || headerRefetchBusy;
+
   // ── Render ──
 
-  const hasSecondaryFilters = selectedTopic != null || selectedDistrict != null || selectedPlaceId != null;
+  const hasSecondaryFilters =
+    selectedTopic != null ||
+    selectedDistrict != null ||
+    selectedPlaceId != null ||
+    onlyMySavedPlacesFeed;
 
   // ── Dynamic header ──
   const selectedCityName = useMemo(() => {
@@ -487,15 +550,27 @@ export default function FeedContainer({
         <button
           type="button"
           className={styles.refreshBtn}
-          onClick={() => refetch()}
+          onClick={() => runExplicitFeedRefetch()}
           aria-label="Refresh feed"
+          aria-busy={headerRefreshSpinning}
           title="Refresh feed"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="23 4 23 10 17 10"></polyline>
-            <polyline points="1 20 1 14 7 14"></polyline>
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-          </svg>
+          {headerRefreshSpinning ? (
+            <BrandedLoader
+              size="sm"
+              color="brand"
+              ariaHidden
+              className={styles.refreshBtnIconWrap}
+            />
+          ) : (
+            <span className={styles.refreshBtnIconWrap}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <polyline points="1 20 1 14 7 14"></polyline>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+            </span>
+          )}
         </button>
       </div>
 
@@ -548,10 +623,18 @@ export default function FeedContainer({
             <button
               key="my-places-toggle"
               type="button"
-              className={`${styles.filterChip} ${showPlaces || selectedPlaceId !== null ? styles.filterChipActive : ""}`}
+              className={`${styles.filterChip} ${showPlaces || selectedPlaceId !== null || onlyMySavedPlacesFeed ? styles.filterChipActive : ""}`}
               onClick={() => {
-                setShowPlaces((v) => !v);
                 setShowDistricts(false);
+                setShowPlaces((prev) => {
+                  const opening = !prev;
+                  // Enter "all my saved places" feed mode when opening the menu
+                  // unless the user is already narrowed to one place.
+                  if (opening && selectedPlaceId == null) {
+                    setOnlyMySavedPlacesFeed(true);
+                  }
+                  return opening;
+                });
               }}
               aria-expanded={showPlaces}
             >
@@ -619,6 +702,7 @@ export default function FeedContainer({
               setSelectedDistrict(null);
               setSelectedPlaceId(null);
               setSelectedTopic(null);
+              setOnlyMySavedPlacesFeed(false);
               setShowDistricts(false);
               setShowPlaces(false);
             }}
@@ -634,8 +718,12 @@ export default function FeedContainer({
           <div className={styles.filterChipScroll}>
             <button
               type="button"
-              className={`${styles.filterChip} ${selectedPlaceId === null ? styles.filterChipActive : ""}`}
-              onClick={() => { setSelectedPlaceId(null); setShowPlaces(false); }}
+              className={`${styles.filterChip} ${selectedPlaceId === null && onlyMySavedPlacesFeed ? styles.filterChipActive : ""}`}
+              onClick={() => {
+                setSelectedPlaceId(null);
+                setOnlyMySavedPlacesFeed(true);
+                setShowPlaces(false);
+              }}
             >
               All Places
             </button>
@@ -644,7 +732,11 @@ export default function FeedContainer({
                 key={p.id}
                 type="button"
                 className={`${styles.filterChip} ${selectedPlaceId === p.id ? styles.filterChipActive : ""}`}
-                onClick={() => { setSelectedPlaceId(p.id); setShowPlaces(false); }}
+                onClick={() => {
+                  setSelectedPlaceId(p.id);
+                  setOnlyMySavedPlacesFeed(false);
+                  setShowPlaces(false);
+                }}
               >
                 {p.label}
               </button>
@@ -708,7 +800,7 @@ export default function FeedContainer({
           <button
             type="button"
             className={styles.retryBtn}
-            onClick={() => refetch()}
+            onClick={() => runExplicitFeedRefetch()}
           >
             Retry
           </button>
@@ -721,6 +813,8 @@ export default function FeedContainer({
           <p>
             {personalNewsletterOnly
               ? "No personal newsletter samples yet. Generate one from Settings \u2192 Personalized newsletter."
+              : onlyMySavedPlacesFeed
+                ? "No personalized place stories yet. We generate these for your saved places over time—check back soon."
               : hasSecondaryFilters || selectedCityIds.size > 0
                 ? (() => {
                     const parts: string[] = [];
@@ -755,6 +849,7 @@ export default function FeedContainer({
                 setSelectedDistrict(null);
                 setSelectedPlaceId(null);
                 setSelectedTopic(null);
+                setOnlyMySavedPlacesFeed(false);
               }}
             >
               Clear all filters
@@ -768,7 +863,9 @@ export default function FeedContainer({
         !error &&
         visibleStories.length === 0 &&
         stories.length > 0 &&
-        (selectedTopic === "my_block" || selectedPlaceId !== null) && (
+        (selectedTopic === "my_block" ||
+          selectedPlaceId !== null ||
+          onlyMySavedPlacesFeed) && (
         <div className={styles.emptyState}>
           <p className={styles.myBlockEmptyTitle}>No stories for this place yet</p>
           <p className={styles.myBlockEmptyText}>

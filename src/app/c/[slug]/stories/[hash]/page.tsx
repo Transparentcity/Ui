@@ -236,15 +236,49 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
             }}
           />
         ) : (
-          story.summary && (
-            <p style={{ lineHeight: 1.7, color: "var(--text-secondary)" }}>
-              {story.summary}
-            </p>
-          )
+          <>
+            {story.summary && (
+              <p style={{ lineHeight: 1.7, color: "var(--text-secondary)" }}>
+                {story.summary}
+              </p>
+            )}
+            {/* Fallback: embed primary visualization when no article_html */}
+            {story.primary_visualization && story.visualization_type && (() => {
+              const vizType = story.visualization_type.toLowerCase();
+              const pv = story.primary_visualization as Record<string, unknown>;
+              const vizId = pv.id != null ? Number(pv.id) : null;
+              const vizHash = typeof pv.short_hash === "string" ? pv.short_hash : null;
+              let iframeSrc: string | null = null;
+              if ((vizType === "anomaly" || vizType === "anomaly_chart") && vizId != null) {
+                iframeSrc = `/a/${vizId}?embedded=true`;
+              } else if (vizType === "chart" && vizId != null) {
+                iframeSrc = `/t/${vizId}?embedded=true`;
+              } else if (vizType === "map" && vizHash) {
+                iframeSrc = `/m/${vizHash}?embedded=true`;
+              } else if (vizType === "map" && vizId != null) {
+                iframeSrc = `/m/${vizId}?embedded=true`;
+              }
+              return iframeSrc ? (
+                <div
+                  className="story-article-body"
+                  style={{ marginTop: 8 }}
+                >
+                  <div className="visualization-embed">
+                    <iframe
+                      src={iframeSrc}
+                      title="Visualization"
+                      style={{ width: "100%", height: "420px", border: "none", display: "block" }}
+                      loading="lazy"
+                    />
+                  </div>
+                </div>
+              ) : null;
+            })()}
+          </>
         )}
 
         {/* CTA */}
-        {story.detail_url && story.detail_url !== `/s/${hash}` && story.detail_url !== `/c/${slug}/stories/${hash}` && (
+        {story.detail_url && story.detail_url !== `/s/${hash}` && story.detail_url !== `/c/${slug}/stories/${hash}` && !/^\/c\/[^/]+\/stories\//.test(story.detail_url) && (
           <div style={{ marginTop: 40, paddingTop: 24, borderTop: "1px solid var(--border-subtle, #e5e7eb)" }}>
             <a
               href={story.detail_url}

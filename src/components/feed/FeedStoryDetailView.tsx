@@ -5,8 +5,23 @@ import Link from "next/link";
 import { Share2 } from "lucide-react";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import type { DetailNarrative } from "@/lib/feed/fetchReportNarratives";
+import { processVisualizationShortcodes } from "@/lib/visualizationShortcodes";
 import EscalateSheet from "./EscalateSheet";
 import styles from "./feed.module.css";
+
+/**
+ * Returns true when a detail_url is just a reference to the story's own page —
+ * i.e. it's a /s/{hash} short-URL or a /c/{slug}/stories/{hash} canonical path.
+ * These are suppressed as CTAs since the "Open page" link in the modal header
+ * already covers them.
+ */
+function isStoryPageUrl(detailUrl: string, canonicalUrl?: string): boolean {
+  if (!detailUrl) return false;
+  if (detailUrl.startsWith("/s/")) return true;
+  if (/^\/c\/[^/]+\/stories\//.test(detailUrl)) return true;
+  if (canonicalUrl && detailUrl === canonicalUrl) return true;
+  return false;
+}
 
 function formatFullDate(dateStr: string | null | undefined): string {
   if (!dateStr) return "";
@@ -110,6 +125,7 @@ export function FeedStoryDetailView({
   const [escalateOpen, setEscalateOpen] = useState(false);
 
   const publishedDate = formatFullDate(story.published_at);
+  const articleHtml = story.article_html?.trim() || null;
 
   const pv = story.primary_visualization;
   const vizType = (story.visualization_type ?? pv?.type ?? "").toLowerCase();
@@ -182,14 +198,32 @@ export function FeedStoryDetailView({
         ) : null}
       </div>
 
-      <VizEmbed
-        vizType={vizType}
-        vizId={vizId}
-        vizHash={vizHash}
-        cardType={story.card_type}
-      />
+      {articleHtml && (
+        <div className={styles.detailNarrativeSection}>
+          <div
+            className={styles.detailArticleBody}
+            dangerouslySetInnerHTML={{
+              __html: processVisualizationShortcodes(articleHtml, {
+                showDebug: false,
+                chartHeight: "420px",
+                mapHeight: "480px",
+                anomalyHeight: "380px",
+              }),
+            }}
+          />
+        </div>
+      )}
 
-      {detailNarrative && detailNarrative.below.length > 0 && (
+      {!articleHtml && (
+        <VizEmbed
+          vizType={vizType}
+          vizId={vizId}
+          vizHash={vizHash}
+          cardType={story.card_type}
+        />
+      )}
+
+      {!articleHtml && detailNarrative && detailNarrative.below.length > 0 && (
         <div className={styles.detailNarrativeSection}>
           {detailNarrative.below.map((para, i) => (
             <p key={`below-${i}`} className={styles.detailDescription}>
@@ -199,7 +233,7 @@ export function FeedStoryDetailView({
         </div>
       )}
 
-      {story.detail_url && !story.detail_url.startsWith("/s/") && (
+      {story.detail_url && !isStoryPageUrl(story.detail_url, story.canonical_url) && (
         <a href={story.detail_url} className={styles.detailReportLink}>
           {story.cta_label || "Read full report"} {"\u2192"}
         </a>
@@ -242,7 +276,7 @@ export function FeedStoryDetailView({
                   </div>
                 </button>
               ) : (
-                <Link key={rs.id} href={`/feed/${rs.id}`} className={styles.relatedCard}>
+                <Link key={rs.id} href={rs.canonical_url} className={styles.relatedCard}>
                   <span className={styles.relatedIcon}>{rs.type_icon}</span>
                   <div className={styles.relatedContent}>
                     <span className={styles.relatedHeadline}>{rs.headline}</span>

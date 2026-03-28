@@ -72,6 +72,8 @@ export function useFeedStories(options?: {
   story_type?: string | null;
   /** Saved place filter (user_places.id); authenticated API only. */
   user_place_id?: number | null;
+  /** All stories tagged to any of the user's saved places (auth only). */
+  only_my_saved_places?: boolean;
 }) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
 

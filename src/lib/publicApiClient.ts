@@ -273,6 +273,8 @@ export type PublicFeedStory = {
   /** Long-form HTML for the canonical public story page (feed-producer stories). */
   article_html?: string | null;
   image_url?: string | null;
+  primary_visualization?: Record<string, unknown> | null;
+  visualization_type?: string | null;
 };
 
 export type PublicFeedStoriesResponse = {

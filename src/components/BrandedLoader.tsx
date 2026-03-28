@@ -11,6 +11,8 @@ interface BrandedLoaderProps {
   className?: string;
   /** Optional label shown below the loader */
   label?: string;
+  /** When true, hide from assistive tech (e.g. inside a labeled button) */
+  ariaHidden?: boolean;
 }
 
 const SIZE_PX: Record<LoaderSize, number> = {
@@ -41,6 +43,7 @@ export default function BrandedLoader({
   color = "brand",
   className,
   label,
+  ariaHidden = false,
 }: BrandedLoaderProps) {
   const uid = useId().replace(/:/g, "");
   const px = SIZE_PX[size];
@@ -50,8 +53,9 @@ export default function BrandedLoader({
   const maskTr = `mask-tr-${uid}`;
 
   return (
-    <div
+    <span
       className={className}
+      aria-hidden={ariaHidden || undefined}
       style={{
         display: "inline-flex",
         flexDirection: "column",
@@ -59,13 +63,13 @@ export default function BrandedLoader({
         gap: label ? 12 : 0,
       }}
     >
-      <div style={{ width: px, height: px }}>
+      <span style={{ display: "block", width: px, height: px }}>
         <svg
           viewBox="0 0 100 100"
           xmlns="http://www.w3.org/2000/svg"
           style={{ overflow: "visible", display: "block", width: "100%", height: "100%" }}
-          role="img"
-          aria-label="Loading"
+          role={ariaHidden ? undefined : "img"}
+          aria-label={ariaHidden ? undefined : "Loading"}
         >
           <defs>
             {/* Bottom-left mask */}
@@ -181,7 +185,7 @@ export default function BrandedLoader({
             mask={`url(#${maskTr})`}
           />
         </svg>
-      </div>
+      </span>
       {label && (
         <span
           style={{
@@ -193,6 +197,6 @@ export default function BrandedLoader({
           {label}
         </span>
       )}
-    </div>
+    </span>
   );
 }
