@@ -995,7 +995,7 @@ export default function ChatView({
 
   const selectedModelInfo = getSelectedModelInfo();
 
-  const renderAssistantMessage = (msg: Message) => {
+  const renderAssistantMessage = (msg: Message, isActiveStream: boolean = false) => {
     // Check if we have intermediate events for chronological rendering
     // Only use message-level events - session-level events contain ALL events from all messages
     // which would cause tool calls to appear at the top incorrectly
@@ -1090,6 +1090,15 @@ export default function ChatView({
         }
       }
 
+      if (isActiveStream) {
+        elements.push(
+          <div key="thinking" className={styles.thinkingIndicator}>
+            <span className={styles.thinkingDot} />
+            <span className={styles.thinkingDot} />
+            <span className={styles.thinkingDot} />
+          </div>
+        );
+      }
       return <>{elements}</>;
     } else {
       // Fallback: render content and tool calls separately (old behavior)
@@ -1105,6 +1114,13 @@ export default function ChatView({
           {msg.content && (
             <div className={styles.messageContent}>
               <MarkdownWithEmbeds content={msg.content} />
+            </div>
+          )}
+          {isActiveStream && (
+            <div className={styles.thinkingIndicator}>
+              <span className={styles.thinkingDot} />
+              <span className={styles.thinkingDot} />
+              <span className={styles.thinkingDot} />
             </div>
           )}
         </>
@@ -1353,7 +1369,7 @@ export default function ChatView({
                     {msg.role === "assistant" ? (
                       <div className={styles.assistantBubble}>
                         <div className={styles.assistantName}>Seymour</div>
-                        {renderAssistantMessage(msg)}
+                        {renderAssistantMessage(msg, isStreaming && msg.id === currentAssistantMessageId)}
                       </div>
                     ) : (
                       <div className={styles.messageContent}>{msg.content}</div>
@@ -1362,10 +1378,7 @@ export default function ChatView({
                 );
               })
           )}
-          {isStreaming && currentAssistantMessageId && (() => {
-            const assistantMsg = messages.find(m => m.id === currentAssistantMessageId);
-            return !assistantMsg || !assistantMsg.content;
-          })() && (
+          {isStreaming && currentAssistantMessageId && !messages.some(m => m.id === currentAssistantMessageId) && (
             <div className={`${styles.chatMessage} ${styles.assistantMessage}`}>
               <div className={styles.assistantBubble}>
                 <div className={styles.assistantName}>Seymour</div>
