@@ -80,9 +80,6 @@ export default function JobSessionList({
   }, [openMenuId]);
 
   const handleSessionClick = (sessionId: string) => {
-    if (sessionId === currentSessionId) {
-      return; // Don't reload the same session
-    }
     setOpenMenuId(null); // Close menu when clicking session
     onSessionClick(sessionId);
   };

@@ -1,48 +1,49 @@
-"use client";
+import { redirect, notFound } from "next/navigation";
+import { getPublicFeedStoryByHash, listPublicCitiesForSitemap } from "@/lib/publicApiClient";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { getPublicFeedStoryByHash } from "@/lib/api/feed";
+export const revalidate = 3600;
+
+type PageProps = {
+  params: Promise<{ hash: string }>;
+};
 
 /**
  * /s/[hash] — public short-URL for feed stories.
  *
- * Looks up the story by its short_hash via the public API,
- * then redirects to /feed/{id} for the full detail view.
+ * Performs a server-side 308 permanent redirect to the canonical
+ * /c/[slug]/stories/[hash] page so search engines index the right URL.
+ * Falls back to /feed/[id] for legacy stories without a city slug.
  */
-export default function StoryShortUrlPage() {
-  const params = useParams();
-  const router = useRouter();
-  const hash = params.hash as string;
-  const [error, setError] = useState<string | null>(null);
+export default async function StoryShortUrlPage({ params }: PageProps) {
+  const { hash } = await params;
+  if (!hash) notFound();
 
-  useEffect(() => {
-    if (!hash) return;
-
-    getPublicFeedStoryByHash(hash)
-      .then((res) => {
-        router.replace(`/feed/${res.story.id}`);
-      })
-      .catch(() => {
-        setError("Story not found or no longer available.");
-      });
-  }, [hash, router]);
-
-  if (error) {
-    return (
-      <div style={{ padding: "48px 24px", textAlign: "center" }}>
-        <h1 style={{ fontSize: 20, marginBottom: 8 }}>Story Not Found</h1>
-        <p style={{ color: "var(--text-secondary)" }}>{error}</p>
-        <a href="/" style={{ color: "var(--brand-primary, #ad35fa)", marginTop: 16, display: "inline-block" }}>
-          Go to homepage
-        </a>
-      </div>
-    );
+  let story: Awaited<ReturnType<typeof getPublicFeedStoryByHash>>["story"] | null = null;
+  try {
+    const res = await getPublicFeedStoryByHash(hash);
+    story = res.story;
+  } catch {
+    notFound();
   }
 
-  return (
-    <div style={{ padding: "48px 24px", textAlign: "center" }}>
-      <p style={{ color: "var(--text-secondary)" }}>Loading story...</p>
-    </div>
-  );
+  if (!story) notFound();
+
+  // Try to resolve city slug for the canonical URL
+  let citySlug: string | null = null;
+  if (story.city_id) {
+    try {
+      const cities = await listPublicCitiesForSitemap();
+      const match = cities.find((c) => c.id === story!.city_id);
+      citySlug = match?.slug ?? null;
+    } catch {
+      // fall through to legacy path
+    }
+  }
+
+  if (citySlug && hash) {
+    redirect(`/c/${citySlug}/stories/${hash}`);
+  }
+
+  // Legacy fallback: redirect to /feed/{id}
+  redirect(`/feed/${story.id}`);
 }

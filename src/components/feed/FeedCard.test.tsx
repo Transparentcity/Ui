@@ -178,6 +178,30 @@ describe("FeedCard", () => {
     expect(mockPush).toHaveBeenCalledWith("/feed/42");
   });
 
+  it("opens in-app feed detail when onOpenFeedDetail is set", () => {
+    const onOpenFeedDetail = vi.fn();
+    render(
+      <FeedCard
+        story={makeEnrichedStory({
+          canonical_url: "/c/san-francisco/metrics/crime-incidents",
+          card_type: "alert",
+          metadata: { metric_key: "crime-incidents" },
+        })}
+        onHide={onHide}
+        onDelete={onDelete}
+        onOpenFeedDetail={onOpenFeedDetail}
+      />,
+    );
+    fireEvent.click(screen.getByRole("link"));
+    expect(onOpenFeedDetail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 42,
+        canonical_url: "/c/san-francisco/metrics/crime-incidents",
+      }),
+    );
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
   // ── Template selection ─────────────────────────────────────────────────
 
   it("uses TextOnlyCard for text_only template", () => {

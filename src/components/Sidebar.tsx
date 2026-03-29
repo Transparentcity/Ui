@@ -116,6 +116,13 @@ export default function Sidebar({
   const [recentChatsExpanded, setRecentChatsExpanded] = useState(false);
   const [researchExpanded, setResearchExpanded] = useState(false);
   const [jobSessionsExpanded, setJobSessionsExpanded] = useState(false);
+
+  // Auto-expand Job Sessions section when viewing a job session
+  useEffect(() => {
+    if (isCurrentSessionJobSession) {
+      setJobSessionsExpanded(true);
+    }
+  }, [isCurrentSessionJobSession]);
   
   // Generate unique IDs for logo masks
   const baseId = useId();
@@ -372,37 +379,6 @@ export default function Sidebar({
             <span>New Chat</span>
           </button>
 
-          <button
-            className={`${styles.navItem} ${styles.newChatBtn} ${currentView === "feed" ? styles.navItemActive : ""}`}
-            id="feed-btn"
-            onClick={() =>
-              handleActionWithClose(() => {
-                if (onViewChange) {
-                  onViewChange("feed");
-                }
-              })
-            }
-          >
-            <span className={styles.navIcon}>
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path>
-                <path d="M18 14h-8"></path>
-                <path d="M15 18h-5"></path>
-                <path d="M10 6h8v4h-8V6Z"></path>
-              </svg>
-            </span>
-            <span>Feed</span>
-          </button>
-
           {(canAccessResearch || isAdmin) && (
             <button
               className={`${styles.navItem} ${styles.newChatBtn}`}
@@ -536,6 +512,37 @@ export default function Sidebar({
               onFindDistrict={onOpenFindDistrict}
             />
           )}
+
+          <button
+            className={`${styles.navItem} ${styles.newChatBtn} ${currentView === "feed" ? styles.navItemActive : ""}`}
+            id="feed-btn"
+            onClick={() =>
+              handleActionWithClose(() => {
+                if (onViewChange) {
+                  onViewChange("feed");
+                }
+              })
+            }
+          >
+            <span className={styles.navIcon}>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path>
+                <path d="M18 14h-8"></path>
+                <path d="M15 18h-5"></path>
+                <path d="M10 6h8v4h-8V6Z"></path>
+              </svg>
+            </span>
+            <span>Feed</span>
+          </button>
 
           {/* Spacing */}
           <div className={styles.navSectionSpacer}></div>
