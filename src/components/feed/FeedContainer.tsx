@@ -333,6 +333,8 @@ export default function FeedContainer({
 
   const visibleStories = useMemo(() => {
     const filtered = enrichedWithNarratives.filter((s) => {
+      // Filter out broken early prototype stories
+      if (s.id <= 10) return false;
       if (hiddenIds.has(s.id)) return false;
       if (selectedTopic && s.card_type !== selectedTopic) return false;
       if (selectedPlaceId !== null) {
@@ -349,18 +351,46 @@ export default function FeedContainer({
       return true;
     });
 
+    // Deduplicate: when two stories share a very similar headline for the
+    // same city/district, keep only the newer one (higher id).
+    const deduped: typeof filtered = [];
+    const seenKeys = new Map<string, number>(); // normalized headline → index in deduped
+
+    for (const story of filtered) {
+      // Build a dedup key: strip emoji, punctuation, extra spaces, lowercase
+      const normKey = (story.headline ?? "")
+        .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, "")
+        .replace(/[^a-zA-Z0-9\s]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+      const dedupKey = `${story.city_id}:${story.district ?? 0}:${normKey}`;
+
+      if (seenKeys.has(dedupKey)) {
+        // Keep whichever has the higher id (newer), replace if current is newer
+        const existingIdx = seenKeys.get(dedupKey)!;
+        if (story.id > deduped[existingIdx].id) {
+          deduped[existingIdx] = story;
+        }
+        // Skip adding duplicate
+      } else {
+        seenKeys.set(dedupKey, deduped.length);
+        deduped.push(story);
+      }
+    }
+
     // First-impression rule: ensure at least one visual card in the top 3
     // so new users see something engaging right away.
-    if (filtered.length > 3) {
-      const hasVisualInTop3 = filtered
+    if (deduped.length > 3) {
+      const hasVisualInTop3 = deduped
         .slice(0, 3)
         .some((s) => VISUAL_TEMPLATES.has(s.template));
       if (!hasVisualInTop3) {
-        const visualIdx = filtered.findIndex(
+        const visualIdx = deduped.findIndex(
           (s, i) => i >= 3 && VISUAL_TEMPLATES.has(s.template),
         );
         if (visualIdx !== -1) {
-          const reordered = [...filtered];
+          const reordered = [...deduped];
           const [visual] = reordered.splice(visualIdx, 1);
           reordered.splice(2, 0, visual); // insert at position 3 (index 2)
           return reordered;
@@ -368,7 +398,7 @@ export default function FeedContainer({
       }
     }
 
-    return filtered;
+    return deduped;
   }, [
     enrichedWithNarratives,
     hiddenIds,

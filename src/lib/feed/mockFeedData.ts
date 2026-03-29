@@ -9,6 +9,7 @@ import type { FeedStory } from "@/lib/hooks/useFeed";
 import { getApiBaseUrlForAssets } from "@/lib/apiBase";
 import { cleanDescription } from "./textCleanup";
 import { resolveCanonicalUrl } from "./canonicalUrl";
+import { normalizeHeadlineCaps, normalizeBusinessName, improveMultiMetricHeadline, stripLeadingEmoji, improveContextHeadline } from "./headlineCleanup";
 
 // ── Card types ──────────────────────────────────────────────────────────────
 
@@ -140,6 +141,17 @@ function deriveCardType(story: FeedStory): CardType {
   const storyType = (story.story_type ?? "").toLowerCase();
   const meta = story.metadata ?? {};
   const headline = (story.headline ?? "").toLowerCase();
+
+  // 0. Override: business stories mis-typed as alert/trend in the backend.
+  //    If headline has business-action verbs AND food/retail/venue keywords,
+  //    reclassify as "business" regardless of backend story_type.
+  if (
+    (storyType === "alert" || storyType === "trend") &&
+    /\b(?:opens?|closes?|registers?|files?|launches?|lands?|brings?|brews?|shutters?|plants?|pops?\s*up)\b/.test(headline) &&
+    /\b(?:caf[eé]|coffee|restaurant|bar|grill|market|shop|store|bakery|ramen|pizza|taco|burger|sushi|studio|gallery|boutique|salon|clinic|bookstore|pharmacy|popcorn|ice\s*cream|tattoo|ceramics|jewelry|beer|wine|liquor|patio|tavern|food|deli)\b/.test(headline)
+  ) {
+    return "business";
+  }
 
   // 1. Trust the backend story_type if it's a known card type
   if (KNOWN_CARD_TYPES.has(storyType)) return storyType as CardType;
@@ -316,8 +328,33 @@ export function enrichStory(story: FeedStory, placeMap?: PlaceMap): EnrichedFeed
       ? story.description
       : story.summary || story.description;
 
+  // 1. Strip leading emoji (card header already shows type_icon)
+  let normalizedHeadline = stripLeadingEmoji(story.headline ?? "");
+
+  // 2. Normalize ALL-CAPS business names in headline
+  normalizedHeadline = normalizeHeadlineCaps(normalizedHeadline);
+
+  // 3. Improve generic multi-metric headlines ("District N This Week — N Metrics Moving")
+  const meta = story.metadata ?? {};
+  if (cardType === "multi_metric" || template === "multi_metric") {
+    const metrics = Array.isArray(meta.metrics) ? meta.metrics as Array<{ name?: string | null; direction?: string; pct?: string | number }> : null;
+    normalizedHeadline = improveMultiMetricHeadline(normalizedHeadline, metrics);
+  }
+
+  // 4. Improve generic context story labels ("Top 311 complaints" → "Chicago's Top 311 Complaints This Month")
+  if (cardType === "context") {
+    normalizedHeadline = improveContextHeadline(normalizedHeadline, story.city_name ?? undefined);
+  }
+
+  // Also normalize business_name in metadata for display
+  if (meta.business_name && typeof meta.business_name === "string") {
+    meta.business_name = normalizeBusinessName(meta.business_name);
+  }
+
   const enriched: EnrichedFeedStory = {
     ...story,
+    headline: normalizedHeadline,
+    metadata: meta,
     card_type: cardType,
     template,
     applaud_count: story.applaud_count ?? story.like_count ?? 0,
@@ -325,12 +362,12 @@ export function enrichStory(story: FeedStory, placeMap?: PlaceMap): EnrichedFeed
     investigate_count: story.investigate_count ?? 0,
     type_icon: TYPE_ICONS[cardType],
     type_label: TYPE_LABELS[cardType],
-    actor: deriveActor(cardType, story.headline ?? ""),
+    actor: deriveActor(cardType, normalizedHeadline),
     neighborhood_label: neighborhoodLabel,
     subline: formatSubline(story),
     image_url_resolved: resolveImageUrl(story),
     embed_url_resolved: resolveEmbedUrl(story),
-    cleaned_description: cleanDescription(descriptionSource, story.headline, story.city_name ?? undefined, neighborhoodLabel)
+    cleaned_description: cleanDescription(descriptionSource, normalizedHeadline, story.city_name ?? undefined, neighborhoodLabel)
       || story.summary?.trim()
       || "",
     canonical_url: "", // placeholder, resolved below
