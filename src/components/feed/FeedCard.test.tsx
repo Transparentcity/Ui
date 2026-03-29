@@ -149,11 +149,10 @@ describe("FeedCard", () => {
     expect(screen.getByLabelText("Share")).toBeInTheDocument();
   });
 
-  it("renders Applaud and Flag buttons in action bar", () => {
+  it("does not render Applaud or Flag buttons", () => {
     renderCard();
-    expect(screen.getByLabelText("Applaud")).toBeInTheDocument();
-    expect(screen.getByLabelText("Flag")).toBeInTheDocument();
-    // Investigate only renders for officials (isOfficial prop)
+    expect(screen.queryByLabelText("Applaud")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Flag")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Investigate")).not.toBeInTheDocument();
   });
 

@@ -6,7 +6,6 @@ import { Share2 } from "lucide-react";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import type { DetailNarrative } from "@/lib/feed/fetchReportNarratives";
 import { processVisualizationShortcodes } from "@/lib/visualizationShortcodes";
-import EscalateSheet from "./EscalateSheet";
 import styles from "./feed.module.css";
 
 /**
@@ -98,11 +97,7 @@ export type FeedStoryDetailViewProps = {
   story: EnrichedFeedStory;
   detailNarrative: DetailNarrative | null;
   relatedStories: EnrichedFeedStory[];
-  applaudCount: number;
-  escalateCount: number;
-  onApplaud: () => void;
   onShare: () => void;
-  onEscalateSend: (comment: string, includeName: boolean) => void;
   /** When set, related stories open in-app (e.g. feed modal) instead of navigating. */
   onSelectRelatedStoryId?: (id: number) => void;
 };
@@ -115,15 +110,9 @@ export function FeedStoryDetailView({
   story,
   detailNarrative,
   relatedStories,
-  applaudCount,
-  escalateCount,
-  onApplaud,
   onShare,
-  onEscalateSend,
   onSelectRelatedStoryId,
 }: FeedStoryDetailViewProps) {
-  const [escalateOpen, setEscalateOpen] = useState(false);
-
   const publishedDate = formatFullDate(story.published_at);
   const articleHtml = story.article_html?.trim() || null;
 
@@ -131,10 +120,6 @@ export function FeedStoryDetailView({
   const vizType = (story.visualization_type ?? pv?.type ?? "").toLowerCase();
   const vizId = pv?.id != null ? Number(pv.id) : null;
   const vizHash = pv?.short_hash ?? null;
-
-  const handleFlag = () => {
-    setEscalateOpen(true);
-  };
 
   return (
     <>
@@ -242,12 +227,6 @@ export function FeedStoryDetailView({
       <hr className={styles.detailDivider} />
 
       <div className={styles.detailActionBar}>
-        <button type="button" className={styles.detailActionBtn} onClick={onApplaud}>
-          {"\u{1F44F}"} {applaudCount > 0 ? `${applaudCount} ` : ""}Applaud
-        </button>
-        <button type="button" className={styles.detailActionBtn} onClick={handleFlag}>
-          {"\u{1F6A9}"} {escalateCount > 0 ? `${escalateCount} ` : ""}Flag
-        </button>
         <button type="button" className={styles.detailActionBtn} onClick={onShare}>
           <Share2 size={16} /> Share
         </button>
@@ -289,14 +268,6 @@ export function FeedStoryDetailView({
         </>
       )}
 
-      <EscalateSheet
-        open={escalateOpen}
-        headline={story.headline}
-        onClose={() => setEscalateOpen(false)}
-        onSend={(comment, includeName) => {
-          onEscalateSend(comment, includeName);
-        }}
-      />
     </>
   );
 }

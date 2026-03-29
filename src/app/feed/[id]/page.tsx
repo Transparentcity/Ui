@@ -16,8 +16,6 @@ export default function FeedDetailPage() {
   const params = useParams();
   const router = useRouter();
   const storyId = Number(params.id);
-  const [applaudCount, setApplaudCount] = useState(0);
-  const [escalateCount, setEscalateCount] = useState(0);
   const [detailNarrative, setDetailNarrative] = useState<DetailNarrative | null>(null);
   const trackEngagement = useTrackFeedEngagement();
 
@@ -30,8 +28,6 @@ export default function FeedDetailPage() {
 
   useEffect(() => {
     if (rawStory) {
-      setApplaudCount(rawStory.applaud_count ?? rawStory.like_count ?? 0);
-      setEscalateCount(rawStory.escalate_count ?? rawStory.comment_count ?? 0);
       trackEngagement.mutate({ storyId: rawStory.id, action: "view" });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -58,12 +54,6 @@ export default function FeedDetailPage() {
 
   const outboundPath = story ? resolveOutboundCanonicalPath(story) : "";
 
-  const handleApplaud = () => {
-    setApplaudCount((c) => c + 1);
-    trackEngagement.mutate({ storyId, action: "like" });
-    toast.success("Applauded!");
-  };
-
   const handleShare = () => {
     if (!story) return;
     trackEngagement.mutate({ storyId, action: "share" });
@@ -76,10 +66,6 @@ export default function FeedDetailPage() {
         () => toast.error("Could not copy link"),
       );
     }
-  };
-
-  const handleEscalateSend = (_comment: string, _includeName: boolean) => {
-    setEscalateCount((c) => c + 1);
   };
 
   if (isLoading) {
@@ -109,8 +95,7 @@ export default function FeedDetailPage() {
         >
           {"\u2190"} Back
         </button>
-        <h1 className={styles.detailHeadline}>Story not found</h1>
-        <p className={styles.detailDescription}>
+        <p className={styles.errorState}>
           {error
             ? "Error loading story. Please try again later."
             : `No story with ID ${storyId} exists.`}
@@ -145,11 +130,7 @@ export default function FeedDetailPage() {
         story={story}
         detailNarrative={detailNarrative}
         relatedStories={relatedStories}
-        applaudCount={applaudCount}
-        escalateCount={escalateCount}
-        onApplaud={handleApplaud}
         onShare={handleShare}
-        onEscalateSend={handleEscalateSend}
       />
     </div>
   );
