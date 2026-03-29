@@ -72,9 +72,11 @@ export default function PhotoCard({ story, children, variant }: PhotoCardProps) 
 
   // Calculate days open for unresolved complaints
   const filedDate = (meta.filed_date ?? story.story_date) as string | undefined;
-  const daysOpen = statusLower === "open" && filedDate
-    ? Math.floor((Date.now() - new Date(filedDate).getTime()) / 86400000)
-    : null;
+  const daysOpen = (() => {
+    if (statusLower !== "open" || !filedDate) return null;
+    const time = new Date(filedDate).getTime();
+    return isNaN(time) ? null : Math.floor((Date.now() - time) / 86400000);
+  })();
 
   const showImage = story.image_url_resolved && !imgFailed;
 

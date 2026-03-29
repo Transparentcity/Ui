@@ -149,10 +149,12 @@ describe("FeedCard", () => {
     expect(screen.getByLabelText("Share")).toBeInTheDocument();
   });
 
-  it("renders Applaud and Flag in the action bar", () => {
+  it("renders Applaud and Flag buttons in action bar", () => {
     renderCard();
     expect(screen.getByLabelText("Applaud")).toBeInTheDocument();
     expect(screen.getByLabelText("Flag")).toBeInTheDocument();
+    // Investigate only renders for officials (isOfficial prop)
+    expect(screen.queryByLabelText("Investigate")).not.toBeInTheDocument();
   });
 
   it("applies off_the_charts CSS class for OTC stories", () => {

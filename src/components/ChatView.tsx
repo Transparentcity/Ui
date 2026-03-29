@@ -1362,6 +1362,18 @@ export default function ChatView({
                 );
               })
           )}
+          {isStreaming && !messages.some(m => m.id === currentAssistantMessageId) && (
+            <div className={`${styles.chatMessage} ${styles.assistantMessage}`}>
+              <div className={styles.assistantBubble}>
+                <div className={styles.assistantName}>Seymour</div>
+                <div className={styles.thinkingIndicator}>
+                  <span className={styles.thinkingDot} />
+                  <span className={styles.thinkingDot} />
+                  <span className={styles.thinkingDot} />
+                </div>
+              </div>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 

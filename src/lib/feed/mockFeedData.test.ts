@@ -124,6 +124,15 @@ describe("deriveCardType", () => {
     expect(enriched.card_type).toBe("311_images");
   });
 
+  it.each([
+    "graffiti", "pothole", "sidewalk", "litter", "dumping", "rodent", "blocked", "streetlight",
+  ])("detects 311_images from headline keyword '%s'", (keyword) => {
+    const enriched = enrichStory(
+      makeStory({ story_type: "manual", headline: `SF ${keyword} complaints surge` })
+    );
+    expect(enriched.card_type).toBe("311_images");
+  });
+
   it("defaults to alert when nothing matches", () => {
     const enriched = enrichStory(makeStory({ story_type: "research" }));
     expect(enriched.card_type).toBe("alert");
@@ -449,6 +458,25 @@ describe("enrichStories", () => {
     expect(result[3].embed_url_resolved).toBeTruthy();
   });
 
+  it("treats photo stories as visual for interleaving", () => {
+    // 4 text-only + 1 photo story (311_images with no embed_url)
+    const textStories = Array.from({ length: 4 }, (_, i) =>
+      makeStory({ id: i + 1, headline: `Text story ${i + 1}` })
+    );
+    const photoStory = makeStory({
+      id: 200,
+      story_type: "311_images",
+      headline: "Graffiti on Market St",
+    });
+    const all = [...textStories, photoStory];
+    const result = enrichStories(all);
+
+    expect(result).toHaveLength(5);
+    // The photo story should be interleaved at position 3 (every 3rd)
+    const photoIdx = result.findIndex((s) => s.id === 200);
+    expect(photoIdx).toBe(3);
+  });
+
   it("returns all stories when no viz stories present", () => {
     const stories = Array.from({ length: 5 }, (_, i) =>
       makeStory({ id: i + 1 })
@@ -489,6 +517,7 @@ describe("type metadata completeness", () => {
   const ALL_CARD_TYPES: CardType[] = [
     "alert", "trend", "business", "spending", "justice", "safety",
     "311_images", "my_block", "context", "multi_metric", "off_the_charts",
+    "comparison", "milestone",
   ];
 
   it("every card type has an icon", () => {
@@ -517,6 +546,8 @@ describe("type metadata completeness", () => {
       context: "Context",
       multi_metric: "This Week",
       off_the_charts: "Off the Charts",
+      comparison: "Your District",
+      milestone: "Milestone",
     };
     for (const [type, label] of Object.entries(expected)) {
       const enriched = enrichStory(makeStory({ story_type: type }));
