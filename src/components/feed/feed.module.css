@@ -1132,59 +1132,6 @@
   color: var(--text-tertiary);
 }
 
-/* ── Welcome banner (post-onboarding) ─────────────────────────────────────── */
-
-.welcomeBanner {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
-  margin-bottom: 16px;
-  background: var(--brand-primary-light, rgba(173, 53, 250, 0.06));
-  border: 1px solid var(--brand-primary, #ad35fa);
-  border-radius: var(--radius-lg, 12px);
-  animation: fadeIn 0.3s ease;
-}
-
-.welcomeBannerContent {
-  flex: 1;
-}
-
-.welcomeBannerTitle {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 4px 0;
-}
-
-.welcomeBannerText {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin: 0;
-  line-height: 1.5;
-}
-
-.welcomeBannerClose {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  color: var(--text-tertiary);
-  background: none;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.welcomeBannerClose:hover {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-}
-
 /* ── Pull-to-refresh ───────────────────────────────────────────────────────── */
 
 .pullIndicator {
@@ -1292,6 +1239,14 @@
   color: var(--text-primary);
 }
 
+.refreshBtnIconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
 /* ── My Block empty state ──────────────────────────────────────────────────── */
 
 .myBlockEmptyTitle {
@@ -1374,6 +1329,38 @@
 .detailDescription { font-size: 16px; line-height: 1.7; color: var(--text-primary); margin: 0 0 16px; }
 .detailDescription:last-child { margin-bottom: 0; }
 .detailNarrativeSection { margin: 0 0 24px; }
+.detailArticleBody {
+  font-size: 16px;
+  line-height: 1.75;
+  color: var(--text-primary);
+}
+.detailArticleBody h2 {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 32px 0 12px;
+  color: var(--text-primary);
+}
+.detailArticleBody p {
+  margin: 0 0 18px;
+}
+.detailArticleBody a {
+  color: var(--brand-primary, #ad35fa);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.detailArticleBody .visualization-embed {
+  margin: 24px 0;
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-secondary);
+}
+.detailArticleBody .visualization-embed iframe {
+  display: block;
+  width: 100%;
+  border: none;
+}
 .detailVizArea { background: var(--bg-secondary); border-radius: 12px; overflow: hidden; margin-bottom: 24px; min-height: 250px; display: flex; align-items: center; justify-content: center; position: relative; }
 .detailVizPlaceholder { text-align: center; padding: 40px; color: var(--text-secondary); }
 .detailVizLabel { font-size: 48px; display: block; margin-bottom: 12px; }
@@ -1392,6 +1379,13 @@
 .relatedList { display: flex; flex-direction: column; gap: 8px; }
 .relatedCard { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border-radius: 10px; background: var(--bg-secondary); text-decoration: none; color: inherit; transition: background 0.15s ease; }
 .relatedCard:hover { background: var(--bg-tertiary, #e8e8e8); }
+.relatedCardAsButton {
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
 .relatedIcon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
 .relatedContent { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .relatedHeadline { font-size: 14px; font-weight: 600; color: var(--text-primary); line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

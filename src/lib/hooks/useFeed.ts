@@ -70,6 +70,10 @@ export function useFeedStories(options?: {
   all_cities?: boolean;
   /** Filter by story type (e.g. 'off_the_charts', 'alert', 'trend'). */
   story_type?: string | null;
+  /** Saved place filter (user_places.id); authenticated API only. */
+  user_place_id?: number | null;
+  /** All stories tagged to any of the user's saved places (auth only). */
+  only_my_saved_places?: boolean;
 }) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
 

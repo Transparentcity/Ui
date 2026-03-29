@@ -12,6 +12,8 @@ import {
   getPublicCityDistricts,
   listPublicMapsForCity,
   getPublicLeadersForCity,
+  listPublicFeedStories,
+  type PublicFeedStory,
 } from "@/lib/publicApiClient";
 import CitySignupButton from "./CitySignupButton";
 import CityDashboardSection from "./CityDashboardSection";
@@ -128,14 +130,17 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
   let districts: number[] = [];
   let maps: Awaited<ReturnType<typeof listPublicMapsForCity>> = [];
   let leaders: Awaited<ReturnType<typeof getPublicLeadersForCity>> = [];
+  let feedStories: PublicFeedStory[] = [];
   if (city?.id) {
     try {
-      const [detail, mapsRes, leadersRes, cityDistrictsRes] = await Promise.all([
+      const [detail, mapsRes, leadersRes, cityDistrictsRes, feedRes] = await Promise.all([
         getPublicCityDetail(city.id),
         listPublicMapsForCity(city.id).catch(() => []),
         getPublicLeadersForCity(city.id).catch(() => []),
         getPublicCityDistricts(city.id).catch((): number[] => []),
+        listPublicFeedStories({ city_id: city.id, district: 0, limit: 6, order_by: "published_at" }).catch(() => ({ stories: [], count: 0 })),
       ]);
+      feedStories = feedRes.stories ?? [];
       cityDetail = detail;
       maps = mapsRes;
       leaders = leadersRes;
@@ -280,6 +285,55 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
           />
         )}
       </div>
+
+      {/* Feed: recent city stories from the feed producer */}
+      {feedStories.length > 0 && (
+        <section style={{ paddingTop: 40, paddingBottom: 40 }}>
+          <div className="container">
+            <header className="section-header" style={{ marginBottom: "1.25rem" }}>
+              <span className="section-badge">What&rsquo;s happening</span>
+              <h2 className="section-heading">Latest from {cityDisplayName}</h2>
+            </header>
+            <ul className="story-rows" style={{ maxWidth: 700 }}>
+              {feedStories.map((story) => {
+                const canonical =
+                  story.short_hash
+                    ? `/c/${slug}/stories/${story.short_hash}`
+                    : story.detail_url;
+                return (
+                  <li key={story.id}>
+                    <a
+                      href={canonical}
+                      className="story-row"
+                    >
+                      {story.image_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={story.image_url}
+                          alt=""
+                          className="story-row-img"
+                          style={{ width: 72, height: 56, objectFit: "cover", borderRadius: 6, flexShrink: 0 }}
+                        />
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span className="story-row-title">{story.headline}</span>
+                        {story.description && (
+                          <p className="story-row-desc">{story.description}</p>
+                        )}
+                        {story.published_at && (
+                          <p style={{ margin: 0, fontSize: 11, color: "var(--text-secondary)" }}>
+                            {new Date(story.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </p>
+                        )}
+                      </div>
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </section>
+      )}
 
       {/* Benefits + sign-up CTA */}
       <section className="city-benefits-section">

@@ -3,7 +3,7 @@
  * 
  * Shortcode formats:
  * - Charts: [chart:123] → embeds chart with ID 123
- * - Maps: [map:abc123] or [map:AzOP6s-N] → embeds map with short hash (alphanumeric + hyphens)
+ * - Maps: [map:abc123] or [map:AzOP6s-N] or [map:915Xp_iU] → embeds map with short hash (alphanumeric + hyphens + underscores)
  * - Anomalies: [anomaly:456] → embeds anomaly result with ID 456
  * 
  * Note: Charts (/t/{id}) and Maps (/m/{hash}) are FRONTEND routes,
@@ -17,6 +17,8 @@ export interface EmbedConfig {
   mapHeight?: string;
   anomalyHeight?: string;
   className?: string;
+  /** Show the shortcode debug label below each embed. Defaults to true. Set to false for public story pages. */
+  showDebug?: boolean;
 }
 
 const DEFAULT_CONFIG: Required<EmbedConfig> = {
@@ -26,6 +28,7 @@ const DEFAULT_CONFIG: Required<EmbedConfig> = {
   mapHeight: "500px",
   anomalyHeight: "400px",
   className: "visualization-embed",
+  showDebug: true,
 };
 
 function getEmbedThemeQuery(): string {
@@ -60,6 +63,9 @@ export function getChartEmbed(chartId: string | number, config: EmbedConfig = {}
   // Relative URL - /t/{id} is a frontend route in this same app
   const url = `/t/${chartId}?embedded=true${themeQuery}`;
   
+  const debugHtml = cfg.showDebug
+    ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
+    : "";
   return `
     <div class="${cfg.className} chart-embed" data-chart-id="${chartId}" data-shortcode="${shortcodeEscaped}">
       <iframe 
@@ -71,7 +77,7 @@ export function getChartEmbed(chartId: string | number, config: EmbedConfig = {}
         style="border: none; border-radius: 8px; background: #f8f9fa;"
         title="Chart ${chartId}"
       ></iframe>
-      <span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>
+      ${debugHtml}
     </div>
   `.trim();
 }
@@ -89,6 +95,9 @@ export function getMapEmbed(shortHash: string, config: EmbedConfig = {}): string
   // Relative URL - /m/{hash} is a frontend route in this same app
   const url = `/m/${shortHash}?embedded=true${themeQuery}`;
   
+  const debugHtml = cfg.showDebug
+    ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
+    : "";
   return `
     <div class="${cfg.className} map-embed" data-map-hash="${shortHash}" data-shortcode="${shortcodeEscaped}">
       <iframe 
@@ -100,7 +109,7 @@ export function getMapEmbed(shortHash: string, config: EmbedConfig = {}): string
         style="border: none; border-radius: 8px; background: #f8f9fa;"
         title="Map ${shortHash}"
       ></iframe>
-      <span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>
+      ${debugHtml}
     </div>
   `.trim();
 }
@@ -118,6 +127,9 @@ export function getAnomalyEmbed(resultId: string | number, config: EmbedConfig =
   // Relative URL - /a/{id} is a frontend route
   const url = `/a/${resultId}?embedded=true${themeQuery}`;
   
+  const debugHtml = cfg.showDebug
+    ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
+    : "";
   return `
     <div class="${cfg.className} anomaly-embed" data-anomaly-id="${resultId}" data-shortcode="${shortcodeEscaped}">
       <iframe 
@@ -129,7 +141,7 @@ export function getAnomalyEmbed(resultId: string | number, config: EmbedConfig =
         style="border: none; border-radius: 8px; background: #f8f9fa;"
         title="Anomaly ${resultId}"
       ></iframe>
-      <span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>
+      ${debugHtml}
     </div>
   `.trim();
 }
@@ -157,8 +169,8 @@ export function processVisualizationShortcodes(html: string, config: EmbedConfig
     return getChartEmbed(chartId, config);
   });
   
-  // Process map shortcodes: [map:abc123] or [map:AzOP6s-N] - alphanumeric + hyphens
-  const mapRegex = /\[map:([a-zA-Z0-9-]+)\]/g;
+  // Process map shortcodes: [map:abc123] or [map:AzOP6s-N] - alphanumeric + hyphens + underscores
+  const mapRegex = /\[map:([a-zA-Z0-9_-]+)\]/g;
   processed = processed.replace(mapRegex, (match, shortHash) => {
     return getMapEmbed(shortHash, config);
   });
@@ -193,8 +205,8 @@ export function extractVisualizationRefs(html: string): {
     charts.push(parseInt(match[1], 10));
   }
   
-  // Extract map hashes (alphanumeric + hyphens)
-  const mapMatches = html.matchAll(/\[map:([a-zA-Z0-9-]+)\]/g);
+  // Extract map hashes (alphanumeric + hyphens + underscores)
+  const mapMatches = html.matchAll(/\[map:([a-zA-Z0-9_-]+)\]/g);
   for (const match of mapMatches) {
     maps.push(match[1]);
   }
@@ -214,5 +226,5 @@ export function extractVisualizationRefs(html: string): {
 export function hasVisualizationShortcodes(html: string): boolean {
   if (!html) return false;
   // Match [chart:123], [map:abc-123], [anomaly:456] patterns
-  return /\[(chart|map|anomaly):[a-zA-Z0-9-]+\]/.test(html);
+  return /\[(chart|map|anomaly):[a-zA-Z0-9_-]+\]/.test(html);
 }

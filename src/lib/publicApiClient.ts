@@ -258,6 +258,7 @@ export type PublicFeedStory = {
   story_type: string;
   city_id: number;
   city_name?: string | null;
+  city_emoji?: string | null;
   district: number;
   headline: string;
   description: string;
@@ -267,6 +268,13 @@ export type PublicFeedStory = {
   cta_label?: string | null;
   story_date: string;
   published_at?: string | null;
+  short_hash?: string | null;
+  public_url?: string | null;
+  /** Long-form HTML for the canonical public story page (feed-producer stories). */
+  article_html?: string | null;
+  image_url?: string | null;
+  primary_visualization?: Record<string, unknown> | null;
+  visualization_type?: string | null;
 };
 
 export type PublicFeedStoriesResponse = {
@@ -289,6 +297,15 @@ export function listPublicFeedStories(options?: {
   return requestPublic<PublicFeedStoriesResponse>(
     `/api/feed/public${query ? `?${query}` : ""}`
   );
+}
+
+export type PublicFeedStoryResponse = {
+  story: PublicFeedStory;
+};
+
+/** Fetch a single feed story by its public short_hash. Use for SSR canonical pages. */
+export function getPublicFeedStoryByHash(hash: string): Promise<PublicFeedStoryResponse> {
+  return requestPublic<PublicFeedStoryResponse>(`/api/feed/public/story/by-hash/${hash}`);
 }
 
 export type PublicCitySearchResult = {

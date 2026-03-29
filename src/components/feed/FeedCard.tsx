@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
+import { resolveOutboundCanonicalPath } from "@/lib/feed/canonicalUrl";
 import { useTrackFeedEngagement } from "@/lib/hooks/useFeed";
 import CardActionBar from "./CardActionBar";
 import CompactCardActionBar from "./CompactCardActionBar";
@@ -27,9 +28,21 @@ interface FeedCardProps {
   /** @deprecated previewMode is no longer used; feed-preview routes have been removed */
   previewMode?: boolean;
   compact?: boolean;
+  /**
+   * When set, open the story in the in-app feed detail surface instead of
+   * navigating away from the feed.
+   */
+  onOpenFeedDetail?: (story: EnrichedFeedStory) => void;
 }
 
-export default function FeedCard({ story, isAdmin, onHide, onDelete, compact }: FeedCardProps) {
+export default function FeedCard({
+  story,
+  isAdmin,
+  onHide,
+  onDelete,
+  compact,
+  onOpenFeedDetail,
+}: FeedCardProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
   const trackEngagement = useTrackFeedEngagement();
@@ -48,12 +61,23 @@ export default function FeedCard({ story, isAdmin, onHide, onDelete, compact }: 
     // Don't navigate when an overlay is open
     if (overflowOpen) return;
     trackEngagement.mutate({ storyId: story.id, action: "click" });
+    if (onOpenFeedDetail) {
+      onOpenFeedDetail(story);
+      return;
+    }
     router.push(story.canonical_url);
-  }, [router, story.canonical_url, overflowOpen, trackEngagement]);
+  }, [
+    router,
+    story,
+    onOpenFeedDetail,
+    overflowOpen,
+    trackEngagement,
+  ]);
 
   const handleShare = useCallback(() => {
     trackEngagement.mutate({ storyId: story.id, action: "share" });
-    const url = `${window.location.origin}/feed/${story.id}`;
+    const path = resolveOutboundCanonicalPath(story);
+    const url = `${window.location.origin}${path}`;
 
     if (typeof navigator.share === "function") {
       navigator.share({ title: story.headline, url }).catch(() => {});
