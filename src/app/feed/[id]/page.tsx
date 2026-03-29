@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { useFeedStoryDetail, useCityFeedStories, useTrackFeedEngagement } from "@/lib/hooks/useFeed";
 import { enrichStory, enrichStories } from "@/lib/feed/mockFeedData";
 import { fetchDetailNarrative, type DetailNarrative } from "@/lib/feed/fetchReportNarratives";
-import EscalateSheet from "@/components/feed/EscalateSheet";
 import { Share2 } from "lucide-react";
 import styles from "@/components/feed/feed.module.css";
 
@@ -94,9 +93,6 @@ export default function FeedDetailPage() {
   const params = useParams();
   const router = useRouter();
   const storyId = Number(params.id);
-  const [escalateOpen, setEscalateOpen] = useState(false);
-  const [applaudCount, setApplaudCount] = useState(0);
-  const [escalateCount, setEscalateCount] = useState(0);
   const [detailNarrative, setDetailNarrative] = useState<DetailNarrative | null>(null);
   const trackEngagement = useTrackFeedEngagement();
 
@@ -107,11 +103,9 @@ export default function FeedDetailPage() {
   const rawStory = storyResponse?.story ?? null;
   const story = rawStory ? enrichStory(rawStory) : null;
 
-  // Initialize counts + track view on story load
+  // Track view on story load
   useEffect(() => {
     if (rawStory) {
-      setApplaudCount(rawStory.applaud_count ?? rawStory.like_count ?? 0);
-      setEscalateCount(rawStory.escalate_count ?? rawStory.comment_count ?? 0);
       trackEngagement.mutate({ storyId: rawStory.id, action: "view" });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -137,20 +131,6 @@ export default function FeedDetailPage() {
       .filter((s) => s.id !== rawStory.id)
       .slice(0, 3);
   }, [relatedData?.stories, rawStory]);
-
-  const handleApplaud = () => {
-    setApplaudCount((c) => c + 1);
-    trackEngagement.mutate({ storyId, action: "like" });
-    toast.success("Applauded!");
-  };
-
-  const handleFlag = () => {
-    setEscalateOpen(true);
-  };
-
-  const handleEscalateSend = () => {
-    setEscalateCount((c) => c + 1);
-  };
 
   const handleShare = () => {
     trackEngagement.mutate({ storyId, action: "share" });
@@ -325,20 +305,6 @@ export default function FeedDetailPage() {
           <button
             type="button"
             className={styles.detailActionBtn}
-            onClick={handleApplaud}
-          >
-            {"\u{1F44F}"} {applaudCount > 0 ? `${applaudCount} ` : ""}Applaud
-          </button>
-          <button
-            type="button"
-            className={styles.detailActionBtn}
-            onClick={handleFlag}
-          >
-            {"\u{1F6A9}"} {escalateCount > 0 ? `${escalateCount} ` : ""}Flag
-          </button>
-          <button
-            type="button"
-            className={styles.detailActionBtn}
             onClick={handleShare}
           >
             <Share2 size={16} /> Share
@@ -371,12 +337,6 @@ export default function FeedDetailPage() {
         )}
       </div>
 
-      <EscalateSheet
-        open={escalateOpen}
-        headline={story.headline}
-        onClose={() => setEscalateOpen(false)}
-        onSend={handleEscalateSend}
-      />
     </>
   );
 }
