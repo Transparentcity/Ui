@@ -37,8 +37,6 @@ export default function FeedStoryModal({
 }: FeedStoryModalProps) {
   const trackEngagement = useTrackFeedEngagement();
   const [detailNarrative, setDetailNarrative] = useState<DetailNarrative | null>(null);
-  const [applaudCount, setApplaudCount] = useState(0);
-  const [escalateCount, setEscalateCount] = useState(0);
 
   const activeId = open && storyId != null ? storyId : null;
   const { data: storyResponse, isLoading, error } = useFeedStoryDetail(activeId);
@@ -54,8 +52,6 @@ export default function FeedStoryModal({
 
   useEffect(() => {
     if (!rawStory) return;
-    setApplaudCount(rawStory.applaud_count ?? rawStory.like_count ?? 0);
-    setEscalateCount(rawStory.escalate_count ?? rawStory.comment_count ?? 0);
     trackEngagement.mutate({ storyId: rawStory.id, action: "view" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawStory?.id]);
@@ -83,13 +79,6 @@ export default function FeedStoryModal({
 
   const outboundPath = story ? resolveOutboundCanonicalPath(story) : "";
 
-  const handleApplaud = () => {
-    if (!story) return;
-    setApplaudCount((c) => c + 1);
-    trackEngagement.mutate({ storyId: story.id, action: "like" });
-    toast.success("Applauded!");
-  };
-
   const handleShare = () => {
     if (!story) return;
     trackEngagement.mutate({ storyId: story.id, action: "share" });
@@ -102,10 +91,6 @@ export default function FeedStoryModal({
         () => toast.error("Could not copy link"),
       );
     }
-  };
-
-  const handleEscalateSend = (_comment: string, _includeName: boolean) => {
-    setEscalateCount((c) => c + 1);
   };
 
   return (
@@ -160,11 +145,7 @@ export default function FeedStoryModal({
                 story={story}
                 detailNarrative={detailNarrative}
                 relatedStories={relatedStories}
-                applaudCount={applaudCount}
-                escalateCount={escalateCount}
-                onApplaud={handleApplaud}
                 onShare={handleShare}
-                onEscalateSend={handleEscalateSend}
                 onSelectRelatedStoryId={onSelectRelatedStory}
               />
             </div>

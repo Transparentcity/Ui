@@ -61,11 +61,7 @@ describe("FeedStoryDetailView", () => {
         })}
         detailNarrative={null}
         relatedStories={[]}
-        applaudCount={0}
-        escalateCount={0}
-        onApplaud={vi.fn()}
         onShare={vi.fn()}
-        onEscalateSend={vi.fn()}
       />,
     );
 

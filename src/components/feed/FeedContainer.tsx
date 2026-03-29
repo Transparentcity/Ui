@@ -34,7 +34,6 @@ interface FeedContainerProps {
   cityId?: number | null;
   district?: number | null;
   isAdmin?: boolean;
-  isOfficial?: boolean;
   cityLeadCityIds?: number[];
   userPlaces?: UserPlace[];
   onPlaceSaved?: () => void;
@@ -44,7 +43,6 @@ export default function FeedContainer({
   cityId,
   district,
   isAdmin = false,
-  isOfficial = false,
   userPlaces = [],
   onPlaceSaved,
 }: FeedContainerProps) {
@@ -924,11 +922,9 @@ export default function FeedContainer({
                 key={story.id}
                 story={story}
                 isAdmin={isAdmin}
-                isOfficial={isOfficial}
                 onHide={handleHide}
                 onDelete={isAdmin ? handleDelete : undefined}
                 compact={isCompact}
-                showTooltips={storyIdx === 0}
                 onOpenFeedDetail={(s) => setFeedDetailStoryId(s.id)}
               />
             );
