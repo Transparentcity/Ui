@@ -1362,7 +1362,10 @@ export default function ChatView({
                 );
               })
           )}
-          {isStreaming && !messages.some(m => m.id === currentAssistantMessageId) && (
+          {isStreaming && currentAssistantMessageId && (() => {
+            const assistantMsg = messages.find(m => m.id === currentAssistantMessageId);
+            return !assistantMsg || !assistantMsg.content;
+          })() && (
             <div className={`${styles.chatMessage} ${styles.assistantMessage}`}>
               <div className={styles.assistantBubble}>
                 <div className={styles.assistantName}>Seymour</div>
