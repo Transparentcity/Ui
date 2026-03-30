@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveCanonicalUrl } from "./canonicalUrl";
+import { resolveCanonicalUrl, resolveOutboundCanonicalPath } from "./canonicalUrl";
 import type { EnrichedFeedStory } from "./mockFeedData";
 
 /** Minimal enriched story factory for testing. */
@@ -42,164 +42,146 @@ function makeStory(overrides: Partial<EnrichedFeedStory> = {}): EnrichedFeedStor
 }
 
 describe("resolveCanonicalUrl", () => {
-  // ── Multi-metric → city/district page ──────────────────────────────────
+  // ── Primary path: stories with short_hash → canonical story page ──
 
-  it("routes multi_metric citywide to city dashboard", () => {
+  it("routes story with short_hash and city to canonical story page", () => {
+    const story = makeStory({ short_hash: "abc123" });
+    expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/stories/abc123");
+  });
+
+  it("falls back to /s/{hash} when short_hash exists but no city_name", () => {
+    const story = makeStory({ short_hash: "abc123", city_name: null });
+    expect(resolveCanonicalUrl(story)).toBe("/s/abc123");
+  });
+
+  it("prefers short_hash over multi_metric city routing", () => {
+    const story = makeStory({ card_type: "multi_metric", short_hash: "xyz789", district: 0 });
+    expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/stories/xyz789");
+  });
+
+  it("prefers short_hash over metric_key metadata", () => {
+    const story = makeStory({
+      card_type: "alert",
+      short_hash: "fed123",
+      metadata: { metric_key: "crime-incidents" },
+    });
+    expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/stories/fed123");
+  });
+
+  it("routes alert story with short_hash to story page regardless of visualization", () => {
+    const story = makeStory({
+      card_type: "alert",
+      short_hash: "h1234567",
+      visualization_type: "anomaly",
+      visualization_ref_id: 99,
+    });
+    expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/stories/h1234567");
+  });
+
+  it("routes trend story with short_hash to story page", () => {
+    const story = makeStory({ card_type: "trend", short_hash: "tr123abc" });
+    expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/stories/tr123abc");
+  });
+
+  it("routes spending story with short_hash to story page", () => {
+    const story = makeStory({ card_type: "spending", short_hash: "sp456def" });
+    expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/stories/sp456def");
+  });
+
+  it("routes 311_images story with short_hash to story page", () => {
+    const story = makeStory({ card_type: "311_images", short_hash: "im789ghi" });
+    expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/stories/im789ghi");
+  });
+
+  it("routes map-viz story with short_hash to story page, not map page", () => {
+    const story = makeStory({
+      card_type: "context",
+      short_hash: "mp000xyz",
+      visualization_type: "map",
+      visualization_ref_id: 77,
+      primary_visualization: { short_hash: "maphash" },
+    });
+    expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/stories/mp000xyz");
+  });
+
+  it("routes research story with short_hash to story page, not /r/ URL", () => {
+    const story = makeStory({
+      story_type: "research",
+      card_type: "context",
+      short_hash: "rsh12345",
+      detail_url: "/r/xyz789",
+    });
+    expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/stories/rsh12345");
+  });
+
+  // ── Legacy no-hash: multi_metric / comparison → city/district page ──
+
+  it("routes legacy multi_metric (no hash) citywide to city dashboard", () => {
     const story = makeStory({ card_type: "multi_metric", district: 0 });
     expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco");
   });
 
-  it("routes multi_metric with district to district page", () => {
+  it("routes legacy multi_metric (no hash) with district to district page", () => {
     const story = makeStory({ card_type: "multi_metric", district: 5 });
     expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/district/5");
   });
 
-  it("routes comparison to city dashboard", () => {
+  it("routes legacy comparison (no hash) to city dashboard", () => {
     const story = makeStory({ card_type: "comparison", district: 0 });
     expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco");
   });
 
-  it("falls back to /feed/{id} for multi_metric without city_name", () => {
+  it("falls back to /feed/{id} for legacy multi_metric without city_name", () => {
     const story = makeStory({ card_type: "multi_metric", city_name: null });
     expect(resolveCanonicalUrl(story)).toBe("/feed/1");
   });
 
-  // ── Single metric → metric detail page ─────────────────────────────────
+  // ── Legacy no-hash: all other types fall back to /feed/{id} ──
 
-  it("routes alert with metric_key to metric detail", () => {
-    const story = makeStory({
-      card_type: "alert",
-      metadata: { metric_key: "crime-incidents" },
-    });
-    expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/metrics/crime-incidents");
-  });
-
-  it("routes trend with metric_key to metric detail", () => {
-    const story = makeStory({
-      card_type: "trend",
-      metadata: { metric_key: "pothole-reports" },
-    });
-    expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/metrics/pothole-reports");
-  });
-
-  it("routes off_the_charts with metric_key to metric detail", () => {
-    const story = makeStory({
-      card_type: "off_the_charts",
-      metadata: { metric_key: "fire-calls" },
-    });
-    expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/metrics/fire-calls");
-  });
-
-  it("includes district query param for district-level metric stories", () => {
-    const story = makeStory({
-      card_type: "alert",
-      district: 3,
-      metadata: { metric_key: "crime-incidents" },
-    });
-    expect(resolveCanonicalUrl(story)).toBe(
-      "/c/san-francisco/metrics/crime-incidents?district=3"
-    );
-  });
-
-  it("metric page wins over anomaly even when viz is anomaly type", () => {
-    const story = makeStory({
-      card_type: "alert",
-      visualization_type: "anomaly",
-      visualization_ref_id: 99,
-      metadata: { metric_key: "crime-incidents" },
-    });
-    expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/metrics/crime-incidents");
-  });
-
-  // ── Single metric in metrics array ─────────────────────────────────────
-
-  it("routes single-item metrics array to metric detail", () => {
-    const story = makeStory({
-      card_type: "context",
-      metadata: { metrics: [{ metric_key: "homeless-count" }] },
-    });
-    expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/metrics/homeless-count");
-  });
-
-  it("does not route multi-item metrics array to metric detail", () => {
-    const story = makeStory({
-      card_type: "context",
-      story_type: "context",
-      detail_url: "",
-      metadata: {
-        metrics: [
-          { metric_key: "homeless-count" },
-          { metric_key: "shelter-beds" },
-        ],
-      },
-    });
-    // Falls through to default
+  it("falls back to /feed/{id} for alert without short_hash", () => {
+    const story = makeStory({ card_type: "alert", metadata: { metric_key: "crime-incidents" } });
     expect(resolveCanonicalUrl(story)).toBe("/feed/1");
   });
 
-  // ── Anomaly → /a/{id} ─────────────────────────────────────────────────
-
-  it("routes anomaly viz without metric_key to anomaly page", () => {
-    const story = makeStory({
-      card_type: "alert",
-      visualization_type: "anomaly",
-      visualization_ref_id: 42,
-      metadata: {},
-    });
-    expect(resolveCanonicalUrl(story)).toBe("/a/42");
-  });
-
-  // ── Map → /m/{hash} ───────────────────────────────────────────────────
-
-  it("routes map viz to map page by hash", () => {
-    const story = makeStory({
-      card_type: "context",
-      visualization_type: "map",
-      primary_visualization: { short_hash: "abc123" },
-    });
-    expect(resolveCanonicalUrl(story)).toBe("/m/abc123");
-  });
-
-  it("routes map viz to map page by id when no hash", () => {
-    const story = makeStory({
-      card_type: "context",
-      visualization_type: "map",
-      visualization_ref_id: 77,
-      primary_visualization: {},
-    });
-    expect(resolveCanonicalUrl(story)).toBe("/m/77");
-  });
-
-  // ── Research → /r/{hash} ───────────────────────────────────────────────
-
-  it("routes research story with /r/ detail_url to research page", () => {
-    const story = makeStory({
-      story_type: "research",
-      card_type: "context",
-      detail_url: "/r/xyz789",
-    });
-    expect(resolveCanonicalUrl(story)).toBe("/r/xyz789");
-  });
-
-  // ── Default fallback → /feed/{id} ─────────────────────────────────────
-
-  it("routes spending to feed story page", () => {
+  it("falls back to /feed/{id} for spending without short_hash", () => {
     const story = makeStory({ card_type: "spending", story_type: "spending", detail_url: "" });
     expect(resolveCanonicalUrl(story)).toBe("/feed/1");
   });
 
-  it("routes justice to feed story page", () => {
-    const story = makeStory({ card_type: "justice", story_type: "justice", detail_url: "" });
+  it("falls back to /feed/{id} for anomaly viz without short_hash", () => {
+    const story = makeStory({
+      card_type: "alert",
+      visualization_type: "anomaly",
+      visualization_ref_id: 42,
+    });
     expect(resolveCanonicalUrl(story)).toBe("/feed/1");
   });
 
-  it("routes 311_images to feed story page", () => {
-    const story = makeStory({ card_type: "311_images", story_type: "311_images", detail_url: "" });
+  it("falls back to /feed/{id} for map viz without short_hash", () => {
+    const story = makeStory({
+      card_type: "context",
+      visualization_type: "map",
+      primary_visualization: { short_hash: "maphash" },
+    });
     expect(resolveCanonicalUrl(story)).toBe("/feed/1");
   });
 
-  it("routes context without special viz to feed story page", () => {
-    const story = makeStory({ card_type: "context", story_type: "context", detail_url: "/some/other" });
+  it("falls back to /feed/{id} for research /r/ detail_url without short_hash", () => {
+    const story = makeStory({ story_type: "research", card_type: "context", detail_url: "/r/xyz789" });
     expect(resolveCanonicalUrl(story)).toBe("/feed/1");
+  });
+});
+
+describe("resolveOutboundCanonicalPath", () => {
+  it("delegates entirely to resolveCanonicalUrl", () => {
+    const stories = [
+      makeStory({ short_hash: "abc123", city_name: "San Francisco" }),
+      makeStory({ short_hash: "abc123", city_name: null }),
+      makeStory({ card_type: "spending", story_type: "spending", detail_url: "" }),
+      makeStory({ card_type: "multi_metric", district: 0 }),
+    ];
+    for (const story of stories) {
+      expect(resolveOutboundCanonicalPath(story)).toBe(resolveCanonicalUrl(story));
+    }
   });
 });

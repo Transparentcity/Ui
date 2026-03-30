@@ -53,19 +53,31 @@ function makeStory(overrides: Partial<FeedStory> = {}): FeedStory {
 // Helper: replicate AlertCard's extractPctFromHeadline logic for unit testing
 function extractPctFromHeadline(headline: string): number | null {
   if (!headline) return null;
-  const upMatch = headline.match(/(?:up|rose|surged|jumped|point(?:ed)?|increase[ds]?|grew|spike[ds]?)\s+(\d+(?:\.\d+)?)%/i);
-  if (upMatch) return parseFloat(upMatch[1]);
-  const downMatch = headline.match(/(?:down|dropped|fell|declined?|decrease[ds]?|plunged|plummeted?|sank|shrank)\s+(\d+(?:\.\d+)?)%/i);
-  if (downMatch) return -parseFloat(downMatch[1]);
-  const aboveMatch = headline.match(/(\d+(?:\.\d+)?)%\s+(?:above|increase|higher|more|over|up)/i);
-  if (aboveMatch) return parseFloat(aboveMatch[1]);
-  const belowMatch = headline.match(/(\d+(?:\.\d+)?)%\s+(?:below|decrease|lower|less|under|down)/i);
-  if (belowMatch) return -parseFloat(belowMatch[1]);
-  const signedMatch = headline.match(/([+-])(\d+(?:\.\d+)?)%/);
-  if (signedMatch) return signedMatch[1] === "-" ? -parseFloat(signedMatch[2]) : parseFloat(signedMatch[2]);
+  const parsePct = (s: string) => parseFloat(s.replace(/,/g, ""));
+  const upMatch = headline.match(/(?:up|rose|surged|jumped|point(?:ed)?|increase[ds]?|grew|spike[ds]?)\s+([\d,]+(?:\.\d+)?)%/i);
+  if (upMatch) return parsePct(upMatch[1]);
+  const downMatch = headline.match(/(?:down|dropped|fell|declined?|decrease[ds]?|plunged|plummeted?|sank|shrank)\s+([\d,]+(?:\.\d+)?)%/i);
+  if (downMatch) return -parsePct(downMatch[1]);
+  const aboveMatch = headline.match(/([\d,]+(?:\.\d+)?)%\s+(?:above|increase|higher|more|over|up)/i);
+  if (aboveMatch) return parsePct(aboveMatch[1]);
+  const belowMatch = headline.match(/([\d,]+(?:\.\d+)?)%\s+(?:below|decrease|lower|less|under|down)/i);
+  if (belowMatch) return -parsePct(belowMatch[1]);
+  const signedMatch = headline.match(/([+-])([\d,]+(?:\.\d+)?)%/);
+  if (signedMatch) return signedMatch[1] === "-" ? -parsePct(signedMatch[2]) : parsePct(signedMatch[2]);
   if (/\bdoubled\b/i.test(headline)) return 100;
   if (/\btripled\b/i.test(headline)) return 200;
   return null;
+}
+
+// Helper: replicate SpendingCard's formatAmount logic for unit testing
+function formatAmount(raw: number | string | undefined): string {
+  if (raw == null) return "";
+  const n = typeof raw === "string" ? parseFloat(raw) : raw;
+  if (isNaN(n)) return String(raw);
+  if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+  return `$${n.toLocaleString()}`;
 }
 
 // Helper: replicate SpendingCard's extractDollarAmount logic
@@ -150,6 +162,48 @@ describe("extractPctFromHeadline", () => {
 
   it("extracts 'Plunged X%' pattern", () => {
     expect(extractPctFromHeadline("Restaurant Inspections Plunged 60% During Holiday Week")).toBe(-60);
+  });
+
+  it("extracts comma-separated '21,000% Above' pattern", () => {
+    expect(extractPctFromHeadline("21,000% Above Normal for That Category")).toBe(21_000);
+  });
+
+  it("extracts comma-separated 'Surged 1,200%' pattern", () => {
+    expect(extractPctFromHeadline("Spending Surged 1,200% Last Quarter")).toBe(1_200);
+  });
+
+  it("extracts comma-separated signed '+2,500%' pattern", () => {
+    expect(extractPctFromHeadline("+2,500% Recorded")).toBe(2_500);
+  });
+});
+
+describe("formatAmount", () => {
+  it("formats billions", () => {
+    expect(formatAmount(1_300_000_000)).toBe("$1.3B");
+  });
+
+  it("formats exactly 1 billion", () => {
+    expect(formatAmount(1_000_000_000)).toBe("$1.0B");
+  });
+
+  it("formats sub-billion as millions", () => {
+    expect(formatAmount(999_000_000)).toBe("$999.0M");
+  });
+
+  it("formats string input for billions", () => {
+    expect(formatAmount("1300000000")).toBe("$1.3B");
+  });
+
+  it("returns empty for undefined", () => {
+    expect(formatAmount(undefined)).toBe("");
+  });
+
+  it("formats millions", () => {
+    expect(formatAmount(4_200_000)).toBe("$4.2M");
+  });
+
+  it("formats thousands", () => {
+    expect(formatAmount(50_000)).toBe("$50K");
   });
 });
 

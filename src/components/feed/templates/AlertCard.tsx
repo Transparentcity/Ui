@@ -16,19 +16,20 @@ interface AlertCardProps {
  */
 function extractPctFromHeadline(headline: string): number | null {
   if (!headline) return null;
+  const parsePct = (s: string) => parseFloat(s.replace(/,/g, ""));
   // Match "Up/Rose/Surged/Jumped/Point X%" or "Down/Dropped/Fell/Declined X%"
-  const upMatch = headline.match(/(?:up|rose|surged|jumped|point(?:ed)?|increase[ds]?|grew|spike[ds]?)\s+(\d+(?:\.\d+)?)%/i);
-  if (upMatch) return parseFloat(upMatch[1]);
-  const downMatch = headline.match(/(?:down|dropped|fell|declined?|decrease[ds]?|plunged|plummeted?|sank|shrank)\s+(\d+(?:\.\d+)?)%/i);
-  if (downMatch) return -parseFloat(downMatch[1]);
+  const upMatch = headline.match(/(?:up|rose|surged|jumped|point(?:ed)?|increase[ds]?|grew|spike[ds]?)\s+([\d,]+(?:\.\d+)?)%/i);
+  if (upMatch) return parsePct(upMatch[1]);
+  const downMatch = headline.match(/(?:down|dropped|fell|declined?|decrease[ds]?|plunged|plummeted?|sank|shrank)\s+([\d,]+(?:\.\d+)?)%/i);
+  if (downMatch) return -parsePct(downMatch[1]);
   // Match "X% Above/Increase" or "X% Below/Decrease"
-  const aboveMatch = headline.match(/(\d+(?:\.\d+)?)%\s+(?:above|increase|higher|more|over|up)/i);
-  if (aboveMatch) return parseFloat(aboveMatch[1]);
-  const belowMatch = headline.match(/(\d+(?:\.\d+)?)%\s+(?:below|decrease|lower|less|under|down)/i);
-  if (belowMatch) return -parseFloat(belowMatch[1]);
+  const aboveMatch = headline.match(/([\d,]+(?:\.\d+)?)%\s+(?:above|increase|higher|more|over|up)/i);
+  if (aboveMatch) return parsePct(aboveMatch[1]);
+  const belowMatch = headline.match(/([\d,]+(?:\.\d+)?)%\s+(?:below|decrease|lower|less|under|down)/i);
+  if (belowMatch) return -parsePct(belowMatch[1]);
   // Match standalone "+X%" or "-X%"
-  const signedMatch = headline.match(/([+-])(\d+(?:\.\d+)?)%/);
-  if (signedMatch) return signedMatch[1] === "-" ? -parseFloat(signedMatch[2]) : parseFloat(signedMatch[2]);
+  const signedMatch = headline.match(/([+-])([\d,]+(?:\.\d+)?)%/);
+  if (signedMatch) return signedMatch[1] === "-" ? -parsePct(signedMatch[2]) : parsePct(signedMatch[2]);
   // Match "Doubled" / "Tripled" keywords
   if (/\bdoubled\b/i.test(headline)) return 100;
   if (/\btripled\b/i.test(headline)) return 200;

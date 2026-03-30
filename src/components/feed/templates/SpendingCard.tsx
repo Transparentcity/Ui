@@ -13,6 +13,7 @@ function formatAmount(raw: number | string | undefined): string {
   if (raw == null) return "";
   const n = typeof raw === "string" ? parseFloat(raw) : raw;
   if (isNaN(n)) return String(raw);
+  if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
   return `$${n.toLocaleString()}`;
@@ -24,16 +25,17 @@ function formatAmount(raw: number | string | undefined): string {
  */
 function extractPctFromText(text: string): number | null {
   if (!text) return null;
-  const upMatch = text.match(/(?:up|rose|surged|jumped|increase[ds]?|grew)\s+(\d+(?:\.\d+)?)%/i);
-  if (upMatch) return parseFloat(upMatch[1]);
-  const downMatch = text.match(/(?:down|dropped|fell|declined?|decrease[ds]?|shrank)\s+(\d+(?:\.\d+)?)%/i);
-  if (downMatch) return -parseFloat(downMatch[1]);
-  const aboveMatch = text.match(/(\d+(?:\.\d+)?)%\s+(?:above|higher|more|over)/i);
-  if (aboveMatch) return parseFloat(aboveMatch[1]);
-  const belowMatch = text.match(/(\d+(?:\.\d+)?)%\s+(?:below|lower|less|under)/i);
-  if (belowMatch) return -parseFloat(belowMatch[1]);
-  const signedMatch = text.match(/([+-])(\d+(?:\.\d+)?)%/);
-  if (signedMatch) return signedMatch[1] === "-" ? -parseFloat(signedMatch[2]) : parseFloat(signedMatch[2]);
+  const parsePct = (s: string) => parseFloat(s.replace(/,/g, ""));
+  const upMatch = text.match(/(?:up|rose|surged|jumped|increase[ds]?|grew)\s+([\d,]+(?:\.\d+)?)%/i);
+  if (upMatch) return parsePct(upMatch[1]);
+  const downMatch = text.match(/(?:down|dropped|fell|declined?|decrease[ds]?|shrank)\s+([\d,]+(?:\.\d+)?)%/i);
+  if (downMatch) return -parsePct(downMatch[1]);
+  const aboveMatch = text.match(/([\d,]+(?:\.\d+)?)%\s+(?:above|higher|more|over)/i);
+  if (aboveMatch) return parsePct(aboveMatch[1]);
+  const belowMatch = text.match(/([\d,]+(?:\.\d+)?)%\s+(?:below|lower|less|under)/i);
+  if (belowMatch) return -parsePct(belowMatch[1]);
+  const signedMatch = text.match(/([+-])([\d,]+(?:\.\d+)?)%/);
+  if (signedMatch) return signedMatch[1] === "-" ? -parsePct(signedMatch[2]) : parsePct(signedMatch[2]);
   return null;
 }
 
