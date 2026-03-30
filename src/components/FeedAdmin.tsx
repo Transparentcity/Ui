@@ -59,10 +59,14 @@ function filterByTime(stories: FeedStory[], range: TimeRange | ExportTimeRange, 
   });
 }
 
+const PAGE_SIZE = 50;
+const FETCH_BATCH = 200;
+
 export default function FeedAdmin() {
   const { getAccessTokenSilently } = useAuth0();
 
   const [stories, setStories] = useState<FeedStory[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [cities, setCities] = useState<CityWithFeedStories[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +74,9 @@ export default function FeedAdmin() {
   // Table filters
   const [timeRange, setTimeRange] = useState<TimeRange>("all");
   const [selectedCityId, setSelectedCityId] = useState<number | null>(null);
+
+  // Table pagination
+  const [page, setPage] = useState(0);
 
   // Export state
   const [showExport, setShowExport] = useState(false);
@@ -85,12 +92,34 @@ export default function FeedAdmin() {
       setLoading(true);
       setError(null);
       const token = await getAccessTokenSilently();
-      const [storiesRes, citiesRes] = await Promise.all([
-        listFeedStories(token, { all_cities: true, limit: 200, order_by: "story_date:desc" }),
+
+      // Fetch cities in parallel with first batch of stories
+      const [firstBatch, citiesRes] = await Promise.all([
+        listFeedStories(token, { all_cities: true, limit: FETCH_BATCH, offset: 0, order_by: "story_date:desc" }),
         listCitiesWithFeedStories(token),
       ]);
-      setStories(storiesRes.stories);
+
+      let allStories = [...firstBatch.stories];
+      const total = firstBatch.count;
+      setTotalCount(total);
       setCities(citiesRes);
+
+      // Fetch remaining pages if there are more stories
+      if (total > FETCH_BATCH) {
+        const remaining = Math.ceil((total - FETCH_BATCH) / FETCH_BATCH);
+        for (let i = 1; i <= remaining; i++) {
+          const batch = await listFeedStories(token, {
+            all_cities: true,
+            limit: FETCH_BATCH,
+            offset: i * FETCH_BATCH,
+            order_by: "story_date:desc",
+          });
+          allStories = [...allStories, ...batch.stories];
+          if (batch.stories.length < FETCH_BATCH) break;
+        }
+      }
+
+      setStories(allStories);
     } catch (err: any) {
       setError(err?.message || "Failed to load feed data");
     } finally {
@@ -115,8 +144,8 @@ export default function FeedAdmin() {
       if (d >= day) last24h++;
       if (d >= week) last7d++;
     }
-    return { total: stories.length, last24h, last7d };
-  }, [stories]);
+    return { total: totalCount || stories.length, last24h, last7d };
+  }, [stories, totalCount]);
 
   // Filtered stories for table
   const filteredStories = useMemo(() => {
@@ -126,6 +155,18 @@ export default function FeedAdmin() {
     }
     return result;
   }, [stories, timeRange, selectedCityId]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(0);
+  }, [timeRange, selectedCityId]);
+
+  // Paginated slice for table display
+  const totalPages = Math.max(1, Math.ceil(filteredStories.length / PAGE_SIZE));
+  const pagedStories = useMemo(() => {
+    const start = page * PAGE_SIZE;
+    return filteredStories.slice(start, start + PAGE_SIZE);
+  }, [filteredStories, page]);
 
   // Delete single story
   const handleDeleteStory = useCallback(
@@ -364,7 +405,7 @@ export default function FeedAdmin() {
                 </tr>
               </thead>
               <tbody>
-                {filteredStories.map((story) => (
+                {pagedStories.map((story) => (
                   <tr
                     key={story.id}
                     className={styles.rowClickable}
@@ -419,6 +460,28 @@ export default function FeedAdmin() {
             </table>
           )}
         </div>
+        {/* Pagination controls */}
+        {filteredStories.length > PAGE_SIZE && (
+          <div className={styles.pagination}>
+            <button
+              className={styles.secondaryBtn}
+              disabled={page === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+            >
+              Previous
+            </button>
+            <span className={styles.pageInfo}>
+              Page {page + 1} of {totalPages} ({filteredStories.length} stories)
+            </span>
+            <button
+              className={styles.secondaryBtn}
+              disabled={page >= totalPages - 1}
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Export Modal */}
