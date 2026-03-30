@@ -479,12 +479,15 @@
 }
 
 .iconBtn {
-  background: none;
-  border: none;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
   cursor: pointer;
-  padding: 4px;
+  padding: 5px;
   border-radius: 6px;
-  color: var(--text-secondary);
+  color: var(--error);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 @media (min-width: 768px) {
@@ -495,7 +498,8 @@
 }
 
 .iconBtnDanger:hover {
-  background: rgba(239, 68, 68, 0.12);
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.4);
   color: var(--error);
 }
 
