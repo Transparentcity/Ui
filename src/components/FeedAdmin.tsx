@@ -86,7 +86,7 @@ export default function FeedAdmin() {
       setError(null);
       const token = await getAccessTokenSilently();
       const [storiesRes, citiesRes] = await Promise.all([
-        listFeedStories(token, { all_cities: true, limit: 2000, order_by: "story_date:desc" }),
+        listFeedStories(token, { all_cities: true, limit: 200, order_by: "story_date:desc" }),
         listCitiesWithFeedStories(token),
       ]);
       setStories(storiesRes.stories);
