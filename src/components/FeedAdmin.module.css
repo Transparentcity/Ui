@@ -589,3 +589,18 @@
 .primaryBtn:hover {
   background: var(--brand-primary-hover);
 }
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-primary);
+}
+
+.pageInfo {
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
