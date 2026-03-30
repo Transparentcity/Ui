@@ -429,15 +429,7 @@
   transform: translateY(-1px);
 }
 
-/* Off the Charts accent */
-.cardOffTheCharts {
-  border-left: 3px solid var(--brand-primary, #ad35fa);
-  background: var(--brand-primary-light, rgba(173, 53, 250, 0.04));
-}
-
-.cardOffTheCharts:hover {
-  background: var(--brand-primary-light, rgba(173, 53, 250, 0.08));
-}
+/* Off the Charts — no special card background; uses default card styling */
 
 /* Raise z-index when overflow dropdown is open so it paints above adjacent cards */
 .cardMenuOpen {
@@ -1835,7 +1827,7 @@
 }
 
 .otcStatNumber {
-  font-size: 34px;
+  font-size: 24px;
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.5px;
