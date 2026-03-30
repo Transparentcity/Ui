@@ -361,15 +361,22 @@ export default function FeedAdmin() {
             Export CSV
           </button>
 
-          {selectedCityId !== null && (
-            <button
-              className={styles.dangerBtn}
-              onClick={handleBulkDelete}
-              disabled={bulkDeleting || filteredStories.length === 0}
-            >
-              {bulkDeleting ? "Deleting..." : `Delete All for City (${filteredStories.length})`}
-            </button>
-          )}
+          <button
+            className={styles.dangerBtn}
+            onClick={handleBulkDelete}
+            disabled={selectedCityId === null || bulkDeleting || filteredStories.length === 0}
+            title={selectedCityId === null ? "Select a city first" : ""}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+            {bulkDeleting
+              ? "Deleting..."
+              : selectedCityId !== null
+                ? `Delete All for City (${filteredStories.length})`
+                : "Delete All for City"}
+          </button>
 
           <button className={styles.secondaryBtn} onClick={loadData} style={{ marginLeft: "auto" }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -401,7 +408,7 @@ export default function FeedAdmin() {
                   <th className={styles.th}>Type</th>
                   <th className={`${styles.th} ${styles.hideNarrow}`}>Views</th>
                   <th className={`${styles.th} ${styles.hideNarrow}`}>Clicks</th>
-                  <th className={styles.th} style={{ width: 40 }}></th>
+                  <th className={styles.th} style={{ width: 60 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -447,7 +454,7 @@ export default function FeedAdmin() {
                         {deletingId === story.id ? (
                           <Loader size="sm" color="dark" />
                         ) : (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <polyline points="3 6 5 6 21 6" />
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                           </svg>
