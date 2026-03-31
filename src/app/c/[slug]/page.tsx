@@ -26,6 +26,7 @@ import CityPageClient from "./CityPageClient";
 import CustomizeMetricsTrigger from "./CustomizeMetricsTrigger";
 import DistrictFollowClaimBlock from "./district/DistrictFollowClaimBlock";
 import PublicNavBar from "@/components/PublicNavBar";
+import PageFeedback from "@/components/PageFeedback";
 
 export const revalidate = 3600;
 
@@ -434,6 +435,10 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
           </div>
         </div>
       </section>
+
+      <div className="container" style={{ paddingBottom: 40 }}>
+        <PageFeedback pageUrl={`/c/${slug}`} pageType="city" />
+      </div>
 
       <footer className="footer city-footer">
         <div className="container">
