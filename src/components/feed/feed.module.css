@@ -441,6 +441,16 @@
   background: rgba(16, 185, 129, 0.08);
 }
 
+/* Traction (good news) accent */
+.cardTraction {
+  border-left: 3px solid var(--success, #10b981);
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.cardTraction:hover {
+  background: rgba(16, 185, 129, 0.08);
+}
+
 /* Raise z-index when overflow dropdown is open so it paints above adjacent cards */
 .cardMenuOpen {
   z-index: 10;
