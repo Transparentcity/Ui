@@ -1,0 +1,208 @@
+import Link from "next/link";
+import PublicNavBar from "@/components/PublicNavBar";
+import Breadcrumb from "@/components/evergreen/Breadcrumb";
+import GradeDisplay from "@/components/evergreen/GradeDisplay";
+import TableOfContents from "@/components/evergreen/TableOfContents";
+import SafetyScorecard from "@/components/evergreen/SafetyScorecard";
+import TrendLineChart from "@/components/evergreen/TrendLineChart";
+import CrimeBreakdownCards from "@/components/evergreen/CrimeBreakdownCards";
+import StreetConditionsModule from "@/components/evergreen/StreetConditionsModule";
+import CrimeMapSection from "@/components/evergreen/CrimeMapSection";
+import PeerCityTable from "@/components/evergreen/PeerCityTable";
+import SectionNav from "@/components/evergreen/SectionNav";
+import JsonLd from "@/components/evergreen/JsonLd";
+import ConversionSlot from "@/components/evergreen/conversion/ConversionSlot";
+import type { CitySafePageProps } from "@/lib/evergreen/types";
+
+interface Props extends CitySafePageProps {
+  policeDashboardUrl?: string;
+}
+
+export default function CitySafePage({
+  city,
+  citySlug,
+  state,
+  lastUpdated,
+  dataAvailability,
+  safetyData,
+  crimeBreakdown,
+  streetConditions,
+  peerCityRankings,
+  safestDistricts,
+  leastSafeDistricts,
+  crimeMapMetricIds,
+  policeDashboardUrl,
+}: Props) {
+  const currentRank = peerCityRankings?.find((r) => r.isCurrentCity)?.rank;
+
+  const trendInsight =
+    safetyData.trendData && safetyData.trendData.length > 1
+      ? (() => {
+          const first = safetyData.trendData[0];
+          const last = safetyData.trendData[safetyData.trendData.length - 1];
+          const change = (
+            ((last.value - first.value) / first.value) *
+            100
+          ).toFixed(0);
+          const direction = Number(change) < 0 ? "decreased" : "increased";
+          return `Overall crime rate has ${direction} ${Math.abs(Number(change))}% over the past 24 months.`;
+        })()
+      : undefined;
+
+  const tocItems = [
+    { id: "scorecard", label: "Scorecard" },
+    ...(dataAvailability.crimeHistory && safetyData.trendData
+      ? [{ id: "trend", label: "Trend" }]
+      : []),
+    ...(dataAvailability.crimeIncidents
+      ? [{ id: "crime", label: "Crime Breakdown" }]
+      : []),
+    ...(crimeMapMetricIds
+      ? [{ id: "map", label: "Crime Map" }]
+      : []),
+    ...(peerCityRankings && peerCityRankings.length > 0
+      ? [{ id: "peer-comparison", label: "Peer Cities" }]
+      : []),
+    { id: "conditions", label: "Street Conditions" },
+  ];
+
+  return (
+    <>
+      <JsonLd
+        faqs={[
+          {
+            question: `Is ${city} safe?`,
+            answer: safetyData.verdictSummary,
+          },
+        ]}
+      />
+
+      <PublicNavBar>
+        <Link href={`/c/${citySlug}`} className="nav-link">
+          {city}
+        </Link>
+      </PublicNavBar>
+
+      <main className="max-w-4xl mx-auto px-4 py-8 space-y-10">
+        {/* Breadcrumb */}
+        <Breadcrumb
+          items={[
+            { label: "transparent.city", href: "/" },
+            { label: city, href: `/c/${citySlug}` },
+            { label: "Safety" },
+          ]}
+        />
+
+        {/* Lede */}
+        <header>
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+            Is {city} Safe?
+          </h1>
+          <GradeDisplay
+            safetyScore={safetyData.safetyScore}
+            percentileRank={safetyData.percentileRank}
+            locationName={city}
+            comparisonLabel="major US cities we track"
+            lastUpdated={lastUpdated}
+          />
+          {currentRank && (
+            <p className="mt-2 text-sm text-purple-700 font-medium">
+              Ranked #{currentRank} for safety improvement among 15 major US
+              cities
+            </p>
+          )}
+          <p className="mt-4 text-gray-700 leading-relaxed">
+            {safetyData.verdictSummary}
+          </p>
+        </header>
+
+        {/* Table of Contents */}
+        <TableOfContents items={tocItems} />
+
+        {/* Safety Scorecard */}
+        <SafetyScorecard
+          data={safetyData}
+          availability={dataAvailability}
+          locationLabel={city}
+          comparisonLabel="Peer city median"
+          city={city}
+          policeDashboardUrl={policeDashboardUrl}
+          sourceAttribution={`${city} Police Department crime incident data`}
+        />
+
+        {/* Trend Chart */}
+        {dataAvailability.crimeHistory && safetyData.trendData && (
+          <TrendLineChart
+            localData={safetyData.trendData}
+            localLabel={city}
+            trendInsight={trendInsight}
+          />
+        )}
+
+        {/* Crime Breakdown */}
+        <CrimeBreakdownCards
+          data={crimeBreakdown}
+          availability={dataAvailability}
+        />
+
+        {/* Crime Map */}
+        {crimeMapMetricIds && (
+          <CrimeMapSection
+            metricIds={crimeMapMetricIds}
+            lastUpdated={lastUpdated}
+            locationName={city}
+          />
+        )}
+
+        {/* Peer City Comparison */}
+        {peerCityRankings && peerCityRankings.length > 0 && (
+          <div id="peer-comparison">
+            <PeerCityTable rankings={peerCityRankings} currentCity={city} />
+          </div>
+        )}
+
+        {/* Street Conditions */}
+        <StreetConditionsModule
+          data={streetConditions}
+          availability={dataAvailability}
+          city={city}
+        />
+
+        {/* Email capture CTA */}
+        <ConversionSlot
+          position="after_conditions"
+          pageType="citySafe"
+          citySlug={citySlug}
+        />
+
+        {/* Before footer CTA */}
+        <ConversionSlot
+          position="before_footer"
+          pageType="citySafe"
+          citySlug={citySlug}
+        />
+
+        {/* District Rankings */}
+        <SectionNav
+          citySlug={citySlug}
+          cityName={city}
+          districtRankings={safestDistricts}
+          rankingLabel="Safest Districts"
+        />
+        <SectionNav
+          citySlug={citySlug}
+          cityName={city}
+          districtRankings={leastSafeDistricts}
+          rankingLabel="Districts to Research Further"
+        />
+
+        {/* Sticky mobile CTA */}
+        <ConversionSlot
+          position="sticky_bottom"
+          pageType="citySafe"
+          citySlug={citySlug}
+        />
+      </main>
+    </>
+  );
+}
