@@ -7,6 +7,7 @@ import SafetyScorecard from "@/components/evergreen/SafetyScorecard";
 import TrendLineChart from "@/components/evergreen/TrendLineChart";
 import CrimeBreakdownCards from "@/components/evergreen/CrimeBreakdownCards";
 import StreetConditionsModule from "@/components/evergreen/StreetConditionsModule";
+import CrimeMapSection from "@/components/evergreen/CrimeMapSection";
 import DistrictPulse from "@/components/evergreen/DistrictPulse";
 import SectionNav from "@/components/evergreen/SectionNav";
 import JsonLd from "@/components/evergreen/JsonLd";
@@ -23,6 +24,7 @@ export default function DistrictSafePage({
   state,
   district,
   districtSlug,
+  districtNumber,
   lastUpdated,
   dataAvailability,
   safetyData,
@@ -30,6 +32,7 @@ export default function DistrictSafePage({
   streetConditions,
   pulse,
   relatedDistricts,
+  crimeMapMetricIds,
   policeDashboardUrl,
 }: Props) {
   const trendInsight =
@@ -53,6 +56,9 @@ export default function DistrictSafePage({
       : []),
     ...(dataAvailability.crimeIncidents
       ? [{ id: "crime", label: "Crime Breakdown" }]
+      : []),
+    ...(crimeMapMetricIds
+      ? [{ id: "map", label: "Crime Map" }]
       : []),
     { id: "conditions", label: "Street Conditions" },
     { id: "pulse", label: "This Month" },
@@ -133,6 +139,16 @@ export default function DistrictSafePage({
           data={crimeBreakdown}
           availability={dataAvailability}
         />
+
+        {/* Crime Map */}
+        {crimeMapMetricIds && (
+          <CrimeMapSection
+            metricIds={crimeMapMetricIds}
+            lastUpdated={lastUpdated}
+            district={districtNumber}
+            locationName={district}
+          />
+        )}
 
         {/* Street Conditions */}
         <StreetConditionsModule

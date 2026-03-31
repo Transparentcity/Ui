@@ -7,6 +7,7 @@ import SafetyScorecard from "@/components/evergreen/SafetyScorecard";
 import TrendLineChart from "@/components/evergreen/TrendLineChart";
 import CrimeBreakdownCards from "@/components/evergreen/CrimeBreakdownCards";
 import StreetConditionsModule from "@/components/evergreen/StreetConditionsModule";
+import CrimeMapSection from "@/components/evergreen/CrimeMapSection";
 import PeerCityTable from "@/components/evergreen/PeerCityTable";
 import SectionNav from "@/components/evergreen/SectionNav";
 import JsonLd from "@/components/evergreen/JsonLd";
@@ -29,6 +30,7 @@ export default function CitySafePage({
   peerCityRankings,
   safestDistricts,
   leastSafeDistricts,
+  crimeMapMetricIds,
   policeDashboardUrl,
 }: Props) {
   const currentRank = peerCityRankings?.find((r) => r.isCurrentCity)?.rank;
@@ -54,6 +56,9 @@ export default function CitySafePage({
       : []),
     ...(dataAvailability.crimeIncidents
       ? [{ id: "crime", label: "Crime Breakdown" }]
+      : []),
+    ...(crimeMapMetricIds
+      ? [{ id: "map", label: "Crime Map" }]
       : []),
     ...(peerCityRankings && peerCityRankings.length > 0
       ? [{ id: "peer-comparison", label: "Peer Cities" }]
@@ -139,6 +144,15 @@ export default function CitySafePage({
           data={crimeBreakdown}
           availability={dataAvailability}
         />
+
+        {/* Crime Map */}
+        {crimeMapMetricIds && (
+          <CrimeMapSection
+            metricIds={crimeMapMetricIds}
+            lastUpdated={lastUpdated}
+            locationName={city}
+          />
+        )}
 
         {/* Peer City Comparison */}
         {peerCityRankings && peerCityRankings.length > 0 && (

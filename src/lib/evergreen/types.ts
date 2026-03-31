@@ -121,12 +121,18 @@ export interface RelatedDistrict {
 // Page props
 // ============================================================================
 
+export interface CrimeMapMetricIds {
+  violentCrime: number | null; // backend metric ID for violent crime
+  propertyCrime: number | null; // backend metric ID for property crime
+}
+
 export interface DistrictSafePageProps {
   city: string;
   citySlug: string;
   state: string;
   district: string;
   districtSlug: string;
+  districtNumber: number | null; // backend district number for map filtering
   lastUpdated: string; // ISO date
   dataAvailability: CityDataAvailability;
   safetyData: DistrictSafetyData;
@@ -134,6 +140,7 @@ export interface DistrictSafePageProps {
   streetConditions: StreetConditions;
   pulse: DistrictPulseData;
   relatedDistricts: RelatedDistrict[];
+  crimeMapMetricIds: CrimeMapMetricIds | null;
 }
 
 export interface PeerCityRanking {
@@ -163,6 +170,7 @@ export interface CitySafePageProps {
   peerCityRankings: PeerCityRanking[] | null;
   safestDistricts: DistrictSafetyRank[];
   leastSafeDistricts: DistrictSafetyRank[];
+  crimeMapMetricIds: CrimeMapMetricIds | null;
 }
 
 // ============================================================================

@@ -69,6 +69,7 @@ export const MISSION_DISTRICT_FIXTURE: DistrictSafePageProps = {
   state: "CA",
   district: "Mission District",
   districtSlug: "mission-district",
+  districtNumber: 5, // SF Police District for Mission
   lastUpdated: "2026-03-01",
   dataAvailability: SF_AVAILABILITY,
   safetyData: {
@@ -163,6 +164,10 @@ export const MISSION_DISTRICT_FIXTURE: DistrictSafePageProps = {
     { name: "Potrero Hill", slug: "potrero-hill", safetyScore: 7.4 },
     { name: "Bernal Heights", slug: "bernal-heights", safetyScore: 6.5 },
   ],
+  crimeMapMetricIds: {
+    violentCrime: 1001, // placeholder: SF violent crime metric ID
+    propertyCrime: 1002, // placeholder: SF property crime metric ID
+  },
 };
 
 // ============================================================================
@@ -306,6 +311,10 @@ export const SAN_FRANCISCO_CITY_FIXTURE: CitySafePageProps = {
     { name: "Civic Center", slug: "civic-center", safetyScore: 3.8, crimeRate: 55.1 },
     { name: "Financial District", slug: "financial-district", safetyScore: 5.1, crimeRate: 44.8 },
   ],
+  crimeMapMetricIds: {
+    violentCrime: 1001,
+    propertyCrime: 1002,
+  },
 };
 
 // ============================================================================
