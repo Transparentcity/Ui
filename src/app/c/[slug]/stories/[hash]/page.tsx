@@ -87,7 +87,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
   try {
     const feedRes = await listPublicFeedStories({
       city_id: story.city_id,
-      limit: 6,
+      limit: 10,
       order_by: "published_at",
     });
     relatedStories = (feedRes.stories ?? [])
@@ -211,7 +211,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           {storyDate && <span>{storyDate}</span>}
           <span>
             {story.city_emoji} {cityDisplay}
-            {story.district > 0 ? ` · District ${story.district}` : ""}
+            {story.district && story.district > 0 ? ` · District ${story.district}` : ""}
           </span>
         </div>
 
