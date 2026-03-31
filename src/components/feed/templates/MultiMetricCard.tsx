@@ -66,10 +66,16 @@ interface MultiMetricCardProps {
   children: React.ReactNode;
 }
 
+/** Strip leading geographic scope (e.g. "Citywide — " or "Citywide This Week — ") already shown in the neighborhood label */
+function stripLeadingScope(headline: string): string {
+  return headline.replace(/^(?:Citywide|City-?wide)\b.*?[\u2014\u2013\-]+\s*/i, "");
+}
+
 export default function MultiMetricCard({ story, children }: MultiMetricCardProps) {
   const realMetrics = useMemo(() => extractRealMetrics(story), [story]);
   const meta = story.metadata ?? {};
   const isComparison = meta.comparison_type === "district_vs_city";
+  const displayHeadline = stripLeadingScope(story.headline ?? "");
 
   // Find the lead metric (largest absolute % change) for highlighting
   const leadIdx = useMemo(() => {
@@ -97,7 +103,7 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
           subline={story.subline}
           neighborhoodLabel={story.neighborhood_label}
         />
-        <h2 className={styles.cardHeadline}>{story.headline}</h2>
+        <h2 className={styles.cardHeadline}>{displayHeadline}</h2>
         <div className={styles.comparisonGrid}>
           <div className={styles.comparisonSide}>
             <div className={styles.comparisonSideLabel}>Your District</div>
@@ -135,7 +141,7 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
         subline={story.subline}
         neighborhoodLabel={story.neighborhood_label}
       />
-      <h2 className={styles.cardHeadline}>{story.headline}</h2>
+      <h2 className={styles.cardHeadline}>{displayHeadline}</h2>
 
       {!(realMetrics && realMetrics.length > 0) && story.cleaned_description ? (
         <p className={styles.cardDescription}>{story.cleaned_description}</p>

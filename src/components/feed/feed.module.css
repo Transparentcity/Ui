@@ -1626,9 +1626,6 @@
 /* Lead metric highlight — largest % change gets visual emphasis */
 .metricTileLead {
   background: var(--bg-tertiary, rgba(0, 0, 0, 0.03));
-  border-radius: 10px;
-  padding: 10px;
-  margin: -4px;
 }
 
 .metricTileLead .metricNumber {
