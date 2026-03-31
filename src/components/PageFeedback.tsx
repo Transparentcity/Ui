@@ -48,7 +48,7 @@ export default function PageFeedback({
   const submit = async (type: "accurate" | "wrong", text?: string) => {
     setState("submitting");
     try {
-      const res = await fetch("/api/page-feedback", {
+      const res = await fetch("/api/public/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
