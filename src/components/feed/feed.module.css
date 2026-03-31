@@ -429,14 +429,26 @@
   transform: translateY(-1px);
 }
 
-/* Off the Charts accent */
-.cardOffTheCharts {
-  border-left: 3px solid var(--brand-primary, #ad35fa);
-  background: var(--brand-primary-light, rgba(173, 53, 250, 0.04));
+/* Off the Charts — no special card background; uses default card styling */
+
+/* Traction (good news) accent */
+.cardTraction {
+  border-left: 3px solid var(--success, #10b981);
+  background: rgba(16, 185, 129, 0.04);
 }
 
-.cardOffTheCharts:hover {
-  background: var(--brand-primary-light, rgba(173, 53, 250, 0.08));
+.cardTraction:hover {
+  background: rgba(16, 185, 129, 0.08);
+}
+
+/* Traction (good news) accent */
+.cardTraction {
+  border-left: 3px solid var(--success, #10b981);
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.cardTraction:hover {
+  background: rgba(16, 185, 129, 0.08);
 }
 
 /* Raise z-index when overflow dropdown is open so it paints above adjacent cards */
@@ -1624,9 +1636,6 @@
 /* Lead metric highlight — largest % change gets visual emphasis */
 .metricTileLead {
   background: var(--bg-tertiary, rgba(0, 0, 0, 0.03));
-  border-radius: 10px;
-  padding: 10px;
-  margin: -4px;
 }
 
 .metricTileLead .metricNumber {
@@ -1829,7 +1838,7 @@
 }
 
 .otcStatNumber {
-  font-size: 34px;
+  font-size: 24px;
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.5px;
@@ -2093,6 +2102,31 @@
 
 .trendDuration {
   color: var(--text-secondary);
+}
+
+/* Traction (good news) subtypes */
+.tractionCallout {
+  border-left: 2px solid var(--success, #10b981);
+  background: rgba(16, 185, 129, 0.06);
+  padding: 10px 14px;
+  border-radius: 0 6px 6px 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  margin: 4px 0 8px;
+}
+
+.tractionCategoryPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  background: rgba(16, 185, 129, 0.08);
+  color: var(--success, #10b981);
 }
 
 /* ── Compact card variant ──────────────────────────────────────────────────── */

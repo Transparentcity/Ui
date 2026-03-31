@@ -94,11 +94,12 @@ const ClaimsAdmin = dynamic(() => import("@/components/ClaimsAdmin"), { ssr: fal
 const JobLogsViewer = dynamic(() => import("@/components/JobLogsViewer"), { ssr: false });
 const EmailAdmin = dynamic(() => import("@/components/EmailAdmin"), { ssr: false });
 const DataCompletenessAdmin = dynamic(() => import("@/components/DataCompletenessAdmin"), { ssr: false });
+const FeedAdmin = dynamic(() => import("@/components/FeedAdmin"), { ssr: false });
 
 // Dynamically import NewResearchPage to avoid SSR issues
 const NewResearchPage = dynamic(() => import("../research/new/page"), { ssr: false });
 
-type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "claims-admin" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "city" | "metric" | "job-logs" | "research" | "research-new" | "feed";
+type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "claims-admin" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "feed-admin" | "city" | "metric" | "job-logs" | "research" | "research-new" | "feed";
 
 // Mobile breakpoint (matches CSS media query)
 const MOBILE_BREAKPOINT = 768;
@@ -1282,6 +1283,16 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {currentView === "feed-admin" && (isAdmin || cityLeadCityIds.length > 0) && (
+            <div id="feed-admin-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
+              <div className={styles.adminContainer}>
+                <h2 style={{ margin: "0 0 8px 0", padding: 0, color: "var(--text-primary)", fontSize: "18px" }}>
+                  Feed
+                </h2>
+                <FeedAdmin />
+              </div>
+            </div>
+          )}
 
           {currentView === "feed" && govVerificationStatus?.government_pending_verification && !govVerificationStatus?.government_verified && (
             <div style={{

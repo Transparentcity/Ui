@@ -7,9 +7,11 @@ import "../../../../landing.css";
 import {
   getPublicFeedStoryByHash,
   listPublicCitiesForSitemap,
+  listPublicFeedStories,
 } from "@/lib/publicApiClient";
 import PublicNavBar from "@/components/PublicNavBar";
 import { processVisualizationShortcodes } from "@/lib/visualizationShortcodes";
+import ShareButton from "./ShareButton";
 
 export const revalidate = 3600;
 
@@ -78,6 +80,21 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
     }
   } catch {
     // fall back to story city_name or slug
+  }
+
+  // Fetch related stories from the same city
+  let relatedStories: Awaited<ReturnType<typeof listPublicFeedStories>>["stories"] = [];
+  try {
+    const feedRes = await listPublicFeedStories({
+      city_id: story.city_id,
+      limit: 6,
+      order_by: "published_at",
+    });
+    relatedStories = (feedRes.stories ?? [])
+      .filter((s) => s.id !== story!.id)
+      .slice(0, 3);
+  } catch {
+    // Non-critical, just skip related stories
   }
 
   const backHref = `/c/${slug}`;
@@ -156,8 +173,12 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
               fontWeight: 600,
               letterSpacing: "0.08em",
               textTransform: "uppercase",
-              background: "var(--accent-muted, rgba(173,53,250,0.1))",
-              color: "var(--brand-primary, #ad35fa)",
+              background: story.story_type === "traction"
+                ? "rgba(16, 185, 129, 0.1)"
+                : "var(--accent-muted, rgba(173,53,250,0.1))",
+              color: story.story_type === "traction"
+                ? "#10b981"
+                : "var(--brand-primary, #ad35fa)",
             }}
           >
             {story.story_type.replace(/_/g, " ")}
@@ -289,6 +310,70 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
               {story.cta_label ?? "View source data"}
             </a>
           </div>
+        )}
+
+        {/* Divider + Share */}
+        <hr style={{ border: "none", borderTop: "1px solid var(--border-primary, #e5e7eb)", margin: "24px 0" }} />
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <ShareButton
+            title={story.headline}
+            url={`/c/${slug}/stories/${hash}`}
+          />
+        </div>
+
+        {/* Related stories from the same city */}
+        {relatedStories.length > 0 && (
+          <>
+            <hr style={{ border: "none", borderTop: "1px solid var(--border-primary, #e5e7eb)", margin: "24px 0" }} />
+            <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", margin: "0 0 12px" }}>
+              More from {story.city_name || "this city"}
+            </h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {relatedStories.map((rs) => (
+                <Link
+                  key={rs.id}
+                  href={rs.short_hash ? `/c/${slug}/stories/${rs.short_hash}` : `/feed/${rs.id}`}
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 10,
+                    padding: 12,
+                    borderRadius: 10,
+                    background: "var(--bg-secondary, #f5f5f5)",
+                    textDecoration: "none",
+                    color: "inherit",
+                    transition: "background 0.15s ease",
+                  }}
+                >
+                  <span style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>
+                    {rs.story_type === "off_the_charts" ? "\u{1F92F}" : rs.story_type === "alert" ? "\u{1F6A8}" : rs.story_type === "trend" ? "\u{1F4C8}" : rs.story_type === "milestone" ? "\u{1F3C6}" : "\u{1F4CB}"}
+                  </span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                    <span style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: "var(--text-primary)",
+                      lineHeight: 1.3,
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}>
+                      {rs.headline}
+                    </span>
+                    <span style={{ fontSize: 12, color: "var(--text-tertiary, #999)" }}>
+                      {rs.published_at
+                        ? new Date(rs.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                        : rs.story_date
+                          ? new Date(rs.story_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                          : ""}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </>
         )}
       </article>
 
