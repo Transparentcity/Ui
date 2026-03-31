@@ -30,6 +30,7 @@ import {
   type GroupedMetric,
 } from "@/lib/metricTemplateConfig";
 import type { AnomalyResult } from "@/lib/hooks/useAnomalies";
+import { createMap } from "@/lib/api/maps";
 
 // Brand purple color for anomaly mode
 const ANOMALY_MODE_COLOR = "#AD35FA";
@@ -166,6 +167,8 @@ interface CityMetricsMapProps {
   selectedDistrict?: number | null; // Selected district number for filtering data
   /** When set (My Block), map data requests are limited to points within this radius of the center */
   placeCircle?: { lat: number; lng: number; radius_m: number } | null;
+  /** Label for the place marker — shown on save and used in export filenames. */
+  placeLabel?: string | null;
   selectedAnomaly?: AnomalyResult | null; // Currently selected anomaly for anomaly mode
   onAnomalyClear?: () => void; // Callback to clear anomaly selection
 }
@@ -182,6 +185,7 @@ export default function CityMetricsMap({
   gpsLocation,
   selectedDistrict,
   placeCircle = null,
+  placeLabel,
   selectedAnomaly,
   onAnomalyClear,
 }: CityMetricsMapProps) {
@@ -223,6 +227,12 @@ export default function CityMetricsMap({
   const [anomalyModeMap, setAnomalyModeMap] = useState<MapData | null>(null);
   const [anomalyModeLoading, setAnomalyModeLoading] = useState(false);
   const isAnomalyMode = selectedAnomaly !== null && selectedAnomaly !== undefined;
+
+  // Save map / export state
+  const [isSavingMap, setIsSavingMap] = useState(false);
+  const [saveMapSuccess, setSaveMapSuccess] = useState<string | null>(null);
+  const [saveMapError, setSaveMapError] = useState<string | null>(null);
+  const [isExportingPng, setIsExportingPng] = useState(false);
 
   // Track if we've set default metrics to avoid re-enabling them
   const defaultMetricsSetRef = useRef(false);
@@ -1173,7 +1183,40 @@ export default function CityMetricsMap({
         }
 
         const pointCount = locationData.length;
-        const useChoropleth = pointCount > 1000;
+
+        // Use choropleth rendering if:
+        // 1. Auto-detect: many individual points that would be illegible as dots, OR
+        // 2. Explicit: the map was created/saved with map_type="choropleth" or "delta",
+        //    which means the location_data is already pre-aggregated to one row per district
+        //    (few rows with `district` + `count` but no lat/lon coordinates).
+        const explicitMapType = (mapData.type as string | undefined) ||
+          (mapData.map_config?.map_type as string | undefined) ||
+          (mapData.map_config?.default_view?.type as string | undefined);
+        const isExplicitChoropleth =
+          explicitMapType === "choropleth" || explicitMapType === "delta";
+
+        // Also detect pre-aggregated district data heuristically: rows have a count
+        // and at least one district-like identifier field but no lat/lon coordinates.
+        // Note: we no longer rely on a generic "district" key — the backend now stores
+        // the actual field name (e.g. "supervisor_district") directly in each row.
+        const firstRow = locationData[0] as any;
+        const DISTRICT_LIKE_FIELDS = [
+          'district', 'supervisor_district', 'sup_dist_num', 'council_district',
+          'ward', 'precinct', 'neighborhood', 'zone', 'borough',
+        ];
+        const hasDistrictLikeField = DISTRICT_LIKE_FIELDS.some(
+          (f) => firstRow?.[f] !== undefined
+        );
+        const isPreAggregatedDistrict =
+          pointCount > 0 &&
+          pointCount <= 100 &&
+          firstRow?.count !== undefined &&
+          hasDistrictLikeField &&
+          firstRow?.lat === undefined &&
+          firstRow?.lon === undefined;
+
+        const useChoropleth =
+          pointCount > 1000 || isExplicitChoropleth || isPreAggregatedDistrict;
 
         if (locationData.length === 0) {
           return {
@@ -2100,19 +2143,22 @@ export default function CityMetricsMap({
         }
         if (map.getLayer(layerId)) {
           map.setLayoutProperty(layerId, "visibility", isVisible ? "visible" : "none");
-          // Update paint properties to ensure media indicators are shown
-          map.setPaintProperty(layerId, "circle-stroke-color", [
-            "case",
-            ["get", "hasMedia"],
-            "#FFD700", // Gold - unique color not used by any series
-            "#ffffff"  // White for points without media
-          ]);
-          map.setPaintProperty(layerId, "circle-stroke-width", [
-            "case",
-            ["get", "hasMedia"],
-            2,  // Thicker stroke for points with media (reduced from 3)
-            1   // Normal stroke for points without media
-          ]);
+          // Only update circle-specific paint properties when the layer is actually a circle layer
+          // (it could be a fill layer if the metric was previously rendered as choropleth)
+          if ((map.getLayer(layerId) as any)?.type === "circle") {
+            map.setPaintProperty(layerId, "circle-stroke-color", [
+              "case",
+              ["boolean", ["get", "hasMedia"], false],
+              "#FFD700", // Gold - unique color not used by any series
+              "#ffffff"  // White for points without media
+            ]);
+            map.setPaintProperty(layerId, "circle-stroke-width", [
+              "case",
+              ["boolean", ["get", "hasMedia"], false],
+              2,  // Thicker stroke for points with media
+              1   // Normal stroke for points without media
+            ]);
+          }
         }
       } else {
         map.addSource(sourceId, {
@@ -2136,15 +2182,15 @@ export default function CityMetricsMap({
             // Use unique gold color for points with media (not in any series palette)
             "circle-stroke-color": [
               "case",
-              ["get", "hasMedia"],
+              ["boolean", ["get", "hasMedia"], false],
               "#FFD700", // Gold - unique color not used by any series
               "#ffffff"  // White for points without media
             ],
             // Slightly thicker stroke for points with media
             "circle-stroke-width": [
               "case",
-              ["get", "hasMedia"],
-              2,  // Thicker stroke for points with media (reduced from 3)
+              ["boolean", ["get", "hasMedia"], false],
+              2,  // Thicker stroke for points with media
               1   // Normal stroke for points without media
             ],
             "circle-opacity": [
@@ -2650,6 +2696,150 @@ export default function CityMetricsMap({
   const flatMetricsForEmoji = groupedMetrics.flatMap((group) => group.metrics);
   const hasShapeLayers = shapeLayers.length > 0;
   if (!hasMetricLayers && !hasShapeLayers) return null;
+
+  // Save the current map view to the saved maps store
+  const handleSaveMap = async () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    setIsSavingMap(true);
+    setSaveMapError(null);
+    setSaveMapSuccess(null);
+    try {
+      const token = await getAccessTokenSilently();
+      const center = map.getCenter();
+      const zoom = map.getZoom();
+
+      const activeMetricNames = sortedMetrics
+        .filter((m) => selectedMetricIds.has(String(m.id)) && !hiddenLayers.has(String(m.id)))
+        .map((m) => m.metric_name)
+        .filter(Boolean);
+
+      const title = placeCircle
+        ? `${placeCircle.lat.toFixed(4)}, ${placeCircle.lng.toFixed(4)} — ${activeMetricNames.join(", ") || "Map view"}`
+        : activeMetricNames.join(", ") || "Map view";
+
+      const locationData: Array<{ lat: number; lon: number }> = placeCircle
+        ? [{ lat: placeCircle.lat, lon: placeCircle.lng }]
+        : [];
+
+      const savedMap = await createMap(
+        {
+          title,
+          map_type: "place_view",
+          location_data: locationData,
+          center: { lat: center.lat, lng: center.lng, zoom },
+          city_id: cityId,
+          is_public: false,
+          map_config: {
+            selected_metric_ids: Array.from(selectedMetricIds),
+            hidden_layers: Array.from(hiddenLayers),
+            place_circle: placeCircle ?? null,
+            zoom,
+          },
+        },
+        token
+      );
+      setSaveMapSuccess(`Saved! View at /maps/${savedMap.id}`);
+    } catch (err: any) {
+      setSaveMapError(err?.message || "Failed to save map");
+    } finally {
+      setIsSavingMap(false);
+    }
+  };
+
+  // Export the current map view as a PNG download
+  const handleExportPng = () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    setIsExportingPng(true);
+
+    const doExport = () => {
+      try {
+        // Temporarily add the place center as a GL circle + label so it appears in the canvas export
+        const EXPORT_CIRCLE_ID = "__export_place_dot__";
+        const EXPORT_CIRCLE_SOURCE = "__export_place_dot_src__";
+        const EXPORT_LABEL_ID = "__export_place_label__";
+
+        if (placeCircle && map.isStyleLoaded?.()) {
+          if (!map.getSource(EXPORT_CIRCLE_SOURCE)) {
+            map.addSource(EXPORT_CIRCLE_SOURCE, {
+              type: "geojson",
+              data: {
+                type: "Feature",
+                properties: { label: placeLabel ?? "" },
+                geometry: { type: "Point", coordinates: [placeCircle.lng, placeCircle.lat] },
+              },
+            });
+          }
+          if (!map.getLayer(EXPORT_CIRCLE_ID)) {
+            map.addLayer({
+              id: EXPORT_CIRCLE_ID,
+              type: "circle",
+              source: EXPORT_CIRCLE_SOURCE,
+              paint: {
+                "circle-radius": 8,
+                "circle-color": "#2563eb",
+                "circle-stroke-width": 2,
+                "circle-stroke-color": "#ffffff",
+              },
+            });
+          }
+          if (placeLabel && !map.getLayer(EXPORT_LABEL_ID)) {
+            map.addLayer({
+              id: EXPORT_LABEL_ID,
+              type: "symbol",
+              source: EXPORT_CIRCLE_SOURCE,
+              layout: {
+                "text-field": placeLabel,
+                "text-size": 12,
+                "text-offset": [0, 1.5],
+                "text-anchor": "top",
+                "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+              },
+              paint: {
+                "text-color": "#2563eb",
+                "text-halo-color": "#ffffff",
+                "text-halo-width": 2,
+              },
+            });
+          }
+        }
+
+        // Give Mapbox one frame to render the new layers before capturing
+        map.once("render", () => {
+          const canvas = map.getCanvas();
+          const dataUrl = canvas.toDataURL("image/png");
+
+          // Remove the temporary layers
+          try {
+            if (map.getLayer(EXPORT_LABEL_ID)) map.removeLayer(EXPORT_LABEL_ID);
+            if (map.getLayer(EXPORT_CIRCLE_ID)) map.removeLayer(EXPORT_CIRCLE_ID);
+            if (map.getSource(EXPORT_CIRCLE_SOURCE)) map.removeSource(EXPORT_CIRCLE_SOURCE);
+          } catch {/* ignore */}
+
+          // Trigger browser download
+          const link = document.createElement("a");
+          link.href = dataUrl;
+          const filename = (placeLabel ?? "map-view").replace(/[^a-z0-9_-]/gi, "_").toLowerCase();
+          link.download = `${filename}.png`;
+          link.click();
+          setIsExportingPng(false);
+        });
+
+        // Trigger a render
+        map.triggerRepaint();
+      } catch (err) {
+        console.error("PNG export failed:", err);
+        setIsExportingPng(false);
+      }
+    };
+
+    if (map.loaded()) {
+      doExport();
+    } else {
+      map.once("load", doExport);
+    }
+  };
 
   return (
     <div className="city-metrics-map">
@@ -3201,6 +3391,46 @@ export default function CityMetricsMap({
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Save & Export actions */}
+            <div className="city-metrics-map-save-actions">
+              <button
+                type="button"
+                className="city-metrics-map-save-btn"
+                onClick={handleSaveMap}
+                disabled={isSavingMap}
+                title="Save this map view for quick retrieval"
+              >
+                {isSavingMap ? (
+                  <><Loader size="sm" color="purple" /> Saving…</>
+                ) : (
+                  <>💾 Save map</>
+                )}
+              </button>
+              <button
+                type="button"
+                className="city-metrics-map-export-btn"
+                onClick={handleExportPng}
+                disabled={isExportingPng}
+                title="Download map as PNG for email"
+              >
+                {isExportingPng ? (
+                  <><Loader size="sm" color="purple" /> Exporting…</>
+                ) : (
+                  <>⬇ PNG</>
+                )}
+              </button>
+            </div>
+            {saveMapSuccess && (
+              <div className="city-metrics-map-save-feedback city-metrics-map-save-success">
+                ✓ {saveMapSuccess}
+              </div>
+            )}
+            {saveMapError && (
+              <div className="city-metrics-map-save-feedback city-metrics-map-save-error">
+                ✗ {saveMapError}
               </div>
             )}
           </div>

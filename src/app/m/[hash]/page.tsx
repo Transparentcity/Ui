@@ -159,9 +159,10 @@ export default function PublicMapPage() {
     lastAppliedMapRef.current = mapKey;
     const locationCount = map.location_data?.length ?? 0;
     const dv = map.map_config?.default_view as { type?: string; shape_layer_instance_id?: number } | undefined;
-    // With few points, always show points so dots are visible (backend may send choropleth for old saved maps)
-    const preferPoints = locationCount <= 100;
-    if (dv?.type === "points" || preferPoints) {
+    // Choropleth and delta maps are never point maps — skip the low-count heuristic entirely.
+    const isDistrictMap = map.map_type === "choropleth" || map.map_type === "delta";
+    const preferPoints = !isDistrictMap && locationCount <= 100;
+    if (!isDistrictMap && (dv?.type === "points" || preferPoints)) {
       setShowPoints(true);
       setSelectedShapeLayer(null);
     } else if (dv?.type === "choropleth" && dv.shape_layer_instance_id != null) {
@@ -452,6 +453,20 @@ export default function PublicMapPage() {
     if (map.map_config?.available_shape_layers && map.map_config.available_shape_layers.length > 0) {
       console.log(`[PublicMapPage] Using shape layers from map_config`);
       setAvailableShapeLayers(map.map_config.available_shape_layers);
+      // Auto-select the default shape layer for choropleth/delta maps
+      if (!selectedShapeLayer) {
+        const defaultView = map.map_config?.default_view as { type?: string; shape_layer_instance_id?: number | string } | undefined;
+        const preferPoints = defaultView?.type === "points" || (map.location_data?.length ?? 0) <= 100;
+        if (!preferPoints) {
+          const defaultLayerId =
+            defaultView?.shape_layer_instance_id ||
+            map.map_config.available_shape_layers[0]?.shape_layer_instance_id;
+          if (defaultLayerId) {
+            console.log(`[PublicMapPage] Auto-selecting shape layer from map_config: ${defaultLayerId}`);
+            setSelectedShapeLayer(String(defaultLayerId));
+          }
+        }
+      }
       return;
     }
     
@@ -685,10 +700,21 @@ export default function PublicMapPage() {
         return;
       }
       
-      // Use provided shapeLayerId or fall back to first available shape layer
-      let targetShapeLayerId = shapeLayerId || mapData.map_config?.shape_layer_instance_id;
-      
-      // If still no shape layer ID, use first available discovered layer
+      // Use provided shapeLayerId or resolve it from map_config (checked in priority order)
+      let targetShapeLayerId =
+        shapeLayerId ||
+        // Legacy: top-level field
+        mapData.map_config?.shape_layer_instance_id ||
+        // New format: under default_view
+        mapData.map_config?.default_view?.shape_layer_instance_id ||
+        // New format: first entry of available_shape_layers array
+        mapData.map_config?.available_shape_layers?.[0]?.shape_layer_instance_id ||
+        // New format: first key of aggregations dict
+        (mapData.map_config?.aggregations
+          ? Object.keys(mapData.map_config.aggregations)[0]
+          : null);
+
+      // If still no shape layer ID, use first available discovered layer from state
       if (!targetShapeLayerId && availableShapeLayers.length > 0) {
         targetShapeLayerId = availableShapeLayers[0].shape_layer_instance_id;
         console.log(`[PublicMapPage] Using first available discovered shape layer: ${targetShapeLayerId}`);
@@ -796,25 +822,27 @@ export default function PublicMapPage() {
         aggregation.rows.forEach((row: any) => {
           // Try multiple ways to get district ID from aggregation row
           const districtId = String(
-            row[identifierField] || 
+            row[identifierField] ||
             row[aggregation.identifier_field] ||
-            row.district || 
+            row.district ||
             row.supervisor_district ||
             ""
           ).trim();
           if (districtId && districtId !== "null" && districtId !== "undefined") {
             const normalizedId = String(Math.floor(Number(districtId))) || districtId;
-            districtDataMap.set(normalizedId, {
-              count: row.count || row.value || 0,
-              value: row.value || row.count || 0,
-            });
-            // Also store with number key as string
+            const entry = {
+              count: row.count ?? row.value ?? 0,
+              value: row.value ?? row.count ?? 0,
+              // Delta-specific fields (present only for delta maps)
+              delta: row.delta ?? null,
+              delta_pct: row.delta_pct ?? null,
+              count_current: row.count_current ?? null,
+              count_comparison: row.count_comparison ?? null,
+            };
+            districtDataMap.set(normalizedId, entry);
             const districtIdNum = Number(normalizedId);
             if (!isNaN(districtIdNum)) {
-              districtDataMap.set(String(districtIdNum), {
-                count: row.count || row.value || 0,
-                value: row.value || row.count || 0,
-              });
+              districtDataMap.set(String(districtIdNum), entry);
             }
           }
         });
@@ -853,18 +881,36 @@ export default function PublicMapPage() {
       console.log(`[PublicMapPage] districtDataMap has ${districtDataMap.size} entries`);
       console.log(`[PublicMapPage] Sample keys:`, Array.from(districtDataMap.keys()).slice(0, 5));
 
-      // Calculate min/max for color scaling
-      const values = Array.from(districtDataMap.values())
-        .map((item: any) => Number(item.value || item.count || 0))
-        .filter((v: number) => !isNaN(v) && isFinite(v));
-      const minValue = values.length > 0 ? Math.min(...values) : 0;
-      const maxValue = values.length > 0 ? Math.max(...values) : 1;
-      
-      console.log(`[PublicMapPage] Value range: ${minValue} to ${maxValue} (${values.length} districts with data)`);
-      
+      // ── Determine if this is a delta (red/green) or regular choropleth ──────────
+      const isDeltaMap =
+        mapData.map_type === "delta" ||
+        mapData.map_config?.delta_palette === "red_green";
+      const greenDirection: "up" | "down" =
+        (mapData.map_config?.greendirection as "up" | "down") ?? "down";
+
+      // ── Extract per-district color value ──────────────────────────────────────
+      // For delta maps the colour is driven by delta_pct (same field as DeltaMapView).
+      // For regular choropleths it's the raw count/value.
+      const colorValues = Array.from(districtDataMap.entries()).map(
+        ([, item]: [string, any]) =>
+          isDeltaMap
+            ? Number(item.delta_pct ?? item.delta ?? item.value ?? 0)
+            : Number(item.value || item.count || 0)
+      ).filter((v: number) => !isNaN(v) && isFinite(v));
+
+      const minValue = colorValues.length > 0 ? Math.min(...colorValues) : 0;
+      const maxValue = colorValues.length > 0 ? Math.max(...colorValues) : 1;
+
+      console.log(`[PublicMapPage] ${isDeltaMap ? "Delta" : "Choropleth"} value range: ${minValue} to ${maxValue}`);
+
+      // ── Color helpers ─────────────────────────────────────────────────────────
       const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
       const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
-      const blendRgb = (from: [number, number, number], to: [number, number, number], t: number) => {
+      const blendRgb = (
+        from: [number, number, number],
+        to: [number, number, number],
+        t: number
+      ) => {
         const tt = clamp01(t);
         return [
           Math.round(lerp(from[0], to[0], tt)),
@@ -873,21 +919,46 @@ export default function PublicMapPage() {
         ] as [number, number, number];
       };
 
-      // White -> brand purple gradient
+      // Regular choropleth: white → brand purple
       const CHORO_LOW: [number, number, number] = [255, 255, 255];
       const CHORO_HIGH: [number, number, number] = [173, 53, 250]; // #ad35fa
 
+      // Delta diverging palette (mirrors DeltaMapView exactly)
+      // greenDirection="down" → negative = green, positive = red
+      // greenDirection="up"   → negative = red,   positive = green
+      const getDeltaColor = (changePct: number | null): string => {
+        if (changePct === null) return "#e0e0e0";
+        const abs = Math.abs(changePct);
+        if (abs <= 5) return "#f5f5f5";
+        const increaseIsGood = greenDirection === "up";
+        const isIncrease = changePct > 0;
+        const isGood = increaseIsGood ? isIncrease : !isIncrease;
+        // Log-ish intensity in [0,1] over 5–200 % range
+        const intensity = Math.min(1, (abs - 5) / 195);
+        if (isGood) {
+          // #f5f5f5 → #15803d (green-700)
+          const r = Math.round(245 - intensity * (245 - 21));
+          const g = Math.round(245 - intensity * (245 - 128));
+          const b = Math.round(245 - intensity * (245 - 61));
+          return `rgb(${r}, ${g}, ${b})`;
+        } else {
+          // #f5f5f5 → #991b1b (red-800)
+          const r = Math.round(245 - intensity * (245 - 153));
+          const g = Math.round(245 - intensity * (245 - 27));
+          const b = Math.round(245 - intensity * (245 - 27));
+          return `rgb(${r}, ${g}, ${b})`;
+        }
+      };
+
       console.log(`[PublicMapPage] Processing ${geometryData.features.length} shape features`);
       console.log(`[PublicMapPage] Sample feature properties:`, geometryData.features[0]?.properties);
-      
-      // Merge district data with shape features
+
+      // ── Merge district data with shape features ───────────────────────────────
       const features = geometryData.features.map((feature: any) => {
         const props = feature.properties || {};
-        // Try multiple field names to find the identifier
-        // Prefer the identifierField from our shape layer config, then API response, then common alternatives
         const apiIdentifierField = shapeLayerData.instance.identifier_field;
-        const districtIdRaw = 
-          props[identifierField] || 
+        const districtIdRaw =
+          props[identifierField] ||
           (apiIdentifierField && props[apiIdentifierField]) ||
           props[districtField] ||
           props.district ||
@@ -896,46 +967,54 @@ export default function PublicMapPage() {
           props.name ||
           props.label ||
           "";
-        
+
         // Normalize district ID
         let districtId = String(districtIdRaw).trim();
         const districtIdNum = Number(districtId);
         if (!isNaN(districtIdNum) && isFinite(districtIdNum)) {
           districtId = String(Math.floor(districtIdNum));
         }
-        
+
         // Try multiple lookup strategies
         let districtData = districtDataMap.get(districtId);
         if (!districtData && districtIdRaw) {
           districtData = districtDataMap.get(String(districtIdRaw).trim());
         }
         if (!districtData && !isNaN(districtIdNum) && isFinite(districtIdNum)) {
-          districtData = districtDataMap.get(String(districtIdNum)) || districtDataMap.get(String(Math.floor(districtIdNum)));
+          districtData =
+            districtDataMap.get(String(districtIdNum)) ||
+            districtDataMap.get(String(Math.floor(districtIdNum)));
         }
-        
-        const value = districtData ? Number(districtData.value || districtData.count || 0) : null;
-        
+
+        const value = districtData
+          ? Number(districtData.value || districtData.count || 0)
+          : null;
+
         if (!districtData && districtId) {
-          console.log(`[PublicMapPage] No data found for districtId: "${districtId}" (raw: "${districtIdRaw}")`);
-          console.log(`[PublicMapPage] Available keys:`, Array.from(districtDataMap.keys()).slice(0, 10));
+          console.log(`[PublicMapPage] No data for districtId: "${districtId}" (raw: "${districtIdRaw}")`);
         }
-        
-        // Calculate color (white -> brand purple)
-        let color = "#e5e7eb"; // light gray for "no data"
-        if (value !== null && !isNaN(value)) {
+
+        // ── Compute fill colour ────────────────────────────────────────────────
+        let color = "#e5e7eb"; // light gray = no data
+        if (isDeltaMap) {
+          const changePct = districtData
+            ? Number(districtData.delta_pct ?? districtData.delta ?? districtData.value ?? null)
+            : null;
+          color = getDeltaColor(Number.isFinite(changePct as number) ? (changePct as number) : null);
+        } else if (value !== null && !isNaN(value)) {
           const normalized = clamp01((value - minValue) / (maxValue - minValue || 1));
           const [r, g, b] = blendRgb(CHORO_LOW, CHORO_HIGH, normalized);
           color = `rgb(${r}, ${g}, ${b})`;
         }
-        
+
         return {
           ...feature,
           properties: {
             ...feature.properties,
             district_id: districtId,
-            value: value,
-            color: color,
-            ...districtData,
+            value,
+            color,
+            ...(districtData ?? {}),
           },
         };
       });
@@ -996,42 +1075,105 @@ export default function PublicMapPage() {
         });
         
         console.log("Choropleth outline layer added");
-        
+
+        // ── Legend ─────────────────────────────────────────────────────────────
+        if (isDeltaMap) {
+          const goodColor = greenDirection === "down" ? "#22c55e" : "#ef4444";
+          const badColor  = greenDirection === "down" ? "#ef4444" : "#22c55e";
+          const goodLabel = greenDirection === "down" ? "Decreased (better)" : "Increased (better)";
+          const badLabel  = greenDirection === "down" ? "Increased (worse)"  : "Decreased (worse)";
+          setLegend({
+            title: "Change vs prior period",
+            items: [
+              { label: goodLabel, color: goodColor },
+              { label: "No change",  color: "#f5f5f5"  },
+              { label: badLabel,  color: badColor  },
+            ],
+          });
+        } else {
+          setLegend({
+            title: "Count",
+            items: [
+              { label: "Low",  color: `rgb(${CHORO_LOW.join(",")})` },
+              { label: "High", color: `rgb(${CHORO_HIGH.join(",")})` },
+            ],
+          });
+        }
+
         // Add popup on click
         mapInstance.on("click", "choropleth-fill", (e: any) => {
           if (!e.features || e.features.length === 0) return;
-          
+
           const feature = e.features[0];
           const props = feature.properties;
-
           const districtId = String(props.district_id || "");
-
           const canToggleDots = !!(mapData.map_config?.dot_location_data && districtId);
 
-          setDistrictPanel({
-            districtId: districtId || "District",
-            districtName: String(
-              props.name ||
-                props.district_name ||
-                props.label ||
-                props.neighborhood ||
-                props.area_name ||
-                ""
-            ) || null,
-            count:
-              props.count !== undefined
-                ? Number(props.count)
-                : props.value !== undefined
-                  ? Number(props.value)
-                  : null,
-            canHideDots: canToggleDots,
-          });
+          if (isDeltaMap) {
+            // Delta map: show a styled popup directly (no side-panel)
+            const formatNum = (v: any) =>
+              v != null && !isNaN(Number(v))
+                ? Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 })
+                : "—";
+            const formatPct = (v: any) => {
+              if (v == null || isNaN(Number(v))) return "—";
+              const n = Number(v);
+              const sign = n > 0 ? "+" : "";
+              return `${sign}${Math.round(n)}%`;
+            };
+            const changePct = props.delta_pct ?? props.delta ?? null;
+            const isIncrease = Number(changePct) > 5;
+            const isDecrease = Number(changePct) < -5;
+            const changeColor =
+              isIncrease
+                ? greenDirection === "down" ? "#ef4444" : "#22c55e"
+                : isDecrease
+                ? greenDirection === "down" ? "#22c55e" : "#ef4444"
+                : "#666";
 
-          // If dot mode is available, reveal dots for this district by default
-          // and (by definition) hide dots everywhere else.
-          if (canToggleDots) {
-            addDotsForDistrict(mapInstance, mapData, districtId);
-            setDotsDistrictId(districtId);
+            const districtLabel = districtId
+              ? `District ${districtId}`
+              : String(props.name || props.label || "District");
+
+            new (window as any).mapboxgl.Popup({ closeButton: true, closeOnClick: true })
+              .setLngLat(e.lngLat)
+              .setHTML(
+                `<div style="font-family:'IBM Plex Sans',sans-serif;font-size:13px;min-width:160px">
+                  <div style="font-weight:600;margin-bottom:6px">${districtLabel}</div>
+                  <div style="color:#666">Last period: ${formatNum(props.count_comparison)}</div>
+                  <div style="color:#666">This period: ${formatNum(props.count_current ?? props.count)}</div>
+                  <div style="color:${changeColor};font-weight:600;margin-top:4px">
+                    Change: ${formatPct(changePct)}
+                    ${props.delta != null ? `(${Number(props.delta) >= 0 ? "+" : ""}${formatNum(props.delta)})` : ""}
+                  </div>
+                </div>`
+              )
+              .addTo(mapInstance);
+          } else {
+            setDistrictPanel({
+              districtId: districtId || "District",
+              districtName:
+                String(
+                  props.name ||
+                    props.district_name ||
+                    props.label ||
+                    props.neighborhood ||
+                    props.area_name ||
+                    ""
+                ) || null,
+              count:
+                props.count !== undefined
+                  ? Number(props.count)
+                  : props.value !== undefined
+                    ? Number(props.value)
+                    : null,
+              canHideDots: canToggleDots,
+            });
+
+            if (canToggleDots) {
+              addDotsForDistrict(mapInstance, mapData, districtId);
+              setDotsDistrictId(districtId);
+            }
           }
         });
         
@@ -1120,8 +1262,14 @@ export default function PublicMapPage() {
       const hasShapeLayerInConfig = !!map.map_config?.shape_layer_instance_id;
       const canDiscoverShapeLayers = map.city_id && hasGeographicIdentifiers;
       const defaultView = map.map_config?.default_view as { type?: string } | undefined;
-      // Prefer points when backend says so or when very few points (so dots are visible)
-      const defaultIsPoints = defaultView?.type === "points" || locationDataCount <= 100;
+      // Choropleth and delta maps are NEVER point maps, regardless of how few rows are stored
+      // (delta maps only have 1 row per district, so locationDataCount is always small).
+      const isExplicitDistrictMap = map.map_type === "choropleth" || map.map_type === "delta";
+      // Prefer points when backend says so or when very few points (so dots are visible),
+      // but never for explicit choropleth/delta maps.
+      const defaultIsPoints =
+        !isExplicitDistrictMap &&
+        (defaultView?.type === "points" || locationDataCount <= 100);
 
       // Determine if we should use choropleth - respect backend default_view so few-point maps show points.
       // Also respect an explicit points toggle so turning dots back on does not get auto-undone.
@@ -1309,7 +1457,7 @@ export default function PublicMapPage() {
           },
         });
         
-        const wantHeatmapVisible = (defaultIsPoints || isEmbedded) && !selectedShapeLayer && !shouldUseChoropleth && !mightUseChoropleth;
+        const wantHeatmapVisible = !isExplicitDistrictMap && (defaultIsPoints || isEmbedded) && !selectedShapeLayer && !shouldUseChoropleth && !mightUseChoropleth;
         setShowPoints(wantHeatmapVisible);
         
         if (mapInstance.getLayer("map-heatmap")) {
@@ -1422,7 +1570,8 @@ export default function PublicMapPage() {
         
         // Set initial visibility from map config (defaultIsPoints), not from showPoints state,
         // since this callback runs async and may see stale showPoints. Sync state after.
-        const wantPointsVisible = (defaultIsPoints || isEmbedded) && !selectedShapeLayer && !shouldUseChoropleth && !mightUseChoropleth;
+        // Choropleth/delta maps never show the dot layer.
+        const wantPointsVisible = !isExplicitDistrictMap && (defaultIsPoints || isEmbedded) && !selectedShapeLayer && !shouldUseChoropleth && !mightUseChoropleth;
         setShowPoints(wantPointsVisible);
         
         if (mapInstance.getLayer("map-points")) {
@@ -1909,7 +2058,10 @@ export default function PublicMapPage() {
                 if (!showPoints && selectedShapeLayer) setSelectedShapeLayer(null);
                 setShowPoints(!showPoints);
               }}
-              canShowDots={!!(map.location_data && map.location_data.length > 0)}
+              canShowDots={
+                (map.map_type !== "choropleth" && map.map_type !== "delta") &&
+                !!(map.location_data && map.location_data.length > 0)
+              }
             />
           )}
           <div className="map-container embedded-map" ref={mapContainerRef} />
@@ -2218,7 +2370,10 @@ export default function PublicMapPage() {
                 if (!showPoints && selectedShapeLayer) setSelectedShapeLayer(null);
                 setShowPoints(!showPoints);
               }}
-              canShowDots={!!(map.location_data && map.location_data.length > 0)}
+              canShowDots={
+                (map.map_type !== "choropleth" && map.map_type !== "delta") &&
+                !!(map.location_data && map.location_data.length > 0)
+              }
             />
           )}
           <div className="map-container" ref={mapContainerRef} />

@@ -7,15 +7,23 @@ const DEFAULT_INSTRUCTIONS = `For each city:
 2. Check list_feed_stories(city_id=X, limit=20) — avoid duplicating today's stories
 3. Use get_anomalies(city_id=X) → significant spikes/drops → 'alert' stories
 4. Use get_dashboard_comparisons(city_id=X) → period trends → 'trend'/'multi_metric'
-5. IMPORTANT: You must research the stories using your tools especially set_dataset and web search.
-6. For each story: show the relevant chart (show_time_series or show_anomaly) and generate a map if the data is geographic
-7. Use create_feed_story for each with proper story_type, article_html (3-5 paragraphs of long-form context for the canonical page), and visualization refs
+5. Research with tools: set_dataset (SoQL drill-downs) and web_search for incident context and external sources.
+6. For each story:
+   - Validate metric freshness (validate_metric_freshness or get_metric_status) before emphasizing drops or spikes.
+   - show_time_series(chart_id=X) or run_anomaly_detection + show_anomaly(result_id=X) — embed [chart:N] or [anomaly:N] in article_html.
+   - generate_map (map_type='delta' for period comparisons, or point/heatmap) then show_map — embed [map:HASH] in article_html.
+   - web_search for incident details or agency context; cite every off-platform claim with <a href="URL"> in article_html.
+7. Use create_feed_story with:
+   - newsletter_frequency='weekly' (REQUIRED — stories without it won't appear in the feed)
+   - article_html: 3-5 paragraphs with at least one visual shortcode ([chart:N], [anomaly:N], or [map:HASH]) on its own <p> line
+   - visualization_type + visualization_ref_id/visualization_short_hash matching the primary visual
+   - detail_url: SECONDARY "read more" link only (external source, /r/hash report). Do NOT set to a /stories/ or /s/ URL.
 
 IMPORTANT — canonical URLs:
 - Every story automatically gets its own public page at /c/{city-slug}/stories/{hash}. Do NOT pass a canonical URL as detail_url.
-- detail_url is for a SECONDARY "read more" link only (e.g. a research report /r/hash, an external source, or a specific chart). Leave it null when there is no meaningful secondary destination.
+- detail_url is for a SECONDARY "read more" link only (e.g. a research report /r/hash, an external source). Leave it null when there is no meaningful secondary destination.
 
-Aim for 2-4 high-quality stories per city. Specific headlines, real numbers.`;
+Aim for 2-4 high-quality stories per city. Specific headlines, real numbers. Only publish text-only if tools return no usable chart/anomaly/map id.`;
 
 /**
  * Build the same default prompt the API uses when prompt/question are unset.

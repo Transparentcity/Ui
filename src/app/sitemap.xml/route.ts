@@ -3,6 +3,8 @@ import type { MetadataRoute } from "next";
 import {
   listPublicCitiesForSitemap,
   listPublicMapsForSitemap,
+  listPublicMetricsForSitemap,
+  listPublicCityDistrictsForSitemap,
 } from "@/lib/publicApiClient";
 import { listNewsletterEditionsForSitemap } from "@/lib/newsletter";
 import { getSiteOrigin } from "@/lib/siteUrl";
@@ -40,31 +42,24 @@ function toSitemapXml(entries: SitemapEntry[]): string {
     })
     .join("");
 
-  return `<?xml version="1.0" encoding="UTF-8"?>` +
+  return (
+    `<?xml version="1.0" encoding="UTF-8"?>` +
     `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` +
     urls +
-    `</urlset>`;
+    `</urlset>`
+  );
 }
 
 export async function GET(): Promise<Response> {
   const origin = getSiteOrigin();
 
-  // Fetch cities
-  let cities: Awaited<ReturnType<typeof listPublicCitiesForSitemap>> = [];
-  try {
-    cities = await listPublicCitiesForSitemap();
-  } catch {
-    // If the backend is temporarily unavailable, still emit a valid sitemap
-    // containing the marketing pages. Search engines will retry.
-  }
-
-  // Fetch public maps
-  let maps: Awaited<ReturnType<typeof listPublicMapsForSitemap>> = [];
-  try {
-    maps = await listPublicMapsForSitemap();
-  } catch {
-    // If the backend is temporarily unavailable, continue without maps
-  }
+  // Fetch all public data in parallel; fall back gracefully if backend is down.
+  const [cities, maps, metrics, districts] = await Promise.all([
+    listPublicCitiesForSitemap().catch(() => []),
+    listPublicMapsForSitemap().catch(() => []),
+    listPublicMetricsForSitemap().catch(() => []),
+    listPublicCityDistrictsForSitemap().catch(() => []),
+  ]);
 
   // Fetch newsletter editions for sitemap
   let newsletterEditions: Awaited<ReturnType<typeof listNewsletterEditionsForSitemap>> = [];
@@ -75,10 +70,22 @@ export async function GET(): Promise<Response> {
   }
 
   const cityEntries: SitemapEntry[] = cities.map((city) => ({
-    // Slugs can collide (e.g. multiple "Kansas City"). Include stable id to disambiguate.
-    loc: `${origin}/c/${city.slug}?id=${city.id}`,
+    // Clean slug URL — no ?id= query param.
+    loc: `${origin}/c/${city.slug}`,
     changefreq: "weekly",
-    priority: 0.6,
+    priority: 0.7,
+  }));
+
+  const metricEntries: SitemapEntry[] = metrics.map((m) => ({
+    loc: `${origin}/c/${m.city_slug}/metrics/${m.metric_key}`,
+    changefreq: "daily",
+    priority: 0.8,
+  }));
+
+  const districtEntries: SitemapEntry[] = districts.map((d) => ({
+    loc: `${origin}/c/${d.city_slug}/district/${d.district}`,
+    changefreq: "weekly",
+    priority: 0.7,
   }));
 
   const mapEntries: SitemapEntry[] = maps.map((map) => ({
@@ -100,14 +107,13 @@ export async function GET(): Promise<Response> {
   // can be invoked for static generation and backend calls can easily exceed
   // the 60s route build timeout (N+1 calls). We keep the sitemap useful
   // without category pages; search engines can still discover them via links.
-  const categoryEntries: SitemapEntry[] = [];
 
   const entries: SitemapEntry[] = [
     { loc: `${origin}/`, changefreq: "weekly", priority: 1.0 },
     { loc: `${origin}/sitemap`, changefreq: "daily", priority: 0.8 },
-    { loc: `${origin}/landing`, changefreq: "monthly", priority: 0.4 },
+    ...metricEntries,
     ...cityEntries,
-    ...categoryEntries,
+    ...districtEntries,
     ...mapEntries,
     ...newsletterEntries,
   ];
@@ -120,11 +126,3 @@ export async function GET(): Promise<Response> {
     },
   });
 }
-
-
-
-
-
-
-
-

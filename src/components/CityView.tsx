@@ -2181,6 +2181,7 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
                   : (districtGPSLocation || gpsLocation) ?? undefined
             }
             selectedPlaceRadiusM={selectedPlaceId != null ? selectedPlaceRadiusM : undefined}
+            placeLabel={selectedPlaceId != null ? (userPlaces.find((p) => p.id === selectedPlaceId)?.label ?? null) : null}
             selectedDistrict={selectedDistrict}
             onDistrictChange={setSelectedDistrict}
             onDataReady={(data) => {

@@ -110,6 +110,15 @@
   min-width: 120px;
 }
 
+.launchedRow {
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.launchedCityName {
+  color: #059669;
+  font-weight: 600;
+}
+
 .expandBtn {
   margin-left: 0.35rem;
   padding: 0 0.35rem;
@@ -201,6 +210,50 @@
   text-overflow: ellipsis;
 }
 
+.reRunRow {
+  display: flex;
+  align-items: center;
+  margin-top: 0.15rem;
+}
+
+.reRunBtn {
+  background: none;
+  border: 1px solid var(--border-primary, #d1d5db);
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.65rem;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  line-height: 1.4;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.reRunBtn:hover:not(:disabled) {
+  border-color: var(--brand-primary, #6366f1);
+  color: var(--brand-primary, #6366f1);
+}
+
+.reRunBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.reRunStatus {
+  font-size: 0.65rem;
+  color: var(--text-secondary, #6b7280);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.reRunError {
+  font-size: 0.65rem;
+  color: #ef4444;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 .detailRow td {
   background: var(--bg-secondary, #f8f9fa);
   padding: 0.75rem 0.6rem;
@@ -267,6 +320,30 @@
   margin-bottom: 0.2rem;
 }
 
+.metricTableWrap {
+  max-height: 340px;
+  overflow-y: auto;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 6px;
+}
+
+.metricTableWrap .miniTable {
+  width: 100%;
+  position: relative;
+}
+
+.metricTableWrap .miniTable thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-secondary, #f8f9fa);
+  z-index: 1;
+}
+
+:global([data-theme="dark"]) .metricTableWrap,
+:global(.dark) .metricTableWrap {
+  border-color: var(--bg-tertiary);
+}
+
 .empty {
   padding: 2rem;
   text-align: center;
@@ -317,4 +394,14 @@
   padding: 0.1em 0.35em;
   border-radius: 4px;
   font-size: 0.85em;
+}
+
+:global([data-theme="dark"]) .launchedCityName,
+:global(.dark) .launchedCityName {
+  color: #34d399;
+}
+
+:global([data-theme="dark"]) .launchedRow,
+:global(.dark) .launchedRow {
+  background: rgba(16, 185, 129, 0.08);
 }

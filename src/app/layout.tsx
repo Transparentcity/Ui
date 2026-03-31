@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import "./tokens.css";
 import "./ui.css";
@@ -8,37 +9,49 @@ import { JobWebSocketProvider } from "@/contexts/JobWebSocketContext";
 import { getSiteOrigin } from "@/lib/siteUrl";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
 import { ToasterProvider } from "@/components/providers/toaster-provider";
+import { SiteStructuredData } from "@/components/StructuredData";
+import PostHogProvider from "@/components/PostHogProvider";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteOrigin()),
   title: {
-    default: "Transparent.city – See What’s Working in Your City",
-    template: "%s – Transparent.city",
+    default: "Transparent.city \u2013 See What\u2019s Working in Your City",
+    template: "%s \u2013 Transparent.city",
   },
   description:
-    "Transparent.city turns public city data into clear, source-linked insights so residents and public officials can see what's working and where to focus.",
+    "Transparent.city turns public city data into clear, source-linked insights so residents and public officials can see what\u2019s working and where to focus.",
   icons: {
     icon: "/favicon.svg",
   },
+  // verification: { google: "..." },
+  // DNS-level domain ownership is already verified in Google Search Console.
   openGraph: {
     type: "website",
     siteName: "Transparent.city",
-    title: "Transparent.city – See What’s Working in Your City",
+    title: "Transparent.city \u2013 See What\u2019s Working in Your City",
     description:
-      "Transparent.city turns public city data into clear, source-linked insights so residents and public officials can see what's working and where to focus.",
+      "Transparent.city turns public city data into clear, source-linked insights so residents and public officials can see what\u2019s working and where to focus.",
     url: "/",
     images: [
       {
         url: "/images/app-screenshot-dashboard.png",
-        width: 1080,
-        height: 1920,
+        width: 1200,
+        height: 630,
         alt: "Transparent.city dashboard screenshot",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Transparent.city – See What’s Working in Your City",
+    title: "Transparent.city \u2013 See What\u2019s Working in Your City",
     description:
       "Public city data, made legible: maps, metrics, and source-linked research.",
     images: ["/images/app-screenshot-dashboard.png"],
@@ -51,19 +64,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <head>
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
-          rel="stylesheet"
-        />
+        {/* Font Awesome via CDN — migrate to self-hosted SVGs in future to eliminate render-blocking */}
         <link
           rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
@@ -72,16 +76,20 @@ export default function RootLayout({
           referrerPolicy="no-referrer"
         />
       </head>
-      <body>
+      <body className={inter.className}>
+        <SiteStructuredData />
         <ToasterProvider />
         <GoogleAnalytics />
-        <AuthProvider>
-          <ThemeProvider>
-            <JobWebSocketProvider>{children}</JobWebSocketProvider>
-          </ThemeProvider>
-        </AuthProvider>
+        <Analytics />
+        <SpeedInsights />
+        <PostHogProvider>
+          <AuthProvider>
+            <ThemeProvider>
+              <JobWebSocketProvider>{children}</JobWebSocketProvider>
+            </ThemeProvider>
+          </AuthProvider>
+        </PostHogProvider>
       </body>
     </html>
   );
 }
-

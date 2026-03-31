@@ -204,6 +204,7 @@ export interface UpdateCityRequest {
   main_portal_url?: string | null;
   all_portal_urls?: string[];
   is_active?: boolean;
+  is_launched?: boolean;
 }
 
 export interface UpdateCityStructureRequest {
@@ -2178,6 +2179,9 @@ export interface CityFreshnessMetricRow {
   most_recent_data_date: string | null;
   days_old: number | null;
   bucket: FreshnessMetricBucket;
+  last_execution_at: string | null;
+  last_execution_status: string | null;
+  ts_count: number;
 }
 
 export interface CityScheduleRun {
@@ -2203,6 +2207,7 @@ export interface CityScheduleSlot {
 export interface CityScheduleHealth {
   city_id: number;
   city_name: string;
+  is_launched: boolean;
   freshness: CityFreshness;
   freshness_metrics: CityFreshnessMetricRow[];
   schedules: Record<string, CityScheduleSlot>;
@@ -5196,6 +5201,7 @@ export interface BatchExecuteMetricsRequest {
   start_date?: string | null;
   end_date?: string | null;
   max_concurrent?: number;
+  schedule_key?: string | null;
 }
 
 export interface BatchExecuteMetricsResponse {

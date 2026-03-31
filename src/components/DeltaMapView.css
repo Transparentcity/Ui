@@ -65,6 +65,28 @@
   border-top-color: white;
 }
 
+.delta-map-wrapper .map-link-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.5rem;
+}
+
+.delta-map-wrapper .map-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--brand-primary);
+  text-decoration: none;
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 0.875rem;
+  transition: color 0.15s ease;
+}
+
+.delta-map-wrapper .map-link:hover {
+  color: var(--brand-primary-hover);
+  text-decoration: underline;
+}
+
 @media (max-width: 640px) {
   .delta-map-legend {
     gap: 0.75rem;

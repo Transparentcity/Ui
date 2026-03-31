@@ -11,6 +11,7 @@ import {
 } from "@/lib/publicApiClient";
 import MetricDetailClient from "./MetricDetailClient";
 import MetricLoadErrorClient from "./MetricLoadErrorClient";
+import { MetricStructuredData } from "@/components/StructuredData";
 
 const getCachedMetricByKey = cache(async (metricKey: string) => {
   return getPublicMetricByKey(metricKey);
@@ -69,12 +70,28 @@ export async function generateMetadata({
     return {
       title: `${metric.metric_name} in ${year} | ${locationLabel} | ${cityName}`,
       description,
+      alternates: {
+        canonical: `/c/${slug}/metrics/${metricKey}`,
+      },
       openGraph: {
-        title: `${metric.metric_name} in ${year} - ${locationLabel}`,
+        title: `${metric.metric_name} in ${year} - ${locationLabel} - ${cityName}`,
         description,
-        type: "website",
-        // TODO: Add OG image generation endpoint
-        // images: [{ url: `/api/og/metric/${metric.metric_key}` }],
+        type: "article",
+        url: `/c/${slug}/metrics/${metricKey}`,
+        images: [
+          {
+            url: `/c/${slug}/metrics/${metricKey}/opengraph-image`,
+            width: 1200,
+            height: 630,
+            alt: `${metric.metric_name} in ${cityName}`,
+          },
+        ],
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: `${metric.metric_name} in ${year} - ${cityName}`,
+        description,
+        images: [`/c/${slug}/metrics/${metricKey}/opengraph-image`],
       },
     };
   } catch {
@@ -145,13 +162,30 @@ export default async function MetricDetailPage({ params, searchParams }: PagePro
     console.warn("Failed to prefetch metric comparisons/summary:", error);
   }
 
+  const cityName = metric.city_name ?? slug;
+  const description =
+    metric.summary ||
+    metric.definition?.slice(0, 160) ||
+    `View detailed data and trends for ${metric.metric_name} in ${cityName}.`;
+
   return (
-    <MetricDetailClient
-      metric={metric}
-      citySlug={slug}
-      district={districtNum}
-      initialComparisons={initialComparisons}
-      initialTimeSeriesSummary={initialTimeSeriesSummary}
-    />
+    <>
+      <MetricStructuredData
+        metricName={metric.metric_name}
+        metricKey={metric.metric_key}
+        cityName={cityName}
+        citySlug={slug}
+        description={description}
+        category={metric.category}
+        dateModified={metric.last_execution_at ?? null}
+      />
+      <MetricDetailClient
+        metric={metric}
+        citySlug={slug}
+        district={districtNum}
+        initialComparisons={initialComparisons}
+        initialTimeSeriesSummary={initialTimeSeriesSummary}
+      />
+    </>
   );
 }
