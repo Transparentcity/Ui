@@ -451,6 +451,16 @@
   background: rgba(16, 185, 129, 0.08);
 }
 
+/* Traction accent */
+.cardTraction {
+  border-left: 3px solid #10b981;
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.cardTraction:hover {
+  background: rgba(16, 185, 129, 0.08);
+}
+
 /* Raise z-index when overflow dropdown is open so it paints above adjacent cards */
 .cardMenuOpen {
   z-index: 10;
@@ -2078,6 +2088,25 @@
 .businessClosing {
   background: rgba(239, 68, 68, 0.08);
   color: var(--error, #ef4444);
+}
+
+.tractionStatHero {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+
+.tractionStatNumber {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--success, #10b981);
+  line-height: 1;
+}
+
+.tractionStatLabel {
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .trendStrip {

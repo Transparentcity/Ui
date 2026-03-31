@@ -111,6 +111,7 @@ export default function FeedCard({
   const cardClassName = [
     styles.card,
     compact ? styles.cardCompact : "",
+    story.card_type === "off_the_charts" ? styles.cardOffTheCharts : "",
     story.card_type === "traction" ? styles.cardTraction : "",
     hiding ? styles.cardHiding : "",
     overflowOpen ? styles.cardMenuOpen : "",

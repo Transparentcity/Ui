@@ -19,6 +19,14 @@
 import { slugify } from "@/lib/utils";
 import type { EnrichedFeedStory } from "./mockFeedData";
 
+const METRIC_DETAIL_CARD_TYPES = new Set([
+  "alert",
+  "trend",
+  "safety",
+  "off_the_charts",
+  "milestone",
+  "traction",
+]);
 export function resolveCanonicalUrl(story: EnrichedFeedStory): string {
   // Prefer server-computed canonical_path when available — it is always in sync
   // with the backend routing logic and avoids any client-side slugify drift.

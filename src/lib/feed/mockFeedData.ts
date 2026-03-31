@@ -170,6 +170,7 @@ function deriveCardType(story: FeedStory): CardType {
   if (/contract|spending|\$/.test(headline)) return "spending";
   if (/\bda\b|charges|court/.test(headline)) return "justice";
   if (/911|response time/.test(headline)) return "safety";
+  if (/solar|units?\s*built|housing\s*produc|people\s*helped|helped\s+[\d,]+\s+people|meals?\s*served|beds?\s*added|planted|cleaned\s*up|installed|expanded|new\s*jobs|jobs\s*created/.test(headline)) return "traction";
   if (storyType.includes("business") || /restaurant|retail|opens|closes/.test(headline)) return "business";
   if (story.visualization_type === "photo" || meta["311_image"]) return "311_images";
   // Photo-worthy 311 keywords in headline (catches manual stories that weren't typed correctly)

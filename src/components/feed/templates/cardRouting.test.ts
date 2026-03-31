@@ -436,6 +436,15 @@ describe("compact mode decisions", () => {
     }));
     expect(isCompact(story)).toBe(false);
   });
+
+  it("traction story is NEVER compact", () => {
+    const story = enrichStory(makeStory({
+      story_type: "traction",
+      headline: "1,200 solar panels installed",
+      description: "",
+    }));
+    expect(isCompact(story)).toBe(false);
+  });
 });
 
 // ── Graceful fallback tests ──────────────────────────────────────────────
@@ -543,5 +552,39 @@ describe("card routing for new story types", () => {
     }));
     // comparison is not trend/context, so isCompact = false
     expect(story.card_type).toBe("comparison");
+  });
+});
+
+// ── Traction card type tests ──────────────────────────────────────────────
+
+describe("traction card type", () => {
+  it("uses text_only template", () => {
+    const story = enrichStory(makeStory({ story_type: "traction" }));
+    expect(story.template).toBe("text_only");
+  });
+
+  it("has 🌱 icon", () => {
+    const story = enrichStory(makeStory({ story_type: "traction" }));
+    expect(story.type_icon).toBe("\u{1F331}");
+  });
+
+  it("has 'Traction' label", () => {
+    const story = enrichStory(makeStory({ story_type: "traction" }));
+    expect(story.type_label).toBe("Traction");
+  });
+
+  it("actor defaults to City Hall", () => {
+    const story = enrichStory(makeStory({ story_type: "traction", headline: "Progress made" }));
+    expect(story.actor).toBe("City Hall");
+  });
+
+  it("traction with metric_key routes to metric detail URL", () => {
+    const story = enrichStory(makeStory({
+      story_type: "traction",
+      city_name: "San Francisco",
+      district: 0,
+      metadata: { metric_key: "housing_units_built" },
+    }));
+    expect(story.canonical_url).toBe("/c/san-francisco/metrics/housing_units_built");
   });
 });
