@@ -170,7 +170,15 @@ export default function ChatView({
         setIsStreaming(false);
         setCurrentAssistantMessageId(null);
       }
-      
+
+      // Clear messages from the previous session so ChatSessionLoader can
+      // populate them cleanly.  Without this, stale messages linger and the
+      // "loaded.length > prev.length" guard in handleMessagesLoaded can
+      // silently discard the new session's messages.
+      if (!isBootstrappedSessionAssignment) {
+        setMessages([]);
+      }
+
       // Set currentSessionId FIRST so the header knows we have a session
       console.log("📊 Setting currentSessionId to:", sessionId);
       setCurrentSessionId(sessionId);
@@ -360,51 +368,29 @@ export default function ChatView({
       return;
     }
 
-    // If we already have messages in state, be careful about overwriting them
-    // Only update if the loaded messages are actually different/newer
     setMessages((prevMessages) => {
-      // If we have no previous messages, use loaded messages
-      if (prevMessages.length === 0) {
-        if (loadedMessages.length > 0) {
-          console.log("📥 Loading messages from session:", loadedMessages.length);
-          hasShownWelcome.current = false;
-          return loadedMessages;
-        }
-      } else {
-        // We have existing messages - only update if loaded messages are significantly different
-        // (e.g., more messages or different content)
-        if (loadedMessages.length > prevMessages.length) {
-          console.log("📥 Updating messages - loaded has more:", loadedMessages.length, "vs", prevMessages.length);
-          hasShownWelcome.current = false;
-          return loadedMessages;
-        } else {
-          // Keep existing messages - they're likely more up-to-date from streaming
-          console.log("📥 Keeping existing messages - they're more recent");
-          return prevMessages;
-        }
+      if (loadedMessages.length > 0) {
+        // Always accept loaded messages — they are authoritative for the
+        // session that ChatSessionLoader just fetched.
+        console.log("📥 Loading messages from session:", loadedMessages.length);
+        hasShownWelcome.current = false;
+        return loadedMessages;
       }
 
-      // If no messages and no session, show welcome
-      if (!currentSessionId && !hasShownWelcome.current) {
-        return [
-          {
-            id: "welcome",
-            role: "assistant",
-            content:
-              "Hello! I'm Seymour, your AI assistant for analyzing civic data. How can I help you today?",
-          },
-        ];
-      } else if (currentSessionId && loadedMessages.length === 0) {
-        // Session exists but no messages yet - keep existing messages if we have them
-        if (prevMessages.length > 0) {
-          return prevMessages;
-        }
-        return [];
+      // No loaded messages — if we also have no previous messages, keep empty
+      // (the UI will show "No messages yet" for the session, or the welcome
+      // composer if there's no session).
+      if (prevMessages.length === 0) {
+        return prevMessages;
       }
-      
+
+      // We have previous messages but loaded is empty — this can happen when
+      // streaming just finished and the persisted session hasn't caught up.
+      // Keep existing messages to avoid flicker.
+      console.log("📥 Keeping existing messages — loaded was empty");
       return prevMessages;
     });
-  }, [currentSessionId, isStreaming]);
+  }, [isStreaming]);
 
   const handleSessionLoaded = useCallback((session: any) => {
     console.log("📊 handleSessionLoaded called with session:", {
@@ -1375,6 +1361,21 @@ export default function ChatView({
                   </div>
                 );
               })
+          )}
+          {isStreaming && currentAssistantMessageId && (() => {
+            const assistantMsg = messages.find(m => m.id === currentAssistantMessageId);
+            return !assistantMsg || !assistantMsg.content;
+          })() && (
+            <div className={`${styles.chatMessage} ${styles.assistantMessage}`}>
+              <div className={styles.assistantBubble}>
+                <div className={styles.assistantName}>Seymour</div>
+                <div className={styles.thinkingIndicator}>
+                  <span className={styles.thinkingDot} />
+                  <span className={styles.thinkingDot} />
+                  <span className={styles.thinkingDot} />
+                </div>
+              </div>
+            </div>
           )}
           <div ref={messagesEndRef} />
         </div>

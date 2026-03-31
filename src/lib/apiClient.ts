@@ -2338,6 +2338,10 @@ export function runCustomScheduledJob(jobId: number, token: string): Promise<any
   return request(`/api/jobs/schedules/custom/${jobId}/run`, "POST", {}, token);
 }
 
+export function runCustomScheduledJobForCurrentUser(jobId: number, token: string): Promise<any> {
+  return request(`/api/jobs/schedules/custom/${jobId}/run`, "POST", { use_current_user: true }, token);
+}
+
 export interface RunScheduleRequest {
   schedule_key: string;
   max_concurrent_cities?: number;
@@ -3786,6 +3790,8 @@ export interface FeedStory {
   city_name?: string | null;
   city_emoji?: string | null;
   district: number;
+  /** When set, this card is tagged for a saved place (user_places.id) for place filters. */
+  user_place_id?: number | null;
   research_report_id: number;
   newsletter_frequency?: string | null;
   newsletter_period_start?: string | null;
@@ -3821,6 +3827,12 @@ export interface FeedStory {
   updated_at?: string | null;
   /** Current user's AI feedback (thumbs up/down); only when authenticated. */
   user_ai_feedback?: "up" | "down" | null;
+  short_hash?: string | null;
+  public_url?: string | null;
+  /** Server-computed canonical URL path (e.g. /c/san-francisco/stories/abc123). Present on all active stories. */
+  canonical_path?: string | null;
+  /** Long-form HTML for the canonical public story page (feed-producer stories). */
+  article_html?: string | null;
 }
 
 export interface FeedStoriesResponse {
@@ -3898,6 +3910,11 @@ export function listFeedStories(
     order_by?: string;
     /** When true and no city_id, return all active stories (ignore subscription/follows). Use for "All Cities" view. */
     all_cities?: boolean;
+    story_type?: string | null;
+    /** Saved place (user_places.id); API verifies ownership. */
+    user_place_id?: number | null;
+    /** When true, only stories for any of the user's saved places (auth only). */
+    only_my_saved_places?: boolean;
   }
 ): Promise<FeedStoriesResponse> {
   const params = new URLSearchParams();
@@ -3916,6 +3933,13 @@ export function listFeedStories(
   if (options?.limit) params.append("limit", options.limit.toString());
   if (options?.order_by) params.append("order_by", options.order_by);
   if (options?.all_cities) params.append("all_cities", "true");
+  if (options?.story_type) params.append("story_type", options.story_type);
+  if (options?.user_place_id != null) {
+    params.append("user_place_id", String(options.user_place_id));
+  }
+  if (options?.only_my_saved_places) {
+    params.append("only_my_saved_places", "true");
+  }
 
   const query = params.toString();
   const path = `/api/feed${query ? `?${query}` : ""}`;

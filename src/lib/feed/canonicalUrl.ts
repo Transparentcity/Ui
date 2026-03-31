@@ -1,70 +1,54 @@
 /**
- * Resolves the canonical page URL for a feed story based on its type and data.
+ * Resolves the canonical page URL for a feed story.
+ *
+ * All stories that the backend assigns a short_hash to land on their own
+ * dedicated story page (/c/{slug}/stories/{hash}).  The legacy ladder below
+ * is retained only for the handful of very old rows that lack a hash (all DB
+ * stories have been backfilled, but future edge cases may still occur if a
+ * story is created without the backend generating a hash).
  *
  * Routing priority:
- * 1. multi_metric / comparison → city dashboard or district page
- * 2. Single-metric stories with metric_key → metric detail page
- * 3. Single metric in metrics array → metric detail page
- * 4. Anomaly viz (no metric_key) → anomaly page
- * 5. Map viz → map page
- * 6. Research with /r/ detail_url → research page
- * 7. Default → feed story page (/feed/{id})
+ * 1. short_hash present → /c/{slug}/stories/{hash} (canonical); /s/{hash} fallback when slug unknown.
+ * 2. Legacy no-hash: multi_metric / comparison → city or district dashboard page.
+ * 3. Legacy no-hash: fall back to /feed/{id} for all other story types.
+ *
+ * NOTE: personal/saved-place stories are excluded server-side before they
+ * reach the UI, so no client-side privacy gate is needed here.
  */
 
 import { slugify } from "@/lib/utils";
 import type { EnrichedFeedStory } from "./mockFeedData";
 
-const METRIC_DETAIL_CARD_TYPES = new Set([
-  "alert",
-  "trend",
-  "safety",
-  "off_the_charts",
-  "milestone",
-]);
-
 export function resolveCanonicalUrl(story: EnrichedFeedStory): string {
-  const slug = story.city_name ? slugify(story.city_name) : null;
-  const district = story.district;
-  const metricKey = story.metadata?.metric_key as string | undefined;
-  const metrics = story.metadata?.metrics as
-    | Array<{ metric_key?: string }>
-    | undefined;
+  // Prefer server-computed canonical_path when available — it is always in sync
+  // with the backend routing logic and avoids any client-side slugify drift.
+  if (story.canonical_path) {
+    return story.canonical_path;
+  }
 
-  // Multi-metric "This Week" / comparison → city or district page
+  const slug = story.city_name ? slugify(story.city_name) : null;
+
+  // Primary path: every story with a hash gets its own canonical page.
+  if (story.short_hash) {
+    if (slug) return `/c/${slug}/stories/${story.short_hash}`;
+    return `/s/${story.short_hash}`;
+  }
+
+  // Legacy no-hash: multi_metric / comparison → city or district dashboard.
+  const district = story.district;
   if (story.card_type === "multi_metric" || story.card_type === "comparison") {
     if (slug && district > 0) return `/c/${slug}/district/${district}`;
     if (slug) return `/c/${slug}`;
-    return `/feed/${story.id}`;
   }
 
-  // Single metric stories → metric detail page (metric page wins over anomaly)
-  if (metricKey && slug && METRIC_DETAIL_CARD_TYPES.has(story.card_type)) {
-    return `/c/${slug}/metrics/${metricKey}${district > 0 ? `?district=${district}` : ""}`;
-  }
-
-  // Single metric in metrics array → metric detail
-  if (metrics?.length === 1 && metrics[0].metric_key && slug) {
-    return `/c/${slug}/metrics/${metrics[0].metric_key}`;
-  }
-
-  // Anomaly viz without metric_key → anomaly page
-  if (story.visualization_type === "anomaly" && story.visualization_ref_id) {
-    return `/a/${story.visualization_ref_id}`;
-  }
-
-  // Map viz → map page
-  if (story.visualization_type === "map") {
-    const hash = story.primary_visualization?.short_hash;
-    const id = story.primary_visualization?.id ?? story.visualization_ref_id;
-    if (hash) return `/m/${hash}`;
-    if (id) return `/m/${id}`;
-  }
-
-  // Research with report link → research page
-  if (story.story_type === "research" && story.detail_url?.startsWith("/r/")) {
-    return story.detail_url;
-  }
-
-  // Default: feed story page (spending, justice, narrative, context, 311_images, etc.)
+  // Legacy no-hash fallback.
   return `/feed/${story.id}`;
+}
+
+/**
+ * URL to share or link as the public canonical story page.
+ * Identical to {@link resolveCanonicalUrl}.
+ */
+export function resolveOutboundCanonicalPath(story: EnrichedFeedStory): string {
+  return resolveCanonicalUrl(story);
 }

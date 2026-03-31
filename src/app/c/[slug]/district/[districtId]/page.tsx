@@ -207,21 +207,22 @@ export default async function DistrictPage({ params }: PageProps) {
                 <h2 className="section-heading">Recent district updates</h2>
               </header>
               <ul className="story-rows" style={{ marginBottom: "2rem", maxWidth: 640 }}>
-                {feedStories.map((story) => (
-                  <li key={story.id}>
-                    <a
-                      href={story.detail_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="story-row"
-                    >
-                      <span className="story-row-title">{story.headline}</span>
-                      {story.description && (
-                        <p className="story-row-desc">{story.description}</p>
-                      )}
-                    </a>
-                  </li>
-                ))}
+                {feedStories.map((story) => {
+                  const canonical =
+                    story.short_hash
+                      ? `/c/${slug}/stories/${story.short_hash}`
+                      : story.detail_url;
+                  return (
+                    <li key={story.id}>
+                      <a href={canonical} className="story-row">
+                        <span className="story-row-title">{story.headline}</span>
+                        {story.description && (
+                          <p className="story-row-desc">{story.description}</p>
+                        )}
+                      </a>
+                    </li>
+                  );
+                })}
               </ul>
             </>
           )}

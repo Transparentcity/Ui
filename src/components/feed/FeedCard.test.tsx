@@ -149,10 +149,11 @@ describe("FeedCard", () => {
     expect(screen.getByLabelText("Share")).toBeInTheDocument();
   });
 
-  it("does not render Applaud or Flag buttons", () => {
+  it("renders Applaud and Flag buttons in action bar", () => {
     renderCard();
-    expect(screen.queryByLabelText("Applaud")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Flag")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Applaud")).toBeInTheDocument();
+    expect(screen.getByLabelText("Flag")).toBeInTheDocument();
+    // Investigate only renders for officials (isOfficial prop)
     expect(screen.queryByLabelText("Investigate")).not.toBeInTheDocument();
   });
 
@@ -175,6 +176,30 @@ describe("FeedCard", () => {
     const article = screen.getByRole("link");
     fireEvent.click(article);
     expect(mockPush).toHaveBeenCalledWith("/feed/42");
+  });
+
+  it("opens in-app feed detail when onOpenFeedDetail is set", () => {
+    const onOpenFeedDetail = vi.fn();
+    render(
+      <FeedCard
+        story={makeEnrichedStory({
+          canonical_url: "/c/san-francisco/metrics/crime-incidents",
+          card_type: "alert",
+          metadata: { metric_key: "crime-incidents" },
+        })}
+        onHide={onHide}
+        onDelete={onDelete}
+        onOpenFeedDetail={onOpenFeedDetail}
+      />,
+    );
+    fireEvent.click(screen.getByRole("link"));
+    expect(onOpenFeedDetail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 42,
+        canonical_url: "/c/san-francisco/metrics/crime-incidents",
+      }),
+    );
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   // ── Template selection ─────────────────────────────────────────────────

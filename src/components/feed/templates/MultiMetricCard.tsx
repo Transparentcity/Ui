@@ -26,8 +26,8 @@ function formatPct(raw: number): string {
  * and metric name. Decreases in complaints/crime/response times = good.
  * Increases in complaints/crime/response times = bad.
  */
-function isFavorable(direction: string, name: string): boolean {
-  const nameLower = name.toLowerCase();
+function isFavorable(direction: string, name?: string | null): boolean {
+  const nameLower = (name ?? "").toLowerCase();
   // Metrics where "down" is bad (programs, services, employment)
   const downIsBad = /employment|jobs|housing|units|funding|program|service|budget|revenue/.test(nameLower);
   if (downIsBad) return direction === "up";
@@ -40,7 +40,7 @@ function extractRealMetrics(story: EnrichedFeedStory): Metric[] | null {
   if (!meta) return null;
 
   const metricsData = meta.metrics as
-    | Array<{ name: string; direction: string; pct: string | number }>
+    | Array<{ name?: string | null; direction: string; pct: string | number }>
     | undefined;
   if (!Array.isArray(metricsData) || metricsData.length === 0) return null;
 
@@ -49,9 +49,10 @@ function extractRealMetrics(story: EnrichedFeedStory): Metric[] | null {
       m.direction === "up" ? "up" : m.direction === "down" ? "down" : "flat";
     const rawPct = typeof m.pct === "number" ? m.pct : parseFloat(String(m.pct)) || 0;
     const formatted = formatPct(rawPct);
-    const fav = isFavorable(dir, m.name);
+    const metricName = m.name ?? "";
+    const fav = isFavorable(dir, metricName);
     return {
-      name: m.name,
+      name: metricName,
       direction: dir,
       arrow: dir === "up" ? "\u2191" : dir === "down" ? "\u2193" : "\u2500",
       percent: formatted,

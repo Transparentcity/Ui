@@ -11,6 +11,7 @@ import {
 import { enrichStories, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { fetchNarratives } from "@/lib/feed/fetchReportNarratives";
 import FeedCard from "./FeedCard";
+import FeedStoryModal from "./FeedStoryModal";
 import SkeletonCard from "./SkeletonCard";
 import FeedEndState from "./FeedEndState";
 import BrandedLoader from "@/components/BrandedLoader";
@@ -47,7 +48,7 @@ export default function FeedContainer({
   userPlaces = [],
   onPlaceSaved,
 }: FeedContainerProps) {
-  const { getAccessTokenSilently } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   const queryClient = useQueryClient();
   const trackEngagement = useTrackFeedEngagement();
   const viewedRef = useRef<Set<number>>(new Set());
@@ -60,10 +61,12 @@ export default function FeedContainer({
   function loadSavedFilters(): {
     cityIds: Set<number>;
     district: number | null;
+    placeId: number | null;
     frequency: string | null;
     personalOnly: boolean;
     topic: string | null;
     displayLimit: number;
+    onlyMySavedPlaces: boolean;
   } | null {
     try {
       const raw = sessionStorage.getItem(FILTER_STORAGE_KEY);
@@ -72,10 +75,13 @@ export default function FeedContainer({
       return {
         cityIds: new Set(parsed.cityIds ?? []),
         district: parsed.district ?? null,
+        placeId: parsed.placeId ?? null,
         frequency: parsed.frequency ?? null,
         personalOnly: parsed.personalOnly ?? false,
         topic: parsed.topic ?? null,
         displayLimit: parsed.displayLimit ?? 10,
+        onlyMySavedPlaces:
+          parsed.placeId != null ? false : (parsed.onlyMySavedPlaces ?? false),
       };
     } catch {
       return null;
@@ -100,6 +106,9 @@ export default function FeedContainer({
     saved.current?.topic ?? null,
   );
   const [displayLimit, setDisplayLimit] = useState(saved.current?.displayLimit ?? 10);
+  const [onlyMySavedPlacesFeed, setOnlyMySavedPlacesFeed] = useState(
+    saved.current?.onlyMySavedPlaces ?? false,
+  );
   const [feedOrder, setFeedOrder] = useState<"for_you" | "published_at">(() => {
     try {
       const saved = sessionStorage.getItem("feed-order");
@@ -107,19 +116,13 @@ export default function FeedContainer({
     } catch { return "for_you"; }
   });
   const [showDistricts, setShowDistricts] = useState(false);
+  const [showPlaces, setShowPlaces] = useState(false);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<number | null>(
+    saved.current?.placeId ?? null,
+  );
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [feedDetailStoryId, setFeedDetailStoryId] = useState<number | null>(null);
   const hasAddress = userPlaces.length > 0;
-
-  // Detect first session (user just completed onboarding) for tooltip display
-  const [isFirstSession] = useState<boolean>(() => {
-    try {
-      return sessionStorage.getItem("tc_feed_tooltips_seen") === null;
-    } catch {
-      return false;
-    }
-  });
-
-  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
 
   // Persist filters to sessionStorage whenever they change
   useEffect(() => {
@@ -129,16 +132,27 @@ export default function FeedContainer({
         JSON.stringify({
           cityIds: [...selectedCityIds],
           district: selectedDistrict,
+          placeId: selectedPlaceId,
           frequency: selectedFrequency,
           personalOnly: personalNewsletterOnly,
           topic: selectedTopic,
           displayLimit,
+          onlyMySavedPlaces: onlyMySavedPlacesFeed,
         }),
       );
     } catch {
       // sessionStorage unavailable — ignore
     }
-  }, [selectedCityIds, selectedDistrict, selectedFrequency, personalNewsletterOnly, selectedTopic, displayLimit]);
+  }, [
+    selectedCityIds,
+    selectedDistrict,
+    selectedPlaceId,
+    selectedFrequency,
+    personalNewsletterOnly,
+    selectedTopic,
+    displayLimit,
+    onlyMySavedPlacesFeed,
+  ]);
 
   // Save scroll position on every scroll so we can restore it after back-navigation
   const SCROLL_STORAGE_KEY = "feed-scroll-y";
@@ -180,17 +194,41 @@ export default function FeedContainer({
   }, [feedOrder]);
 
   // Reset display limit when filters change
-  useEffect(() => { setDisplayLimit(10); }, [selectedCityIds, selectedDistrict, selectedFrequency, personalNewsletterOnly, selectedTopic]);
+  useEffect(() => {
+    setDisplayLimit(10);
+  }, [
+    selectedCityIds,
+    selectedDistrict,
+    selectedPlaceId,
+    selectedFrequency,
+    personalNewsletterOnly,
+    selectedTopic,
+    onlyMySavedPlacesFeed,
+  ]);
 
   // Reset district when city selection changes away from a single city
   useEffect(() => {
     if (selectedCityIds.size !== 1) setSelectedDistrict(null);
   }, [selectedCityIds]);
 
-  // Pass story_type to the API for server-side filtering (skip for my_block which is metadata-based)
-  const apiStoryType = selectedTopic && selectedTopic !== "my_block" ? selectedTopic : undefined;
+  // Pass story_type to the API for server-side filtering
+  const apiStoryType = selectedTopic ?? undefined;
 
-  const { data: feedData, isLoading, isFetching, isPlaceholderData, error, refetch } = useFeedStories({
+  const apiOnlyMySavedPlaces =
+    isAuthenticated &&
+    onlyMySavedPlacesFeed &&
+    selectedPlaceId == null &&
+    !personalNewsletterOnly &&
+    userPlaces.length > 0;
+
+  const {
+    data: feedData,
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    error,
+    refetch,
+  } = useFeedStories({
     city_id: personalNewsletterOnly ? undefined : singleCityId,
     district: personalNewsletterOnly ? undefined : (singleCityId ? (selectedDistrict ?? undefined) : undefined),
     newsletter_frequency: selectedFrequency ?? undefined,
@@ -199,6 +237,9 @@ export default function FeedContainer({
     order_by: feedOrder,
     all_cities: personalNewsletterOnly || !singleCityId,
     story_type: apiStoryType,
+    user_place_id:
+      isAuthenticated && selectedPlaceId != null ? selectedPlaceId : undefined,
+    only_my_saved_places: apiOnlyMySavedPlaces,
   });
 
   const stories = feedData?.stories ?? [];
@@ -295,12 +336,16 @@ export default function FeedContainer({
   const visibleStories = useMemo(() => {
     const filtered = enrichedWithNarratives.filter((s) => {
       if (hiddenIds.has(s.id)) return false;
-      if (selectedTopic) {
-        if (selectedTopic === "my_block") {
-          if (!s.metadata?.my_block) return false;
-        } else if (s.card_type !== selectedTopic) {
-          return false;
-        }
+      if (selectedTopic && s.card_type !== selectedTopic) return false;
+      if (selectedPlaceId !== null) {
+        const legacyIds: number[] = Array.isArray(s.metadata?.user_place_ids)
+          ? s.metadata.user_place_ids
+          : s.metadata?.my_block
+            ? userPlaces.map((p) => p.id)
+            : [];
+        const matchesColumn = s.user_place_id === selectedPlaceId;
+        const matchesLegacy = legacyIds.includes(selectedPlaceId);
+        if (!matchesColumn && !matchesLegacy) return false;
       }
       if (selectedCityIds.size === 1 && !selectedCityIds.has(s.city_id)) return false;
       return true;
@@ -326,7 +371,14 @@ export default function FeedContainer({
     }
 
     return filtered;
-  }, [enrichedWithNarratives, hiddenIds, selectedTopic, selectedCityIds]);
+  }, [
+    enrichedWithNarratives,
+    hiddenIds,
+    selectedTopic,
+    selectedCityIds,
+    selectedPlaceId,
+    userPlaces,
+  ]);
 
   // Restore scroll position once stories have loaded (only on initial mount)
   const scrollRestored = useRef(false);
@@ -449,9 +501,31 @@ export default function FeedContainer({
     pulling.current = false;
   }, [pullDistance, refreshing, refetch]);
 
+  /** Header / retry refetch: tied to refetch() promise so the loader stops when the request finishes. */
+  const explicitRefetchInFlight = useRef(0);
+  const [headerRefetchBusy, setHeaderRefetchBusy] = useState(false);
+
+  const runExplicitFeedRefetch = useCallback(() => {
+    explicitRefetchInFlight.current += 1;
+    setHeaderRefetchBusy(true);
+    void refetch().finally(() => {
+      explicitRefetchInFlight.current -= 1;
+      if (explicitRefetchInFlight.current <= 0) {
+        explicitRefetchInFlight.current = 0;
+        setHeaderRefetchBusy(false);
+      }
+    });
+  }, [refetch]);
+
+  const headerRefreshSpinning = refreshing || headerRefetchBusy;
+
   // ── Render ──
 
-  const hasSecondaryFilters = selectedTopic != null || selectedDistrict != null;
+  const hasSecondaryFilters =
+    selectedTopic != null ||
+    selectedDistrict != null ||
+    selectedPlaceId != null ||
+    onlyMySavedPlacesFeed;
 
   // ── Dynamic header ──
   const selectedCityName = useMemo(() => {
@@ -476,15 +550,27 @@ export default function FeedContainer({
         <button
           type="button"
           className={styles.refreshBtn}
-          onClick={() => refetch()}
+          onClick={() => runExplicitFeedRefetch()}
           aria-label="Refresh feed"
+          aria-busy={headerRefreshSpinning}
           title="Refresh feed"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="23 4 23 10 17 10"></polyline>
-            <polyline points="1 20 1 14 7 14"></polyline>
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-          </svg>
+          {headerRefreshSpinning ? (
+            <BrandedLoader
+              size="sm"
+              color="brand"
+              ariaHidden
+              className={styles.refreshBtnIconWrap}
+            />
+          ) : (
+            <span className={styles.refreshBtnIconWrap}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <polyline points="1 20 1 14 7 14"></polyline>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+            </span>
+          )}
         </button>
       </div>
 
@@ -532,9 +618,59 @@ export default function FeedContainer({
       {/* Topic filter chips */}
       <div className={styles.secondaryFilterRow}>
         <div className={styles.filterChipScroll}>
+          {/* My Places toggle — shown when user has saved places */}
+          {userPlaces.length > 0 && (
+            <button
+              key="my-places-toggle"
+              type="button"
+              className={`${styles.filterChip} ${showPlaces || selectedPlaceId !== null || onlyMySavedPlacesFeed ? styles.filterChipActive : ""}`}
+              onClick={() => {
+                setShowDistricts(false);
+                setShowPlaces((prev) => {
+                  const opening = !prev;
+                  // Enter "all my saved places" feed mode when opening the menu
+                  // unless the user is already narrowed to one place.
+                  if (opening && selectedPlaceId == null) {
+                    setOnlyMySavedPlacesFeed(true);
+                  }
+                  return opening;
+                });
+              }}
+              aria-expanded={showPlaces}
+            >
+              {selectedPlaceId !== null
+                ? (userPlaces.find((p) => p.id === selectedPlaceId)?.label ?? "My Places")
+                : "My Places"}
+              <span className={styles.filterChipCaret} aria-hidden="true">
+                {showPlaces ? "▲" : "▼"}
+              </span>
+            </button>
+          )}
+
+          {/* Districts toggle — shown when single city is selected and has districts */}
+          {singleCityId && cityDistricts.length > 0 && (
+            <button
+              key="district-toggle"
+              type="button"
+              className={`${styles.filterChip} ${showDistricts || selectedDistrict !== null ? styles.filterChipActive : ""}`}
+              onClick={() => {
+                setShowDistricts((v) => !v);
+                setShowPlaces(false);
+              }}
+              aria-expanded={showDistricts}
+            >
+              {selectedDistrict !== null
+                ? `${districtPrefix}${selectedDistrict}`
+                : `${districtTerm}s`}
+              <span className={styles.filterChipCaret} aria-hidden="true">
+                {showDistricts ? "▲" : "▼"}
+              </span>
+            </button>
+          )}
+
+          {/* Topic chips */}
           {[
             { value: "", label: "All topics" },
-            { value: "my_block", label: "My Block" },
             { value: "safety", label: "Safety" },
             { value: "justice", label: "Justice" },
             { value: "business", label: "Business" },
@@ -546,47 +682,16 @@ export default function FeedContainer({
             { value: "comparison", label: "Your District" },
             { value: "milestone", label: "Milestones" },
             { value: "311_images", label: "311 Photos" },
-          ].flatMap((t) => {
-            const chip = (
-              <button
-                key={t.value}
-                type="button"
-                className={`${styles.filterChip} ${(selectedTopic ?? "") === t.value ? styles.filterChipActive : ""}`}
-                onClick={() => {
-                  if (t.value === "my_block" && !hasAddress) {
-                    setShowLocationModal(true);
-                    return;
-                  }
-                  setSelectedTopic(t.value || null);
-                }}
-              >
-                {t.label}
-              </button>
-            );
-
-            // Insert district toggle button right after "My Block"
-            if (t.value === "my_block" && singleCityId && cityDistricts.length > 0) {
-              return [
-                chip,
-                <button
-                  key="district-toggle"
-                  type="button"
-                  className={`${styles.filterChip} ${showDistricts || selectedDistrict !== null ? styles.filterChipActive : ""}`}
-                  onClick={() => setShowDistricts((v) => !v)}
-                  aria-expanded={showDistricts}
-                >
-                  {selectedDistrict !== null
-                    ? `${districtPrefix}${selectedDistrict}`
-                    : `${districtTerm}s`}
-                  <span className={styles.filterChipCaret} aria-hidden="true">
-                    {showDistricts ? "▲" : "▼"}
-                  </span>
-                </button>,
-              ];
-            }
-
-            return [chip];
-          })}
+          ].map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              className={`${styles.filterChip} ${(selectedTopic ?? "") === t.value ? styles.filterChipActive : ""}`}
+              onClick={() => setSelectedTopic(t.value || null)}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
         {hasSecondaryFilters && (
@@ -595,14 +700,50 @@ export default function FeedContainer({
             className={styles.compactClear}
             onClick={() => {
               setSelectedDistrict(null);
+              setSelectedPlaceId(null);
               setSelectedTopic(null);
+              setOnlyMySavedPlacesFeed(false);
               setShowDistricts(false);
+              setShowPlaces(false);
             }}
           >
             Clear filters
           </button>
         )}
       </div>
+
+      {/* Expandable My Places chips */}
+      {userPlaces.length > 0 && showPlaces && (
+        <div className={styles.districtDrawer}>
+          <div className={styles.filterChipScroll}>
+            <button
+              type="button"
+              className={`${styles.filterChip} ${selectedPlaceId === null && onlyMySavedPlacesFeed ? styles.filterChipActive : ""}`}
+              onClick={() => {
+                setSelectedPlaceId(null);
+                setOnlyMySavedPlacesFeed(true);
+                setShowPlaces(false);
+              }}
+            >
+              All Places
+            </button>
+            {userPlaces.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className={`${styles.filterChip} ${selectedPlaceId === p.id ? styles.filterChipActive : ""}`}
+                onClick={() => {
+                  setSelectedPlaceId(p.id);
+                  setOnlyMySavedPlacesFeed(false);
+                  setShowPlaces(false);
+                }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Expandable district chips */}
       {singleCityId && cityDistricts.length > 0 && showDistricts && (
@@ -659,7 +800,7 @@ export default function FeedContainer({
           <button
             type="button"
             className={styles.retryBtn}
-            onClick={() => refetch()}
+            onClick={() => runExplicitFeedRefetch()}
           >
             Retry
           </button>
@@ -672,6 +813,8 @@ export default function FeedContainer({
           <p>
             {personalNewsletterOnly
               ? "No personal newsletter samples yet. Generate one from Settings \u2192 Personalized newsletter."
+              : onlyMySavedPlacesFeed
+                ? "No personalized place stories yet. We generate these for your saved places over time—check back soon."
               : hasSecondaryFilters || selectedCityIds.size > 0
                 ? (() => {
                     const parts: string[] = [];
@@ -682,7 +825,7 @@ export default function FeedContainer({
                         alert: "Alerts", trend: "Trends",
                         context: "Context & Background", off_the_charts: "Off the Charts",
                         comparison: "Your District", milestone: "Milestones",
-                        my_block: "My Neighborhood", "311_images": "311 Photos",
+                        "311_images": "311 Photos",
                       };
                       parts.push(topicLabels[selectedTopic] ?? selectedTopic);
                     }
@@ -704,7 +847,9 @@ export default function FeedContainer({
               onClick={() => {
                 setSelectedCityIds(new Set());
                 setSelectedDistrict(null);
+                setSelectedPlaceId(null);
                 setSelectedTopic(null);
+                setOnlyMySavedPlacesFeed(false);
               }}
             >
               Clear all filters
@@ -713,56 +858,30 @@ export default function FeedContainer({
         </div>
       )}
 
-      {/* Post-onboarding welcome banner */}
-      {isFirstSession && !welcomeDismissed && visibleStories.length > 0 && selectedCityName && (
-        <div className={styles.welcomeBanner}>
-          <div className={styles.welcomeBannerContent}>
-            <p className={styles.welcomeBannerTitle}>Welcome to your feed</p>
-            <p className={styles.welcomeBannerText}>
-              Here are the latest stories for {selectedCityName}{selectedDistrict ? `, ${districtTerm} ${selectedDistrict}` : ""}. As you applaud and flag stories, your feed will learn what matters to you.
-            </p>
-          </div>
-          <button
-            type="button"
-            className={styles.welcomeBannerClose}
-            onClick={() => setWelcomeDismissed(true)}
-            aria-label="Dismiss"
-          >
-            &times;
-          </button>
-        </div>
-      )}
-
-      {/* My Block empty state (client-side filter returned nothing) */}
-      {!isLoading && !error && visibleStories.length === 0 && stories.length > 0 && selectedTopic === "my_block" && (
+      {/* My Block / My Places empty state (client-side filter returned nothing) */}
+      {!isLoading &&
+        !error &&
+        visibleStories.length === 0 &&
+        stories.length > 0 &&
+        (selectedTopic === "my_block" ||
+          selectedPlaceId !== null ||
+          onlyMySavedPlacesFeed) && (
         <div className={styles.emptyState}>
-          {hasAddress ? (
-            <>
-              <p className={styles.myBlockEmptyTitle}>No My Block stories yet</p>
-              <p className={styles.myBlockEmptyText}>
-                We're working on generating stories for your neighborhood. Check back soon.
-              </p>
-            </>
-          ) : (
-            <>
-              <p className={styles.myBlockEmptyTitle}>Set your location to see neighborhood stories</p>
-              <p className={styles.myBlockEmptyText}>
-                My Block shows stories about what's happening near you. Add your address to get started.
-              </p>
-              <button
-                type="button"
-                className={styles.myBlockEmptyCta}
-                onClick={() => setShowLocationModal(true)}
-              >
-                Add your address
-              </button>
-            </>
-          )}
+          <p className={styles.myBlockEmptyTitle}>No stories for this place yet</p>
+          <p className={styles.myBlockEmptyText}>
+            We&apos;re working on generating stories for your saved places. Check back soon.
+          </p>
         </div>
       )}
 
-      {/* Generic client-side filter empty state (non-My Block topics) */}
-      {!isLoading && !error && visibleStories.length === 0 && stories.length > 0 && selectedTopic !== "my_block" && selectedTopic !== null && (
+      {/* Generic client-side filter empty state (not my_block / not place-specific — those use the block above) */}
+      {!isLoading &&
+        !error &&
+        visibleStories.length === 0 &&
+        stories.length > 0 &&
+        selectedPlaceId === null &&
+        selectedTopic !== null &&
+        selectedTopic !== "my_block" && (
         <div className={styles.emptyState}>
           <p>No stories match this filter right now. Try a different topic or clear filters.</p>
           <button
@@ -810,6 +929,7 @@ export default function FeedContainer({
                 onDelete={isAdmin ? handleDelete : undefined}
                 compact={isCompact}
                 showTooltips={storyIdx === 0}
+                onOpenFeedDetail={(s) => setFeedDetailStoryId(s.id)}
               />
             );
           })}
@@ -835,15 +955,22 @@ export default function FeedContainer({
       )}
 
 
-      {/* Location modal for My Block when no address is saved */}
       <EditHomeLocationModal
         open={showLocationModal}
         onClose={() => setShowLocationModal(false)}
         onSaved={() => {
           setShowLocationModal(false);
-          setSelectedTopic("my_block");
           onPlaceSaved?.();
         }}
+      />
+
+      <FeedStoryModal
+        storyId={feedDetailStoryId}
+        open={feedDetailStoryId != null}
+        onOpenChange={(next) => {
+          if (!next) setFeedDetailStoryId(null);
+        }}
+        onSelectRelatedStory={(id) => setFeedDetailStoryId(id)}
       />
     </div>
   );

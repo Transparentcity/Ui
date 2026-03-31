@@ -12,6 +12,23 @@
   transition: transform 0.3s ease, width 0.3s ease;
 }
 
+.resizeHandle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 1001;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.resizeHandle:hover,
+.resizeHandle:active {
+  background: var(--brand-primary, #6366f1);
+}
+
 .collapsed {
   transform: translateX(-100%);
   width: var(--sidebar-width);
