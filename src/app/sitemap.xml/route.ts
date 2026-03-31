@@ -4,6 +4,7 @@ import {
   listPublicCitiesForSitemap,
   listPublicMapsForSitemap,
 } from "@/lib/publicApiClient";
+import { listNewsletterEditionsForSitemap } from "@/lib/newsletter";
 import { getSiteOrigin } from "@/lib/siteUrl";
 
 export const revalidate = 3600;
@@ -65,6 +66,14 @@ export async function GET(): Promise<Response> {
     // If the backend is temporarily unavailable, continue without maps
   }
 
+  // Fetch newsletter editions for sitemap
+  let newsletterEditions: Awaited<ReturnType<typeof listNewsletterEditionsForSitemap>> = [];
+  try {
+    newsletterEditions = await listNewsletterEditionsForSitemap();
+  } catch {
+    // Non-critical, continue without newsletter entries
+  }
+
   const cityEntries: SitemapEntry[] = cities.map((city) => ({
     // Slugs can collide (e.g. multiple "Kansas City"). Include stable id to disambiguate.
     loc: `${origin}/c/${city.slug}?id=${city.id}`,
@@ -75,6 +84,15 @@ export async function GET(): Promise<Response> {
   const mapEntries: SitemapEntry[] = maps.map((map) => ({
     loc: `${origin}/m/${map.short_hash}`,
     changefreq: "monthly",
+    priority: 0.5,
+  }));
+
+  const newsletterEntries: SitemapEntry[] = newsletterEditions.map((e) => ({
+    loc:
+      e.district > 0
+        ? `${origin}/c/${e.city_slug}/newsletter/${e.edition_date}?district=${e.district}`
+        : `${origin}/c/${e.city_slug}/newsletter/${e.edition_date}`,
+    changefreq: "never",
     priority: 0.5,
   }));
 
@@ -91,6 +109,7 @@ export async function GET(): Promise<Response> {
     ...cityEntries,
     ...categoryEntries,
     ...mapEntries,
+    ...newsletterEntries,
   ];
 
   const xml = toSitemapXml(entries);
@@ -101,10 +120,6 @@ export async function GET(): Promise<Response> {
     },
   });
 }
-
-
-
-
 
 
 
