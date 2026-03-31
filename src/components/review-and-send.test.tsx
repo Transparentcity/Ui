@@ -41,10 +41,15 @@ const mockUpdateContent = vi.fn().mockResolvedValue(undefined)
 const mockUpdateStatus = vi.fn().mockResolvedValue(undefined)
 const mockDeleteItems = vi.fn().mockResolvedValue(undefined)
 
+const mockSendSingleQueueItem = vi.fn().mockResolvedValue({ success: true })
+const mockCheckSendGridStatus = vi.fn().mockResolvedValue({ configured: true })
+
 vi.mock("@/app/actions/send-queue", () => ({
   updateQueueItemContent: (...args: any[]) => mockUpdateContent(...args),
   updateQueueItemStatus: (...args: any[]) => mockUpdateStatus(...args),
   deleteQueueItems: (...args: any[]) => mockDeleteItems(...args),
+  sendSingleQueueItem: (...args: any[]) => mockSendSingleQueueItem(...args),
+  checkSendGridStatus: (...args: any[]) => mockCheckSendGridStatus(...args),
 }))
 
 const mockFetch = vi.fn()
@@ -229,7 +234,7 @@ describe("ReviewAndSend", () => {
     const user = userEvent.setup()
     render(<ReviewAndSend items={[PENDING_ITEM]} />)
 
-    const sentBtn = screen.getByRole("button", { name: /mark as sent/i })
+    const sentBtn = screen.getByRole("button", { name: /mark sent/i })
     await user.click(sentBtn)
 
     await waitFor(() => {
@@ -422,7 +427,7 @@ describe("ReviewAndSend", () => {
 
     // But NOT these action buttons
     expect(screen.queryByRole("button", { name: /regenerate/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: /mark as sent/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /mark sent/i })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /discard/i })).not.toBeInTheDocument()
   })
 
@@ -500,7 +505,7 @@ describe("ReviewAndSend", () => {
     })
 
     // The dialog has its own "Mark as Sent" button
-    const dialogSentBtns = screen.getAllByRole("button", { name: /mark as sent/i })
+    const dialogSentBtns = screen.getAllByRole("button", { name: /mark sent/i })
     // Click the one inside the dialog (last match)
     await user.click(dialogSentBtns[dialogSentBtns.length - 1])
 
@@ -751,7 +756,8 @@ describe("ReviewAndSend", () => {
     await waitFor(() => {
       expect(screen.getByText("2 selected")).toBeInTheDocument()
     })
-    expect(screen.getByRole("button", { name: /mark sent/i })).toBeInTheDocument()
+    const markSentBtns = screen.getAllByRole("button", { name: /mark sent/i })
+    expect(markSentBtns.length).toBeGreaterThanOrEqual(1)
 
     // The bulk discard button text
     const bulkDiscardBtns = screen.getAllByRole("button", { name: /discard/i })
@@ -781,10 +787,11 @@ describe("ReviewAndSend", () => {
       expect(screen.getByText("2 selected")).toBeInTheDocument()
     })
 
-    // Click bulk Mark Sent
-    await user.click(screen.getByRole("button", { name: /mark sent/i }))
+    // Click bulk Mark Sent (first matching button in the bulk action bar)
+    const markSentBtns = screen.getAllByRole("button", { name: /mark sent/i })
+    await user.click(markSentBtns[0])
 
-    // AlertDialog should appear — confirm
+    // AlertDialog should appear -- confirm
     const confirmBtn = await screen.findByRole("button", { name: /^mark sent$/i })
     await user.click(confirmBtn)
 
@@ -868,18 +875,18 @@ describe("ReviewAndSend", () => {
   // Loading states for individual buttons
   // ===================================================================
 
-  it("shows 'Sending...' spinner on Mark as Sent button while in flight", async () => {
+  it("shows 'Marking...' spinner on Mark Sent button while in flight", async () => {
     const user = userEvent.setup()
     // Make updateQueueItemStatus hang
     mockUpdateStatus.mockReturnValueOnce(new Promise(() => {}))
 
     render(<ReviewAndSend items={[PENDING_ITEM]} />)
 
-    const sentBtn = screen.getByRole("button", { name: /mark as sent/i })
-    await user.click(sentBtn)
+    const markSentBtns = screen.getAllByRole("button", { name: /mark sent/i })
+    await user.click(markSentBtns[0])
 
     await waitFor(() => {
-      expect(screen.getByText("Sending...")).toBeInTheDocument()
+      expect(screen.getByText("Marking...")).toBeInTheDocument()
     })
   })
 
@@ -913,9 +920,10 @@ describe("ReviewAndSend", () => {
       expect(screen.getByText("1 selected")).toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole("button", { name: /mark sent/i }))
+    const markSentBtns = screen.getAllByRole("button", { name: /mark sent/i })
+    await user.click(markSentBtns[0])
 
-    // AlertDialog appears — confirm
+    // AlertDialog appears -- confirm
     const confirmBtn = await screen.findByRole("button", { name: /^mark sent$/i })
     await user.click(confirmBtn)
 
@@ -1233,7 +1241,7 @@ describe("ReviewAndSend", () => {
     const user = userEvent.setup()
     render(<ReviewAndSend items={[PENDING_ITEM]} />)
 
-    await user.click(screen.getByRole("button", { name: /mark as sent/i }))
+    await user.click(screen.getByRole("button", { name: /mark sent/i }))
 
     await waitFor(() => {
       expect(mockUpdateStatus).toHaveBeenCalledWith(PENDING_ITEM.id, "sent")
@@ -1388,7 +1396,7 @@ describe("ReviewAndSend", () => {
     const user = userEvent.setup()
     render(<ReviewAndSend items={[PENDING_ITEM]} />)
 
-    await user.click(screen.getByRole("button", { name: /mark as sent/i }))
+    await user.click(screen.getByRole("button", { name: /mark sent/i }))
 
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith("Failed to mark as sent")
@@ -1405,11 +1413,11 @@ describe("ReviewAndSend", () => {
     await user.click(screen.getByText(/select all/i))
 
     // Click bulk Mark Sent
-    const bulkSentBtn = screen.getByRole("button", { name: /mark sent/i })
-    await user.click(bulkSentBtn)
+    const markSentBtns = screen.getAllByRole("button", { name: /mark sent/i })
+    await user.click(markSentBtns[0])
 
     // Confirm dialog
-    const confirmBtn = await screen.findByRole("button", { name: /mark sent/i })
+    const confirmBtn = await screen.findByRole("button", { name: /^mark sent$/i })
     await user.click(confirmBtn)
 
     await waitFor(() => {

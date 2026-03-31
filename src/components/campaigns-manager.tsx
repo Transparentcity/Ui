@@ -26,10 +26,18 @@ import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import { toSlimEmailAnomaly, type CrmEmailAnomaly } from "@/lib/crmAnomalyUtils"
 import { isAnomalyIgnored } from "./anomalies-manager"
 
+interface QueueStats {
+  pending_review: number
+  queued: number
+  sent: number
+  failed: number
+}
+
 interface CampaignWithStats extends Campaign {
   template?: { id: string; name: string; channel: string } | null
   messageCount: number
   prospect_ids?: string[]
+  queueStats?: QueueStats
 }
 
 interface Contact {
@@ -445,8 +453,32 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
                     {campaign.description}
                   </p>
                 )}
+                {campaign.queueStats && (campaign.queueStats.pending_review > 0 || campaign.queueStats.queued > 0 || campaign.queueStats.sent > 0 || campaign.queueStats.failed > 0) && (
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    {campaign.queueStats.pending_review > 0 && (
+                      <Badge variant="secondary" className="text-xs gap-1">
+                        {campaign.queueStats.pending_review} drafts
+                      </Badge>
+                    )}
+                    {campaign.queueStats.queued > 0 && (
+                      <Badge variant="outline" className="text-xs gap-1 border-blue-300 text-blue-700">
+                        {campaign.queueStats.queued} queued
+                      </Badge>
+                    )}
+                    {campaign.queueStats.sent > 0 && (
+                      <Badge variant="outline" className="text-xs gap-1 border-green-300 text-green-700">
+                        {campaign.queueStats.sent} sent
+                      </Badge>
+                    )}
+                    {campaign.queueStats.failed > 0 && (
+                      <Badge variant="outline" className="text-xs gap-1 border-red-300 text-red-700">
+                        {campaign.queueStats.failed} failed
+                      </Badge>
+                    )}
+                  </div>
+                )}
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{campaign.messageCount} messages sent</span>
+                  <span>{campaign.messageCount} messages</span>
                   <span>Created {new Date(campaign.created_at).toLocaleDateString()}</span>
                 </div>
               </CardContent>

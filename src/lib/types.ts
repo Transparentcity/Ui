@@ -248,7 +248,7 @@ export interface SendQueueItem {
   chart_url?: string | null
   variation_seed: number | null
   priority: number
-  status: 'pending_review' | 'queued' | 'processing' | 'sent' | 'failed' | 'cancelled' | 'discarded'
+  status: 'pending_review' | 'queued' | 'processing' | 'sent' | 'failed' | 'cancelled'
   scheduled_for: string | null
   sent_at: string | null
   error_message: string | null

@@ -48,10 +48,36 @@ export default async function CampaignsPage() {
       console.error('[Campaigns] Error fetching campaign_prospects:', error)
     }
   }
+  // Fetch queue stats per campaign
+  const queueStatsByCampaign: Record<string, { pending_review: number; queued: number; sent: number; failed: number }> = {}
+  if (campaignIds.length > 0) {
+    try {
+      const queueResult = await db
+        .from('send_queue')
+        .select('campaign_id, status')
+      if (!queueResult.error && queueResult.data) {
+        const rows = Array.isArray(queueResult.data) ? queueResult.data : []
+        for (const row of rows as { campaign_id: string; status: string }[]) {
+          if (!queueStatsByCampaign[row.campaign_id]) {
+            queueStatsByCampaign[row.campaign_id] = { pending_review: 0, queued: 0, sent: 0, failed: 0 }
+          }
+          const stats = queueStatsByCampaign[row.campaign_id]
+          if (row.status === 'pending_review') stats.pending_review++
+          else if (row.status === 'queued') stats.queued++
+          else if (row.status === 'sent') stats.sent++
+          else if (row.status === 'failed') stats.failed++
+        }
+      }
+    } catch {
+      // Queue table may not exist yet
+    }
+  }
+
   const campaignsWithStats = campaigns.map((campaign: any) => ({
     ...campaign,
     messageCount: campaign.messages?.[0]?.count || 0,
-    prospect_ids: prospectsByCampaign[campaign.id] ?? []
+    prospect_ids: prospectsByCampaign[campaign.id] ?? [],
+    queueStats: queueStatsByCampaign[campaign.id] || { pending_review: 0, queued: 0, sent: 0, failed: 0 },
   }))
 
   return (
