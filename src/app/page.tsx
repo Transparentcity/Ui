@@ -43,8 +43,8 @@ export default function Home() {
   // Live cities and stats from public APIs
   type LiveCity = { city_id: number; city_name: string; city_emoji: string; slug: string };
   const [liveCities, setLiveCities] = useState<LiveCity[]>([]);
-  const [storyCount, setStoryCount] = useState<number | null>(null);
-  const [cityCount, setCityCount] = useState<number | null>(null);
+  const [storyCount, setStoryCount] = useState<number | null>(2000);
+  const [cityCount, setCityCount] = useState<number | null>(33);
 
   // Landing-hero screenshot carousel (matches original landing page)
   const [activeSlide, setActiveSlide] = useState(0);

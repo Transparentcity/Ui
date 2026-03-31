@@ -26,7 +26,8 @@ export type CardType =
   | "multi_metric"
   | "off_the_charts"
   | "comparison"
-  | "milestone";
+  | "milestone"
+  | "traction";
 
 export type TemplateType = "text_only" | "text_chart" | "text_photo" | "multi_metric";
 
@@ -65,6 +66,7 @@ const TYPE_ICONS: Record<CardType, string> = {
   off_the_charts: "\u{1F92F}", // 🤯
   comparison: "\u{1F504}",     // 🔄
   milestone: "\u{1F3AF}",      // 🎯
+  traction: "\u{1F31F}",       // 🌟
 };
 
 const TYPE_LABELS: Record<CardType, string> = {
@@ -81,6 +83,7 @@ const TYPE_LABELS: Record<CardType, string> = {
   off_the_charts: "Off the Charts",
   comparison: "Your District",
   milestone: "Milestone",
+  traction: "Traction",
 };
 
 // ── Actor (city department) derivation ──────────────────────────────────────
@@ -120,6 +123,7 @@ function deriveActor(cardType: CardType, headline: string): string {
     case "off_the_charts": return "City Hall";
     case "comparison": return "City Hall";
     case "milestone": return "City Hall";
+    case "traction": return "City Hall";
     default: return "City Hall";
   }
 }
@@ -134,7 +138,7 @@ const KNOWN_CARD_TYPES = new Set<string>([
   "alert", "trend", "business", "spending",
   "justice", "safety", "311_images",
   "context", "multi_metric", "off_the_charts",
-  "comparison", "milestone",
+  "comparison", "milestone", "traction",
 ]);
 
 function deriveCardType(story: FeedStory): CardType {
@@ -170,6 +174,7 @@ function deriveCardType(story: FeedStory): CardType {
   if (story.visualization_type === "photo" || meta["311_image"]) return "311_images";
   // Photo-worthy 311 keywords in headline (catches manual stories that weren't typed correctly)
   if (/graffiti|pothole|sidewalk|litter|dumping|rodent|blocked|streetlight/.test(headline)) return "311_images";
+  if (/record low|improved|lowest in|best in|all-time low|community pride|celebrates/.test(headline)) return "traction";
 
   return "alert";
 }

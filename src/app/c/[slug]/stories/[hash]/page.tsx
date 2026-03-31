@@ -173,8 +173,12 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
               fontWeight: 600,
               letterSpacing: "0.08em",
               textTransform: "uppercase",
-              background: "var(--accent-muted, rgba(173,53,250,0.1))",
-              color: "var(--brand-primary, #ad35fa)",
+              background: story.story_type === "traction"
+                ? "rgba(16, 185, 129, 0.1)"
+                : "var(--accent-muted, rgba(173,53,250,0.1))",
+              color: story.story_type === "traction"
+                ? "#10b981"
+                : "var(--brand-primary, #ad35fa)",
             }}
           >
             {story.story_type.replace(/_/g, " ")}
