@@ -83,6 +83,7 @@ export function AIEmailComposer({ contacts, anomalies, keywords }: AIEmailCompos
   const [sampleEmail, setSampleEmail] = useState("")
   const [voiceNotes, setVoiceNotes] = useState("")
   const [includeAnomalies, setIncludeAnomalies] = useState(true)
+  const [emailMode, setEmailMode] = useState<"correspondence" | "press_release">("correspondence")
   
   // Selection state
   const [selectedContacts, setSelectedContacts] = useState<string[]>([])
@@ -214,6 +215,7 @@ export function AIEmailComposer({ contacts, anomalies, keywords }: AIEmailCompos
           voiceNotes,
           includeAnomalies,
           anomalies: includeAnomalies ? anomalies : undefined,
+          mode: emailMode,
         }),
       })
 
@@ -313,6 +315,7 @@ export function AIEmailComposer({ contacts, anomalies, keywords }: AIEmailCompos
           voiceNotes,
           includeAnomalies,
           anomalies: includeAnomalies ? anomalies : undefined,
+          mode: emailMode,
         }),
       })
 
@@ -440,6 +443,34 @@ Transparent City`}
                   />
                 </div>
                 
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">Email Mode</Label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEmailMode("correspondence")}
+                      className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                        emailMode === "correspondence"
+                          ? "bg-purple-600 text-white border-purple-600"
+                          : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      Government Correspondence
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEmailMode("press_release")}
+                      className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                        emailMode === "press_release"
+                          ? "bg-purple-600 text-white border-purple-600"
+                          : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      Press Release
+                    </button>
+                  </div>
+                </div>
+
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id="include-anomalies"

@@ -4,6 +4,12 @@ import { createClient } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import type { ThrottleSettings, SendQueueItem, Contact, TemplateWithVariations, Anomaly } from "@/lib/types"
 import { prepareQueueItems, DEFAULT_THROTTLE_SETTINGS } from "@/lib/send-queue"
+import { sendEmail, isSendGridConfigured } from "@/lib/email-sender"
+
+// Server action the UI can call to check if SendGrid is ready
+export async function checkSendGridStatus(): Promise<{ configured: boolean }> {
+  return { configured: isSendGridConfigured() }
+}
 
 export async function getThrottleSettings(campaignId: string) {
   const db = createClient()
@@ -1675,6 +1681,77 @@ export async function sendNowQueueItems(ids: string[]) {
 }
 
 // Get pending review items
+
+// Send a single queue item via SendGrid (requires item to be in 'queued' status)
+export async function sendSingleQueueItem(id: string): Promise<{ success: boolean; error?: string }> {
+  const db = createClient()
+
+  const { data: item, error: fetchError } = await db
+    .from("send_queue")
+    .select(`
+      *,
+      prospect:prospects(id, name, email)
+    `)
+    .eq("id", id)
+    .single()
+
+  if (fetchError || !item) {
+    return { success: false, error: "Queue item not found" }
+  }
+
+  if (item.status !== "queued") {
+    return { success: false, error: `Cannot send item with status "${item.status}". Item must be approved (queued) first.` }
+  }
+
+  const prospect = item.prospect as { id: string; name: string; email: string } | null
+  if (!prospect?.email) {
+    await db.from("send_queue").update({
+      status: "failed",
+      error_message: "Contact has no email address",
+    }).eq("id", id)
+    revalidatePath("/send-queue")
+    revalidatePath("/review-and-send")
+    return { success: false, error: "Contact has no email address" }
+  }
+
+  await db.from("send_queue").update({ status: "processing" }).eq("id", id)
+
+  const result = await sendEmail({
+    to: prospect.email,
+    subject: item.personalized_subject || "No subject",
+    body: item.personalized_body || "",
+  })
+
+  if (result.success) {
+    await db.from("send_queue").update({
+      status: "sent",
+      sent_at: new Date().toISOString(),
+      error_message: null,
+    }).eq("id", id)
+
+    await db.from("messages").insert({
+      prospect_id: prospect.id,
+      campaign_id: item.campaign_id,
+      channel: item.channel || "email",
+      subject: item.personalized_subject,
+      body: item.personalized_body,
+      status: "sent",
+      sent_at: new Date().toISOString(),
+      external_id: result.messageId || null,
+    })
+  } else {
+    await db.from("send_queue").update({
+      status: "failed",
+      error_message: result.error || "Send failed",
+    }).eq("id", id)
+  }
+
+  revalidatePath("/send-queue")
+  revalidatePath("/review-and-send")
+  revalidatePath("/campaigns")
+
+  return result
+}
 export async function getPendingReviewItems(campaignId?: string) {
   const db = createClient()
   

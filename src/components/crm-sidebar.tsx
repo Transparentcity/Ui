@@ -9,6 +9,11 @@ import {
   ClipboardCheck,
   Sparkles,
   ArrowLeft,
+  Megaphone,
+  Send,
+  FileText,
+  MessageSquare,
+  ListChecks,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -16,8 +21,13 @@ const navigation = [
   { name: "Review & Send", href: "/review-and-send", icon: ClipboardCheck },
   { name: "AI Compose", href: "/compose", icon: Sparkles, highlight: true },
   { name: "Contacts", href: "/contacts", icon: Users },
+  { name: "Campaigns", href: "/campaigns", icon: Megaphone },
+  { name: "Send Queue", href: "/send-queue", icon: Send },
+  { name: "Templates", href: "/templates", icon: FileText },
   { name: "Keywords", href: "/keywords", icon: Tags },
   { name: "Anomalies", href: "/anomalies", icon: AlertTriangle },
+  { name: "Responses", href: "/responses", icon: MessageSquare },
+  { name: "Follow-ups", href: "/followups", icon: ListChecks },
 ]
 
 export function CRMSidebar() {
@@ -64,26 +74,26 @@ export function CRMSidebar() {
           Main App
         </Link>
       </div>
-      
+
       {/* Navigation */}
       <nav className="flex-1 py-2 overflow-y-auto">
         <ul className="list-none m-0 p-0">
           {navigation.map((item) => {
-            const isActive = pathname === item.href || 
+            const isActive = pathname === item.href ||
               (item.href !== "/" && pathname.startsWith(item.href))
-            
+
             return (
               <li key={item.name}>
                 <Link
                   href={item.href}
                   className={cn(
                     "flex items-center gap-3 px-4 py-2.5 text-sm no-underline transition-all border-l-[3px]",
-                    isActive 
-                      ? "text-purple-600 font-semibold bg-gray-100 border-l-purple-600" 
+                    isActive
+                      ? "text-purple-600 font-semibold bg-gray-100 border-l-purple-600"
                       : "text-gray-600 font-normal bg-transparent border-l-transparent hover:bg-gray-50 hover:text-gray-900"
                   )}
                 >
-                  <item.icon 
+                  <item.icon
                     className={cn(
                       "w-[18px] h-[18px]",
                       item.highlight && !isActive ? "text-purple-600" : ""
@@ -101,7 +111,7 @@ export function CRMSidebar() {
           })}
         </ul>
       </nav>
-      
+
       {/* Footer */}
       <div className="px-4 py-3 border-t border-gray-200 bg-white">
         <p className="text-xs text-gray-400 m-0">

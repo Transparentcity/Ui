@@ -411,6 +411,11 @@ interface ImportContact {
   priority: number
   notes: string | null
   keywordIds: string[]
+  contact_type?: string
+  outlet_platform?: string | null
+  primary_beat?: string | null
+  primary_city?: string | null
+  coverage_cities?: string | null
 }
 
 interface ImportResult {
@@ -460,7 +465,7 @@ export async function importContacts(contacts: ImportContact[]): Promise<ImportR
       jurisdiction: c.jurisdiction,
       city_id: c.city_id,
       city_name: c.city_name,
-      contact_type: "city_staff" as const,
+      contact_type: (c as any).contact_type || "city_staff",
       priority: c.priority,
       status: 'active' as const,
       notes: c.notes,

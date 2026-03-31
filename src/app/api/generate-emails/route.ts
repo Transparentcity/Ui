@@ -17,7 +17,11 @@ export async function POST(req: Request) {
       includeAnomalies,
       /** Anomalies from Platform API (client sends pre-fetched list). */
       anomalies: anomaliesFromClient,
+      /** Mode: "correspondence" (default) or "press_release" */
+      mode,
     } = await req.json()
+
+    const isPressRelease = mode === "press_release"
 
     if (!sampleEmail || !contactIds || contactIds.length === 0) {
       return Response.json(
@@ -217,11 +221,37 @@ Anomaly IDs to return: ${matchedAnomalies.map((a: any) => a.id).join(", ")}` : "
 `
     }).join("\n---\n")
 
-    const systemPrompt = `You are an expert at writing professional government correspondence for Transparent City, a civic tech organization that shares data anomalies with government officials. Your task is to generate unique, personalized email variations based on a sample email.
+    const pressReleasePrompt = `You are an expert PR writer for Transparent City, a civic tech organization. Your task is to generate press releases for media contacts based on a sample draft.
+
+PRESS RELEASE FORMAT:
+1. SUBJECT LINE: Write a compelling, newsworthy headline. Examples:
+   - "New Data Reveals 47% Spike in SF Permit Delays"
+   - "Transparent City Analysis: Housing Complaints Triple in Key Districts"
+
+2. BODY STRUCTURE:
+   - Opening paragraph: Lead with the most newsworthy finding, include key numbers
+   - Context paragraph: Background on what Transparent City does and why this matters
+   - Data details: Specific anomaly findings with real numbers, district-level details
+   - Quote from Transparent City (use the sample for tone)
+   - Closing: Where to learn more, contact info for follow-up
+   - Boilerplate: Brief "About Transparent City" section
+
+3. PERSONALIZATION:
+   - Tailor the angle to the reporter's beat and coverage area
+   - Lead with anomalies relevant to their primary city or beat
+   - Use the reporter's first name in a brief personal note at the top
+   - e.g., "Hi Sarah, thought this would be relevant to your city hall coverage:"
+
+4. Each press release should emphasize different angles based on the reporter's beat
+5. NEVER leave placeholders - always use real data values
+
+${voiceNotes ? `VOICE/STYLE NOTES FROM USER:\n${voiceNotes}\n` : ""}`
+
+    const correspondencePrompt = `You are an expert at writing professional government correspondence for Transparent City, a civic tech organization that shares data anomalies with government officials. Your task is to generate unique, personalized email variations based on a sample email.
 
 CRITICAL PERSONALIZATION RULES:
 1. SUBJECT LINE: Create a catchy, personal subject that hints at the most relevant anomaly finding. Examples:
-   - "Connie - 47% spike in permit delays in D1 🔍"
+   - "Connie - 47% spike in permit delays in D1"
    - "Quick data note: Housing complaints up 3x in your district"
    - "Matt - Something interesting about SFPD response times"
    Use the contact's FIRST NAME only (extract from their full name).
@@ -230,9 +260,9 @@ CRITICAL PERSONALIZATION RULES:
 
 3. ANOMALY INTEGRATION: When including anomalies, write them as compelling, readable sentences with the ACTUAL DATA:
    - Include the specific numeric finding (percentage change, count, trend)
-   - Write naturally, not as a template: "In District 5 last month, building permits took 47% longer to process than the citywide average—156 days vs 106 days."
+   - Write naturally, not as a template: "In District 5 last month, building permits took 47% longer to process than the citywide average - 156 days vs 106 days."
    - For citywide anomalies: "Across the city, 311 response times have jumped 23% since January."
-   
+
 4. Each email MUST be meaningfully different - vary sentence structure, word choice, paragraph order, and phrasing
 5. Maintain the same professional tone and core message as the sample
 6. NEVER send identical emails to people in the same organization
@@ -249,6 +279,8 @@ For each contact, generate a completely unique email that:
 - Uses different transition phrases
 - Has a unique call-to-action phrasing
 - Closes differently (vary sign-offs)`
+
+    const systemPrompt = isPressRelease ? pressReleasePrompt : correspondencePrompt
 
     // Sanitize the sample email content
     const cleanSubject = sanitizeForJSON(sampleSubject) || "Data Update from Transparent City"

@@ -49,6 +49,7 @@ import {
   CheckSquare,
   Square,
   Search,
+  AlertTriangle,
 } from "lucide-react"
 import {
   Tooltip,
@@ -61,6 +62,8 @@ import {
   updateQueueItemContent,
   updateQueueItemStatus,
   deleteQueueItems,
+  sendSingleQueueItem,
+  checkSendGridStatus,
 } from "@/app/actions/send-queue"
 import { API_BASE } from "@/lib/apiBase"
 import { toast } from "sonner"
@@ -114,6 +117,12 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   const [markingSentId, setMarkingSentId] = useState<string | null>(null)
   const [discardingId, setDiscardingId] = useState<string | null>(null)
   const [bulkAction, setBulkAction] = useState<"sent" | "discard" | null>(null)
+
+  // SendGrid configuration status
+  const [sendGridReady, setSendGridReady] = useState<boolean | null>(null)
+  useEffect(() => {
+    checkSendGridStatus().then(({ configured }) => setSendGridReady(configured))
+  }, [])
 
   // Confirm dialog state (replaces window.confirm)
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -252,6 +261,72 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
       } catch (err) {
         toast.error("Failed to mark as sent")
       }
+    })
+  }
+
+  // Send via SendGrid
+  const [sendingId, setSendingId] = useState<string | null>(null)
+
+  const sendViaEmail = (id: string) => {
+    setConfirmDialog({
+      title: "Send this email?",
+      description: "This will send the email to the contact via SendGrid. This action cannot be undone.",
+      actionLabel: "Send Email",
+      variant: "default",
+      action: () => {
+        setSendingId(id)
+        startTransition(async () => {
+          try {
+            const item = items.find(i => i.id === id)
+            if (item?.status === "pending_review") {
+              await updateQueueItemStatus(id, "queued")
+            }
+            const result = await sendSingleQueueItem(id)
+            if (result.success) {
+              toast.success("Email sent successfully")
+            } else {
+              toast.error(result.error || "Failed to send email")
+            }
+            setSendingId(null)
+            router.refresh()
+          } catch (err) {
+            toast.error("Failed to send email")
+            setSendingId(null)
+          }
+        })
+      },
+    })
+  }
+
+  const sendViaEmailFromDialog = () => {
+    if (!editingItem) return
+    setConfirmDialog({
+      title: "Send this email?",
+      description: "This will send the email to the contact via SendGrid. This action cannot be undone.",
+      actionLabel: "Send Email",
+      variant: "default",
+      action: () => {
+        setSendingId(editingItem.id)
+        startTransition(async () => {
+          try {
+            if (editingItem.status === "pending_review") {
+              await updateQueueItemStatus(editingItem.id, "queued")
+            }
+            const result = await sendSingleQueueItem(editingItem.id)
+            if (result.success) {
+              toast.success("Email sent successfully")
+            } else {
+              toast.error(result.error || "Failed to send email")
+            }
+            setSendingId(null)
+            setEditingItem(null)
+            router.refresh()
+          } catch (err) {
+            toast.error("Failed to send email")
+            setSendingId(null)
+          }
+        })
+      },
     })
   }
 
@@ -483,6 +558,15 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   return (
     <TooltipProvider>
     <div className="space-y-4">
+      {/* SendGrid not configured banner */}
+      {sendGridReady === false && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>
+            <strong>Email sending not configured.</strong> Add SENDGRID_API_KEY and SENDGRID_FROM_EMAIL to .env.local (same values as the backend .env) to enable the Send Email button.
+          </span>
+        </div>
+      )}
       {/* Tabs + Generate button */}
       <div className="flex items-center justify-between border-b border-gray-200 pb-0">
         <div className="flex items-center gap-1">
@@ -938,16 +1022,31 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                           </Button>
                           <Button
                             size="sm"
+                            onClick={() => sendViaEmail(item.id)}
+                            disabled={isPending || sendingId === item.id || sendGridReady === false}
+                            title={sendGridReady === false ? "SendGrid not configured" : undefined}
+                            className="gap-1.5 text-xs bg-purple-600 hover:bg-purple-700 text-white disabled:bg-gray-400"
+                          >
+                            {sendingId === item.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Mail className="w-3.5 h-3.5" />
+                            )}
+                            {sendingId === item.id ? "Sending..." : "Send Email"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => markAsSent(item.id)}
                             disabled={isPending || markingSentId === item.id}
-                            className="gap-1.5 text-xs bg-green-600 hover:bg-green-700 text-white"
+                            className="gap-1.5 text-xs"
                           >
                             {markingSentId === item.id ? (
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             ) : (
-                              <SendHorizontal className="w-3.5 h-3.5" />
+                              <CheckCircle2 className="w-3.5 h-3.5" />
                             )}
-                            {markingSentId === item.id ? "Sending..." : "Mark as Sent"}
+                            {markingSentId === item.id ? "Marking..." : "Mark Sent"}
                           </Button>
                         </>
                       )}
@@ -1069,14 +1168,29 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <div className="flex items-center gap-2 sm:mr-auto">
+              {editingItem && editingItem.status !== "sent" && (
+                <Button
+                  onClick={sendViaEmailFromDialog}
+                  disabled={isPending || sendingId === editingItem?.id || sendGridReady === false}
+                  title={sendGridReady === false ? "SendGrid not configured" : undefined}
+                  className="gap-2 bg-purple-600 hover:bg-purple-700 text-white disabled:bg-gray-400"
+                >
+                  {sendingId === editingItem?.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Mail className="w-4 h-4" />
+                  )}
+                  Send Email
+                </Button>
+              )}
               <Button
                 variant="outline"
                 onClick={markAsSentFromDialog}
                 disabled={isPending || editingItem?.status === "sent"}
-                className="gap-2 text-green-600 border-green-300 hover:bg-green-50"
+                className="gap-2"
               >
-                <SendHorizontal className="w-4 h-4" />
-                Mark as Sent
+                <CheckCircle2 className="w-4 h-4" />
+                Mark Sent
               </Button>
               {editingItem && editingItem.status !== "sent" && (
                 <Button
