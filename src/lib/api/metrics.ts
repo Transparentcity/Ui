@@ -918,6 +918,7 @@ export interface BatchExecuteMetricsRequest {
   start_date?: string | null;
   end_date?: string | null;
   max_concurrent?: number;
+  schedule_key?: string | null;
 }
 
 export interface BatchExecuteMetricsResponse {

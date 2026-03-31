@@ -195,6 +195,13 @@ export default function RunAllMetricsModal({
     });
   }, [selectedMetricIds, metrics.length]);
 
+  const periodTypeToScheduleKey: Record<string, string> = {
+    day: "daily_metrics",
+    week: "weekly_metrics",
+    month: "monthly_metrics",
+    year: "annual_metrics",
+  };
+
   // Submit batch execution
   const handleSubmit = useCallback(async () => {
     if (selectedMetricIds.size === 0) {
@@ -210,6 +217,7 @@ export default function RunAllMetricsModal({
         start_date: startDate,
         end_date: endDate,
         max_concurrent: maxConcurrent,
+        schedule_key: periodType !== "auto" ? periodTypeToScheduleKey[periodType] ?? null : null,
       });
 
       if (result.job_id) {

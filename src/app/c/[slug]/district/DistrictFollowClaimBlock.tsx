@@ -84,8 +84,10 @@ export default function DistrictFollowClaimBlock({
         {following ? "Unfollow" : "Follow"}
         {count >= 0 && ` · ${count}`}
       </button>
-      <ClaimMyPageButton className="hero-official-btn" cityId={cityId} district={district} />
-      <span className="hero-official-caption">For public officials</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <ClaimMyPageButton className="hero-official-btn" cityId={cityId} district={district} />
+        <span className="hero-official-caption">For public officials</span>
+      </div>
     </div>
   );
 }

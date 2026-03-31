@@ -627,6 +627,15 @@ export default function MetricDetailContent({
               comparisonType={selectedPeriod}
               greenDirection={metric.greendirection as "up" | "down" | null}
               height={350}
+              showLink={true}
+              dateRange={{
+                start: comparison?.current_period_start || null,
+                end: comparison?.current_period_end || null,
+              }}
+              comparisonDateRange={{
+                start: comparison?.comparison_period_start || null,
+                end: comparison?.comparison_period_end || null,
+              }}
             />
             <DistrictComparisonTable
               metricId={metric.id}

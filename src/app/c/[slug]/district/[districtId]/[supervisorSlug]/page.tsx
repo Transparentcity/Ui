@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 import { unstable_noStore as noStore } from "next/cache";
 
-import "../../../../landing.css";
-import "./district.css";
+import "../../../../../landing.css";
+import "../district.css";
 
 import {
   listPublicCitiesForSitemap,
@@ -17,27 +17,18 @@ import {
   listPublicMapsForCity,
   getPublicCityMetricOrdering,
 } from "@/lib/publicApiClient";
-import type { MetricOrderingEntry } from "../../CityDashboardSection";
-import DistrictPageContent from "./DistrictPageContent";
+import type { MetricOrderingEntry } from "../../../CityDashboardSection";
+import DistrictPageContent from "../DistrictPageContent";
+import { supervisorToSlug } from "../page";
 
 export const revalidate = 3600;
 
-/** "Dean Preston" → "dean-preston" */
-export function supervisorToSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
 type PageProps = {
-  params: Promise<{ slug: string; districtId: string }>;
+  params: Promise<{ slug: string; districtId: string; supervisorSlug: string }>;
 };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { slug, districtId } = await params;
+  const { slug, districtId, supervisorSlug } = await params;
   const d = parseInt(districtId, 10);
   if (!Number.isFinite(d) || d < 1) {
     return { title: "District not found \u2013 Transparent.city" };
@@ -68,9 +59,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     }
   }
 
-  const supervisorSlug = supervisorName ? supervisorToSlug(supervisorName) : null;
-  const canonicalBase = `/c/${slug}/district/${d}`;
-  const canonical = supervisorSlug ? `${canonicalBase}/${supervisorSlug}` : canonicalBase;
+  // Canonical = this URL (self-referential since this IS the preferred URL)
+  const canonical = `/c/${slug}/district/${d}/${supervisorSlug}`;
 
   const title = supervisorName
     ? `${supervisorName} \u2013 District ${d} \u2013 ${cityName}`
@@ -101,9 +91,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default async function DistrictPage({ params }: PageProps) {
+export default async function DistrictSlugPage({ params }: PageProps) {
   noStore();
-  const { slug, districtId } = await params;
+  const { slug, districtId, supervisorSlug } = await params;
   const d = parseInt(districtId, 10);
   if (!Number.isFinite(d) || d < 1) notFound();
 
@@ -202,11 +192,13 @@ export default async function DistrictPage({ params }: PageProps) {
 
   const primaryLeader = leaders.find((l) => l.district === d);
   const supervisorName = primaryLeader?.name?.trim() ?? null;
-  const supervisorSlug = supervisorName ? supervisorToSlug(supervisorName) : null;
 
-  // Redirect numeric URL to the canonical supervisor-slug URL for SEO
-  if (supervisorSlug) {
-    redirect(`/c/${slug}/district/${d}/${supervisorSlug}`);
+  // If the slug in the URL is stale/wrong, redirect to the current canonical
+  if (supervisorName) {
+    const actualSlug = supervisorToSlug(supervisorName);
+    if (supervisorSlug !== actualSlug) {
+      redirect(`/c/${slug}/district/${d}/${actualSlug}`);
+    }
   }
 
   const metrics = cityDetail?.metrics ?? [];

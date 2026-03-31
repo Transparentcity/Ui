@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import {
   getPublicMetricDistrictComparisons,
   getPublicMetricShapefile,
+  saveDeltaMap,
   type PublicDistrictComparisonsResponse,
   type PublicShapefileResponse,
 } from "@/lib/publicApiClient";
@@ -62,6 +63,12 @@ interface DeltaMapViewProps {
   height?: number;
   cityCenter?: [number, number]; // [lng, lat]
   cityZoom?: number;
+  /** Current period dates — required to enable "View full map" save. */
+  dateRange?: { start: string | null; end: string | null };
+  /** Comparison period dates — required to enable "View full map" save. */
+  comparisonDateRange?: { start: string | null; end: string | null };
+  /** Show "View full map" link (default: true). Requires dateRange + comparisonDateRange. */
+  showLink?: boolean;
 }
 
 export default function DeltaMapView({
@@ -71,6 +78,9 @@ export default function DeltaMapView({
   height = 350,
   cityCenter, // Caller can pass; when omitted we fit to shape bounds so no city-specific default
   cityZoom = 11,
+  dateRange,
+  comparisonDateRange,
+  showLink = true,
 }: DeltaMapViewProps) {
   // Neutral fallback when no center provided (map will fit to shape bounds once loaded)
   const initialCenter: [number, number] = cityCenter ?? [-98.5795, 39.8283];
@@ -80,6 +90,34 @@ export default function DeltaMapView({
   const [error, setError] = useState<string | null>(null);
   const [districtData, setDistrictData] = useState<PublicDistrictComparisonsResponse | null>(null);
   const [shapeData, setShapeData] = useState<PublicShapefileResponse | null>(null);
+  const [savingMap, setSavingMap] = useState(false);
+
+  const canShowLink =
+    showLink &&
+    !!dateRange?.start &&
+    !!dateRange?.end &&
+    !!comparisonDateRange?.start &&
+    !!comparisonDateRange?.end;
+
+  const handleViewFullMap = useCallback(async () => {
+    if (!canShowLink) return;
+    try {
+      setSavingMap(true);
+      const response = await saveDeltaMap(metricId, {
+        start_date: dateRange!.start!,
+        end_date: dateRange!.end!,
+        comparison_start_date: comparisonDateRange!.start!,
+        comparison_end_date: comparisonDateRange!.end!,
+        period_type: comparisonType,
+      });
+      window.open(response.map_url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error("[DeltaMapView] Failed to save map:", err);
+      setError(err instanceof Error ? err.message : "Failed to save map");
+    } finally {
+      setSavingMap(false);
+    }
+  }, [canShowLink, metricId, dateRange, comparisonDateRange, comparisonType]);
 
   // Fetch data
   useEffect(() => {
@@ -453,6 +491,27 @@ export default function DeltaMapView({
           </span>
         </div>
       </div>
+      {canShowLink && (
+        <div className="map-link-row">
+          <button
+            onClick={handleViewFullMap}
+            disabled={savingMap}
+            className="map-link"
+            style={{
+              background: "none",
+              border: "none",
+              cursor: savingMap ? "wait" : "pointer",
+              padding: 0,
+              font: "inherit",
+              color: "inherit",
+              textDecoration: "underline",
+            }}
+          >
+            {savingMap ? "Opening..." : "View full map"}{" "}
+            <i className="fas fa-external-link-alt" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -169,6 +169,7 @@ export type PublicCitySitemapItem = {
   emoji?: string | null;
   datasets_count: number;
   slug: string;
+  is_launched?: boolean;
 };
 
 export function listPublicCitiesForSitemap(): Promise<PublicCitySitemapItem[]> {
@@ -198,11 +199,35 @@ export type PublicCityDetail = {
   metrics: PublicCityMetricItem[];
   mayor?: { name: string } | null;
   mayor_subscriber_count?: number;
+  is_launched?: boolean;
 };
 
 export function getPublicCityDetail(cityId: number): Promise<PublicCityDetail> {
   return requestPublic<PublicCityDetail>(
     `/api/public/cities/${cityId}?include_metrics=true`
+  );
+}
+
+// Public city metric ordering (admin-defined default order, no auth required)
+export type PublicMetricOrderingItem = {
+  metric_id: number | null;
+  category_name: string;
+  category_order: number;
+  metric_order: number;
+  subcategory_name?: string | null;
+  metric_name?: string | null;
+};
+
+export type PublicMetricOrderingResponse = {
+  city_id: number;
+  orderings: PublicMetricOrderingItem[];
+};
+
+export function getPublicCityMetricOrdering(
+  cityId: number
+): Promise<PublicMetricOrderingResponse> {
+  return requestPublic<PublicMetricOrderingResponse>(
+    `/api/public/cities/${cityId}/metric-ordering`
   );
 }
 
@@ -376,6 +401,28 @@ export function listPublicMapsForSitemap(): Promise<PublicMapSitemapItem[]> {
   return requestPublic<{ maps: PublicMapSitemapItem[] }>("/api/maps/public").then(
     (response) => response.maps || []
   );
+}
+
+// Public metrics for sitemap
+export type PublicMetricSitemapItem = {
+  metric_key: string;
+  metric_name: string;
+  category: string;
+  city_slug: string;
+};
+
+export function listPublicMetricsForSitemap(): Promise<PublicMetricSitemapItem[]> {
+  return requestPublic<PublicMetricSitemapItem[]>("/api/public/metrics/sitemap");
+}
+
+// City-district pairs for sitemap (district supervisor pages)
+export type PublicCityDistrictSitemapItem = {
+  city_slug: string;
+  district: number;
+};
+
+export function listPublicCityDistrictsForSitemap(): Promise<PublicCityDistrictSitemapItem[]> {
+  return requestPublic<PublicCityDistrictSitemapItem[]>("/api/public/cities/districts/sitemap");
 }
 
 // Public metric endpoints
@@ -896,6 +943,56 @@ export async function saveMetricMap(
     throw new Error(errorMessage);
   }
   
+  return res.json();
+}
+
+// ============================================================================
+// Delta Map Save (district choropleth showing % change)
+// ============================================================================
+
+export type DeltaMapSaveRequest = {
+  start_date: string;
+  end_date: string;
+  comparison_start_date: string;
+  comparison_end_date: string;
+  period_type?: string;
+};
+
+/**
+ * Save a delta (change) map to the database.
+ * Called when the user clicks "View full map" on the embedded delta map.
+ * Returns a permanent URL; the map is NOT saved on every page load.
+ */
+export async function saveDeltaMap(
+  metricId: number,
+  request: DeltaMapSaveRequest
+): Promise<MapSaveResponse> {
+  const url = `${API_BASE}/api/public/metrics/${metricId}/delta-map-save`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let errorMessage = `Delta map save failed: ${res.status}`;
+    if (text) {
+      try {
+        const errorJson = JSON.parse(text);
+        errorMessage = errorJson.detail || errorJson.message || errorMessage;
+      } catch {
+        errorMessage = `${errorMessage} - ${text.substring(0, 200)}`;
+      }
+    }
+    throw new Error(errorMessage);
+  }
+
   return res.json();
 }
 

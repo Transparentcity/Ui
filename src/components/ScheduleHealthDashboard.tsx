@@ -1,14 +1,14 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type {
   CityFreshness,
   CityFreshnessMetricRow,
   CityScheduleHealth,
   CityScheduleRun,
 } from "@/lib/apiClient";
-import { getCityScheduleHealth } from "@/lib/apiClient";
+import { batchExecuteMetrics, getCityScheduleHealth } from "@/lib/apiClient";
 import Loader from "./Loader";
 import styles from "./ScheduleHealthDashboard.module.css";
 
@@ -117,32 +117,148 @@ function FreshnessBar({
   );
 }
 
-function groupMetricsByBucket(rows: CityFreshnessMetricRow[]) {
-  const order: CityFreshnessMetricRow["bucket"][] = [
-    "current",
-    "slightly_stale",
-    "stale",
-    "no_data",
-  ];
-  const labels: Record<CityFreshnessMetricRow["bucket"], string> = {
-    current: "Current (≤ daily threshold)",
-    slightly_stale: "Slightly stale (≤ weekly threshold)",
-    stale: "Stale",
-    no_data: "No data date",
-  };
-  const groups: Record<string, CityFreshnessMetricRow[]> = {};
-  for (const b of order) groups[b] = [];
-  for (const r of rows) {
-    if (!groups[r.bucket]) groups[r.bucket] = [];
-    groups[r.bucket].push(r);
+const BUCKET_ORDER: Record<CityFreshnessMetricRow["bucket"], number> = {
+  stale: 0,
+  slightly_stale: 1,
+  current: 2,
+  no_data: 3,
+};
+
+const BUCKET_COLOR: Record<CityFreshnessMetricRow["bucket"], string> = {
+  current: "#10b981",
+  slightly_stale: "#f59e0b",
+  stale: "#ef4444",
+  no_data: "#9ca3af",
+};
+
+function sortMetricsByStaleness(rows: CityFreshnessMetricRow[]): CityFreshnessMetricRow[] {
+  return [...rows].sort((a, b) => {
+    const bucketDiff = BUCKET_ORDER[a.bucket] - BUCKET_ORDER[b.bucket];
+    if (bucketDiff !== 0) return bucketDiff;
+    // Within same bucket, sort stalest first (highest days_old first; null last)
+    if (a.days_old == null && b.days_old == null) return 0;
+    if (a.days_old == null) return 1;
+    if (b.days_old == null) return -1;
+    return b.days_old - a.days_old;
+  });
+}
+
+function formatExecStatus(status: string | null): { label: string; isError: boolean } {
+  if (!status) return { label: "Never run", isError: true };
+  const s = status.toLowerCase();
+  if (s === "success" || s === "completed") return { label: "OK", isError: false };
+  if (s === "failed" || s === "error") return { label: "Failed", isError: true };
+  return { label: status, isError: false };
+}
+
+function fmtShortDate(iso: string | null): string {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "2-digit" });
+  } catch {
+    return iso;
   }
-  return { order, labels, groups };
+}
+
+function fmtShortDateTime(iso: string | null): string {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) +
+      " " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return iso;
+  }
+}
+
+function MetricHealthTable({ rows }: { rows: CityFreshnessMetricRow[] }) {
+  const sorted = sortMetricsByStaleness(rows);
+  if (sorted.length === 0) {
+    return <p style={{ fontSize: "0.72rem", margin: "0.25rem 0", color: "var(--text-secondary, #6b7280)" }}>No metrics.</p>;
+  }
+  return (
+    <div className={styles.metricTableWrap}>
+      <table className={styles.miniTable}>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Last data</th>
+            <th>Age</th>
+            <th>Last run</th>
+            <th>Run status</th>
+            <th title="Time series data points stored">Points</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((m) => {
+            const execStatus = formatExecStatus(m.last_execution_status);
+            const isProblematic =
+              m.bucket === "stale" ||
+              m.bucket === "no_data" ||
+              execStatus.isError ||
+              m.ts_count === 0;
+            const rowStyle = isProblematic
+              ? { background: "rgba(239,68,68,0.06)" }
+              : undefined;
+            const bucketColor = BUCKET_COLOR[m.bucket];
+            return (
+              <tr key={m.metric_id} style={rowStyle}>
+                <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={m.metric_name}>
+                  {m.metric_name}
+                </td>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  {m.most_recent_data_date ? (
+                    fmtShortDate(m.most_recent_data_date)
+                  ) : (
+                    <span style={{ color: "#ef4444", fontWeight: 600 }}>No data</span>
+                  )}
+                </td>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  {m.days_old != null ? (
+                    <span style={{ color: bucketColor, fontWeight: m.bucket !== "current" ? 600 : undefined }}>
+                      {Math.round(m.days_old)}d
+                    </span>
+                  ) : (
+                    <span style={{ color: "#9ca3af" }}>—</span>
+                  )}
+                </td>
+                <td style={{ whiteSpace: "nowrap", fontSize: "0.68rem" }}>
+                  {fmtShortDateTime(m.last_execution_at)}
+                </td>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  {execStatus.isError ? (
+                    <span style={{ color: "#ef4444", fontWeight: 600 }}>{execStatus.label}</span>
+                  ) : (
+                    <span style={{ color: "#10b981" }}>{execStatus.label}</span>
+                  )}
+                </td>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  {m.ts_count === 0 ? (
+                    <span style={{ color: "#ef4444", fontWeight: 600 }}>0</span>
+                  ) : (
+                    <span>{m.ts_count.toLocaleString()}</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 interface ScheduleHealthDashboardProps {
   token: string | null;
   getAccessTokenSilently: () => Promise<string>;
   onViewJob: (jobId: string) => void;
+}
+
+interface RunSlotState {
+  status: "loading" | "running" | "done" | "error";
+  jobId?: string;
+  error?: string;
 }
 
 export default function ScheduleHealthDashboard({
@@ -156,6 +272,9 @@ export default function ScheduleHealthDashboard({
   const [error, setError] = useState<string | null>(null);
   const [lastLoaded, setLastLoaded] = useState<Date | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  // Map of "cityId-periodKey" -> RunSlotState for tracking re-run status
+  const [runSlots, setRunSlots] = useState<Map<string, RunSlotState>>(new Map());
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -180,6 +299,46 @@ export default function ScheduleHealthDashboard({
     }
     void load();
   }, [isAuthenticated, load]);
+
+  // Clean up any pending refresh timer on unmount
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
+  }, []);
+
+  const slotKey = (cityId: number, periodKey: string) => `${cityId}-${periodKey}`;
+
+  const handleReRun = useCallback(
+    async (cityId: number, periodKey: PeriodKey) => {
+      const key = slotKey(cityId, periodKey);
+      setRunSlots((prev) => new Map(prev).set(key, { status: "loading" }));
+      try {
+        const t = token || (await getAccessTokenSilently());
+        const result = await batchExecuteMetrics(
+          { city_id: cityId, schedule_key: periodKey, max_concurrent: 3 },
+          t
+        );
+        setRunSlots((prev) =>
+          new Map(prev).set(key, {
+            status: "running",
+            jobId: result.job_id ?? undefined,
+          })
+        );
+        // Auto-refresh dashboard after 8 s so the new run chip appears
+        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = setTimeout(() => void load(), 8000);
+      } catch (e) {
+        setRunSlots((prev) =>
+          new Map(prev).set(key, {
+            status: "error",
+            error: e instanceof Error ? e.message : "Failed to start run",
+          })
+        );
+      }
+    },
+    [token, getAccessTokenSilently, load]
+  );
 
   const toggleExpand = (cityId: number) => {
     setExpanded((prev) => {
@@ -263,14 +422,24 @@ export default function ScheduleHealthDashboard({
               </tr>
             </thead>
             <tbody>
-              {cities.map((city) => {
+              {[...cities]
+                .sort((a, b) => {
+                  if (a.is_launched && !b.is_launched) return -1;
+                  if (!a.is_launched && b.is_launched) return 1;
+                  return a.city_name.localeCompare(b.city_name);
+                })
+                .map((city) => {
                 const isOpen = expanded.has(city.city_id);
-                const { order, labels, groups } = groupMetricsByBucket(city.freshness_metrics);
                 return (
                   <Fragment key={city.city_id}>
-                    <tr>
+                    <tr className={city.is_launched ? styles.launchedRow : undefined}>
                       <td className={styles.cityCell}>
-                        {city.city_name}
+                        <span
+                          className={city.is_launched ? styles.launchedCityName : undefined}
+                          title={city.is_launched ? "Launched" : undefined}
+                        >
+                          {city.city_name}
+                        </span>
                         <button
                           type="button"
                           className={styles.expandBtn}
@@ -293,6 +462,9 @@ export default function ScheduleHealthDashboard({
                         const exec = executionPresentation(run, slotOverdue);
                         const freshN = freshCountForPeriod(city.freshness, col.key);
                         const totalM = city.freshness.total_metrics;
+                        const key = slotKey(city.city_id, col.key);
+                        const runState = runSlots.get(key);
+                        const isSlotBusy = runState?.status === "loading" || runState?.status === "running" || exec.running;
                         return (
                           <td key={col.key}>
                             <div className={styles.cellStack}>
@@ -310,6 +482,45 @@ export default function ScheduleHealthDashboard({
                                 <span>{exec.label}</span>
                               </div>
                               <FreshnessBar total={totalM} fresh={freshN} />
+                              <div className={styles.reRunRow}>
+                                {runState?.status === "loading" ? (
+                                  <span className={styles.reRunStatus}>
+                                    <Loader size="sm" color="dark" /> Starting…
+                                  </span>
+                                ) : runState?.status === "running" && runState.jobId ? (
+                                  <span className={styles.reRunStatus}>
+                                    Running ·{" "}
+                                    <button
+                                      type="button"
+                                      className={styles.linkBtn}
+                                      onClick={() => onViewJob(runState.jobId!)}
+                                    >
+                                      Logs
+                                    </button>
+                                  </span>
+                                ) : runState?.status === "error" ? (
+                                  <span className={styles.reRunError} title={runState.error}>
+                                    Failed ·{" "}
+                                    <button
+                                      type="button"
+                                      className={styles.reRunBtn}
+                                      onClick={() => void handleReRun(city.city_id, col.key)}
+                                    >
+                                      Retry
+                                    </button>
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className={styles.reRunBtn}
+                                    disabled={isSlotBusy}
+                                    onClick={() => void handleReRun(city.city_id, col.key)}
+                                    title={`Re-run ${col.label.toLowerCase()} metrics for ${city.city_name}`}
+                                  >
+                                    Re-run
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </td>
                         );
@@ -402,32 +613,10 @@ export default function ScheduleHealthDashboard({
                               })}
                             </div>
                             <div className={styles.detailSection}>
-                              <h4>Data freshness by metric</h4>
-                              {order.map((bucket) => {
-                                const list = groups[bucket];
-                                if (!list?.length) return null;
-                                return (
-                                  <div key={bucket} style={{ marginBottom: "0.5rem" }}>
-                                    <strong style={{ fontSize: "0.72rem" }}>
-                                      {labels[bucket]} ({list.length})
-                                    </strong>
-                                    <ul className={styles.bucketList}>
-                                      {list.slice(0, 80).map((m) => (
-                                        <li key={m.metric_id}>
-                                          {m.metric_name}
-                                          {m.most_recent_data_date
-                                            ? ` — ${m.most_recent_data_date}`
-                                            : ""}
-                                          {m.days_old != null ? ` (${m.days_old}d)` : ""}
-                                        </li>
-                                      ))}
-                                      {list.length > 80 && (
-                                        <li>… and {list.length - 80} more</li>
-                                      )}
-                                    </ul>
-                                  </div>
-                                );
-                              })}
+                              <h4>
+                                Metric health ({city.freshness_metrics.length} metrics)
+                              </h4>
+                              <MetricHealthTable rows={city.freshness_metrics} />
                             </div>
                           </div>
                         </td>

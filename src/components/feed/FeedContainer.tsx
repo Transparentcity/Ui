@@ -233,7 +233,11 @@ export default function FeedContainer({
     category: personalNewsletterOnly ? "personal_newsletter" : undefined,
     limit: displayLimit,
     order_by: feedOrder,
-    all_cities: personalNewsletterOnly || !singleCityId,
+    // For admins, all_cities=true shows all stories when no specific city is selected.
+    // For regular users the backend always scopes to followed cities, so all_cities only
+    // needs to be set when the user explicitly wants the unfiltered platform-wide view
+    // (admin only).
+    all_cities: isAdmin && (personalNewsletterOnly || !singleCityId),
     story_type: apiStoryType,
     user_place_id:
       isAuthenticated && selectedPlaceId != null ? selectedPlaceId : undefined,
@@ -865,7 +869,9 @@ export default function FeedContainer({
                       ? `No ${parts[0] ?? ""} stories found${parts.length > 1 ? ` in ${parts.slice(1).join(", ")}` : ""}. Try adjusting your filters.`
                       : "No stories match your current filters.";
                   })()
-                : "No feed stories yet. New stories appear as city data updates. Check back soon!"}
+                : isAdmin
+                  ? "No feed stories yet. New stories appear as city data updates. Check back soon!"
+                  : "Follow a city to see stories in your feed. Visit a city page and click Follow to get started."}
           </p>
           {(hasSecondaryFilters || selectedCityIds.size > 0) && !personalNewsletterOnly && (
             <button

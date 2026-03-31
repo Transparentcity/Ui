@@ -10,18 +10,42 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/dashboard", "/api", "/debug"],
+        disallow: [
+          // App / auth
+          "/dashboard",
+          "/settings",
+          "/check-email",
+          "/pro",
+          "/claim",
+          // Internal tools & admin
+          "/debug",
+          "/signals",
+          "/applause",
+          "/flags",
+          "/analytics",
+          "/anomalies",
+          "/cityreadiness",
+          "/research-queue",
+          "/feed-preview",
+          // CRM / comms
+          "/contacts",
+          "/compose",
+          "/campaigns",
+          "/templates",
+          "/keywords",
+          "/responses",
+          "/followups",
+          "/send-queue",
+          "/message-review",
+          "/review-and-send",
+          // Internal modules
+          "/foia",
+          "/waste",
+          // API routes
+          "/api",
+        ],
       },
     ],
     sitemap: `${origin}/sitemap.xml`,
   };
 }
-
-
-
-
-
-
-
-
-

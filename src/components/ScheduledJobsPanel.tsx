@@ -12,6 +12,8 @@ import {
   resumeCustomScheduledJob,
   runCustomScheduledJob,
   runCustomScheduledJobForCurrentUser,
+  getAvailableModels,
+  type ModelGroupInfo,
 } from "@/lib/apiClient";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import {
@@ -68,11 +70,17 @@ export default function ScheduledJobsPanel({
     city_ids: string;
     story_types: string;
     test_user_id: string;
+    model_key: string;
   } | null>(null);
+  const [availableModels, setAvailableModels] = useState<ModelGroupInfo[]>([]);
 
   /** When true, prompt text tracks city IDs + story types (until user edits the textarea). */
   const [feedProducerUsesLiveTemplate, setFeedProducerUsesLiveTemplate] =
     useState(false);
+
+  useEffect(() => {
+    getAvailableModels().then(setAvailableModels).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!editForm) return;
@@ -236,6 +244,7 @@ export default function ScheduledJobsPanel({
       city_ids: Array.isArray(cfg.city_ids) ? cfg.city_ids.join(", ") : (cfg.city_ids || ""),
       story_types: Array.isArray(cfg.story_types) ? cfg.story_types.join(", ") : (cfg.story_types || ""),
       test_user_id: cfg.user_id != null ? String(cfg.user_id) : "",
+      model_key: typeof cfg.model_key === "string" ? cfg.model_key : "",
     });
   };
 
@@ -346,6 +355,9 @@ export default function ScheduledJobsPanel({
         ? Number(editForm.test_user_id.trim())
         : undefined;
       newCfg.user_id = !isNaN(parsedUserId as number) ? parsedUserId : undefined;
+
+      const trimmedModelKey = editForm.model_key.trim();
+      newCfg.model_key = trimmedModelKey || undefined;
 
       // Remove undefined keys
       Object.keys(newCfg).forEach((k) => newCfg[k] === undefined && delete newCfg[k]);
@@ -509,6 +521,11 @@ export default function ScheduledJobsPanel({
                     {job.job_type}
                     {job.job_config?.feed_producer_mode && (
                       <span className={styles.feedProducerBadge}>feed producer</span>
+                    )}
+                    {job.job_config?.model_key && (
+                      <span className={styles.feedProducerBadge} style={{ marginLeft: "0.25rem", background: "var(--bg-secondary, #f1f5f9)", color: "var(--text-secondary, #64748b)" }}>
+                        {job.job_config.model_key}
+                      </span>
                     )}
                   </div>
                   <div>
@@ -841,6 +858,30 @@ export default function ScheduledJobsPanel({
                 <p className={styles.promptVariablesNote}>
                   Options: <code>alert</code>, <code>trend</code>, <code>multi_metric</code>, <code>business</code>, <code>spending</code>, <code>safety</code>, <code>context</code>, <code>off_the_charts</code>
                 </p>
+              </div>
+            )}
+
+            {(editForm.job_type === "feed_producer" || editForm.job_type === "feed_stories" || editForm.job_type === "personalized_feed_producer") && (
+              <div className={styles.formRow}>
+                <label className={styles.label}>
+                  Model{" "}
+                  <span style={{ fontWeight: 400 }}>(leave blank to use server default: <code>claude-sonnet-4.6</code>)</span>
+                </label>
+                <select
+                  className={styles.input}
+                  value={editForm.model_key}
+                  onChange={(e) => setEditForm({ ...editForm, model_key: e.target.value })}
+                  aria-label="Model"
+                >
+                  <option value="">— server default (claude-sonnet-4.6) —</option>
+                  {availableModels.flatMap((group) =>
+                    group.models.map((model) => (
+                      <option key={model.key} value={model.key}>
+                        {model.key} ({group.label})
+                      </option>
+                    ))
+                  )}
+                </select>
               </div>
             )}
 

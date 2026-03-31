@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
+import { CityStructuredData } from "@/components/StructuredData";
 
 import "../../landing.css";
 
@@ -13,14 +14,15 @@ import {
   listPublicMapsForCity,
   getPublicLeadersForCity,
   listPublicFeedStories,
+  getPublicCityMetricOrdering,
   type PublicFeedStory,
+  type PublicMetricOrderingResponse,
 } from "@/lib/publicApiClient";
 import CitySignupButton from "./CitySignupButton";
 import CityDashboardSection from "./CityDashboardSection";
 import CityDashboardSectionWithOrdering from "./CityDashboardSectionWithOrdering";
 import CityViewTracker from "./CityViewTracker";
 import CityPageClient from "./CityPageClient";
-import CityHeroNewsletter from "./CityHeroNewsletter";
 import CustomizeMetricsTrigger from "./CustomizeMetricsTrigger";
 import DistrictFollowClaimBlock from "./district/DistrictFollowClaimBlock";
 import PublicNavBar from "@/components/PublicNavBar";
@@ -42,6 +44,7 @@ export async function generateMetadata({
   const id = idParam ? Number(idParam) : null;
 
   let name = slug;
+  let cityId: number | null = null;
   let state: string | null | undefined = null;
   let country: string | null | undefined = null;
   let datasetsCount: number | null = null;
@@ -53,6 +56,7 @@ export async function generateMetadata({
         ? cities.find((c) => c.id === id)
         : cities.find((c) => c.slug === slug);
     if (match) {
+      cityId = match.id;
       name = match.name;
       state = match.state;
       country = match.country;
@@ -70,19 +74,48 @@ export async function generateMetadata({
         : country && country !== "United States"
           ? `${name}, ${country}`
           : name;
-  const description =
-    datasetsCount !== null
-      ? `${display} on Transparent.city. Browse ${datasetsCount} public datasets and source-linked civic context.`
-      : `${display} on Transparent.city. Browse public datasets and source-linked civic context.`;
+
+  // Include the mayor/executive's name in metadata so searches for them
+  // surface this city dashboard.
+  let mayorLabel: string | null = null;
+  if (cityId) {
+    try {
+      const leaders = await getPublicLeadersForCity(cityId);
+      // Mayor / city exec sits at district 0 or null
+      const mayor = leaders.find((l) => l.district === 0 || l.district === null);
+      if (mayor) {
+        mayorLabel =
+          `${mayor.title || ""} ${mayor.name}`.trim() || mayor.name;
+      }
+    } catch {
+      // no leader data
+    }
+  }
+
+  const description = datasetsCount !== null
+    ? `${display} on Transparent.city. Browse ${datasetsCount} public datasets and source-linked civic context.`
+    : `${display} on Transparent.city. Browse public datasets and source-linked civic context.`;
+
+  const keywords: string[] = [
+    `${display} open data`,
+    `${display} city dashboard`,
+    `${display} public data`,
+    ...(mayorLabel
+      ? [mayorLabel, `${mayorLabel} ${name}`, `${name} mayor`]
+      : []),
+  ];
 
   return {
     title: display,
     description,
+    keywords,
     alternates: {
-      canonical:
-        typeof id === "number" && Number.isFinite(id)
-          ? `/c/${slug}?id=${id}`
-          : `/c/${slug}`,
+      canonical: `/c/${slug}`,
+    },
+    openGraph: {
+      title: display,
+      description,
+      url: `/c/${slug}`,
     },
   };
 }
@@ -131,15 +164,18 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
   let maps: Awaited<ReturnType<typeof listPublicMapsForCity>> = [];
   let leaders: Awaited<ReturnType<typeof getPublicLeadersForCity>> = [];
   let feedStories: PublicFeedStory[] = [];
+  let cityOrdering: PublicMetricOrderingResponse | null = null;
   if (city?.id) {
     try {
-      const [detail, mapsRes, leadersRes, cityDistrictsRes, feedRes] = await Promise.all([
+      const [detail, mapsRes, leadersRes, cityDistrictsRes, feedRes, orderingRes] = await Promise.all([
         getPublicCityDetail(city.id),
         listPublicMapsForCity(city.id).catch(() => []),
         getPublicLeadersForCity(city.id).catch(() => []),
         getPublicCityDistricts(city.id).catch((): number[] => []),
         listPublicFeedStories({ city_id: city.id, district: 0, limit: 6, order_by: "published_at" }).catch(() => ({ stories: [], count: 0 })),
+        getPublicCityMetricOrdering(city.id).catch(() => null),
       ]);
+      cityOrdering = orderingRes;
       feedStories = feedRes.stories ?? [];
       cityDetail = detail;
       maps = mapsRes;
@@ -182,6 +218,14 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
 
   return (
     <CityPageClient>
+      <CityStructuredData
+        cityName={city?.name ?? slug}
+        citySlug={slug}
+        description={`${city?.display ?? slug} on Transparent.city. Browse public datasets and source-linked civic context.`}
+        datasetsCount={city?.datasets_count}
+        state={city?.state}
+        country={city?.country}
+      />
       <CityViewTracker citySlug={slug} cityId={city?.id} />
       <PublicNavBar>
         <Link href={`/c/${slug}/methodology`} className="nav-link">
@@ -227,9 +271,6 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                 </div>
               )}
             </div>
-            <div className="city-hero-right">
-              <CityHeroNewsletter cityName={city?.display ?? slug} />
-            </div>
           </div>
           {/* Category pills */}
           {uniqueCategories.length > 0 && (
@@ -261,33 +302,8 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         </div>
       </section>
 
-      {/* Dashboard: the main event */}
-      <div className="container city-dashboard-wrapper">
-        {city?.id ? (
-          <CityDashboardSectionWithOrdering
-            cityId={city.id}
-            cityDisplayName={cityDisplayName}
-            slug={slug}
-            metrics={cityDetail?.metrics ?? []}
-            comparisonsMap={comparisonsMap}
-            districts={districts}
-            maps={maps}
-            leaders={leaders}
-          />
-        ) : (
-          <CityDashboardSection
-            cityDisplayName={cityDisplayName}
-            slug={slug}
-            metrics={cityDetail?.metrics ?? []}
-            comparisonsMap={comparisonsMap}
-            districts={districts}
-            maps={maps}
-          />
-        )}
-      </div>
-
       {/* Feed: recent city stories from the feed producer */}
-      {feedStories.length > 0 && (
+      {cityDetail?.is_launched !== false && feedStories.length > 0 && (
         <section style={{ paddingTop: 40, paddingBottom: 40 }}>
           <div className="container">
             <header className="section-header" style={{ marginBottom: "1.25rem" }}>
@@ -302,26 +318,22 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                     : story.detail_url;
                 return (
                   <li key={story.id}>
-                    <a
-                      href={canonical}
-                      className="story-row"
-                    >
+                    <a href={canonical} className="story-row">
                       {story.image_url && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={story.image_url}
                           alt=""
                           className="story-row-img"
-                          style={{ width: 72, height: 56, objectFit: "cover", borderRadius: 6, flexShrink: 0 }}
                         />
                       )}
-                      <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="story-row-body">
                         <span className="story-row-title">{story.headline}</span>
                         {story.description && (
                           <p className="story-row-desc">{story.description}</p>
                         )}
                         {story.published_at && (
-                          <p style={{ margin: 0, fontSize: 11, color: "var(--text-secondary)" }}>
+                          <p className="story-row-meta">
                             {new Date(story.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                           </p>
                         )}
@@ -334,6 +346,48 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
           </div>
         </section>
       )}
+
+      {/* Dashboard: the main event */}
+      <div className="container city-dashboard-wrapper">
+        {cityDetail && !cityDetail.is_launched ? (
+          <div style={{
+            textAlign: "center",
+            padding: "64px 24px",
+            maxWidth: 540,
+            margin: "0 auto",
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🚧</div>
+            <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: 12 }}>
+              {cityDisplayName} is coming soon
+            </h2>
+            <p style={{ color: "var(--text-secondary)", lineHeight: 1.6 }}>
+              We&rsquo;re setting up the civic data dashboard for {cityDisplayName}.
+              Sign up below to be notified when it launches.
+            </p>
+          </div>
+        ) : city?.id ? (
+          <CityDashboardSectionWithOrdering
+            cityId={city.id}
+            cityDisplayName={cityDisplayName}
+            slug={slug}
+            metrics={cityDetail?.metrics ?? []}
+            comparisonsMap={comparisonsMap}
+            districts={districts}
+            maps={maps}
+            leaders={leaders}
+            cityOrdering={cityOrdering?.orderings ?? []}
+          />
+        ) : (
+          <CityDashboardSection
+            cityDisplayName={cityDisplayName}
+            slug={slug}
+            metrics={cityDetail?.metrics ?? []}
+            comparisonsMap={comparisonsMap}
+            districts={districts}
+            maps={maps}
+          />
+        )}
+      </div>
 
       {/* Benefits + sign-up CTA */}
       <section className="city-benefits-section">

@@ -7,6 +7,14 @@ import type { Job as WebSocketJob } from "@/lib/useJobWebSocket";
 import Loader from "./Loader";
 import styles from "./JobListPanel.module.css";
 
+const FEED_STORY_JOB_TYPES = new Set([
+  "research",
+  "feed_producer",
+  "feed_stories",
+  "personalized_feed_producer",
+  "context_stories",
+]);
+
 /** Filter by schedule_key (job_metadata). Matches backend run_schedule keys. */
 const SCHEDULE_KEY_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "All jobs" },
@@ -38,6 +46,7 @@ export default function JobListPanel({
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterType, setFilterType] = useState<string>("");
+  const [filterFeedStories, setFilterFeedStories] = useState<boolean>(false);
   const [scheduleFilter, setScheduleFilter] = useState<string>("");
   const [filteredByTypeJobs, setFilteredByTypeJobs] = useState<Job[] | null>(null);
   const [filteredJobsLoading, setFilteredJobsLoading] = useState(false);
@@ -148,6 +157,7 @@ export default function JobListPanel({
   const jobs: Job[] = baseJobs.filter((job) => {
     if (filterStatus && job.status !== filterStatus) return false;
     if (filterType && job.job_type !== filterType) return false;
+    if (filterFeedStories && !FEED_STORY_JOB_TYPES.has(job.job_type)) return false;
     return true;
   });
 
@@ -411,6 +421,17 @@ export default function JobListPanel({
             ))}
           </select>
         </div>
+        <div className={styles.filterGroup}>
+          <label className={styles.checkboxLabel}>
+            <input
+              type="checkbox"
+              checked={filterFeedStories}
+              onChange={(e) => setFilterFeedStories(e.target.checked)}
+              className={styles.filterCheckbox}
+            />
+            Feed stories only
+          </label>
+        </div>
       </div>
 
       <div className={styles.content}>
@@ -453,14 +474,18 @@ export default function JobListPanel({
           </div>
         </div>
 
-        <div className={styles.jobDetails}>
+        <div className={`${styles.jobDetails} ${selectedJob ? styles.jobDetailsOpen : ""}`}>
           {selectedJob ? (
             <>
               <div className={styles.jobDetailsHeader}>
                 <h3>Job Details</h3>
                 <button
-                  onClick={() => setSelectedJob(null)}
+                  onClick={() => {
+                    setSelectedJob(null);
+                    selectedJobRef.current = null;
+                  }}
                   className={styles.closeButton}
+                  aria-label="Close job details"
                 >
                   ×
                 </button>

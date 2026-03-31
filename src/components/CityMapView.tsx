@@ -155,7 +155,7 @@ function findDistrictContainingPoint(
 }
 
 // Helper function to add GPS location marker to map
-function addGPSMarker(map: any, lat: number, lng: number, markerRef: React.MutableRefObject<any>) {
+function addGPSMarker(map: any, lat: number, lng: number, markerRef: React.MutableRefObject<any>, label?: string | null) {
   const mapboxgl = (window as any).mapboxgl;
   if (!mapboxgl) return;
   
@@ -165,12 +165,13 @@ function addGPSMarker(map: any, lat: number, lng: number, markerRef: React.Mutab
     markerRef.current = null;
   }
   
-  // Create a custom marker element (blue pulsing dot)
+  // Create a custom marker element (blue pulsing dot with optional label)
   const el = document.createElement("div");
   el.className = "gps-location-marker";
   el.innerHTML = `
     <div class="gps-marker-pulse"></div>
     <div class="gps-marker-dot"></div>
+    ${label ? `<div class="gps-marker-label">${label.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
   `;
   
   // Create and add the marker
@@ -341,6 +342,8 @@ interface CityMapViewProps {
   metricDateRange?: MetricDateRange;
   gpsLocation?: { lat: number; lng: number } | null; // GPS coordinates to zoom to
   selectedPlaceRadiusM?: number | null;
+  /** Label shown on the blue location marker (e.g. the saved place name). */
+  placeLabel?: string | null;
   selectedDistrict?: number | null; // Selected district number
   onDistrictChange?: (district: number | null) => void; // Callback when district changes
   onDataReady?: (data: { leaders: CityLeader[]; shapefiles: CityShapefile[] }) => void; // Callback when leaders and shapefiles are loaded
@@ -355,6 +358,7 @@ export default function CityMapView({
   metricDateRange,
   gpsLocation,
   selectedPlaceRadiusM,
+  placeLabel,
   selectedDistrict,
   onDistrictChange,
   onDataReady,
@@ -389,9 +393,11 @@ export default function CityMapView({
   const gpsMarkerRef = useRef<any>(null);
   const gpsLocationRef = useRef<{ lat: number; lng: number } | null>(null);
   const selectedPlaceRadiusMRef = useRef<number | null>(null);
+  const placeLabelRef = useRef<string | null | undefined>(null);
 
   gpsLocationRef.current = gpsLocation ?? null;
   selectedPlaceRadiusMRef.current = selectedPlaceRadiusM ?? null;
+  placeLabelRef.current = placeLabel;
 
   const placeCircle = useMemo(() => {
     if (!gpsLocation || selectedPlaceRadiusM == null || selectedPlaceRadiusM <= 0) return null;
@@ -865,7 +871,7 @@ export default function CityMapView({
     const radiusM = selectedPlaceRadiusM ?? null;
 
     const handleGPSLocation = () => {
-      addGPSMarker(map, lat, lng, gpsMarkerRef);
+      addGPSMarker(map, lat, lng, gpsMarkerRef, placeLabelRef.current);
 
       // My Block: show bounding box (same as place metrics lat/lon filter), fit map to box
       if (radiusM != null && radiusM > 0) {
@@ -919,7 +925,7 @@ export default function CityMapView({
   }, [gpsLocation, mapCenter, mapZoom, selectedPlaceRadiusM, selectedDistrict]);
 
   const placeCircleKey = placeCircle
-    ? `${placeCircle.lat},${placeCircle.lng},${placeCircle.radius_m}`
+    ? `${placeCircle.lat},${placeCircle.lng},${placeCircle.radius_m},${placeLabel ?? ""}`
     : null;
   // When My Block is selected (placeCircle set), re-zoom to center immediately when map refresh starts.
   useLayoutEffect(() => {
@@ -929,7 +935,7 @@ export default function CityMapView({
     const runZoom = () => {
       if (!mapInstanceRef.current) return;
       const m = mapInstanceRef.current;
-      addGPSMarker(m, lat, lng, gpsMarkerRef);
+      addGPSMarker(m, lat, lng, gpsMarkerRef, placeLabelRef.current);
       try {
         addPlaceRadiusCircle(m, lat, lng, radius_m);
       } catch {
@@ -1500,6 +1506,7 @@ export default function CityMapView({
           gpsLocation={gpsLocation}
           selectedDistrict={selectedDistrict}
           placeCircle={placeCircle}
+          placeLabel={placeLabel}
           selectedAnomaly={selectedAnomaly}
           onAnomalyClear={onAnomalyClear}
           />

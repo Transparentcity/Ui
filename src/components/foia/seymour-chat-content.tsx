@@ -127,7 +127,7 @@ export function SeymourChatContent() {
       if (token) {
         try {
           await sendChatMessageStream(payload, token, (event) => {
-            if (event.type === "content" && event.content) {
+            if (event.type === "token" && event.content) {
               fullResponse += event.content
               setMessages((prev) => {
                 const updated = [...prev]
@@ -138,8 +138,8 @@ export function SeymourChatContent() {
                 return updated
               })
             }
-            if (event.type === "session_id" && (event as any).session_id) {
-              setSessionId((event as any).session_id)
+            if (event.type === "session_id" && event.content) {
+              setSessionId(event.content)
             }
           })
         } catch (err) {
