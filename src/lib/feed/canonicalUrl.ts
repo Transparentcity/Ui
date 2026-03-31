@@ -20,6 +20,7 @@ const METRIC_DETAIL_CARD_TYPES = new Set([
   "safety",
   "off_the_charts",
   "milestone",
+  "traction",
 ]);
 
 export function resolveCanonicalUrl(story: EnrichedFeedStory): string {

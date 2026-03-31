@@ -103,6 +103,39 @@ describe("deriveCardType", () => {
     expect(enriched.card_type).toBe("safety");
   });
 
+  it("trusts backend story_type 'traction'", () => {
+    const enriched = enrichStory(makeStory({ story_type: "traction" }));
+    expect(enriched.card_type).toBe("traction");
+  });
+
+  it("detects traction from 'solar' keyword", () => {
+    const enriched = enrichStory(
+      makeStory({ story_type: "research", headline: "1,200 solar panels installed on city buildings" })
+    );
+    expect(enriched.card_type).toBe("traction");
+  });
+
+  it("detects traction from 'units built' keyword", () => {
+    const enriched = enrichStory(
+      makeStory({ story_type: "research", headline: "400 affordable housing units built this year" })
+    );
+    expect(enriched.card_type).toBe("traction");
+  });
+
+  it("detects traction from 'people helped' keyword", () => {
+    const enriched = enrichStory(
+      makeStory({ story_type: "research", headline: "City shelter helped 3,000 people last quarter" })
+    );
+    expect(enriched.card_type).toBe("traction");
+  });
+
+  it("traction takes priority over business for 'restaurant expanded'", () => {
+    const enriched = enrichStory(
+      makeStory({ story_type: "research", headline: "Local restaurant expanded to second location" })
+    );
+    expect(enriched.card_type).toBe("traction");
+  });
+
   it("detects business from headline keywords", () => {
     const enriched = enrichStory(
       makeStory({ story_type: "research", headline: "New restaurant opens in the Mission" })
@@ -230,6 +263,13 @@ describe("deriveActor", () => {
   it("falls back for off_the_charts → City Hall", () => {
     const enriched = enrichStory(
       makeStory({ story_type: "off_the_charts", headline: "A generic headline" })
+    );
+    expect(enriched.actor).toBe("City Hall");
+  });
+
+  it("falls back for traction → City Hall", () => {
+    const enriched = enrichStory(
+      makeStory({ story_type: "traction", headline: "A generic traction headline" })
     );
     expect(enriched.actor).toBe("City Hall");
   });

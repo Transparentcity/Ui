@@ -68,6 +68,16 @@ export default function TextOnlyCard({ story, children }: TextOnlyCardProps) {
         </>
       )}
 
+      {/* Traction story: stat hero */}
+      {story.card_type === "traction" && meta.traction_stat && (
+        <div className={styles.tractionStatHero}>
+          <span className={styles.tractionStatNumber}>{meta.traction_stat as string}</span>
+          {meta.traction_label && (
+            <span className={styles.tractionStatLabel}>{meta.traction_label as string}</span>
+          )}
+        </div>
+      )}
+
       {/* Trend story: metric strip */}
       {story.card_type === "trend" && meta.trend_metric_name && (
         <div className={styles.trendStrip}>

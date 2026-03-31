@@ -539,6 +539,7 @@ export default function FeedContainer({
             { value: "justice", label: "Justice" },
             { value: "business", label: "Business" },
             { value: "spending", label: "Spending" },
+            { value: "traction", label: "Traction" },
             { value: "alert", label: "Alerts" },
             { value: "trend", label: "Trends" },
             { value: "context", label: "Context" },
