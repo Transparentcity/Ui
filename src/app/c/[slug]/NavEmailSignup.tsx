@@ -68,22 +68,21 @@ export default function NavEmailSignup({ citySlug, cityName }: Props) {
 
   return (
     <div className="nav-email-signup">
-      <button
-        type="button"
-        className="nav-email-signin-link"
-        onClick={handleLogin}
-        disabled={isLoading}
+      <form
+        onSubmit={handleSubmit}
+        className={`nav-email-pill${focused ? " nav-email-pill--focused" : ""}`}
       >
-        Sign in
-      </button>
-      <form onSubmit={handleSubmit} className={`nav-email-pill${focused ? " nav-email-pill--focused" : ""}`}>
         <input
           type="email"
           value={email}
           onChange={(e) => handleChange(e.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder={cityName ? `Get ${cityName}'s weekly briefing` : "Enter your email"}
+          placeholder={
+            cityName
+              ? `Get ${cityName}'s weekly briefing`
+              : "Enter your email"
+          }
           className="nav-email-input"
           required
           autoComplete="email"
@@ -97,6 +96,14 @@ export default function NavEmailSignup({ citySlug, cityName }: Props) {
           {status === "sending" ? "..." : "Sign up"}
         </button>
       </form>
+      <button
+        type="button"
+        className="nav-email-signin-btn"
+        onClick={handleLogin}
+        disabled={isLoading}
+      >
+        Sign in
+      </button>
     </div>
   );
 }
