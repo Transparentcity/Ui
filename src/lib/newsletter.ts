@@ -52,6 +52,7 @@ export async function listNewsletterEditionsForSitemap(): Promise<NewsletterEdit
       method: "GET",
       credentials: "omit",
       headers: { Accept: "application/json" },
+      next: { revalidate: 3600 },
     });
     if (!res.ok) return [];
     return res.json() as Promise<NewsletterEditionSitemapItem[]>;
