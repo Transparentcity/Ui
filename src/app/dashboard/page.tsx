@@ -95,11 +95,12 @@ const JobLogsViewer = dynamic(() => import("@/components/JobLogsViewer"), { ssr:
 const EmailAdmin = dynamic(() => import("@/components/EmailAdmin"), { ssr: false });
 const DataCompletenessAdmin = dynamic(() => import("@/components/DataCompletenessAdmin"), { ssr: false });
 const FeedAdmin = dynamic(() => import("@/components/FeedAdmin"), { ssr: false });
+const NewsletterAdmin = dynamic(() => import("@/components/NewsletterAdmin"), { ssr: false });
 
 // Dynamically import NewResearchPage to avoid SSR issues
 const NewResearchPage = dynamic(() => import("../research/new/page"), { ssr: false });
 
-type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "claims-admin" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "feed-admin" | "city" | "metric" | "job-logs" | "research" | "research-new" | "feed";
+type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "claims-admin" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "feed-admin" | "newsletter-admin" | "city" | "metric" | "job-logs" | "research" | "research-new" | "feed";
 
 // Mobile breakpoint (matches CSS media query)
 const MOBILE_BREAKPOINT = 768;
@@ -423,7 +424,7 @@ export default function DashboardPage() {
         setIsAdmin(permissions.is_admin || false);
         setCityLeadCityIds(permissions.city_lead_city_ids || []);
         setGovVerificationStatus(govStatus ?? null);
-        console.log("Admin status checked:", { isAdmin: permissions.is_admin, role: permissions.role });
+
       } catch (error) {
         console.error("Error checking admin status:", error);
       } finally {
@@ -529,7 +530,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const handleResearchCreated = (e: CustomEvent) => {
       const reportId = e.detail as number;
-      console.log("📊 Research created in dashboard, switching to view:", reportId);
+
       setCurrentResearchId(reportId);
       setCurrentView("research");
     };
@@ -735,15 +736,12 @@ export default function DashboardPage() {
       
       // Fetch preferences
       const prefs = await getUserPreferences(token);
-      console.log("Loaded preferences in loadUserSettings:", JSON.stringify(prefs, null, 2));
       setUserPreferences(prefs);
       
       // Initialize editable state from preferences
       const commPrefs = prefs.extra?.communication_preferences || {};
       const { newsletterDescription, newsletterFrequency } =
         readNewsletterPreferenceFields(prefs.extra);
-      console.log("Communication preferences from loaded prefs:", commPrefs);
-      
       setEditableAnomalyAlerts(commPrefs.anomaly_alerts ?? false);
       setEditableWeeklyDigest(commPrefs.weekly_digest ?? false);
       setEditableMonthlyReport(commPrefs.monthly_report ?? false);
@@ -794,8 +792,6 @@ export default function DashboardPage() {
       const latestPrefs = await getUserPreferences(token);
       const currentExtra = latestPrefs.extra || {};
       
-      console.log("Current extra before update:", JSON.stringify(currentExtra, null, 2));
-
       const communicationPreferences = mergeNewsletterPreferenceFields(
         currentExtra,
         {
@@ -818,8 +814,6 @@ export default function DashboardPage() {
         },
       };
       
-      console.log("Updated extra to send:", JSON.stringify(updatedExtra, null, 2));
-      
       // Build update request with only the fields the API expects
       const updateRequest: UserPreferencesUpdateRequest = {
         extra: updatedExtra,
@@ -834,14 +828,10 @@ export default function DashboardPage() {
       }
       
       // Save preferences
-      console.log("Saving preferences with request:", JSON.stringify(updateRequest, null, 2));
       const saved = await updateUserPreferences(updateRequest, token);
-      console.log("Saved preferences response:", JSON.stringify(saved, null, 2));
       
       // Reload preferences from server to ensure we have the latest data
       const refreshed = await getUserPreferences(token);
-      console.log("Refreshed preferences:", JSON.stringify(refreshed, null, 2));
-      
       // Update local state with refreshed preferences
       setUserPreferences(refreshed);
       
@@ -1290,6 +1280,17 @@ export default function DashboardPage() {
                   Feed
                 </h2>
                 <FeedAdmin />
+              </div>
+            </div>
+          )}
+
+          {currentView === "newsletter-admin" && isAdmin && (
+            <div id="newsletter-admin-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
+              <div className={styles.adminContainer}>
+                <h2 style={{ margin: "0 0 8px 0", padding: 0, color: "var(--text-primary)", fontSize: "18px" }}>
+                  Newsletters
+                </h2>
+                <NewsletterAdmin />
               </div>
             </div>
           )}

@@ -7,6 +7,7 @@ import "../../../../landing.css";
 import { getNewsletterEdition } from "@/lib/newsletter";
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
 import PublicNavBar from "@/components/PublicNavBar";
+import PublicFooter from "@/components/PublicFooter";
 
 // Archive pages: cache permanently once rendered; never auto-revalidate.
 // If an edition is regenerated, redeploy or manually purge the route cache.
@@ -211,6 +212,8 @@ export default async function NewsletterEditionPage({ params, searchParams }: Pa
           </Link>
         </div>
       </article>
+
+      <PublicFooter citySlug={slug} />
 
       <style>{`
         .newsletter-edition-body h1,

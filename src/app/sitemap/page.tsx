@@ -4,6 +4,7 @@ import Link from "next/link";
 import "../landing.css";
 import styles from "./sitemap.module.css";
 
+import PublicFooter from "@/components/PublicFooter";
 import SitemapHeader from "@/components/SitemapHeader";
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
 import { API_BASE } from "@/lib/apiBase";
@@ -202,44 +203,7 @@ export default async function SiteMapPage() {
         </div>
       </section>
 
-      <footer className="footer">
-        <div className="container">
-          <div className="footer-content">
-            <div className="footer-column">
-              <div className="logo">
-                <span className="logo-text">
-                  <span className="logo-transparent">transparent</span>
-                  <span className="logo-city">.city</span>
-                </span>
-              </div>
-              <p className="footer-description">
-                Maps, metrics, and research built from public city data—so
-                residents and elected officials can share the same picture of what’s
-                happening.
-              </p>
-            </div>
-
-            <div className="footer-column">
-              <h4 className="footer-title">Resources</h4>
-              <Link href="/sitemap" className="footer-link">
-                Site Map
-              </Link>
-              <Link href="/debug/health" className="footer-link">
-                API health
-              </Link>
-              <a href="mailto:hello@transparentcity.com" className="footer-link">
-                Contact
-              </a>
-            </div>
-          </div>
-
-          <div className="footer-bottom">
-            <p>
-              &copy; 2026 Transparent.city.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <PublicFooter />
     </>
   );
 }

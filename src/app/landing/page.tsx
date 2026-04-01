@@ -5,6 +5,7 @@
 // without losing this template.
 
 import "../landing.css";
+import PublicFooter from "@/components/PublicFooter";
 import { useAuth0 } from "@auth0/auth0-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -710,86 +711,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="footer">
-        <div className="container">
-          <div className="footer-content">
-            <div className="footer-column">
-              <div className="logo">
-                <span className="logo-text">
-                  <span className="logo-transparent">transparent</span>
-                  <span className="logo-city">.city</span>
-                </span>
-              </div>
-              <p className="footer-description">
-                Built entirely on public city data, fully source-linked and
-                documented—so everyone can see the same picture of how their
-                city is doing.
-              </p>
-            </div>
-            <div className="footer-column">
-              <h4 className="footer-title">For Citizens</h4>
-              <a href="#who-we-serve" className="footer-link">
-                How It Helps
-              </a>
-              <a href="#features" className="footer-link">
-                Dashboards &amp; Briefs
-              </a>
-              <a href="#pricing" className="footer-link">
-                Free Access
-              </a>
-            </div>
-            <div className="footer-column">
-              <h4 className="footer-title">For Officials</h4>
-              <a href="#who-we-serve" className="footer-link">
-                District Tools
-              </a>
-              <a href="#pricing" className="footer-link">
-                Official Access
-              </a>
-              <a
-                href="mailto:officials@transparentcity.com"
-                className="footer-link"
-              >
-                Contact Us
-              </a>
-            </div>
-            <div className="footer-column">
-              <h4 className="footer-title">For Organizations</h4>
-              <a href="#who-we-serve" className="footer-link">
-                Use Cases
-              </a>
-              <a href="#pricing" className="footer-link">
-                Pilots &amp; Plans
-              </a>
-              <a href="mailto:hello@transparentcity.com" className="footer-link">
-                Partnerships
-              </a>
-            </div>
-            <div className="footer-column">
-              <h4 className="footer-title">Resources</h4>
-              <a href="#" className="footer-link">
-                Documentation
-              </a>
-              <a href="#" className="footer-link">
-                API Access
-              </a>
-              <a href="#" className="footer-link">
-                Privacy Policy
-              </a>
-              <a href="/sitemap" className="footer-link">
-                Site Map
-              </a>
-            </div>
-          </div>
-          <div className="footer-bottom">
-            <p>
-              &copy; 2026 Transparent.city. Building a shared, verifiable picture
-              of city performance, one city at a time.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <PublicFooter />
     </>
   );
 }

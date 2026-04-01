@@ -30,7 +30,7 @@ export default function HomeFeedPreview() {
         });
         if (cancelled) return;
 
-        const enriched = res.stories.map((s) => enrichStory(s));
+        const enriched = (res.stories ?? []).map((s) => enrichStory(s));
         setStories(enriched.slice(0, 6));
       } catch {
         if (!cancelled) setError(true);

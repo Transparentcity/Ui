@@ -10,6 +10,7 @@ import {
   listPublicFeedStories,
 } from "@/lib/publicApiClient";
 import PublicNavBar from "@/components/PublicNavBar";
+import PublicFooter from "@/components/PublicFooter";
 import { processVisualizationShortcodes } from "@/lib/visualizationShortcodes";
 import ShareButton from "./ShareButton";
 import PageFeedback from "@/components/PageFeedback";
@@ -379,6 +380,8 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           </>
         )}
       </article>
+
+      <PublicFooter citySlug={slug} />
 
       {/* Inline styles for article body */}
       <style>{`

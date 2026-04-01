@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import { CityStructuredData } from "@/components/StructuredData";
+import PublicFooter from "@/components/PublicFooter";
 
 import "../../landing.css";
 
@@ -389,51 +390,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         <PageFeedback pageUrl={`/c/${slug}`} pageType="city" />
       </div>
 
-      <footer className="footer city-footer">
-        <div className="container">
-          <div className="footer-content">
-            <div className="footer-column">
-              <div className="brand-text">
-                <span className="logo-transparent">transparent</span>
-                <span className="logo-city">.city</span>
-              </div>
-              <p className="footer-description">
-                Maps, metrics, and research built from public city data so residents and
-                elected officials can share the same picture of what is happening.
-              </p>
-            </div>
-            <div className="footer-column">
-              <h4 className="footer-title">Explore</h4>
-              <Link href={`/c/${slug}/methodology`} className="footer-link">
-                Methodology
-              </Link>
-              <Link href="/sitemap" className="footer-link">
-                Site map
-              </Link>
-            </div>
-            <div className="footer-column">
-              <h4 className="footer-title">Get involved</h4>
-              <Link href="/pro" className="footer-link">
-                Add your city
-              </Link>
-              <a href="mailto:hello@transparentcity.com" className="footer-link">
-                Elected officials
-              </a>
-            </div>
-            <div className="footer-column">
-              <h4 className="footer-title">Contact</h4>
-              <a href="mailto:hello@transparentcity.com" className="footer-link">
-                hello@transparentcity.com
-              </a>
-            </div>
-          </div>
-          <div className="footer-bottom">
-            <p>
-              &copy; 2026 Transparent.city.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <PublicFooter citySlug={slug} />
     </CityPageClient>
   );
 }

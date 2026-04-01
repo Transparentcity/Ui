@@ -1080,6 +1080,9 @@ import type {
   DistrictSafePageProps,
   CityDataAvailability,
   DistrictSafetyData,
+  CrimeBreakdown,
+  StreetConditions,
+  DistrictPulseData,
   CrimeMapMetricIds,
   PeerCityRanking,
   DistrictSafetyRank,
@@ -1094,6 +1097,8 @@ export interface EvergreenCitySafetyResponse {
   lastUpdated: string;
   dataAvailability: CityDataAvailability;
   safetyData: DistrictSafetyData;
+  crimeBreakdown?: CrimeBreakdown;
+  streetConditions?: StreetConditions;
   crimeMapMetricIds: CrimeMapMetricIds | null;
   peerCityRankings: PeerCityRanking[] | null;
   safestDistricts: DistrictSafetyRank[];
@@ -1111,6 +1116,9 @@ export interface EvergreenDistrictSafetyResponse {
   lastUpdated: string;
   dataAvailability: CityDataAvailability;
   safetyData: DistrictSafetyData;
+  crimeBreakdown?: CrimeBreakdown;
+  streetConditions?: StreetConditions;
+  pulse?: DistrictPulseData;
   crimeMapMetricIds: CrimeMapMetricIds | null;
   relatedDistricts: RelatedDistrict[];
 }

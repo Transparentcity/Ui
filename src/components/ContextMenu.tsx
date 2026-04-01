@@ -213,6 +213,28 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
             strokeLinejoin="round"
             style={{ filter: "grayscale(100%)" }}
           >
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+            <polyline points="22,6 12,13 2,6" />
+            <line x1="2" y1="20" x2="8" y2="14" />
+            <line x1="22" y1="20" x2="16" y2="14" />
+          </svg>
+        ),
+        label: "Newsletters",
+        view: "newsletter-admin",
+      },
+      {
+        icon: (
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ filter: "grayscale(100%)" }}
+          >
             <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2" />
             <path d="M18 14h-8" />
             <path d="M15 18h-5" />

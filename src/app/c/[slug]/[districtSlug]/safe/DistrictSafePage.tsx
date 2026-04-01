@@ -40,6 +40,7 @@ export default function DistrictSafePage({
       ? (() => {
           const first = safetyData.trendData[0];
           const last = safetyData.trendData[safetyData.trendData.length - 1];
+          if (!first.value) return undefined;
           const change = (
             ((last.value - first.value) / first.value) *
             100

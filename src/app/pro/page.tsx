@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import "../landing.css";
 import Header from "@/components/Header";
+import PublicFooter from "@/components/PublicFooter";
 
 export default function AddYourCityPage() {
   const [activeTab, setActiveTab] = useState<"add" | "improve">("add");
@@ -488,41 +489,7 @@ export default function AddYourCityPage() {
         </div>
 
         {/* Footer */}
-        <footer className="add-city-footer">
-          <div className="add-city-footer-container">
-            <div className="add-city-footer-grid">
-              <div>
-                <div className="add-city-footer-brand">
-                  transparent<span className="brand-dot-city">.city</span>
-                </div>
-                <div className="add-city-footer-fine-print">
-                  Facts for residents. Evidence for elected officials.
-                  Accountability for everyone.
-                  <br />
-                  <br />
-                  All data is sourced from official city open data portals with
-                  documented queries and direct links.
-                  <br />
-                  <br />
-                  &copy; 2026 Transparent.city
-                </div>
-              </div>
-              <div>
-                <div className="add-city-footer-title">Start</div>
-                <div className="add-city-footer-links">
-                  <Link href="/pro">Add Your City</Link>
-                  <Link href="/sitemap">Site map</Link>
-                </div>
-              </div>
-              <div>
-                <div className="add-city-footer-title">Updates</div>
-                <div className="add-city-footer-links">
-                  <a href="mailto:seymour@parse.transparent.city">Contact</a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </footer>
+        <PublicFooter />
       </main>
     </div>
   );

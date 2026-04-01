@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import PublicNavBar from "@/components/PublicNavBar";
+import PublicFooter from "@/components/PublicFooter";
 import NavEmailSignup from "../NavEmailSignup";
 import CityHeroNewsletter from "../CityHeroNewsletter";
 import Breadcrumb from "@/components/evergreen/Breadcrumb";
@@ -264,52 +264,7 @@ export default function CitySafePage({
         </div>
       </section>
 
-      {/* Footer (matching dashboard) */}
-      <footer className="footer city-footer">
-        <div className="container">
-          <div className="footer-content">
-            <div className="footer-column">
-              <div className="brand-text">
-                <span className="logo-transparent">transparent</span>
-                <span className="logo-city">.city</span>
-              </div>
-              <p className="footer-description">
-                Maps, metrics, and research built from public city data so residents and
-                elected officials can share the same picture of what is happening.
-              </p>
-            </div>
-            <div className="footer-column">
-              <h4 className="footer-title">Explore</h4>
-              <Link href={`/c/${citySlug}/methodology`} className="footer-link">
-                Methodology
-              </Link>
-              <Link href="/sitemap" className="footer-link">
-                Site map
-              </Link>
-            </div>
-            <div className="footer-column">
-              <h4 className="footer-title">Get involved</h4>
-              <Link href="/pro" className="footer-link">
-                Add your city
-              </Link>
-              <a href="mailto:hello@transparentcity.com" className="footer-link">
-                Elected officials
-              </a>
-            </div>
-            <div className="footer-column">
-              <h4 className="footer-title">Contact</h4>
-              <a href="mailto:hello@transparentcity.com" className="footer-link">
-                hello@transparentcity.com
-              </a>
-            </div>
-          </div>
-          <div className="footer-bottom">
-            <p>
-              &copy; {new Date().getFullYear()} Transparent.city.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <PublicFooter citySlug={citySlug} />
     </>
   );
 }
