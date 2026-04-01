@@ -12,6 +12,7 @@ import {
 import PublicNavBar from "@/components/PublicNavBar";
 import { processVisualizationShortcodes } from "@/lib/visualizationShortcodes";
 import ShareButton from "./ShareButton";
+import PageFeedback from "@/components/PageFeedback";
 
 export const revalidate = 3600;
 
@@ -87,7 +88,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
   try {
     const feedRes = await listPublicFeedStories({
       city_id: story.city_id,
-      limit: 6,
+      limit: 10,
       order_by: "published_at",
     });
     relatedStories = (feedRes.stories ?? [])
@@ -211,7 +212,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           {storyDate && <span>{storyDate}</span>}
           <span>
             {story.city_emoji} {cityDisplay}
-            {story.district > 0 ? ` · District ${story.district}` : ""}
+            {story.district && story.district > 0 ? ` · District ${story.district}` : ""}
           </span>
         </div>
 
@@ -321,6 +322,8 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
             url={`/c/${slug}/stories/${hash}`}
           />
         </div>
+
+        <PageFeedback pageUrl={`/c/${slug}/stories/${hash}`} pageType="story" />
 
         {/* Related stories from the same city */}
         {relatedStories.length > 0 && (
