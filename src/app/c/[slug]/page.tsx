@@ -18,6 +18,7 @@ import {
   type PublicFeedStory,
   type PublicMetricOrderingResponse,
 } from "@/lib/publicApiClient";
+import { listNewsletterEditionsForSitemap } from "@/lib/newsletter";
 import CitySignupButton from "./CitySignupButton";
 import NavEmailSignup from "./NavEmailSignup";
 import CityDashboardSection from "./CityDashboardSection";
@@ -171,6 +172,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
   let leaders: Awaited<ReturnType<typeof getPublicLeadersForCity>> = [];
   let feedStories: PublicFeedStory[] = [];
   let cityOrdering: PublicMetricOrderingResponse | null = null;
+  let latestNewsletterDate: string | null = null;
   if (city?.id) {
     try {
       const [detail, mapsRes, leadersRes, cityDistrictsRes, feedRes, orderingRes] = await Promise.all([
@@ -190,6 +192,20 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       if (Array.isArray(cityDistrictsRes) && cityDistrictsRes.length > 0) {
         districts = [...cityDistrictsRes].sort((a, b) => a - b);
       }
+
+      // Find latest newsletter edition for this city
+      try {
+        const editions = await listNewsletterEditionsForSitemap();
+        const cityEditions = editions
+          .filter((e) => e.city_slug === slug && e.district === 0)
+          .sort((a, b) => b.edition_date.localeCompare(a.edition_date));
+        if (cityEditions.length > 0) {
+          latestNewsletterDate = cityEditions[0].edition_date;
+        }
+      } catch {
+        // no newsletter data
+      }
+
       const metrics = cityDetail?.metrics ?? [];
       if (metrics.length > 0) {
         comparisonsMap = await getPublicMetricComparisonsBatch({
@@ -213,6 +229,10 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       // leave defaults
     }
   }
+
+  const hasContent = (city?.datasets_count ?? 0) > 0
+    || (cityDetail?.metrics?.length ?? 0) > 0
+    || !!cityDetail?.main_portal_url;
 
   return (
     <CityPageClient>
@@ -256,7 +276,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       </section>
 
       {/* Section 2: Key Numbers Strip */}
-      {cityDetail?.is_launched !== false && (
+      {hasContent && (
         <KeyNumbersStrip
           slug={slug}
           metrics={cityDetail?.metrics ?? []}
@@ -266,7 +286,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
 
       {/* Section 3: Dashboard */}
       <div className="container city-dashboard-wrapper">
-        {cityDetail && cityDetail.is_launched === false ? (
+        {!hasContent ? (
           <div style={{
             textAlign: "center",
             padding: "64px 24px",
@@ -330,7 +350,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       </div>
 
       {/* Section 4: Map Preview */}
-      {maps.length > 0 && cityDetail?.is_launched !== false && (
+      {maps.length > 0 && hasContent && (
         <CityMapPreview
           cityName={city?.name ?? slug}
           slug={slug}
@@ -339,7 +359,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       )}
 
       {/* Section 5: Featured Stories */}
-      {cityDetail?.is_launched !== false && feedStories.length > 0 && (
+      {hasContent && feedStories.length > 0 && (
         <FeaturedStories
           slug={slug}
           cityDisplayName={cityDisplayName}
@@ -347,28 +367,61 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         />
       )}
 
-      {/* Section 6: Explainer + Bottom CTA */}
+      {/* Section 6: Inline CTA after stories */}
+      <section className="city-inline-cta-section">
+        <div className="container">
+          <div className="city-inline-cta-inner">
+            <p className="city-inline-cta-label">
+              Get {city?.name ?? slug}&rsquo;s weekly briefing.
+            </p>
+            <div className="city-inline-cta-form">
+              <CityHeroNewsletter
+                cityName={city?.name ?? slug}
+                citySlug={slug}
+                label=" "
+              />
+            </div>
+            {latestNewsletterDate && (
+              <Link
+                href={`/c/${slug}/newsletter/${latestNewsletterDate}`}
+                className="city-inline-cta-sample"
+              >
+                See a recent briefing
+              </Link>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Section 7: Explainer + Bottom CTA */}
       <section className="city-explainer-section">
         <div className="container">
           <div className="city-explainer-inner">
             <p className="city-explainer-text">
-              Transparent City tracks live government data across 600+ cities so
-              residents and officials share the same picture of what is happening.
-              Every number links to its public source. Sign up to customize your
-              dashboard, explore block-level maps, and get weekly briefings.
+              {city?.name ?? slug}&rsquo;s public data, explained once a week.
+              Crime trends, housing, city services, and 311 reports, sourced
+              from {city?.name ?? slug}&rsquo;s open data portal with links to
+              every number.
             </p>
             <div className="city-explainer-cta">
               <CityHeroNewsletter
                 cityName={city?.name ?? slug}
                 citySlug={slug}
-                label="Sign up free for the full picture."
               />
             </div>
+            {latestNewsletterDate && (
+              <Link
+                href={`/c/${slug}/newsletter/${latestNewsletterDate}`}
+                className="city-sample-briefing-link"
+              >
+                See a recent briefing
+              </Link>
+            )}
           </div>
         </div>
       </section>
 
-      <div className="container" style={{ paddingBottom: 40 }}>
+      <div className="container" style={{ paddingBottom: 8 }}>
         <PageFeedback pageUrl={`/c/${slug}`} pageType="city" />
       </div>
 
@@ -393,23 +446,15 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
               <Link href="/sitemap" className="footer-link">
                 All cities
               </Link>
-              <Link href="/" className="footer-link">
-                Home
-              </Link>
             </div>
             <div className="footer-column">
               <h4 className="footer-title">Get involved</h4>
               <Link href="/pro" className="footer-link">
                 Add your city
               </Link>
-              <a
-                href="https://www.transparentsf.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="footer-link"
-              >
-                Newsletter
-              </a>
+              <Link href="/claim" className="footer-link">
+                Elected officials
+              </Link>
             </div>
             <div className="footer-column">
               <h4 className="footer-title">Contact</h4>
@@ -420,8 +465,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
           </div>
           <div className="footer-bottom">
             <p>
-              &copy; 2026 Transparent.city. The difference between knowing and
-              guessing is agency.
+              &copy; 2026 Transparent.city.
             </p>
           </div>
         </div>
@@ -429,4 +473,3 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
     </CityPageClient>
   );
 }
-

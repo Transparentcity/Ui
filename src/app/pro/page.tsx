@@ -303,7 +303,6 @@ export default function AddYourCityPage() {
             <div>
               <div className="add-city-footer-title">Start</div>
               <div className="add-city-footer-links">
-                <Link href="/">Home</Link>
                 <Link href="/pro">Add Your City</Link>
                 <Link href="/sitemap">Site map</Link>
               </div>
@@ -311,13 +310,6 @@ export default function AddYourCityPage() {
             <div>
               <div className="add-city-footer-title">Updates</div>
               <div className="add-city-footer-links">
-                <a
-                  href="https://www.transparentsf.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Newsletter
-                </a>
                 <a href="mailto:hello@transparentcity.com">Contact</a>
               </div>
             </div>
