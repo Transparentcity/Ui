@@ -26,8 +26,6 @@ import CityDashboardSectionWithOrdering from "./CityDashboardSectionWithOrdering
 import CityViewTracker from "./CityViewTracker";
 import CityPageClient from "./CityPageClient";
 import PublicNavBar from "@/components/PublicNavBar";
-import KeyNumbersStrip from "./KeyNumbersStrip";
-import DashboardCardGrid from "./DashboardCardGrid";
 import DashboardSwitch from "./DashboardSwitch";
 import CityMapPreview from "./CityMapPreview";
 import FeaturedStories from "./FeaturedStories";
@@ -275,16 +273,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         </div>
       </section>
 
-      {/* Section 2: Key Numbers Strip */}
-      {hasContent && (
-        <KeyNumbersStrip
-          slug={slug}
-          metrics={cityDetail?.metrics ?? []}
-          comparisonsMap={comparisonsMap}
-        />
-      )}
-
-      {/* Section 3: Dashboard */}
+      {/* Section 2: Dashboard */}
       <div className="container city-dashboard-wrapper">
         {!hasContent ? (
           <div style={{
@@ -305,7 +294,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         ) : city?.id ? (
           <DashboardSwitch
             cardGrid={
-              <DashboardCardGrid
+              <CityDashboardSection
                 cityDisplayName={cityDisplayName}
                 slug={slug}
                 metrics={cityDetail?.metrics ?? []}

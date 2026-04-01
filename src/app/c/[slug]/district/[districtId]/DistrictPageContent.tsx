@@ -11,6 +11,7 @@ import CitySignupButton from "../../CitySignupButton";
 import CityDashboardSection from "../../CityDashboardSection";
 import DistrictFollowClaimBlock from "../DistrictFollowClaimBlock";
 import PublicNavBar from "@/components/PublicNavBar";
+import { SignupEmailProvider } from "../../SignupEmailContext";
 
 export type DistrictPageContentProps = {
   slug: string;
@@ -56,14 +57,8 @@ export default function DistrictPageContent({
   const year = new Date().getFullYear();
 
   return (
-    <>
+    <SignupEmailProvider>
       <PublicNavBar>
-        <Link href="/sitemap" className="nav-link">
-          Site map
-        </Link>
-        <Link href="/" className="nav-link">
-          Home
-        </Link>
         <CitySignupButton />
       </PublicNavBar>
 
@@ -120,6 +115,22 @@ export default function DistrictPageContent({
         </div>
       </section>
 
+      {/* ── METRICS DASHBOARD ────────────────────────────────────────────── */}
+      <div className="district-page-dashboard">
+        <CityDashboardSection
+          cityDisplayName={city.shortDisplay}
+          slug={slug}
+          metrics={metrics}
+          comparisonsMap={comparisonsMap}
+          districts={districts}
+          maps={maps}
+          district={d}
+          leaders={leaders}
+          cityId={city.id}
+          orderings={orderings}
+        />
+      </div>
+
       {/* ── STORY ACCENT STRIP ───────────────────────────────────────────── */}
       {accentStories.length > 0 && (
         <section className="district-stories-strip">
@@ -144,21 +155,34 @@ export default function DistrictPageContent({
         </section>
       )}
 
-      {/* ── METRICS DASHBOARD ────────────────────────────────────────────── */}
-      <div className="district-page-dashboard">
-        <CityDashboardSection
-          cityDisplayName={city.shortDisplay}
-          slug={slug}
-          metrics={metrics}
-          comparisonsMap={comparisonsMap}
-          districts={districts}
-          maps={maps}
-          district={d}
-          leaders={leaders}
-          cityId={city.id}
-          orderings={orderings}
-        />
-      </div>
+      {/* ── OTHER DISTRICTS ─────────────────────────────────────────────── */}
+      {districts.length > 1 && (
+        <section className="container" style={{ paddingTop: 32, paddingBottom: 16 }}>
+          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 12 }}>
+            All {city.shortDisplay} districts
+          </h3>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+            {districts.map((dn) => {
+              const rep = leaders.find((l) => l.district === dn);
+              const repName = rep ? ` \u2013 ${(rep.title || "")} ${rep.name}`.trim() : "";
+              return (
+                <Link
+                  key={dn}
+                  href={`${base}/district/${dn}`}
+                  className="nav-link"
+                  style={{
+                    fontSize: 14,
+                    fontWeight: dn === d ? 700 : 400,
+                    textDecoration: "none",
+                  }}
+                >
+                  District {dn}{repName}
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* ── FOOTER ───────────────────────────────────────────────────────── */}
       <footer className="footer">
@@ -195,6 +219,6 @@ export default function DistrictPageContent({
           </div>
         </div>
       </footer>
-    </>
+    </SignupEmailProvider>
   );
 }
