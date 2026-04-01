@@ -1,5 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import PublicNavBar from "@/components/PublicNavBar";
+import NavEmailSignup from "../NavEmailSignup";
+import CityHeroNewsletter from "../CityHeroNewsletter";
 import Breadcrumb from "@/components/evergreen/Breadcrumb";
 import GradeDisplay from "@/components/evergreen/GradeDisplay";
 import TableOfContents from "@/components/evergreen/TableOfContents";
@@ -12,6 +16,7 @@ import PeerCityTable from "@/components/evergreen/PeerCityTable";
 import SectionNav from "@/components/evergreen/SectionNav";
 import JsonLd from "@/components/evergreen/JsonLd";
 import ConversionSlot from "@/components/evergreen/conversion/ConversionSlot";
+import SafeSection from "@/components/evergreen/SafeSection";
 import type { CitySafePageProps } from "@/lib/evergreen/types";
 
 interface Props extends CitySafePageProps {
@@ -49,6 +54,8 @@ export default function CitySafePage({
         })()
       : undefined;
 
+  const isImproving = trendInsight?.includes("decreased");
+
   const tocItems = [
     { id: "scorecard", label: "Scorecard" },
     ...(dataAvailability.crimeHistory && safetyData.trendData
@@ -80,12 +87,10 @@ export default function CitySafePage({
       />
 
       <PublicNavBar>
-        <Link href={`/c/${citySlug}`} className="nav-link">
-          {city}
-        </Link>
+        <NavEmailSignup citySlug={citySlug} cityName={city} />
       </PublicNavBar>
 
-      <main className="max-w-4xl mx-auto px-4 py-8 space-y-10">
+      <main className="max-w-4xl mx-auto px-4 py-5 space-y-6">
         {/* Breadcrumb */}
         <Breadcrumb
           items={[
@@ -97,7 +102,7 @@ export default function CitySafePage({
 
         {/* Lede */}
         <header>
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+          <h1 className="text-3xl font-bold text-gray-900 mb-3">
             Is {city} Safe?
           </h1>
           <GradeDisplay
@@ -107,100 +112,128 @@ export default function CitySafePage({
             comparisonLabel="major US cities we track"
             lastUpdated={lastUpdated}
           />
-          {currentRank && (
+
+          {/* Positive trend callout */}
+          {isImproving && (
+            <div className="mt-3 rounded-md border-l-4 border-l-emerald-500 bg-emerald-50 px-4 py-2.5">
+              <p className="text-sm font-semibold text-emerald-800">
+                Crime is trending down in {city}
+              </p>
+              {currentRank && (
+                <p className="text-sm text-emerald-700">
+                  Ranked #{currentRank} for safety improvement among 15 major US
+                  cities
+                </p>
+              )}
+            </div>
+          )}
+
+          {!isImproving && currentRank && (
             <p className="mt-2 text-sm text-purple-700 font-medium">
               Ranked #{currentRank} for safety improvement among 15 major US
               cities
             </p>
           )}
-          <p className="mt-4 text-gray-700 leading-relaxed">
+
+          <p className="mt-3 text-gray-700 leading-relaxed">
             {safetyData.verdictSummary}
           </p>
+
+          {/* Inline newsletter CTA (above the fold) */}
+          <div className="mt-4">
+            <CityHeroNewsletter
+              cityName={city}
+              citySlug={citySlug}
+              label={`Get ${city}'s free weekly briefing.`}
+            />
+          </div>
         </header>
 
         {/* Table of Contents */}
         <TableOfContents items={tocItems} />
 
         {/* Safety Scorecard */}
-        <SafetyScorecard
-          data={safetyData}
-          availability={dataAvailability}
-          locationLabel={city}
-          comparisonLabel="Peer city median"
-          city={city}
-          policeDashboardUrl={policeDashboardUrl}
-          sourceAttribution={`${city} Police Department crime incident data`}
-        />
+        <SafeSection>
+          <SafetyScorecard
+            data={safetyData}
+            availability={dataAvailability}
+            locationLabel={city}
+            comparisonLabel="Peer city median"
+            city={city}
+            policeDashboardUrl={policeDashboardUrl}
+            sourceAttribution={`${city} Police Department crime incident data`}
+          />
+        </SafeSection>
 
         {/* Trend Chart */}
-        {dataAvailability.crimeHistory && safetyData.trendData && (
-          <TrendLineChart
-            localData={safetyData.trendData}
-            localLabel={city}
-            trendInsight={trendInsight}
-          />
-        )}
+        <SafeSection>
+          {dataAvailability.crimeHistory && safetyData.trendData && (
+            <TrendLineChart
+              localData={safetyData.trendData}
+              localLabel={city}
+              trendInsight={trendInsight}
+            />
+          )}
+        </SafeSection>
 
         {/* Crime Breakdown */}
         {crimeBreakdown && (
-          <CrimeBreakdownCards
-            data={crimeBreakdown}
-            availability={dataAvailability}
-          />
+          <SafeSection>
+            <CrimeBreakdownCards
+              data={crimeBreakdown}
+              availability={dataAvailability}
+            />
+          </SafeSection>
         )}
 
         {/* Crime Map */}
         {crimeMapMetricIds && (
-          <CrimeMapSection
-            metricIds={crimeMapMetricIds}
-            lastUpdated={lastUpdated}
-            locationName={city}
-          />
+          <SafeSection>
+            <CrimeMapSection
+              metricIds={crimeMapMetricIds}
+              lastUpdated={lastUpdated}
+              locationName={city}
+            />
+          </SafeSection>
         )}
 
         {/* Peer City Comparison */}
-        {peerCityRankings && peerCityRankings.length > 0 && (
-          <div id="peer-comparison">
-            <PeerCityTable rankings={peerCityRankings} currentCity={city} />
-          </div>
-        )}
+        <SafeSection>
+          {peerCityRankings && peerCityRankings.length > 0 && (
+            <div id="peer-comparison">
+              <PeerCityTable rankings={peerCityRankings} currentCity={city} />
+            </div>
+          )}
+        </SafeSection>
 
         {/* Street Conditions */}
         {streetConditions && (
-          <StreetConditionsModule
-            data={streetConditions}
-            availability={dataAvailability}
-            city={city}
-          />
+          <SafeSection>
+            <StreetConditionsModule
+              data={streetConditions}
+              availability={dataAvailability}
+              city={city}
+            />
+          </SafeSection>
         )}
 
-        {/* Email capture CTA */}
-        <ConversionSlot
-          position="after_conditions"
-          pageType="citySafe"
-          citySlug={citySlug}
-        />
-
-        {/* Before footer CTA */}
-        <ConversionSlot
-          position="before_footer"
-          pageType="citySafe"
-          citySlug={citySlug}
-        />
-
         {/* District Rankings */}
-        <SectionNav
-          citySlug={citySlug}
-          cityName={city}
-          districtRankings={safestDistricts}
-          rankingLabel="Safest Districts"
-        />
-        <SectionNav
-          citySlug={citySlug}
-          cityName={city}
-          districtRankings={leastSafeDistricts}
-          rankingLabel="Districts to Research Further"
-        />
+        <SafeSection>
+          <SectionNav
+            citySlug={citySlug}
+            cityName={city}
+            districtRankings={safestDistricts}
+            rankingLabel="Safest Districts"
+          />
+        </SafeSection>
+        <SafeSection>
+          <SectionNav
+            citySlug={citySlug}
+            cityName={city}
+            districtRankings={leastSafeDistricts}
+            rankingLabel="Districts to Research Further"
+          />
+        </SafeSection>
 
         {/* Sticky mobile CTA */}
         <ConversionSlot
@@ -209,6 +242,73 @@ export default function CitySafePage({
           citySlug={citySlug}
         />
       </main>
+
+      {/* Explainer + bottom CTA (matching dashboard) */}
+      <section className="city-explainer-section">
+        <div className="container">
+          <div className="city-explainer-inner">
+            <p className="city-explainer-text">
+              {city}&rsquo;s public data, explained once a week.
+              Crime trends, housing, city services, and 311 reports, sourced
+              from {city}&rsquo;s open data portal with links to
+              every number.
+            </p>
+            <div className="city-explainer-cta">
+              <CityHeroNewsletter
+                cityName={city}
+                citySlug={citySlug}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer (matching dashboard) */}
+      <footer className="footer city-footer">
+        <div className="container">
+          <div className="footer-content">
+            <div className="footer-column">
+              <div className="brand-text">
+                <span className="logo-transparent">transparent</span>
+                <span className="logo-city">.city</span>
+              </div>
+              <p className="footer-description">
+                Maps, metrics, and research built from public city data so residents and
+                elected officials can share the same picture of what is happening.
+              </p>
+            </div>
+            <div className="footer-column">
+              <h4 className="footer-title">Explore</h4>
+              <Link href={`/c/${citySlug}/methodology`} className="footer-link">
+                Methodology
+              </Link>
+              <Link href="/sitemap" className="footer-link">
+                All cities
+              </Link>
+            </div>
+            <div className="footer-column">
+              <h4 className="footer-title">Get involved</h4>
+              <Link href="/pro" className="footer-link">
+                Add your city
+              </Link>
+              <a href="mailto:hello@transparentcity.com" className="footer-link">
+                Elected officials
+              </a>
+            </div>
+            <div className="footer-column">
+              <h4 className="footer-title">Contact</h4>
+              <a href="mailto:hello@transparentcity.com" className="footer-link">
+                hello@transparentcity.com
+              </a>
+            </div>
+          </div>
+          <div className="footer-bottom">
+            <p>
+              &copy; {new Date().getFullYear()} Transparent.city.
+            </p>
+          </div>
+        </div>
+      </footer>
     </>
   );
 }

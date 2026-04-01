@@ -85,7 +85,7 @@ export default function DistrictSafePage({
         </Link>
       </PublicNavBar>
 
-      <main className="max-w-4xl mx-auto px-4 py-8 space-y-10">
+      <main className="max-w-4xl mx-auto px-4 py-5 space-y-6">
         {/* Breadcrumb */}
         <Breadcrumb
           items={[
@@ -165,14 +165,6 @@ export default function DistrictSafePage({
           />
         )}
 
-        {/* Email capture CTA */}
-        <ConversionSlot
-          position="after_conditions"
-          pageType="districtSafe"
-          citySlug={citySlug}
-          districtSlug={districtSlug}
-        />
-
         {/* Pulse */}
         {pulse && (
           <div id="pulse">
@@ -183,14 +175,6 @@ export default function DistrictSafePage({
             />
           </div>
         )}
-
-        {/* Before footer CTA */}
-        <ConversionSlot
-          position="before_footer"
-          pageType="districtSafe"
-          citySlug={citySlug}
-          districtSlug={districtSlug}
-        />
 
         {/* Footer nav */}
         <SectionNav
