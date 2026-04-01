@@ -214,6 +214,10 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
     }
   }
 
+  const hasContent = (city?.datasets_count ?? 0) > 0
+    || (cityDetail?.metrics?.length ?? 0) > 0
+    || !!cityDetail?.main_portal_url;
+
   return (
     <CityPageClient>
       <CityStructuredData
@@ -256,7 +260,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       </section>
 
       {/* Section 2: Key Numbers Strip */}
-      {cityDetail?.is_launched !== false && (
+      {hasContent && (
         <KeyNumbersStrip
           slug={slug}
           metrics={cityDetail?.metrics ?? []}
@@ -266,7 +270,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
 
       {/* Section 3: Dashboard */}
       <div className="container city-dashboard-wrapper">
-        {cityDetail && cityDetail.is_launched === false ? (
+        {!hasContent ? (
           <div style={{
             textAlign: "center",
             padding: "64px 24px",
@@ -330,7 +334,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       </div>
 
       {/* Section 4: Map Preview */}
-      {maps.length > 0 && cityDetail?.is_launched !== false && (
+      {maps.length > 0 && hasContent && (
         <CityMapPreview
           cityName={city?.name ?? slug}
           slug={slug}
@@ -339,7 +343,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       )}
 
       {/* Section 5: Featured Stories */}
-      {cityDetail?.is_launched !== false && feedStories.length > 0 && (
+      {hasContent && feedStories.length > 0 && (
         <FeaturedStories
           slug={slug}
           cityDisplayName={cityDisplayName}
