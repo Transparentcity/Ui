@@ -58,9 +58,6 @@ export default function DistrictPageContent({
   return (
     <>
       <PublicNavBar>
-        <Link href={`${base}/methodology`} className="nav-link">
-          Methodology
-        </Link>
         <Link href="/sitemap" className="nav-link">
           Site map
         </Link>

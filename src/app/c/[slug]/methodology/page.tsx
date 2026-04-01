@@ -107,23 +107,23 @@ export default async function MethodologyPage({ params }: PageProps) {
         <div className="container">
           <header className="methodology-header">
             <span className="badge">Methodology</span>
-            <h1 className="hero-title">How we use {cityDisplay}’s data</h1>
+            <h1 className="hero-title">How we use {cityDisplay}&apos;s data</h1>
             <p className="hero-description">
-              Data sources, independence, and our mission to center the local
-              discussion on shared facts.
+              Data sources, independence, and our commitment to making public
+              information genuinely useful.
             </p>
           </header>
 
           <section className="methodology-section">
             <h2>Our mission</h2>
             <p>
-              Transparent.city uses AI and public data to make each city’s civic
-              landscape legible, understandable, and actionable. We turn official
-              records into clear, source-linked insights so residents, advocates,
-              and local leaders can share the same picture of what’s changing—and
-              focus on fixing what isn’t. Our mission is to shift local discourse
-              from anecdote to evidence so communities can make smarter, more
-              accountable decisions.
+              Transparent.city makes each city&apos;s civic landscape legible,
+              understandable, and actionable. We turn official public records
+              into clear, source-linked insights so residents, advocates, and
+              local leaders can share the same picture of what&apos;s changing
+              and focus on fixing what isn&apos;t. Our mission is to shift local
+              discourse from anecdote to evidence so communities can make
+              smarter, more accountable decisions.
             </p>
           </section>
 
@@ -135,21 +135,21 @@ export default async function MethodologyPage({ params }: PageProps) {
               cover. We do not take government funding to build or run this
               platform. Our goal is objectivity: we present the numbers as they
               come from official sources, with documented methods and direct
-              links so you can verify everything yourself. We do not lobby, endorse
-              candidates, or advocate for specific policies—we advocate for
-              transparency and for conversations grounded in shared facts.
+              links so you can verify everything yourself. We do not lobby,
+              endorse candidates, or advocate for specific policies. We advocate
+              for transparency and for conversations grounded in shared facts.
             </p>
           </section>
 
           <section className="methodology-section">
             <h2>Data sources</h2>
             <p>
-              All of our data comes from each city’s own official open data
-              portal. For {cityDisplay}, we pull from public datasets published
-              by the city—crime, 311, permits, budgets, and more—and normalize
-              them into consistent metrics, time series, and maps. Every metric
-              on Transparent.city links back to the original dataset so you can
-              see exactly where the numbers come from.
+              All of our data comes from official public sources, primarily each
+              city&apos;s own open data portal and published government records.
+              For {cityDisplay}, we work with hundreds of public datasets
+              spanning dozens of categories. Every metric on Transparent.city
+              links back to the original dataset so you can see exactly where the
+              numbers come from and verify them yourself.
             </p>
             {dataPortal ? (
               <p>
@@ -167,21 +167,55 @@ export default async function MethodologyPage({ params }: PageProps) {
               <p>
                 <strong>Open data portal:</strong> Each metric page includes a
                 link to the specific dataset it uses. You can also search your
-                city’s official open data site for the source datasets we
+                city&apos;s official open data site for the source datasets we
                 reference.
               </p>
             )}
           </section>
 
           <section className="methodology-section">
-            <h2>What we do with the data</h2>
+            <h2>How we work with the data</h2>
             <p>
-              We ingest, clean, and aggregate public records into metrics (e.g.,
-              counts by month or year, by district or citywide). We run automated
-              checks for notable changes and anomalies. We do not alter the underlying
-              counts; we structure and visualize them so trends and comparisons
-              are easy to see. Our definitions and logic are documented on each
-              metric’s detail page.
+              Municipal data is complex. Datasets are published on different
+              schedules, structured differently across departments, and riddled
+              with gaps, inconsistencies, and format changes. Making this data
+              genuinely useful requires far more than downloading a spreadsheet.
+            </p>
+            <p>
+              We normalize raw public records across temporal, geographic, and
+              categorical dimensions. That means aligning data that arrives
+              daily with data that arrives quarterly, matching records to the
+              right neighborhoods and districts, and tracking completeness so
+              you know whether a number reflects a real trend or a reporting
+              lag. We build time series at multiple levels of granularity,
+              from individual neighborhoods to citywide, so patterns are visible
+              at every scale.
+            </p>
+            <p>
+              Data quality assurance is not a one-time step. We continuously
+              monitor freshness, detect gaps in reporting, and track whether
+              each dataset&apos;s update patterns are holding steady. We do not
+              alter the underlying counts. We structure and contextualize them so
+              trends and comparisons are easy to see. Our definitions and logic
+              are documented on each metric&apos;s detail page.
+            </p>
+          </section>
+
+          <section className="methodology-section">
+            <h2>Why this matters</h2>
+            <p>
+              Most city data is technically public but practically inaccessible.
+              The gap between a raw government dataset and a usable insight is
+              enormous. It requires domain knowledge, sustained engineering, and
+              a commitment to rigor that goes well beyond what any single
+              resident, journalist, or council member can maintain on their own.
+            </p>
+            <p>
+              We believe civic data infrastructure should meet the same
+              standards as the best data practices in any field: reproducible
+              methods, transparent sourcing, continuous quality monitoring, and
+              documentation at every step. That is what we build, and it is why
+              the picture you see on Transparent.city is one you can trust.
             </p>
           </section>
 
