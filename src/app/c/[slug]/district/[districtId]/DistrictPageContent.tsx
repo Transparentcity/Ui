@@ -10,6 +10,7 @@ import type { MetricOrderingEntry } from "../../CityDashboardSection";
 import CitySignupButton from "../../CitySignupButton";
 import CityDashboardSection from "../../CityDashboardSection";
 import DistrictFollowClaimBlock from "../DistrictFollowClaimBlock";
+import EmailSignInLink from "../../EmailSignInLink";
 import PublicNavBar from "@/components/PublicNavBar";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 
@@ -93,6 +94,8 @@ export default function DistrictPageContent({
               </p>
 
               <DistrictFollowClaimBlock cityId={city.id} district={d} slug={slug} />
+
+              <EmailSignInLink label={`Get District ${d} updates for ${city.shortDisplay}.`} />
 
               {districts.length > 1 && (
                 <nav className="district-nav-pills" aria-label="Other districts">
