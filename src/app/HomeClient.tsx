@@ -14,6 +14,7 @@ import {
   type PublicCitySearchResult,
 } from "@/lib/publicApiClient";
 import { listPublicFeedPlaces, listPublicFeedStories, type FeedPlace } from "@/lib/apiClient";
+import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
 import Loader from "@/components/Loader";
 import Header from "@/components/Header";
 import HomeFeedPreview from "@/components/feed/HomeFeedPreview";
@@ -172,9 +173,10 @@ export default function HomeClient() {
     let cancelled = false;
     async function loadStats() {
       try {
-        const [placesRes, storiesRes] = await Promise.all([
+        const [placesRes, storiesRes, sitemapCities] = await Promise.all([
           listPublicFeedPlaces(),
           listPublicFeedStories({ limit: 1 }),
+          listPublicCitiesForSitemap(),
         ]);
         if (cancelled) return;
         // Deduplicate by city_id (places include per-district entries)
@@ -192,9 +194,9 @@ export default function HomeClient() {
           }
         }
         setLiveCities(unique);
-        if (storiesRes.count > 0) setStoryCount(storiesRes.count);
-        const metricCities = placesRes.cities_with_metrics_count;
-        if (metricCities && metricCities > 0) setCityCount(metricCities);
+        const totalStories = storiesRes.total_count ?? storiesRes.count;
+        if (totalStories > 0) setStoryCount(totalStories);
+        if (sitemapCities.length > 0) setCityCount(sitemapCities.length);
       } catch {
         // Non-critical; page still works without stats
       }
@@ -303,11 +305,11 @@ export default function HomeClient() {
               {/* Stats bar */}
               <div className={styles.statsBar}>
                 <div className={styles.stat}>
-                  <span className={styles.statNumber}>{(cityCount ?? liveCities.length) || 3}</span>
-                  <span className={styles.statLabel}>{((cityCount ?? liveCities.length) || 3) === 1 ? "city tracked" : "cities tracked"}</span>
+                  <span className={styles.statNumber}>{(cityCount ?? liveCities.length) || 42}</span>
+                  <span className={styles.statLabel}>{((cityCount ?? liveCities.length) || 42) === 1 ? "city tracked" : "cities tracked"}</span>
                 </div>
                 <div className={styles.stat}>
-                  <span className={styles.statNumber}>{(storyCount ?? 1).toLocaleString()}+</span>
+                  <span className={styles.statNumber}>{(storyCount ?? 555).toLocaleString()}+</span>
                   <span className={styles.statLabel}>stories generated</span>
                 </div>
                 <div className={styles.stat}>
