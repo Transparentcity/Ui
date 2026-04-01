@@ -198,9 +198,6 @@ export default async function CityCategoryPage({
               </span>
             </Link>
             <div className="nav-links">
-              <Link href={`/c/${slug}/methodology`} className="nav-link">
-                Methodology
-              </Link>
               <a
                 href="https://www.transparentsf.com"
                 target="_blank"

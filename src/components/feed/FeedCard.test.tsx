@@ -156,16 +156,14 @@ describe("FeedCard", () => {
     expect(screen.queryByLabelText("Investigate")).not.toBeInTheDocument();
   });
 
-  it("applies off_the_charts CSS class for OTC stories", () => {
-    const { container } = renderCard({ card_type: "off_the_charts" });
-    const article = container.querySelector("article");
-    expect(article?.className).toContain("cardOffTheCharts");
+  it("renders OffTheChartsCard template for off_the_charts stories", () => {
+    renderCard({ card_type: "off_the_charts" });
+    expect(screen.getByText(/Off the Charts/)).toBeInTheDocument();
   });
 
-  it("does not apply off_the_charts class for other types", () => {
-    const { container } = renderCard({ card_type: "alert" });
-    const article = container.querySelector("article");
-    expect(article?.className).not.toContain("cardOffTheCharts");
+  it("does not show Off the Charts badge for alert stories", () => {
+    renderCard({ card_type: "alert" });
+    expect(screen.queryByText(/^Off the Charts$/)).not.toBeInTheDocument();
   });
 
   // ── Navigation ────────────────────────────────────────────────────────

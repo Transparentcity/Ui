@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { listPublicFeedStories } from "@/lib/apiClient";
 import { enrichStory, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
+import { resolveCanonicalUrl } from "@/lib/feed/canonicalUrl";
 import CardHeader from "./CardHeader";
 import styles from "./feed.module.css";
 import homeStyles from "./homeFeedPreview.module.css";
@@ -60,7 +61,7 @@ export default function HomeFeedPreview() {
         : stories.map((story) => (
             <Link
               key={story.id}
-              href={`/feed/${story.id}`}
+              href={resolveCanonicalUrl(story)}
               className={homeStyles.previewCard}
             >
               <CardHeader

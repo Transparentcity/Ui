@@ -158,11 +158,15 @@ export function getAnomalyEmbed(resultId: string | number, config: EmbedConfig =
  * @param config - Optional embed configuration
  * @returns HTML with shortcodes replaced by iframe embeds
  */
+/** Pipeline-only image prompt shortcodes; not rendered as embeds (strip for readers). */
+const FEED_IMAGE_SHORTCODE_RE = /\[feed-image:[^\]]+\]/gi;
+
 export function processVisualizationShortcodes(html: string, config: EmbedConfig = {}): string {
   if (!html) return html;
   
   let processed = html;
-  
+  processed = processed.replace(FEED_IMAGE_SHORTCODE_RE, "");
+
   // Process chart shortcodes: [chart:123]
   const chartRegex = /\[chart:(\d+)\]/g;
   processed = processed.replace(chartRegex, (match, chartId) => {
