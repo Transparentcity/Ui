@@ -114,10 +114,6 @@
   line-height: 1;
 }
 
-.brandDotCity {
-  color: var(--brand-primary, #ad35fa);
-}
-
 .navRight {
   display: flex;
   align-items: center;
@@ -1022,27 +1018,7 @@
   border-color: rgba(255, 255, 255, 0.4);
 }
 
-.footer {
-  border-top: 1px solid var(--border-primary, rgba(17, 24, 39, 0.08));
-  padding: 28px 0;
-  margin-top: 0;
-  background: var(--bg-primary, rgba(255, 255, 255, 0.72));
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-}
 
-.footerGrid {
-  display: grid;
-  grid-template-columns: 1.4fr 0.6fr 0.6fr;
-  gap: 24px;
-  align-items: start;
-}
-
-.finePrint {
-  margin: 4px 0 0 0;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--text-secondary, rgba(17, 24, 39, 0.5));
-}
 
 @media (max-width: 960px) {
   .heroGrid {
@@ -1103,10 +1079,6 @@
     font-size: 15px;
   }
 
-  .footerGrid {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
 }
 
 @media (max-width: 768px) {

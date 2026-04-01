@@ -14,6 +14,7 @@ import PublicFooter from "@/components/PublicFooter";
 import { processVisualizationShortcodes } from "@/lib/visualizationShortcodes";
 import ShareButton from "./ShareButton";
 import PageFeedback from "@/components/PageFeedback";
+import CityHeroNewsletter from "../../CityHeroNewsletter";
 
 export const revalidate = 3600;
 
@@ -325,6 +326,31 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         </div>
 
         <PageFeedback pageUrl={`/c/${slug}/stories/${hash}`} pageType="story" />
+
+        {/* Newsletter signup CTA */}
+        <div style={{
+          margin: "32px 0",
+          padding: "24px",
+          borderRadius: 12,
+          background: "var(--bg-secondary, #f5f5f5)",
+        }}>
+          <p style={{
+            fontSize: 15,
+            fontWeight: 600,
+            margin: "0 0 4px",
+            color: "var(--text-primary)",
+          }}>
+            Get stories like this once a week
+          </p>
+          <p style={{
+            fontSize: 13,
+            color: "var(--text-secondary)",
+            margin: "0 0 8px",
+          }}>
+            {cityDisplay}&rsquo;s public data, explained. Crime trends, housing, city services, and more.
+          </p>
+          <CityHeroNewsletter cityName={cityDisplay} citySlug={slug} />
+        </div>
 
         {/* Related stories from the same city */}
         {relatedStories.length > 0 && (
