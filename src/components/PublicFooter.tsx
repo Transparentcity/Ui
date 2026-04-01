@@ -39,9 +39,6 @@ export default function PublicFooter({ citySlug }: PublicFooterProps) {
             <Link href="/pro" className="footer-link">
               Add your city
             </Link>
-            <Link href="/landing" className="footer-link">
-              Learn more
-            </Link>
           </div>
           <div className="footer-column">
             <h4 className="footer-title">Contact</h4>
