@@ -6,10 +6,12 @@ type CityHeroNewsletterProps = {
   cityName: string;
   citySlug?: string;
   district?: number;
+  /** Override the default label text shown above the email input */
+  label?: string;
 };
 
-export default function CityHeroNewsletter({ cityName }: CityHeroNewsletterProps) {
+export default function CityHeroNewsletter({ cityName, label }: CityHeroNewsletterProps) {
   return (
-    <EmailSignInLink label={`To get updates for ${cityName}.`} />
+    <EmailSignInLink label={label ?? `To get updates for ${cityName}.`} />
   );
 }
