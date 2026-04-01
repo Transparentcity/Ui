@@ -356,31 +356,6 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         />
       )}
 
-      {/* Section 6: Inline CTA after stories */}
-      <section className="city-inline-cta-section">
-        <div className="container">
-          <div className="city-inline-cta-inner">
-            <p className="city-inline-cta-label">
-              Get {city?.name ?? slug}&rsquo;s weekly briefing.
-            </p>
-            <div className="city-inline-cta-form">
-              <CityHeroNewsletter
-                cityName={city?.name ?? slug}
-                citySlug={slug}
-                label=" "
-              />
-            </div>
-            {latestNewsletterDate && (
-              <Link
-                href={`/c/${slug}/newsletter/${latestNewsletterDate}`}
-                className="city-inline-cta-sample"
-              >
-                See a recent briefing
-              </Link>
-            )}
-          </div>
-        </div>
-      </section>
 
       {/* Section 7: Explainer + Bottom CTA */}
       <section className="city-explainer-section">
@@ -433,7 +408,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                 Methodology
               </Link>
               <Link href="/sitemap" className="footer-link">
-                All cities
+                Site map
               </Link>
             </div>
             <div className="footer-column">
