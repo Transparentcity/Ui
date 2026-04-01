@@ -19,13 +19,18 @@ import {
   type PublicMetricOrderingResponse,
 } from "@/lib/publicApiClient";
 import CitySignupButton from "./CitySignupButton";
+import NavEmailSignup from "./NavEmailSignup";
 import CityDashboardSection from "./CityDashboardSection";
 import CityDashboardSectionWithOrdering from "./CityDashboardSectionWithOrdering";
 import CityViewTracker from "./CityViewTracker";
 import CityPageClient from "./CityPageClient";
-import CustomizeMetricsTrigger from "./CustomizeMetricsTrigger";
-import DistrictFollowClaimBlock from "./district/DistrictFollowClaimBlock";
 import PublicNavBar from "@/components/PublicNavBar";
+import KeyNumbersStrip from "./KeyNumbersStrip";
+import DashboardCardGrid from "./DashboardCardGrid";
+import DashboardSwitch from "./DashboardSwitch";
+import CityMapPreview from "./CityMapPreview";
+import FeaturedStories from "./FeaturedStories";
+import CityHeroNewsletter from "./CityHeroNewsletter";
 import PageFeedback from "@/components/PageFeedback";
 
 export const revalidate = 3600;
@@ -107,7 +112,7 @@ export async function generateMetadata({
   ];
 
   return {
-    title: display,
+    title: `${display} | Public Data Dashboard | Transparent City`,
     description,
     keywords,
     alternates: {
@@ -209,14 +214,6 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
     }
   }
 
-  const uniqueCategories = Array.from(
-    new Set(
-      (cityDetail?.metrics ?? [])
-        .map((m) => m.category)
-        .filter((c): c is string => Boolean(c))
-    )
-  ).sort((a, b) => a.localeCompare(b));
-
   return (
     <CityPageClient>
       <CityStructuredData
@@ -229,128 +226,47 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       />
       <CityViewTracker citySlug={slug} cityId={city?.id} />
       <PublicNavBar>
-        <Link href={`/c/${slug}/methodology`} className="nav-link">
-          Methodology
-        </Link>
-        <a
-          href="https://www.transparentsf.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="nav-link"
-        >
-          Newsletter
-        </a>
-        <Link href="/sitemap" className="nav-link">
-          Site map
-        </Link>
-        <Link href="/" className="nav-link">
-          Home
-        </Link>
-        <CitySignupButton />
+        <NavEmailSignup citySlug={slug} cityName={city?.name} />
       </PublicNavBar>
 
-      {/* Compact hero: city name + quick context, then straight into the dashboard */}
-      <section className="city-hero" style={{ paddingTop: 96 }}>
-        <div className="container">
-          <div className="city-hero-inner">
-            <div className="city-hero-left">
-              <h1 className="city-hero-title">
-                {city ? `${city.emoji || "🏙️"} ${city.display}` : slug}
-              </h1>
-              <p className="city-hero-subtitle">
-                {city
-                  ? `${city.datasets_count} public datasets tracked, from citywide to block level.`
-                  : "Public datasets tracked, from citywide to block level."}
-              </p>
-              {/* City official (mayor) */}
-              {(cityDetail?.mayor || cityDetail?.mayor_subscriber_count != null) && city?.id && (
-                <div className="hero-mayor-subscribers hero-official-row">
-                  <span className="hero-mayor-name">
-                    Mayor {cityDetail?.mayor?.name ?? "Citywide"}
-                  </span>
-                  <DistrictFollowClaimBlock cityId={city.id} district={0} slug={slug} />
-                </div>
-              )}
-            </div>
+      {/* Section 1: City Hero */}
+      <section className="city-hero-v2">
+        <div className="container city-hero-v2-inner">
+          <div className="city-hero-v2-left">
+            <h1 className="city-hero-v2-title">
+              {city ? `${city.emoji || ""} ${city.display}` : slug}
+            </h1>
+            {city?.datasets_count && (
+              <p className="city-hero-v2-datasets">{city.datasets_count} public datasets</p>
+            )}
           </div>
-          {/* Category pills */}
-          {uniqueCategories.length > 0 && (
-            <div className="city-hero-categories">
-              {uniqueCategories.map((cat) => (
-                <Link
-                  key={cat}
-                  href={`/c/${slug}/category/${encodeURIComponent(cat)}`}
-                  className="hero-category-link"
-                >
-                  {cat}
-                </Link>
-              ))}
-              {city?.id && (cityDetail?.metrics?.length ?? 0) > 0 && (
-                <CustomizeMetricsTrigger
-                  cityId={city.id}
-                  cityName={city.display}
-                  metrics={(cityDetail!.metrics ?? []).map((m) => ({
-                    id: m.id,
-                    metric_name: m.metric_name,
-                    category: m.category,
-                    subcategory: m.subcategory ?? null,
-                    sub_category: m.subcategory ?? null,
-                  }))}
-                />
-              )}
-            </div>
-          )}
+          <div className="city-hero-v2-right">
+            <p className="city-hero-v2-subtitle">
+              {city?.name
+                ? `${city.name}'s public data, tracked and explained.`
+                : "Public data, tracked and explained."}
+            </p>
+            {cityDetail?.mayor?.name && (
+              <p className="city-hero-v2-mayor">
+                Mayor {cityDetail.mayor.name}
+              </p>
+            )}
+          </div>
         </div>
       </section>
 
-      {/* Feed: recent city stories from the feed producer */}
-      {cityDetail?.is_launched !== false && feedStories.length > 0 && (
-        <section style={{ paddingTop: 40, paddingBottom: 40 }}>
-          <div className="container">
-            <header className="section-header" style={{ marginBottom: "1.25rem" }}>
-              <span className="section-badge">What&rsquo;s happening</span>
-              <h2 className="section-heading">Latest from {cityDisplayName}</h2>
-            </header>
-            <ul className="story-rows" style={{ maxWidth: 700 }}>
-              {feedStories.map((story) => {
-                const canonical =
-                  story.short_hash
-                    ? `/c/${slug}/stories/${story.short_hash}`
-                    : story.detail_url;
-                return (
-                  <li key={story.id}>
-                    <a href={canonical} className="story-row">
-                      {story.image_url && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={story.image_url}
-                          alt=""
-                          className="story-row-img"
-                        />
-                      )}
-                      <div className="story-row-body">
-                        <span className="story-row-title">{story.headline}</span>
-                        {story.description && (
-                          <p className="story-row-desc">{story.description}</p>
-                        )}
-                        {story.published_at && (
-                          <p className="story-row-meta">
-                            {new Date(story.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                          </p>
-                        )}
-                      </div>
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        </section>
+      {/* Section 2: Key Numbers Strip */}
+      {cityDetail?.is_launched !== false && (
+        <KeyNumbersStrip
+          slug={slug}
+          metrics={cityDetail?.metrics ?? []}
+          comparisonsMap={comparisonsMap}
+        />
       )}
 
-      {/* Dashboard: the main event */}
+      {/* Section 3: Dashboard */}
       <div className="container city-dashboard-wrapper">
-        {cityDetail && !cityDetail.is_launched ? (
+        {cityDetail && cityDetail.is_launched === false ? (
           <div style={{
             textAlign: "center",
             padding: "64px 24px",
@@ -367,16 +283,39 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
             </p>
           </div>
         ) : city?.id ? (
-          <CityDashboardSectionWithOrdering
-            cityId={city.id}
-            cityDisplayName={cityDisplayName}
-            slug={slug}
-            metrics={cityDetail?.metrics ?? []}
-            comparisonsMap={comparisonsMap}
-            districts={districts}
-            maps={maps}
-            leaders={leaders}
-            cityOrdering={cityOrdering?.orderings ?? []}
+          <DashboardSwitch
+            cardGrid={
+              <DashboardCardGrid
+                cityDisplayName={cityDisplayName}
+                slug={slug}
+                metrics={cityDetail?.metrics ?? []}
+                comparisonsMap={comparisonsMap}
+                districts={districts}
+                maps={maps}
+                orderings={cityOrdering?.orderings?.filter((o) => o.metric_id != null).map((o) => ({
+                  metric_id: o.metric_id!,
+                  category_order: o.category_order,
+                  metric_order: o.metric_order,
+                  category_name: o.category_name,
+                  subcategory_name: o.subcategory_name ?? null,
+                }))}
+                cityId={city.id}
+                leaders={leaders}
+              />
+            }
+            tableView={
+              <CityDashboardSectionWithOrdering
+                cityId={city.id}
+                cityDisplayName={cityDisplayName}
+                slug={slug}
+                metrics={cityDetail?.metrics ?? []}
+                comparisonsMap={comparisonsMap}
+                districts={districts}
+                maps={maps}
+                leaders={leaders}
+                cityOrdering={cityOrdering?.orderings ?? []}
+              />
+            }
           />
         ) : (
           <CityDashboardSection
@@ -390,48 +329,41 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         )}
       </div>
 
-      {/* Benefits + sign-up CTA */}
-      <section className="city-benefits-section">
+      {/* Section 4: Map Preview */}
+      {maps.length > 0 && cityDetail?.is_launched !== false && (
+        <CityMapPreview
+          cityName={city?.name ?? slug}
+          slug={slug}
+          maps={maps}
+        />
+      )}
+
+      {/* Section 5: Featured Stories */}
+      {cityDetail?.is_launched !== false && feedStories.length > 0 && (
+        <FeaturedStories
+          slug={slug}
+          cityDisplayName={cityDisplayName}
+          stories={feedStories}
+        />
+      )}
+
+      {/* Section 6: Explainer + Bottom CTA */}
+      <section className="city-explainer-section">
         <div className="container">
-          <h2 className="city-benefits-heading">
-            This is just the public view. Sign up (free) to unlock the full picture.
-          </h2>
-          <div className="city-benefits-grid">
-            <div className="city-benefit-card">
-              <span className="city-benefit-icon">📊</span>
-              <h3 className="city-benefit-title">Personalized dashboard</h3>
-              <p className="city-benefit-desc">
-                Customize which metrics you see, reorder categories, and save your
-                layout so you can track the issues you care about most.
-              </p>
+          <div className="city-explainer-inner">
+            <p className="city-explainer-text">
+              Transparent City tracks live government data across 600+ cities so
+              residents and officials share the same picture of what is happening.
+              Every number links to its public source. Sign up to customize your
+              dashboard, explore block-level maps, and get weekly briefings.
+            </p>
+            <div className="city-explainer-cta">
+              <CityHeroNewsletter
+                cityName={city?.name ?? slug}
+                citySlug={slug}
+                label="Sign up free for the full picture."
+              />
             </div>
-            <div className="city-benefit-card">
-              <span className="city-benefit-icon">🗺️</span>
-              <h3 className="city-benefit-title">Block-level maps</h3>
-              <p className="city-benefit-desc">
-                Interactive maps that show data at the neighborhood and block level,
-                not just city averages. See what is happening where you actually live.
-              </p>
-            </div>
-            <div className="city-benefit-card">
-              <span className="city-benefit-icon">🔔</span>
-              <h3 className="city-benefit-title">Alerts and updates</h3>
-              <p className="city-benefit-desc">
-                Follow your district or specific metrics and get notified when new data
-                drops or when something changes significantly.
-              </p>
-            </div>
-            <div className="city-benefit-card">
-              <span className="city-benefit-icon">📝</span>
-              <h3 className="city-benefit-title">Source-linked research</h3>
-              <p className="city-benefit-desc">
-                Every number links back to the public source it came from. Read AI-assisted
-                research writeups that explain what the data actually means.
-              </p>
-            </div>
-          </div>
-          <div className="city-benefits-cta">
-            <CitySignupButton />
           </div>
         </div>
       </section>
