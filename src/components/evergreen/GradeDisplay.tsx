@@ -89,6 +89,7 @@ export default function GradeDisplay({
   const updatedLabel = lastUpdated
     ? new Date(lastUpdated).toLocaleDateString("en-US", {
         month: "short",
+        day: "numeric",
         year: "numeric",
       })
     : null;
