@@ -291,9 +291,9 @@ export default function CitySafePage({
               <Link href="/pro" className="footer-link">
                 Add your city
               </Link>
-              <Link href="/claim" className="footer-link">
+              <a href="mailto:hello@transparentcity.com" className="footer-link">
                 Elected officials
-              </Link>
+              </a>
             </div>
             <div className="footer-column">
               <h4 className="footer-title">Contact</h4>
