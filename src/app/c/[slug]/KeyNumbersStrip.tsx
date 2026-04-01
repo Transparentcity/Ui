@@ -13,7 +13,18 @@ type Props = {
 
 export default function KeyNumbersStrip({ slug, metrics, comparisonsMap }: Props) {
   // Build cards: only metrics with valid YTD data on both sides
-  const cards = metrics
+  type CardItem = {
+    m: PublicCityMetricItem;
+    curr: number;
+    pct: number | null;
+    absPct: number;
+    isIncrease: boolean;
+    isDecrease: boolean;
+    isGood: boolean;
+    isBad: boolean;
+    isNeutral: boolean;
+  };
+  const cards: CardItem[] = metrics
     .map((m) => {
       const ytd = comparisonsMap[m.id]?.comparisons?.ytd;
       if (ytd?.current_period_value == null || ytd?.comparison_period_value == null) return null;
@@ -24,15 +35,14 @@ export default function KeyNumbersStrip({ slug, metrics, comparisonsMap }: Props
       const absPct = pct != null ? Math.abs(pct) : 0;
       const isIncrease = curr > prior;
       const isDecrease = curr < prior;
-      // Default: down is good (matches CityDashboardSection convention)
       const isGood = isDecrease;
       const isBad = isIncrease;
       const isNeutral = pct != null && Math.abs(pct) <= 5;
       return { m, curr, pct, absPct, isIncrease, isDecrease, isGood, isBad, isNeutral };
     })
-    .filter(Boolean)
-    .sort((a, b) => b!.absPct - a!.absPct)
-    .slice(0, 6) as NonNullable<(typeof cards)[number]>[];
+    .filter((x): x is CardItem => x != null)
+    .sort((a, b) => b.absPct - a.absPct)
+    .slice(0, 6);
 
   if (cards.length === 0) return null;
 
