@@ -66,6 +66,7 @@ export default async function MethodologyPage({ params }: PageProps) {
   }
 
   const cityDisplay = city?.display ?? slug.replace(/-/g, " ");
+  const cityName = city?.name ?? slug.replace(/-/g, " ");
   const dataPortal = getDataPortalForCity(slug, city?.name);
 
   return (
@@ -107,7 +108,7 @@ export default async function MethodologyPage({ params }: PageProps) {
         <div className="container">
           <header className="methodology-header">
             <span className="badge">Methodology</span>
-            <h1 className="hero-title">How we use {cityDisplay}&apos;s data</h1>
+            <h1 className="hero-title">How we use {cityName}&apos;s data</h1>
             <p className="hero-description">
               Data sources, independence, and our commitment to making public
               information genuinely useful.
