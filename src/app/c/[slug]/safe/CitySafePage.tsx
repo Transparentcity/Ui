@@ -61,7 +61,7 @@ export default function CitySafePage({
     ...(dataAvailability.crimeHistory && safetyData.trendData
       ? [{ id: "trend", label: "Trend" }]
       : []),
-    ...(dataAvailability.crimeIncidents
+    ...(crimeBreakdown && dataAvailability.crimeIncidents
       ? [{ id: "crime", label: "Crime Breakdown" }]
       : []),
     ...(crimeMapMetricIds
@@ -70,7 +70,9 @@ export default function CitySafePage({
     ...(peerCityRankings && peerCityRankings.length > 0
       ? [{ id: "peer-comparison", label: "Peer Cities" }]
       : []),
-    { id: "conditions", label: "Street Conditions" },
+    ...(streetConditions
+      ? [{ id: "conditions", label: "Street Conditions" }]
+      : []),
   ];
 
   return (
@@ -175,23 +177,25 @@ export default function CitySafePage({
         </SafeSection>
 
         {/* Crime Breakdown */}
-        <SafeSection>
-          <CrimeBreakdownCards
-            data={crimeBreakdown}
-            availability={dataAvailability}
-          />
-        </SafeSection>
+        {crimeBreakdown && (
+          <SafeSection>
+            <CrimeBreakdownCards
+              data={crimeBreakdown}
+              availability={dataAvailability}
+            />
+          </SafeSection>
+        )}
 
-        {/* Crime Map (self-hides when unavailable) */}
-        <SafeSection>
-          {crimeMapMetricIds && (
+        {/* Crime Map */}
+        {crimeMapMetricIds && (
+          <SafeSection>
             <CrimeMapSection
               metricIds={crimeMapMetricIds}
               lastUpdated={lastUpdated}
               locationName={city}
             />
-          )}
-        </SafeSection>
+          </SafeSection>
+        )}
 
         {/* Peer City Comparison */}
         <SafeSection>
@@ -203,13 +207,15 @@ export default function CitySafePage({
         </SafeSection>
 
         {/* Street Conditions */}
-        <SafeSection>
-          <StreetConditionsModule
-            data={streetConditions}
-            availability={dataAvailability}
-            city={city}
-          />
-        </SafeSection>
+        {streetConditions && (
+          <SafeSection>
+            <StreetConditionsModule
+              data={streetConditions}
+              availability={dataAvailability}
+              city={city}
+            />
+          </SafeSection>
+        )}
 
         {/* District Rankings */}
         <SafeSection>

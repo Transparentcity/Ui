@@ -146,7 +146,9 @@ export default function CityDashboardSection({
     return (
       <section className="dashboard-section" style={{ marginTop: 0 }}>
         <div className="dashboard-header">
-          <h2 className="dashboard-title">Citywide Dashboard</h2>
+          <h2 className="dashboard-title">
+            {isDistrictView ? `District ${districtFilter} Dashboard` : "Citywide Dashboard"}
+          </h2>
         </div>
         <div className="ytd-placeholder">
           <p>No metrics with comparison data for {cityDisplayName} yet.</p>
