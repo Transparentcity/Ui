@@ -221,8 +221,7 @@ export default async function MethodologyPage({ params }: PageProps) {
           </div>
           <div className="footer-bottom">
             <p>
-              &copy; 2026 Transparent.city. The difference between knowing and
-              guessing is agency.
+              &copy; 2026 Transparent.city.
             </p>
           </div>
         </div>
