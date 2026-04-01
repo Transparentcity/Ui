@@ -54,14 +54,18 @@ export default function DistrictSafePage({
     ...(dataAvailability.crimeHistory && safetyData.trendData
       ? [{ id: "trend", label: "Trend" }]
       : []),
-    ...(dataAvailability.crimeIncidents
+    ...(crimeBreakdown && dataAvailability.crimeIncidents
       ? [{ id: "crime", label: "Crime Breakdown" }]
       : []),
     ...(crimeMapMetricIds
       ? [{ id: "map", label: "Crime Map" }]
       : []),
-    { id: "conditions", label: "Street Conditions" },
-    { id: "pulse", label: "This Month" },
+    ...(streetConditions
+      ? [{ id: "conditions", label: "Street Conditions" }]
+      : []),
+    ...(pulse
+      ? [{ id: "pulse", label: "This Month" }]
+      : []),
   ];
 
   return (
@@ -135,10 +139,12 @@ export default function DistrictSafePage({
         )}
 
         {/* Crime Breakdown */}
-        <CrimeBreakdownCards
-          data={crimeBreakdown}
-          availability={dataAvailability}
-        />
+        {crimeBreakdown && (
+          <CrimeBreakdownCards
+            data={crimeBreakdown}
+            availability={dataAvailability}
+          />
+        )}
 
         {/* Crime Map */}
         {crimeMapMetricIds && (
@@ -151,11 +157,13 @@ export default function DistrictSafePage({
         )}
 
         {/* Street Conditions */}
-        <StreetConditionsModule
-          data={streetConditions}
-          availability={dataAvailability}
-          city={city}
-        />
+        {streetConditions && (
+          <StreetConditionsModule
+            data={streetConditions}
+            availability={dataAvailability}
+            city={city}
+          />
+        )}
 
         {/* Email capture CTA */}
         <ConversionSlot
@@ -166,13 +174,15 @@ export default function DistrictSafePage({
         />
 
         {/* Pulse */}
-        <div id="pulse">
-          <DistrictPulse
-            data={pulse}
-            locationName={district}
-            lastUpdated={lastUpdated}
-          />
-        </div>
+        {pulse && (
+          <div id="pulse">
+            <DistrictPulse
+              data={pulse}
+              locationName={district}
+              lastUpdated={lastUpdated}
+            />
+          </div>
+        )}
 
         {/* Before footer CTA */}
         <ConversionSlot

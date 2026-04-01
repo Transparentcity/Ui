@@ -136,9 +136,9 @@ export interface DistrictSafePageProps {
   lastUpdated: string; // ISO date
   dataAvailability: CityDataAvailability;
   safetyData: DistrictSafetyData;
-  crimeBreakdown: CrimeBreakdown;
-  streetConditions: StreetConditions;
-  pulse: DistrictPulseData;
+  crimeBreakdown?: CrimeBreakdown;
+  streetConditions?: StreetConditions;
+  pulse?: DistrictPulseData;
   relatedDistricts: RelatedDistrict[];
   crimeMapMetricIds: CrimeMapMetricIds | null;
 }
@@ -165,8 +165,8 @@ export interface CitySafePageProps {
   lastUpdated: string;
   dataAvailability: CityDataAvailability;
   safetyData: DistrictSafetyData; // reused, city-level figures
-  crimeBreakdown: CrimeBreakdown;
-  streetConditions: StreetConditions;
+  crimeBreakdown?: CrimeBreakdown;
+  streetConditions?: StreetConditions;
   peerCityRankings: PeerCityRanking[] | null;
   safestDistricts: DistrictSafetyRank[];
   leastSafeDistricts: DistrictSafetyRank[];

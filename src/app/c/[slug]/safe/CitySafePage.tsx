@@ -54,7 +54,7 @@ export default function CitySafePage({
     ...(dataAvailability.crimeHistory && safetyData.trendData
       ? [{ id: "trend", label: "Trend" }]
       : []),
-    ...(dataAvailability.crimeIncidents
+    ...(crimeBreakdown && dataAvailability.crimeIncidents
       ? [{ id: "crime", label: "Crime Breakdown" }]
       : []),
     ...(crimeMapMetricIds
@@ -63,7 +63,9 @@ export default function CitySafePage({
     ...(peerCityRankings && peerCityRankings.length > 0
       ? [{ id: "peer-comparison", label: "Peer Cities" }]
       : []),
-    { id: "conditions", label: "Street Conditions" },
+    ...(streetConditions
+      ? [{ id: "conditions", label: "Street Conditions" }]
+      : []),
   ];
 
   return (
@@ -140,10 +142,12 @@ export default function CitySafePage({
         )}
 
         {/* Crime Breakdown */}
-        <CrimeBreakdownCards
-          data={crimeBreakdown}
-          availability={dataAvailability}
-        />
+        {crimeBreakdown && (
+          <CrimeBreakdownCards
+            data={crimeBreakdown}
+            availability={dataAvailability}
+          />
+        )}
 
         {/* Crime Map */}
         {crimeMapMetricIds && (
@@ -162,11 +166,13 @@ export default function CitySafePage({
         )}
 
         {/* Street Conditions */}
-        <StreetConditionsModule
-          data={streetConditions}
-          availability={dataAvailability}
-          city={city}
-        />
+        {streetConditions && (
+          <StreetConditionsModule
+            data={streetConditions}
+            availability={dataAvailability}
+            city={city}
+          />
+        )}
 
         {/* Email capture CTA */}
         <ConversionSlot

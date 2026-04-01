@@ -5,6 +5,8 @@ import {
   listPublicMapsForSitemap,
   listPublicMetricsForSitemap,
   listPublicCityDistrictsForSitemap,
+  listEvergreenCities,
+  listEvergreenCityDistricts,
 } from "@/lib/publicApiClient";
 import { listNewsletterEditionsForSitemap } from "@/lib/newsletter";
 import { getSiteOrigin } from "@/lib/siteUrl";
@@ -54,11 +56,12 @@ export async function GET(): Promise<Response> {
   const origin = getSiteOrigin();
 
   // Fetch all public data in parallel; fall back gracefully if backend is down.
-  const [cities, maps, metrics, districts] = await Promise.all([
+  const [cities, maps, metrics, districts, evergreenCities] = await Promise.all([
     listPublicCitiesForSitemap().catch(() => []),
     listPublicMapsForSitemap().catch(() => []),
     listPublicMetricsForSitemap().catch(() => []),
     listPublicCityDistrictsForSitemap().catch(() => []),
+    listEvergreenCities().catch(() => []),
   ]);
 
   // Fetch newsletter editions for sitemap
@@ -103,6 +106,30 @@ export async function GET(): Promise<Response> {
     priority: 0.5,
   }));
 
+  // Evergreen safety pages: city-level + district-level
+  const safeCityEntries: SitemapEntry[] = evergreenCities.map((c) => ({
+    loc: `${origin}/c/${c.citySlug}/safe`,
+    changefreq: "weekly",
+    priority: 0.8,
+  }));
+
+  // Fetch district lists for each evergreen city (bounded, small N)
+  const districtSafeEntries: SitemapEntry[] = [];
+  const evergreenDistrictResults = await Promise.all(
+    evergreenCities.map((c) =>
+      listEvergreenCityDistricts(c.citySlug).catch(() => ({ citySlug: c.citySlug, districts: [] }))
+    )
+  );
+  for (const result of evergreenDistrictResults) {
+    for (const d of result.districts) {
+      districtSafeEntries.push({
+        loc: `${origin}/c/${result.citySlug}/${d.districtSlug}/safe`,
+        changefreq: "weekly",
+        priority: 0.7,
+      });
+    }
+  }
+
   // NOTE: Avoid per-city detail fetches here. During `next build`, this route
   // can be invoked for static generation and backend calls can easily exceed
   // the 60s route build timeout (N+1 calls). We keep the sitemap useful
@@ -116,6 +143,8 @@ export async function GET(): Promise<Response> {
     ...districtEntries,
     ...mapEntries,
     ...newsletterEntries,
+    ...safeCityEntries,
+    ...districtSafeEntries,
   ];
 
   const xml = toSitemapXml(entries);
