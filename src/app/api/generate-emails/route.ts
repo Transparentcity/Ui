@@ -1,6 +1,7 @@
 import { generateText } from "ai"
 import { createAnthropic } from "@ai-sdk/anthropic"
 import { createClient } from "@/lib/db"
+import { getArchetypeById } from "@/lib/press-release-archetypes"
 
 // Initialize Anthropic provider
 const anthropic = createAnthropic({
@@ -19,6 +20,8 @@ export async function POST(req: Request) {
       anomalies: anomaliesFromClient,
       /** Mode: "correspondence" (default) or "press_release" */
       mode,
+      /** Optional archetype ID for press release mode (e.g. "T1-26") */
+      archetypeId,
     } = await req.json()
 
     const isPressRelease = mode === "press_release"
@@ -221,31 +224,76 @@ Anomaly IDs to return: ${matchedAnomalies.map((a: any) => a.id).join(", ")}` : "
 `
     }).join("\n---\n")
 
-    const pressReleasePrompt = `You are an expert PR writer for Transparent City, a civic tech organization. Your task is to generate press releases for media contacts based on a sample draft.
+    // Build archetype context if one is selected
+    const selectedArchetype = archetypeId ? getArchetypeById(archetypeId) : null
+    if (archetypeId && !selectedArchetype) {
+      return Response.json(
+        { error: `Invalid archetype ID: ${archetypeId}` },
+        { status: 400 }
+      )
+    }
+    const archetypeContext = selectedArchetype
+      ? `\nSTORY ARCHETYPE SELECTED: ${selectedArchetype.name} (${selectedArchetype.id})
+${selectedArchetype.description}
+Dataset: ${selectedArchetype.dataset}
+${selectedArchetype.exampleHeadline ? `Example headline for tone: ${selectedArchetype.exampleHeadline}` : ""}
 
-PRESS RELEASE FORMAT:
-1. SUBJECT LINE: Write a compelling, newsworthy headline. Examples:
-   - "New Data Reveals 47% Spike in SF Permit Delays"
-   - "Transparent City Analysis: Housing Complaints Triple in Key Districts"
+Use this archetype as the angle for the press release. Match anomaly data to this story type where possible. If no anomaly data matches the archetype, generate the release from the archetype description and dataset reference. The user may paste supporting data into the sample email field.\n`
+      : ""
 
-2. BODY STRUCTURE:
-   - Opening paragraph: Lead with the most newsworthy finding, include key numbers
-   - Context paragraph: Background on what Transparent City does and why this matters
-   - Data details: Specific anomaly findings with real numbers, district-level details
-   - Quote from Transparent City (use the sample for tone)
-   - Closing: Where to learn more, contact info for follow-up
-   - Boilerplate: Brief "About Transparent City" section
+    const pressReleasePrompt = `You are writing press releases for Transparent City, a civic data analysis platform. Each press release covers a SINGLE finding from city data. One topic, one story, one angle.
 
-3. PERSONALIZATION:
-   - Tailor the angle to the reporter's beat and coverage area
-   - Lead with anomalies relevant to their primary city or beat
-   - Use the reporter's first name in a brief personal note at the top
-   - e.g., "Hi Sarah, thought this would be relevant to your city hall coverage:"
+CRITICAL STYLE RULES:
 
-4. Each press release should emphasize different angles based on the reporter's beat
-5. NEVER leave placeholders - always use real data values
+1. SINGLE TOPIC. One finding per release. Not a data roundup. Not "here are 5 interesting things." Pick the most newsworthy finding and write about that.
 
-${voiceNotes ? `VOICE/STYLE NOTES FROM USER:\n${voiceNotes}\n` : ""}`
+2. WRITE LIKE A REPORTER discovered this in public data, not like a tech company announcing a feature. The story is the civic finding. Transparent City is the source/analyst, not the subject.
+   BAD: "Transparent City's anomaly detection engine identified a persistent pattern..."
+   GOOD: "San Francisco's 311 data contains a pattern so consistent it might be the most predictable thing about city government..."
+
+3. NEVER describe the platform's internal features, templates, or methodology as the story. No "our context story engine generates monthly reports." The story is the DATA FINDING.
+
+4. LEAD WITH THE MOST SURPRISING NUMBER.
+   BAD: "Business registration trends show improvement in 2025."
+   GOOD: "San Francisco gained 1,869 net new businesses in 2025. The year before, the number was 42."
+
+5. USE SPECIFIC COMPARISONS, not vague language.
+   BAD: "significantly longer response times"
+   GOOD: "2.8 times longer -- 67 hours vs. 24 hours citywide"
+
+6. MAKE IT ENTERTAINING where the data supports it. Lean into human absurdity: a custodian working 82 hrs/week, the Monday complaint spike, the mural capital being the graffiti capital. Don't sanitize everything into dry policy language.
+
+7. END STRONG. Last paragraph should be quotable or memorable.
+   GOOD: "The data can't tell you whether this is art or vandalism. But it can tell you where the question is being asked 35,000 times a year."
+
+8. PERSONALIZE THE COVER NOTE. 2-3 sentences to the reporter referencing their beat, coverage area, or recent work. Explain why this specific finding matters to their audience. Suggest a follow-up angle.
+
+STRUCTURE:
+- Subject line: Newsworthy headline with a specific number
+- Personal note (2-3 sentences, use first name, reference their beat)
+- Lead paragraph: The core finding with the key number
+- 3-4 body paragraphs: context, comparison, implication, kicker
+- Brief methodology note (dataset name, what was measured)
+- "About Transparent City" one-liner: Transparent City is a civic data platform that analyzes public records across 30 US cities to surface patterns, anomalies, and stories in government data. More at transparentcity.us.
+
+ANOMALY INTEGRATION:
+When anomalies are provided, build the release around the most newsworthy one. Use ACTUAL numbers (pct_change, recent_mean, comparison_mean). Each reporter gets a DIFFERENT angle, not a rephrased version of the same release.
+
+EXAMPLE HEADLINES (for tone reference):
+- "San Francisco Gained 1,869 Net New Businesses in 2025. The Year Before, the Number Was 42."
+- "New Construction Permits Jumped 159%. Demolitions Tripled. What's Going On?"
+- "138,317 Graffiti Reports. One Neighborhood Accounts for a Quarter. It's the Same One Famous for Its Murals."
+- "Bayview Residents Wait Nearly 3x Longer for Street Cleaning Than the Rest of San Francisco"
+- "One Custodian Averaged 82 Hours a Week, All Year. That's 11.7 Hours a Day With No Days Off."
+- "A Fake Illinois Company Billed San Francisco $627,000 Over 4.5 Years."
+
+AVOID THESE PATTERNS:
+- "Transparent City Analysis Reveals Interesting Patterns" (no number, self-referential)
+- "New Data Shows Various Anomalies Across Multiple Departments" (vague data dump)
+- "Our AI Detected 13 Entities" (self-referential, not single topic)
+
+NEVER leave placeholders. Always use real data values.
+${archetypeContext}${voiceNotes ? `ADDITIONAL VOICE/STYLE NOTES:\n${sanitizeForJSON(voiceNotes)}\n` : ""}`
 
     const correspondencePrompt = `You are an expert at writing professional government correspondence for Transparent City, a civic tech organization that shares data anomalies with government officials. Your task is to generate unique, personalized email variations based on a sample email.
 
@@ -269,7 +317,7 @@ CRITICAL PERSONALIZATION RULES:
 7. The variations should feel like they were written individually, not templated
 8. NEVER leave placeholders like [ANOMALY 1], [FIRST NAME], {{name}}, etc. - ALWAYS replace with real values.
 
-${voiceNotes ? `VOICE/STYLE NOTES FROM USER:\n${voiceNotes}\n` : ""}
+${voiceNotes ? `VOICE/STYLE NOTES FROM USER:\n${sanitizeForJSON(voiceNotes)}\n` : ""}
 
 For each contact, generate a completely unique email that:
 - Has a catchy subject line featuring the most relevant anomaly finding with a specific number
