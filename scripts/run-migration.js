@@ -26,6 +26,8 @@ const MIGRATIONS = {
   '007': '007_campaign_prospects.sql',
   '008': '008_media_contacts.sql',
   '009': '009_unify_prospects.sql',
+  '010': '010_page_feedback.sql',
+  '011': '011_page_feedback_add_contact_fields.sql',
 };
 
 // Load environment variables from .env.local or .env
