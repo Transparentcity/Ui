@@ -2715,6 +2715,72 @@
   margin: 0 auto;
 }
 
+/* Steps */
+.add-city-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 48px;
+  position: relative;
+}
+
+.add-city-step {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 24px 0;
+  position: relative;
+}
+
+.add-city-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 19px;
+  top: 60px;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(
+    to bottom,
+    rgba(173, 53, 250, 0.25),
+    rgba(173, 53, 250, 0.05)
+  );
+}
+
+.step-number {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(173, 53, 250, 0.12), rgba(59, 130, 246, 0.08));
+  color: var(--brand-primary, #ad35fa);
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.step-content {
+  flex: 1;
+  padding-top: 2px;
+}
+
+.step-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary, #111827);
+  margin: 0 0 6px;
+  letter-spacing: -0.01em;
+}
+
+.step-body {
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.65));
+  margin: 0;
+}
+
+/* Cards */
 .add-city-card {
   background: var(--bg-primary, rgba(255, 255, 255, 0.9));
   border: 1px solid var(--border-primary, rgba(17, 24, 39, 0.1));
@@ -2724,42 +2790,15 @@
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
 }
 
-.add-city-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
+.add-city-form-card {
+  padding: 36px 36px 32px;
 }
 
 .add-city-card-title {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
-  margin: 0;
+  margin: 0 0 12px;
   letter-spacing: -0.02em;
-}
-
-.audience-pill {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--brand-primary, #ad35fa);
-  background: rgba(173, 53, 250, 0.12);
-  padding: 6px 12px;
-  border-radius: 999px;
-  flex-shrink: 0;
-}
-
-.audience-pill.resident-pill {
-  color: #059669;
-  background: rgba(5, 150, 105, 0.12);
-}
-
-.add-city-card-tagline {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary, #111827);
-  margin-bottom: 16px;
 }
 
 .add-city-card-body {
@@ -2770,29 +2809,139 @@
 }
 
 .add-city-card-body:last-of-type {
-  margin-bottom: 20px;
-}
-
-.add-city-highlight {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--brand-primary, #ad35fa);
-  background: rgba(173, 53, 250, 0.08);
-  padding: 12px 16px;
-  border-radius: 10px;
-  margin-bottom: 20px;
-  border-left: 3px solid var(--brand-primary, #ad35fa);
+  margin-bottom: 24px;
 }
 
 .add-city-card .btn {
   margin-top: 8px;
 }
 
-/* Champion Form */
-.champion-form-container {
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid var(--border-primary, rgba(17, 24, 39, 0.1));
+/* Callout */
+.add-city-callout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 28px 32px;
+  margin-bottom: 24px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(173, 53, 250, 0.06), rgba(59, 130, 246, 0.04));
+  border: 1px solid rgba(173, 53, 250, 0.12);
+}
+
+.callout-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(173, 53, 250, 0.1);
+  color: var(--brand-primary, #ad35fa);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.callout-content {
+  flex: 1;
+}
+
+.callout-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary, #111827);
+  margin: 0 0 8px;
+  letter-spacing: -0.01em;
+}
+
+.callout-body {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.65));
+  margin: 0 0 12px;
+}
+
+.callout-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--brand-primary, #ad35fa);
+  text-decoration: none;
+  transition: gap 0.2s ease;
+}
+
+.callout-link:hover {
+  gap: 10px;
+}
+
+/* Tabs */
+.city-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(17, 24, 39, 0.04);
+  border-radius: 12px;
+  margin-bottom: 24px;
+}
+
+.city-tab {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.55));
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.city-tab:hover {
+  color: var(--text-primary, #111827);
+}
+
+.city-tab-active {
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #111827);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.tab-content {
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Form */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.form-divider {
+  height: 1px;
+  background: var(--border-primary, rgba(17, 24, 39, 0.08));
+  margin: 4px 0;
+}
+
+.form-section-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.5));
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+
+.form-checkbox-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
 }
 
 .champion-form-title {
@@ -2914,6 +3063,28 @@
   text-decoration: underline;
 }
 
+/* Checkbox groups */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  color: var(--text-primary, #111827);
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--brand-primary, #ad35fa);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.checkbox-label span {
+  line-height: 1.4;
+}
+
 /* Back to home link */
 .add-city-back {
   margin-top: 48px;
@@ -2956,14 +3127,27 @@
     padding: 24px 20px;
   }
 
-  .add-city-card-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
+  .add-city-form-card {
+    padding: 24px 20px;
   }
 
   .add-city-card-title {
     font-size: 20px;
+  }
+
+  .add-city-callout {
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .form-checkbox-row {
+    flex-direction: column;
+    gap: 12px;
   }
 
   .form-actions {
