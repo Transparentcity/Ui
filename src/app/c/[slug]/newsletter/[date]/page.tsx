@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import "../../../../../landing.css";
+import "../../../../landing.css";
 
 import { getNewsletterEdition } from "@/lib/newsletter";
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
