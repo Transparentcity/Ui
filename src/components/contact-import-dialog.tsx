@@ -62,6 +62,7 @@ const CONTACT_FIELDS = [
   { key: "priority", label: "Priority (1-5)", required: false },
   { key: "notes", label: "Notes", required: false },
   { key: "keywords", label: "Keywords (comma-separated)", required: false },
+  { key: "contact_type", label: "Contact Type (elected_official, city_staff, media, etc.)", required: false },
 ] as const
 
 type ContactFieldKey = typeof CONTACT_FIELDS[number]["key"]
@@ -99,8 +100,9 @@ export function ContactImportDialog({ keywords, children }: ContactImportDialogP
     priority: null,
     notes: null,
     keywords: null,
+    contact_type: null,
   })
-  
+
   // Validation & import state
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([])
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
@@ -159,6 +161,7 @@ export function ContactImportDialog({ keywords, children }: ContactImportDialogP
       priority: null,
       notes: null,
       keywords: null,
+      contact_type: null,
     }
 
     const patterns: Record<ContactFieldKey, RegExp> = {
@@ -172,6 +175,7 @@ export function ContactImportDialog({ keywords, children }: ContactImportDialogP
       priority: /^(priority|importance|rank)$/i,
       notes: /^(notes|comments|description|memo)$/i,
       keywords: /^(keywords|tags|topics|categories)$/i,
+      contact_type: /^(contact[\s_-]?type|type|category|role[\s_-]?type)$/i,
     }
 
     csvHeaders.forEach(header => {
@@ -284,6 +288,7 @@ export function ContactImportDialog({ keywords, children }: ContactImportDialogP
             city_name: null,
             priority: row.data.priority ? parseInt(row.data.priority) : 3,
             notes: row.data.notes || null,
+            contact_type: row.data.contact_type || undefined,
             keywordIds,
           }
         })
@@ -383,6 +388,7 @@ export function ContactImportDialog({ keywords, children }: ContactImportDialogP
       priority: null,
       notes: null,
       keywords: null,
+      contact_type: null,
     })
     setParsedRows([])
     setImportResult(null)
