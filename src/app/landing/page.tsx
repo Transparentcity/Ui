@@ -379,9 +379,6 @@ export default function LandingPage() {
                 </ul>
               </div>
               <div className="user-type-cta" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                <Link href="/claim" className="btn btn-primary" style={{ textDecoration: "none", textAlign: "center" }}>
-                  Claim your district profile
-                </Link>
                 <button
                   id="city-staff-signup-btn"
                   className="btn btn-outline"
@@ -608,9 +605,6 @@ export default function LandingPage() {
                 <li>✅ Elected officials: &quot;Verified Official&quot; badge after claim</li>
               </ul>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                <Link href="/claim" className="btn btn-primary pricing-btn" style={{ textDecoration: "none", textAlign: "center" }}>
-                  Claim your profile
-                </Link>
                 <button
                   className="btn btn-outline pricing-btn"
                   onClick={handleSignup}

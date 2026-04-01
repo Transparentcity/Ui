@@ -402,9 +402,6 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
               <Link href="/pro" className="footer-link">
                 Add your city
               </Link>
-              <Link href="/claim" className="footer-link">
-                Elected officials
-              </Link>
               <a
                 href="https://www.transparentsf.com"
                 target="_blank"

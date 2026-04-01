@@ -16,7 +16,6 @@ export default function robots(): MetadataRoute.Robots {
           "/settings",
           "/check-email",
           "/pro",
-          "/claim",
           // Internal tools & admin
           "/debug",
           "/signals",
