@@ -45,6 +45,7 @@ export default function CitySafePage({
       ? (() => {
           const first = safetyData.trendData[0];
           const last = safetyData.trendData[safetyData.trendData.length - 1];
+          if (!first.value) return undefined;
           const change = (
             ((last.value - first.value) / first.value) *
             100
@@ -283,7 +284,7 @@ export default function CitySafePage({
                 Methodology
               </Link>
               <Link href="/sitemap" className="footer-link">
-                All cities
+                Site map
               </Link>
             </div>
             <div className="footer-column">
