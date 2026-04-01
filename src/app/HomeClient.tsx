@@ -303,8 +303,8 @@ export default function HomeClient() {
               {/* Stats bar */}
               <div className={styles.statsBar}>
                 <div className={styles.stat}>
-                  <span className={styles.statNumber}>{cityCount ?? liveCities.length || 3}</span>
-                  <span className={styles.statLabel}>{(cityCount ?? liveCities.length || 3) === 1 ? "city tracked" : "cities tracked"}</span>
+                  <span className={styles.statNumber}>{(cityCount ?? liveCities.length) || 3}</span>
+                  <span className={styles.statLabel}>{((cityCount ?? liveCities.length) || 3) === 1 ? "city tracked" : "cities tracked"}</span>
                 </div>
                 <div className={styles.stat}>
                   <span className={styles.statNumber}>{(storyCount ?? 1).toLocaleString()}+</span>
