@@ -1809,6 +1809,13 @@
   border-bottom: 1px solid var(--border-primary);
 }
 
+.key-numbers-period {
+  font-size: 0.82rem;
+  color: var(--text-secondary, #6b7280);
+  text-align: center;
+  margin: 0 0 12px;
+}
+
 .key-numbers-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
