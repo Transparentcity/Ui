@@ -54,6 +54,7 @@ export interface FeedStory {
 export interface FeedStoriesResponse {
   stories: FeedStory[];
   count: number;
+  total_count?: number;
 }
 
 export interface FeedStoryResponse {

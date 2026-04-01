@@ -11,6 +11,19 @@ type Props = {
   comparisonsMap: Record<number, PublicMetricComparisons>;
 };
 
+/** Format "2026-01-01" or "2026-01-01T00:00:00" to "Jan 1" or "Jan 1, 2026" */
+function fmtDate(iso: string, includeYear = false): string {
+  const dateOnly = iso.slice(0, 10);
+  const d = new Date(dateOnly + "T00:00:00");
+  const month = d.toLocaleString("en-US", { month: "short" });
+  const day = d.getDate();
+  return includeYear ? `${month} ${day}, ${d.getFullYear()}` : `${month} ${day}`;
+}
+
+function extractYear(iso: string): number {
+  return new Date(iso.slice(0, 10) + "T00:00:00").getFullYear();
+}
+
 export default function KeyNumbersStrip({ slug, metrics, comparisonsMap }: Props) {
   // Build cards: only metrics with valid YTD data on both sides
   type CardItem = {
@@ -46,9 +59,26 @@ export default function KeyNumbersStrip({ slug, metrics, comparisonsMap }: Props
 
   if (cards.length === 0) return null;
 
+  // Derive period label from the first card's YTD comparison
+  let periodLabel: string | null = null;
+  const firstYtd = comparisonsMap[cards[0].m.id]?.comparisons?.ytd;
+  if (firstYtd?.current_period_start && firstYtd?.current_period_end) {
+    const start = fmtDate(firstYtd.current_period_start);
+    const end = fmtDate(firstYtd.current_period_end, true);
+    const compYear = firstYtd.comparison_period_start
+      ? extractYear(firstYtd.comparison_period_start)
+      : null;
+    periodLabel = compYear
+      ? `Year to date: ${start} \u2013 ${end} vs. ${compYear}`
+      : `Year to date: ${start} \u2013 ${end}`;
+  }
+
   return (
     <section className="key-numbers-section">
       <div className="container">
+        {periodLabel && (
+          <p className="key-numbers-period">{periodLabel}</p>
+        )}
         <div className="key-numbers-grid">
           {cards.map(({ m, curr, pct, isIncrease, isDecrease, isGood, isBad, isNeutral }) => {
             const colorClass = isNeutral
