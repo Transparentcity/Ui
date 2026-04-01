@@ -13,6 +13,8 @@ export default function PageFeedback({
 }) {
   const [state, setState] = useState<FeedbackState>("idle");
   const [explanation, setExplanation] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [visible, setVisible] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -56,6 +58,8 @@ export default function PageFeedback({
           pageType,
           feedbackType: type,
           explanation: text || "",
+          submitterName: name.trim() || undefined,
+          submitterEmail: email.trim() || undefined,
         }),
       });
       if (!res.ok && res.status !== 429) throw new Error("Failed");
@@ -96,6 +100,19 @@ export default function PageFeedback({
     minHeight: 30,
     lineHeight: 1,
     letterSpacing: "0.01em",
+  };
+
+  const inputStyle: React.CSSProperties = {
+    flex: 1,
+    padding: "8px 10px",
+    fontSize: 13,
+    border: "1px solid var(--border-primary, #e5e7eb)",
+    borderRadius: 8,
+    background: "var(--bg-secondary, #f9fafb)",
+    color: "var(--text-primary, #111827)",
+    fontFamily: "inherit",
+    boxSizing: "border-box",
+    outline: "none",
   };
 
   if (state === "already") {
@@ -244,6 +261,26 @@ export default function PageFeedback({
                   outline: "none",
                 }}
               />
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Name (optional)"
+                  disabled={state === "submitting"}
+                  maxLength={200}
+                  style={inputStyle}
+                />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email (optional)"
+                  disabled={state === "submitting"}
+                  maxLength={320}
+                  style={inputStyle}
+                />
+              </div>
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                 <button
                   onClick={() => submit("wrong", explanation)}
