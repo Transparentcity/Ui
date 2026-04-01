@@ -98,11 +98,6 @@ export default function Header({
     });
   };
 
-  const handleGoToClaim = () => {
-    setSignupMenuOpen(false);
-    router.push("/claim");
-  };
-
   useEffect(() => {
     if (!showCityPicker || !cityDropdownOpen) return;
 
@@ -449,14 +444,6 @@ export default function Header({
                     >
                       <span className={styles.menuItemTitle}>Sign up as citizen</span>
                       <span className={styles.menuItemDesc}>Follow cities, research, and maps.</span>
-                    </button>
-                    <button
-                      className={styles.menuItem}
-                      role="menuitem"
-                      onClick={handleGoToClaim}
-                    >
-                      <span className={styles.menuItemTitle}>I&apos;m an elected official</span>
-                      <span className={styles.menuItemDesc}>Claim your profile to respond to constituents.</span>
                     </button>
                     <button
                       className={styles.menuItem}

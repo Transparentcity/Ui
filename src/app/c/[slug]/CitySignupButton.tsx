@@ -46,11 +46,6 @@ export default function CitySignupButton() {
     });
   };
 
-  const handleGoToClaim = () => {
-    setSignupMenuOpen(false);
-    router.push("/claim");
-  };
-
   const handleLogin = async () => {
     // Track login attempt
     trackLogin();
@@ -117,16 +112,6 @@ export default function CitySignupButton() {
               <div className="nav-signup-item-title">I&apos;m city staff</div>
               <div className="nav-signup-item-desc">
                 Briefs, context, and operational clarity.
-              </div>
-            </button>
-            <button
-              className="nav-signup-item"
-              role="menuitem"
-              onClick={handleGoToClaim}
-            >
-              <div className="nav-signup-item-title">I&apos;m an elected official</div>
-              <div className="nav-signup-item-desc">
-                Claim your profile to respond to constituents.
               </div>
             </button>
           </div>

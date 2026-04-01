@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { getResearchByHash, ResearchReport } from "@/lib/apiClient";
+import { getPublicFeedStoryByHash } from "@/lib/publicApiClient";
 import ReportContent from "@/components/ReportContent";
 import "../../research/brand-styles.css";
 import "./styles.css";
@@ -16,32 +17,37 @@ export default function PublicResearchPage() {
   const [error, setError] = useState<string | null>(null);
   const [isInfoExpanded, setIsInfoExpanded] = useState(false);
 
-  const scrollToStoryHash = useCallback(() => {
-    if (typeof window === "undefined") return;
+  /** #story-{short_hash}: redirect to canonical story URL when the feed row exists; else scroll in-report. */
+  const tryRedirectOrScrollToStory = useCallback(() => {
+    if (typeof window === "undefined" || !research?.final_report_html) return;
     const rawHash = window.location.hash?.slice(1);
     if (!rawHash) return;
-
     const hashId = decodeURIComponent(rawHash);
     if (!hashId.startsWith("story-")) return;
+    const storyShortHash = hashId.slice("story-".length);
+    if (!storyShortHash) return;
 
-    let attempts = 0;
-    const maxAttempts = 12;
-
-    const tryScroll = () => {
-      const el = document.getElementById(hashId);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
-        return;
-      }
-
-      attempts += 1;
-      if (attempts < maxAttempts) {
-        window.setTimeout(tryScroll, 150);
-      }
-    };
-
-    window.setTimeout(tryScroll, 0);
-  }, []);
+    getPublicFeedStoryByHash(storyShortHash)
+      .then(() => {
+        window.location.replace(`${window.location.origin}/s/${storyShortHash}`);
+      })
+      .catch(() => {
+        let attempts = 0;
+        const maxAttempts = 12;
+        const tryScroll = () => {
+          const el = document.getElementById(hashId);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "start" });
+            return;
+          }
+          attempts += 1;
+          if (attempts < maxAttempts) {
+            window.setTimeout(tryScroll, 150);
+          }
+        };
+        window.setTimeout(tryScroll, 0);
+      });
+  }, [research?.final_report_html]);
   
   // Fetch research data (no auth required)
   useEffect(() => {
@@ -56,18 +62,17 @@ export default function PublicResearchPage() {
     }
   }, [hash]);
 
-  // Deep link: scroll to #story-{short_hash} when report has multiple feed stories
   useEffect(() => {
     if (!research?.final_report_html || typeof window === "undefined") return;
-    scrollToStoryHash();
-  }, [research?.final_report_html, research?.id, scrollToStoryHash]);
+    tryRedirectOrScrollToStory();
+  }, [research?.final_report_html, research?.id, tryRedirectOrScrollToStory]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const handleHashChange = () => scrollToStoryHash();
+    const handleHashChange = () => tryRedirectOrScrollToStory();
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
-  }, [scrollToStoryHash]);
+  }, [tryRedirectOrScrollToStory]);
   
   if (loading) {
     return <div className="public-research-page loading">Loading...</div>;
@@ -293,8 +298,8 @@ export default function PublicResearchPage() {
               </p>
             )}
             <p>
-              <a href="/methodology" className="methodology-link">
-                Learn more about our research methodology →
+              <a href="/" className="methodology-link">
+                Learn more about Transparent.city →
               </a>
             </p>
           </div>

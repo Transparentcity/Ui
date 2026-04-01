@@ -13,7 +13,6 @@ import {
   useFollowRepresentative,
   useUnfollowRepresentative,
 } from "@/lib/hooks/useCities";
-import ClaimMyPageButton from "@/components/ClaimMyPageButton";
 
 type Props = {
   cityId: number;
@@ -162,7 +161,6 @@ export default function DistrictListWithFollow({
               >
                 {following ? "Unfollow" : "Follow"}
               </button>
-              <ClaimMyPageButton size="compact" cityId={cityId} district={d} />
             </div>
           );
         })}

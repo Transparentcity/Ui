@@ -3,7 +3,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth0 } from "@auth0/auth0-react";
 import { getPublicRepresentativeFollowerCounts } from "@/lib/publicApiClient";
-import ClaimMyPageButton from "@/components/ClaimMyPageButton";
 import {
   useRepresentativeFollowerCounts,
   useRepresentativeFollows,
@@ -84,10 +83,6 @@ export default function DistrictFollowClaimBlock({
         {following ? "Unfollow" : "Follow"}
         {count >= 0 && ` · ${count}`}
       </button>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <ClaimMyPageButton className="hero-official-btn" cityId={cityId} district={district} />
-        <span className="hero-official-caption">For public officials</span>
-      </div>
     </div>
   );
 }
