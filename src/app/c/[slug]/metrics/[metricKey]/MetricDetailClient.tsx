@@ -7,6 +7,7 @@ import MetricDetailContent from "@/components/MetricDetailContent";
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
 import NavEmailSignup from "../../NavEmailSignup";
+import { SignupEmailProvider } from "../../SignupEmailContext";
 import { trackMetricView } from "@/lib/analytics";
 import "@/app/landing.css";
 import "@/components/MetricDetailModal.css";
@@ -42,6 +43,7 @@ export default function MetricDetailClient({
   }, [metric.metric_key, citySlug, district]);
 
   return (
+    <SignupEmailProvider>
     <div className="metric-detail-page">
       <PublicNavBar>
         <NavEmailSignup citySlug={citySlug} cityName={cityName} />
@@ -81,5 +83,6 @@ export default function MetricDetailClient({
         feedbackPageType="metric-detail"
       />
     </div>
+    </SignupEmailProvider>
   );
 }

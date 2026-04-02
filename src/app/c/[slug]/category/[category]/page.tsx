@@ -21,6 +21,7 @@ import CategoryDashboardSection from "./CategoryDashboardSection";
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
 import NavEmailSignup from "../../NavEmailSignup";
+import { SignupEmailProvider } from "../../SignupEmailContext";
 
 export const revalidate = 3600;
 
@@ -188,7 +189,7 @@ export default async function CityCategoryPage({
   );
 
   return (
-    <>
+    <SignupEmailProvider>
       <CityViewTracker citySlug={slug} cityId={city?.id} />
       <PublicNavBar>
         <NavEmailSignup citySlug={slug} cityName={cityDisplayName} />
@@ -285,6 +286,6 @@ export default async function CityCategoryPage({
         feedbackPageUrl={`/c/${slug}/category/${category}`}
         feedbackPageType="category"
       />
-    </>
+    </SignupEmailProvider>
   );
 }

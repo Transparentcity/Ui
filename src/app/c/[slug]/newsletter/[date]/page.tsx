@@ -10,6 +10,7 @@ import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
 import NavEmailSignup from "../../NavEmailSignup";
 import CityHeroNewsletter from "../../CityHeroNewsletter";
+import { SignupEmailProvider } from "../../SignupEmailContext";
 
 // Archive pages: cache permanently once rendered; never auto-revalidate.
 // If an edition is regenerated, redeploy or manually purge the route cache.
@@ -108,7 +109,7 @@ export default async function NewsletterEditionPage({ params, searchParams }: Pa
   const districtLabel = edition.district > 0 ? ` — District ${edition.district}` : "";
 
   return (
-    <>
+    <SignupEmailProvider>
       <PublicNavBar>
         <NavEmailSignup citySlug={slug} cityName={edition.city_name ?? slug} />
       </PublicNavBar>
@@ -227,7 +228,7 @@ export default async function NewsletterEditionPage({ params, searchParams }: Pa
         </div>
       </article>
 
-      <PublicFooter citySlug={slug} />
+      <PublicFooter citySlug={slug} feedbackPageUrl={`/c/${slug}/newsletter/${date}`} feedbackPageType="newsletter" />
 
       <style>{`
         .newsletter-edition-body h1,
@@ -258,6 +259,6 @@ export default async function NewsletterEditionPage({ params, searchParams }: Pa
           background: var(--bg-subtle, #f3f4f6) !important;
         }
       `}</style>
-    </>
+    </SignupEmailProvider>
   );
 }
