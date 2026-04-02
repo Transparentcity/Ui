@@ -29,6 +29,11 @@ export default function AddYourCityPage() {
       return;
     }
 
+    if (activeTab === "improve" && !formData.email) {
+      setFormError("Please enter your email so we can get in touch.");
+      return;
+    }
+
     try {
       console.log("City form submitted:", { intent: activeTab, ...formData });
       setFormSubmitted(true);
@@ -325,7 +330,9 @@ export default function AddYourCityPage() {
                         />
                       </div>
                       <div className="form-group">
-                        <label htmlFor="email">Email</label>
+                        <label htmlFor="email">
+                          Email <span className="required">*</span>
+                        </label>
                         <input
                           type="email"
                           id="email"
@@ -333,6 +340,7 @@ export default function AddYourCityPage() {
                           value={formData.email}
                           onChange={handleInputChange}
                           placeholder="your@email.com"
+                          required
                         />
                       </div>
                     </div>
