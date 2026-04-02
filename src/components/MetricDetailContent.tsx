@@ -17,144 +17,10 @@ import DistrictComparisonTable from "./DistrictComparisonTable";
 import DeltaMapView from "./DeltaMapView";
 import CategoryBreakdown from "./CategoryBreakdown";
 import { API_BASE } from "@/lib/apiBase";
-import TimeSeriesChart from "./TimeSeriesChart";
 import Loader from "./Loader";
+import PublicMetricTimeSeriesChart from "./PublicMetricTimeSeriesChart";
+import { selectPublicMetricCharts } from "@/lib/selectPublicMetricCharts";
 import CompletenessSparkline from "./CompletenessSparkline";
-
-interface PublicTimeSeriesPoint {
-  time_period: string;
-  numeric_value: number;
-  group_value?: string | null;
-}
-
-interface PublicTimeSeriesResponse {
-  count: number;
-  metadata?: Record<string, any>;
-  data: PublicTimeSeriesPoint[];
-}
-
-// Cache for time series data
-const timeSeriesCache: Map<number, { data: PublicTimeSeriesResponse; timestamp: number }> = new Map();
-const TIME_SERIES_CACHE_TTL = 120000; // 2 minute cache
-
-// In-flight requests to prevent duplicate fetches
-const timeSeriesInFlight: Map<number, Promise<PublicTimeSeriesResponse>> = new Map();
-
-async function getPublicTimeSeries(chartId: number): Promise<PublicTimeSeriesResponse> {
-  const now = Date.now();
-  
-  // Check cache first
-  const cached = timeSeriesCache.get(chartId);
-  if (cached && (now - cached.timestamp) < TIME_SERIES_CACHE_TTL) {
-    return cached.data;
-  }
-  
-  // Check if request is already in flight
-  const inFlight = timeSeriesInFlight.get(chartId);
-  if (inFlight) {
-    return inFlight;
-  }
-  
-  // Create new request
-  const promise = (async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/time-series/public/${chartId}`);
-      if (!response.ok) {
-        throw new Error(`Failed to load time series ${chartId}`);
-      }
-      const data = await response.json();
-      
-      // Cache the result
-      timeSeriesCache.set(chartId, { data, timestamp: Date.now() });
-      timeSeriesInFlight.delete(chartId);
-      
-      return data;
-    } catch (err) {
-      timeSeriesInFlight.delete(chartId);
-      throw err;
-    }
-  })();
-  
-  timeSeriesInFlight.set(chartId, promise);
-  return promise;
-}
-
-function aggregateTimeSeries(data: PublicTimeSeriesPoint[]): PublicTimeSeriesPoint[] {
-  const map = new Map<string, { sum: number; count: number }>();
-  data.forEach((point) => {
-    const key = `${point.time_period}|${point.group_value || ""}`;
-    const existing = map.get(key) || { sum: 0, count: 0 };
-    map.set(key, {
-      sum: existing.sum + (point.numeric_value || 0),
-      count: existing.count + 1,
-    });
-  });
-  return Array.from(map.entries()).map(([key, { sum }]) => {
-    const [time_period, group_value] = key.split("|");
-    return {
-      time_period,
-      numeric_value: sum,
-      group_value: group_value || null,
-    };
-  });
-}
-
-// Simple component to fetch and display time series chart
-function PublicTimeSeriesChart({ 
-  chartId
-}: { 
-  chartId: number;
-}) {
-  const [data, setData] = useState<PublicTimeSeriesResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let mounted = true;
-    setLoading(true);
-    getPublicTimeSeries(chartId)
-      .then((res) => {
-        if (mounted) {
-          setData(res);
-        }
-      })
-      .catch(() => {
-        if (mounted) setData(null);
-      })
-      .finally(() => {
-        if (mounted) setLoading(false);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [chartId]);
-
-  if (loading) {
-    return (
-      <div className="metric-placeholder" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.75rem" }}>
-        <Loader size="md" color="dark" />
-        <span>Loading chart...</span>
-      </div>
-    );
-  }
-  if (!data || data.data.length === 0) {
-    return <div className="metric-placeholder">No chart data available.</div>;
-  }
-  
-  // Aggregate duplicate periods (sum values for same time_period + group_value)
-  const aggregated = aggregateTimeSeries(data.data);
-  
-  return (
-    <TimeSeriesChart
-      data={aggregated}
-      metadata={data.metadata}
-      height={320}
-      defaultPeriod="ytd"
-      fullBleed={true}
-      hidePeriodSelector={false}
-      showExternalTitle={true}
-    />
-  );
-}
 
 interface MetricDetailContentProps {
   metric: PublicMetricDetail;
@@ -194,27 +60,27 @@ export default function MetricDetailContent({
     setCompletenessDaily(null);
     setCompletenessStats(null);
     setCompletenessLoading(false);
-  }, [metric.id]);
+  }, [metric.id, selectedDistrict]);
   useEffect(() => {
     if (completenessDaily) return;
     setCompletenessLoading(true);
-    getPublicMetricCompletenessDaily(metric.id, "day", 90)
+    getPublicMetricCompletenessDaily(metric.id, "day", 90, selectedDistrict)
       .then(setCompletenessDaily)
       .catch((err) => {
         console.warn("Failed to load completeness daily data:", err);
         setCompletenessDaily(null);
       })
       .finally(() => setCompletenessLoading(false));
-  }, [metric.id, completenessDaily]);
+  }, [metric.id, selectedDistrict, completenessDaily]);
   useEffect(() => {
     if (completenessStats) return;
-    getPublicMetricCompletenessStats(metric.id)
+    getPublicMetricCompletenessStats(metric.id, selectedDistrict)
       .then(setCompletenessStats)
       .catch((err) => {
         console.warn("Failed to load completeness stats:", err);
         setCompletenessStats(null);
       });
-  }, [metric.id, completenessStats]);
+  }, [metric.id, selectedDistrict, completenessStats]);
   useEffect(() => {
     if (!metric.city_id) return;
     let mounted = true;
@@ -348,34 +214,36 @@ export default function MetricDetailContent({
     ? `District ${selectedDistrict}`
     : resolvedCityName;
 
-  const preferredChartId = useMemo(() => {
-    const series = timeSeriesQuery.data?.time_series || [];
-    if (series.length === 0) return null;
-    
-    // Filter by selected district (null/0 = citywide)
-    const targetDistrict = selectedDistrict ?? 0;
-    const districtSeries = series.filter(
-      (item) => {
-        const itemDistrict = item.district ?? 0;
-        return itemDistrict === targetDistrict && !item.group_field;
-      }
+  // Compute reporting completeness lag: how many trailing days in the completeness data
+  // are still "unstable" (i.e., their counts are still changing / not yet fully reported).
+  // This reflects how long it typically takes for a day's data to be complete, not just
+  // how far behind the publication date is.
+  const staleness_days = useMemo(() => {
+    if (!completenessDaily?.data || completenessDaily.data.length === 0) return undefined;
+    const sorted = [...completenessDaily.data].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
-    
-    // If no district-specific chart, fall back to citywide
-    const candidates = districtSeries.length > 0 
-      ? districtSeries 
-      : series.filter((item) => (item.district === 0 || item.district === null) && !item.group_field);
-    
-    if (candidates.length === 0) return series[0]?.chart_id ?? null;
-    // Prefer daily chart for YTD (YTD is computed from daily series)
-    const dayChart = candidates.find((item) => item.period_type?.toLowerCase() === "day");
-    if (dayChart) return dayChart.chart_id;
-    // Fallback to YTD chart, then month
-    const ytdChart = candidates.find((item) => item.period_type?.toLowerCase() === "ytd");
-    if (ytdChart) return ytdChart.chart_id;
-    const monthChart = candidates.find((item) => item.period_type?.toLowerCase() === "month");
-    return monthChart?.chart_id ?? candidates[0].chart_id;
-  }, [timeSeriesQuery.data, selectedDistrict]);
+    let lag = 0;
+    for (const entry of sorted) {
+      if (!entry.is_stable) {
+        lag++;
+      } else {
+        break;
+      }
+    }
+    return lag > 0 ? lag : undefined;
+  }, [completenessDaily]);
+
+  const { primaryChartId, yearChartId } = useMemo(
+    () =>
+      selectPublicMetricCharts(
+        timeSeriesQuery.data?.time_series || [],
+        selectedDistrict
+      ),
+    [timeSeriesQuery.data, selectedDistrict]
+  );
+
+  const preferredChartId = primaryChartId;
 
   return (
     <div className="metric-detail-content">
@@ -537,8 +405,19 @@ export default function MetricDetailContent({
                 {trend ? `, ${trend.isIncrease ? "up" : "down"} by ${Math.round(Math.abs(trend.percent))}%` : ""} from last year&apos;s {formatValue(comparison.comparison_period_value)} to this date of {currentPeriodEndFormatted}.
               </p>
             ) : null}
+          {!isStale && staleness_days !== undefined && staleness_days > 0 && (
+            <div className="metric-staleness-badge">
+              <span className="metric-staleness-icon">⏱</span>
+              ~{staleness_days} day{staleness_days !== 1 ? "s" : ""} to fully report — data for the most recent {staleness_days} day{staleness_days !== 1 ? "s" : ""} may still be updating, shown as{" "}
+              <span className="metric-staleness-incomplete-label">incomplete</span> on the chart below.
+            </div>
+          )}
           <div className="metric-chart-container">
-            <PublicTimeSeriesChart chartId={preferredChartId} />
+            <PublicMetricTimeSeriesChart
+              primaryChartId={primaryChartId}
+              yearChartId={yearChartId}
+              staleness_days={staleness_days}
+            />
           </div>
         </section>
       )}
@@ -628,6 +507,7 @@ export default function MetricDetailContent({
               greenDirection={metric.greendirection as "up" | "down" | null}
               height={350}
               showLink={true}
+              currentPeriodEnd={comparison?.current_period_end ?? undefined}
               dateRange={{
                 start: comparison?.current_period_start || null,
                 end: comparison?.current_period_end || null,

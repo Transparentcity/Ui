@@ -1178,7 +1178,7 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
                     return (
                       <tr
                         key={city.city_id}
-                        
+                        className={city.is_launched ? styles.launchedRow : undefined}
                         style={{
                           borderBottom: "1px solid var(--border-primary)",
                         }}
@@ -1264,7 +1264,7 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
                             >
                               <button
                                 type="button"
-                                className="city-name"
+                                className={`city-name${city.is_launched ? ` ${styles.launchedCityName}` : ""}`}
                                 onClick={() => onOpenCity && onOpenCity(city.city_id)}
                                 style={{
                                   cursor: onOpenCity ? "pointer" : "default",
@@ -1273,11 +1273,17 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
                                   padding: 0,
                                   margin: 0,
                                   textAlign: "left",
-                                  color: "var(--text-primary)",
+                                  ...(city.is_launched
+                                    ? {}
+                                    : { color: "var(--text-primary)" }),
                                   fontSize: "13px",
                                   fontWeight: 600,
                                 }}
-                                title="Open city view"
+                                title={
+                                  city.is_launched
+                                    ? "Launched — open city view"
+                                    : "Open city view"
+                                }
                               >
                                 {city.city_name || "—"}
                               </button>

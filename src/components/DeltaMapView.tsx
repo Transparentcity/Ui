@@ -69,6 +69,8 @@ interface DeltaMapViewProps {
   comparisonDateRange?: { start: string | null; end: string | null };
   /** Show "View full map" link (default: true). Requires dateRange + comparisonDateRange. */
   showLink?: boolean;
+  /** Anchor district API rows to the same period end as the headline comparison (optional). */
+  currentPeriodEnd?: string | null;
 }
 
 export default function DeltaMapView({
@@ -81,6 +83,7 @@ export default function DeltaMapView({
   dateRange,
   comparisonDateRange,
   showLink = true,
+  currentPeriodEnd,
 }: DeltaMapViewProps) {
   // Neutral fallback when no center provided (map will fit to shape bounds once loaded)
   const initialCenter: [number, number] = cityCenter ?? [-98.5795, 39.8283];
@@ -126,7 +129,11 @@ export default function DeltaMapView({
     setError(null);
 
     Promise.all([
-      getPublicMetricDistrictComparisons(metricId, comparisonType),
+      getPublicMetricDistrictComparisons(
+        metricId,
+        comparisonType,
+        currentPeriodEnd ?? undefined
+      ),
       getPublicMetricShapefile(metricId),
     ])
       .then(([districts, shape]) => {
@@ -150,7 +157,7 @@ export default function DeltaMapView({
     return () => {
       mounted = false;
     };
-  }, [metricId, comparisonType]);
+  }, [metricId, comparisonType, currentPeriodEnd]);
 
   // Build feature collection with change data
   const geoJsonWithData = useMemo(() => {

@@ -699,10 +699,15 @@ export type CompletenessStatisticsResponse = {
 };
 
 export function getPublicMetricCompletenessStats(
-  metricId: number
+  metricId: number,
+  district?: number | null
 ): Promise<CompletenessStatisticsResponse> {
+  const districtQuery =
+    district !== undefined && district !== null && district > 0
+      ? `?district=${district}`
+      : "";
   return requestPublic<CompletenessStatisticsResponse>(
-    `/api/time-series/public/metric/${metricId}/completeness/stats`
+    `/api/time-series/public/metric/${metricId}/completeness/stats${districtQuery}`
   );
 }
 
@@ -725,10 +730,15 @@ export type DailyCompletenessResponse = {
 export function getPublicMetricCompletenessDaily(
   metricId: number,
   periodType: string = "day",
-  days: number = 90
+  days: number = 90,
+  district?: number | null
 ): Promise<DailyCompletenessResponse> {
+  const districtQuery =
+    district !== undefined && district !== null && district > 0
+      ? `&district=${district}`
+      : "";
   return requestPublic<DailyCompletenessResponse>(
-    `/api/time-series/public/metric/${metricId}/completeness/daily?period_type=${periodType}&days=${days}`
+    `/api/time-series/public/metric/${metricId}/completeness/daily?period_type=${periodType}&days=${days}${districtQuery}`
   );
 }
 

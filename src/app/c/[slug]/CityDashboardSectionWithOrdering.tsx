@@ -97,11 +97,11 @@ export default function CityDashboardSectionWithOrdering({
   }, [isAuthenticated, userOrdering, cityId, cityOrderingEntries]);
 
   // Whether orderings came from a user-specific selection (should filter metrics to chosen set)
-  // vs. city-level default (just sort, show all metrics including any not in the ordering)
+  // vs. city-level default (just sort, show all metrics including any not in the ordering).
+  // API sets is_personal_order only for GET /me/metric-ordering (not city admin GET).
   const isUserOrdering = useMemo(() => {
     if (!orderings?.length) return false;
-    // User ordering: either from server (userOrdering) or localStorage
-    if (isAuthenticated && userOrdering?.orderings?.length) return true;
+    if (isAuthenticated && userOrdering?.is_personal_order === true) return true;
     if (!isAuthenticated && typeof window !== "undefined") {
       try {
         const key = `${PENDING_ORDER_STORAGE_KEY_PREFIX}${cityId}`;

@@ -820,6 +820,7 @@ export interface CityListItem {
   vector_db_size_mb?: number | null;
   structure_status?: string;
   is_active?: boolean;
+  is_launched?: boolean;
   population_source_type?: string | null;
   population_source_name?: string | null;
   population_data_year?: number | null;
@@ -2166,6 +2167,7 @@ export interface CityFreshness {
   fresh_daily: number;
   fresh_weekly: number;
   fresh_monthly: number;
+  fresh_annual: number;
   no_data: number;
   newest_data_date: string | null;
   oldest_data_date: string | null;
@@ -5103,6 +5105,11 @@ export interface MetricOrderingItem {
 export interface MetricOrderingResponse {
   city_id: number;
   orderings: MetricOrderingItem[];
+  /**
+   * From GET /api/admin/me/metric-ordering/{cityId} only: true if the user saved their own
+   * metric subset/order; false if these rows are the city default (show all dashboard metrics).
+   */
+  is_personal_order?: boolean;
 }
 
 export interface SaveMetricOrderingRequest {

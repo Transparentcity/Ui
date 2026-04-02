@@ -149,6 +149,8 @@ export default function DashboardPage() {
   const [initialPlaceId, setInitialPlaceId] = useState<number | null>(null);
   /** Official Selector selection (district / place) so left nav can stay in sync; only when currentView === "city". */
   const [citySelection, setCitySelection] = useState<{ district: number | null; placeId: number | null }>({ district: null, placeId: null });
+  /** After saving a new block, run metrics job once before showing place dashboard (see CityView). */
+  const [placeIdPendingPlaceMetricsBootstrap, setPlaceIdPendingPlaceMetricsBootstrap] = useState<number | null>(null);
   const [allUserPlaces, setAllUserPlaces] = useState<UserPlace[]>([]);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showGovernmentOnboardingModal, setShowGovernmentOnboardingModal] = useState(false);
@@ -229,6 +231,7 @@ export default function DashboardPage() {
     setRequestOpenDistrictModal(null);
     setInitialPlaceId(null);
     setCitySelection({ district: null, placeId: null });
+    setPlaceIdPendingPlaceMetricsBootstrap(null);
     setAllUserPlaces([]);
     setShowWelcomeModal(false);
     setShowGovernmentOnboardingModal(false);
@@ -669,25 +672,28 @@ export default function DashboardPage() {
     setGpsLocation(null);
   };
 
-  const handlePlaceClick = (cityId: number, placeId: number) => {
-    // Look up place GPS data immediately so the map can start at block level
-    // without waiting for the userPlaces API call inside CityView.
-    const place = allUserPlaces.find((p) => p.id === placeId);
-    setActiveCityId(cityId);
-    setInitialDistrict(null);
-    setInitialPlaceId(placeId);
-    setInitialPlaceGps(
-      place?.lat != null && place?.lng != null
-        ? { lat: place.lat, lng: place.lng, radius_m: place.radius_m ?? 500 }
-        : null
-    );
-    setCitySelection({ district: null, placeId });
-    setCurrentView("city");
-    setCurrentSessionId(null);
-    setIsCurrentSessionJobSession(false);
-    setCurrentResearchId(null);
-    setGpsLocation(null);
-  };
+  const handlePlaceClick = useCallback(
+    (cityId: number, placeId: number, placeOverride?: UserPlace) => {
+      // Look up place GPS immediately so the map can start at block level without waiting
+      // for listMyPlaces inside CityView (use API response when the place was just created).
+      const place = placeOverride ?? allUserPlaces.find((p) => p.id === placeId);
+      setActiveCityId(cityId);
+      setInitialDistrict(null);
+      setInitialPlaceId(placeId);
+      setInitialPlaceGps(
+        place?.lat != null && place?.lng != null
+          ? { lat: place.lat, lng: place.lng, radius_m: place.radius_m ?? 500 }
+          : null
+      );
+      setCitySelection({ district: null, placeId });
+      setCurrentView("city");
+      setCurrentSessionId(null);
+      setIsCurrentSessionJobSession(false);
+      setCurrentResearchId(null);
+      setGpsLocation(null);
+    },
+    [allUserPlaces]
+  );
 
   const refreshAllUserPlaces = useCallback(
     (expectedIdentityScopeKey: string = identityScopeKey) => {
@@ -707,9 +713,30 @@ export default function DashboardPage() {
     [getAccessTokenSilently, identityScopeKey]
   );
 
-  const handlePlaceSaved = () => {
-    refreshAllUserPlaces();
-  };
+  const handlePlaceSaved = useCallback(
+    (place?: UserPlace) => {
+      refreshAllUserPlaces();
+      if (place) {
+        setPlaceIdPendingPlaceMetricsBootstrap(place.id);
+        handlePlaceClick(place.city_id, place.id, place);
+        setCurrentView("city");
+      }
+    },
+    [refreshAllUserPlaces, handlePlaceClick]
+  );
+
+  const consumePlaceMetricsBootstrap = useCallback(() => {
+    setPlaceIdPendingPlaceMetricsBootstrap(null);
+  }, []);
+
+  useEffect(() => {
+    if (
+      placeIdPendingPlaceMetricsBootstrap != null &&
+      citySelection.placeId !== placeIdPendingPlaceMetricsBootstrap
+    ) {
+      setPlaceIdPendingPlaceMetricsBootstrap(null);
+    }
+  }, [citySelection.placeId, placeIdPendingPlaceMetricsBootstrap]);
 
   const handlePlaceRenamed = () => {
     refreshAllUserPlaces();
@@ -717,6 +744,7 @@ export default function DashboardPage() {
 
   const handlePlaceDeleted = (placeId: number) => {
     refreshAllUserPlaces();
+    setPlaceIdPendingPlaceMetricsBootstrap((p) => (p === placeId ? null : p));
     if (citySelection.placeId === placeId) {
       setCitySelection((prev) => ({ ...prev, placeId: null }));
       setInitialPlaceId(null);
@@ -1240,6 +1268,9 @@ export default function DashboardPage() {
                   requestOpenDistrictModal={requestOpenDistrictModal}
                   onClearDistrictModalRequest={() => setRequestOpenDistrictModal(null)}
                   onOfficialSelectionChange={onOfficialSelectionChange}
+                  bootstrapPlaceMetricsForPlaceId={placeIdPendingPlaceMetricsBootstrap}
+                  onConsumePlaceMetricsBootstrap={consumePlaceMetricsBootstrap}
+                  onRequestPlaceMetricsBootstrap={setPlaceIdPendingPlaceMetricsBootstrap}
                 />
               </div>
             </div>

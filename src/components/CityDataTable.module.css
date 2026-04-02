@@ -94,6 +94,34 @@
   background: #4b2a2a;
 }
 
+.launchedRow {
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.cityTable tbody tr.launchedRow:hover {
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.launchedCityName {
+  color: #059669;
+  font-weight: 600;
+}
+
+:global([data-theme="dark"]) .launchedCityName,
+:global(.dark) .launchedCityName {
+  color: #34d399;
+}
+
+:global([data-theme="dark"]) .launchedRow,
+:global(.dark) .launchedRow {
+  background: rgba(16, 185, 129, 0.08);
+}
+
+:global([data-theme="dark"]) .cityTable tbody tr.launchedRow:hover,
+:global(.dark) .cityTable tbody tr.launchedRow:hover {
+  background: rgba(16, 185, 129, 0.12);
+}
+
 .stateHeaderRow {
   background: var(--bg-secondary);
   border-top: 2px solid var(--border-primary);

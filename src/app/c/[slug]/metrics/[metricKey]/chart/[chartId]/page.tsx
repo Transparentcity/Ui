@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
   getPublicMetricByKey,
+  getPublicMetricTimeSeriesSummary,
   getPublicTimeSeriesChart,
 } from "@/lib/publicApiClient";
+import { findYearChartIdForDistrict } from "@/lib/selectPublicMetricCharts";
 import ChartViewClient from "./ChartViewClient";
 import "../../styles.css";
 import "./chart-view.css";
@@ -75,9 +77,23 @@ export default async function TimeSeriesChartPage({ params }: PageProps) {
     notFound();
   }
 
+  let yearChartId: number | null = null;
+  try {
+    const summary = await getPublicMetricTimeSeriesSummary(metric.id);
+    const district =
+      chart.metadata?.district !== undefined
+        ? chart.metadata.district
+        : null;
+    yearChartId = findYearChartIdForDistrict(summary.time_series, district);
+  } catch {
+    yearChartId = null;
+  }
+
   return (
     <ChartViewClient
       chart={chart}
+      urlChartId={chartIdNum}
+      yearChartId={yearChartId}
       metric={metric}
       citySlug={slug}
     />

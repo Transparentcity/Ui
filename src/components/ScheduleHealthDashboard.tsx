@@ -16,6 +16,7 @@ const SCHEDULE_KEYS = [
   { key: "daily_metrics", label: "Daily" },
   { key: "weekly_metrics", label: "Weekly" },
   { key: "monthly_metrics", label: "Monthly" },
+  { key: "annual_metrics", label: "Annual" },
 ] as const;
 
 type PeriodKey = (typeof SCHEDULE_KEYS)[number]["key"];
@@ -28,6 +29,8 @@ function freshCountForPeriod(f: CityFreshness, period: PeriodKey): number {
       return f.fresh_weekly;
     case "monthly_metrics":
       return f.fresh_monthly;
+    case "annual_metrics":
+      return f.fresh_annual;
     default:
       return 0;
   }
@@ -369,7 +372,7 @@ export default function ScheduleHealthDashboard({
           <h3 className={styles.title}>City schedule health</h3>
           <p className={styles.subtitle}>
             Top chip: last batch run per period. Bottom: data freshness via{" "}
-            <code>most_recent_data_date</code> (2d / 10d / 35d thresholds).
+            <code>most_recent_data_date</code> (2d / 10d / 35d / 400d thresholds).
             {lastLoaded && (
               <>
                 {" "}

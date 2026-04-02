@@ -95,7 +95,7 @@ export interface UseMetricsOptions {
  * Cache time: 2 minutes (metrics change frequently)
  */
 export function useMetrics(options: UseMetricsOptions = {}) {
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
 
   return useQuery({
     queryKey: metricKeys.list(options),
@@ -107,7 +107,7 @@ export function useMetrics(options: UseMetricsOptions = {}) {
       return listAdminMetrics(token, options);
     },
     staleTime: 2 * 60 * 1000, // 2 minutes - metrics can change frequently
-    enabled: !!isAuthenticated,
+    enabled: !isLoading && !!isAuthenticated,
   });
 }
 
@@ -171,7 +171,7 @@ export function useTemplateStructuringNotes(
  * Cache time: 1 minute (summary changes frequently)
  */
 export function useMetricsSummary() {
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
 
   return useQuery({
     queryKey: metricKeys.summary(),
@@ -183,7 +183,7 @@ export function useMetricsSummary() {
       return getAdminMetricsSummary(token);
     },
     staleTime: 1 * 60 * 1000, // 1 minute
-    enabled: !!isAuthenticated,
+    enabled: !isLoading && !!isAuthenticated,
   });
 }
 
@@ -192,16 +192,19 @@ export function useMetricsSummary() {
  * Cache time: 10 minutes (categories change rarely)
  */
 export function useMetricCategories() {
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
 
   return useQuery({
     queryKey: metricKeys.categories(),
     queryFn: async () => {
       const token = await getAccessTokenSilently();
+      if (!token?.trim()) {
+        throw new Error("Not authenticated: no access token. Log in and try again.");
+      }
       return listAdminMetricCategories(token);
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
-    enabled: !!isAuthenticated,
+    enabled: !isLoading && !!isAuthenticated,
   });
 }
 
@@ -210,16 +213,19 @@ export function useMetricCategories() {
  * Cache time: 10 minutes (types change rarely)
  */
 export function useMetricTypes() {
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
 
   return useQuery({
     queryKey: metricKeys.types(),
     queryFn: async () => {
       const token = await getAccessTokenSilently();
+      if (!token?.trim()) {
+        throw new Error("Not authenticated: no access token. Log in and try again.");
+      }
       return listAdminMetricTypes(token);
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
-    enabled: !!isAuthenticated,
+    enabled: !isLoading && !!isAuthenticated,
   });
 }
 
@@ -228,16 +234,19 @@ export function useMetricTypes() {
  * Cache time: 5 minutes
  */
 export function useMetricCities() {
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
 
   return useQuery({
     queryKey: metricKeys.cities(),
     queryFn: async () => {
       const token = await getAccessTokenSilently();
+      if (!token?.trim()) {
+        throw new Error("Not authenticated: no access token. Log in and try again.");
+      }
       return listAdminMetricCities(token);
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
-    enabled: !!isAuthenticated,
+    enabled: !isLoading && !!isAuthenticated,
   });
 }
 

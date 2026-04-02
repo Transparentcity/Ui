@@ -281,7 +281,7 @@ export function listAdminMetrics(
   if (options?.force_refresh) params.append("_t", Date.now().toString());
 
   const query = params.toString();
-  const path = `/api/admin/metrics/${query ? `?${query}` : ""}`;
+  const path = `/api/admin/metrics${query ? `?${query}` : ""}`;
   return request<AdminMetricListItem[]>(path, "GET", undefined, token);
 }
 
@@ -818,6 +818,8 @@ export interface MetricOrderingItem {
 export interface MetricOrderingResponse {
   city_id: number;
   orderings: MetricOrderingItem[];
+  /** True when from GET /api/admin/me/metric-ordering and user saved their own ordering. */
+  is_personal_order?: boolean;
 }
 
 export interface SaveMetricOrderingRequest {
