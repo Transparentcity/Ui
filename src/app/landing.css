@@ -1253,7 +1253,7 @@
 
 /* Footer */
 .footer {
-  padding: 64px 0 32px;
+  padding: 36px 0 24px;
   background: var(--bg-secondary);
 }
 
@@ -1835,7 +1835,7 @@
 /* Dashboard wrapper: visual prominence */
 .city-dashboard-wrapper {
   padding-top: 32px;
-  padding-bottom: 48px;
+  padding-bottom: 24px;
 }
 
 /* ── Benefits / sign-up section ── */
@@ -2237,7 +2237,7 @@
 
 /* Featured Stories */
 .featured-stories-section {
-  padding: 40px 0;
+  padding: 24px 0 16px;
 }
 
 .featured-stories-grid {
@@ -2250,6 +2250,10 @@
 .featured-stories-grid--single {
   grid-template-columns: 1fr;
   max-width: 700px;
+}
+
+.featured-stories-grid--2x2 {
+  grid-template-columns: 1fr 1fr;
 }
 
 .featured-story-card {
@@ -2340,7 +2344,7 @@
 
 /* Explainer + Bottom CTA */
 .city-explainer-section {
-  padding: 56px 0;
+  padding: 36px 0;
   background: var(--bg-secondary, #f8f9fa);
   border-top: 1px solid var(--border-primary);
 }
@@ -2418,7 +2422,7 @@
 
 .city-hero-v2-mayor {
   font-family: var(--font-body);
-  font-size: 1.15rem;
+  font-size: 1.35rem;
   font-weight: 700;
   color: var(--text-primary);
   margin: 0;

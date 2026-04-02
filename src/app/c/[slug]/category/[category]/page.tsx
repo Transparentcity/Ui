@@ -241,7 +241,7 @@ export default async function CityCategoryPage({
               )}
 
               <div className="hero-newsletter">
-                <EmailSignInLink label={`To get updates for ${cityDisplayName}.`} />
+                <EmailSignInLink label={`To get updates for ${cityDisplayName}`} />
               </div>
 
               {(() => {

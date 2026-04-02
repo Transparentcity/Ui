@@ -9,8 +9,9 @@ type Props = {
 export default function FeaturedStories({ slug, cityDisplayName, stories }: Props) {
   if (stories.length === 0) return null;
 
-  const featured = stories[0];
-  const secondary = stories.slice(1, 3);
+  // Show 4 stories when available (balanced 2x2 grid), otherwise up to 3
+  const visible = stories.slice(0, stories.length >= 4 ? 4 : 3);
+  const use2x2 = visible.length === 4;
 
   const storyHref = (story: PublicFeedStory) =>
     story.short_hash
@@ -25,6 +26,44 @@ export default function FeaturedStories({ slug, cityDisplayName, stories }: Prop
       year: "numeric",
     });
   };
+
+  // Balanced 2x2 grid: all stories rendered uniformly
+  if (use2x2) {
+    return (
+      <section className="featured-stories-section">
+        <div className="container">
+          <header className="section-header" style={{ marginBottom: "1.25rem" }}>
+            <span className="section-badge">What&rsquo;s happening</span>
+            <h2 className="section-heading">Latest from {cityDisplayName}</h2>
+          </header>
+
+          <div className="featured-stories-grid featured-stories-grid--2x2">
+            {visible.map((story) => (
+              <a
+                key={story.id}
+                href={storyHref(story)}
+                className="featured-story-card featured-story-card--secondary"
+              >
+                <h4 className="featured-story-headline-sm">{story.headline}</h4>
+                {story.description && (
+                  <p className="featured-story-desc-sm">{story.description}</p>
+                )}
+                {story.published_at && (
+                  <span className="featured-story-date">
+                    {formatDate(story.published_at)}
+                  </span>
+                )}
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Original layout: 1 primary + up to 2 secondary
+  const featured = visible[0];
+  const secondary = visible.slice(1);
 
   return (
     <section className="featured-stories-section">
