@@ -408,7 +408,7 @@ export default function HomeClient() {
                   onClick={handleSignup}
                   className={styles.ctaBtnPrimary}
                 >
-                  Get started free
+                  Get started
                 </button>
                 <a href="/pro" className={styles.ctaBtnOutline}>
                   Add your city
