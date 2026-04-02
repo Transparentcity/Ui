@@ -8,6 +8,7 @@ import { getNewsletterEdition } from "@/lib/newsletter";
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
+import NavEmailSignup from "../../NavEmailSignup";
 import CityHeroNewsletter from "../../CityHeroNewsletter";
 
 // Archive pages: cache permanently once rendered; never auto-revalidate.
@@ -109,20 +110,7 @@ export default async function NewsletterEditionPage({ params, searchParams }: Pa
   return (
     <>
       <PublicNavBar>
-        <Link href={backHref} className="nav-link">
-          ← {cityDisplay}
-        </Link>
-        {districtHref && (
-          <Link href={districtHref} className="nav-link">
-            District {edition.district}
-          </Link>
-        )}
-        <Link href="/sitemap" className="nav-link">
-          Site map
-        </Link>
-        <Link href="/" className="nav-link">
-          Home
-        </Link>
+        <NavEmailSignup citySlug={slug} cityName={edition.city_name ?? slug} />
       </PublicNavBar>
 
       <article

@@ -11,6 +11,7 @@ import {
 } from "@/lib/publicApiClient";
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
+import NavEmailSignup from "../../NavEmailSignup";
 import { processVisualizationShortcodes } from "@/lib/visualizationShortcodes";
 import ShareButton from "./ShareButton";
 import CityHeroNewsletter from "../../CityHeroNewsletter";
@@ -122,20 +123,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
   return (
     <>
       <PublicNavBar>
-        <Link href={backHref} className="nav-link">
-          ← {cityDisplay}
-        </Link>
-        {districtHref && (
-          <Link href={districtHref} className="nav-link">
-            District {story.district}
-          </Link>
-        )}
-        <Link href="/sitemap" className="nav-link">
-          Site map
-        </Link>
-        <Link href="/" className="nav-link">
-          Home
-        </Link>
+        <NavEmailSignup citySlug={slug} cityName={story.city_name ?? slug} />
       </PublicNavBar>
 
       <article

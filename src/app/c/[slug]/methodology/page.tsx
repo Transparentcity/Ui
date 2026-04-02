@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import PublicFooter from "@/components/PublicFooter";
+import PublicNavBar from "@/components/PublicNavBar";
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
 import { getDataPortalForCity } from "@/lib/dataPortals";
-import CitySignupButton from "../CitySignupButton";
+import NavEmailSignup from "../NavEmailSignup";
+import CityHeroNewsletter from "../CityHeroNewsletter";
 
 import "../../../landing.css";
 
@@ -72,24 +74,9 @@ export default async function MethodologyPage({ params }: PageProps) {
 
   return (
     <>
-      <nav className="navbar">
-        <div className="container">
-          <div className="nav-content">
-            <Link href="/" className="logo" style={{ textDecoration: "none" }}>
-              <span className="logo-text">
-                <span className="logo-transparent">transparent</span>
-                <span className="logo-city">.city</span>
-              </span>
-            </Link>
-            <div className="nav-links">
-              <Link href={`/c/${slug}`} className="nav-link">
-                ← {cityDisplay}
-              </Link>
-              <CitySignupButton />
-            </div>
-          </div>
-        </div>
-      </nav>
+      <PublicNavBar>
+        <NavEmailSignup citySlug={slug} cityName={cityName} />
+      </PublicNavBar>
 
       <main className="methodology-main">
         <div className="container">
@@ -214,6 +201,26 @@ export default async function MethodologyPage({ params }: PageProps) {
           </section>
         </div>
       </main>
+
+      {/* Explainer + bottom CTA (matching city page) */}
+      <section className="city-explainer-section">
+        <div className="container">
+          <div className="city-explainer-inner">
+            <p className="city-explainer-text">
+              {cityName}&rsquo;s public data, explained once a week.
+              Crime trends, housing, city services, and 311 reports, sourced
+              from {cityName}&rsquo;s open data portal with links to
+              every number.
+            </p>
+            <div className="city-explainer-cta">
+              <CityHeroNewsletter
+                cityName={cityName}
+                citySlug={slug}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
 
       <PublicFooter citySlug={slug} />
     </>
