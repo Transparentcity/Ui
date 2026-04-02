@@ -1,10 +1,13 @@
 import Link from "next/link";
+import PageFeedback from "@/components/PageFeedback";
 
 interface PublicFooterProps {
   citySlug?: string;
+  feedbackPageUrl?: string;
+  feedbackPageType?: string;
 }
 
-export default function PublicFooter({ citySlug }: PublicFooterProps) {
+export default function PublicFooter({ citySlug, feedbackPageUrl, feedbackPageType }: PublicFooterProps) {
   return (
     <footer className="footer">
       <div className="container">
@@ -49,6 +52,13 @@ export default function PublicFooter({ citySlug }: PublicFooterProps) {
         </div>
         <div className="footer-bottom">
           <p>&copy; {new Date().getFullYear()} Transparent.city.</p>
+          {feedbackPageUrl && (
+            <PageFeedback
+              pageUrl={feedbackPageUrl}
+              pageType={feedbackPageType}
+              variant="inline"
+            />
+          )}
         </div>
       </div>
     </footer>

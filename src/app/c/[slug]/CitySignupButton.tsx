@@ -47,13 +47,13 @@ export default function CitySignupButton() {
   };
 
   const handleLogin = async () => {
-    // Track login attempt
     trackLogin();
 
     await loginWithRedirect({
       authorizationParams: {
         screen_hint: "login",
         prompt: "login",
+        ...(prefillEmail && prefillEmail.includes("@") ? { login_hint: prefillEmail } : {}),
       },
       appState: { returnTo: "/dashboard" },
     });

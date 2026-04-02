@@ -1,0 +1,180 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import CitySignupButton from "./CitySignupButton";
+
+const mockLoginWithRedirect = vi.fn();
+const mockPush = vi.fn();
+
+vi.mock("@auth0/auth0-react", () => ({
+  useAuth0: () => ({
+    isAuthenticated: false,
+    isLoading: false,
+    loginWithRedirect: mockLoginWithRedirect,
+  }),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockPush }),
+}));
+
+let mockPrefillEmail = "";
+vi.mock("./SignupEmailContext", () => ({
+  useSignupEmail: () => ({
+    email: mockPrefillEmail,
+    setEmail: vi.fn(),
+  }),
+}));
+
+vi.mock("@/lib/analytics", () => ({
+  trackSignupStart: vi.fn(),
+  trackSignupClick: vi.fn(),
+  trackLogin: vi.fn(),
+}));
+
+describe("CitySignupButton", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockLoginWithRedirect.mockResolvedValue(undefined);
+    mockPrefillEmail = "";
+  });
+
+  it("renders sign in and sign up buttons", () => {
+    render(<CitySignupButton />);
+    expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /sign up/i })).toBeInTheDocument();
+  });
+
+  describe("sign up flow", () => {
+    it("shows dropdown with citizen and city staff options on click", async () => {
+      const user = userEvent.setup();
+      render(<CitySignupButton />);
+      await user.click(screen.getByRole("button", { name: /sign up/i }));
+
+      expect(screen.getByRole("menuitem", { name: /citizen/i })).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: /city staff/i })).toBeInTheDocument();
+    });
+
+    it("calls loginWithRedirect with resident intent", async () => {
+      const user = userEvent.setup();
+      render(<CitySignupButton />);
+      await user.click(screen.getByRole("button", { name: /sign up/i }));
+      await user.click(screen.getByRole("menuitem", { name: /citizen/i }));
+
+      expect(mockLoginWithRedirect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          authorizationParams: expect.objectContaining({
+            screen_hint: "signup",
+          }),
+          appState: { returnTo: "/dashboard?signup=resident" },
+        })
+      );
+    });
+
+    it("calls loginWithRedirect with public-servant intent", async () => {
+      const user = userEvent.setup();
+      render(<CitySignupButton />);
+      await user.click(screen.getByRole("button", { name: /sign up/i }));
+      await user.click(screen.getByRole("menuitem", { name: /city staff/i }));
+
+      expect(mockLoginWithRedirect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          authorizationParams: expect.objectContaining({
+            screen_hint: "signup",
+          }),
+          appState: { returnTo: "/dashboard?signup=public-servant" },
+        })
+      );
+    });
+
+    it("stores signup intent in localStorage", async () => {
+      const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+      const user = userEvent.setup();
+      render(<CitySignupButton />);
+      await user.click(screen.getByRole("button", { name: /sign up/i }));
+      await user.click(screen.getByRole("menuitem", { name: /citizen/i }));
+
+      expect(setItemSpy).toHaveBeenCalledWith(
+        "transparentcity.signup_intent",
+        "resident"
+      );
+      setItemSpy.mockRestore();
+    });
+
+    it("prefills email from context in signup flow", async () => {
+      mockPrefillEmail = "shared@example.com";
+      const user = userEvent.setup();
+      render(<CitySignupButton />);
+      await user.click(screen.getByRole("button", { name: /sign up/i }));
+      await user.click(screen.getByRole("menuitem", { name: /citizen/i }));
+
+      expect(mockLoginWithRedirect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          authorizationParams: expect.objectContaining({
+            login_hint: "shared@example.com",
+          }),
+        })
+      );
+    });
+
+    it("closes dropdown when clicking outside", async () => {
+      const user = userEvent.setup();
+      render(
+        <div>
+          <CitySignupButton />
+          <button>outside</button>
+        </div>
+      );
+      await user.click(screen.getByRole("button", { name: /sign up/i }));
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "outside" }));
+      await waitFor(() => {
+        expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("sign in flow", () => {
+    it("calls loginWithRedirect with login screen hint", async () => {
+      const user = userEvent.setup();
+      render(<CitySignupButton />);
+      await user.click(screen.getByRole("button", { name: /sign in/i }));
+
+      expect(mockLoginWithRedirect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          authorizationParams: expect.objectContaining({
+            screen_hint: "login",
+            prompt: "login",
+          }),
+          appState: { returnTo: "/dashboard" },
+        })
+      );
+    });
+
+    it("prefills email from context in sign-in flow", async () => {
+      mockPrefillEmail = "returning@example.com";
+      const user = userEvent.setup();
+      render(<CitySignupButton />);
+      await user.click(screen.getByRole("button", { name: /sign in/i }));
+
+      expect(mockLoginWithRedirect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          authorizationParams: expect.objectContaining({
+            login_hint: "returning@example.com",
+          }),
+        })
+      );
+    });
+
+    it("does not prefill invalid email in sign-in flow", async () => {
+      mockPrefillEmail = "not-valid";
+      const user = userEvent.setup();
+      render(<CitySignupButton />);
+      await user.click(screen.getByRole("button", { name: /sign in/i }));
+
+      const callArgs = mockLoginWithRedirect.mock.calls[0][0];
+      expect(callArgs.authorizationParams.login_hint).toBeUndefined();
+    });
+  });
+});

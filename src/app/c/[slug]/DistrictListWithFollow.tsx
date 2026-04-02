@@ -107,7 +107,13 @@ export default function DistrictListWithFollow({
       >
         By district
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
+          gap: "10px 24px",
+        }}
+      >
         {districts.map((d) => {
           const repList = leadersByDistrict[d] ?? [];
           const primaryRep = repList[0];
@@ -124,22 +130,23 @@ export default function DistrictListWithFollow({
               key={d}
               style={{
                 display: "flex",
-                flexWrap: "wrap",
                 alignItems: "center",
                 gap: 8,
               }}
             >
-              <Link
-                href={`${base}/district/${d}`}
-                className="nav-link"
-                style={{ fontSize: 14, fontWeight: 600, textDecoration: "none" }}
-              >
-                {cityDisplayName} District {d}
-                {repLabel ? ` – ${repLabel}` : ""}
-              </Link>
-              <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
-                ({count} {count === 1 ? "follower" : "followers"})
-              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <Link
+                  href={`${base}/district/${d}`}
+                  className="nav-link"
+                  style={{ fontSize: 14, fontWeight: 600, textDecoration: "none" }}
+                >
+                  {cityDisplayName} District {d}
+                  {repLabel ? ` – ${repLabel}` : ""}
+                </Link>
+                <span style={{ fontSize: 14, color: "var(--text-muted)", marginLeft: 6 }}>
+                  ({count} {count === 1 ? "follower" : "followers"})
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => handleFollowClick(d)}
@@ -148,6 +155,7 @@ export default function DistrictListWithFollow({
                   padding: "4px 10px",
                   fontSize: 12,
                   fontWeight: 500,
+                  flexShrink: 0,
                   color: following
                     ? "var(--brand-primary, #ad35fa)"
                     : "var(--text-on-brand, #ffffff)",
