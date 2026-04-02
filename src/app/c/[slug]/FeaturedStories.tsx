@@ -1,5 +1,6 @@
 import type { PublicFeedStory } from "@/lib/publicApiClient";
 import type { ReactNode } from "react";
+import SafeImage from "@/components/SafeImage";
 
 type Props = {
   slug: string;
@@ -87,8 +88,7 @@ export default function FeaturedStories({ slug, cityDisplayName, stories }: Prop
           {/* Primary story */}
           <StoryCard href={storyHref(featured)} className="featured-story-card featured-story-card--primary">
             {featured.image_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <SafeImage
                 src={featured.image_url}
                 alt=""
                 className="featured-story-img"

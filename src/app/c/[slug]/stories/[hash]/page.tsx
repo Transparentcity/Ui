@@ -11,6 +11,7 @@ import {
 } from "@/lib/publicApiClient";
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
+import SafeImage from "@/components/SafeImage";
 import NavEmailSignup from "../../NavEmailSignup";
 import { processVisualizationShortcodes } from "@/lib/visualizationShortcodes";
 import ShareButton from "./ShareButton";
@@ -208,8 +209,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         {/* Hero image */}
         {story.image_url && (
           <div style={{ marginBottom: 32, borderRadius: 8, overflow: "hidden" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <SafeImage
               src={story.image_url}
               alt={story.headline}
               style={{ width: "100%", height: "auto", display: "block" }}
