@@ -1,10 +1,18 @@
 import type { PublicFeedStory } from "@/lib/publicApiClient";
+import type { ReactNode } from "react";
 
 type Props = {
   slug: string;
   cityDisplayName: string;
   stories: PublicFeedStory[];
 };
+
+function StoryCard({ href, className, children }: { href: string | null; className: string; children: ReactNode }) {
+  if (href) {
+    return <a href={href} className={className}>{children}</a>;
+  }
+  return <div className={className}>{children}</div>;
+}
 
 export default function FeaturedStories({ slug, cityDisplayName, stories }: Props) {
   if (stories.length === 0) return null;
@@ -13,10 +21,12 @@ export default function FeaturedStories({ slug, cityDisplayName, stories }: Prop
   const visible = stories.slice(0, stories.length >= 4 ? 4 : 3);
   const use2x2 = visible.length === 4;
 
-  const storyHref = (story: PublicFeedStory) =>
+  const storyHref = (story: PublicFeedStory): string | null =>
     story.short_hash
       ? `/c/${slug}/stories/${story.short_hash}`
-      : story.detail_url;
+      : story.detail_url?.startsWith("/c/") || story.detail_url?.startsWith("/s/")
+        ? story.detail_url
+        : null;
 
   const formatDate = (dateStr?: string | null) => {
     if (!dateStr) return null;
@@ -39,7 +49,7 @@ export default function FeaturedStories({ slug, cityDisplayName, stories }: Prop
 
           <div className="featured-stories-grid featured-stories-grid--2x2">
             {visible.map((story) => (
-              <a
+              <StoryCard
                 key={story.id}
                 href={storyHref(story)}
                 className="featured-story-card featured-story-card--secondary"
@@ -53,7 +63,7 @@ export default function FeaturedStories({ slug, cityDisplayName, stories }: Prop
                     {formatDate(story.published_at)}
                   </span>
                 )}
-              </a>
+              </StoryCard>
             ))}
           </div>
         </div>
@@ -75,7 +85,7 @@ export default function FeaturedStories({ slug, cityDisplayName, stories }: Prop
 
         <div className={`featured-stories-grid ${secondary.length === 0 ? "featured-stories-grid--single" : ""}`}>
           {/* Primary story */}
-          <a href={storyHref(featured)} className="featured-story-card featured-story-card--primary">
+          <StoryCard href={storyHref(featured)} className="featured-story-card featured-story-card--primary">
             {featured.image_url && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -95,13 +105,13 @@ export default function FeaturedStories({ slug, cityDisplayName, stories }: Prop
                 </span>
               )}
             </div>
-          </a>
+          </StoryCard>
 
           {/* Secondary stories */}
           {secondary.length > 0 && (
             <div className="featured-stories-secondary">
               {secondary.map((story) => (
-                <a
+                <StoryCard
                   key={story.id}
                   href={storyHref(story)}
                   className="featured-story-card featured-story-card--secondary"
@@ -115,7 +125,7 @@ export default function FeaturedStories({ slug, cityDisplayName, stories }: Prop
                       {formatDate(story.published_at)}
                     </span>
                   )}
-                </a>
+                </StoryCard>
               ))}
             </div>
           )}
