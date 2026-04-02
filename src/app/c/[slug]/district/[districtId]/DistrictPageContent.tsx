@@ -13,6 +13,7 @@ import DistrictFollowClaimBlock from "../DistrictFollowClaimBlock";
 import EmailSignInLink from "../../EmailSignInLink";
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
+import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 
 export type DistrictPageContentProps = {
@@ -147,7 +148,7 @@ export default function DistrictPageContent({
                   : story.detail_url;
                 return (
                   <a key={story.id} href={href ?? "#"} className="district-story-card">
-                    <span className="district-story-headline">{story.headline}</span>
+                    <span className="district-story-headline">{improveGenericHeadline(story.headline, { description: story.description })}</span>
                     {story.description && (
                       <span className="district-story-desc">{story.description}</span>
                     )}

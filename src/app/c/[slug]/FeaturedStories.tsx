@@ -1,6 +1,7 @@
 import type { PublicFeedStory } from "@/lib/publicApiClient";
 import type { ReactNode } from "react";
 import SafeImage from "@/components/SafeImage";
+import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
 
 type Props = {
   slug: string;
@@ -13,6 +14,14 @@ function StoryCard({ href, className, children }: { href: string | null; classNa
     return <a href={href} className={className}>{children}</a>;
   }
   return <div className={className}>{children}</div>;
+}
+
+function storyHeadline(story: PublicFeedStory): string {
+  return improveGenericHeadline(story.headline, {
+    summary: story.summary,
+    description: story.description,
+    cityName: story.city_name,
+  });
 }
 
 export default function FeaturedStories({ slug, cityDisplayName, stories }: Props) {
@@ -55,7 +64,7 @@ export default function FeaturedStories({ slug, cityDisplayName, stories }: Prop
                 href={storyHref(story)}
                 className="featured-story-card featured-story-card--secondary"
               >
-                <h4 className="featured-story-headline-sm">{story.headline}</h4>
+                <h4 className="featured-story-headline-sm">{storyHeadline(story)}</h4>
                 {story.description && (
                   <p className="featured-story-desc-sm">{story.description}</p>
                 )}
@@ -95,7 +104,7 @@ export default function FeaturedStories({ slug, cityDisplayName, stories }: Prop
               />
             )}
             <div className="featured-story-body">
-              <h3 className="featured-story-headline">{featured.headline}</h3>
+              <h3 className="featured-story-headline">{storyHeadline(featured)}</h3>
               {featured.description && (
                 <p className="featured-story-desc">{featured.description}</p>
               )}
@@ -116,7 +125,7 @@ export default function FeaturedStories({ slug, cityDisplayName, stories }: Prop
                   href={storyHref(story)}
                   className="featured-story-card featured-story-card--secondary"
                 >
-                  <h4 className="featured-story-headline-sm">{story.headline}</h4>
+                  <h4 className="featured-story-headline-sm">{storyHeadline(story)}</h4>
                   {story.description && (
                     <p className="featured-story-desc-sm">{story.description}</p>
                   )}

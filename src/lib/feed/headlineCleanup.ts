@@ -172,6 +172,93 @@ export function improveContextHeadline(headline: string, cityName?: string): str
 }
 
 /**
+ * Known generic/placeholder headlines the backend falls back to when
+ * AI headline generation fails. Matched case-insensitively.
+ */
+const GENERIC_HEADLINES = new Set([
+  "the fact",
+  "the facts",
+  "fact",
+  "facts",
+]);
+
+/**
+ * Returns true if the headline is a generic placeholder that should be replaced.
+ */
+export function isGenericHeadline(headline: string): boolean {
+  if (!headline) return true;
+  return GENERIC_HEADLINES.has(headline.trim().toLowerCase());
+}
+
+/**
+ * Replace a generic placeholder headline ("The Fact", etc.) with a better one
+ * derived from available story fields.
+ *
+ * Priority:
+ *  1. Build from metadata (metric_name + pct_change)
+ *  2. Extract the first sentence of summary
+ *  3. Extract the first sentence of description
+ *  4. Return the original headline (unchanged) as last resort
+ */
+export function improveGenericHeadline(
+  headline: string,
+  opts: {
+    metadata?: Record<string, unknown> | null;
+    summary?: string | null;
+    description?: string | null;
+    cityName?: string | null;
+  },
+): string {
+  if (!isGenericHeadline(headline)) return headline;
+
+  const meta = opts.metadata ?? {};
+
+  // 1. Try to build from metric metadata
+  const metricName = (meta.metric_name ?? meta.metric_label ?? meta.category) as string | undefined;
+  const pct = (meta.pct_change ?? meta.trend_pct_change ?? meta.percent_change) as number | undefined;
+
+  if (metricName) {
+    const city = opts.cityName ?? "";
+    if (pct != null && Math.abs(pct) >= 1) {
+      const dir = pct > 0 ? "Up" : "Down";
+      const absPct = Math.abs(Math.round(pct));
+      const pctStr = absPct >= 100 ? `${Math.round(absPct / 100)}x` : `${absPct}%`;
+      return city
+        ? `${city}: ${metricName} ${dir} ${pctStr}`
+        : `${metricName} ${dir} ${pctStr}`;
+    }
+    return city ? `${city}: ${metricName}` : metricName;
+  }
+
+  // 2. Try summary first sentence
+  const summaryLine = extractFirstSentence(opts.summary);
+  if (summaryLine) return summaryLine;
+
+  // 3. Try description first sentence
+  const descLine = extractFirstSentence(opts.description);
+  if (descLine) return descLine;
+
+  // 4. Give up — return original
+  return headline;
+}
+
+/**
+ * Extract the first sentence (up to ~120 chars) from a text block.
+ * Returns null if the text is empty or too short to be useful.
+ */
+function extractFirstSentence(text?: string | null): string | null {
+  if (!text || text.trim().length < 10) return null;
+  const cleaned = text.trim().replace(/\s+/g, " ");
+  // Match up to the first sentence-ending punctuation
+  const match = cleaned.match(/^(.{10,120}?[.!?])(?:\s|$)/);
+  if (match) return match[1];
+  // No punctuation: take up to 100 chars at a word boundary
+  if (cleaned.length <= 100) return cleaned;
+  const truncated = cleaned.slice(0, 100).replace(/\s+\S*$/, "");
+  return truncated.length >= 10 ? truncated + "\u2026" : null;
+}
+
+/**
  * For multi-metric cards with generic "District N This Week — N Metrics Moving"
  * headlines, synthesize a better headline from the metrics data when available.
  */
