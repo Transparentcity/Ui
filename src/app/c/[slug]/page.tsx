@@ -28,10 +28,10 @@ import CityViewTracker from "./CityViewTracker";
 import CityPageClient from "./CityPageClient";
 import PublicNavBar from "@/components/PublicNavBar";
 import DashboardSwitch from "./DashboardSwitch";
+import DistrictFollowClaimBlock from "./district/DistrictFollowClaimBlock";
 import CityMapPreview from "./CityMapPreview";
 import FeaturedStories from "./FeaturedStories";
 import CityHeroNewsletter from "./CityHeroNewsletter";
-import PageFeedback from "@/components/PageFeedback";
 
 export const revalidate = 3600;
 
@@ -260,15 +260,15 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
             )}
           </div>
           <div className="city-hero-v2-right">
-            <p className="city-hero-v2-subtitle">
-              {city?.name
-                ? `${city.name}'s public data, tracked and explained.`
-                : "Public data, tracked and explained."}
-            </p>
             {cityDetail?.mayor?.name && (
-              <p className="city-hero-v2-mayor">
-                Mayor {cityDetail.mayor.name}
-              </p>
+              <div className="city-hero-v2-mayor-row">
+                <p className="city-hero-v2-mayor" style={{ margin: 0 }}>
+                  Mayor {cityDetail.mayor.name}
+                </p>
+                {city?.id && (
+                  <DistrictFollowClaimBlock cityId={city.id} district={0} slug={slug} />
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -386,11 +386,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         </div>
       </section>
 
-      <div className="container" style={{ paddingBottom: 8 }}>
-        <PageFeedback pageUrl={`/c/${slug}`} pageType="city" />
-      </div>
-
-      <PublicFooter citySlug={slug} />
+      <PublicFooter citySlug={slug} feedbackPageUrl={`/c/${slug}`} feedbackPageType="city" />
     </CityPageClient>
   );
 }

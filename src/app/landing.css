@@ -1293,8 +1293,137 @@
 .footer-bottom {
   padding-top: 32px;
   border-top: 1px solid var(--border);
-  text-align: center;
   color: var(--text-secondary);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Inline page feedback in footer */
+.footer-feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  transition: opacity 0.4s ease;
+}
+
+.footer-feedback-label {
+  color: var(--text-secondary, #6b7280);
+}
+
+.footer-feedback-thanks {
+  color: var(--text-secondary, #6b7280);
+}
+
+.footer-feedback-dot {
+  color: var(--text-secondary, #9ca3af);
+  user-select: none;
+}
+
+.footer-feedback-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--text-secondary, #6b7280);
+  transition: color 0.15s ease;
+}
+
+.footer-feedback-link:hover {
+  color: var(--brand-primary, #ad35fa);
+}
+
+.footer-feedback-link:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.footer-feedback-form {
+  width: 100%;
+  padding-top: 12px;
+  animation: pageFeedbackSlide 0.25s ease-out;
+}
+
+.footer-feedback-textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 8px;
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #111827);
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.footer-feedback-fields {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.footer-feedback-input {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 13px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 8px;
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #111827);
+  font-family: inherit;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.footer-feedback-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.footer-feedback-submit {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  background: var(--brand-primary, #ad35fa);
+  color: #fff;
+  font-family: inherit;
+  transition: opacity 0.15s ease;
+}
+
+.footer-feedback-submit:disabled {
+  background: var(--bg-secondary, #f5f5f5);
+  color: var(--text-secondary, #6b7280);
+  cursor: default;
+}
+
+.footer-feedback-cancel {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-secondary, #6b7280);
+  font-family: inherit;
+}
+
+@keyframes pageFeedbackSlide {
+  from { max-height: 0; opacity: 0; }
+  to   { max-height: 300px; opacity: 1; }
 }
 
 /* Responsive Layout Adjustments */
@@ -1392,6 +1521,19 @@
   .footer-content {
     grid-template-columns: 1fr;
     gap: 24px;
+  }
+
+  .footer-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .footer-feedback {
+    flex-wrap: wrap;
+  }
+
+  .footer-feedback-fields {
+    flex-direction: column;
   }
 
   .navbar {
@@ -2225,7 +2367,7 @@
 /* Hero v2 (two-column on desktop) */
 .city-hero-v2 {
   position: relative;
-  padding: 96px 0 24px;
+  padding: 76px 0 16px;
   background: var(--bg-primary, #fff);
   border-bottom: 1px solid var(--border-primary);
 }
@@ -2233,13 +2375,13 @@
 .city-hero-v2-inner {
   display: flex;
   align-items: center;
-  gap: 48px;
+  gap: 32px;
 }
 
 .city-hero-v2-left {
   flex: 0 0 auto;
   border-right: 1px solid var(--border-primary);
-  padding-right: 48px;
+  padding-right: 32px;
 }
 
 .city-hero-v2-title {
@@ -2276,10 +2418,27 @@
 
 .city-hero-v2-mayor {
   font-family: var(--font-body);
-  font-size: 1.35rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: var(--text-primary);
-  margin: 4px 0 10px;
+  margin: 0;
+}
+
+.city-hero-v2-mayor-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.city-hero-v2-mayor-row .hero-official-buttons {
+  margin-top: 0;
+}
+
+.city-hero-v2-mayor-row .hero-official-btn {
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: 5px;
 }
 
 .city-hero-v2-signup {
@@ -2336,11 +2495,11 @@
     grid-template-columns: 1fr;
   }
   .city-hero-v2 {
-    padding: 88px 0 16px;
+    padding: 72px 0 12px;
   }
   .city-hero-v2-inner {
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
     align-items: flex-start;
   }
   .city-hero-v2-left {

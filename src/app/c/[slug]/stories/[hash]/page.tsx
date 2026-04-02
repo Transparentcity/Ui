@@ -13,7 +13,6 @@ import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
 import { processVisualizationShortcodes } from "@/lib/visualizationShortcodes";
 import ShareButton from "./ShareButton";
-import PageFeedback from "@/components/PageFeedback";
 import CityHeroNewsletter from "../../CityHeroNewsletter";
 
 export const revalidate = 3600;
@@ -325,8 +324,6 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           />
         </div>
 
-        <PageFeedback pageUrl={`/c/${slug}/stories/${hash}`} pageType="story" />
-
         {/* Newsletter signup CTA */}
         <div style={{
           margin: "32px 0",
@@ -407,7 +404,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         )}
       </article>
 
-      <PublicFooter citySlug={slug} />
+      <PublicFooter citySlug={slug} feedbackPageUrl={`/c/${slug}/stories/${hash}`} feedbackPageType="story" />
 
       {/* Inline styles for article body */}
       <style>{`

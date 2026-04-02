@@ -7,9 +7,11 @@ type FeedbackState = "idle" | "explaining" | "submitting" | "thanked" | "already
 export default function PageFeedback({
   pageUrl,
   pageType,
+  variant = "standalone",
 }: {
   pageUrl: string;
   pageType?: string;
+  variant?: "standalone" | "inline";
 }) {
   const [state, setState] = useState<FeedbackState>("idle");
   const [explanation, setExplanation] = useState("");
@@ -29,7 +31,6 @@ export default function PageFeedback({
     } catch {
       // localStorage unavailable
     }
-    // Fade in
     requestAnimationFrame(() => setVisible(true));
   }, [storageKey]);
 
@@ -70,7 +71,23 @@ export default function PageFeedback({
     }
   };
 
-  // Shared styles
+  if (variant === "inline") {
+    return <InlineFeedback
+      state={state}
+      setState={setState}
+      visible={visible}
+      explanation={explanation}
+      setExplanation={setExplanation}
+      name={name}
+      setName={setName}
+      email={email}
+      setEmail={setEmail}
+      textareaRef={textareaRef}
+      submit={submit}
+    />;
+  }
+
+  // Standalone styles
   const containerStyle: React.CSSProperties = {
     borderTop: "1px solid var(--border-primary, #e5e7eb)",
     padding: "20px 0",
@@ -328,5 +345,128 @@ export default function PageFeedback({
         </>
       )}
     </div>
+  );
+}
+
+/* ---- Inline variant (for footer integration) ---- */
+
+function InlineFeedback({
+  state,
+  setState,
+  visible,
+  explanation,
+  setExplanation,
+  name,
+  setName,
+  email,
+  setEmail,
+  textareaRef,
+  submit,
+}: {
+  state: FeedbackState;
+  setState: (s: FeedbackState) => void;
+  visible: boolean;
+  explanation: string;
+  setExplanation: (s: string) => void;
+  name: string;
+  setName: (s: string) => void;
+  email: string;
+  setEmail: (s: string) => void;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  submit: (type: "accurate" | "wrong", text?: string) => Promise<void>;
+}) {
+  if (state === "already") return null;
+
+  if (state === "thanked") {
+    return (
+      <span className="footer-feedback" style={{ opacity: visible ? 1 : 0 }}>
+        <span className="footer-feedback-thanks">Thanks for your feedback!</span>
+      </span>
+    );
+  }
+
+  if (state === "error") {
+    return (
+      <span className="footer-feedback" style={{ opacity: visible ? 1 : 0 }}>
+        <span className="footer-feedback-label">Something went wrong.</span>
+        <button className="footer-feedback-link" onClick={() => setState("idle")}>
+          Try again
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <>
+      <span className="footer-feedback" style={{ opacity: visible ? 1 : 0 }}>
+        <span className="footer-feedback-label">Is this page accurate?</span>
+        <button
+          className="footer-feedback-link footer-feedback-yes"
+          onClick={() => submit("accurate")}
+          disabled={state === "submitting"}
+        >
+          Yes
+        </button>
+        <span className="footer-feedback-dot">&middot;</span>
+        <button
+          className="footer-feedback-link footer-feedback-wrong"
+          onClick={() => { if (state === "idle") setState("explaining"); }}
+          disabled={state === "submitting"}
+        >
+          Something wrong
+        </button>
+      </span>
+
+      {(state === "explaining" || state === "submitting") && (
+        <div className="footer-feedback-form">
+          <textarea
+            ref={textareaRef}
+            value={explanation}
+            onChange={(e) => setExplanation(e.target.value)}
+            placeholder="What looks wrong? (e.g., outdated numbers, incorrect comparison...)"
+            disabled={state === "submitting"}
+            maxLength={2000}
+            className="footer-feedback-textarea"
+          />
+          <div className="footer-feedback-fields">
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Name (optional)"
+              disabled={state === "submitting"}
+              maxLength={200}
+              className="footer-feedback-input"
+            />
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email (optional)"
+              disabled={state === "submitting"}
+              maxLength={320}
+              className="footer-feedback-input"
+            />
+          </div>
+          <div className="footer-feedback-actions">
+            <button
+              className="footer-feedback-submit"
+              onClick={() => submit("wrong", explanation)}
+              disabled={state === "submitting" || !explanation.trim()}
+            >
+              {state === "submitting" ? "Sending..." : "Submit"}
+            </button>
+            {state !== "submitting" && (
+              <button
+                className="footer-feedback-cancel"
+                onClick={() => { setState("idle"); setExplanation(""); }}
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
