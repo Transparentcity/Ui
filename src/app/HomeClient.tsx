@@ -325,7 +325,7 @@ export default function HomeClient() {
                   onClick={handleSignup}
                   className={`${styles.button} ${styles.buttonPrimary} ${styles.heroBtn}`}
                 >
-                  Get your city feed, free
+                  Get your city feed
                 </button>
 
                 {liveCities.length > 0 && (
