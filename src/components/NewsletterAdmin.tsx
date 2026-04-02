@@ -33,40 +33,135 @@ const TABS: { id: TabId; label: string }[] = [
 
 const PAGE_SIZE = 50;
 
-const DEFAULT_WEEKLY_PROMPT = `Create a weekly newsletter report for {city_name} ({district_label}).
+const DEFAULT_WEEKLY_PROMPT = `**This newsletter is for:** {city_name} ({district_label}). All data and comparisons must be for this city only.
 
-Focus on:
-- Recent changes and trends in key metrics (crime, housing, permits, 311 calls, budget)
-- Notable anomalies or significant shifts
-- Comparative analysis (this period vs. previous period, this district vs. city-wide)
-- Actionable insights for residents and officials
+Your primary job is to **follow the subscriber's request and give them exactly what they are asking for**. If an "Additional focus from the user" (or similar) appears below, treat it as the top priority: address it directly and include the content, data, or visuals they asked for. Then use the steps and rules below to write a **personalized {frequency} email** for {city_name} **{district_label}** that will be sent directly to the subscriber. It should feel like an email they want to open, not a formal report.
 
-The report should be:
-- Accessible to general public (avoid jargon)
-- Data-driven with specific numbers and percentages
-- Highlight both positive and concerning trends
-- Include visualizations (charts, maps) where helpful
-- Suggest what these trends might mean for residents
+**Rules about what to prefer showing**
+- **Image URLs from existing data**: When tools or data return **image URLs** (e.g. from 311/service request tables, case records, or visualization APIs), **include them in the email** as concrete examples. Image URLs from 311 data are especially valuable — they show real cases such as sidewalk cracks, graffiti, potholes, street lighting, illegal dumping, and other service requests. Prefer showing these when available so subscribers see real examples of what's being reported in their area.
+- Use the tools explicitly; do not skip steps. The content will be emailed to residents and officials: write in plain language (avoid jargon), include specific numbers and percentages, and balance positive and concerning trends. **Write as if to one person** — warm and direct, not like a memo or formal report.
+- Do not invent numbers. If a metric or comparison is missing, say "Data not available for this period" and move on.
 
-Format as a newsletter-style summary that could be emailed to subscribers interested in {district_label} news.`;
+---
 
-const DEFAULT_MONTHLY_PROMPT = `Create a monthly newsletter report for {city_name} ({district_label}).
+## STEP 1: Resolve city and discover metrics
 
-Focus on:
-- Month-over-month trends across all key metrics (crime, housing, permits, 311 calls, budget)
-- Significant anomalies and their potential causes
-- District vs. city-wide comparative analysis
-- Year-over-year comparisons where relevant
-- Policy impacts or notable government actions
+1. **City**: Call search_city(query='{city_name}') to get city_id, then use it for all subsequent calls.
+2. **List metrics by domain**: Call list_metrics(category='crime', is_active=True, limit=20), then do the same for categories: housing, economy (or permits), and any category that covers 311/service requests and budget if available. Note the **metric_id** values for key metrics in: crime, housing, permits, 311/service requests, and budget (if present).
 
-The report should be:
-- Accessible to general public (avoid jargon)
-- Data-driven with specific numbers and percentages
+---
+
+## STEP 2: Get dashboard comparisons ({district_label} vs city-wide)
+
+3. **Dashboard**: Call get_dashboard_comparisons(city_id=<city_id>, comparison_types=['ytd','mtd','mtd_prior_year']). For district editions, also call with the district parameter and compare both.
+
+From these calls, extract current vs prior period values and **percent changes** for each metric. For district editions, note whether the district is improving or lagging relative to city-wide.
+
+---
+
+## STEP 3: Identify and surface anomalies
+
+5. For each **key metric_id** you noted in Step 1 (crime, housing, permits, 311, budget), call:
+   - get_anomalies(metric_id=<id>, only_anomalies=True, limit=10).
+   Optionally filter by period_type='week' or 'month' for weekly report relevance.
+6. For any anomaly result you plan to mention in the email, call **show_anomaly(result_id=<id>)** so the anomaly chart is embedded in the response. Do not just describe anomalies — show the chart.
+
+Summarize which metrics had notable anomalies (spikes or drops), and whether any anomaly is specific to the district (if the anomaly result includes district).
+
+---
+
+## STEP 4: Deeper analysis for narrative and comparisons
+
+7. For 2-3 metrics that are most important or had the biggest changes, call:
+   - get_metric_analysis(metric_id=<id>, district=0, include_time_series=True, include_anomalies=True) for city-wide.
+   - For district editions, also call with the district number for comparison.
+8. From the analysis response, if you get a **chart_id** for a time series, call **show_time_series(chart_id=<id>)** for at least one trend per major domain. Show the chart, don't only describe it.
+
+Use this to write **this period vs previous period** (e.g., "This month vs last month", "YTD vs same period last year").
+
+---
+
+## STEP 5: Add one geographic visualization
+
+9. Call **generate_map** with a metric and time window relevant to the city, e.g.:
+   - generate_map(title='Key incidents this month', metric_id=<crime_or_311_metric_id>, city_id=<city_id>, start_date=<first_day_of_month>, end_date=<last_day_of_month>).
+   If the tool returns a map_id, call **show_map(map_id=<map_id>)** so the map is embedded.
+
+---
+
+## STEP 6: Write the email
+
+10. **Write the email** so it feels like a message to the subscriber, not a formal report. Use short paragraphs and a conversational flow. Use subheads only where they help the reader scan; avoid long, formal section titles.
+
+    **HEADLINE AND STRUCTURE:**
+    - The headline is the single most important element. It should name ONE key fact with real depth and connect it to other factors. Think of it as the lead of a news story: specific, surprising, grounded in data.
+    - Good: "Property crime fell 17% this week, but drug incidents in one sector spiked 488%"
+    - Bad: "Austin by the Numbers — Weekly Citywide Snapshot" (too generic, restates the title)
+    - Bad: "Crime, Permits, and 311: A Mixed Week" (too vague)
+    - The headline goes in an <h2> tag (NOT <h1> — the page title is rendered separately by the UI).
+    - After the headline, lead with the key fact in more depth (3-4 sentences exploring what it means, why it matters, what context it needs). This anchoring story should have more depth than other pieces.
+    - Then cover 2-3 other notable findings more briefly, each with specific numbers.
+
+    Include:
+
+    - **Headline** (as <h2>)
+      ONE key finding that anchors the whole dispatch. Specific, data-driven, names the situation.
+
+    - **Lead section**
+      3-4 sentences expanding on the headline finding. What happened, why it matters, what residents should know. This gets the most depth.
+
+    - **Other findings**
+      2-3 additional notable data points from crime, housing, permits, 311 calls, budget. 1-2 sentences each with **specific numbers and percentages**. Use phrases like "up 12% YTD" or "down 5% from last month."
+
+    - **Notable anomalies**
+      Describe any significant spikes or drops, and **reference the anomaly charts you embedded** (e.g., "As the chart above shows..."). Say whether they're district-specific or city-wide.
+
+    - **City-wide highlights** (or District vs city-wide for district editions)
+      Comparative summary: where the city/district is improving or where attention is needed, with numbers.
+
+    - **What you can do**
+      Brief, actionable note: what residents might do (e.g., where to report issues) and what officials might focus on. Keep it to 1-2 sentences.
+
+    - **Sign-off**
+      A short closing line (e.g. where to find more data or how to get updates), then a simple sign-off like "— The TransparentCity team" or similar so it reads as an email.
+
+11. **Tone and style**
+    - Write as if to **one person** (the subscriber). Warm, direct, scannable. Avoid the tone of a formal report or memo.
+    - Accessible to the general public; avoid technical jargon.
+    - Data-driven: every claim should tie to a number or percentage from your tool outputs.
+    - Balance: mention both positive and concerning trends.
+    - Suggest what the trends might mean; don't only list numbers.
+
+12. **Visuals and images**
+    - Include at least: (a) 1-2 anomaly charts (show_anomaly), (b) 1-2 time series charts (show_time_series), and (c) 1 map (show_map after generate_map). Reference each in the text (e.g., "The chart above shows...").
+    - **Prefer including image URLs when your tools or data provide them**: e.g. 311 case photos from existing tables (sidewalk cracks, graffiti, potholes, street defects, illegal dumping, etc.).
+
+Complete all steps in order before writing the final email. If "Additional focus from the user" was provided, ensure the email directly addresses that request.`;
+
+const DEFAULT_MONTHLY_PROMPT = `**This newsletter is for:** {city_name} ({district_label}). All data and comparisons must be for this city only.
+
+Your primary job is to write a **personalized monthly email** for {city_name} **{district_label}** that will be sent directly to the subscriber. It should feel like an email they want to open, not a formal report.
+
+Follow the same steps and rules as the weekly prompt, but with these adjustments:
+
+- Focus on **month-over-month trends** across all key metrics (crime, housing, permits, 311 calls, budget)
+- Include **year-over-year comparisons** where relevant
 - Provide broader context for trends (not just raw numbers)
-- Include visualizations (charts, maps) where helpful
 - Summarize what changed, why it matters, and what to watch next
+- Use comparison_types=['ytd','mtd','mtd_prior_year'] for dashboard calls
 
-Format as a monthly newsletter digest for subscribers interested in {district_label}.`;
+**HEADLINE AND STRUCTURE:**
+- The headline should name ONE key monthly finding with depth and connect it to other factors.
+- Good: "Permit applications collapsed 70% this month while commercial filings surged"
+- Bad: "Monthly City Update" (too generic)
+- The headline goes in an <h2> tag (NOT <h1>).
+- Lead with the key finding in 3-4 sentences, then cover 2-3 other notable monthly data points more briefly.
+
+**Tone**: Write as if to one person. Warm, direct, scannable. Data-driven with specific numbers. Balance positive and concerning trends.
+
+**Visuals**: Include at least 1-2 anomaly charts, 1-2 time series charts, and 1 map. Reference each in the text.
+
+Complete all steps in order before writing the final email.`;
 
 // ---------------------------------------------------------------------------
 // Helpers

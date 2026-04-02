@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { getResearchByHash, ResearchReport } from "@/lib/apiClient";
 import { getPublicFeedStoryByHash } from "@/lib/publicApiClient";
 import ReportContent from "@/components/ReportContent";
+import PublicFooter from "@/components/PublicFooter";
 import "../../research/brand-styles.css";
 import "./styles.css";
 
@@ -224,7 +225,7 @@ export default function PublicResearchPage() {
                 ry="3"
                 mask="url(#logo-mask-bl-research)"
                 fill="var(--text-primary)"
-                transform="translate(23.5, -23.5)"
+                transform="translate(23.5%, -23.5%)"
               />
               <rect
                 className="brace"
@@ -236,7 +237,7 @@ export default function PublicResearchPage() {
                 ry="3"
                 mask="url(#logo-mask-tr-research)"
                 fill="var(--text-primary)"
-                transform="translate(-23.5, 23.5)"
+                transform="translate(-23.5%, 23.5%)"
               />
             </svg>
           </div>
@@ -335,18 +336,40 @@ export default function PublicResearchPage() {
             )}
           </div>
           
-          <div className="cta-section">
-            <h3>Create Your Own Research</h3>
-            <p>
-              Investigate complex questions about your city using AI-powered analysis
-              of public data.
-            </p>
-            <a href="/research/new" className="cta-button">
-              Start Researching
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid var(--border-primary, rgba(17,24,39,0.08))" }}>
+            <a
+              href="/"
+              style={{ color: "var(--brand-primary, #ad35fa)", textDecoration: "none", fontSize: "0.95rem" }}
+            >
+              ← Back to the feed
             </a>
+            <button
+              onClick={handleShare}
+              style={{
+                marginLeft: "auto",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                padding: "0.5rem 1rem",
+                fontSize: "0.9rem",
+                background: "var(--bg-secondary, #f5f5f5)",
+                border: "1px solid var(--border-primary, #e5e7eb)",
+                borderRadius: "6px",
+                color: "var(--text-secondary, #666)",
+                cursor: "pointer",
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                <polyline points="16 6 12 2 8 6" />
+                <line x1="12" y1="2" x2="12" y2="15" />
+              </svg>
+              Share
+            </button>
           </div>
         </footer>
       </article>
+      <PublicFooter />
     </div>
   );
 }
