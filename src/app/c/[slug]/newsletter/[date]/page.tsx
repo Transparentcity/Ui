@@ -7,6 +7,8 @@ import "../../../../landing.css";
 import { getNewsletterEdition } from "@/lib/newsletter";
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
 import PublicNavBar from "@/components/PublicNavBar";
+import PublicFooter from "@/components/PublicFooter";
+import CityHeroNewsletter from "../../CityHeroNewsletter";
 
 // Archive pages: cache permanently once rendered; never auto-revalidate.
 // If an edition is regenerated, redeploy or manually purge the route cache.
@@ -203,6 +205,31 @@ export default async function NewsletterEditionPage({ params, searchParams }: Pa
           dangerouslySetInnerHTML={{ __html: edition.body_html }}
         />
 
+        {/* Newsletter signup CTA */}
+        <div style={{
+          margin: "32px 0",
+          padding: "24px",
+          borderRadius: 12,
+          background: "var(--bg-secondary, #f5f5f5)",
+        }}>
+          <p style={{
+            fontSize: 15,
+            fontWeight: 600,
+            margin: "0 0 4px",
+            color: "var(--text-primary)",
+          }}>
+            Get this in your inbox every week
+          </p>
+          <p style={{
+            fontSize: 13,
+            color: "var(--text-secondary)",
+            margin: "0 0 8px",
+          }}>
+            Sign up to receive {cityDisplay}&rsquo;s weekly briefing{districtLabel ? ` for District ${edition.district}` : ""}.
+          </p>
+          <CityHeroNewsletter cityName={cityDisplay} citySlug={slug} />
+        </div>
+
         <hr style={{ border: "none", borderTop: "1px solid var(--border-primary, #e5e7eb)", margin: "32px 0" }} />
 
         <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
@@ -211,6 +238,8 @@ export default async function NewsletterEditionPage({ params, searchParams }: Pa
           </Link>
         </div>
       </article>
+
+      <PublicFooter citySlug={slug} />
 
       <style>{`
         .newsletter-edition-body h1,

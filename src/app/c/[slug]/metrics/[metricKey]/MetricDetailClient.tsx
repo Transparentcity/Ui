@@ -5,6 +5,7 @@ import { useId, useEffect } from "react";
 import type { PublicMetricDetail, PublicMetricComparisons, PublicTimeSeriesSummary } from "@/lib/publicApiClient";
 import MetricDetailContent from "@/components/MetricDetailContent";
 import CitySignupButton from "../../CitySignupButton";
+import EmailSignInLink from "../../EmailSignInLink";
 import { trackMetricView } from "@/lib/analytics";
 import "@/app/landing.css";
 import "@/components/MetricDetailModal.css";
@@ -124,6 +125,33 @@ export default function MetricDetailClient({
           initialComparisons={initialComparisons}
           initialTimeSeriesSummary={initialTimeSeriesSummary}
         />
+      </div>
+
+      {/* Newsletter signup CTA */}
+      <div className="container" style={{ paddingBottom: 32 }}>
+        <div style={{
+          padding: "24px",
+          borderRadius: 12,
+          background: "var(--bg-secondary, #f5f5f5)",
+          maxWidth: 480,
+        }}>
+          <p style={{
+            fontSize: 15,
+            fontWeight: 600,
+            margin: "0 0 4px",
+            color: "var(--text-primary)",
+          }}>
+            Track {cityName} metrics weekly
+          </p>
+          <p style={{
+            fontSize: 13,
+            color: "var(--text-secondary)",
+            margin: "0 0 8px",
+          }}>
+            Get a weekly briefing with the latest data for {cityName}.
+          </p>
+          <EmailSignInLink label={`To get updates for ${cityName}.`} />
+        </div>
       </div>
 
       <footer className="footer">

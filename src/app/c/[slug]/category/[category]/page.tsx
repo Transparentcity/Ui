@@ -198,14 +198,9 @@ export default async function CityCategoryPage({
               </span>
             </Link>
             <div className="nav-links">
-              <a
-                href="https://www.transparentsf.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="nav-link"
-              >
-                Newsletter
-              </a>
+              <Link href={`/c/${slug}`} className="nav-link">
+                {cityDisplayName}
+              </Link>
               <Link href="/sitemap" className="nav-link">
                 Site map
               </Link>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import PublicFooter from "@/components/PublicFooter";
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
 import { getDataPortalForCity } from "@/lib/dataPortals";
 import CitySignupButton from "../CitySignupButton";
@@ -83,20 +84,6 @@ export default async function MethodologyPage({ params }: PageProps) {
             <div className="nav-links">
               <Link href={`/c/${slug}`} className="nav-link">
                 ← {cityDisplay}
-              </Link>
-              <a
-                href="https://www.transparent.city"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="nav-link"
-              >
-                Newsletter
-              </a>
-              <Link href="/sitemap" className="nav-link">
-                Site map
-              </Link>
-              <Link href="/" className="nav-link">
-                Home
               </Link>
               <CitySignupButton />
             </div>
@@ -228,39 +215,7 @@ export default async function MethodologyPage({ params }: PageProps) {
         </div>
       </main>
 
-      <footer className="footer">
-        <div className="container">
-          <div className="footer-content">
-            <div className="footer-column">
-              <div className="logo">
-                <span className="logo-text">
-                  <span className="logo-transparent">transparent</span>
-                  <span className="logo-city">.city</span>
-                </span>
-              </div>
-              <p className="footer-description">
-                Maps, metrics, and research built from public city data—so
-                residents and elected officials can share the same picture of
-                what’s happening.
-              </p>
-            </div>
-            <div className="footer-column">
-              <h4 className="footer-title">Resources</h4>
-              <Link href={`/c/${slug}/methodology`} className="footer-link">
-                Methodology
-              </Link>
-              <Link href="/sitemap" className="footer-link">
-                Site Map
-              </Link>
-            </div>
-          </div>
-          <div className="footer-bottom">
-            <p>
-              &copy; 2026 Transparent.city.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <PublicFooter citySlug={slug} />
     </>
   );
 }

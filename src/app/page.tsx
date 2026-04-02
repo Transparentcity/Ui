@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import HomeClient from "./HomeClient";
+import "./landing.css";
 
 export const metadata: Metadata = {
   title: "Transparent.city \u2013 See What\u2019s Working in Your City",

@@ -4,6 +4,7 @@ import styles from "./home.module.css";
 // This file is the client-side home page component.
 // The RSC wrapper (page.tsx) exports metadata and canonical tags.
 import { useAuth0 } from "@auth0/auth0-react";
+import PublicFooter from "@/components/PublicFooter";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -418,59 +419,7 @@ export default function HomeClient() {
         </section>
       </main>
 
-      <footer className={styles.footer}>
-        <div className={styles.container}>
-          <div className={styles.footerGrid}>
-            <div>
-              <div className={styles.brandText}>
-                transparent<span className={styles.brandDotCity}>.city</span>
-              </div>
-              <p className={styles.finePrint}>
-                Facts for residents. Evidence for city staff. Accountability for everyone.
-              </p>
-              <p className={styles.finePrint}>
-                All data sourced from official city open data portals with documented queries and direct links.
-              </p>
-              <p className={styles.finePrint} style={{ marginTop: 12 }}>
-                &copy; 2026 Transparent.city
-              </p>
-            </div>
-            <div>
-              <div className={styles.sideTitle}>Start</div>
-              <div style={{ display: "grid", gap: 6, marginTop: 8 }}>
-                <Link className={styles.link} href="/landing">
-                  Learn more
-                </Link>
-                <Link className={styles.link} href="/pro">
-                  Add Your City
-                </Link>
-                <Link className={styles.link} href="/debug/health">
-                  API health
-                </Link>
-                <Link className={styles.link} href="/sitemap">
-                  Site map
-                </Link>
-              </div>
-            </div>
-            <div>
-              <div className={styles.sideTitle}>Updates</div>
-              <div style={{ display: "grid", gap: 6, marginTop: 8 }}>
-                <a
-                  className={styles.link}
-                  href="https://www.transparentsf.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Newsletter
-                </a>
-                <a className={styles.link} href="mailto:hello@transparentcity.com">
-                  Contact
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }
