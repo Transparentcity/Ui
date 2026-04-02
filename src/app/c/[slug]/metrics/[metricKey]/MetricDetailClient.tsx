@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import type { PublicMetricDetail, PublicMetricComparisons, PublicTimeSeriesSummary } from "@/lib/publicApiClient";
 import MetricDetailContent from "@/components/MetricDetailContent";
 import PublicNavBar from "@/components/PublicNavBar";
@@ -46,6 +47,13 @@ export default function MetricDetailClient({
         <NavEmailSignup citySlug={citySlug} cityName={cityName} />
       </PublicNavBar>
       <div className="metric-detail-content-wrapper">
+        <nav className="metric-detail-breadcrumb" aria-label="Breadcrumb">
+          <Link href={`/c/${citySlug}`} className="metric-detail-breadcrumb-link">
+            {cityName}
+          </Link>
+          <span className="metric-detail-breadcrumb-sep">/</span>
+          <span>{metric.category || "Metrics"}</span>
+        </nav>
         <h1 className="metric-detail-page-title">
           <span className="metric-detail-title-text">{metric.metric_name} in {year}</span>
           <a
