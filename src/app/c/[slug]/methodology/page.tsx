@@ -7,6 +7,7 @@ import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
 import { getDataPortalForCity } from "@/lib/dataPortals";
 import NavEmailSignup from "../NavEmailSignup";
 import CityHeroNewsletter from "../CityHeroNewsletter";
+import { SignupEmailProvider } from "../SignupEmailContext";
 
 import "../../../landing.css";
 
@@ -73,7 +74,7 @@ export default async function MethodologyPage({ params }: PageProps) {
   const dataPortal = getDataPortalForCity(slug, city?.name);
 
   return (
-    <>
+    <SignupEmailProvider>
       <PublicNavBar>
         <NavEmailSignup citySlug={slug} cityName={cityName} />
       </PublicNavBar>
@@ -222,7 +223,7 @@ export default async function MethodologyPage({ params }: PageProps) {
         </div>
       </section>
 
-      <PublicFooter citySlug={slug} />
-    </>
+      <PublicFooter citySlug={slug} feedbackPageUrl={`/c/${slug}/methodology`} feedbackPageType="methodology" />
+    </SignupEmailProvider>
   );
 }

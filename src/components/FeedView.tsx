@@ -24,6 +24,7 @@ import {
 import { API_BASE, getApiBaseUrlForAssets } from "@/lib/apiBase";
 import { feedKeys } from "@/lib/hooks/useFeed";
 import Loader from "./Loader";
+import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
 import styles from "./FeedView.module.css";
 
 function HideStoryIcon() {
@@ -706,7 +707,7 @@ export default function FeedView({
 
                 {/* Content */}
                 <div className={styles.storyContent}>
-                  <h2 className={styles.storyHeadline}>{story.headline}</h2>
+                  <h2 className={styles.storyHeadline}>{improveGenericHeadline(story.headline, { metadata: story.metadata, summary: story.summary, description: story.description, cityName: story.city_name })}</h2>
                   <p className={styles.storyDescription}>{story.description}</p>
                 </div>
 
