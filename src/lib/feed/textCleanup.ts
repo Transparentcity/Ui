@@ -154,6 +154,10 @@ function stripRedundantGeography(
   // Strip "in [City Name]" mid-sentence (e.g., "Motor vehicle thefts in San Francisco dropped")
   if (cityName) {
     const esc = cityName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Handle possessive forms first ("in Oakland's", "of Oakland's") before
+    // plain forms, so we don't orphan the "'s" suffix.
+    cleaned = cleaned.replace(new RegExp(`\\bin\\s+${esc}'s\\b`, 'gi'), '');
+    cleaned = cleaned.replace(new RegExp(`\\bof\\s+${esc}'s\\b`, 'gi'), '');
     cleaned = cleaned.replace(new RegExp(`\\bin\\s+${esc}\\b,?\\s*`, 'gi'), '');
     cleaned = cleaned.replace(new RegExp(`\\bof\\s+${esc}\\b,?\\s*`, 'gi'), '');
     cleaned = cleaned.replace(new RegExp(`\\b${esc}'s\\b`, 'gi'), '');
@@ -172,6 +176,8 @@ function stripRedundantGeography(
       // Skip city name (already handled above), district labels like "D6", and "City-wide"
       if (!trimmed || trimmed === cityName || /^D\d+$/i.test(trimmed) || trimmed === 'City-wide') continue;
       const esc = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Strip "in [Neighborhood]'s" possessive form before plain form to avoid orphaning "'s"
+      cleaned = cleaned.replace(new RegExp(`\\bin\\s+${esc}'s\\b`, 'gi'), '');
       // Strip "in [Neighborhood]" pattern
       cleaned = cleaned.replace(new RegExp(`\\bin\\s+${esc}\\b,?\\s*`, 'gi'), '');
       // Strip standalone "[Neighborhood] —" or "[Neighborhood]:" prefix
