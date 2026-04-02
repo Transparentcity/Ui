@@ -51,7 +51,17 @@ export default function PublicFooter({ citySlug, feedbackPageUrl, feedbackPageTy
           </div>
         </div>
         <div className="footer-bottom">
-          <p>&copy; {new Date().getFullYear()} Transparent.city.</p>
+          <p>
+            &copy; {new Date().getFullYear()} Transparent.city
+            {" "}
+            <Link href="/terms" className="footer-link" style={{ display: "inline", marginLeft: "0.5rem" }}>
+              Terms
+            </Link>
+            {" "}
+            <Link href="/privacy" className="footer-link" style={{ display: "inline", marginLeft: "0.5rem" }}>
+              Privacy
+            </Link>
+          </p>
           {feedbackPageUrl && (
             <PageFeedback
               pageUrl={feedbackPageUrl}

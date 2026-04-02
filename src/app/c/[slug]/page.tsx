@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import { CityStructuredData } from "@/components/StructuredData";
 import PublicFooter from "@/components/PublicFooter";
@@ -19,7 +18,6 @@ import {
   type PublicFeedStory,
   type PublicMetricOrderingResponse,
 } from "@/lib/publicApiClient";
-import { listNewsletterEditionsForSitemap } from "@/lib/newsletter";
 import CitySignupButton from "./CitySignupButton";
 import NavEmailSignup from "./NavEmailSignup";
 import CityDashboardSection from "./CityDashboardSection";
@@ -171,7 +169,6 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
   let leaders: Awaited<ReturnType<typeof getPublicLeadersForCity>> = [];
   let feedStories: PublicFeedStory[] = [];
   let cityOrdering: PublicMetricOrderingResponse | null = null;
-  let latestNewsletterDate: string | null = null;
   if (city?.id) {
     try {
       const [detail, mapsRes, leadersRes, cityDistrictsRes, feedRes, orderingRes] = await Promise.all([
@@ -192,18 +189,6 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         districts = [...cityDistrictsRes].sort((a, b) => a - b);
       }
 
-      // Find latest newsletter edition for this city
-      try {
-        const editions = await listNewsletterEditionsForSitemap();
-        const cityEditions = editions
-          .filter((e) => e.city_slug === slug && e.district === 0)
-          .sort((a, b) => b.edition_date.localeCompare(a.edition_date));
-        if (cityEditions.length > 0) {
-          latestNewsletterDate = cityEditions[0].edition_date;
-        }
-      } catch {
-        // no newsletter data
-      }
 
       const metrics = cityDetail?.metrics ?? [];
       if (metrics.length > 0) {
@@ -311,6 +296,13 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                 }))}
                 cityId={city.id}
                 leaders={leaders}
+                storiesSlot={feedStories.length > 0 ? (
+                  <FeaturedStories
+                    slug={slug}
+                    cityDisplayName={cityDisplayName}
+                    stories={feedStories}
+                  />
+                ) : undefined}
               />
             }
             tableView={
@@ -348,16 +340,6 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         />
       )}
 
-      {/* Section 5: Featured Stories */}
-      {hasContent && feedStories.length > 0 && (
-        <FeaturedStories
-          slug={slug}
-          cityDisplayName={cityDisplayName}
-          stories={feedStories}
-        />
-      )}
-
-
       {/* Section 7: Explainer + Bottom CTA */}
       <section className="city-explainer-section">
         <div className="container">
@@ -374,14 +356,6 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                 citySlug={slug}
               />
             </div>
-            {latestNewsletterDate && (
-              <Link
-                href={`/c/${slug}/newsletter/${latestNewsletterDate}`}
-                className="city-sample-briefing-link"
-              >
-                See a recent briefing
-              </Link>
-            )}
           </div>
         </div>
       </section>

@@ -37,6 +37,8 @@ type CityDashboardSectionProps = {
   /** Optional: when set with cityId, district block shows rep names, follow buttons, and Claim my page. */
   cityId?: number;
   leaders?: PublicLeader[] | null;
+  /** Optional: slot rendered between dashboard metrics and district list (e.g. featured stories). */
+  storiesSlot?: React.ReactNode;
 };
 
 export default function CityDashboardSection({
@@ -52,6 +54,7 @@ export default function CityDashboardSection({
   signUpToCustomizeMetricsNode,
   cityId,
   leaders,
+  storiesSlot,
 }: CityDashboardSectionProps) {
   const base = `/c/${slug}`;
   const isDistrictView = districtFilter != null && districtFilter >= 1;
@@ -438,6 +441,8 @@ export default function CityDashboardSection({
           );
         })}
       </div>
+
+      {storiesSlot}
 
       {/* District links and maps below (compact, secondary); when viewing a district, show Back to citywide */}
       {isDistrictView ? (

@@ -12,6 +12,6 @@ type CityHeroNewsletterProps = {
 
 export default function CityHeroNewsletter({ cityName, label }: CityHeroNewsletterProps) {
   return (
-    <EmailSignInLink label={label ?? `To get updates for ${cityName}.`} />
+    <EmailSignInLink label={label ?? `To get updates for ${cityName}`} />
   );
 }

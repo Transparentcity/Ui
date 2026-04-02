@@ -150,7 +150,7 @@ export default function MetricDetailClient({
           }}>
             Get a weekly briefing with the latest data for {cityName}.
           </p>
-          <EmailSignInLink label={`To get updates for ${cityName}.`} />
+          <EmailSignInLink label={`To get updates for ${cityName}`} />
         </div>
       </div>
 
