@@ -12,6 +12,7 @@ import CityDashboardSection from "../../CityDashboardSection";
 import DistrictFollowClaimBlock from "../DistrictFollowClaimBlock";
 import EmailSignInLink from "../../EmailSignInLink";
 import PublicNavBar from "@/components/PublicNavBar";
+import PublicFooter from "@/components/PublicFooter";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 
 export type DistrictPageContentProps = {
@@ -187,41 +188,11 @@ export default function DistrictPageContent({
         </section>
       )}
 
-      {/* ── FOOTER ───────────────────────────────────────────────────────── */}
-      <footer className="footer">
-        <div className="container">
-          <div className="footer-content">
-            <div className="footer-column">
-              <div className="brand-text">
-                <span className="logo-transparent">transparent</span>
-                <span className="logo-city">.city</span>
-              </div>
-              <p className="footer-description">
-                Maps, metrics, and research built from public city data—from citywide to
-                block level—so residents and elected officials share the same picture of
-                what&rsquo;s happening.
-              </p>
-            </div>
-            <div className="footer-column">
-              <h4 className="footer-title">Resources</h4>
-              <Link href={`${base}/methodology`} className="footer-link">
-                Methodology
-              </Link>
-              <Link href={base} className="footer-link">
-                {city.shortDisplay} (citywide)
-              </Link>
-              <Link href="/sitemap" className="footer-link">
-                Site Map
-              </Link>
-            </div>
-          </div>
-          <div className="footer-bottom">
-            <p>
-              &copy; 2026 Transparent.city.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <PublicFooter
+        citySlug={slug}
+        feedbackPageUrl={`${base}/district/${d}`}
+        feedbackPageType="district"
+      />
     </SignupEmailProvider>
   );
 }
