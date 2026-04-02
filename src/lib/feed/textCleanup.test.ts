@@ -187,6 +187,21 @@ describe("geography stripping", () => {
     expect(result).not.toContain("in San Francisco");
   });
 
+  it("strips possessive city name without orphaning apostrophe-s", () => {
+    const desc = "Buried in Oakland's 311 data is a status code that hits different: UNFUNDED.";
+    const result = cleanDescription(desc, "The Most Honest Status Code", "Oakland");
+    expect(result).not.toContain("'s");
+    expect(result).not.toContain("Oakland");
+    expect(result).toMatch(/^Buried\s/);
+  });
+
+  it("strips 'of [City]'s' possessive form cleanly", () => {
+    const desc = "A review of Oakland's budget reveals significant gaps.";
+    const result = cleanDescription(desc, "Budget gaps", "Oakland");
+    expect(result).not.toContain("'s");
+    expect(result).not.toContain("Oakland");
+  });
+
   it("strips 'in District X' patterns", () => {
     const desc = "Noise complaints in District 6 increased by 30% this month. Most complaints involve construction noise during early morning hours.";
     const result = cleanDescription(desc, "Noise up", "San Francisco", "San Francisco · District 6");
