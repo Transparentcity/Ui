@@ -14,7 +14,6 @@ import {
   listPublicMapsForCity,
 } from "@/lib/publicApiClient";
 import EmailSignInLink from "../../EmailSignInLink";
-import CitySignupButton from "../../CitySignupButton";
 import CityViewTracker from "../../CityViewTracker";
 import CustomizeMetricsTrigger from "../../CustomizeMetricsTrigger";
 import DistrictFollowClaimBlock from "../../district/DistrictFollowClaimBlock";
