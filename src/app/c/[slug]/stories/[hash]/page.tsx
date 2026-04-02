@@ -16,6 +16,8 @@ import NavEmailSignup from "../../NavEmailSignup";
 import { processVisualizationShortcodes } from "@/lib/visualizationShortcodes";
 import ShareButton from "./ShareButton";
 import CityHeroNewsletter from "../../CityHeroNewsletter";
+import { SignupEmailProvider } from "../../SignupEmailContext";
+import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
 
 export const revalidate = 3600;
 
@@ -28,13 +30,18 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   try {
     const { story } = await getPublicFeedStoryByHash(hash);
     const cityName = story.city_name ?? slug;
+    const headline = improveGenericHeadline(story.headline, {
+      summary: story.summary,
+      description: story.description,
+      cityName: story.city_name,
+    });
     const canonical = `/c/${slug}/stories/${hash}`;
     return {
-      title: story.headline,
+      title: headline,
       description: story.description.slice(0, 160),
       alternates: { canonical },
       openGraph: {
-        title: story.headline,
+        title: headline,
         description: story.description.slice(0, 160),
         url: canonical,
         type: "article",
@@ -42,7 +49,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       },
       twitter: {
         card: story.image_url ? "summary_large_image" : "summary",
-        title: story.headline,
+        title: headline,
         description: story.description.slice(0, 160),
         ...(story.image_url ? { images: [story.image_url] } : {}),
       },
@@ -68,6 +75,13 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
   }
 
   if (!story) notFound();
+
+  // Fix generic placeholder headlines ("The Fact", etc.)
+  const headline = improveGenericHeadline(story.headline, {
+    summary: story.summary,
+    description: story.description,
+    cityName: story.city_name,
+  });
 
   // Resolve city display name from slug
   let cityDisplay = story.city_name ?? slug;
@@ -122,7 +136,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
       : null;
 
   return (
-    <>
+    <SignupEmailProvider>
       <PublicNavBar>
         <NavEmailSignup citySlug={slug} cityName={story.city_name ?? slug} />
       </PublicNavBar>
@@ -185,7 +199,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
             marginBottom: 16,
           }}
         >
-          {story.headline}
+          {headline}
         </h1>
 
         {/* Meta */}
@@ -211,7 +225,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           <div style={{ marginBottom: 32, borderRadius: 8, overflow: "hidden" }}>
             <SafeImage
               src={story.image_url}
-              alt={story.headline}
+              alt={headline}
               style={{ width: "100%", height: "auto", display: "block" }}
             />
           </div>
@@ -307,34 +321,9 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
 
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <ShareButton
-            title={story.headline}
+            title={headline}
             url={`/c/${slug}/stories/${hash}`}
           />
-        </div>
-
-        {/* Newsletter signup CTA */}
-        <div style={{
-          margin: "32px 0",
-          padding: "24px",
-          borderRadius: 12,
-          background: "var(--bg-secondary, #f5f5f5)",
-        }}>
-          <p style={{
-            fontSize: 15,
-            fontWeight: 600,
-            margin: "0 0 4px",
-            color: "var(--text-primary)",
-          }}>
-            Get stories like this once a week
-          </p>
-          <p style={{
-            fontSize: 13,
-            color: "var(--text-secondary)",
-            margin: "0 0 8px",
-          }}>
-            {cityDisplay}&rsquo;s public data, explained. Crime trends, housing, city services, and more.
-          </p>
-          <CityHeroNewsletter cityName={cityDisplay} citySlug={slug} />
         </div>
 
         {/* Related stories from the same city */}
@@ -375,7 +364,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
                       WebkitBoxOrient: "vertical",
                       overflow: "hidden",
                     }}>
-                      {rs.headline}
+                      {improveGenericHeadline(rs.headline, { summary: rs.summary, description: rs.description, cityName: rs.city_name })}
                     </span>
                     <span style={{ fontSize: 12, color: "var(--text-tertiary, #999)" }}>
                       {rs.published_at
@@ -390,6 +379,31 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
             </div>
           </>
         )}
+
+        {/* Newsletter signup CTA */}
+        <div style={{
+          margin: "32px 0",
+          padding: "24px",
+          borderRadius: 12,
+          background: "var(--bg-secondary, #f5f5f5)",
+        }}>
+          <p style={{
+            fontSize: 15,
+            fontWeight: 600,
+            margin: "0 0 4px",
+            color: "var(--text-primary)",
+          }}>
+            Get stories like this once a week
+          </p>
+          <p style={{
+            fontSize: 13,
+            color: "var(--text-secondary)",
+            margin: "0 0 8px",
+          }}>
+            {cityDisplay}&rsquo;s public data, explained. Crime trends, housing, city services, and more.
+          </p>
+          <CityHeroNewsletter cityName={cityDisplay} citySlug={slug} />
+        </div>
       </article>
 
       <PublicFooter citySlug={slug} feedbackPageUrl={`/c/${slug}/stories/${hash}`} feedbackPageType="story" />
@@ -447,6 +461,6 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           font-size: 0.85rem;
         }
       `}</style>
-    </>
+    </SignupEmailProvider>
   );
 }
