@@ -2500,6 +2500,16 @@
   cursor: default;
 }
 
+.nav-email-pill--error {
+  border-color: var(--color-danger, #dc3545);
+}
+
+.nav-email-error {
+  font-size: 11px;
+  color: var(--color-danger, #dc3545);
+  white-space: nowrap;
+}
+
 @media (max-width: 768px) {
   .nav-email-input {
     width: 140px;

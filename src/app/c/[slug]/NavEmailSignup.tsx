@@ -16,26 +16,29 @@ export default function NavEmailSignup({ citySlug, cityName }: Props) {
   const { setEmail: setSharedEmail } = useSignupEmail();
   const [email, setEmail] = useState("");
   const [focused, setFocused] = useState(false);
-  const [status, setStatus] = useState<"idle" | "sending">("idle");
+  const [status, setStatus] = useState<"idle" | "sending" | "error">("idle");
 
   const handleChange = (val: string) => {
     setEmail(val);
     setSharedEmail(val);
+    if (status === "error") setStatus("idle");
+  };
+
+  const storeReturnPath = () => {
+    if (typeof window === "undefined") return;
+    const currentPath = window.location.pathname + window.location.search;
+    if (currentPath !== "/check-email") {
+      try {
+        sessionStorage.setItem("auth_return_after_check_email", currentPath);
+      } catch { /* ignore */ }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !email.includes("@")) return;
     setStatus("sending");
-    const currentPath =
-      typeof window !== "undefined"
-        ? window.location.pathname + window.location.search
-        : "/";
-    if (typeof window !== "undefined" && currentPath !== "/check-email") {
-      try {
-        sessionStorage.setItem("auth_return_after_check_email", currentPath);
-      } catch { /* ignore */ }
-    }
+    storeReturnPath();
     try {
       await loginWithRedirect({
         authorizationParams: {
@@ -46,16 +49,28 @@ export default function NavEmailSignup({ citySlug, cityName }: Props) {
         },
         appState: { returnTo: "/check-email" },
       });
-    } catch {
-      setStatus("idle");
+    } catch (err) {
+      console.error("[NavEmailSignup] Auth0 redirect failed:", err);
+      setStatus("error");
     }
   };
 
   const handleLogin = async () => {
-    await loginWithRedirect({
-      authorizationParams: { screen_hint: "login", prompt: "login" },
-      appState: { returnTo: "/dashboard" },
-    });
+    setStatus("sending");
+    storeReturnPath();
+    try {
+      await loginWithRedirect({
+        authorizationParams: {
+          screen_hint: "login",
+          prompt: "login",
+          ...(email && email.includes("@") ? { login_hint: email } : {}),
+        },
+        appState: { returnTo: "/dashboard" },
+      });
+    } catch (err) {
+      console.error("[NavEmailSignup] Auth0 login redirect failed:", err);
+      setStatus("error");
+    }
   };
 
   if (isAuthenticated) {
@@ -70,7 +85,7 @@ export default function NavEmailSignup({ citySlug, cityName }: Props) {
     <div className="nav-email-signup">
       <form
         onSubmit={handleSubmit}
-        className={`nav-email-pill${focused ? " nav-email-pill--focused" : ""}`}
+        className={`nav-email-pill${focused ? " nav-email-pill--focused" : ""}${status === "error" ? " nav-email-pill--error" : ""}`}
       >
         <input
           type="email"
@@ -86,6 +101,7 @@ export default function NavEmailSignup({ citySlug, cityName }: Props) {
           className="nav-email-input"
           required
           autoComplete="email"
+          aria-label="Email address for signup"
           disabled={status === "sending"}
         />
         <button
@@ -96,11 +112,16 @@ export default function NavEmailSignup({ citySlug, cityName }: Props) {
           {status === "sending" ? "..." : "Sign up"}
         </button>
       </form>
+      {status === "error" && (
+        <span className="nav-email-error" role="alert">
+          Something went wrong. Try again.
+        </span>
+      )}
       <button
         type="button"
         className="nav-email-signin-btn"
         onClick={handleLogin}
-        disabled={isLoading}
+        disabled={isLoading || status === "sending"}
       >
         Sign in
       </button>
