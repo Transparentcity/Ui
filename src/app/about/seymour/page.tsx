@@ -1,4 +1,5 @@
 import Header from "@/components/Header";
+import PublicFooter from "@/components/PublicFooter";
 import Link from "next/link";
 
 export const metadata = {
@@ -131,6 +132,7 @@ export default function AboutSeymourPage() {
           </Link>
         </p>
       </main>
+      <PublicFooter />
     </>
   );
 }

@@ -9,7 +9,7 @@ import type { FeedStory } from "@/lib/hooks/useFeed";
 import { getApiBaseUrlForAssets } from "@/lib/apiBase";
 import { cleanDescription } from "./textCleanup";
 import { resolveCanonicalUrl } from "./canonicalUrl";
-import { normalizeHeadlineCaps, normalizeBusinessName, improveMultiMetricHeadline, stripLeadingEmoji, improveContextHeadline } from "./headlineCleanup";
+import { normalizeHeadlineCaps, normalizeBusinessName, improveMultiMetricHeadline, stripLeadingEmoji, improveContextHeadline, improveGenericHeadline } from "./headlineCleanup";
 
 // ── Card types ──────────────────────────────────────────────────────────────
 
@@ -333,8 +333,16 @@ export function enrichStory(story: FeedStory, placeMap?: PlaceMap): EnrichedFeed
       ? story.description
       : story.summary || story.description;
 
+  // 0. Replace generic placeholder headlines ("The Fact", etc.) with something meaningful
+  let normalizedHeadline = improveGenericHeadline(story.headline ?? "", {
+    metadata: story.metadata,
+    summary: story.summary,
+    description: story.description,
+    cityName: story.city_name,
+  });
+
   // 1. Strip leading emoji (card header already shows type_icon)
-  let normalizedHeadline = stripLeadingEmoji(story.headline ?? "");
+  normalizedHeadline = stripLeadingEmoji(normalizedHeadline);
 
   // 2. Normalize ALL-CAPS business names in headline
   normalizedHeadline = normalizeHeadlineCaps(normalizedHeadline);

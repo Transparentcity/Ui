@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import CitySignupButton from "../../CitySignupButton";
+import PublicNavBar from "@/components/PublicNavBar";
+import PublicFooter from "@/components/PublicFooter";
+import NavEmailSignup from "../../NavEmailSignup";
 import "@/app/landing.css";
 import "./styles.css";
 
@@ -25,23 +27,9 @@ export default function MetricLoadErrorClient({
 
   return (
     <div className="metric-detail-page">
-      <nav className="metric-detail-nav">
-        <div className="metric-detail-nav-inner">
-          <Link href="/" className="metric-detail-nav-logo">
-            <span className="logo-transparent">transparent</span>
-            <span className="logo-city">.city</span>
-          </Link>
-          <div className="metric-detail-nav-links">
-            <Link href={`/c/${citySlug}`} className="metric-detail-nav-back">
-              ← Back to {cityName}
-            </Link>
-            <Link href="/" className="metric-detail-nav-link">
-              Home
-            </Link>
-            <CitySignupButton />
-          </div>
-        </div>
-      </nav>
+      <PublicNavBar>
+        <NavEmailSignup citySlug={citySlug} cityName={cityName} />
+      </PublicNavBar>
       <div className="metric-detail-content-wrapper">
         <div className="metric-load-error">
           <p className="metric-load-error-message">{message}</p>
@@ -50,6 +38,7 @@ export default function MetricLoadErrorClient({
           </Link>
         </div>
       </div>
+      <PublicFooter citySlug={citySlug} />
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { toast } from "sonner";
+import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
 import styles from "./signals.module.css";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -219,7 +220,7 @@ export default function SignalsDashboard() {
                       <div className={styles.storyRank}>{i + 1}</div>
                       <div className={styles.storyContent}>
                         <h3 className={styles.storyHeadline}>
-                          {story.headline || `Story #${story.id}`}
+                          {improveGenericHeadline(story.headline ?? "", { description: story.description }) || `Story #${story.id}`}
                         </h3>
                         <div className={styles.storyMeta}>
                           <span className={styles.badgeApplaud}>
@@ -261,7 +262,7 @@ export default function SignalsDashboard() {
                       <div className={styles.storyRank}>{i + 1}</div>
                       <div className={styles.storyContent}>
                         <h3 className={styles.storyHeadline}>
-                          {story.headline || `Story #${story.id}`}
+                          {improveGenericHeadline(story.headline ?? "", { description: story.description }) || `Story #${story.id}`}
                         </h3>
                         <div className={styles.storyMeta}>
                           <span className={styles.badgeFlag}>

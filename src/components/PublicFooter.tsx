@@ -45,13 +45,23 @@ export default function PublicFooter({ citySlug, feedbackPageUrl, feedbackPageTy
           </div>
           <div className="footer-column">
             <h4 className="footer-title">Contact</h4>
-            <a href="mailto:hello@transparentcity.com" className="footer-link">
-              hello@transparentcity.com
+            <a href="mailto:seymour@parse.transparent.city" className="footer-link">
+              seymour@parse.transparent.city
             </a>
           </div>
         </div>
         <div className="footer-bottom">
-          <p>&copy; {new Date().getFullYear()} Transparent.city.</p>
+          <p>
+            &copy; {new Date().getFullYear()} Transparent.city
+            {" "}
+            <Link href="/terms" className="footer-link" style={{ display: "inline", marginLeft: "0.5rem" }}>
+              Terms
+            </Link>
+            {" "}
+            <Link href="/privacy" className="footer-link" style={{ display: "inline", marginLeft: "0.5rem" }}>
+              Privacy
+            </Link>
+          </p>
           {feedbackPageUrl && (
             <PageFeedback
               pageUrl={feedbackPageUrl}

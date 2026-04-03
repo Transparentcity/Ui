@@ -1,4 +1,7 @@
 import type { PublicFeedStory } from "@/lib/publicApiClient";
+import type { ReactNode } from "react";
+import SafeImage from "@/components/SafeImage";
+import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
 
 type Props = {
   slug: string;
@@ -6,16 +9,34 @@ type Props = {
   stories: PublicFeedStory[];
 };
 
+function StoryCard({ href, className, children }: { href: string | null; className: string; children: ReactNode }) {
+  if (href) {
+    return <a href={href} className={className}>{children}</a>;
+  }
+  return <div className={className}>{children}</div>;
+}
+
+function storyHeadline(story: PublicFeedStory): string {
+  return improveGenericHeadline(story.headline, {
+    summary: story.summary,
+    description: story.description,
+    cityName: story.city_name,
+  });
+}
+
 export default function FeaturedStories({ slug, cityDisplayName, stories }: Props) {
   if (stories.length === 0) return null;
 
-  const featured = stories[0];
-  const secondary = stories.slice(1, 3);
+  // Show 4 stories when available (balanced 2x2 grid), otherwise up to 3
+  const visible = stories.slice(0, stories.length >= 4 ? 4 : 3);
+  const use2x2 = visible.length === 4;
 
-  const storyHref = (story: PublicFeedStory) =>
+  const storyHref = (story: PublicFeedStory): string | null =>
     story.short_hash
       ? `/c/${slug}/stories/${story.short_hash}`
-      : story.detail_url;
+      : story.detail_url?.startsWith("/c/") || story.detail_url?.startsWith("/s/")
+        ? story.detail_url
+        : null;
 
   const formatDate = (dateStr?: string | null) => {
     if (!dateStr) return null;
@@ -25,6 +46,44 @@ export default function FeaturedStories({ slug, cityDisplayName, stories }: Prop
       year: "numeric",
     });
   };
+
+  // Balanced 2x2 grid: all stories rendered uniformly
+  if (use2x2) {
+    return (
+      <section className="featured-stories-section">
+        <div className="container">
+          <header className="section-header" style={{ marginBottom: "1.25rem" }}>
+            <span className="section-badge">What&rsquo;s happening</span>
+            <h2 className="section-heading">Latest from {cityDisplayName}</h2>
+          </header>
+
+          <div className="featured-stories-grid featured-stories-grid--2x2">
+            {visible.map((story) => (
+              <StoryCard
+                key={story.id}
+                href={storyHref(story)}
+                className="featured-story-card featured-story-card--secondary"
+              >
+                <h4 className="featured-story-headline-sm">{storyHeadline(story)}</h4>
+                {story.description && (
+                  <p className="featured-story-desc-sm">{story.description}</p>
+                )}
+                {story.published_at && (
+                  <span className="featured-story-date">
+                    {formatDate(story.published_at)}
+                  </span>
+                )}
+              </StoryCard>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Original layout: 1 primary + up to 2 secondary
+  const featured = visible[0];
+  const secondary = visible.slice(1);
 
   return (
     <section className="featured-stories-section">
@@ -36,17 +95,16 @@ export default function FeaturedStories({ slug, cityDisplayName, stories }: Prop
 
         <div className={`featured-stories-grid ${secondary.length === 0 ? "featured-stories-grid--single" : ""}`}>
           {/* Primary story */}
-          <a href={storyHref(featured)} className="featured-story-card featured-story-card--primary">
+          <StoryCard href={storyHref(featured)} className="featured-story-card featured-story-card--primary">
             {featured.image_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <SafeImage
                 src={featured.image_url}
                 alt=""
                 className="featured-story-img"
               />
             )}
             <div className="featured-story-body">
-              <h3 className="featured-story-headline">{featured.headline}</h3>
+              <h3 className="featured-story-headline">{storyHeadline(featured)}</h3>
               {featured.description && (
                 <p className="featured-story-desc">{featured.description}</p>
               )}
@@ -56,18 +114,18 @@ export default function FeaturedStories({ slug, cityDisplayName, stories }: Prop
                 </span>
               )}
             </div>
-          </a>
+          </StoryCard>
 
           {/* Secondary stories */}
           {secondary.length > 0 && (
             <div className="featured-stories-secondary">
               {secondary.map((story) => (
-                <a
+                <StoryCard
                   key={story.id}
                   href={storyHref(story)}
                   className="featured-story-card featured-story-card--secondary"
                 >
-                  <h4 className="featured-story-headline-sm">{story.headline}</h4>
+                  <h4 className="featured-story-headline-sm">{storyHeadline(story)}</h4>
                   {story.description && (
                     <p className="featured-story-desc-sm">{story.description}</p>
                   )}
@@ -76,7 +134,7 @@ export default function FeaturedStories({ slug, cityDisplayName, stories }: Prop
                       {formatDate(story.published_at)}
                     </span>
                   )}
-                </a>
+                </StoryCard>
               ))}
             </div>
           )}

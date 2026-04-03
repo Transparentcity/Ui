@@ -14,11 +14,14 @@ import {
   listPublicMapsForCity,
 } from "@/lib/publicApiClient";
 import EmailSignInLink from "../../EmailSignInLink";
-import CitySignupButton from "../../CitySignupButton";
 import CityViewTracker from "../../CityViewTracker";
 import CustomizeMetricsTrigger from "../../CustomizeMetricsTrigger";
 import DistrictFollowClaimBlock from "../../district/DistrictFollowClaimBlock";
 import CategoryDashboardSection from "./CategoryDashboardSection";
+import PublicNavBar from "@/components/PublicNavBar";
+import PublicFooter from "@/components/PublicFooter";
+import NavEmailSignup from "../../NavEmailSignup";
+import { SignupEmailProvider } from "../../SignupEmailContext";
 
 export const revalidate = 3600;
 
@@ -186,35 +189,11 @@ export default async function CityCategoryPage({
   );
 
   return (
-    <>
+    <SignupEmailProvider>
       <CityViewTracker citySlug={slug} cityId={city?.id} />
-      <nav className="navbar">
-        <div className="container">
-          <div className="nav-content">
-            <Link href="/" className="logo" style={{ textDecoration: "none" }}>
-              <span className="logo-text">
-                <span className="logo-transparent">transparent</span>
-                <span className="logo-city">.city</span>
-              </span>
-            </Link>
-            <div className="nav-links">
-              <Link href={`/c/${slug}`} className="nav-link">
-                {cityDisplayName}
-              </Link>
-              <Link href="/sitemap" className="nav-link">
-                Site map
-              </Link>
-              <Link href="/" className="nav-link">
-                Home
-              </Link>
-              <Link href={`/c/${slug}${idQuery}`} className="nav-link">
-                {cityDisplayName}
-              </Link>
-              <CitySignupButton />
-            </div>
-          </div>
-        </div>
-      </nav>
+      <PublicNavBar>
+        <NavEmailSignup citySlug={slug} cityName={cityDisplayName} />
+      </PublicNavBar>
 
       <section className="hero" style={{ paddingTop: 96 }}>
         <div className="container">
@@ -241,7 +220,7 @@ export default async function CityCategoryPage({
               )}
 
               <div className="hero-newsletter">
-                <EmailSignInLink label={`To get updates for ${cityDisplayName}.`} />
+                <EmailSignInLink label={`To get updates for ${cityDisplayName}`} />
               </div>
 
               {(() => {
@@ -302,42 +281,11 @@ export default async function CityCategoryPage({
         maps={maps}
       />
 
-      <footer className="footer">
-        <div className="container">
-          <div className="footer-content">
-            <div className="footer-column">
-              <div className="logo">
-                <span className="logo-text">
-                  <span className="logo-transparent">transparent</span>
-                  <span className="logo-city">.city</span>
-                </span>
-              </div>
-              <p className="footer-description">
-                Maps, metrics, and research built from public city data—so
-                residents and elected officials can share the same picture of
-                what's happening.
-              </p>
-            </div>
-            <div className="footer-column">
-              <h4 className="footer-title">Resources</h4>
-              <Link href={`/c/${slug}/methodology`} className="footer-link">
-                Methodology
-              </Link>
-              <Link href="/sitemap" className="footer-link">
-                Site Map
-              </Link>
-              <Link href={`/c/${slug}${idQuery}`} className="footer-link">
-                {cityDisplayName}
-              </Link>
-            </div>
-          </div>
-          <div className="footer-bottom">
-            <p>
-              &copy; 2026 Transparent.city.
-            </p>
-          </div>
-        </div>
-      </footer>
-    </>
+      <PublicFooter
+        citySlug={slug}
+        feedbackPageUrl={`/c/${slug}/category/${category}`}
+        feedbackPageType="category"
+      />
+    </SignupEmailProvider>
   );
 }

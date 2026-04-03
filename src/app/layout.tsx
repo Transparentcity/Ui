@@ -9,6 +9,7 @@ import { JobWebSocketProvider } from "@/contexts/JobWebSocketContext";
 import { getSiteOrigin } from "@/lib/siteUrl";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
 import { ToasterProvider } from "@/components/providers/toaster-provider";
+import AuthErrorToast from "@/components/AuthErrorToast";
 import { SiteStructuredData } from "@/components/StructuredData";
 import PostHogProvider from "@/components/PostHogProvider";
 import { Analytics } from "@vercel/analytics/react";
@@ -79,6 +80,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <SiteStructuredData />
         <ToasterProvider />
+        <AuthErrorToast />
         <GoogleAnalytics />
         <Analytics />
         <SpeedInsights />

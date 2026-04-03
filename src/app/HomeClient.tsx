@@ -325,7 +325,7 @@ export default function HomeClient() {
                   onClick={handleSignup}
                   className={`${styles.button} ${styles.buttonPrimary} ${styles.heroBtn}`}
                 >
-                  Get your city feed, free
+                  Get your city feed
                 </button>
 
                 {liveCities.length > 0 && (
@@ -408,7 +408,7 @@ export default function HomeClient() {
                   onClick={handleSignup}
                   className={styles.ctaBtnPrimary}
                 >
-                  Get started free
+                  Get started
                 </button>
                 <a href="/pro" className={styles.ctaBtnOutline}>
                   Add your city
