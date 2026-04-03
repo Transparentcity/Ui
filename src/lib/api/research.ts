@@ -145,7 +145,7 @@ export function createResearch(
   return request<CreateResearchResponse>("/api/research/create", "POST", payload, token);
 }
 
-/** Generate sample newsletter via email one-shot (no research report, no email sent). */
+/** Generate sample newsletter via email one-shot (outbox + send when configured). */
 export interface GenerateSampleNewsletterRequest {
   /** City ID for this environment. Omit when using city_slug. */
   city_id?: number | null;
@@ -154,6 +154,7 @@ export interface GenerateSampleNewsletterRequest {
   district?: number | null;
   frequency?: string;
   prompt_override?: string | null;
+  generation_mode?: "stories" | "seymour";
 }
 
 export interface GenerateSampleNewsletterResponse {

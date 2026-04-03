@@ -394,9 +394,11 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
       const result = await determinePortalTypes(selectedCityIds, token);
       notifyJobCreated(result.job_id);
       alert(
-        `Portal type determination started for ${selectedCityIds.length} cities!\n\n` +
+        `Portal type job started for ${selectedCityIds.length} cities.\n\n` +
+          `This may discover a portal URL when missing, then detect the platform and update ` +
+          `extra_metadata.portal_type. Datasets are not loaded.\n\n` +
           `Job ID: ${result.job_id}\n\n` +
-          `You can monitor progress in the jobs badge at the top of the page.`
+          `Track progress in the jobs badge at the top of the page.`
       );
       clearSelectedCities();
       setTimeout(() => loadCities(), 2000);
@@ -753,10 +755,25 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
         <>
       {/* Action Buttons */}
       <div className={styles.card}>
-        <div className="city-actions-header" style={{ marginBottom: "16px" }}>
+        <div className="city-actions-header" style={{ marginBottom: "12px" }}>
           <h3 className="city-actions-title" style={{ margin: 0, fontSize: "18px", fontWeight: 600 }}>
             City Data Actions
           </h3>
+          <p
+            style={{
+              margin: "10px 0 0 0",
+              fontSize: "13px",
+              color: "var(--text-secondary, #6b7280)",
+              maxWidth: "52rem",
+              lineHeight: 1.5,
+            }}
+          >
+            <strong>Determine Portal Type</strong> starts a background job for each selected city: cities
+            without a usable portal URL may get one via web search and URL probing; every city is probed
+            to detect the catalog API (Socrata, CKAN, ArcGIS Hub, etc.) and save{" "}
+            <code style={{ fontSize: "12px" }}>extra_metadata.portal_type</code>. It does{" "}
+            <strong>not</strong> import datasets—use <strong>Load Metadata</strong> for catalog rows.
+          </p>
         </div>
         <div
           className="city-actions-buttons"
@@ -781,7 +798,7 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
           <button
             onClick={handleDeterminePortalTypes}
             disabled={selectedCityIds.length === 0 || determiningPortalTypes}
-            title="Detect and update platform type (Socrata, CKAN, ArcGIS, etc.) for selected cities"
+            title="Background job: optional portal discovery if URL missing, then API probe to set extra_metadata.portal_type (Socrata, CKAN, ArcGIS, …). Does not load datasets."
             style={{
               padding: "10px 20px",
               background: "#7c3aed",

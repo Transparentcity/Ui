@@ -3,9 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  ScheduledJobSummary,
-  ScheduledJobRunSummary,
-  runSchedule,
   CustomScheduledJob,
   updateCustomScheduledJob,
   pauseCustomScheduledJob,
@@ -27,7 +24,6 @@ import Loader from "./Loader";
 import styles from "./ScheduledJobsPanel.module.css";
 
 interface ScheduledJobsPanelProps {
-  scheduleSummaries: ScheduledJobSummary[];
   customSchedules: CustomScheduledJob[];
   scheduleLoading: boolean;
   scheduleError: string | null;
@@ -37,7 +33,6 @@ interface ScheduledJobsPanelProps {
 }
 
 export default function ScheduledJobsPanel({
-  scheduleSummaries,
   customSchedules,
   scheduleLoading,
   scheduleError,
@@ -45,8 +40,6 @@ export default function ScheduledJobsPanel({
   getAccessTokenSilently,
   token,
 }: ScheduledJobsPanelProps) {
-  const [runningSchedule, setRunningSchedule] = useState<string | null>(null);
-  const [removeAllInactive, setRemoveAllInactive] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [runSuccessMessage, setRunSuccessMessage] = useState<{ jobId: string; jobName: string } | null>(null);
   const [runningCustomJobId, setRunningCustomJobId] = useState<number | null>(null);
@@ -129,71 +122,6 @@ export default function ScheduledJobsPanel({
       });
     } catch {
       return dateStr;
-    }
-  };
-
-  const formatScheduleCounts = (run: ScheduledJobRunSummary | null | undefined) => {
-    if (!run) return "No runs yet";
-    if (run.metrics_total !== undefined && run.metrics_total !== null) {
-      const completed = run.metrics_completed ?? 0;
-      const failed = run.metrics_failed ?? 0;
-      return `${completed} succeeded, ${failed} failed (${run.metrics_total} total)`;
-    }
-    if (run.city_count !== undefined && run.city_count !== null) {
-      if (run.cities_succeeded !== null && run.cities_succeeded !== undefined) {
-        return `${run.cities_succeeded} succeeded, ${run.cities_failed ?? 0} failed (${run.city_count} cities)`;
-      }
-      return `${run.city_count} cities`;
-    }
-    if (run.datasets_indexed !== undefined && run.datasets_indexed !== null) {
-      return `${run.datasets_indexed} datasets indexed`;
-    }
-    if (run.time_series_deleted !== undefined || run.anomalies_deleted !== undefined) {
-      const tsDeleted = run.time_series_deleted ?? 0;
-      const anomaliesDeleted = run.anomalies_deleted ?? 0;
-      const total = tsDeleted + anomaliesDeleted;
-      const modeLabel = run.remove_all_inactive ? " (all inactive)" : "";
-      if (total === 0) {
-        return `No inactive records to remove${modeLabel}`;
-      }
-      return `${tsDeleted} time series, ${anomaliesDeleted} anomalies removed${modeLabel}`;
-    }
-    return "Run completed";
-  };
-
-  const handleRunSchedule = async (scheduleKey: string, scheduleLabel: string) => {
-    if (runningSchedule) return;
-
-    try {
-      setRunningSchedule(scheduleKey);
-      setLocalError(null);
-      const currentToken = token || (await getAccessTokenSilently());
-
-      const request: { schedule_key: string; remove_all_inactive?: boolean } = {
-        schedule_key: scheduleKey,
-      };
-      if (scheduleKey === "database_cleanup" && removeAllInactive) {
-        request.remove_all_inactive = true;
-      }
-
-      const response = await runSchedule(request, currentToken);
-
-      if (response?.result?.results) {
-        for (const result of response.result.results) {
-          if (result.job_id) {
-            notifyJobCreated(result.job_id);
-          }
-        }
-      }
-
-      setTimeout(() => {
-        onRefresh();
-      }, 1000);
-    } catch (err) {
-      console.error(`Error running schedule ${scheduleKey}:`, err);
-      setLocalError(`Failed to run ${scheduleLabel}. Please try again.`);
-    } finally {
-      setRunningSchedule(null);
     }
   };
 
@@ -449,7 +377,7 @@ export default function ScheduledJobsPanel({
         <div className={styles.headerContent}>
           <h3 className={styles.title}>Scheduled Jobs</h3>
           <p className={styles.subtitle}>
-            System schedules are built-in; custom schedules are editable. Click ▶ to trigger a manual run.
+            Database-backed schedules. Edit timing and settings, or click ▶ for a manual run.
           </p>
         </div>
         {scheduleLoading && (
@@ -477,10 +405,7 @@ export default function ScheduledJobsPanel({
         </div>
       )}
 
-      {!scheduleLoading &&
-        scheduleSummaries.length === 0 &&
-        customSchedules.length === 0 &&
-        !displayError && (
+      {!scheduleLoading && customSchedules.length === 0 && !displayError && (
         <div className={styles.empty}>
           <p>No scheduled jobs configured.</p>
         </div>
@@ -489,9 +414,9 @@ export default function ScheduledJobsPanel({
       {customSchedules.length > 0 && (
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
-            <h4 className={styles.sectionTitle}>Custom schedules</h4>
+            <h4 className={styles.sectionTitle}>Schedules</h4>
             <div className={styles.sectionHint}>
-              Editable schedules managed in the database.
+              Managed in the database; pause or edit as needed.
             </div>
           </div>
           <div className={styles.list}>
@@ -613,96 +538,6 @@ export default function ScheduledJobsPanel({
           </div>
         </div>
       )}
-
-      {scheduleSummaries.length > 0 && (
-        <div className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h4 className={styles.sectionTitle}>System schedules</h4>
-            <div className={styles.sectionHint}>Built-in schedules (not editable).</div>
-          </div>
-        </div>
-      )}
-
-      <div className={styles.list}>
-        {scheduleSummaries.map((schedule) => {
-          const lastRun = schedule.last_run;
-          const statusColor = lastRun?.status
-            ? getStatusColor(lastRun.status)
-            : "var(--text-secondary, #6b7280)";
-
-          return (
-            <div key={schedule.key} className={styles.card}>
-              <div className={styles.cardHeader}>
-                <div className={styles.cardTitleGroup}>
-                  <span className={styles.cardLabel}>{schedule.label}</span>
-                  <span className={styles.cardCadence}>{schedule.cadence}</span>
-                </div>
-                <span
-                  className={styles.cardStatus}
-                  style={{ color: statusColor }}
-                >
-                  {lastRun?.status || "not run"}
-                </span>
-              </div>
-
-              <p className={styles.cardDescription}>{schedule.description}</p>
-
-              {schedule.key === "database_cleanup" && (
-                <label className={styles.cleanupOption}>
-                  <input
-                    type="checkbox"
-                    checked={removeAllInactive}
-                    onChange={(e) => setRemoveAllInactive(e.target.checked)}
-                    disabled={runningSchedule !== null}
-                  />
-                  <span>Remove all inactive (space recovery)</span>
-                </label>
-              )}
-
-              <div className={styles.cardCounts}>
-                {formatScheduleCounts(lastRun)}
-              </div>
-
-              {lastRun?.created_at && (
-                <div className={styles.cardMeta}>
-                  Last run: {formatDate(lastRun.created_at)}
-                </div>
-              )}
-
-              {schedule.recent_runs?.length > 0 && (
-                <div className={styles.recentRuns}>
-                  {schedule.recent_runs.map((run) => (
-                    <div key={run.job_id} className={styles.runRow}>
-                      <span className={styles.runCity}>
-                        {run.city_name || "All cities"}
-                      </span>
-                      <span className={styles.runCounts}>
-                        {formatScheduleCounts(run)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <button
-                className={styles.runButton}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleRunSchedule(schedule.key, schedule.label);
-                }}
-                disabled={runningSchedule !== null}
-                title={`Run ${schedule.label} now`}
-              >
-                {runningSchedule === schedule.key ? (
-                  <Loader size="sm" color="purple" />
-                ) : (
-                  "▶"
-                )}
-              </button>
-            </div>
-          );
-        })}
-      </div>
 
       {editJob && editForm && (
         <div className={styles.modalOverlay} onClick={closeEdit}>

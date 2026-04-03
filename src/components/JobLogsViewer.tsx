@@ -6,8 +6,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
   getJobStats,
   JobStats,
-  getScheduledJobSummary,
-  ScheduledJobSummary,
   getAllScheduledJobs,
   CustomScheduledJob,
 } from "@/lib/apiClient";
@@ -35,7 +33,6 @@ export default function JobLogsViewer() {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<JobStats | null>(null);
-  const [scheduleSummaries, setScheduleSummaries] = useState<ScheduledJobSummary[]>([]);
   const [customSchedules, setCustomSchedules] = useState<CustomScheduledJob[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
@@ -99,11 +96,7 @@ export default function JobLogsViewer() {
       setScheduleLoading(true);
       setScheduleError(null);
       const currentToken = token || (await getAccessTokenSilently());
-      const [schedules, allSchedules] = await Promise.all([
-        getScheduledJobSummary(currentToken),
-        getAllScheduledJobs(currentToken),
-      ]);
-      setScheduleSummaries(schedules);
+      const allSchedules = await getAllScheduledJobs(currentToken);
       setCustomSchedules(allSchedules.custom_schedules || []);
     } catch (err) {
       console.error("Error loading schedule summary:", err);
@@ -230,7 +223,6 @@ export default function JobLogsViewer() {
         )}
         {activeTab === "scheduled" && (
           <ScheduledJobsPanel
-            scheduleSummaries={scheduleSummaries}
             customSchedules={customSchedules}
             scheduleLoading={scheduleLoading}
             scheduleError={scheduleError}

@@ -16,7 +16,7 @@ import {
   getUserPreferences,
   updateUserPreferences,
   getCity,
-  createResearch,
+  generateSampleNewsletter,
   saveUserMetricOrdering,
   recordSignupIntent,
   getGovernmentVerificationStatus,
@@ -175,7 +175,8 @@ export default function DashboardPage() {
   const [editableNewsletterDescription, setEditableNewsletterDescription] = useState("");
   const [editableNewsletterFrequency, setEditableNewsletterFrequency] = useState<"weekly" | "monthly">("weekly");
   const [generatingSampleNewsletter, setGeneratingSampleNewsletter] = useState(false);
-  const [sampleNewsletterReportUrl, setSampleNewsletterReportUrl] = useState<string | null>(null);
+  const [sampleNewsletterSubject, setSampleNewsletterSubject] = useState<string | null>(null);
+  const [testNewsletterGenerationMode, setTestNewsletterGenerationMode] = useState<"stories" | "seymour">("stories");
   const [showEditHomeLocationModal, setShowEditHomeLocationModal] = useState(false);
   const identityScopeKey = impersonationState
     ? `impersonated:${impersonationState.userId}`
@@ -908,34 +909,26 @@ export default function DashboardPage() {
     const defaultPrompt =
       "Create a weekly newsletter report for this city and district. Focus on recent changes and trends in key metrics (crime, housing, permits, 311 calls), notable anomalies, comparative analysis (this period vs. previous, district vs. city-wide), and actionable insights for residents. Be data-driven with specific numbers; highlight both positive and concerning trends.";
     const prompt = editableNewsletterDescription.trim() || defaultPrompt;
-    const fullPrompt = `For ${cityName} (${districtLabel}). ${prompt}`;
+    const promptOverride = `For ${cityName} (${districtLabel}). ${prompt}`;
 
     setGeneratingSampleNewsletter(true);
-    setSampleNewsletterReportUrl(null);
+    setSampleNewsletterSubject(null);
     try {
       const token = await getAccessTokenSilently();
-      const res = await createResearch(
+      const res = await generateSampleNewsletter(
         {
-          prompt: fullPrompt,
           city_id: cityId,
-          district: district ? String(district) : null,
-          one_shot: true,
-          is_newsletter: true,
-          newsletter_frequency: editableNewsletterFrequency,
-          generate_feed_stories: true,
-          feed_story_count: 2,
-          feed_story_frequency: editableNewsletterFrequency,
-          feed_story_category: "personal_newsletter",
-          use_low_cost_model: true,
+          district: district ? Number(district) : null,
+          frequency: editableNewsletterFrequency,
+          prompt_override: promptOverride,
+          generation_mode: testNewsletterGenerationMode,
         },
         token
       );
-      if (res?.public_url) {
-        setSampleNewsletterReportUrl(res.public_url);
-      }
+      setSampleNewsletterSubject((res?.title || "").trim() || "Your local update");
     } catch (err) {
       console.error("Error generating sample newsletter:", err);
-      alert("Failed to generate sample newsletter. Please try again.");
+      alert("Failed to send test newsletter. Please try again.");
     } finally {
       setGeneratingSampleNewsletter(false);
     }
@@ -1492,7 +1485,7 @@ export default function DashboardPage() {
                     <h3 className={styles.settingsSectionTitle}>Personalized newsletter</h3>
                     <div className={styles.settingsNewsletterBlock}>
                       <p className={styles.settingsNewsletterIntro}>
-                        Your newsletter preferences from onboarding. Edit below and save to update. Generate an example to see a sample in the Personal newsletter section of your feed.
+                        Your newsletter preferences from onboarding. Edit below and save to update. Send a test: choose <strong>Feed stories</strong> to match the weekly job (no LLM), or <strong>Seymour (LLM)</strong> to run the full personalized prompt with tools. The test is logged in Seymour&apos;s outbox and emailed when sending is configured.
                       </p>
                       <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "var(--text-primary)", marginBottom: "8px" }}>
                         Newsletter description (what you want each edition to focus on)
@@ -1515,20 +1508,36 @@ export default function DashboardPage() {
                           Monthly
                         </label>
                       </div>
+                      <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "var(--text-primary)", marginBottom: "8px", marginTop: "16px" }}>
+                        Test email generation
+                      </label>
+                      <select
+                        className={styles.settingsTextarea}
+                        value={testNewsletterGenerationMode}
+                        onChange={(e) => setTestNewsletterGenerationMode(e.target.value as "stories" | "seymour")}
+                        aria-label="Test newsletter generation mode"
+                        style={{ minHeight: "unset", height: "44px", padding: "10px 12px", cursor: "pointer", maxWidth: "100%" }}
+                      >
+                        <option value="stories">Feed stories (same as weekly send)</option>
+                        <option value="seymour">Seymour — full personalized prompt (LLM + tools)</option>
+                      </select>
                       <button type="button" className={styles.settingsGenerateBtn} onClick={handleGenerateSampleNewsletter} disabled={generatingSampleNewsletter}>
                         {generatingSampleNewsletter ? (
                           <>
                             <Loader size="sm" color="white" />
-                            <span>Generating sample…</span>
+                            <span>
+                              {testNewsletterGenerationMode === "seymour"
+                                ? "Running Seymour (may take a minute)…"
+                                : "Sending test…"}
+                            </span>
                           </>
                         ) : (
-                          "Generate example newsletter"
+                          "Send test newsletter"
                         )}
                       </button>
-                      {sampleNewsletterReportUrl && (
+                      {sampleNewsletterSubject && (
                         <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "12px", padding: "12px", background: "var(--bg-primary)", borderRadius: "8px" }}>
-                          Sample is being generated. It will appear under <strong>Personal newsletter</strong> in your feed when ready.{" "}
-                          <a href={sampleNewsletterReportUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand-primary, #ad35fa)" }}>View report</a>
+                          Test newsletter completed. Subject: <strong style={{ color: "var(--text-primary)" }}>{sampleNewsletterSubject}</strong>. Check Seymour&apos;s outbox and your inbox (if email delivery is enabled).
                         </p>
                       )}
                     </div>

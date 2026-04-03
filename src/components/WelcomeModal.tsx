@@ -808,13 +808,14 @@ export default function WelcomeModal({
     return `Create a ${newsletterFrequency} newsletter for this city and district. Focus on: ${labels.join(", ")}. Include recent changes and trends, notable anomalies, comparative analysis (this period vs. previous, district vs. city-wide), and actionable insights for residents. Be data-driven with specific numbers; highlight both positive and concerning trends.`;
   };
 
-  /** Toggle a category pill; updates selection and derived newsletter prompt. */
+  /** Toggle a category pill; updates selection only (newsletter_description stays blank). */
   const handleCategoryPillToggle = (presetId: string) => {
     const next = selectedCategoryIds.includes(presetId)
       ? selectedCategoryIds.filter((id) => id !== presetId)
       : [...selectedCategoryIds, presetId];
     setSelectedCategoryIds(next);
-    setNewsletterDescription(buildPromptFromSelection(next));
+    // Newsletter description is intentionally left blank — users set it in Settings
+    // so the weekly newsletter can use it as custom instructions.
   };
 
   // Render combined preferences step (topics + notification toggles)

@@ -17,6 +17,8 @@ import {
 } from "@/lib/publicApiClient";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import Loader from "@/components/Loader";
+import NewsletterAdminSubscribersTab from "@/components/NewsletterAdminSubscribersTab";
+import NewsletterAdminPromptsTab from "@/components/NewsletterAdminPromptsTab";
 import styles from "./NewsletterAdmin.module.css";
 
 // ---------------------------------------------------------------------------
@@ -537,31 +539,9 @@ export default function NewsletterAdmin() {
         />
       )}
 
-      {/* Prompts Tab */}
-      {activeTab === "prompts" && (
-        <PromptsTab
-          cities={cities}
-          promptFrequency={promptFrequency}
-          promptText={promptText}
-          promptDirty={promptDirty}
-          testCityId={testCityId}
-          testDistrict={testDistrict}
-          testGenerating={testGenerating}
-          testResult={testResult}
-          onFrequencyChange={setPromptFrequency}
-          onTextChange={(t) => { setPromptText(t); setPromptDirty(true); }}
-          onSave={handleSavePrompt}
-          onReset={handleResetPrompt}
-          onTestCityChange={setTestCityId}
-          onTestDistrictChange={setTestDistrict}
-          onTestGenerate={handleTestGenerate}
-        />
-      )}
+      {activeTab === "prompts" && <NewsletterAdminPromptsTab />}
 
-      {/* Subscribers Tab */}
-      {activeTab === "subscribers" && (
-        <SubscribersTab cityStatuses={cityStatuses} />
-      )}
+      {activeTab === "subscribers" && <NewsletterAdminSubscribersTab />}
 
       {/* Generate Modal */}
       {genCityId !== null && (
@@ -1101,9 +1081,11 @@ function BrowseRow({
 }
 
 // ===========================================================================
-// Prompts Tab
+// Prompts Tab — now handled by NewsletterAdminPromptsTab component
+// Retained only for TypeScript to not error; the function below is dead code
+// kept so the old props don't become dangling references.
 // ===========================================================================
-function PromptsTab({
+function _PromptsTabUnused({
   cities,
   promptFrequency,
   promptText,
@@ -1241,9 +1223,9 @@ function PromptsTab({
 }
 
 // ===========================================================================
-// Subscribers Tab
+// Subscribers Tab — now handled by NewsletterAdminSubscribersTab component
 // ===========================================================================
-function SubscribersTab({ cityStatuses }: { cityStatuses: CityNewsletterStatus[] }) {
+function _SubscribersTabUnused({ cityStatuses }: { cityStatuses: CityNewsletterStatus[] }) {
   return (
     <>
       <div className={styles.infoBox}>

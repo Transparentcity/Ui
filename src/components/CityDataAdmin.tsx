@@ -714,6 +714,9 @@ export default function CityDataAdmin({
   const handleLookupCensusGeoid = async (updateCity: boolean) => {
     setLookupGeoidResult(null);
     setLookupGeoidLoading(true);
+    if (updateCity) {
+      setPopulationRefreshError(null);
+    }
     try {
       const token = await getAccessTokenSilently();
       const result = await lookupCensusGeoid(cityId, token, {
@@ -727,13 +730,28 @@ export default function CityDataAdmin({
       });
       if (result.updated && result.census_place_geoid) {
         setFormData((prev) => ({ ...prev, census_place_geoid: result.census_place_geoid ?? "" }));
-        refetchCity();
-        // Refetch population source so Data tab shows ACS source immediately
         if (updateCity) {
-          getPopulationSource(cityId, token).then((c) =>
-            setPopulationSource(c.configured === false ? "none" : c)
-          );
+          // GEOID + ACS source are saved; pull ACS so cities.population and cache update,
+          // then reload city so the City Data table (Population row) shows the new value.
+          try {
+            await refreshPopulation(cityId, token);
+          } catch (refreshErr: unknown) {
+            const msg =
+              refreshErr instanceof Error ? refreshErr.message : String(refreshErr);
+            setPopulationRefreshError(
+              `Census GEOID was saved, but refreshing population from ACS failed: ${msg}. Use "Refresh from source" below.`
+            );
+          }
+          const config = await getPopulationSource(cityId, token);
+          if (config.configured === false) {
+            setPopulationSource("none");
+            setPopulationMetricId(null);
+          } else {
+            setPopulationSource(config);
+            setPopulationMetricId(config.population_metric_id ?? null);
+          }
         }
+        await refetchCity();
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
