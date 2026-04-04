@@ -4486,6 +4486,7 @@ export default function CityDataAdmin({
             cityName={cityData?.name || ""}
             initialDistrict={null}
             isAdmin={true}
+            onClose={() => setActiveTab("data")}
           />
         </div>
       )}

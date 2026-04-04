@@ -4,9 +4,10 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
-  adminGenerateSampleNewsletterForUser,
+  adminQueueNewsletterPendingForUser,
   getAdminUserNewsletterOverview,
   getAdminUserNewsletterSendHistory,
+  getAvailableModels,
   getOutboundEmail,
   listCities,
   listUsers,
@@ -16,6 +17,7 @@ import {
   type User,
 } from "@/lib/apiClient";
 import Loader from "@/components/Loader";
+import JobSessionDebugLink from "@/components/JobSessionDebugLink";
 import styles from "./NewsletterAdmin.module.css";
 
 function formatWhen(iso: string | null | undefined): string {
@@ -42,11 +44,16 @@ export default function NewsletterAdminSubscribersTab() {
   const [history, setHistory] = useState<AdminNewsletterHistoryItem[]>([]);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  /** Session for the row being previewed (outbox body preview), when the API provides one. */
+  const [previewJobSessionId, setPreviewJobSessionId] = useState<string | null>(null);
 
   const [testCityId, setTestCityId] = useState<number | null>(null);
   const [testDistrict, setTestDistrict] = useState("0");
   const [testFrequency, setTestFrequency] = useState<"weekly" | "monthly">("weekly");
-  const [testMode, setTestMode] = useState<"stories" | "seymour">("stories");
+  const [seymourModelKey, setSeymourModelKey] = useState("");
+  const [seymourModelOptions, setSeymourModelOptions] = useState<{ key: string; name: string }[]>(
+    []
+  );
   const [testPrompt, setTestPrompt] = useState("");
   const [testBusy, setTestBusy] = useState(false);
   const [testTitle, setTestTitle] = useState<string | null>(null);
@@ -56,12 +63,19 @@ export default function NewsletterAdminSubscribersTab() {
       setLoading(true);
       setError(null);
       const token = await getAccessTokenSilently();
-      const [u, c] = await Promise.all([
+      const [u, c, modelGroups] = await Promise.all([
         listUsers(token, { limit: 500 }),
         listCities(token),
+        getAvailableModels(token).catch(() => []),
       ]);
       setUsers(u);
       setCities(c.filter((x) => x.is_active !== false));
+      const flat = modelGroups
+        .flatMap((g) =>
+          g.models.filter((m) => m.is_available).map((m) => ({ key: m.key, name: m.name }))
+        )
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setSeymourModelOptions(flat);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load subscribers");
     } finally {
@@ -90,6 +104,7 @@ export default function NewsletterAdminSubscribersTab() {
       setOverview(null);
       setHistory([]);
       setPreviewHtml(null);
+      setPreviewJobSessionId(null);
       setTestTitle(null);
       try {
         const token = await getAccessTokenSilently();
@@ -133,6 +148,8 @@ export default function NewsletterAdminSubscribersTab() {
     if (item.type !== "outbound_email" || typeof item.id !== "number") return;
     setPreviewLoading(true);
     setPreviewHtml(null);
+    const sid = item.session_id?.trim();
+    setPreviewJobSessionId(sid || null);
     try {
       const token = await getAccessTokenSilently();
       const detail = await getOutboundEmail(item.id, token);
@@ -144,9 +161,9 @@ export default function NewsletterAdminSubscribersTab() {
     }
   };
 
-  const handleTestSend = async (userId: number) => {
+  const handleGenerateNewsletter = async (userId: number) => {
     if (!testCityId) {
-      toast.error("Select a city for the test send.");
+      toast.error("Select a city for the newsletter.");
       return;
     }
     const cityName =
@@ -162,27 +179,26 @@ export default function NewsletterAdminSubscribersTab() {
     setTestTitle(null);
     try {
       const token = await getAccessTokenSilently();
-      const res = await adminGenerateSampleNewsletterForUser(
+      const res = await adminQueueNewsletterPendingForUser(
         userId,
         {
           city_id: testCityId,
           district: testDistrict === "0" ? null : Number(testDistrict),
           frequency: testFrequency,
           prompt_override: promptOverride,
-          generation_mode: testMode,
+          generation_mode: "seymour",
+          ...(seymourModelKey.trim()
+            ? { seymour_model_key: seymourModelKey.trim() }
+            : {}),
         },
         token
       );
-      setTestTitle((res.title || "").trim() || "Sent");
+      setTestTitle(res.job_id);
       toast.success(
-        testMode === "seymour"
-          ? "Test newsletter completed (Seymour)."
-          : "Test newsletter completed (feed stories)."
+        "Newsletter generation queued. It will appear in Pending on the dashboard when ready."
       );
-      const hi = await getAdminUserNewsletterSendHistory(userId, token, { limit: 80 });
-      setHistory(hi.items);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Test send failed");
+      toast.error(e instanceof Error ? e.message : "Could not queue newsletter");
     } finally {
       setTestBusy(false);
     }
@@ -207,8 +223,8 @@ export default function NewsletterAdminSubscribersTab() {
     <>
       <div className={styles.infoBox}>
         Each subscriber&apos;s email newsletter settings (communication preferences and district subscriptions), past
-        sends in the outbox / newsletter_sends tables, and admin test sends using the same pipeline as &quot;Send test
-        newsletter&quot; in Settings. Users can also change preferences in their profile or via unsubscribe links.
+        sends in the outbox / newsletter_sends tables, and admin-generated drafts (queued to Pending on the dashboard).
+        Users can also change preferences in their profile or via unsubscribe links.
       </div>
 
       <div className={styles.filtersContainer}>
@@ -263,7 +279,8 @@ export default function NewsletterAdminSubscribersTab() {
                     testCityId={testCityId}
                     testDistrict={testDistrict}
                     testFrequency={testFrequency}
-                    testMode={testMode}
+                    seymourModelKey={seymourModelKey}
+                    seymourModelOptions={seymourModelOptions}
                     testPrompt={testPrompt}
                     testBusy={testBusy}
                     testTitle={testTitle}
@@ -273,11 +290,15 @@ export default function NewsletterAdminSubscribersTab() {
                     onTestCityId={setTestCityId}
                     onTestDistrict={setTestDistrict}
                     onTestFrequency={setTestFrequency}
-                    onTestMode={setTestMode}
+                    onSeymourModelKey={setSeymourModelKey}
                     onTestPrompt={setTestPrompt}
-                    onTestSend={() => handleTestSend(u.id)}
+                    onGenerateNewsletter={() => handleGenerateNewsletter(u.id)}
                     onPreviewOutbound={handlePreviewOutbound}
-                    onClosePreview={() => setPreviewHtml(null)}
+                    previewJobSessionId={previewJobSessionId}
+                    onClosePreview={() => {
+                      setPreviewHtml(null);
+                      setPreviewJobSessionId(null);
+                    }}
                   />
                 );
               })}
@@ -300,7 +321,8 @@ function UserNewsletterRow({
   testCityId,
   testDistrict,
   testFrequency,
-  testMode,
+  seymourModelKey,
+  seymourModelOptions,
   testPrompt,
   testBusy,
   testTitle,
@@ -310,10 +332,11 @@ function UserNewsletterRow({
   onTestCityId,
   onTestDistrict,
   onTestFrequency,
-  onTestMode,
+  onSeymourModelKey,
   onTestPrompt,
-  onTestSend,
+  onGenerateNewsletter,
   onPreviewOutbound,
+  previewJobSessionId,
   onClosePreview,
 }: {
   user: User;
@@ -326,7 +349,8 @@ function UserNewsletterRow({
   testCityId: number | null;
   testDistrict: string;
   testFrequency: "weekly" | "monthly";
-  testMode: "stories" | "seymour";
+  seymourModelKey: string;
+  seymourModelOptions: { key: string; name: string }[];
   testPrompt: string;
   testBusy: boolean;
   testTitle: string | null;
@@ -336,10 +360,11 @@ function UserNewsletterRow({
   onTestCityId: (id: number | null) => void;
   onTestDistrict: (v: string) => void;
   onTestFrequency: (v: "weekly" | "monthly") => void;
-  onTestMode: (v: "stories" | "seymour") => void;
+  onSeymourModelKey: (v: string) => void;
   onTestPrompt: (v: string) => void;
-  onTestSend: () => void;
+  onGenerateNewsletter: () => void;
   onPreviewOutbound: (item: AdminNewsletterHistoryItem) => void;
+  previewJobSessionId: string | null;
   onClosePreview: () => void;
 }) {
   return (
@@ -471,11 +496,11 @@ function UserNewsletterRow({
 
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ fontWeight: 600, marginBottom: 8, color: "var(--text-primary)" }}>
-                      Test send for this user
+                      Generate newsletter for this user
                     </div>
                     {!user.email?.trim() ? (
                       <p className={styles.muted} style={{ marginBottom: 12 }}>
-                        This account has no email; test sends are not available.
+                        This account has no email; generation is not available.
                       </p>
                     ) : null}
                     <div className={styles.testPanelRow} style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
@@ -529,16 +554,18 @@ function UserNewsletterRow({
                         </select>
                       </div>
                       <div className={styles.testField}>
-                        <label className={styles.testLabel}>Generation</label>
+                        <label className={styles.testLabel}>Seymour model</label>
                         <select
                           className={styles.select}
-                          value={testMode}
-                          onChange={(e) =>
-                            onTestMode(e.target.value as "stories" | "seymour")
-                          }
+                          value={seymourModelKey}
+                          onChange={(e) => onSeymourModelKey(e.target.value)}
                         >
-                          <option value="stories">Feed stories</option>
-                          <option value="seymour">Seymour (LLM)</option>
+                          <option value="">Default (server settings)</option>
+                          {seymourModelOptions.map((m) => (
+                            <option key={m.key} value={m.key}>
+                              {m.name}
+                            </option>
+                          ))}
                         </select>
                       </div>
                       <div className={styles.testField} style={{ alignSelf: "flex-end" }}>
@@ -546,9 +573,9 @@ function UserNewsletterRow({
                           type="button"
                           className={styles.primaryBtn}
                           disabled={!user.email?.trim() || !testCityId || testBusy}
-                          onClick={onTestSend}
+                          onClick={onGenerateNewsletter}
                         >
-                          {testBusy ? "Sending…" : "Send test newsletter"}
+                          {testBusy ? "Queuing…" : "Generate newsletter"}
                         </button>
                       </div>
                     </div>
@@ -564,7 +591,7 @@ function UserNewsletterRow({
                     />
                     {testTitle && (
                       <p style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 8 }}>
-                        Last result subject: <strong style={{ color: "var(--text-primary)" }}>{testTitle}</strong>
+                        Last queued job: <strong style={{ color: "var(--text-primary)" }}>{testTitle}</strong>
                       </p>
                     )}
                   </div>
@@ -583,7 +610,7 @@ function UserNewsletterRow({
                             <th>Type</th>
                             <th>Subject</th>
                             <th>Source</th>
-                            <th />
+                            <th>Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -597,7 +624,7 @@ function UserNewsletterRow({
                                 {h.subject || "\u2014"}
                               </td>
                               <td style={{ fontSize: 12 }}>{h.source}</td>
-                              <td>
+                              <td style={{ whiteSpace: "nowrap" }}>
                                 {h.type === "outbound_email" && typeof h.id === "number" ? (
                                   <button
                                     type="button"
@@ -606,6 +633,12 @@ function UserNewsletterRow({
                                   >
                                     Body
                                   </button>
+                                ) : h.type === "newsletter_send" ? (
+                                  h.session_id?.trim() ? (
+                                    <JobSessionDebugLink sessionId={h.session_id} />
+                                  ) : (
+                                    <span className={styles.muted}>\u2014</span>
+                                  )
                                 ) : (
                                   "\u2014"
                                 )}
@@ -625,11 +658,21 @@ function UserNewsletterRow({
                   )}
                   {previewHtml !== null && !previewLoading && (
                     <div style={{ marginTop: 12 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
                         <span style={{ fontWeight: 600, fontSize: 13 }}>Preview</span>
-                        <button type="button" className={styles.secondaryBtn} onClick={onClosePreview}>
-                          Close
-                        </button>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <JobSessionDebugLink sessionId={previewJobSessionId} />
+                          <button type="button" className={styles.secondaryBtn} onClick={onClosePreview}>
+                            Close
+                          </button>
+                        </div>
                       </div>
                       <div
                         className={styles.previewPanel}

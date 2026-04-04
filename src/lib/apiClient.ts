@@ -4290,6 +4290,8 @@ export interface NewsletterReport {
   social_summary: string | null;
   created_at: string | null;
   public_url: string;
+  /** Seymour job session tied to this research report, when present. */
+  session_id?: string | null;
 }
 
 export function listNewsletterReports(
@@ -4433,6 +4435,8 @@ export interface GenerateSampleNewsletterRequest {
   prompt_override?: string | null;
   /** Default "stories" matches weekly send; "seymour" runs the LLM + tools personalized prompt. */
   generation_mode?: "stories" | "seymour";
+  /** When generation_mode is seymour, optional model key from /api/chat/models; omit for server default. */
+  seymour_model_key?: string | null;
 }
 
 export interface GenerateSampleNewsletterResponse {
@@ -4466,6 +4470,20 @@ export function adminGenerateSampleNewsletterForUser(
   );
 }
 
+/** Admin: enqueue background job to generate a draft into newsletter_pending_sends. */
+export function adminQueueNewsletterPendingForUser(
+  userId: number,
+  payload: GenerateSampleNewsletterRequest,
+  token: string
+): Promise<{ job_id: string }> {
+  return request<{ job_id: string }>(
+    `/api/admin/users/${userId}/queue-newsletter-pending`,
+    "POST",
+    payload,
+    token
+  );
+}
+
 /** Weekly job output queued for admin send (no body in list). */
 export interface NewsletterPendingListItem {
   id: number;
@@ -4488,10 +4506,11 @@ export interface NewsletterPendingListItem {
 
 export function listNewsletterPending(
   token: string,
-  options?: { unsent_only?: boolean; limit?: number }
+  options?: { unsent_only?: boolean; sent_only?: boolean; limit?: number }
 ): Promise<{ items: NewsletterPendingListItem[]; count: number }> {
   const params = new URLSearchParams();
   if (options?.unsent_only === false) params.append("unsent_only", "false");
+  if (options?.sent_only) params.append("sent_only", "true");
   if (options?.limit != null) params.append("limit", String(options.limit));
   const q = params.toString();
   return request<{ items: NewsletterPendingListItem[]; count: number }>(
@@ -4524,6 +4543,58 @@ export function sendNewsletterPendingBatch(
   details: Array<{ id: number; status: string; reason?: string }>;
 }> {
   return request(`/api/admin/newsletter-pending/send`, "POST", { ids }, token);
+}
+
+export function deleteNewsletterPendingBatch(
+  ids: number[],
+  token: string
+): Promise<{ deleted: number }> {
+  return request(`/api/admin/newsletter-pending/delete`, "POST", { ids }, token);
+}
+
+export interface NewsletterGenerationPreview {
+  /** Upper bound on LLM curation calls for the next weekly run. */
+  llm_edition_slots_planned: number;
+  /** Per-city breakdown: city_id, city_name, slots (1 city-wide + N district), districts list. */
+  llm_edition_slots_per_city: Array<{
+    city_id: number;
+    city_name: string;
+    slots: number;
+    districts: number[];
+  }>;
+  total_weekly_recipients: number;
+  /** Recipients who will receive the shared LLM edition (no LLM per recipient). */
+  standard_recipients: number;
+  /** Recipients on the personalized feed-story path (no LLM in the weekly job). */
+  personalized_recipients: number;
+  /** Active weekly subscribers currently excluded because they have no saved places. */
+  weekly_subscribers_without_places: number;
+}
+
+export function getNewsletterGenerationPreview(
+  token: string
+): Promise<NewsletterGenerationPreview> {
+  return request<NewsletterGenerationPreview>(
+    "/api/admin/newsletter-generation-preview",
+    "GET",
+    undefined,
+    token
+  );
+}
+
+/** Manual run of a system schedule (e.g. weekly_newsletter). */
+export function runScheduleJob(
+  token: string,
+  payload: {
+    schedule_key: string;
+    max_concurrent_cities?: number;
+    per_city_concurrency?: number;
+    remove_all_inactive?: boolean;
+    /** When true with weekly_newsletter, queue drafts instead of sending. */
+    queue_newsletters?: boolean;
+  }
+): Promise<{ status: string; result: Record<string, unknown> }> {
+  return request("/api/jobs/schedules/run", "POST", payload, token);
 }
 
 export interface NewsletterPromptsResponse {

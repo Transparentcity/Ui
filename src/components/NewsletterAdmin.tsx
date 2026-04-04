@@ -1,15 +1,26 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   listCities,
   listNewsletterReports,
   generateSampleNewsletter,
   createResearch,
+  listNewsletterPending,
+  getNewsletterPendingDetail,
+  sendNewsletterPendingBatch,
+  deleteNewsletterPendingBatch,
+  runScheduleJob,
+  getNewsletterGenerationPreview,
+  listJobs,
   type CityListItem,
   type NewsletterReport,
   type CreateResearchRequest,
+  type NewsletterPendingListItem,
+  type NewsletterGenerationPreview,
+  type Job,
 } from "@/lib/apiClient";
 import {
   listPublicCitiesForSitemap,
@@ -17,6 +28,7 @@ import {
 } from "@/lib/publicApiClient";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import Loader from "@/components/Loader";
+import JobSessionDebugLink from "@/components/JobSessionDebugLink";
 import NewsletterAdminSubscribersTab from "@/components/NewsletterAdminSubscribersTab";
 import NewsletterAdminPromptsTab from "@/components/NewsletterAdminPromptsTab";
 import styles from "./NewsletterAdmin.module.css";
@@ -510,7 +522,9 @@ export default function NewsletterAdmin() {
           cityStatuses={cityStatuses}
           expandedCityId={expandedCityId}
           onToggleExpand={(id) => setExpandedCityId(expandedCityId === id ? null : id)}
-          onGenerate={(cityId) => { setGenCityId(cityId); }}
+          onGenerate={(cityId) => {
+            setGenCityId(cityId);
+          }}
         />
       )}
 
@@ -622,6 +636,593 @@ export default function NewsletterAdmin() {
 }
 
 // ===========================================================================
+// Dashboard: admin review queue (pending sends)
+// ===========================================================================
+function newsletterScopeLabel(item: NewsletterPendingListItem): string {
+  const dt = item.draft_type || "";
+  if (dt === "shared_city_district") {
+    const d = item.district || "0";
+    return d === "0" ? "City-wide (shared edition)" : `District ${d} (shared edition)`;
+  }
+  if (dt === "personalized_place") return "Place (personalized)";
+  if (dt === "personalized_district") return "District (personalized)";
+  if (dt === "personalized_citywide") return "City-wide (personalized)";
+  return dt || "\u2014";
+}
+
+function WorkloadCard({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: number;
+  sub: string;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        background: accent ? "var(--brand-primary-faint, rgba(173,53,250,0.06))" : "var(--bg-subtle, #f9fafb)",
+        border: `1px solid ${accent ? "var(--brand-primary-light, #e9c6ff)" : "var(--border-color, #e5e7eb)"}`,
+        borderRadius: 6,
+        padding: "8px 12px",
+      }}
+    >
+      <div style={{ fontSize: 18, fontWeight: 700, color: accent ? "var(--brand-primary, #ad35fa)" : "var(--text-primary)" }}>
+        {value.toLocaleString()}
+      </div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-primary)", marginBottom: 2 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>{sub}</div>
+    </div>
+  );
+}
+
+function NewsletterDashboardQueue() {
+  const { getAccessTokenSilently } = useAuth0();
+  const [pending, setPending] = useState<NewsletterPendingListItem[]>([]);
+  const [archive, setArchive] = useState<NewsletterPendingListItem[]>([]);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [runBusy, setRunBusy] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  // Workload preview
+  const [workload, setWorkload] = useState<NewsletterGenerationPreview | null>(null);
+  const [workloadLoading, setWorkloadLoading] = useState(true);
+  const [workloadOpen, setWorkloadOpen] = useState(false);
+
+  // Recent weekly_newsletter jobs
+  const [recentJobs, setRecentJobs] = useState<Job[]>([]);
+  const [jobsOpen, setJobsOpen] = useState(false);
+
+  const loadAll = useCallback(async () => {
+    try {
+      setLoading(true);
+      const token = await getAccessTokenSilently();
+      const [u, a] = await Promise.all([
+        listNewsletterPending(token, { unsent_only: true, limit: 200 }),
+        listNewsletterPending(token, { sent_only: true, limit: 200 }),
+      ]);
+      setPending(u.items);
+      setArchive(a.items);
+      setSelected(new Set(u.items.map((x) => x.id)));
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to load newsletter queue");
+    } finally {
+      setLoading(false);
+    }
+  }, [getAccessTokenSilently]);
+
+  const loadWorkload = useCallback(async () => {
+    try {
+      setWorkloadLoading(true);
+      const token = await getAccessTokenSilently();
+      const [preview, jobs] = await Promise.all([
+        getNewsletterGenerationPreview(token),
+        listJobs(token, 20, undefined, undefined, "weekly_newsletter"),
+      ]);
+      setWorkload(preview);
+      setRecentJobs(jobs.jobs);
+    } catch {
+      // Non-critical; don't toast — show fallback UI
+    } finally {
+      setWorkloadLoading(false);
+    }
+  }, [getAccessTokenSilently]);
+
+  useEffect(() => {
+    loadAll();
+    loadWorkload();
+  }, [loadAll, loadWorkload]);
+
+  const toggleSelect = (id: number, checked: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const handleGenerateOnce = async () => {
+    setRunBusy(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const res = await runScheduleJob(token, {
+        schedule_key: "weekly_newsletter",
+        queue_newsletters: true,
+      });
+      const jobId = (res.result as { job_id?: string })?.job_id;
+      if (jobId) notifyJobCreated(jobId);
+      toast.success("Weekly newsletter run started (drafts queued for review).");
+      await Promise.all([loadAll(), loadWorkload()]);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to start generation");
+    } finally {
+      setRunBusy(false);
+    }
+  };
+
+  const handleSendSelected = async () => {
+    const ids = [...selected];
+    if (ids.length === 0) {
+      toast.error("Select at least one newsletter.");
+      return;
+    }
+    setActionBusy(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const r = await sendNewsletterPendingBatch(ids, token);
+      toast.success(`Sent ${r.sent}, skipped ${r.skipped}, failed ${r.failed}.`);
+      setExpandedId(null);
+      setPreviewHtml(null);
+      await loadAll();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Send failed");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    const ids = [...selected];
+    if (ids.length === 0) {
+      toast.error("Select at least one newsletter.");
+      return;
+    }
+    setActionBusy(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const r = await deleteNewsletterPendingBatch(ids, token);
+      toast.success(`Removed ${r.deleted} draft(s).`);
+      setExpandedId(null);
+      setPreviewHtml(null);
+      await loadAll();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const handlePreview = async (id: number) => {
+    if (expandedId === id) {
+      setExpandedId(null);
+      setPreviewHtml(null);
+      return;
+    }
+    setExpandedId(id);
+    setPreviewLoading(true);
+    setPreviewHtml(null);
+    try {
+      const token = await getAccessTokenSilently();
+      const d = await getNewsletterPendingDetail(id, token);
+      setPreviewHtml(d.body_html);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Preview failed");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <div className={styles.filtersContainer}>
+        <div
+          className={styles.filtersRow}
+          style={{
+            flexWrap: "wrap",
+            alignItems: "center",
+            flexDirection: "row",
+            gap: 10,
+          }}
+        >
+          <span style={{ fontWeight: 600, fontSize: 13 }}>Actions</span>
+          <button
+            type="button"
+            className={styles.primaryBtn}
+            onClick={handleGenerateOnce}
+            disabled={runBusy}
+          >
+            {runBusy ? "Starting…" : "Generate newsletters (one-time)"}
+          </button>
+          <button
+            type="button"
+            className={styles.secondaryBtn}
+            onClick={handleSendSelected}
+            disabled={actionBusy || selected.size === 0}
+          >
+            {actionBusy ? "…" : "Send selected"}
+          </button>
+          <button
+            type="button"
+            className={styles.secondaryBtn}
+            onClick={handleDeleteSelected}
+            disabled={actionBusy || selected.size === 0}
+          >
+            Delete selected
+          </button>
+          <button type="button" className={styles.linkBtn} onClick={() => setSelected(new Set(pending.map((p) => p.id)))}>
+            Select all
+          </button>
+          <button type="button" className={styles.linkBtn} onClick={() => setSelected(new Set())}>
+            Clear
+          </button>
+          <button
+            type="button"
+            className={styles.linkBtn}
+            onClick={() => { loadAll(); loadWorkload(); }}
+            disabled={loading || workloadLoading}
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* ── Workload preview strip ─────────────────────────────────── */}
+      <div className={styles.tableContainer} style={{ marginBottom: 8 }}>
+        <div
+          className={styles.tableHeader}
+          style={{ cursor: "pointer", userSelect: "none" }}
+          onClick={() => setWorkloadOpen((o) => !o)}
+        >
+          <span className={styles.tableTitle}>
+            {workloadOpen ? "▼" : "▶"} Next run workload
+          </span>
+          {workload && !workloadLoading && (
+            <span className={styles.tableCount} style={{ marginLeft: 8, fontWeight: 400, fontSize: 12 }}>
+              {workload.llm_edition_slots_planned} LLM call{workload.llm_edition_slots_planned !== 1 ? "s" : ""} planned
+              &nbsp;·&nbsp;{workload.total_weekly_recipients} recipients
+            </span>
+          )}
+          {workloadLoading && (
+            <span style={{ marginLeft: 8, fontSize: 12, color: "var(--text-secondary)" }}>Loading…</span>
+          )}
+        </div>
+        {workloadOpen && (
+          <div style={{ padding: "12px 16px" }}>
+            {workloadLoading ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Loader size="sm" color="dark" />
+                <span style={{ fontSize: 13 }}>Loading workload…</span>
+              </div>
+            ) : workload ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* Cost summary */}
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                  gap: 8,
+                }}>
+                  <WorkloadCard
+                    label="LLM curation calls"
+                    value={workload.llm_edition_slots_planned}
+                    sub="city-wide + district editions (upper bound)"
+                    accent
+                  />
+                  <WorkloadCard
+                    label="Recipients (standard)"
+                    value={workload.standard_recipients}
+                    sub="receive shared LLM edition, no per-recipient LLM"
+                  />
+                  <WorkloadCard
+                    label="Recipients (personalized)"
+                    value={workload.personalized_recipients}
+                    sub="feed-story email — no LLM in weekly job"
+                  />
+                  <WorkloadCard
+                    label="Excluded (no saved places)"
+                    value={workload.weekly_subscribers_without_places}
+                    sub="have weekly subscription but no user_places"
+                  />
+                </div>
+                {/* Per-city breakdown */}
+                {workload.llm_edition_slots_per_city.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
+                      Editions per city
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {workload.llm_edition_slots_per_city.map((c) => (
+                        <span
+                          key={c.city_id}
+                          style={{
+                            fontSize: 12,
+                            background: "var(--bg-subtle, #f3f4f6)",
+                            border: "1px solid var(--border-color, #e5e7eb)",
+                            borderRadius: 4,
+                            padding: "2px 8px",
+                          }}
+                          title={`Districts: ${c.districts.length > 0 ? c.districts.join(", ") : "none"}`}
+                        >
+                          {c.city_name}: {c.slots} slot{c.slots !== 1 ? "s" : ""}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                Could not load workload preview.
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Recent weekly newsletter runs ─────────────────────────── */}
+      <div className={styles.tableContainer} style={{ marginBottom: 8 }}>
+        <div
+          className={styles.tableHeader}
+          style={{ cursor: "pointer", userSelect: "none" }}
+          onClick={() => setJobsOpen((o) => !o)}
+        >
+          <span className={styles.tableTitle}>
+            {jobsOpen ? "▼" : "▶"} Recent runs
+          </span>
+          <span className={styles.tableCount} style={{ marginLeft: 8, fontWeight: 400, fontSize: 12 }}>
+            ({recentJobs.length})
+          </span>
+        </div>
+        {jobsOpen && (
+          recentJobs.length === 0 ? (
+            <div style={{ padding: "10px 16px", fontSize: 13, color: "var(--text-secondary)" }}>
+              No weekly newsletter jobs found.
+            </div>
+          ) : (
+            <div className={styles.tableWrapper}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th className={styles.th}>Completed</th>
+                    <th className={styles.th}>Status</th>
+                    <th className={styles.th}>Recipients</th>
+                    <th className={styles.th}>Queued</th>
+                    <th className={styles.th}>Sent</th>
+                    <th className={styles.th} title="LLM edition curation calls actually run">LLM calls</th>
+                    <th className={styles.th} title="Total tokens used in edition curation (prompt + completion)">Tokens</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentJobs.map((job) => {
+                    const r = (job.result as Record<string, any>) || {};
+                    const llmCalls = r.edition_llm_calls ?? "—";
+                    const totalTokens = r.edition_total_tokens != null
+                      ? Number(r.edition_total_tokens).toLocaleString()
+                      : "—";
+                    const statusColor =
+                      job.status === "completed" ? "var(--green, #16a34a)"
+                      : job.status === "failed" ? "var(--red, #dc2626)"
+                      : "var(--text-secondary)";
+                    return (
+                      <tr key={job.job_id}>
+                        <td className={styles.td} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
+                          {job.completed_at ? formatDate(job.completed_at) : "—"}
+                        </td>
+                        <td className={styles.td}>
+                          <span style={{ fontSize: 12, color: statusColor, fontWeight: 500 }}>
+                            {job.status}
+                          </span>
+                        </td>
+                        <td className={styles.td} style={{ fontSize: 12 }}>
+                          {r.recipients_processed ?? "—"}
+                        </td>
+                        <td className={styles.td} style={{ fontSize: 12 }}>
+                          {r.newsletters_queued ?? "—"}
+                        </td>
+                        <td className={styles.td} style={{ fontSize: 12 }}>
+                          {r.newsletters_sent ?? "—"}
+                        </td>
+                        <td className={styles.td} style={{ fontSize: 12 }}>
+                          {llmCalls}
+                        </td>
+                        <td className={styles.td} style={{ fontSize: 12 }}>
+                          {totalTokens}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
+      </div>
+
+      <div className={styles.tableContainer}>
+        <div className={styles.tableHeader}>
+          <span className={styles.tableTitle}>Pending review</span>
+          <span className={styles.tableCount}>({pending.length})</span>
+        </div>
+        {loading ? (
+          <div
+            style={{
+              padding: 24,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <Loader size="sm" color="dark" />
+            <span>Loading queue…</span>
+          </div>
+        ) : (
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th className={styles.th} style={{ width: 36 }} aria-label="Select" />
+                  <th className={styles.th}>Recipient</th>
+                  <th className={styles.th}>Scope</th>
+                  <th className={styles.th}>Subject</th>
+                  <th className={styles.th}>Mode</th>
+                  <th className={styles.th} />
+                </tr>
+              </thead>
+              <tbody>
+                {pending.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className={styles.emptyState}>
+                      No newsletters waiting for review. Use Generate newsletters (one-time) to build and queue drafts.
+                    </td>
+                  </tr>
+                )}
+                {pending.map((row) => (
+                  <Fragment key={row.id}>
+                    <tr className={styles.rowClickable}>
+                      <td className={styles.td} onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(row.id)}
+                          onChange={(e) => toggleSelect(row.id, e.target.checked)}
+                          aria-label={`Select ${row.recipient_email}`}
+                        />
+                      </td>
+                      <td className={styles.td}>{row.recipient_email}</td>
+                      <td className={styles.td} style={{ fontSize: 12 }}>
+                        {newsletterScopeLabel(row)}
+                      </td>
+                      <td className={styles.td}>
+                        <div className={styles.headline}>{row.subject || "\u2014"}</div>
+                      </td>
+                      <td className={styles.td} style={{ fontSize: 12 }}>
+                        {row.generation_mode}
+                      </td>
+                      <td className={styles.td}>
+                        <button
+                          type="button"
+                          className={styles.linkBtn}
+                          onClick={() => handlePreview(row.id)}
+                        >
+                          {expandedId === row.id ? "Hide" : "Preview"}
+                        </button>
+                      </td>
+                    </tr>
+                    {expandedId === row.id && (
+                      <tr className={styles.expandedRow}>
+                        <td colSpan={6} style={{ padding: 0 }}>
+                          {previewLoading ? (
+                            <div className="tc-loading-state" style={{ padding: 16, gap: 8 }}>
+                              <Loader size="sm" color="dark" />
+                              <span>Loading body…</span>
+                            </div>
+                          ) : previewHtml ? (
+                            <>
+                              {row.session_id?.trim() ? (
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    padding: "8px 12px 0",
+                                  }}
+                                >
+                                  <JobSessionDebugLink sessionId={row.session_id} />
+                                </div>
+                              ) : null}
+                              <div
+                                className={styles.previewPanel}
+                                style={{ maxHeight: 360, overflow: "auto" }}
+                                dangerouslySetInnerHTML={{ __html: previewHtml }}
+                              />
+                            </>
+                          ) : (
+                            <div className={styles.previewPanel}>
+                              <span className={styles.muted}>No body.</span>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginTop: 12, marginBottom: 16 }}>
+        <button
+          type="button"
+          className={styles.linkBtn}
+          onClick={() => setArchiveOpen((o) => !o)}
+          aria-expanded={archiveOpen}
+        >
+          {archiveOpen ? "\u25BC" : "\u25B6"} Archive ({archive.length})
+        </button>
+        {archiveOpen && (
+          <div className={styles.tableWrapper} style={{ marginTop: 8 }}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th className={styles.th}>Sent</th>
+                  <th className={styles.th}>Recipient</th>
+                  <th className={styles.th}>Scope</th>
+                  <th className={styles.th}>Subject</th>
+                </tr>
+              </thead>
+              <tbody>
+                {archive.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className={styles.emptyState}>
+                      No sent items in archive yet.
+                    </td>
+                  </tr>
+                )}
+                {archive.map((row) => (
+                  <tr key={`a-${row.id}`}>
+                    <td className={styles.td} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
+                      {row.sent_at ? formatDate(row.sent_at) : "\u2014"}
+                    </td>
+                    <td className={styles.td}>{row.recipient_email}</td>
+                    <td className={styles.td} style={{ fontSize: 12 }}>
+                      {newsletterScopeLabel(row)}
+                    </td>
+                    <td className={styles.td}>
+                      <div className={styles.headline}>{row.subject || "\u2014"}</div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ===========================================================================
 // Dashboard Tab
 // ===========================================================================
 function DashboardTab({
@@ -639,6 +1240,7 @@ function DashboardTab({
 }) {
   return (
     <>
+      <NewsletterDashboardQueue />
       {/* Stats */}
       <div className={styles.statsGrid}>
         <div className={styles.statCard}>
@@ -1055,24 +1657,26 @@ function BrowseRow({
           </div>
         </td>
       </tr>
-      {isExpanded && report.final_report_html && (
+      {isExpanded && (
         <tr className={styles.expandedRow}>
           <td colSpan={6} style={{ padding: 0 }}>
-            <div
-              className={styles.previewPanel}
-              dangerouslySetInnerHTML={{ __html: report.final_report_html }}
-            />
-          </td>
-        </tr>
-      )}
-      {isExpanded && !report.final_report_html && (
-        <tr className={styles.expandedRow}>
-          <td colSpan={6} style={{ padding: 0 }}>
-            <div className={styles.previewPanel}>
-              <span className={styles.muted}>
-                {report.social_summary || "No content available for preview."}
-              </span>
-            </div>
+            {report.session_id?.trim() ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px 0" }}>
+                <JobSessionDebugLink sessionId={report.session_id} />
+              </div>
+            ) : null}
+            {report.final_report_html ? (
+              <div
+                className={styles.previewPanel}
+                dangerouslySetInnerHTML={{ __html: report.final_report_html }}
+              />
+            ) : (
+              <div className={styles.previewPanel}>
+                <span className={styles.muted}>
+                  {report.social_summary || "No content available for preview."}
+                </span>
+              </div>
+            )}
           </td>
         </tr>
       )}
