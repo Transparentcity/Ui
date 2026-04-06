@@ -166,7 +166,6 @@ export default function DashboardPage() {
   const [govModeToggling, setGovModeToggling] = useState(false);
   
   // Editable preference state
-  const [editableAnomalyAlerts, setEditableAnomalyAlerts] = useState(false);
   const [editableWeeklyDigest, setEditableWeeklyDigest] = useState(false);
   const [editableMonthlyReport, setEditableMonthlyReport] = useState(false);
   const [editableReportScope, setEditableReportScope] = useState<"district" | "city">("district");
@@ -742,7 +741,7 @@ export default function DashboardPage() {
       const commPrefs = prefs.extra?.communication_preferences || {};
       const { newsletterDescription, newsletterFrequency } =
         readNewsletterPreferenceFields(prefs.extra);
-      setEditableAnomalyAlerts(commPrefs.anomaly_alerts ?? false);
+
       setEditableWeeklyDigest(commPrefs.weekly_digest ?? false);
       setEditableMonthlyReport(commPrefs.monthly_report ?? false);
       setEditableReportScope(commPrefs.report_scope || "district");
@@ -807,7 +806,6 @@ export default function DashboardPage() {
         ...currentExtra, // Preserve all existing extra fields (saved_cities, home_location, etc.)
         communication_preferences: {
           ...communicationPreferences,
-          anomaly_alerts: editableAnomalyAlerts,
           weekly_digest: editableWeeklyDigest,
           monthly_report: editableMonthlyReport,
           report_scope: editableMonthlyReport ? editableReportScope : null,
@@ -840,7 +838,7 @@ export default function DashboardPage() {
       const { newsletterDescription, newsletterFrequency } =
         readNewsletterPreferenceFields(refreshed.extra);
       
-      setEditableAnomalyAlerts(commPrefs.anomaly_alerts ?? false);
+
       setEditableWeeklyDigest(commPrefs.weekly_digest ?? false);
       setEditableMonthlyReport(commPrefs.monthly_report ?? false);
       setEditableReportScope(commPrefs.report_scope || "district");
@@ -1405,18 +1403,6 @@ export default function DashboardPage() {
                   <section className={styles.settingsSection}>
                     <h3 className={styles.settingsSectionTitle}>Communication preferences</h3>
                     <div className={styles.settingsSectionCard}>
-                      <label className={styles.settingsRow} style={{ cursor: "pointer" }}>
-                        <div className={styles.settingsRowLabel}>
-                          <div className={styles.settingsRowTitle}>Anomaly alerts</div>
-                          <div className={styles.settingsRowDescription}>Get notified when significant changes are detected</div>
-                        </div>
-                        <div className={styles.settingsRowControl}>
-                          <label style={{ display: "inline-flex", alignItems: "center", gap: "8px", cursor: "pointer", userSelect: "none", fontSize: "13px", color: "var(--text-secondary)" }}>
-                            <input type="checkbox" checked={editableAnomalyAlerts} onChange={(e) => setEditableAnomalyAlerts(e.target.checked)} aria-label="Toggle anomaly alerts" />
-                            {editableAnomalyAlerts ? "On" : "Off"}
-                          </label>
-                        </div>
-                      </label>
                       <label className={styles.settingsRow} style={{ cursor: "pointer" }}>
                         <div className={styles.settingsRowLabel}>
                           <div className={styles.settingsRowTitle}>Weekly digest</div>
