@@ -69,6 +69,7 @@ import {
   useCityShapeLayers,
   useUpdateShapeLayerInstance,
 } from "@/lib/hooks/useCities";
+import { portalPlatformLabel } from "@/lib/portalPlatformLabel";
 import styles from "./CityDataAdmin.module.css";
 import metricStyles from "./MetricsAdmin.module.css";
 
@@ -82,6 +83,7 @@ interface CityData {
   main_domain?: string;
   main_portal_url?: string;
   all_portal_urls?: string[];
+  portal_type?: string | null;
   is_active: boolean;
   is_launched?: boolean;
   datasets_count?: number;
@@ -1150,14 +1152,20 @@ export default function CityDataAdmin({
   };
 
   const handleRefreshUrls = async () => {
-    if (!confirm("Refresh dataset URLs for this city? This will fetch the latest URLs from the portal.")) {
+    if (
+      !confirm(
+        "Refresh dataset URLs and full index for this city?\n\n" +
+          "This removes existing dataset rows and Qdrant vectors for the city, then re-fetches URLs, " +
+          "metadata, and rebuilds the search index."
+      )
+    ) {
       return;
     }
 
     try {
       const result = await refreshCityUrlsMutation.mutateAsync(cityId);
       notifyJobCreated(result.job_id);
-      alert(`URL refresh started! Job ID: ${result.job_id}\n\nYou can monitor progress in the jobs dropdown.`);
+      alert(`URL refresh and re-index started! Job ID: ${result.job_id}\n\nYou can monitor progress in the jobs dropdown.`);
       setTimeout(() => refetchCity(), 2000);
     } catch (err: any) {
       alert("Failed to refresh URLs: " + err.message);
@@ -1165,7 +1173,13 @@ export default function CityDataAdmin({
   };
 
   const handleRefreshMetadata = async () => {
-    if (!confirm("Re-load datasets and metadata for this city? This will fetch the latest URLs and detailed metadata for all datasets.")) {
+    if (
+      !confirm(
+        "Re-load datasets and metadata for this city?\n\n" +
+          "This removes existing dataset rows and Qdrant vectors for the city, then re-fetches URLs, " +
+          "metadata, and rebuilds the search index."
+      )
+    ) {
       return;
     }
 
@@ -1175,7 +1189,7 @@ export default function CityDataAdmin({
           city_ids: [cityId],
           fetch_urls: true,
           fetch_metadata: true,
-          refresh: false,
+          refresh: true,
         },
       });
       notifyJobCreated(result.job_id);
@@ -1748,6 +1762,29 @@ export default function CityDataAdmin({
                     <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px" }}>
                       JSON array of URLs
                     </div>
+                  </td>
+                </tr>
+                <tr>
+                  <th
+                    style={{
+                      textAlign: "left",
+                      padding: "12px",
+                      background: "var(--bg-secondary)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Portal platform
+                  </th>
+                  <td style={{ padding: "12px", borderBottom: "1px solid var(--border-primary)" }}>
+                    <span style={{ fontWeight: 500 }}>
+                      {portalPlatformLabel(
+                        cityDataTyped?.portal_type,
+                        formData.main_portal_url || cityDataTyped?.main_portal_url
+                      )}
+                    </span>
+                    <p style={{ margin: "6px 0 0", fontSize: "12px", color: "var(--text-secondary)" }}>
+                      Set by the &quot;Determine portal type&quot; job on the city list, or inferred from the portal URL. Not editable here.
+                    </p>
                   </td>
                 </tr>
                 <tr>

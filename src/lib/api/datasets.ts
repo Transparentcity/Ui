@@ -29,6 +29,8 @@ export interface Dataset {
   fetch_status: "success" | "pending" | "error";
   last_updated_date?: string;
   url?: string;
+  api_url?: string | null;
+  source_data_url?: string | null;
 }
 
 export function getDatasetStats(token: string): Promise<DatasetStats> {

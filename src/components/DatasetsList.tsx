@@ -181,7 +181,9 @@ Department: ${dataset.publishing_department || "N/A"}
 Status: ${dataset.fetch_status}
 Rows: ${dataset.row_count || "N/A"}
 Size: ${dataset.file_size_bytes ? (dataset.file_size_bytes / 1024 / 1024).toFixed(2) + " MB" : "N/A"}
-URL: ${dataset.url || "N/A"}
+Portal URL: ${dataset.url || "N/A"}
+Resource URL (API): ${dataset.api_url || "N/A"}
+External / file URL: ${dataset.source_data_url || "N/A"}
       `.trim();
 
       alert(details);
@@ -467,6 +469,7 @@ URL: ${dataset.url || "N/A"}
                 {!cityId && <th className={styles.tableHeaderCell}>City</th>}
                 <th className={styles.tableHeaderCell}>Category</th>
                 <th className={styles.tableHeaderCell}>Department</th>
+                <th className={styles.tableHeaderCell}>Portal &amp; resource URL</th>
                 <th className={styles.tableHeaderCell}>Update Frequency</th>
                 <th className={styles.tableHeaderCell}>Rows</th>
                 <th className={styles.tableHeaderCell}>Status</th>
@@ -477,7 +480,7 @@ URL: ${dataset.url || "N/A"}
             <tbody className={styles.tableBody}>
               {loading ? (
                 <tr>
-                  <td colSpan={cityId ? 9 : 10} className={styles.tableCell} style={{ textAlign: "center" }}>
+                  <td colSpan={cityId ? 10 : 11} className={styles.tableCell} style={{ textAlign: "center" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
                       <Loader size="sm" color="dark" />
                       <span className={styles.loadingText}>Loading datasets...</span>
@@ -486,7 +489,7 @@ URL: ${dataset.url || "N/A"}
                 </tr>
               ) : datasets.length === 0 ? (
                 <tr>
-                  <td colSpan={cityId ? 9 : 10} className={styles.emptyState}>
+                  <td colSpan={cityId ? 10 : 11} className={styles.emptyState}>
                     No datasets found matching the current filters.
                   </td>
                 </tr>
@@ -532,6 +535,59 @@ URL: ${dataset.url || "N/A"}
                       </td>
                       <td className={styles.tableCell}>
                         {dataset.publishing_department || <span style={{ color: "var(--text-tertiary)" }}>N/A</span>}
+                      </td>
+                      <td className={styles.tableCell}>
+                        <div className={styles.urlBlock}>
+                          <div>
+                            <span className={styles.urlLabel}>Portal</span>
+                            {dataset.url ? (
+                              <a
+                                href={dataset.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={styles.urlLink}
+                                title={dataset.url}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {dataset.url}
+                              </a>
+                            ) : (
+                              <span className={styles.urlMissing}>N/A</span>
+                            )}
+                          </div>
+                          <div>
+                            <span className={styles.urlLabel}>Resource (set_dataset)</span>
+                            {dataset.api_url ? (
+                              <a
+                                href={dataset.api_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={styles.urlLink}
+                                title={dataset.api_url}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {dataset.api_url}
+                              </a>
+                            ) : (
+                              <span className={styles.urlMissing}>N/A</span>
+                            )}
+                          </div>
+                          {dataset.source_data_url && (
+                            <div>
+                              <span className={styles.urlLabel}>External data / file</span>
+                              <a
+                                href={dataset.source_data_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={styles.urlLink}
+                                title={dataset.source_data_url}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {dataset.source_data_url}
+                              </a>
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className={styles.tableCell}>
                         {dataset.update_frequency || <span style={{ color: "var(--text-tertiary)" }}>N/A</span>}

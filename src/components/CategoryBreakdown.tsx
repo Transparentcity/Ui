@@ -1,12 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  getPublicMetricTimeSeriesSummary,
-  getPublicTimeSeriesChart,
-  type PublicTimeSeriesSummary,
-  type PublicTimeSeriesChartPoint,
+  getPublicMetricCategoryBreakdown,
+  type CategoryBreakdownFieldResult,
 } from "@/lib/publicApiClient";
 import Loader from "./Loader";
 import "./CategoryBreakdown.css";
@@ -38,52 +36,30 @@ interface CategoryField {
 interface CategoryBreakdownProps {
   metricId: number;
   categoryFields: CategoryField[];
-  /** Optional: pass when parent already has the summary to avoid duplicate request */
-  timeSeriesSummary?: PublicTimeSeriesSummary | null;
+  /** @deprecated No longer used; kept for API compatibility. */
+  timeSeriesSummary?: unknown;
   /** ISO date string for the start of the current comparison period (e.g. YTD start) */
   currentPeriodStart?: string | null;
   /** ISO date string for the end of the current comparison period (e.g. YTD end) */
   currentPeriodEnd?: string | null;
 }
 
-/**
- * Aggregate numeric_value by group_value, filtered to a date range.
- * Falls back to the current calendar year when no dates are supplied.
- */
-function aggregateByGroupForPeriod(
-  data: PublicTimeSeriesChartPoint[],
-  periodStart?: string | null,
-  periodEnd?: string | null,
-): { group_value: string; total: number }[] {
-  if (!data.length) return [];
-
-  const startDate = periodStart ? periodStart.slice(0, 10) : `${new Date().getFullYear()}-01-01`;
-  const endDate = periodEnd ? periodEnd.slice(0, 10) : "9999-12-31";
-
-  const byGroup = new Map<string, number>();
-  for (const pt of data) {
-    const tp = pt.time_period.slice(0, 10);
-    if (tp < startDate || tp > endDate) continue;
-    const gv = pt.group_value != null && pt.group_value !== "" ? String(pt.group_value) : "(blank)";
-    const val = Number(pt.numeric_value);
-    if (!Number.isFinite(val)) continue;
-    byGroup.set(gv, (byGroup.get(gv) ?? 0) + val);
-  }
-  return Array.from(byGroup.entries())
-    .map(([group_value, total]) => ({ group_value, total }))
-    .sort((a, b) => b.total - a.total);
-}
-
 function SingleGroupBreakdown({
   title,
-  rows,
+  field,
 }: {
   title: string;
-  rows: { group_value: string; total: number; pct: number }[];
+  field: CategoryBreakdownFieldResult;
 }) {
   const [tableVisible, setTableVisible] = useState(false);
   const [tableExpanded, setTableExpanded] = useState(false);
-  const total = rows.reduce((a, r) => a + r.total, 0);
+
+  const rows = field.items.map((item) => ({
+    group_value: item.group_value,
+    total: item.count,
+    pct: item.percent ?? 0,
+  }));
+  const total = field.total;
   const top1 = rows[0];
   const top2 = rows[1];
   const maxVal = Math.max(...rows.map((r) => r.total), 1);
@@ -177,82 +153,27 @@ function SingleGroupBreakdown({
 export default function CategoryBreakdown({
   metricId,
   categoryFields,
-  timeSeriesSummary: initialSummary,
   currentPeriodStart,
   currentPeriodEnd,
 }: CategoryBreakdownProps) {
-  const summaryQuery = useQuery({
-    queryKey: ["public-metric-time-series-summary", metricId],
-    queryFn: () => getPublicMetricTimeSeriesSummary(metricId),
-    enabled: metricId != null && !initialSummary,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const summary = initialSummary ?? summaryQuery.data ?? null;
-
-  const fieldNames = useMemo(() => {
-    return categoryFields.map((f) => f.field_name || (f as { name?: string }).name || "").filter(Boolean);
-  }, [categoryFields]);
-
-  const chartIdsByField = useMemo(() => {
-    if (!summary?.time_series) return new Map<string, number>();
-    const map = new Map<string, number>();
-    for (const ts of summary.time_series) {
-      const gf = ts.group_field != null ? String(ts.group_field).trim() : "";
-      if (!gf) continue;
-      const district = ts.district ?? null;
-      if (district !== 0 && district !== null) continue;
-      if (!map.has(gf)) map.set(gf, ts.chart_id);
-    }
-    return map;
-  }, [summary]);
-
-  const chartsToFetch = useMemo(() => {
-    return fieldNames
-      .map((fieldName) => ({
-        fieldName,
-        displayName:
-          categoryFields.find((f) => (f.field_name || (f as { name?: string }).name) === fieldName)
-            ?.display_name ||
-          (categoryFields.find((f) => (f.field_name || (f as { name?: string }).name) === fieldName) as { name?: string } | undefined)
-            ?.name ||
-          fieldName,
-        chartId: chartIdsByField.get(fieldName),
-      }))
-      .filter((x): x is typeof x & { chartId: number } => x.chartId != null && x.chartId > 0);
-  }, [fieldNames, chartIdsByField, categoryFields]);
-
-  const chartQueries = useQuery({
+  const breakdownQuery = useQuery({
     queryKey: [
-      "category-breakdown-charts",
-      chartsToFetch.map((c) => c.chartId).sort().join(","),
+      "category-breakdown-direct",
+      metricId,
       currentPeriodStart ?? "",
       currentPeriodEnd ?? "",
     ],
-    queryFn: async () => {
-      const results = await Promise.all(
-        chartsToFetch.map(async ({ chartId, fieldName, displayName }) => {
-          const res = await getPublicTimeSeriesChart(chartId);
-          const rows = aggregateByGroupForPeriod(res.data, currentPeriodStart, currentPeriodEnd);
-          const total = rows.reduce((a, r) => a + r.total, 0);
-          const withPct = rows.map((r) => ({
-            ...r,
-            pct: total > 0 ? (r.total / total) * 100 : 0,
-          }));
-          return { fieldName, displayName, rows: withPct };
-        })
-      );
-      return results;
-    },
-    enabled: chartsToFetch.length > 0,
+    queryFn: () =>
+      getPublicMetricCategoryBreakdown(
+        metricId,
+        currentPeriodStart,
+        currentPeriodEnd,
+      ),
+    enabled: metricId != null && categoryFields.length > 0,
     staleTime: 5 * 60 * 1000,
   });
 
-  const loading = summaryQuery.isLoading && !initialSummary;
-  const chartsLoading = chartQueries.isLoading;
-  const chartResults = chartQueries.data ?? [];
-
-  if (loading) {
+  if (breakdownQuery.isLoading) {
     return (
       <div className="category-breakdown">
         <div className="category-breakdown-content category-breakdown-loading">
@@ -263,35 +184,27 @@ export default function CategoryBreakdown({
     );
   }
 
-  if (!summary && !summaryQuery.isLoading) {
+  if (breakdownQuery.isError || !breakdownQuery.data) {
     return (
       <div className="category-breakdown">
         <div className="category-breakdown-content">
-          <p className="category-breakdown-empty">No time series summary available for this metric.</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (chartsToFetch.length === 0) {
-    return (
-      <div className="category-breakdown">
-        <div className="category-breakdown-content">
-          <p className="placeholder-note">
-            No grouped data by: {fieldNames.join(", ") || "—"}. Category breakdown will appear when
-            group-field time series exist for this metric.
+          <p className="category-breakdown-empty">
+            Unable to load category breakdown data.
           </p>
         </div>
       </div>
     );
   }
 
-  if (chartsLoading) {
+  const { fields } = breakdownQuery.data;
+
+  if (fields.length === 0) {
     return (
       <div className="category-breakdown">
-        <div className="category-breakdown-content category-breakdown-loading">
-          <Loader size="md" color="dark" />
-          <span>Loading breakdown data…</span>
+        <div className="category-breakdown-content">
+          <p className="placeholder-note">
+            No category breakdown data available for this metric.
+          </p>
         </div>
       </div>
     );
@@ -300,11 +213,11 @@ export default function CategoryBreakdown({
   return (
     <div className="category-breakdown">
       <div className="category-breakdown-content">
-        {chartResults.map(({ fieldName, displayName, rows }) => (
+        {fields.map((field) => (
           <SingleGroupBreakdown
-            key={fieldName}
-            title={displayName || fieldName}
-            rows={rows}
+            key={field.field_name}
+            title={field.display_name || field.field_name}
+            field={field}
           />
         ))}
       </div>

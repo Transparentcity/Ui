@@ -56,6 +56,8 @@ export interface CityAdminData {
   main_domain?: string;
   main_portal_url?: string;
   all_portal_urls?: string[];
+  /** e.g. socrata, arcgis, ckan — from extra_metadata or URL inference */
+  portal_type?: string | null;
   is_active: boolean;
   datasets_count?: number;
   vector_db_points?: number;
@@ -463,13 +465,14 @@ export function refreshCityUrls(cityId: number, token: string): Promise<JobRespo
     {
       city_ids: [cityId],
       fetch_urls: true,
-      fetch_metadata: false,
-      refresh: false,
+      fetch_metadata: true,
+      refresh: true,
     },
     token
   );
 }
 
+/** Metadata-only load; refresh must stay false — backend refresh deletes DB rows before fetch. */
 export function refreshCityMetadata(cityId: number, token: string): Promise<JobResponse> {
   return request<JobResponse>(
     "/api/admin/cities/load-data",

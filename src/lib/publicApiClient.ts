@@ -654,6 +654,42 @@ export function getPublicTimeSeriesChart(chartId: number): Promise<PublicTimeSer
   return getCachedOrFetch(cacheKey, () => requestPublic<PublicTimeSeriesChartResponse>(path), 120000);
 }
 
+// Category breakdown (direct query — accurate for COUNT_DISTINCT metrics)
+export type CategoryBreakdownItem = {
+  group_value: string;
+  count: number;
+  percent: number | null;
+};
+
+export type CategoryBreakdownFieldResult = {
+  field_name: string;
+  display_name: string;
+  items: CategoryBreakdownItem[];
+  total: number;
+};
+
+export type CategoryBreakdownResponse = {
+  metric_id: number;
+  metric_name: string;
+  period_start: string;
+  period_end: string;
+  fields: CategoryBreakdownFieldResult[];
+};
+
+export function getPublicMetricCategoryBreakdown(
+  metricId: number,
+  startDate?: string | null,
+  endDate?: string | null,
+): Promise<CategoryBreakdownResponse> {
+  const params = new URLSearchParams();
+  if (startDate) params.set("start_date", startDate);
+  if (endDate) params.set("end_date", endDate);
+  const qs = params.toString();
+  const path = `/api/public/metrics/${metricId}/category-breakdown${qs ? `?${qs}` : ""}`;
+  const cacheKey = `metric-cat-breakdown:${metricId}:${startDate ?? ""}:${endDate ?? ""}`;
+  return getCachedOrFetch(cacheKey, () => requestPublic<CategoryBreakdownResponse>(path), 120000);
+}
+
 // Period completeness information
 export type PeriodCompletenessInfo = {
   period_type: string;

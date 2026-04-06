@@ -482,6 +482,41 @@
   color: var(--text-secondary);
 }
 
+.urlBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(36rem, 100%);
+}
+
+.urlLabel {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+  margin-bottom: 2px;
+}
+
+.urlLink {
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: var(--brand-primary);
+  word-break: break-all;
+  line-height: 1.35;
+}
+
+.urlLink:hover {
+  text-decoration: underline;
+}
+
+.urlMissing {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);

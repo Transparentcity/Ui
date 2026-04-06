@@ -7,7 +7,9 @@ import {
   type CreateAdminMetricRequest,
   type UpdateAdminMetricRequest,
   exportAdminMetrics,
+  exportAdminPlatformMetadata,
   importAdminMetrics,
+  importAdminPlatformMetadata,
   invalidateAdminMetricMapCache,
   getDefaultExecuteStartDateByPeriod,
 } from "@/lib/apiClient";
@@ -275,7 +277,16 @@ export default function MetricsAdmin() {
   const [mapCacheInvalidating, setMapCacheInvalidating] = useState(false);
   const [showAllGaps, setShowAllGaps] = useState(false);
 
-  // Export / Import
+  // Export / Import — full platform metadata bundle
+  const [platformExporting, setPlatformExporting] = useState(false);
+  const [platformImporting, setPlatformImporting] = useState(false);
+  const [platformImportFile, setPlatformImportFile] = useState<File | null>(null);
+  const [platformImportTargetCityId, setPlatformImportTargetCityId] = useState<
+    number | null
+  >(null);
+  const [includeShapefileGeometry, setIncludeShapefileGeometry] = useState(false);
+
+  // Export / Import — metrics definitions only
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -652,6 +663,234 @@ export default function MetricsAdmin() {
     <div className={styles.metricsAdmin}>
       {error && <div className={styles.errorMessage}>{String(error)}</div>}
 
+      {/* Backup: full platform + metrics-only export/import */}
+      <div className={styles.backupPanel}>
+        <div className={styles.backupPanelTitle}>Export / import</div>
+        <p className={styles.backupPanelIntro}>
+          Use the same city filter as the list below (optional). Full platform JSON includes
+          cities, structure configs, leaders, scheduled jobs, and metrics—no time series or
+          anomalies.
+        </p>
+
+        <div className={styles.backupRow}>
+          <div className={styles.backupRowHead}>
+            <span className={styles.backupRowLabel}>Full platform metadata</span>
+            <span className={styles.backupRowHint}>
+              <code>platform_metadata.json</code> or legacy <code>metrics_export.json</code>
+            </span>
+          </div>
+          <div className={styles.backupRowActions}>
+            <label className={styles.backupCheckbox}>
+              <input
+                type="checkbox"
+                checked={includeShapefileGeometry}
+                onChange={(e) => setIncludeShapefileGeometry(e.target.checked)}
+              />
+              Include map geometry (large)
+            </label>
+            <button
+              className={styles.secondaryBtn}
+              type="button"
+              disabled={platformExporting}
+              title="Download full metadata JSON for the current DB (optionally scoped to selected city)"
+              onClick={async () => {
+                if (platformExporting) return;
+                setPlatformExporting(true);
+                try {
+                  const token = await getAccessTokenSilently();
+                  const blob = await exportAdminPlatformMetadata(token, {
+                    city_id: selectedCityId ?? undefined,
+                    include_shapefile_geometry: includeShapefileGeometry,
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "platform_metadata.json";
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch (err) {
+                  console.error("Platform export failed:", err);
+                  alert(err instanceof Error ? err.message : "Export failed");
+                } finally {
+                  setPlatformExporting(false);
+                }
+              }}
+            >
+              <i className="fas fa-download" />{" "}
+              {platformExporting ? "Exporting…" : "Export"}
+            </button>
+            <span className={styles.exportImportDivider}>/</span>
+            <label className={styles.importLabel}>
+              <input
+                type="file"
+                accept=".json"
+                className={styles.importFileInput}
+                onChange={(e) => setPlatformImportFile(e.target.files?.[0] ?? null)}
+              />
+              <span className={styles.secondaryBtn}>
+                <i className="fas fa-upload" /> Choose file…
+              </span>
+            </label>
+            {platformImportFile && (
+              <>
+                <select
+                  className={styles.select}
+                  value={platformImportTargetCityId ?? ""}
+                  onChange={(e) =>
+                    setPlatformImportTargetCityId(
+                      e.target.value === "" ? null : parseInt(e.target.value, 10)
+                    )
+                  }
+                  title="Single-city exports only: remap to this dev city id"
+                >
+                  <option value="">No remap</option>
+                  {cities.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.display_name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className={styles.primaryBtn}
+                  type="button"
+                  disabled={platformImporting}
+                  onClick={async () => {
+                    if (!platformImportFile) return;
+                    setPlatformImporting(true);
+                    try {
+                      const token = await getAccessTokenSilently();
+                      const res = await importAdminPlatformMetadata(
+                        token,
+                        platformImportFile,
+                        {
+                          target_city_id: platformImportTargetCityId ?? undefined,
+                        }
+                      );
+                      alert(
+                        `${res.message}\n\n${JSON.stringify(res.counts, null, 2)}`
+                      );
+                      setPlatformImportFile(null);
+                      setPlatformImportTargetCityId(null);
+                      metricsQuery.refetch();
+                      summaryQuery.refetch();
+                    } catch (err) {
+                      console.error("Platform import failed:", err);
+                      alert(err instanceof Error ? err.message : "Import failed");
+                    } finally {
+                      setPlatformImporting(false);
+                    }
+                  }}
+                >
+                  {platformImporting ? "Importing…" : "Import"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className={styles.backupRow}>
+          <div className={styles.backupRowHead}>
+            <span className={styles.backupRowLabel}>Metric definitions only</span>
+            <span className={styles.backupRowHint}>
+              <code>metrics_export.json</code> — definitions + category order
+            </span>
+          </div>
+          <div className={styles.backupRowActions}>
+            <div className={styles.exportImportGroup}>
+              <button
+                className={styles.secondaryBtn}
+                type="button"
+                onClick={async () => {
+                  if (exporting) return;
+                  setExporting(true);
+                  try {
+                    const token = await getAccessTokenSilently();
+                    const blob = await exportAdminMetrics(token, {
+                      city_id: selectedCityId ?? undefined,
+                    });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "metrics_export.json";
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  } catch (err) {
+                    console.error("Export failed:", err);
+                    alert(err instanceof Error ? err.message : "Export failed");
+                  } finally {
+                    setExporting(false);
+                  }
+                }}
+                disabled={exporting}
+                title="Download metric definitions and category ordering only"
+              >
+                <i className="fas fa-download" /> {exporting ? "Exporting…" : "Export"}
+              </button>
+              <span className={styles.exportImportDivider}>/</span>
+              <label className={styles.importLabel}>
+                <input
+                  type="file"
+                  accept=".json"
+                  className={styles.importFileInput}
+                  onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
+                />
+                <span className={styles.secondaryBtn}>
+                  <i className="fas fa-upload" /> Choose file…
+                </span>
+              </label>
+              {importFile && (
+                <>
+                  <select
+                    className={styles.select}
+                    value={importTargetCityId ?? ""}
+                    onChange={(e) =>
+                      setImportTargetCityId(
+                        e.target.value === "" ? null : parseInt(e.target.value, 10)
+                      )
+                    }
+                    title="Remap all metrics to this city (e.g. dev city 1)"
+                  >
+                    <option value="">No remap</option>
+                    {cities.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.display_name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className={styles.primaryBtn}
+                    type="button"
+                    disabled={importing}
+                    onClick={async () => {
+                      if (!importFile) return;
+                      setImporting(true);
+                      try {
+                        const token = await getAccessTokenSilently();
+                        const res = await importAdminMetrics(token, importFile, {
+                          target_city_id: importTargetCityId ?? undefined,
+                        });
+                        alert(res.message);
+                        setImportFile(null);
+                        setImportTargetCityId(null);
+                        metricsQuery.refetch();
+                        summaryQuery.refetch();
+                      } catch (err) {
+                        console.error("Import failed:", err);
+                        alert(err instanceof Error ? err.message : "Import failed");
+                      } finally {
+                        setImporting(false);
+                      }
+                    }}
+                  >
+                    {importing ? "Importing…" : "Import"}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Stats */}
       <div className={styles.statsGrid}>
         <div className={styles.statCard}>
@@ -861,96 +1100,6 @@ export default function MetricsAdmin() {
           <button className={styles.primaryBtn} onClick={openCreate}>
             <i className="fas fa-plus" /> Create Metric
           </button>
-
-          <div className={styles.exportImportGroup}>
-            <button
-              className={styles.secondaryBtn}
-              onClick={async () => {
-                if (exporting) return;
-                setExporting(true);
-                try {
-                  const token = await getAccessTokenSilently();
-                  const blob = await exportAdminMetrics(token, {
-                    city_id: selectedCityId ?? undefined,
-                  });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = "metrics_export.json";
-                  a.click();
-                  URL.revokeObjectURL(url);
-                } catch (err) {
-                  console.error("Export failed:", err);
-                  alert(err instanceof Error ? err.message : "Export failed");
-                } finally {
-                  setExporting(false);
-                }
-              }}
-              disabled={exporting}
-              title="Download metric definitions and category ordering as JSON (for import on another env)"
-            >
-              <i className="fas fa-download" /> {exporting ? "Exporting…" : "Export"}
-            </button>
-            <span className={styles.exportImportDivider}>/</span>
-            <label className={styles.importLabel}>
-              <input
-                type="file"
-                accept=".json"
-                className={styles.importFileInput}
-                onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
-              />
-              <span className={styles.secondaryBtn}>
-                <i className="fas fa-upload" /> Choose file…
-              </span>
-            </label>
-            {importFile && (
-              <>
-                <select
-                  className={styles.select}
-                  value={importTargetCityId ?? ""}
-                  onChange={(e) =>
-                    setImportTargetCityId(
-                      e.target.value === "" ? null : parseInt(e.target.value, 10)
-                    )
-                  }
-                  title="Remap all metrics to this city (e.g. dev city 1)"
-                >
-                  <option value="">No remap</option>
-                  {cities.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.display_name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  className={styles.primaryBtn}
-                  disabled={importing}
-                  onClick={async () => {
-                    if (!importFile) return;
-                    setImporting(true);
-                    try {
-                      const token = await getAccessTokenSilently();
-                      const res = await importAdminMetrics(token, importFile, {
-                        target_city_id: importTargetCityId ?? undefined,
-                      });
-                      alert(res.message);
-                      setImportFile(null);
-                      setImportTargetCityId(null);
-                      metricsQuery.refetch();
-                      summaryQuery.refetch();
-                    } catch (err) {
-                      console.error("Import failed:", err);
-                      alert(err instanceof Error ? err.message : "Import failed");
-                    } finally {
-                      setImporting(false);
-                    }
-                  }}
-                >
-                  {importing ? "Importing…" : "Import"}
-                </button>
-              </>
-            )}
-          </div>
 
           <div className={styles.clearDataGroup}>
             <span className={styles.clearDataLabel}>Clear data:</span>

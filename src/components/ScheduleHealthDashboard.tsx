@@ -175,6 +175,19 @@ function fmtShortDateTime(iso: string | null): string {
   }
 }
 
+function fmtMetricNumericValue(v: number | null | undefined): string {
+  if (v == null || Number.isNaN(v)) return "—";
+  const abs = Math.abs(v);
+  if (abs >= 1e9 || (abs > 0 && abs < 1e-4)) {
+    return v.toExponential(4);
+  }
+  const rounded = Math.round(v);
+  if (Math.abs(v - rounded) < 1e-9) {
+    return rounded.toLocaleString();
+  }
+  return v.toLocaleString(undefined, { maximumFractionDigits: 6 });
+}
+
 function MetricHealthTable({ rows }: { rows: CityFreshnessMetricRow[] }) {
   const sorted = sortMetricsByStaleness(rows);
   if (sorted.length === 0) {
@@ -190,17 +203,28 @@ function MetricHealthTable({ rows }: { rows: CityFreshnessMetricRow[] }) {
             <th>Age</th>
             <th>Last run</th>
             <th>Run status</th>
-            <th title="Time series data points stored">Points</th>
+            <th
+              title={
+                "Latest numeric value from active dashboard time series (newest period; " +
+                "citywide ungrouped series preferred when several match)"
+              }
+            >
+              Recent value
+            </th>
+            <th title="Active time series charts (time_series_metadata rows) for this metric">
+              Charts
+            </th>
           </tr>
         </thead>
         <tbody>
           {sorted.map((m) => {
             const execStatus = formatExecStatus(m.last_execution_status);
+            const charts = m.charts ?? 0;
             const isProblematic =
               m.bucket === "stale" ||
               m.bucket === "no_data" ||
               execStatus.isError ||
-              m.ts_count === 0;
+              charts === 0;
             const rowStyle = isProblematic
               ? { background: "rgba(239,68,68,0.06)" }
               : undefined;
@@ -236,11 +260,25 @@ function MetricHealthTable({ rows }: { rows: CityFreshnessMetricRow[] }) {
                     <span style={{ color: "#10b981" }}>{execStatus.label}</span>
                   )}
                 </td>
+                <td
+                  style={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}
+                  title={
+                    m.most_recent_value != null
+                      ? String(m.most_recent_value)
+                      : undefined
+                  }
+                >
+                  {m.most_recent_value == null ? (
+                    <span style={{ color: "#9ca3af" }}>—</span>
+                  ) : (
+                    <span>{fmtMetricNumericValue(m.most_recent_value)}</span>
+                  )}
+                </td>
                 <td style={{ whiteSpace: "nowrap" }}>
-                  {m.ts_count === 0 ? (
+                  {charts === 0 ? (
                     <span style={{ color: "#ef4444", fontWeight: 600 }}>0</span>
                   ) : (
-                    <span>{m.ts_count.toLocaleString()}</span>
+                    <span>{charts.toLocaleString()}</span>
                   )}
                 </td>
               </tr>

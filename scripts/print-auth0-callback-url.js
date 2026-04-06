@@ -6,10 +6,10 @@
  * Does not read or print any secrets.
  */
 
-const PRODUCTION_ORIGIN = "https://app.transparent.city";
+const PRODUCTION_ORIGIN = "https://transparent.city";
 const AUTH_DOMAIN = "auth.transparent.city";
 
-console.log("Auth0 Application URIs for production (app.transparent.city)\n");
+console.log("Auth0 Application URIs for production (transparent.city)\n");
 console.log("Auth domain: " + AUTH_DOMAIN + " (set NEXT_PUBLIC_AUTH0_DOMAIN for the UI)\n");
 console.log("Add these in Auth0 Dashboard → Applications → [Your App] → Settings → Application URIs:\n");
 console.log("Allowed Callback URLs (one per line):");

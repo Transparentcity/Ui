@@ -134,6 +134,8 @@ export interface CityAdminData {
   main_domain?: string;
   main_portal_url?: string;
   all_portal_urls?: string[];
+  /** e.g. socrata, arcgis, ckan — from extra_metadata or URL inference */
+  portal_type?: string | null;
   is_active: boolean;
   datasets_count?: number;
   vector_db_points?: number;
@@ -689,13 +691,14 @@ export function refreshCityUrls(cityId: number, token: string): Promise<JobRespo
     {
       city_ids: [cityId],
       fetch_urls: true,
-      fetch_metadata: false,
-      refresh: false,
+      fetch_metadata: true,
+      refresh: true,
     },
     token
   );
 }
 
+/** Metadata-only load; refresh must stay false — backend refresh deletes DB rows before fetch. */
 export function refreshCityMetadata(cityId: number, token: string): Promise<JobResponse> {
   return request<JobResponse>(
     "/api/admin/cities/load-data",
@@ -876,7 +879,8 @@ export function loadCityData(
 
 /**
  * Start async job: per city, optionally discover open-data portal if missing,
- * probe catalog API, set extra_metadata.portal_type. Does not import datasets.
+ * probe catalog API for platform type, set extra_metadata.portal_type.
+ * Does not merge catalog rows into the DB (use load-data for that).
  */
 export function determinePortalTypes(
   cityIds: number[],
@@ -1250,6 +1254,64 @@ export async function importAdminMetrics(
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`Import failed: ${res.status} ${text}`);
+  }
+  return res.json();
+}
+
+/** Full platform metadata bundle (cities, structure, leaders, jobs, metrics). */
+export async function exportAdminPlatformMetadata(
+  token: string,
+  options?: { city_id?: number; include_shapefile_geometry?: boolean }
+): Promise<Blob> {
+  const params = new URLSearchParams();
+  if (options?.city_id != null) params.set("city_id", String(options.city_id));
+  if (options?.include_shapefile_geometry === true) {
+    params.set("include_shapefile_geometry", "true");
+  }
+  const q = params.toString();
+  const res = await fetch(
+    `${API_BASE}/api/admin/metrics/metadata-bundle/export${q ? `?${q}` : ""}`,
+    {
+      method: "GET",
+      credentials: "include",
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Platform export failed: ${res.status} ${text}`);
+  }
+  return res.blob();
+}
+
+export interface AdminPlatformMetadataImportResponse {
+  message: string;
+  counts: Record<string, number>;
+}
+
+export async function importAdminPlatformMetadata(
+  token: string,
+  file: File,
+  options?: { target_city_id?: number }
+): Promise<AdminPlatformMetadataImportResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  const query =
+    options?.target_city_id != null
+      ? `?target_city_id=${options.target_city_id}`
+      : "";
+  const res = await fetch(
+    `${API_BASE}/api/admin/metrics/metadata-bundle/import${query}`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    }
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Platform import failed: ${res.status} ${text}`);
   }
   return res.json();
 }
@@ -2146,7 +2208,10 @@ export interface CityFreshnessMetricRow {
   bucket: FreshnessMetricBucket;
   last_execution_at: string | null;
   last_execution_status: string | null;
-  ts_count: number;
+  /** Active time_series_metadata rows for this metric */
+  charts: number;
+  /** Latest numeric_value from active dashboard series (newest period; citywide ungrouped preferred) */
+  most_recent_value: number | null;
 }
 
 export interface CityScheduleRun {
@@ -3107,7 +3172,12 @@ export interface Dataset {
   file_size_bytes?: number;
   fetch_status: "success" | "pending" | "error";
   last_updated_date?: string;
+  /** Portal / dataset landing page */
   url?: string;
+  /** API or canonical resource URL (e.g. CKAN /dataset/.../resource/{uuid}, Socrata /resource/id.json) */
+  api_url?: string | null;
+  /** File or remote service URL from CKAN resource (often COSAGIS/ArcGIS), distinct from api_url */
+  source_data_url?: string | null;
 }
 
 export function getDatasetStats(token: string): Promise<DatasetStats> {

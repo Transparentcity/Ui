@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   CustomScheduledJob,
@@ -10,6 +10,8 @@ import {
   runCustomScheduledJob,
   runCustomScheduledJobForCurrentUser,
   getAvailableModels,
+  listCities,
+  type CityListItem,
   type ModelGroupInfo,
 } from "@/lib/apiClient";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
@@ -67,6 +69,92 @@ export default function ScheduledJobsPanel({
   } | null>(null);
   const [availableModels, setAvailableModels] = useState<ModelGroupInfo[]>([]);
 
+  /** Default: active schedules only; paused/disabled hidden until user changes filter. */
+  const [statusFilter, setStatusFilter] = useState<
+    "active" | "paused" | "disabled" | "all"
+  >("active");
+  const [jobTypeFilter, setJobTypeFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  /** Empty string = no city filter; otherwise numeric city_id from job_config.city_ids / city_id */
+  const [cityFilterId, setCityFilterId] = useState<string>("");
+  const [cityDirectory, setCityDirectory] = useState<CityListItem[]>([]);
+
+  const cityIdsReferencedBySchedules = useMemo(() => {
+    const ids = new Set<number>();
+    for (const j of customSchedules) {
+      const cfg = (j.job_config || {}) as Record<string, unknown>;
+      for (const id of cityIdsFromJobConfig(cfg)) {
+        ids.add(id);
+      }
+    }
+    return Array.from(ids).sort((a, b) => a - b);
+  }, [customSchedules]);
+
+  useEffect(() => {
+    if (!token) return;
+    listCities(token)
+      .then(setCityDirectory)
+      .catch(() => setCityDirectory([]));
+  }, [token]);
+
+  useEffect(() => {
+    if (!cityFilterId) return;
+    const n = Number(cityFilterId);
+    if (
+      Number.isNaN(n) ||
+      !cityIdsReferencedBySchedules.includes(n)
+    ) {
+      setCityFilterId("");
+    }
+  }, [cityFilterId, cityIdsReferencedBySchedules]);
+
+  const cityLabel = (cityId: number): string => {
+    const row = cityDirectory.find((c) => c.city_id === cityId);
+    if (row?.city_name) {
+      const region = [row.state, row.country].filter(Boolean).join(", ");
+      return region ? `${row.city_name} (${region})` : row.city_name;
+    }
+    return `City ${cityId}`;
+  };
+
+  const jobTypeOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const j of customSchedules) {
+      if (j.job_type) set.add(j.job_type);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [customSchedules]);
+
+  const filteredSchedules = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const cityIdNum =
+      cityFilterId !== "" ? Number(cityFilterId) : Number.NaN;
+    const filterByCity =
+      cityFilterId !== "" && !Number.isNaN(cityIdNum);
+
+    return customSchedules.filter((job) => {
+      if (statusFilter !== "all" && job.status !== statusFilter) return false;
+      if (jobTypeFilter !== "all" && job.job_type !== jobTypeFilter) return false;
+      if (filterByCity) {
+        const cfg = (job.job_config || {}) as Record<string, unknown>;
+        const jobCities = cityIdsFromJobConfig(cfg);
+        if (!jobCities.includes(cityIdNum)) return false;
+      }
+      if (q) {
+        const name = (job.name || "").toLowerCase();
+        const jt = (job.job_type || "").toLowerCase();
+        if (!name.includes(q) && !jt.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [
+    customSchedules,
+    statusFilter,
+    jobTypeFilter,
+    searchQuery,
+    cityFilterId,
+  ]);
+
   /** When true, prompt text tracks city IDs + story types (until user edits the textarea). */
   const [feedProducerUsesLiveTemplate, setFeedProducerUsesLiveTemplate] =
     useState(false);
@@ -104,17 +192,21 @@ export default function ScheduledJobsPanel({
         return "var(--warning, #f59e0b)";
       case "cancelled":
         return "var(--text-secondary, #6b7280)";
+      case "active":
+        return "var(--success, #10b981)";
+      case "paused":
+        return "var(--warning, #f59e0b)";
+      case "disabled":
+        return "var(--text-secondary, #6b7280)";
       default:
         return "var(--text-secondary, #6b7280)";
     }
   };
 
-  const formatDate = (dateStr: string | null | undefined): string => {
-    if (!dateStr) return "N/A";
+  const formatDateShort = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return "—";
     try {
       return new Date(dateStr).toLocaleString(undefined, {
-        weekday: "short",
-        year: "numeric",
         month: "short",
         day: "numeric",
         hour: "numeric",
@@ -377,7 +469,7 @@ export default function ScheduledJobsPanel({
         <div className={styles.headerContent}>
           <h3 className={styles.title}>Scheduled Jobs</h3>
           <p className={styles.subtitle}>
-            Database-backed schedules. Edit timing and settings, or click ▶ for a manual run.
+            Database-backed schedules. ▶ runs now. Use filters to show paused jobs.
           </p>
         </div>
         {scheduleLoading && (
@@ -413,129 +505,256 @@ export default function ScheduledJobsPanel({
 
       {customSchedules.length > 0 && (
         <div className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h4 className={styles.sectionTitle}>Schedules</h4>
-            <div className={styles.sectionHint}>
-              Managed in the database; pause or edit as needed.
+          <div className={styles.filterBar}>
+            <label className={styles.filterLabel}>
+              Status
+              <select
+                className={styles.filterSelect}
+                value={statusFilter}
+                onChange={(e) =>
+                  setStatusFilter(e.target.value as typeof statusFilter)
+                }
+                aria-label="Filter by schedule status"
+              >
+                <option value="active">Active</option>
+                <option value="paused">Paused</option>
+                <option value="disabled">Disabled</option>
+                <option value="all">All</option>
+              </select>
+            </label>
+            <label className={styles.filterLabel}>
+              Job type
+              <select
+                className={styles.filterSelect}
+                value={jobTypeFilter}
+                onChange={(e) => setJobTypeFilter(e.target.value)}
+                aria-label="Filter by job type"
+              >
+                <option value="all">All types</option>
+                {jobTypeOptions.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className={styles.filterLabel}>
+              City in config
+              <select
+                className={styles.filterSelect}
+                value={cityFilterId}
+                onChange={(e) => setCityFilterId(e.target.value)}
+                disabled={cityIdsReferencedBySchedules.length === 0}
+                aria-label="Filter by city ID in job config"
+                title={
+                  cityIdsReferencedBySchedules.length === 0
+                    ? "No schedules include city_ids or city_id in job config"
+                    : "Show schedules whose job config lists this city"
+                }
+              >
+                <option value="">All cities</option>
+                {cityIdsReferencedBySchedules.map((id) => (
+                  <option key={id} value={String(id)}>
+                    {cityLabel(id)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className={`${styles.filterLabel} ${styles.filterSearch}`}>
+              Search
+              <input
+                className={styles.filterInput}
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Name or type…"
+                aria-label="Search schedules by name or type"
+              />
+            </label>
+            <div className={styles.filterSummary}>
+              Showing{" "}
+              <strong>{filteredSchedules.length}</strong> of{" "}
+              <strong>{customSchedules.length}</strong>
+              {(statusFilter !== "active" ||
+                jobTypeFilter !== "all" ||
+                searchQuery.trim() ||
+                cityFilterId !== "") && (
+                <button
+                  type="button"
+                  className={styles.resetFilters}
+                  onClick={() => {
+                    setStatusFilter("active");
+                    setJobTypeFilter("all");
+                    setSearchQuery("");
+                    setCityFilterId("");
+                  }}
+                >
+                  Reset filters
+                </button>
+              )}
             </div>
           </div>
-          <div className={styles.list}>
-            {customSchedules.map((job) => (
-              <div key={job.id} className={styles.card}>
-                <div className={styles.cardHeader}>
-                  <div className={styles.cardTitleGroup}>
-                    <span className={styles.cardLabel}>{job.name}</span>
-                    <span className={styles.cardCadence}>
-                      {job.schedule_description || job.schedule_type}
-                    </span>
-                  </div>
-                  <span
-                    className={styles.cardStatus}
-                    style={{ color: getStatusColor(job.status) }}
-                    title="Schedule status (active/paused)"
-                  >
-                    {job.status}
-                  </span>
-                </div>
 
-                <p className={styles.cardDescription}>{job.description || ""}</p>
-
-                <div className={styles.customMeta}>
-                  <div>
-                    <span className={styles.metaLabel}>Job type</span>{" "}
-                    {job.job_type}
-                    {job.job_config?.feed_producer_mode && (
-                      <span className={styles.feedProducerBadge}>feed producer</span>
-                    )}
-                    {job.job_config?.model_key && (
-                      <span className={styles.feedProducerBadge} style={{ marginLeft: "0.25rem", background: "var(--bg-secondary, #f1f5f9)", color: "var(--text-secondary, #64748b)" }}>
-                        {job.job_config.model_key}
+          {filteredSchedules.length === 0 ? (
+            <div className={styles.emptyFiltered}>
+              <p>No schedules match the current filters.</p>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => {
+                  setStatusFilter("all");
+                  setJobTypeFilter("all");
+                  setSearchQuery("");
+                  setCityFilterId("");
+                }}
+              >
+                Show all schedules
+              </button>
+            </div>
+          ) : (
+            <div className={styles.list}>
+              {filteredSchedules.map((job) => (
+                <div key={job.id} className={styles.compactRow}>
+                  <div className={styles.rowLine1}>
+                    <div className={styles.rowMain}>
+                      <span className={styles.rowName} title={job.name}>
+                        {job.name}
                       </span>
-                    )}
-                  </div>
-                  <div>
-                    <span className={styles.metaLabel}>Next run</span>{" "}
-                    {job.next_run_at ? formatDate(job.next_run_at) : "N/A"}
-                  </div>
-                  <div>
-                    <span className={styles.metaLabel}>Last run</span>{" "}
-                    {job.last_run_at ? formatDate(job.last_run_at) : "Never"}
-                    {job.last_run_status && (
-                      <>
-                        {" · "}
+                      <span className={styles.rowCadence}>
+                        {job.schedule_description || job.schedule_type}
+                      </span>
+                      <span className={styles.rowJobType}>{job.job_type}</span>
+                      {job.job_config?.feed_producer_mode && (
+                        <span className={styles.miniBadge}>feed</span>
+                      )}
+                      {job.job_config?.model_key && (
                         <span
-                          className={styles.lastRunStatus}
-                          style={{ color: getStatusColor(job.last_run_status) }}
+                          className={styles.miniBadgeMuted}
+                          title="Model"
                         >
-                          {job.last_run_status}
+                          {job.job_config.model_key}
                         </span>
-                        {job.last_run_job_id && (
+                      )}
+                    </div>
+                    <div className={styles.rowActions}>
+                      <span
+                        className={styles.statusPill}
+                        style={{
+                          color: getStatusColor(job.status),
+                          borderColor: getStatusColor(job.status),
+                        }}
+                        title="Schedule status"
+                      >
+                        {job.status}
+                      </span>
+                      <button
+                        type="button"
+                        className={styles.compactBtn}
+                        onClick={() => openEdit(job)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.compactBtn}
+                        onClick={() => handleToggleCustomJob(job)}
+                        disabled={job.status === "disabled"}
+                      >
+                        {job.status === "active"
+                          ? "Pause"
+                          : job.status === "paused"
+                            ? "Resume"
+                            : "Disabled"}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.compactRun}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRunCustomJob(job);
+                        }}
+                        disabled={runningCustomJobId !== null}
+                        title={`Run ${job.name} now`}
+                      >
+                        {runningCustomJobId === job.id ? (
+                          <Loader size="sm" color="purple" />
+                        ) : (
+                          "▶"
+                        )}
+                      </button>
+                      {job.job_type === "personalized_feed_producer" && (
+                        <button
+                          type="button"
+                          className={styles.compactBtn}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRunPersonalTest(job);
+                          }}
+                          disabled={runningPersonalTestJobId !== null}
+                          title="Run for your own saved places (test)"
+                        >
+                          {runningPersonalTestJobId === job.id ? (
+                            <Loader size="sm" color="purple" />
+                          ) : (
+                            "My places"
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className={styles.rowLine2}>
+                    <span className={styles.rowMeta}>
+                      <span className={styles.metaPiece}>
+                        Next{" "}
+                        {job.next_run_at
+                          ? formatDateShort(job.next_run_at)
+                          : "—"}
+                      </span>
+                      <span className={styles.metaSep}>·</span>
+                      <span className={styles.metaPiece}>
+                        Last{" "}
+                        {job.last_run_at
+                          ? formatDateShort(job.last_run_at)
+                          : "never"}
+                        {job.last_run_status ? (
                           <>
-                            {" · "}
+                            {" "}
+                            <span
+                              className={styles.lastRunStatus}
+                              style={{
+                                color: getStatusColor(job.last_run_status),
+                              }}
+                            >
+                              {job.last_run_status}
+                            </span>
+                          </>
+                        ) : null}
+                        {job.last_run_job_id ? (
+                          <>
+                            {" "}
                             <Link
                               href={`/dashboard?tab=logs&job_id=${encodeURIComponent(job.last_run_job_id)}`}
                               className={styles.viewRunLink}
                             >
-                              View run
+                              log
                             </Link>
                           </>
-                        )}
-                      </>
-                    )}
+                        ) : null}
+                      </span>
+                    </span>
+                    {job.description?.trim() ? (
+                      <span
+                        className={styles.rowDescription}
+                        title={job.description || undefined}
+                      >
+                        {job.description}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
-
-                <div className={styles.actionsRow}>
-                  <button
-                    className={styles.secondaryButton}
-                    onClick={() => openEdit(job)}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    className={styles.secondaryButton}
-                    onClick={() => handleToggleCustomJob(job)}
-                    disabled={job.status === "disabled"}
-                  >
-                    {job.status === "active" ? "Pause" : job.status === "paused" ? "Resume" : "Disabled"}
-                  </button>
-                  <button
-                    className={styles.runButton}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRunCustomJob(job);
-                    }}
-                    disabled={runningCustomJobId !== null}
-                    title={`Run ${job.name} now`}
-                  >
-                    {runningCustomJobId === job.id ? (
-                      <Loader size="sm" color="purple" />
-                    ) : (
-                      "▶"
-                    )}
-                  </button>
-                  {job.job_type === "personalized_feed_producer" && (
-                    <button
-                      className={styles.secondaryButton}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRunPersonalTest(job);
-                      }}
-                      disabled={runningPersonalTestJobId !== null}
-                      title="Run for your own saved places (test)"
-                      style={{ whiteSpace: "nowrap" }}
-                    >
-                      {runningPersonalTestJobId === job.id ? (
-                        <Loader size="sm" color="purple" />
-                      ) : (
-                        "▶ My places"
-                      )}
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

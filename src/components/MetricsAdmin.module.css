@@ -5,6 +5,83 @@
   box-sizing: border-box;
 }
 
+.backupPanel {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow-sm);
+}
+
+.backupPanelTitle {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.backupPanelIntro {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0 0 12px;
+  line-height: 1.45;
+}
+
+.backupRow {
+  padding-top: 10px;
+  margin-top: 10px;
+  border-top: 1px solid var(--border-primary);
+}
+
+.backupRow:first-of-type {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.backupRowHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+
+.backupRowLabel {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.backupRowHint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.backupRowHint code {
+  font-size: 10px;
+}
+
+.backupRowActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.backupCheckbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.backupCheckbox input {
+  cursor: pointer;
+}
+
 .statsGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

@@ -611,6 +611,8 @@ export default function MetricDetailModal({
                       cityName={resolvedCityName}
                       currentPeriodEnd={comparison?.current_period_end ?? undefined}
                       currentPeriodStart={comparison?.current_period_start ?? undefined}
+                      citywideCurrent={comparison?.current_period_value ?? null}
+                      citywideComparison={comparison?.comparison_period_value ?? null}
                     />
                   </section>
                 );
