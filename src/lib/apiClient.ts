@@ -3505,6 +3505,8 @@ export interface AdminNewsletterHistoryItem {
   status?: string;
   job_id?: string | null;
   session_id?: string | null;
+  /** ID of the matching newsletter_pending_sends row, when the body is stored there. */
+  pending_send_id?: number | null;
 }
 
 export function getAdminUserNewsletterSendHistory(
@@ -4502,6 +4504,8 @@ export interface NewsletterPendingListItem {
   created_at: string | null;
   sent_at: string | null;
   send_error: string | null;
+  /** LLM token usage from edition curation; null for feed-story-only renders. */
+  llm_usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
 }
 
 export function listNewsletterPending(
@@ -4552,6 +4556,41 @@ export function deleteNewsletterPendingBatch(
   return request(`/api/admin/newsletter-pending/delete`, "POST", { ids }, token);
 }
 
+/** One row from the newsletter_sends audit log (every email the system has dispatched). */
+export interface NewsletterSendItem {
+  id: number;
+  to_email: string;
+  subject: string | null;
+  source: string;
+  status: string;
+  city_id: number | null;
+  job_id: string | null;
+  session_id: string | null;
+  sent_at: string | null;
+  /** True when this send originated from the admin pending-review queue. */
+  via_queue: boolean;
+  /** ID of the matching newsletter_pending_sends row; use getNewsletterPendingDetail to fetch body. */
+  pending_send_id?: number | null;
+  /** LLM token usage pulled from the matching pending_send row, when available. */
+  llm_usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
+}
+
+export function listNewsletterSends(
+  token: string,
+  options?: { limit?: number; city_id?: number }
+): Promise<{ items: NewsletterSendItem[]; count: number }> {
+  const params = new URLSearchParams();
+  if (options?.limit != null) params.append("limit", String(options.limit));
+  if (options?.city_id != null) params.append("city_id", String(options.city_id));
+  const q = params.toString();
+  return request<{ items: NewsletterSendItem[]; count: number }>(
+    `/api/admin/newsletter-sends${q ? `?${q}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
 export interface NewsletterGenerationPreview {
   /** Upper bound on LLM curation calls for the next weekly run. */
   llm_edition_slots_planned: number;
@@ -4576,6 +4615,33 @@ export function getNewsletterGenerationPreview(
 ): Promise<NewsletterGenerationPreview> {
   return request<NewsletterGenerationPreview>(
     "/api/admin/newsletter-generation-preview",
+    "GET",
+    undefined,
+    token
+  );
+}
+
+/** Stored shared (non-personalized) LLM newsletter editions — `newsletter_editions` table. */
+export interface NewsletterEditionAdminItem {
+  id: number;
+  city_id: number;
+  district: number;
+  edition_date: string | null;
+  city_slug: string | null;
+  city_name: string | null;
+  summary_headline: string | null;
+  created_at: string | null;
+}
+
+export function listNewsletterEditionsAdmin(
+  token: string,
+  options?: { limit?: number }
+): Promise<{ items: NewsletterEditionAdminItem[]; count: number }> {
+  const params = new URLSearchParams();
+  if (options?.limit != null) params.set("limit", String(options.limit));
+  const q = params.toString();
+  return request<{ items: NewsletterEditionAdminItem[]; count: number }>(
+    `/api/admin/newsletter-editions${q ? `?${q}` : ""}`,
     "GET",
     undefined,
     token

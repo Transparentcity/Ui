@@ -9,17 +9,21 @@ import {
   generateSampleNewsletter,
   createResearch,
   listNewsletterPending,
+  listNewsletterSends,
   getNewsletterPendingDetail,
   sendNewsletterPendingBatch,
   deleteNewsletterPendingBatch,
   runScheduleJob,
   getNewsletterGenerationPreview,
   listJobs,
+  listNewsletterEditionsAdmin,
   type CityListItem,
   type NewsletterReport,
   type CreateResearchRequest,
   type NewsletterPendingListItem,
+  type NewsletterSendItem,
   type NewsletterGenerationPreview,
+  type NewsletterEditionAdminItem,
   type Job,
 } from "@/lib/apiClient";
 import {
@@ -92,6 +96,19 @@ function formatDate(value?: string | null): string {
   return dt.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
+function formatDateTime(value?: string | null): string {
+  if (!value) return "\u2014";
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return value;
+  return dt.toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function daysSince(dateStr?: string | null): number {
   if (!dateStr) return Infinity;
   const dt = new Date(dateStr);
@@ -138,6 +155,46 @@ function resolvePrompt(template: string, cityName: string, districtLabel: string
 }
 
 // ---------------------------------------------------------------------------
+// Small helper — LLM token usage pill
+// ---------------------------------------------------------------------------
+function LlmUsagePill({
+  usage,
+}: {
+  usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null | undefined;
+}) {
+  if (!usage) return null;
+  const total = usage.total_tokens ?? (usage.prompt_tokens + usage.completion_tokens);
+  // Very rough GPT-4o pricing for display only: ~$5/M input, ~$15/M output
+  const estCostUsd =
+    (usage.prompt_tokens * 5 + usage.completion_tokens * 15) / 1_000_000;
+  const costLabel =
+    estCostUsd < 0.001
+      ? `<$0.001`
+      : `~$${estCostUsd.toFixed(3)}`;
+  return (
+    <span
+      title={`prompt: ${usage.prompt_tokens.toLocaleString()} · completion: ${usage.completion_tokens.toLocaleString()} tokens`}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 3,
+        fontSize: 11,
+        fontWeight: 500,
+        background: "var(--brand-primary-faint, rgba(173,53,250,0.07))",
+        color: "var(--brand-primary, #ad35fa)",
+        border: "1px solid var(--brand-primary-light, #e9c6ff)",
+        borderRadius: 4,
+        padding: "1px 5px",
+        whiteSpace: "nowrap",
+        cursor: "default",
+      }}
+    >
+      {total.toLocaleString()} tok · {costLabel}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Types for aggregated city newsletter data
 // ---------------------------------------------------------------------------
 interface CityNewsletterStatus {
@@ -163,6 +220,10 @@ export default function NewsletterAdmin() {
   const [cities, setCities] = useState<CityListItem[]>([]);
   const [publicCities, setPublicCities] = useState<PublicCitySitemapItem[]>([]);
   const [cityStatuses, setCityStatuses] = useState<CityNewsletterStatus[]>([]);
+  /** Non-personalized (shared LLM) editions from ``newsletter_editions``, grouped by city_id. */
+  const [editionsByCityId, setEditionsByCityId] = useState<
+    Record<number, NewsletterEditionAdminItem[]>
+  >({});
 
   // Browse tab
   const [browseCity, setBrowseCity] = useState<number | null>(null);
@@ -203,13 +264,29 @@ export default function NewsletterAdmin() {
       setError(null);
       const token = await getAccessTokenSilently();
 
-      const [citiesList, publicList] = await Promise.all([
+      const [citiesList, publicList, editionsRes] = await Promise.all([
         listCities(token),
         listPublicCitiesForSitemap(),
+        listNewsletterEditionsAdmin(token).catch(() => ({ items: [] as NewsletterEditionAdminItem[], count: 0 })),
       ]);
 
       setCities(citiesList);
       setPublicCities(publicList);
+
+      const byCity: Record<number, NewsletterEditionAdminItem[]> = {};
+      for (const e of editionsRes.items) {
+        if (!byCity[e.city_id]) byCity[e.city_id] = [];
+        byCity[e.city_id].push(e);
+      }
+      for (const k of Object.keys(byCity)) {
+        const id = Number(k);
+        byCity[id].sort((a, b) => {
+          const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return tb - ta;
+        });
+      }
+      setEditionsByCityId(byCity);
 
       // Build a set of launched city IDs
       const launchedIds = new Set(
@@ -520,6 +597,7 @@ export default function NewsletterAdmin() {
         <DashboardTab
           stats={stats}
           cityStatuses={cityStatuses}
+          editionsByCityId={editionsByCityId}
           expandedCityId={expandedCityId}
           onToggleExpand={(id) => setExpandedCityId(expandedCityId === id ? null : id)}
           onGenerate={(cityId) => {
@@ -685,6 +763,7 @@ function NewsletterDashboardQueue() {
   const { getAccessTokenSilently } = useAuth0();
   const [pending, setPending] = useState<NewsletterPendingListItem[]>([]);
   const [archive, setArchive] = useState<NewsletterPendingListItem[]>([]);
+  const [directSends, setDirectSends] = useState<NewsletterSendItem[]>([]);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -693,6 +772,12 @@ function NewsletterDashboardQueue() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+
+  // Archive preview state (shared between queue archive + direct-send archive)
+  // Key format: "q-{id}" for queue archive rows, "d-{id}" for direct-send rows
+  const [archiveExpandedKey, setArchiveExpandedKey] = useState<string | null>(null);
+  const [archivePreviewHtml, setArchivePreviewHtml] = useState<string | null>(null);
+  const [archivePreviewLoading, setArchivePreviewLoading] = useState(false);
 
   // Workload preview
   const [workload, setWorkload] = useState<NewsletterGenerationPreview | null>(null);
@@ -707,12 +792,16 @@ function NewsletterDashboardQueue() {
     try {
       setLoading(true);
       const token = await getAccessTokenSilently();
-      const [u, a] = await Promise.all([
+      const [u, a, sends] = await Promise.all([
         listNewsletterPending(token, { unsent_only: true, limit: 200 }),
         listNewsletterPending(token, { sent_only: true, limit: 200 }),
+        listNewsletterSends(token, { limit: 500 }),
       ]);
       setPending(u.items);
       setArchive(a.items);
+      // Show only direct system sends (not via the admin review queue) so there
+      // is no duplication with the queue archive shown directly above.
+      setDirectSends(sends.items.filter((s) => !s.via_queue));
       setSelected(new Set(u.items.map((x) => x.id)));
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to load newsletter queue");
@@ -830,6 +919,28 @@ function NewsletterDashboardQueue() {
       toast.error(e instanceof Error ? e.message : "Preview failed");
     } finally {
       setPreviewLoading(false);
+    }
+  };
+
+  // Archive preview: queue rows use getNewsletterPendingDetail directly;
+  // direct-send rows use their pending_send_id if available.
+  const handleArchivePreview = async (key: string, pendingId: number) => {
+    if (archiveExpandedKey === key) {
+      setArchiveExpandedKey(null);
+      setArchivePreviewHtml(null);
+      return;
+    }
+    setArchiveExpandedKey(key);
+    setArchivePreviewLoading(true);
+    setArchivePreviewHtml(null);
+    try {
+      const token = await getAccessTokenSilently();
+      const d = await getNewsletterPendingDetail(pendingId, token);
+      setArchivePreviewHtml(d.body_html || "(empty)");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Preview failed");
+    } finally {
+      setArchivePreviewLoading(false);
     }
   };
 
@@ -1085,13 +1196,14 @@ function NewsletterDashboardQueue() {
                   <th className={styles.th}>Scope</th>
                   <th className={styles.th}>Subject</th>
                   <th className={styles.th}>Mode</th>
+                  <th className={styles.th}>Cost</th>
                   <th className={styles.th} />
                 </tr>
               </thead>
               <tbody>
                 {pending.length === 0 && (
                   <tr>
-                    <td colSpan={6} className={styles.emptyState}>
+                    <td colSpan={7} className={styles.emptyState}>
                       No newsletters waiting for review. Use Generate newsletters (one-time) to build and queue drafts.
                     </td>
                   </tr>
@@ -1118,43 +1230,37 @@ function NewsletterDashboardQueue() {
                         {row.generation_mode}
                       </td>
                       <td className={styles.td}>
-                        <button
-                          type="button"
-                          className={styles.linkBtn}
-                          onClick={() => handlePreview(row.id)}
-                        >
-                          {expandedId === row.id ? "Hide" : "Preview"}
-                        </button>
+                        <LlmUsagePill usage={row.llm_usage} />
+                      </td>
+                      <td className={styles.td}>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                          {row.session_id?.trim() && (
+                            <JobSessionDebugLink sessionId={row.session_id} />
+                          )}
+                          <button
+                            type="button"
+                            className={styles.linkBtn}
+                            onClick={() => handlePreview(row.id)}
+                          >
+                            {expandedId === row.id ? "Hide" : "Preview"}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                     {expandedId === row.id && (
                       <tr className={styles.expandedRow}>
-                        <td colSpan={6} style={{ padding: 0 }}>
+                        <td colSpan={7} style={{ padding: 0 }}>
                           {previewLoading ? (
                             <div className="tc-loading-state" style={{ padding: 16, gap: 8 }}>
                               <Loader size="sm" color="dark" />
                               <span>Loading body…</span>
                             </div>
                           ) : previewHtml ? (
-                            <>
-                              {row.session_id?.trim() ? (
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 8,
-                                    padding: "8px 12px 0",
-                                  }}
-                                >
-                                  <JobSessionDebugLink sessionId={row.session_id} />
-                                </div>
-                              ) : null}
-                              <div
-                                className={styles.previewPanel}
-                                style={{ maxHeight: 360, overflow: "auto" }}
-                                dangerouslySetInnerHTML={{ __html: previewHtml }}
-                              />
-                            </>
+                            <div
+                              className={styles.previewPanel}
+                              style={{ maxHeight: 360, overflow: "auto" }}
+                              dangerouslySetInnerHTML={{ __html: previewHtml }}
+                            />
                           ) : (
                             <div className={styles.previewPanel}>
                               <span className={styles.muted}>No body.</span>
@@ -1178,43 +1284,182 @@ function NewsletterDashboardQueue() {
           onClick={() => setArchiveOpen((o) => !o)}
           aria-expanded={archiveOpen}
         >
-          {archiveOpen ? "\u25BC" : "\u25B6"} Archive ({archive.length})
+          {archiveOpen ? "\u25BC" : "\u25B6"} Archive ({archive.length + directSends.length})
         </button>
         {archiveOpen && (
-          <div className={styles.tableWrapper} style={{ marginTop: 8 }}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th className={styles.th}>Sent</th>
-                  <th className={styles.th}>Recipient</th>
-                  <th className={styles.th}>Scope</th>
-                  <th className={styles.th}>Subject</th>
-                </tr>
-              </thead>
-              <tbody>
-                {archive.length === 0 && (
+          <div style={{ marginTop: 8 }}>
+            {/* ── Admin-queue sends ─────────────────────────────────── */}
+            {archive.length > 0 && (
+              <>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", margin: "4px 0 6px" }}>
+                  Sent via admin queue ({archive.length})
+                </div>
+                <div className={styles.tableWrapper} style={{ marginBottom: 12 }}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th className={styles.th}>Sent</th>
+                        <th className={styles.th}>Recipient</th>
+                        <th className={styles.th}>Scope</th>
+                        <th className={styles.th}>Subject</th>
+                        <th className={styles.th}>Cost</th>
+                        <th className={styles.th} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {archive.map((row) => {
+                        const aKey = `q-${row.id}`;
+                        const isExpanded = archiveExpandedKey === aKey;
+                        return (
+                          <Fragment key={`a-${row.id}`}>
+                            <tr>
+                              <td className={styles.td} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
+                                {row.sent_at ? formatDate(row.sent_at) : "\u2014"}
+                              </td>
+                              <td className={styles.td}>{row.recipient_email}</td>
+                              <td className={styles.td} style={{ fontSize: 12 }}>
+                                {newsletterScopeLabel(row)}
+                              </td>
+                              <td className={styles.td}>
+                                <div className={styles.headline}>{row.subject || "\u2014"}</div>
+                              </td>
+                              <td className={styles.td}>
+                                <LlmUsagePill usage={row.llm_usage} />
+                              </td>
+                              <td className={styles.td} style={{ whiteSpace: "nowrap" }}>
+                                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                  <button
+                                    type="button"
+                                    className={styles.linkBtn}
+                                    onClick={() => handleArchivePreview(aKey, row.id)}
+                                  >
+                                    {isExpanded ? "Hide" : "Preview"}
+                                  </button>
+                                  {row.session_id?.trim() && (
+                                    <JobSessionDebugLink sessionId={row.session_id} />
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                            {isExpanded && (
+                              <tr className={styles.expandedRow}>
+                                <td colSpan={6} style={{ padding: 0 }}>
+                                  {archivePreviewLoading ? (
+                                    <div className="tc-loading-state" style={{ padding: 16, gap: 8 }}>
+                                      <Loader size="sm" color="dark" />
+                                      <span>Loading body…</span>
+                                    </div>
+                                  ) : (
+                                    <div
+                                      className={styles.previewPanel}
+                                      style={{ maxHeight: 360, overflow: "auto" }}
+                                      dangerouslySetInnerHTML={{ __html: archivePreviewHtml || "" }}
+                                    />
+                                  )}
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {/* ── Direct system sends ───────────────────────────────── */}
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", margin: "4px 0 6px" }}>
+              Sent directly by system ({directSends.length})
+            </div>
+            <div className={styles.tableWrapper}>
+              <table className={styles.table}>
+                <thead>
                   <tr>
-                    <td colSpan={4} className={styles.emptyState}>
-                      No sent items in archive yet.
-                    </td>
+                    <th className={styles.th}>Sent</th>
+                    <th className={styles.th}>Recipient</th>
+                    <th className={styles.th}>Source</th>
+                    <th className={styles.th}>Subject</th>
+                    <th className={styles.th}>Status</th>
+                    <th className={styles.th}>Cost</th>
+                    <th className={styles.th} />
                   </tr>
-                )}
-                {archive.map((row) => (
-                  <tr key={`a-${row.id}`}>
-                    <td className={styles.td} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
-                      {row.sent_at ? formatDate(row.sent_at) : "\u2014"}
-                    </td>
-                    <td className={styles.td}>{row.recipient_email}</td>
-                    <td className={styles.td} style={{ fontSize: 12 }}>
-                      {newsletterScopeLabel(row)}
-                    </td>
-                    <td className={styles.td}>
-                      <div className={styles.headline}>{row.subject || "\u2014"}</div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {directSends.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className={styles.emptyState}>
+                        No direct system sends found.
+                      </td>
+                    </tr>
+                  )}
+                  {directSends.map((row) => {
+                    const dKey = `d-${row.id}`;
+                    const isExpanded = archiveExpandedKey === dKey;
+                    return (
+                      <Fragment key={`ds-${row.id}`}>
+                        <tr>
+                          <td className={styles.td} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
+                            {row.sent_at ? formatDate(row.sent_at) : "\u2014"}
+                          </td>
+                          <td className={styles.td}>{row.to_email}</td>
+                          <td className={styles.td} style={{ fontSize: 12 }}>{row.source}</td>
+                          <td className={styles.td}>
+                            <div className={styles.headline}>{row.subject || "\u2014"}</div>
+                          </td>
+                          <td className={styles.td} style={{ fontSize: 12 }}>
+                            <span style={{ color: row.status === "sent" ? "var(--green, #16a34a)" : "var(--text-secondary)" }}>
+                              {row.status}
+                            </span>
+                          </td>
+                          <td className={styles.td}>
+                            <LlmUsagePill usage={row.llm_usage} />
+                          </td>
+                          <td className={styles.td} style={{ whiteSpace: "nowrap" }}>
+                            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                              {typeof row.pending_send_id === "number" && (
+                                <button
+                                  type="button"
+                                  className={styles.linkBtn}
+                                  onClick={() => handleArchivePreview(dKey, row.pending_send_id as number)}
+                                >
+                                  {isExpanded ? "Hide" : "Preview"}
+                                </button>
+                              )}
+                              {row.session_id?.trim() && (
+                                <JobSessionDebugLink sessionId={row.session_id} />
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className={styles.expandedRow}>
+                            <td colSpan={7} style={{ padding: 0 }}>
+                              {archivePreviewLoading ? (
+                                <div className="tc-loading-state" style={{ padding: 16, gap: 8 }}>
+                                  <Loader size="sm" color="dark" />
+                                  <span>Loading body…</span>
+                                </div>
+                              ) : (
+                                <div
+                                  className={styles.previewPanel}
+                                  style={{ maxHeight: 360, overflow: "auto" }}
+                                  dangerouslySetInnerHTML={{ __html: archivePreviewHtml || "" }}
+                                />
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {archive.length === 0 && directSends.length === 0 && (
+              <div className={styles.emptyState}>No sent items in archive yet.</div>
+            )}
           </div>
         )}
       </div>
@@ -1228,12 +1473,14 @@ function NewsletterDashboardQueue() {
 function DashboardTab({
   stats,
   cityStatuses,
+  editionsByCityId,
   expandedCityId,
   onToggleExpand,
   onGenerate,
 }: {
   stats: { totalNewsletters: number; citiesWithNewsletters: number; thisWeek: number; avgWords: number; totalCities: number };
   cityStatuses: CityNewsletterStatus[];
+  editionsByCityId: Record<number, NewsletterEditionAdminItem[]>;
   expandedCityId: number | null;
   onToggleExpand: (id: number) => void;
   onGenerate: (cityId: number) => void;
@@ -1311,6 +1558,98 @@ function DashboardTab({
               })}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Non-personalized (shared LLM) editions — same order as Launched Cities */}
+      <div className={styles.tableContainer} style={{ marginTop: 16 }}>
+        <div className={styles.tableHeader}>
+          <div>
+            <span className={styles.tableTitle}>Non-personalized email editions </span>
+            <span className={styles.tableCount}>(shared LLM city / district)</span>
+          </div>
+        </div>
+        <div style={{ padding: "12px 16px 16px" }}>
+          {cityStatuses.length === 0 ? (
+            <span className={styles.muted}>No launched cities.</span>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {cityStatuses.map((cs) => {
+                const editions = editionsByCityId[cs.city.city_id] ?? [];
+                return (
+                  <div key={cs.city.city_id}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: "var(--text-primary)",
+                        marginBottom: 6,
+                      }}
+                    >
+                      {cs.city.city_name}
+                      {cs.city.state ? `, ${cs.city.state}` : ""}
+                    </div>
+                    {editions.length === 0 ? (
+                      <div className={styles.muted} style={{ fontSize: 12 }}>
+                        No stored editions yet.
+                      </div>
+                    ) : (
+                      <ul
+                        style={{
+                          margin: 0,
+                          paddingLeft: 18,
+                          fontSize: 12,
+                          color: "var(--text-primary)",
+                          lineHeight: 1.55,
+                        }}
+                      >
+                        {editions.map((ed) => {
+                          const scope =
+                            ed.district > 0 ? `District ${ed.district}` : "City-wide";
+                          const href =
+                            ed.city_slug && ed.edition_date
+                              ? `/c/${ed.city_slug}/newsletter/${ed.edition_date}${
+                                  ed.district > 0 ? `?district=${ed.district}` : ""
+                                }`
+                              : null;
+                          return (
+                            <li key={ed.id}>
+                              <span style={{ fontWeight: 500 }}>
+                                Generated {formatDateTime(ed.created_at)}
+                              </span>
+                              {ed.edition_date ? (
+                                <>
+                                  {" "}
+                                  · Edition date {formatDate(ed.edition_date)}
+                                </>
+                              ) : null}
+                              {" "}
+                              · {scope}
+                              {href ? (
+                                <>
+                                  {" "}
+                                  ·{" "}
+                                  <a
+                                    href={href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ color: "var(--brand-primary)" }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    View
+                                  </a>
+                                </>
+                              ) : null}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </>

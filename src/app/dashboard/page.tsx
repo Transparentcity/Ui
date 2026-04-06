@@ -274,6 +274,27 @@ export default function DashboardPage() {
     router.replace(nextUrl);
   }, [router]);
 
+  // Deep-link to a Seymour job session (e.g. from Feed admin "View session").
+  useEffect(() => {
+    if (typeof window === "undefined" || !isAuthenticated || isLoading) return;
+    const params = new URLSearchParams(window.location.search);
+    const jobSession = params.get("job_session");
+    if (!jobSession) return;
+
+    setCurrentSessionId(jobSession);
+    setIsCurrentSessionJobSession(true);
+    setCurrentView("chat");
+    setActiveCityId(null);
+    setCurrentResearchId(null);
+
+    params.delete("job_session");
+    const nextQuery = params.toString();
+    const nextUrl = nextQuery
+      ? `${window.location.pathname}?${nextQuery}`
+      : window.location.pathname;
+    router.replace(nextUrl);
+  }, [router, isAuthenticated, isLoading]);
+
   // Track dashboard view when authenticated
   useEffect(() => {
     if (isAuthenticated && !isLoading) {

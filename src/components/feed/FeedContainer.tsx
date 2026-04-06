@@ -2,7 +2,13 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useFeedStories, useFeedPlaces, useTrackFeedEngagement, feedKeys } from "@/lib/hooks/useFeed";
+import {
+  useFeedStories,
+  useFeedPlaces,
+  useTrackFeedEngagement,
+  feedKeys,
+  type FeedStory,
+} from "@/lib/hooks/useFeed";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
   deleteFeedStory,
@@ -334,6 +340,17 @@ export default function FeedContainer({
       alert(err instanceof Error ? err.message : "Failed to delete story");
     }
   }, [getAccessTokenSilently, queryClient]);
+
+  /** Prime detail cache from list data so the modal renders immediately; detail hook refetches in background. */
+  const openFeedDetail = useCallback(
+    (s: EnrichedFeedStory) => {
+      queryClient.setQueryData(feedKeys.detail(s.id), {
+        story: s as FeedStory,
+      });
+      setFeedDetailStoryId(s.id);
+    },
+    [queryClient],
+  );
 
   const visibleStories = useMemo(() => {
     const filtered = enrichedWithNarratives.filter((s) => {
@@ -961,7 +978,7 @@ export default function FeedContainer({
                 onHide={handleHide}
                 onDelete={isAdmin ? handleDelete : undefined}
                 compact={isCompact}
-                onOpenFeedDetail={(s) => setFeedDetailStoryId(s.id)}
+                onOpenFeedDetail={openFeedDetail}
               />
             );
           })}

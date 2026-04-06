@@ -633,6 +633,8 @@ export type PublicTimeSeriesChartPoint = {
 
 export type PublicTimeSeriesChartResponse = {
   count: number;
+  /** Same metric/district/group_field: native chart IDs per stored period_type (day/week/month/year). */
+  sibling_chart_ids?: Record<string, number> | null;
   metadata?: {
     chart_id?: number;
     object_id?: string;

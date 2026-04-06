@@ -60,11 +60,13 @@ export default function FeedCard({
   const handleCardClick = useCallback(() => {
     // Don't navigate when an overlay is open
     if (overflowOpen) return;
-    trackEngagement.mutate({ storyId: story.id, action: "click" });
+    // Open modal first so the parent can seed React Query cache before any async work.
     if (onOpenFeedDetail) {
       onOpenFeedDetail(story);
+      trackEngagement.mutate({ storyId: story.id, action: "click" });
       return;
     }
+    trackEngagement.mutate({ storyId: story.id, action: "click" });
     router.push(story.canonical_url);
   }, [
     router,

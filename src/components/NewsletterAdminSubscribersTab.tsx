@@ -9,6 +9,7 @@ import {
   getAdminUserNewsletterSendHistory,
   getAvailableModels,
   getOutboundEmail,
+  getNewsletterPendingDetail,
   listCities,
   listUsers,
   type AdminNewsletterHistoryItem,
@@ -145,15 +146,22 @@ export default function NewsletterAdminSubscribersTab() {
   };
 
   const handlePreviewOutbound = async (item: AdminNewsletterHistoryItem) => {
-    if (item.type !== "outbound_email" || typeof item.id !== "number") return;
+    const canPreviewOutbound = item.type === "outbound_email" && typeof item.id === "number";
+    const canPreviewPending = item.type === "newsletter_send" && typeof item.pending_send_id === "number";
+    if (!canPreviewOutbound && !canPreviewPending) return;
     setPreviewLoading(true);
     setPreviewHtml(null);
     const sid = item.session_id?.trim();
     setPreviewJobSessionId(sid || null);
     try {
       const token = await getAccessTokenSilently();
-      const detail = await getOutboundEmail(item.id, token);
-      setPreviewHtml(detail.body_html || detail.body_plain || "(empty)");
+      if (canPreviewOutbound) {
+        const detail = await getOutboundEmail(item.id as number, token);
+        setPreviewHtml(detail.body_html || detail.body_plain || "(empty)");
+      } else {
+        const detail = await getNewsletterPendingDetail(item.pending_send_id as number, token);
+        setPreviewHtml(detail.body_html || "(empty)");
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to load email body");
     } finally {
@@ -626,19 +634,35 @@ function UserNewsletterRow({
                               <td style={{ fontSize: 12 }}>{h.source}</td>
                               <td style={{ whiteSpace: "nowrap" }}>
                                 {h.type === "outbound_email" && typeof h.id === "number" ? (
-                                  <button
-                                    type="button"
-                                    className={styles.linkBtn}
-                                    onClick={() => onPreviewOutbound(h)}
-                                  >
-                                    Body
-                                  </button>
+                                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                    <button
+                                      type="button"
+                                      className={styles.linkBtn}
+                                      onClick={() => onPreviewOutbound(h)}
+                                    >
+                                      Body
+                                    </button>
+                                    {h.session_id?.trim() && (
+                                      <JobSessionDebugLink sessionId={h.session_id} />
+                                    )}
+                                  </div>
                                 ) : h.type === "newsletter_send" ? (
-                                  h.session_id?.trim() ? (
-                                    <JobSessionDebugLink sessionId={h.session_id} />
-                                  ) : (
-                                    <span className={styles.muted}>\u2014</span>
-                                  )
+                                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                    {typeof h.pending_send_id === "number" && (
+                                      <button
+                                        type="button"
+                                        className={styles.linkBtn}
+                                        onClick={() => onPreviewOutbound(h)}
+                                      >
+                                        Body
+                                      </button>
+                                    )}
+                                    {h.session_id?.trim() ? (
+                                      <JobSessionDebugLink sessionId={h.session_id} />
+                                    ) : typeof h.pending_send_id !== "number" ? (
+                                      <span className={styles.muted}>\u2014</span>
+                                    ) : null}
+                                  </div>
                                 ) : (
                                   "\u2014"
                                 )}

@@ -24,7 +24,9 @@ export default function JobSessionDebugLink({
     <button
       type="button"
       className={className ?? styles.linkBtn}
-      onClick={() => {
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
         if (typeof window !== "undefined") {
           window.dispatchEvent(
             new CustomEvent("job-session:open", { detail: { session_id: id } })

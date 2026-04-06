@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { ExternalLink } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,8 @@ import {
   useFeedStoryDetail,
   useCityFeedStories,
   useTrackFeedEngagement,
+  feedKeys,
+  type FeedStory,
 } from "@/lib/hooks/useFeed";
 import { enrichStory, enrichStories } from "@/lib/feed/mockFeedData";
 import { resolveOutboundCanonicalPath } from "@/lib/feed/canonicalUrl";
@@ -35,11 +37,13 @@ export default function FeedStoryModal({
   onOpenChange,
   onSelectRelatedStory,
 }: FeedStoryModalProps) {
+  const queryClient = useQueryClient();
   const trackEngagement = useTrackFeedEngagement();
   const [detailNarrative, setDetailNarrative] = useState<DetailNarrative | null>(null);
 
   const activeId = open && storyId != null ? storyId : null;
-  const { data: storyResponse, isLoading, error } = useFeedStoryDetail(activeId);
+  const { data: storyResponse, isLoading, isFetching, error } =
+    useFeedStoryDetail(activeId);
 
   const rawStory = storyResponse?.story ?? null;
   const story = rawStory ? enrichStory(rawStory) : null;
@@ -59,11 +63,13 @@ export default function FeedStoryModal({
   useEffect(() => {
     if (!rawStory) return;
     setDetailNarrative(null);
+    const hasArticle = Boolean(rawStory.article_html?.trim());
+    if (hasArticle) return;
     fetchDetailNarrative(rawStory).then((dn) => {
       if (dn) setDetailNarrative(dn);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawStory?.id]);
+  }, [rawStory?.id, rawStory?.article_html]);
 
   const { data: relatedData } = useCityFeedStories(
     rawStory?.city_id ?? null,
@@ -78,6 +84,23 @@ export default function FeedStoryModal({
   }, [relatedData?.stories, rawStory]);
 
   const outboundPath = story ? resolveOutboundCanonicalPath(story) : "";
+  /** Detail fetch still loading fields omitted from feed list (e.g. article_html). */
+  const showFullStoryLoadingBar = Boolean(
+    story && isFetching && !rawStory?.article_html?.trim(),
+  );
+
+  const handleSelectRelatedStoryId = useCallback(
+    (id: number) => {
+      const picked = relatedStories.find((s) => s.id === id);
+      if (picked) {
+        queryClient.setQueryData(feedKeys.detail(id), {
+          story: picked as FeedStory,
+        });
+      }
+      onSelectRelatedStory?.(id);
+    },
+    [onSelectRelatedStory, queryClient, relatedStories],
+  );
 
   const handleShare = () => {
     if (!story) return;
@@ -105,7 +128,7 @@ export default function FeedStoryModal({
 
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 pr-12 dark:border-slate-600 dark:bg-slate-800/90">
           {story && outboundPath ? (
-            <Link
+            <a
               href={outboundPath}
               className="inline-flex items-center gap-2 text-sm font-medium text-purple-700 hover:text-purple-900 hover:underline dark:text-purple-400 dark:hover:text-purple-300"
               target="_blank"
@@ -113,11 +136,22 @@ export default function FeedStoryModal({
             >
               <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
               Open page
-            </Link>
+            </a>
           ) : (
             <span className="text-sm text-gray-500 dark:text-slate-400">Loading…</span>
           )}
         </div>
+
+        {showFullStoryLoadingBar && (
+          <div
+            className="flex shrink-0 items-center gap-2 border-b border-amber-200/80 bg-amber-50 px-4 py-2 text-xs text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
+            role="status"
+            aria-live="polite"
+          >
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+            Loading full story…
+          </div>
+        )}
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-2">
           {isLoading && (
@@ -146,7 +180,9 @@ export default function FeedStoryModal({
                 detailNarrative={detailNarrative}
                 relatedStories={relatedStories}
                 onShare={handleShare}
-                onSelectRelatedStoryId={onSelectRelatedStory}
+                onSelectRelatedStoryId={
+                  onSelectRelatedStory ? handleSelectRelatedStoryId : undefined
+                }
               />
             </div>
           )}

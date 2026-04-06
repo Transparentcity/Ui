@@ -10,6 +10,8 @@ import {
   deleteFeedStory,
   deleteFeedStoriesByCity,
 } from "@/lib/api/feed";
+import { slugify } from "@/lib/utils";
+import JobSessionDebugLink from "@/components/JobSessionDebugLink";
 import Loader from "@/components/Loader";
 import styles from "./FeedAdmin.module.css";
 
@@ -57,6 +59,18 @@ function filterByTime(stories: FeedStory[], range: TimeRange | ExportTimeRange, 
     const d = new Date(s.story_date).getTime();
     return !Number.isNaN(d) && d >= cutoff;
   });
+}
+
+/** Public story page for admin preview — not the CTA `detail_url` (report / chart / anomaly). */
+function publicStoryPath(story: FeedStory): string {
+  if (story.canonical_path?.startsWith("/")) return story.canonical_path;
+  if (story.public_url?.startsWith("/")) return story.public_url;
+  if (story.short_hash && story.city_name) {
+    const slug = slugify(story.city_name);
+    if (slug) return `/c/${slug}/stories/${story.short_hash}`;
+  }
+  if (story.short_hash) return `/s/${story.short_hash}`;
+  return `/feed/${story.id}`;
 }
 
 const PAGE_SIZE = 50;
@@ -253,13 +267,11 @@ export default function FeedAdmin() {
     setShowExport(false);
   }, [stories, exportCityId, exportTimeRange, cities]);
 
-  // Navigate to story
-  const handleStoryClick = useCallback((detailUrl: string) => {
-    if (detailUrl.startsWith("http")) {
-      window.open(detailUrl, "_blank");
-    } else {
-      window.open(detailUrl, "_blank");
-    }
+  // Open the canonical public story page (same slug as /s/[hash] redirect), not detail_url.
+  const handleStoryClick = useCallback((story: FeedStory) => {
+    const path = publicStoryPath(story);
+    const url = path.startsWith("http") ? path : `${window.location.origin}${path}`;
+    window.open(url, "_blank");
   }, []);
 
   if (loading) {
@@ -408,6 +420,8 @@ export default function FeedAdmin() {
                   <th className={styles.th}>Type</th>
                   <th className={`${styles.th} ${styles.hideNarrow}`}>Views</th>
                   <th className={`${styles.th} ${styles.hideNarrow}`}>Clicks</th>
+                  <th className={`${styles.th} ${styles.hideNarrow}`}>Scheduled job</th>
+                  <th className={`${styles.th} ${styles.hideNarrow}`}>Job session</th>
                   <th className={styles.th} style={{ width: 60 }}>Actions</th>
                 </tr>
               </thead>
@@ -416,11 +430,11 @@ export default function FeedAdmin() {
                   <tr
                     key={story.id}
                     className={styles.rowClickable}
-                    onClick={() => handleStoryClick(story.detail_url)}
+                    onClick={() => handleStoryClick(story)}
                     tabIndex={0}
                     role="link"
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") handleStoryClick(story.detail_url);
+                      if (e.key === "Enter") handleStoryClick(story);
                     }}
                   >
                     <td className={styles.td}>
@@ -440,6 +454,30 @@ export default function FeedAdmin() {
                     </td>
                     <td className={`${styles.td} ${styles.hideNarrow}`}>
                       {story.click_count.toLocaleString()}
+                    </td>
+                    <td className={`${styles.td} ${styles.hideNarrow}`}>
+                      {story.scheduled_job_name ? (
+                        <span title="Custom scheduled job that created the source research report">
+                          {story.scheduled_job_name}
+                        </span>
+                      ) : (
+                        <span className={styles.muted} title="Not from a custom scheduled research job, or job was removed">
+                          —
+                        </span>
+                      )}
+                    </td>
+                    <td className={`${styles.td} ${styles.hideNarrow}`}>
+                      {story.job_session_id ? (
+                        <JobSessionDebugLink
+                          sessionId={story.job_session_id}
+                          label="View session"
+                          className={styles.jobSessionLink}
+                        />
+                      ) : (
+                        <span className={styles.muted} title="No research job session on file">
+                          —
+                        </span>
+                      )}
                     </td>
                     <td className={styles.td}>
                       <button

@@ -13,6 +13,10 @@ export interface FeedStory {
   /** When set, story is tagged for a saved place (user_places.id). */
   user_place_id?: number | null;
   research_report_id: number;
+  /** Seymour job chat session id when the story was produced from research (research_reports.session_id). */
+  job_session_id?: string | null;
+  /** CustomScheduledJob.name when the source report was created by a scheduled research job. */
+  scheduled_job_name?: string | null;
   newsletter_frequency?: string | null;
   newsletter_period_start?: string | null;
   headline: string;
@@ -46,6 +50,8 @@ export interface FeedStory {
   /** Current user's AI feedback (thumbs up/down); only when authenticated. */
   user_ai_feedback?: "up" | "down" | null;
   short_hash?: string | null;
+  /** Server-computed path: /c/{slug}/stories/{hash} or /s/{hash}; prefer over building from short_hash alone. */
+  canonical_path?: string | null;
   public_url?: string | null;
   /** Long-form HTML for the canonical public story page (feed-producer stories). */
   article_html?: string | null;

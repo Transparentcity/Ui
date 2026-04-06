@@ -65,7 +65,7 @@ describe("FeedStoryDetailView", () => {
       />,
     );
 
-    expect(screen.getByText("A shorter feed summary.")).toBeInTheDocument();
+    expect(screen.queryByText("A shorter feed summary.")).not.toBeInTheDocument();
     expect(screen.getByText("What changed")).toBeInTheDocument();
     expect(
       screen.getByText("Transit performance improved this month."),

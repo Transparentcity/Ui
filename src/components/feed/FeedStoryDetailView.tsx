@@ -115,6 +115,8 @@ export function FeedStoryDetailView({
 }: FeedStoryDetailViewProps) {
   const publishedDate = formatFullDate(story.published_at);
   const articleHtml = story.article_html?.trim() || null;
+  /** Long-form HTML from create_feed_story — use this as the modal body, not summary + HTML. */
+  const hasFullArticleHtml = Boolean(articleHtml);
 
   const pv = story.primary_visualization;
   const vizType = (story.visualization_type ?? pv?.type ?? "").toLowerCase();
@@ -141,6 +143,7 @@ export function FeedStoryDetailView({
         )}
       </p>
 
+      {!hasFullArticleHtml && (
       <div className={styles.detailNarrativeSection}>
         {detailNarrative ? (
           detailNarrative.above.map((para, i) => (
@@ -182,6 +185,7 @@ export function FeedStoryDetailView({
           </p>
         ) : null}
       </div>
+      )}
 
       {articleHtml && (
         <div className={styles.detailNarrativeSection}>
