@@ -10,6 +10,7 @@ import MyCities from "./MyCities";
 import ResearchList from "./ResearchList";
 import SidebarCitySearch from "./SidebarCitySearch";
 import styles from "./Sidebar.module.css";
+import type { UserPlace } from "@/lib/apiClient";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -45,8 +46,8 @@ interface SidebarProps {
   onResearchDeleted?: (reportId: number) => void;
   onCitySelect?: (cityId: number) => void;
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void;
-  /** Called after user saves a personalized place from Search Cities (so parent can refetch places). */
-  onPlaceSaved?: (place: { id: number }) => void;
+  /** Called after user saves a personalized place from Search Cities (optional full place for navigation + metrics bootstrap). */
+  onPlaceSaved?: (place?: UserPlace) => void;
   /** Called after a place is renamed (so parent can refetch places). */
   onPlaceRenamed?: (placeId: number, newLabel: string) => void;
   /** Called after a place is deleted (so parent can refetch and clear selection). */
@@ -210,7 +211,7 @@ export default function Sidebar({
           </button>
           {isOpen && (
             <Link
-              href="/dashboard"
+              href="/home"
               className={styles.sidebarLogo}
               aria-label="Transparent.city home"
             >

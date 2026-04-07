@@ -17,107 +17,12 @@ import DeltaMapView from "./DeltaMapView";
 import DistrictComparisonTable from "./DistrictComparisonTable";
 import CategoryBreakdown from "./CategoryBreakdown";
 import { slugify } from "@/lib/utils";
-import { API_BASE } from "@/lib/apiBase";
-import TimeSeriesChart from "./TimeSeriesChart";
 import Loader from "./Loader";
+import PublicMetricTimeSeriesChart from "./PublicMetricTimeSeriesChart";
+import { selectPublicMetricCharts } from "@/lib/selectPublicMetricCharts";
 import CompletenessSparkline from "./CompletenessSparkline";
 import styles from "./MetricsAdmin.module.css";
 import "./MetricDetailModal.css";
-
-interface PublicTimeSeriesPoint {
-  time_period: string;
-  numeric_value: number;
-  group_value?: string | null;
-}
-
-interface PublicTimeSeriesResponse {
-  count: number;
-  metadata?: Record<string, any>;
-  data: PublicTimeSeriesPoint[];
-}
-
-async function getPublicTimeSeries(chartId: number): Promise<PublicTimeSeriesResponse> {
-  const response = await fetch(`${API_BASE}/api/time-series/public/${chartId}`);
-  if (!response.ok) {
-    throw new Error(`Failed to load time series ${chartId}`);
-  }
-  return response.json();
-}
-
-function aggregateTimeSeries(points: PublicTimeSeriesPoint[]): PublicTimeSeriesPoint[] {
-  const map = new Map<string, PublicTimeSeriesPoint>();
-  points.forEach((point) => {
-    const key = `${point.time_period}||${point.group_value ?? ""}`;
-    const existing = map.get(key);
-    if (existing) {
-      existing.numeric_value += point.numeric_value;
-    } else {
-      map.set(key, {
-        time_period: point.time_period,
-        numeric_value: point.numeric_value,
-        group_value: point.group_value ?? null,
-      });
-    }
-  });
-  return Array.from(map.values());
-}
-
-// Simple component to fetch and display time series chart
-function PublicTimeSeriesChart({ 
-  chartId
-}: { 
-  chartId: number;
-}) {
-  const [data, setData] = useState<PublicTimeSeriesResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let mounted = true;
-    setLoading(true);
-    getPublicTimeSeries(chartId)
-      .then((res) => {
-        if (mounted) {
-          setData(res);
-        }
-      })
-      .catch(() => {
-        if (mounted) setData(null);
-      })
-      .finally(() => {
-        if (mounted) setLoading(false);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [chartId]);
-
-  if (loading) {
-    return (
-      <div className="metric-placeholder" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.75rem" }}>
-        <Loader size="md" color="dark" />
-        <span>Loading chart...</span>
-      </div>
-    );
-  }
-  if (!data || data.data.length === 0) {
-    return <div className="metric-placeholder">No chart data available.</div>;
-  }
-  
-  // Aggregate duplicate periods (sum values for same time_period + group_value)
-  const aggregated = aggregateTimeSeries(data.data);
-  
-  return (
-    <TimeSeriesChart
-      data={aggregated}
-      metadata={data.metadata}
-      height={320}
-      defaultPeriod="ytd"
-      fullBleed={true}
-      hidePeriodSelector={false}
-      showExternalTitle={true}
-    />
-  );
-}
 
 interface MetricDetailModalProps {
   metricId: number | null;
@@ -158,27 +63,27 @@ export default function MetricDetailModal({
     setCompletenessDaily(null);
     setCompletenessStats(null);
     setCompletenessLoading(false);
-  }, [metricId]);
+  }, [metricId, selectedDistrict]);
   useEffect(() => {
     if (!isOpen || !metricId || completenessDaily) return;
     setCompletenessLoading(true);
-    getPublicMetricCompletenessDaily(metricId, "day", 90)
+    getPublicMetricCompletenessDaily(metricId, "day", 90, selectedDistrict)
       .then(setCompletenessDaily)
       .catch((err) => {
         console.warn("Failed to load completeness daily data:", err);
         setCompletenessDaily(null);
       })
       .finally(() => setCompletenessLoading(false));
-  }, [isOpen, metricId, completenessDaily]);
+  }, [isOpen, metricId, selectedDistrict, completenessDaily]);
   useEffect(() => {
     if (!isOpen || !metricId || completenessStats) return;
-    getPublicMetricCompletenessStats(metricId)
+    getPublicMetricCompletenessStats(metricId, selectedDistrict)
       .then(setCompletenessStats)
       .catch((err) => {
         console.warn("Failed to load completeness stats:", err);
         setCompletenessStats(null);
       });
-  }, [isOpen, metricId, completenessStats]);
+  }, [isOpen, metricId, selectedDistrict, completenessStats]);
   useEffect(() => {
     if (!metric?.city_id) return;
     let mounted = true;
@@ -310,33 +215,34 @@ export default function MetricDetailModal({
     ? `District ${selectedDistrict}`
     : resolvedCityName;
 
-  const preferredChartId = useMemo(() => {
-    const series = timeSeriesQuery.data?.time_series || [];
-    if (series.length === 0) return null;
-    
-    // Filter by selected district (null/0 = citywide)
-    const targetDistrict = selectedDistrict ?? 0;
-    const districtSeries = series.filter(
-      (item) => {
-        const itemDistrict = item.district ?? 0;
-        return itemDistrict === targetDistrict && !item.group_field;
-      }
+  const { primaryChartId, yearChartId } = useMemo(
+    () =>
+      selectPublicMetricCharts(
+        timeSeriesQuery.data?.time_series || [],
+        selectedDistrict
+      ),
+    [timeSeriesQuery.data, selectedDistrict]
+  );
+
+  const preferredChartId = primaryChartId;
+
+  // Compute reporting completeness lag: how many trailing days in the completeness data
+  // are still "unstable" (counts still changing / not yet fully reported).
+  const staleness_days = useMemo(() => {
+    if (!completenessDaily?.data || completenessDaily.data.length === 0) return undefined;
+    const sorted = [...completenessDaily.data].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
-    
-    // If no district-specific chart, fall back to citywide
-    const candidates = districtSeries.length > 0 
-      ? districtSeries 
-      : series.filter((item) => (item.district === 0 || item.district === null) && !item.group_field);
-    
-    if (candidates.length === 0) return series[0]?.chart_id ?? null;
-    // Prefer daily chart for YTD view, then ytd, then month
-    const dayChart = candidates.find((item) => item.period_type?.toLowerCase() === "day");
-    if (dayChart) return dayChart.chart_id;
-    const ytdChart = candidates.find((item) => item.period_type?.toLowerCase() === "ytd");
-    if (ytdChart) return ytdChart.chart_id;
-    const monthChart = candidates.find((item) => item.period_type?.toLowerCase() === "month");
-    return monthChart?.chart_id ?? candidates[0].chart_id;
-  }, [timeSeriesQuery.data, selectedDistrict]);
+    let lag = 0;
+    for (const entry of sorted) {
+      if (!entry.is_stable) {
+        lag++;
+      } else {
+        break;
+      }
+    }
+    return lag > 0 ? lag : undefined;
+  }, [completenessDaily]);
 
   const handleShare = async () => {
     if (navigator.share && publicUrl) {
@@ -585,8 +491,19 @@ export default function MetricDetailModal({
                         {trend ? `, ${trend.isIncrease ? "up" : "down"} by ${Math.round(Math.abs(trend.percent))}%` : ""} from last year&apos;s {formatValue(comparison.comparison_period_value)} to this date of {currentPeriodEndFormatted}.
                       </p>
                     ) : null}
+                  {!isStale && staleness_days !== undefined && staleness_days > 0 && (
+                    <div className="metric-staleness-badge">
+                      <span className="metric-staleness-icon">⏱</span>
+                      ~{staleness_days} day{staleness_days !== 1 ? "s" : ""} to fully report — data for the most recent {staleness_days} day{staleness_days !== 1 ? "s" : ""} may still be updating, shown as{" "}
+                      <span className="metric-staleness-incomplete-label">incomplete</span> on the chart below.
+                    </div>
+                  )}
                   <div className="metric-chart-container">
-                    <PublicTimeSeriesChart chartId={preferredChartId} />
+                    <PublicMetricTimeSeriesChart
+                      primaryChartId={primaryChartId}
+                      yearChartId={yearChartId}
+                      staleness_days={staleness_days}
+                    />
                   </div>
                 </section>
               )}
@@ -683,6 +600,7 @@ export default function MetricDetailModal({
                       comparisonType={selectedPeriod}
                       greenDirection={metric.greendirection as "up" | "down" | null}
                       height={350}
+                      currentPeriodEnd={comparison?.current_period_end ?? undefined}
                     />
                     <DistrictComparisonTable
                       metricId={metric.id}
@@ -693,6 +611,8 @@ export default function MetricDetailModal({
                       cityName={resolvedCityName}
                       currentPeriodEnd={comparison?.current_period_end ?? undefined}
                       currentPeriodStart={comparison?.current_period_start ?? undefined}
+                      citywideCurrent={comparison?.current_period_value ?? null}
+                      citywideComparison={comparison?.comparison_period_value ?? null}
                     />
                   </section>
                 );

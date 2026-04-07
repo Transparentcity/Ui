@@ -182,7 +182,7 @@ export default function FeedSettingsPage() {
       <div className="dashboard-layout">
         <TitleBar onMenuToggle={() => setSidebarOpen((p) => !p)} sidebarOpen={sidebarOpen} />
         <div className="dashboard-body">
-          <Sidebar isOpen={sidebarOpen} onNewChat={() => router.push("/dashboard")} />
+          <Sidebar isOpen={sidebarOpen} onNewChat={() => router.push("/home")} />
           <main className="dashboard-main">
             <div className={styles.container}>
               <p>Loading...</p>
@@ -198,7 +198,7 @@ export default function FeedSettingsPage() {
       <div className="dashboard-layout">
         <TitleBar onMenuToggle={() => setSidebarOpen((p) => !p)} sidebarOpen={sidebarOpen} />
         <div className="dashboard-body">
-          <Sidebar isOpen={sidebarOpen} onNewChat={() => router.push("/dashboard")} />
+          <Sidebar isOpen={sidebarOpen} onNewChat={() => router.push("/home")} />
           <main className="dashboard-main">
             <div className={styles.container}>
               <h1 className={styles.pageTitle}>Feed Settings</h1>
@@ -220,7 +220,7 @@ export default function FeedSettingsPage() {
     <div className="dashboard-layout">
       <TitleBar onMenuToggle={() => setSidebarOpen((p) => !p)} sidebarOpen={sidebarOpen} />
       <div className="dashboard-body">
-        <Sidebar isOpen={sidebarOpen} onNewChat={() => router.push("/dashboard")} />
+        <Sidebar isOpen={sidebarOpen} onNewChat={() => router.push("/home")} />
         <main className="dashboard-main">
           <div className={styles.container}>
             <h1 className={styles.pageTitle}>Feed Settings</h1>

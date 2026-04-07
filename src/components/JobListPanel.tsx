@@ -15,6 +15,13 @@ const FEED_STORY_JOB_TYPES = new Set([
   "context_stories",
 ]);
 
+/** Readable labels for admin city / data jobs (raw job_type is still in details). */
+const JOB_TYPE_LABELS: Record<string, string> = {
+  determine_portal_types: "Determine portal type",
+  load_city_data: "Load city data",
+  restructure_city: "Restructure city",
+};
+
 /** Filter by schedule_key (job_metadata). Matches backend run_schedule keys. */
 const SCHEDULE_KEY_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "All jobs" },
@@ -457,7 +464,9 @@ export default function JobListPanel({
                         className={styles.statusDot}
                         style={{ backgroundColor: getStatusColor(job.status) }}
                       />
-                      <span className={styles.jobType}>{job.job_type}</span>
+                      <span className={styles.jobType} title={job.job_type}>
+                        {JOB_TYPE_LABELS[job.job_type] ?? job.job_type}
+                      </span>
                     </div>
                     <span className={styles.jobStatus}>{job.status}</span>
                   </div>
@@ -500,7 +509,15 @@ export default function JobListPanel({
                     </div>
                     <div className={styles.detailItem}>
                       <span className={styles.detailLabel}>Type</span>
-                      <span className={styles.detailValue}>{selectedJob.job_type}</span>
+                      <span className={styles.detailValue}>
+                        {JOB_TYPE_LABELS[selectedJob.job_type] ?? selectedJob.job_type}
+                        {JOB_TYPE_LABELS[selectedJob.job_type] ? (
+                          <span style={{ color: "var(--text-secondary, #6b7280)", fontSize: "12px" }}>
+                            {" "}
+                            ({selectedJob.job_type})
+                          </span>
+                        ) : null}
+                      </span>
                     </div>
                     <div className={styles.detailItem}>
                       <span className={styles.detailLabel}>Status</span>

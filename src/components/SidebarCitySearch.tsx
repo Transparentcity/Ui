@@ -21,7 +21,7 @@ import {
   type AddressSuggestion,
   type GeocodeResult,
 } from "@/lib/locationSearchUtils";
-import { saveCity, createPlace } from "@/lib/apiClient";
+import { saveCity, createPlace, type UserPlace } from "@/lib/apiClient";
 import LocationMapSave from "@/components/LocationMapSave";
 import { DEFAULT_PLACE_RADIUS_M } from "@/lib/mapUtils";
 
@@ -38,8 +38,8 @@ export default function SidebarCitySearch({
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void;
   /** Called when user clicks "Find your district" from the null state; parent may open district modal if a city is selected. */
   onFindDistrict?: () => void;
-  /** Called after user saves a personalized place from the map step (so parent can refetch places). */
-  onPlaceSaved?: (place: { id: number }) => void;
+  /** Called after user saves a personalized place from the map step (parent refetches + opens block view). */
+  onPlaceSaved?: (place: UserPlace) => void;
   placeholder?: string;
 }) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
@@ -243,7 +243,6 @@ export default function SidebarCitySearch({
         radius_m: opts.radius_m,
       });
       onPlaceSaved?.(place);
-      onCitySelect(pendingCityAndCoords.city.id);
       closeModal();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save place");

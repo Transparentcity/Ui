@@ -6,8 +6,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
   getJobStats,
   JobStats,
-  getScheduledJobSummary,
-  ScheduledJobSummary,
   getAllScheduledJobs,
   CustomScheduledJob,
 } from "@/lib/apiClient";
@@ -35,7 +33,6 @@ export default function JobLogsViewer() {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<JobStats | null>(null);
-  const [scheduleSummaries, setScheduleSummaries] = useState<ScheduledJobSummary[]>([]);
   const [customSchedules, setCustomSchedules] = useState<CustomScheduledJob[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
@@ -52,7 +49,7 @@ export default function JobLogsViewer() {
   const { jobs: webSocketJobs, isConnected, refreshJobs } = useJobWebSocketContext();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Sync tab from URL (e.g. /dashboard?tab=logs&job_id=xxx)
+  // Sync tab from URL (e.g. /home?tab=logs&job_id=xxx)
   useEffect(() => {
     if (tabParam === "scheduled") setActiveTab("scheduled");
     else if (tabParam === "logs" || jobIdParam) setActiveTab("logs");
@@ -60,7 +57,7 @@ export default function JobLogsViewer() {
 
   const handleViewJob = useCallback(
     (jobId: string) => {
-      const base = pathname || "/dashboard";
+      const base = pathname || "/home";
       const q = new URLSearchParams({ tab: "logs", job_id: jobId });
       router.push(`${base}?${q.toString()}`);
       setActiveTab("logs");
@@ -99,11 +96,7 @@ export default function JobLogsViewer() {
       setScheduleLoading(true);
       setScheduleError(null);
       const currentToken = token || (await getAccessTokenSilently());
-      const [schedules, allSchedules] = await Promise.all([
-        getScheduledJobSummary(currentToken),
-        getAllScheduledJobs(currentToken),
-      ]);
-      setScheduleSummaries(schedules);
+      const allSchedules = await getAllScheduledJobs(currentToken);
       setCustomSchedules(allSchedules.custom_schedules || []);
     } catch (err) {
       console.error("Error loading schedule summary:", err);
@@ -202,7 +195,7 @@ export default function JobLogsViewer() {
             className={`${styles.tabButton} ${activeTab === tab.id ? styles.tabButtonActive : ""}`}
             onClick={() => {
               setActiveTab(tab.id);
-              const base = pathname || "/dashboard";
+              const base = pathname || "/home";
               if (tab.id === "scheduled") {
                 router.replace(`${base}?tab=scheduled`, { scroll: false });
               } else {
@@ -230,7 +223,6 @@ export default function JobLogsViewer() {
         )}
         {activeTab === "scheduled" && (
           <ScheduledJobsPanel
-            scheduleSummaries={scheduleSummaries}
             customSchedules={customSchedules}
             scheduleLoading={scheduleLoading}
             scheduleError={scheduleError}

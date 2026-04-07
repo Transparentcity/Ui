@@ -13,6 +13,7 @@ interface NewslettersTabPanelProps {
   cityName: string;
   initialDistrict?: number | null;
   isAdmin?: boolean;
+  onClose?: () => void;
 }
 
 export default function NewslettersTabPanel({
@@ -20,6 +21,7 @@ export default function NewslettersTabPanel({
   cityName,
   initialDistrict,
   isAdmin = false,
+  onClose,
 }: NewslettersTabPanelProps) {
   const router = useRouter();
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
@@ -176,7 +178,18 @@ Format as a newsletter-style summary that could be emailed to subscribers intere
   return (
     <div className="newsletters-tab-panel">
       <div className="newsletters-header">
-        <h2>Newsletters</h2>
+        <div className="newsletters-header-top">
+          <h2>Newsletters</h2>
+          {onClose && (
+            <button
+              className="newsletters-close-btn"
+              onClick={onClose}
+              aria-label="Close newsletters panel"
+            >
+              ✕
+            </button>
+          )}
+        </div>
         <p className="newsletters-subtitle">
           Weekly and monthly research reports for {cityName}
         </p>

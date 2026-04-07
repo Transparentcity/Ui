@@ -1209,10 +1209,32 @@ export default function PublicMapPage() {
     mapboxgl.accessToken = mapboxToken;
     
     // Calculate center and zoom
-    const center: [number, number] = map.center 
-      ? [map.center.lng, map.center.lat]
-      : [-122.4194, 37.7749]; // Default to SF
-    const zoom = map.center?.zoom || 11;
+    let center: [number, number];
+    let zoom: number;
+    if (map.center) {
+      center = [map.center.lng, map.center.lat];
+      zoom = map.center.zoom;
+    } else if (map.bounds) {
+      // Derive center from bounds [[sw_lng, sw_lat], [ne_lng, ne_lat]]
+      center = [
+        (map.bounds[0][0] + map.bounds[1][0]) / 2,
+        (map.bounds[0][1] + map.bounds[1][1]) / 2,
+      ];
+      zoom = 11;
+    } else {
+      // Derive center from location_data points
+      const pts = map.location_data?.filter(
+        (p: any) => p.lat != null && p.lon != null && isFinite(Number(p.lat)) && isFinite(Number(p.lon))
+      ) ?? [];
+      if (pts.length > 0) {
+        const avgLat = pts.reduce((s: number, p: any) => s + Number(p.lat), 0) / pts.length;
+        const avgLon = pts.reduce((s: number, p: any) => s + Number(p.lon), 0) / pts.length;
+        center = [avgLon, avgLat];
+      } else {
+        center = [0, 20];
+      }
+      zoom = 11;
+    }
     
     // Use dark or light map style based on theme
     const mapStyle = theme === "dark" 
@@ -2514,7 +2536,7 @@ export default function PublicMapPage() {
                 }
                 loginWithRedirect({
                   authorizationParams: { screen_hint: "signup" },
-                  appState: { returnTo: "/dashboard" },
+                  appState: { returnTo: "/home" },
                 });
               }}
             >

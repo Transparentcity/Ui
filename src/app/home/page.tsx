@@ -16,7 +16,7 @@ import {
   getUserPreferences,
   updateUserPreferences,
   getCity,
-  createResearch,
+  generateSampleNewsletter,
   saveUserMetricOrdering,
   recordSignupIntent,
   getGovernmentVerificationStatus,
@@ -149,6 +149,8 @@ export default function DashboardPage() {
   const [initialPlaceId, setInitialPlaceId] = useState<number | null>(null);
   /** Official Selector selection (district / place) so left nav can stay in sync; only when currentView === "city". */
   const [citySelection, setCitySelection] = useState<{ district: number | null; placeId: number | null }>({ district: null, placeId: null });
+  /** After saving a new block, run metrics job once before showing place dashboard (see CityView). */
+  const [placeIdPendingPlaceMetricsBootstrap, setPlaceIdPendingPlaceMetricsBootstrap] = useState<number | null>(null);
   const [allUserPlaces, setAllUserPlaces] = useState<UserPlace[]>([]);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showGovernmentOnboardingModal, setShowGovernmentOnboardingModal] = useState(false);
@@ -173,7 +175,8 @@ export default function DashboardPage() {
   const [editableNewsletterDescription, setEditableNewsletterDescription] = useState("");
   const [editableNewsletterFrequency, setEditableNewsletterFrequency] = useState<"weekly" | "monthly">("weekly");
   const [generatingSampleNewsletter, setGeneratingSampleNewsletter] = useState(false);
-  const [sampleNewsletterReportUrl, setSampleNewsletterReportUrl] = useState<string | null>(null);
+  const [sampleNewsletterSubject, setSampleNewsletterSubject] = useState<string | null>(null);
+  const [testNewsletterGenerationMode, setTestNewsletterGenerationMode] = useState<"stories" | "seymour">("stories");
   const [showEditHomeLocationModal, setShowEditHomeLocationModal] = useState(false);
   const identityScopeKey = impersonationState
     ? `impersonated:${impersonationState.userId}`
@@ -229,6 +232,7 @@ export default function DashboardPage() {
     setRequestOpenDistrictModal(null);
     setInitialPlaceId(null);
     setCitySelection({ district: null, placeId: null });
+    setPlaceIdPendingPlaceMetricsBootstrap(null);
     setAllUserPlaces([]);
     setShowWelcomeModal(false);
     setShowGovernmentOnboardingModal(false);
@@ -269,6 +273,27 @@ export default function DashboardPage() {
       : window.location.pathname;
     router.replace(nextUrl);
   }, [router]);
+
+  // Deep-link to a Seymour job session (e.g. from Feed admin "View session").
+  useEffect(() => {
+    if (typeof window === "undefined" || !isAuthenticated || isLoading) return;
+    const params = new URLSearchParams(window.location.search);
+    const jobSession = params.get("job_session");
+    if (!jobSession) return;
+
+    setCurrentSessionId(jobSession);
+    setIsCurrentSessionJobSession(true);
+    setCurrentView("chat");
+    setActiveCityId(null);
+    setCurrentResearchId(null);
+
+    params.delete("job_session");
+    const nextQuery = params.toString();
+    const nextUrl = nextQuery
+      ? `${window.location.pathname}?${nextQuery}`
+      : window.location.pathname;
+    router.replace(nextUrl);
+  }, [router, isAuthenticated, isLoading]);
 
   // Track dashboard view when authenticated
   useEffect(() => {
@@ -651,7 +676,7 @@ export default function DashboardPage() {
 
   const handleOpenJobLogsFromCityData = useCallback((jobId: string) => {
     setCurrentView("job-logs");
-    const base = pathname || "/dashboard";
+    const base = pathname || "/home";
     const q = new URLSearchParams({ tab: "logs", job_id: jobId });
     router.replace(`${base}?${q.toString()}`, { scroll: false });
   }, [pathname, router]);
@@ -669,25 +694,28 @@ export default function DashboardPage() {
     setGpsLocation(null);
   };
 
-  const handlePlaceClick = (cityId: number, placeId: number) => {
-    // Look up place GPS data immediately so the map can start at block level
-    // without waiting for the userPlaces API call inside CityView.
-    const place = allUserPlaces.find((p) => p.id === placeId);
-    setActiveCityId(cityId);
-    setInitialDistrict(null);
-    setInitialPlaceId(placeId);
-    setInitialPlaceGps(
-      place?.lat != null && place?.lng != null
-        ? { lat: place.lat, lng: place.lng, radius_m: place.radius_m ?? 500 }
-        : null
-    );
-    setCitySelection({ district: null, placeId });
-    setCurrentView("city");
-    setCurrentSessionId(null);
-    setIsCurrentSessionJobSession(false);
-    setCurrentResearchId(null);
-    setGpsLocation(null);
-  };
+  const handlePlaceClick = useCallback(
+    (cityId: number, placeId: number, placeOverride?: UserPlace) => {
+      // Look up place GPS immediately so the map can start at block level without waiting
+      // for listMyPlaces inside CityView (use API response when the place was just created).
+      const place = placeOverride ?? allUserPlaces.find((p) => p.id === placeId);
+      setActiveCityId(cityId);
+      setInitialDistrict(null);
+      setInitialPlaceId(placeId);
+      setInitialPlaceGps(
+        place?.lat != null && place?.lng != null
+          ? { lat: place.lat, lng: place.lng, radius_m: place.radius_m ?? 500 }
+          : null
+      );
+      setCitySelection({ district: null, placeId });
+      setCurrentView("city");
+      setCurrentSessionId(null);
+      setIsCurrentSessionJobSession(false);
+      setCurrentResearchId(null);
+      setGpsLocation(null);
+    },
+    [allUserPlaces]
+  );
 
   const refreshAllUserPlaces = useCallback(
     (expectedIdentityScopeKey: string = identityScopeKey) => {
@@ -707,9 +735,30 @@ export default function DashboardPage() {
     [getAccessTokenSilently, identityScopeKey]
   );
 
-  const handlePlaceSaved = () => {
-    refreshAllUserPlaces();
-  };
+  const handlePlaceSaved = useCallback(
+    (place?: UserPlace) => {
+      refreshAllUserPlaces();
+      if (place) {
+        setPlaceIdPendingPlaceMetricsBootstrap(place.id);
+        handlePlaceClick(place.city_id, place.id, place);
+        setCurrentView("city");
+      }
+    },
+    [refreshAllUserPlaces, handlePlaceClick]
+  );
+
+  const consumePlaceMetricsBootstrap = useCallback(() => {
+    setPlaceIdPendingPlaceMetricsBootstrap(null);
+  }, []);
+
+  useEffect(() => {
+    if (
+      placeIdPendingPlaceMetricsBootstrap != null &&
+      citySelection.placeId !== placeIdPendingPlaceMetricsBootstrap
+    ) {
+      setPlaceIdPendingPlaceMetricsBootstrap(null);
+    }
+  }, [citySelection.placeId, placeIdPendingPlaceMetricsBootstrap]);
 
   const handlePlaceRenamed = () => {
     refreshAllUserPlaces();
@@ -717,6 +766,7 @@ export default function DashboardPage() {
 
   const handlePlaceDeleted = (placeId: number) => {
     refreshAllUserPlaces();
+    setPlaceIdPendingPlaceMetricsBootstrap((p) => (p === placeId ? null : p));
     if (citySelection.placeId === placeId) {
       setCitySelection((prev) => ({ ...prev, placeId: null }));
       setInitialPlaceId(null);
@@ -880,34 +930,26 @@ export default function DashboardPage() {
     const defaultPrompt =
       "Create a weekly newsletter report for this city and district. Focus on recent changes and trends in key metrics (crime, housing, permits, 311 calls), notable anomalies, comparative analysis (this period vs. previous, district vs. city-wide), and actionable insights for residents. Be data-driven with specific numbers; highlight both positive and concerning trends.";
     const prompt = editableNewsletterDescription.trim() || defaultPrompt;
-    const fullPrompt = `For ${cityName} (${districtLabel}). ${prompt}`;
+    const promptOverride = `For ${cityName} (${districtLabel}). ${prompt}`;
 
     setGeneratingSampleNewsletter(true);
-    setSampleNewsletterReportUrl(null);
+    setSampleNewsletterSubject(null);
     try {
       const token = await getAccessTokenSilently();
-      const res = await createResearch(
+      const res = await generateSampleNewsletter(
         {
-          prompt: fullPrompt,
           city_id: cityId,
-          district: district ? String(district) : null,
-          one_shot: true,
-          is_newsletter: true,
-          newsletter_frequency: editableNewsletterFrequency,
-          generate_feed_stories: true,
-          feed_story_count: 2,
-          feed_story_frequency: editableNewsletterFrequency,
-          feed_story_category: "personal_newsletter",
-          use_low_cost_model: true,
+          district: district ? Number(district) : null,
+          frequency: editableNewsletterFrequency,
+          prompt_override: promptOverride,
+          generation_mode: testNewsletterGenerationMode,
         },
         token
       );
-      if (res?.public_url) {
-        setSampleNewsletterReportUrl(res.public_url);
-      }
+      setSampleNewsletterSubject((res?.title || "").trim() || "Your local update");
     } catch (err) {
       console.error("Error generating sample newsletter:", err);
-      alert("Failed to generate sample newsletter. Please try again.");
+      alert("Failed to send test newsletter. Please try again.");
     } finally {
       setGeneratingSampleNewsletter(false);
     }
@@ -1240,6 +1282,9 @@ export default function DashboardPage() {
                   requestOpenDistrictModal={requestOpenDistrictModal}
                   onClearDistrictModalRequest={() => setRequestOpenDistrictModal(null)}
                   onOfficialSelectionChange={onOfficialSelectionChange}
+                  bootstrapPlaceMetricsForPlaceId={placeIdPendingPlaceMetricsBootstrap}
+                  onConsumePlaceMetricsBootstrap={consumePlaceMetricsBootstrap}
+                  onRequestPlaceMetricsBootstrap={setPlaceIdPendingPlaceMetricsBootstrap}
                 />
               </div>
             </div>
@@ -1461,7 +1506,7 @@ export default function DashboardPage() {
                     <h3 className={styles.settingsSectionTitle}>Personalized newsletter</h3>
                     <div className={styles.settingsNewsletterBlock}>
                       <p className={styles.settingsNewsletterIntro}>
-                        Your newsletter preferences from onboarding. Edit below and save to update. Generate an example to see a sample in the Personal newsletter section of your feed.
+                        Your newsletter preferences from onboarding. Edit below and save to update. Send a test: choose <strong>Feed stories</strong> to match the weekly job (no LLM), or <strong>Seymour (LLM)</strong> to run the full personalized prompt with tools. The test is logged in Seymour&apos;s outbox and emailed when sending is configured.
                       </p>
                       <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "var(--text-primary)", marginBottom: "8px" }}>
                         Newsletter description (what you want each edition to focus on)
@@ -1484,20 +1529,36 @@ export default function DashboardPage() {
                           Monthly
                         </label>
                       </div>
+                      <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "var(--text-primary)", marginBottom: "8px", marginTop: "16px" }}>
+                        Test email generation
+                      </label>
+                      <select
+                        className={styles.settingsTextarea}
+                        value={testNewsletterGenerationMode}
+                        onChange={(e) => setTestNewsletterGenerationMode(e.target.value as "stories" | "seymour")}
+                        aria-label="Test newsletter generation mode"
+                        style={{ minHeight: "unset", height: "44px", padding: "10px 12px", cursor: "pointer", maxWidth: "100%" }}
+                      >
+                        <option value="stories">Feed stories (same as weekly send)</option>
+                        <option value="seymour">Seymour — full personalized prompt (LLM + tools)</option>
+                      </select>
                       <button type="button" className={styles.settingsGenerateBtn} onClick={handleGenerateSampleNewsletter} disabled={generatingSampleNewsletter}>
                         {generatingSampleNewsletter ? (
                           <>
                             <Loader size="sm" color="white" />
-                            <span>Generating sample…</span>
+                            <span>
+                              {testNewsletterGenerationMode === "seymour"
+                                ? "Running Seymour (may take a minute)…"
+                                : "Sending test…"}
+                            </span>
                           </>
                         ) : (
-                          "Generate example newsletter"
+                          "Send test newsletter"
                         )}
                       </button>
-                      {sampleNewsletterReportUrl && (
+                      {sampleNewsletterSubject && (
                         <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "12px", padding: "12px", background: "var(--bg-primary)", borderRadius: "8px" }}>
-                          Sample is being generated. It will appear under <strong>Personal newsletter</strong> in your feed when ready.{" "}
-                          <a href={sampleNewsletterReportUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand-primary, #ad35fa)" }}>View report</a>
+                          Test newsletter completed. Subject: <strong style={{ color: "var(--text-primary)" }}>{sampleNewsletterSubject}</strong>. Check Seymour&apos;s outbox and your inbox (if email delivery is enabled).
                         </p>
                       )}
                     </div>

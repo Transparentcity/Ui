@@ -633,6 +633,8 @@ export type PublicTimeSeriesChartPoint = {
 
 export type PublicTimeSeriesChartResponse = {
   count: number;
+  /** Same metric/district/group_field: native chart IDs per stored period_type (day/week/month/year). */
+  sibling_chart_ids?: Record<string, number> | null;
   metadata?: {
     chart_id?: number;
     object_id?: string;
@@ -650,6 +652,42 @@ export function getPublicTimeSeriesChart(chartId: number): Promise<PublicTimeSer
   const path = `/api/time-series/public/${chartId}`;
   const cacheKey = `metric-ts-chart:${chartId}`;
   return getCachedOrFetch(cacheKey, () => requestPublic<PublicTimeSeriesChartResponse>(path), 120000);
+}
+
+// Category breakdown (direct query — accurate for COUNT_DISTINCT metrics)
+export type CategoryBreakdownItem = {
+  group_value: string;
+  count: number;
+  percent: number | null;
+};
+
+export type CategoryBreakdownFieldResult = {
+  field_name: string;
+  display_name: string;
+  items: CategoryBreakdownItem[];
+  total: number;
+};
+
+export type CategoryBreakdownResponse = {
+  metric_id: number;
+  metric_name: string;
+  period_start: string;
+  period_end: string;
+  fields: CategoryBreakdownFieldResult[];
+};
+
+export function getPublicMetricCategoryBreakdown(
+  metricId: number,
+  startDate?: string | null,
+  endDate?: string | null,
+): Promise<CategoryBreakdownResponse> {
+  const params = new URLSearchParams();
+  if (startDate) params.set("start_date", startDate);
+  if (endDate) params.set("end_date", endDate);
+  const qs = params.toString();
+  const path = `/api/public/metrics/${metricId}/category-breakdown${qs ? `?${qs}` : ""}`;
+  const cacheKey = `metric-cat-breakdown:${metricId}:${startDate ?? ""}:${endDate ?? ""}`;
+  return getCachedOrFetch(cacheKey, () => requestPublic<CategoryBreakdownResponse>(path), 120000);
 }
 
 // Period completeness information
@@ -699,10 +737,15 @@ export type CompletenessStatisticsResponse = {
 };
 
 export function getPublicMetricCompletenessStats(
-  metricId: number
+  metricId: number,
+  district?: number | null
 ): Promise<CompletenessStatisticsResponse> {
+  const districtQuery =
+    district !== undefined && district !== null && district > 0
+      ? `?district=${district}`
+      : "";
   return requestPublic<CompletenessStatisticsResponse>(
-    `/api/time-series/public/metric/${metricId}/completeness/stats`
+    `/api/time-series/public/metric/${metricId}/completeness/stats${districtQuery}`
   );
 }
 
@@ -725,10 +768,15 @@ export type DailyCompletenessResponse = {
 export function getPublicMetricCompletenessDaily(
   metricId: number,
   periodType: string = "day",
-  days: number = 90
+  days: number = 90,
+  district?: number | null
 ): Promise<DailyCompletenessResponse> {
+  const districtQuery =
+    district !== undefined && district !== null && district > 0
+      ? `&district=${district}`
+      : "";
   return requestPublic<DailyCompletenessResponse>(
-    `/api/time-series/public/metric/${metricId}/completeness/daily?period_type=${periodType}&days=${days}`
+    `/api/time-series/public/metric/${metricId}/completeness/daily?period_type=${periodType}&days=${days}${districtQuery}`
   );
 }
 

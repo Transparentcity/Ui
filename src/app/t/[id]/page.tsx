@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { useParams, useSearchParams } from "next/navigation";
-import TimeSeriesChart from "@/components/TimeSeriesChart";
+import type { ReactNode } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useParams, useSearchParams, useRouter, usePathname } from "next/navigation";
+import TimeSeriesChart, { type PeriodType } from "@/components/TimeSeriesChart";
 import Loader from "@/components/Loader";
 import { API_BASE } from "@/lib/apiBase";
 import "./styles.css";
@@ -31,6 +32,32 @@ interface TimeSeriesResponse {
   metadata: TimeSeriesMetadata;
   data: TimeSeriesDataPoint[];
   count: number;
+  sibling_chart_ids?: Record<string, number> | null;
+}
+
+function parsePeriodQuery(value: string | null): PeriodType | null {
+  if (!value) return null;
+  const v = value.toLowerCase();
+  if (v === "day" || v === "week" || v === "month" || v === "year" || v === "ytd") {
+    return v;
+  }
+  return null;
+}
+
+/** Prefer native stored series for the period; YTD uses daily series when listed. */
+function resolveChartIdForPeriod(
+  period: PeriodType,
+  permalinkChartId: string,
+  siblings: Record<string, number> | undefined | null
+): string {
+  if (period === "ytd") {
+    const dayId = siblings?.["day"];
+    if (dayId != null) return String(dayId);
+    return permalinkChartId;
+  }
+  const sid = siblings?.[period];
+  if (sid != null) return String(sid);
+  return permalinkChartId;
 }
 
 function formatValue(value: number | null | undefined): string {
@@ -65,7 +92,10 @@ function aggregateTimeSeries(data: TimeSeriesDataPoint[]): TimeSeriesDataPoint[]
 export default function TimeSeriesChartPage() {
   const params = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const chartId = params.id as string;
+  const periodParam = searchParams.get("period");
   const isEmbedded = searchParams.get("embedded") === "true";
   const forcedTheme =
     searchParams.get("theme") === "dark"
@@ -77,7 +107,47 @@ export default function TimeSeriesChartPage() {
   const [timeSeries, setTimeSeries] = useState<TimeSeriesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** Period change: fetch in-place; do not use full-page loading. */
+  const [chartRefreshing, setChartRefreshing] = useState(false);
+  const [periodChangeError, setPeriodChangeError] = useState<string | null>(null);
 
+  const fetchTimeSeries = useCallback(
+    async (permalinkId: string, periodFromUrl: string | null) => {
+      let response = await fetch(`${API_BASE}/api/time-series/public/${permalinkId}`);
+      if (!response.ok) {
+        response = await fetch(`${API_BASE}/api/time-series/${permalinkId}`, {
+          credentials: "include",
+        });
+      }
+      if (!response.ok) {
+        throw new Error(`Failed to fetch time series: ${response.status} ${response.statusText}`);
+      }
+      const firstData: TimeSeriesResponse = await response.json();
+      const siblings = firstData.sibling_chart_ids || {};
+      const metaPeriod = (
+        firstData.metadata?.period_type || "month"
+      ).toLowerCase() as PeriodType;
+      const urlPeriod = parsePeriodQuery(periodFromUrl);
+      const effectivePeriod = (urlPeriod ?? metaPeriod) as PeriodType;
+      const effectiveId = resolveChartIdForPeriod(effectivePeriod, permalinkId, siblings);
+      if (effectiveId !== permalinkId) {
+        let r2 = await fetch(`${API_BASE}/api/time-series/public/${effectiveId}`);
+        if (!r2.ok) {
+          r2 = await fetch(`${API_BASE}/api/time-series/${effectiveId}`, {
+            credentials: "include",
+          });
+        }
+        if (!r2.ok) {
+          throw new Error(`Failed to fetch time series: ${r2.status} ${r2.statusText}`);
+        }
+        return (await r2.json()) as TimeSeriesResponse;
+      }
+      return firstData;
+    },
+    []
+  );
+
+  // Only reload full page when the route chart id changes — not when ?period= changes.
   useEffect(() => {
     if (!chartId) {
       setError("No chart ID provided");
@@ -85,32 +155,59 @@ export default function TimeSeriesChartPage() {
       return;
     }
 
-    let mounted = true;
+    const ac = new AbortController();
     setLoading(true);
     setError(null);
+    setPeriodChangeError(null);
 
     (async () => {
       try {
-        let response = await fetch(`${API_BASE}/api/time-series/public/${chartId}`);
-        if (!response.ok) {
-          response = await fetch(`${API_BASE}/api/time-series/${chartId}`, {
-            credentials: "include",
-          });
-        }
-        if (!response.ok) {
-          throw new Error(`Failed to fetch time series: ${response.status} ${response.statusText}`);
-        }
-        const data: TimeSeriesResponse = await response.json();
-        if (mounted) setTimeSeries(data);
-      } catch (err: any) {
-        if (mounted) setError(err.message || "Failed to load time series data");
+        const periodFromUrl = searchParams.get("period");
+        const data = await fetchTimeSeries(chartId, periodFromUrl);
+        if (ac.signal.aborted) return;
+        setTimeSeries(data);
+      } catch (err: unknown) {
+        if (ac.signal.aborted) return;
+        setError(err instanceof Error ? err.message : "Failed to load time series data");
       } finally {
-        if (mounted) setLoading(false);
+        if (!ac.signal.aborted) setLoading(false);
       }
     })();
 
-    return () => { mounted = false; };
-  }, [chartId]);
+    return () => {
+      ac.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- read searchParams inside only when chartId changes; including searchParams would re-run on every ?period= change and flash full-page loading
+  }, [chartId, fetchTimeSeries]);
+
+  const onPeriodChange = useCallback(
+    async (p: PeriodType) => {
+      if (!chartId) return;
+      setChartRefreshing(true);
+      setPeriodChangeError(null);
+      try {
+        const data = await fetchTimeSeries(chartId, p);
+        setTimeSeries(data);
+        const next = new URLSearchParams(searchParams.toString());
+        next.set("period", p);
+        router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+      } catch (err: unknown) {
+        setPeriodChangeError(
+          err instanceof Error ? err.message : "Could not load data for this period."
+        );
+      } finally {
+        setChartRefreshing(false);
+      }
+    },
+    [chartId, fetchTimeSeries, pathname, router, searchParams]
+  );
+
+  const fullViewHref = useMemo(() => {
+    const q = new URLSearchParams(searchParams.toString());
+    q.delete("embedded");
+    const s = q.toString();
+    return `/t/${chartId}${s ? `?${s}` : ""}`;
+  }, [chartId, searchParams]);
 
   useEffect(() => {
     if (!forcedTheme || typeof document === "undefined") return;
@@ -131,8 +228,7 @@ export default function TimeSeriesChartPage() {
         timeSeries.metadata.field_name ||
         "Time Series";
       const cityName = timeSeries.metadata.city_name;
-      let pageTitle = metricName;
-      if (cityName) pageTitle = `${metricName} | ${cityName}`;
+      let pageTitle = cityName ? `${cityName} — ${metricName}` : metricName;
       pageTitle += " | TransparentCity";
       document.title = pageTitle;
     } else {
@@ -204,9 +300,10 @@ export default function TimeSeriesChartPage() {
   const metadata = timeSeries.metadata;
   const metricName = metadata.object_name || metadata.field_name || "Time Series Chart";
 
-  // Default to the series' actual period type so the view matches the data and title (e.g. "Monthly Trend").
-  const defaultPeriod =
-    (metadata.period_type?.toLowerCase() as "day" | "week" | "month" | "year") || "month";
+  const metaPeriod =
+    (metadata.period_type?.toLowerCase() as PeriodType) || "month";
+  const urlPeriod = parsePeriodQuery(periodParam);
+  const displayPeriod = (urlPeriod ?? metaPeriod) as PeriodType;
 
   if (isEmbedded) {
     return (
@@ -219,8 +316,11 @@ export default function TimeSeriesChartPage() {
               <span className="brand-city">.city</span>
             </span>
           </a>
+          {metadata.city_name && (
+            <span className="embedded-city-name">{metadata.city_name}</span>
+          )}
           <a
-            href={`/t/${chartId}`}
+            href={fullViewHref}
             target="_blank"
             rel="noopener noreferrer"
             className="embedded-link"
@@ -229,16 +329,25 @@ export default function TimeSeriesChartPage() {
           </a>
         </div>
         <div className="embedded-chart-wrapper">
-          <TimeSeriesChart
-            data={aggregated}
-            metadata={metadata}
-            height={380}
-            defaultPeriod={defaultPeriod}
-            fullBleed={true}
-            hidePeriodSelector={false}
-            showExternalTitle={false}
-            forcedTheme={forcedTheme}
-          />
+          {periodChangeError && (
+            <p className="time-series-period-error" role="alert" style={{ margin: "0 0 8px", fontSize: 14 }}>
+              {periodChangeError}
+            </p>
+          )}
+          <ChartRefreshOverlay refreshing={chartRefreshing}>
+            <TimeSeriesChart
+              key={`${metadata.chart_id}-${displayPeriod}`}
+              data={aggregated}
+              metadata={metadata}
+              height={380}
+              defaultPeriod={displayPeriod}
+              fullBleed={true}
+              hidePeriodSelector={false}
+              showExternalTitle={false}
+              forcedTheme={forcedTheme}
+              onPeriodChange={onPeriodChange}
+            />
+          </ChartRefreshOverlay>
         </div>
       </div>
     );
@@ -257,6 +366,9 @@ export default function TimeSeriesChartPage() {
             <span className="brand-city">.city</span>
           </span>
         </a>
+        {metadata.city_name && (
+          <div className="header-city-name">{metadata.city_name}</div>
+        )}
         <div className="header-right">
           <button
             onClick={handleShare}
@@ -309,16 +421,25 @@ export default function TimeSeriesChartPage() {
         </div>
 
         <div className="chart-container">
-          <TimeSeriesChart
-            data={aggregated}
-            metadata={metadata}
-            height={500}
-            defaultPeriod={defaultPeriod}
-            fullBleed={true}
-            hidePeriodSelector={false}
-            showExternalTitle={true}
-            forcedTheme={forcedTheme}
-          />
+          {periodChangeError && (
+            <p className="time-series-period-error" role="alert" style={{ margin: "0 0 12px", fontSize: 14 }}>
+              {periodChangeError}
+            </p>
+          )}
+          <ChartRefreshOverlay refreshing={chartRefreshing}>
+            <TimeSeriesChart
+              key={`${metadata.chart_id}-${displayPeriod}`}
+              data={aggregated}
+              metadata={metadata}
+              height={500}
+              defaultPeriod={displayPeriod}
+              fullBleed={true}
+              hidePeriodSelector={false}
+              showExternalTitle={true}
+              forcedTheme={forcedTheme}
+              onPeriodChange={onPeriodChange}
+            />
+          </ChartRefreshOverlay>
         </div>
 
         {metadata.caption && (
@@ -351,6 +472,46 @@ export default function TimeSeriesChartPage() {
           </div>
         )}
       </article>
+    </div>
+  );
+}
+
+function ChartRefreshOverlay({
+  refreshing,
+  children,
+}: {
+  refreshing: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div style={{ position: "relative" }}>
+      {refreshing && (
+        <div
+          aria-busy="true"
+          aria-live="polite"
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 2,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.06)",
+            borderRadius: 8,
+          }}
+        >
+          <Loader size="md" color="dark" />
+        </div>
+      )}
+      <div
+        style={{
+          opacity: refreshing ? 0.4 : 1,
+          pointerEvents: refreshing ? "none" : "auto",
+          transition: "opacity 0.15s ease",
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 }

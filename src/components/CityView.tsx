@@ -9,7 +9,15 @@ import DistrictNavigation from "@/components/DistrictNavigation";
 import AnomaliesTabPanel from "@/components/AnomaliesTabPanel";
 import { useCity, useSavedCities, useSaveCity, useUnsaveCity, useCityLeaders, useRepresentativeFollowerCounts, usePublicCityDistricts, useRepresentativeFollows, useFollowRepresentative, useUnfollowRepresentative } from "@/lib/hooks/useCities";
 import type { CityLeader } from "@/lib/apiClient";
-import { listMyPlaces, getPlaceMetrics, getPlaceAnomalies, runPlaceMetricsAndAnomaliesAsJob, getJob, type PlaceTimeSeriesPoint, type PlaceAnomaly } from "@/lib/apiClient";
+import {
+  listMyPlaces,
+  getPlaceMetrics,
+  getPlaceAnomalies,
+  runPlaceMetricsAndAnomaliesAsJob,
+  getJob,
+  type PlaceTimeSeriesPoint,
+  type PlaceAnomaly,
+} from "@/lib/apiClient";
 import { useUserMetricOrdering } from "@/lib/hooks/useCityAdmin";
 import { emitSavedCitiesChanged, SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEvents";
 import { getPresetMetricDateRange, getDefaultDateRangeFromMetrics, type MetricDateRange } from "@/lib/dateRange";
@@ -40,6 +48,12 @@ interface CityViewProps {
   onClearDistrictModalRequest?: () => void;
   /** Called when the Official Selector selection changes so the left nav can stay in sync. */
   onOfficialSelectionChange?: (selection: { district: number | null; placeId: number | null }) => void;
+  /** When this matches the selected place, run place metrics job once before loading dashboard data (new save). */
+  bootstrapPlaceMetricsForPlaceId?: number | null;
+  /** Called after bootstrap job finishes (or errors) so parent can clear {@link bootstrapPlaceMetricsForPlaceId}. */
+  onConsumePlaceMetricsBootstrap?: () => void;
+  /** Notify parent to set bootstrap id when user saves a new place from the city header (DistrictNavigation). */
+  onRequestPlaceMetricsBootstrap?: (placeId: number) => void;
 }
 
 interface MetricWithYTD {
@@ -102,6 +116,9 @@ interface DashboardMetricsSectionProps {
   onPlaceSaved?: () => void;
   /** When this value changes and is > 0, open the Find Your District modal (e.g. from Search Cities). */
   openDistrictTrigger?: number;
+  /** When set and equals selectedPlaceId, run metrics job before first fetch (smooth new-place experience). */
+  bootstrapPlaceMetricsForPlaceId?: number | null;
+  onConsumePlaceMetricsBootstrap?: () => void;
 }
 
 // Time series data point for sparkline
@@ -120,6 +137,29 @@ function isValidSparklineDataPoint(
     Number.isFinite(point.value) &&
     Number.isFinite(point.year)
   );
+}
+
+/** Poll background job until terminal state or timeout; respects `isCancelled` between iterations. */
+async function pollPlaceMetricsJobUntilDone(
+  jobId: string,
+  token: string,
+  isCancelled: () => boolean
+): Promise<void> {
+  const pollIntervalMs = 2000;
+  const maxWaitMs = 300000;
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    if (isCancelled()) return;
+    const job = await getJob(jobId, token);
+    if (
+      job.status === "completed" ||
+      job.status === "failed" ||
+      job.status === "cancelled"
+    ) {
+      break;
+    }
+    await new Promise((r) => setTimeout(r, pollIntervalMs));
+  }
 }
 
 // Helper function to parse date strings consistently as local dates
@@ -487,7 +527,7 @@ const YTDSparkline = React.memo(function YTDSparkline({
   );
 });
 
-function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts, newsletterQueriesEnabled, onCustomizeMetricsClick, userPlaces = [], selectedPlaceId = null, onPlaceSelect, onPlaceSaved, openDistrictTrigger }: DashboardMetricsSectionProps) {
+function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts, newsletterQueriesEnabled, onCustomizeMetricsClick, userPlaces = [], selectedPlaceId = null, onPlaceSelect, onPlaceSaved, openDistrictTrigger, bootstrapPlaceMetricsForPlaceId = null, onConsumePlaceMetricsBootstrap }: DashboardMetricsSectionProps) {
   const { getAccessTokenSilently } = useAuth0();
 
   // Block (place) scope: metrics and anomalies for selected place
@@ -497,33 +537,68 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
   const [placeRunLoading, setPlaceRunLoading] = useState(false);
   const selectedPlace = selectedPlaceId != null ? userPlaces.find((p) => p.id === selectedPlaceId) : null;
 
+  const bootstrapTargetRef = useRef<number | null>(null);
+  bootstrapTargetRef.current = bootstrapPlaceMetricsForPlaceId;
+  const onBootstrapCompleteRef = useRef(onConsumePlaceMetricsBootstrap);
+  onBootstrapCompleteRef.current = onConsumePlaceMetricsBootstrap;
+
   useEffect(() => {
     if (!selectedPlaceId || !getAccessTokenSilently) return;
     let cancelled = false;
+    const runBootstrap =
+      bootstrapTargetRef.current != null &&
+      bootstrapTargetRef.current === selectedPlaceId;
+
     setPlaceDataLoading(true);
+    if (runBootstrap) setPlaceRunLoading(true);
+
+    let didConsumeBootstrap = false;
+    const finishBootstrapOnce = () => {
+      if (!runBootstrap || cancelled || didConsumeBootstrap) return;
+      didConsumeBootstrap = true;
+      onBootstrapCompleteRef.current?.();
+    };
+
     getAccessTokenSilently()
-      .then((token) =>
-        Promise.all([
+      .then(async (token) => {
+        if (runBootstrap) {
+          try {
+            const { job_id } = await runPlaceMetricsAndAnomaliesAsJob(
+              selectedPlaceId,
+              token
+            );
+            await pollPlaceMetricsJobUntilDone(job_id, token, () => cancelled);
+          } catch {
+            // Still attempt to load whatever exists
+          } finally {
+            finishBootstrapOnce();
+          }
+        }
+        if (cancelled) return;
+        const [metricsRes, anomaliesRes] = await Promise.all([
           getPlaceMetrics(selectedPlaceId, token),
           getPlaceAnomalies(selectedPlaceId, token),
-        ])
-      )
-      .then(([metricsRes, anomaliesRes]) => {
-        if (!cancelled) {
-          setPlaceTimeSeries(metricsRes?.time_series ?? []);
-          setPlaceAnomalies(anomaliesRes?.anomalies ?? []);
-        }
+        ]);
+        if (cancelled) return;
+        setPlaceTimeSeries(metricsRes?.time_series ?? []);
+        setPlaceAnomalies(anomaliesRes?.anomalies ?? []);
       })
       .catch(() => {
         if (!cancelled) {
           setPlaceTimeSeries([]);
           setPlaceAnomalies([]);
         }
+        finishBootstrapOnce();
       })
       .finally(() => {
-        if (!cancelled) setPlaceDataLoading(false);
+        if (!cancelled) {
+          setPlaceDataLoading(false);
+          setPlaceRunLoading(false);
+        }
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [selectedPlaceId, getAccessTokenSilently]);
 
   /** Refresh metrics and anomalies for a single place only (the one passed in). */
@@ -534,16 +609,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
       try {
         const token = await getAccessTokenSilently();
         const { job_id } = await runPlaceMetricsAndAnomaliesAsJob(placeId, token);
-        const pollIntervalMs = 2000;
-        const maxWaitMs = 300000; // 5 min
-        const start = Date.now();
-        while (Date.now() - start < maxWaitMs) {
-          const job = await getJob(job_id, token);
-          if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
-            break;
-          }
-          await new Promise((r) => setTimeout(r, pollIntervalMs));
-        }
+        await pollPlaceMetricsJobUntilDone(job_id, token, () => false);
         // Only update state if we're still viewing this place (user didn't switch)
         if (selectedPlaceId !== placeId) return;
         const [metricsRes, anomaliesRes] = await Promise.all([
@@ -614,7 +680,8 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
   const district = selectedDistrict ?? 0;
   
   // Fetch metric ordering (user override or city-level fallback)
-  const { data: orderingData } = useUserMetricOrdering(cityId);
+  const orderingQuery = useUserMetricOrdering(cityId);
+  const orderingData = orderingQuery.data;
 
   // Build ordering map from saved ordering data (includes subcategory for display when set)
   const orderingMap = useMemo(() => {
@@ -634,12 +701,23 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     return map;
   }, [orderingData]);
 
-  // When user has custom ordering, only show metrics that are in the ordering
+  // Only restrict to the ordering list when the user explicitly saved a personal dashboard
+  // (matches public /c pages). City default ordering is for sort/categories only — new metrics
+  // still appear like they do when logged out.
   const metricsToShow = useMemo(() => {
+    // Avoid a brief "all metrics then filtered metrics" flash while user ordering is loading.
+    if (orderingQuery.isLoading) return [];
     if (!orderingData?.orderings?.length) return metrics;
+    if (orderingData.is_personal_order !== true) return metrics;
     const ids = new Set(orderingData.orderings.map((o) => o.metric_id).filter(Boolean));
     return metrics.filter((m) => ids.has(m.id));
-  }, [metrics, orderingData]);
+  }, [metrics, orderingData, orderingQuery.isLoading]);
+
+  const isPersonalSubsetApplied = useMemo(() => {
+    if (!orderingData?.orderings?.length) return false;
+    if (orderingData.is_personal_order !== true) return false;
+    return metricsToShow.length > 0 && metricsToShow.length < metrics.length;
+  }, [orderingData, metricsToShow.length, metrics.length]);
 
   // Group and sort metrics by category using saved ordering
   const groupedMetrics = useMemo(() => {
@@ -731,23 +809,19 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     return { metric_ids: metricIds, comparison_types: [selectedComparisonType] };
   }, [selectedPlaceId, metricIds, selectedComparisonType]);
 
-  const { 
-    data: batchComparisons, 
+  const {
+    data: batchComparisons,
     isLoading: comparisonsLoading,
-    isError: comparisonsError,
-    error: comparisonsErrorDetail
   } = useBatchComparisons(batchRequest);
 
   const {
     data: placeComparisons,
     isLoading: placeComparisonsLoading,
-    isError: placeComparisonsError,
   } = usePlaceBatchComparisons(selectedPlaceId ?? null, placeRequest);
 
   const isPlaceScope = !!selectedPlaceId;
   const comparisonsData = isPlaceScope ? placeComparisons : batchComparisons;
   const comparisonsLoadingState = isPlaceScope ? placeComparisonsLoading : comparisonsLoading;
-  const comparisonsErrorState = isPlaceScope ? placeComparisonsError : comparisonsError;
 
   // Load sparkline data for metrics (still need time series for sparklines)
   const loadSparklineData = useCallback(async (metricId: number) => {
@@ -1094,12 +1168,14 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
   // Only use this fallback if batch comparisons fail or are unavailable
   useEffect(() => {
     if (visibleMetricIds.size === 0) return;
-    
-    // Skip individual calculations if we have batch comparison data or it's loading
-    if (comparisonsData || comparisonsLoadingState) return;
-    
-    // Only calculate individually if batch comparisons failed
-    if (!comparisonsError) return;
+
+    if (comparisonsLoadingState) return;
+
+    // Precomputed batch returns {} when there are no rows; {} is truthy in JS, so we must
+    // check keys — otherwise we never fall back to on-demand YTD from time series.
+    const batchHasRows =
+      comparisonsData != null && Object.keys(comparisonsData).length > 0;
+    if (batchHasRows) return;
 
     const metricsToCalculate = Array.from(visibleMetricIds).filter((id) => {
       const existing = ytdData[id];
@@ -1123,7 +1199,13 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
         });
       }, batchIndex * 100); // 100ms delay between batches
     });
-  }, [visibleMetricIds, calculateYTD, comparisonsData, comparisonsLoadingState, comparisonsErrorState, isPlaceScope]);
+  }, [
+    visibleMetricIds,
+    calculateYTD,
+    comparisonsData,
+    comparisonsLoadingState,
+    isPlaceScope,
+  ]);
 
   // Clear data when district, place, or comparison type changes so we reload with the correct data
   useEffect(() => {
@@ -1511,10 +1593,20 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
       </div>
 
       <div className="metrics-table-container">
-        {selectedPlaceId && selectedPlace && placeDataLoading && !comparisonsData ? (
+        {orderingQuery.isLoading ? (
           <div className="dashboard-metrics-loading tc-loading-state" style={{ padding: "48px 24px" }}>
             <Loader size="sm" color="dark" />
-            <span>Loading personalized dashboard…</span>
+            <span>Loading dashboard preferences…</span>
+          </div>
+        ) : selectedPlaceId && selectedPlace && placeDataLoading && !comparisonsData ? (
+          <div className="dashboard-metrics-loading tc-loading-state" style={{ padding: "48px 24px" }}>
+            <Loader size="sm" color="dark" />
+            <span>
+              {bootstrapPlaceMetricsForPlaceId === selectedPlaceId &&
+              placeRunLoading
+                ? "Computing metrics for your block…"
+                : "Loading personalized dashboard…"}
+            </span>
           </div>
         ) : selectedPlaceId && selectedPlace && !placeDataLoading && !comparisonsLoadingState && (!comparisonsData || Object.keys(comparisonsData).length === 0) && placeAnomalies.length === 0 ? (
           <div className="block-dashboard-empty block-dashboard-empty--dark">
@@ -1541,6 +1633,30 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
           </div>
         ) : (
         <>
+        {isPersonalSubsetApplied && !selectedPlaceId && (
+          <div
+            style={{
+              marginBottom: 12,
+              padding: "8px 10px",
+              fontSize: 12,
+              borderRadius: 8,
+              background: "var(--surface-muted, rgba(0,0,0,0.04))",
+              color: "var(--text-secondary, #4b5563)",
+            }}
+          >
+            Showing your customized dashboard metrics ({metricsToShow.length} of {metrics.length}).
+            {onCustomizeMetricsClick && (
+              <button
+                type="button"
+                className="dashboard-header-customize-btn"
+                style={{ marginLeft: 8, padding: "4px 8px", fontSize: 12 }}
+                onClick={onCustomizeMetricsClick}
+              >
+                Edit selection
+              </button>
+            )}
+          </div>
+        )}
         {groupedMetrics.sortedCategories.map((category) => {
           // Filter metrics with valid data
           const metricsWithData = groupedMetrics.grouped[category].filter((metric) => {
@@ -1802,7 +1918,20 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
   );
 }
 
-export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict, initialPlaceId, initialPlaceGps, requestOpenDistrictModal, onClearDistrictModalRequest, onOfficialSelectionChange }: CityViewProps) {
+export default function CityView({
+  cityId,
+  isAdmin,
+  gpsLocation,
+  initialDistrict,
+  initialPlaceId,
+  initialPlaceGps,
+  requestOpenDistrictModal,
+  onClearDistrictModalRequest,
+  onOfficialSelectionChange,
+  bootstrapPlaceMetricsForPlaceId = null,
+  onConsumePlaceMetricsBootstrap,
+  onRequestPlaceMetricsBootstrap,
+}: CityViewProps) {
   const [adminDrawerOpen, setAdminDrawerOpen] = useState(false);
   const [alertsSectionVisible, setAlertsSectionVisible] = useState(false);
   const [openDistrictTrigger, setOpenDistrictTrigger] = useState(0);
@@ -1871,10 +2000,34 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
       }));
   }, [cityId, publicCityDistricts]);
 
+  /**
+   * Official selector options: city structure leaders (mayor + named council), plus any
+   * district numbers that have metric precomputes but are missing from structure — e.g. Oakland
+   * with only a mayor row in `leaders` would otherwise hide District 1–7 even when data exists.
+   */
   const effectiveLeaders = useMemo(() => {
-    if (mapLeaders.length > 0) return mapLeaders;
-    if (syntheticLeadersFromDistricts.length > 0) return syntheticLeadersFromDistricts;
-    return [];
+    if (syntheticLeadersFromDistricts.length === 0) {
+      return mapLeaders;
+    }
+    if (mapLeaders.length === 0) {
+      return syntheticLeadersFromDistricts;
+    }
+    const mapDistricts = new Set(
+      mapLeaders.map((l) =>
+        l.district === null || l.district === undefined || l.district === 0 ? 0 : l.district,
+      ),
+    );
+    const extras = syntheticLeadersFromDistricts.filter(
+      (s) => s.district != null && !mapDistricts.has(s.district),
+    );
+    if (extras.length === 0) {
+      return mapLeaders;
+    }
+    return [...mapLeaders, ...extras].sort((a, b) => {
+      const da = a.district === null || a.district === undefined ? 0 : a.district;
+      const db = b.district === null || b.district === undefined ? 0 : b.district;
+      return da - db;
+    });
   }, [mapLeaders, syntheticLeadersFromDistricts]);
 
   // Mutations for save/unsave
@@ -2121,7 +2274,10 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
                     setSelectedDistrict(null);
                   }
                 }}
-                onPlaceSaved={() => setPlacesRefreshKey((k) => k + 1)}
+                onPlaceSaved={(place) => {
+                  setPlacesRefreshKey((k) => k + 1);
+                  onRequestPlaceMetricsBootstrap?.(place.id);
+                }}
                 openTrigger={openDistrictTrigger}
                 placeRefreshLastRunAt={lastPlaceRefreshAt}
               />
@@ -2233,6 +2389,8 @@ export default function CityView({ cityId, isAdmin, gpsLocation, initialDistrict
             }}
             onPlaceSaved={() => setPlacesRefreshKey((k) => k + 1)}
             openDistrictTrigger={openDistrictTrigger}
+            bootstrapPlaceMetricsForPlaceId={bootstrapPlaceMetricsForPlaceId}
+            onConsumePlaceMetricsBootstrap={onConsumePlaceMetricsBootstrap}
           />
         </section>
 

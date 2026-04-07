@@ -21,6 +21,20 @@ const DEFAULT_PERIOD_LIMITS: Record<Exclude<PeriodType, "ytd">, number> = {
   year: 10,   // last 10 years
 };
 
+/**
+ * YTD chart: show the current calendar year plus this many prior years (inclusive window).
+ * Value 1 → this year and last year only.
+ */
+const YTD_COMPARISON_PRIOR_YEARS = 1;
+
+function isYearInYtdWindow(year: number, currentYear: number): boolean {
+  return (
+    Number.isFinite(year) &&
+    year <= currentYear &&
+    year >= currentYear - YTD_COMPARISON_PRIOR_YEARS
+  );
+}
+
 export interface TimeSeriesDataPoint {
   time_period: string;
   numeric_value: number;
@@ -47,6 +61,7 @@ export interface TimeSeriesChartProps {
     field_name?: string;
     period_type?: string; // Source data period type (day, week, month, year)
     district?: number | null; // District number (0 = citywide)
+    city_name?: string;
   };
   height?: number;
   defaultPeriod?: PeriodType;
@@ -55,6 +70,8 @@ export interface TimeSeriesChartProps {
   showExternalTitle?: boolean; // If true, shows title above chart instead of inside
   onPeriodChange?: (period: PeriodType) => void; // Callback when period selector changes
   forcedTheme?: "light" | "dark";
+  /** Number of days the data lags behind today; marks the last N days of YTD current-year data as "Incomplete" */
+  staleness_days?: number;
 }
 
 /**
@@ -74,6 +91,14 @@ const SERIES_COLORS = [
   "#bc80bd", // Purple
   "#ccebc5", // Mint green
 ];
+
+/**
+ * Returns the number of ISO weeks in a given year (52 or 53).
+ * Dec 28 is always in the last ISO week of the year.
+ */
+function getISOWeeksInYear(year: number): number {
+  return getISOYearAndWeek(new Date(year, 11, 28)).isoWeek;
+}
 
 /**
  * Get ISO year and week for a date (handles year boundaries correctly).
@@ -295,10 +320,17 @@ function aggregateDataByGroup(
   const dataWithDates = data
     .map((point) => {
       let date: Date;
-      if (typeof point.time_period === 'string') {
+      if (typeof point.time_period === "string") {
         const ymd = point.time_period.match(/^(\d{4})-(\d{2})-(\d{2})/);
         if (ymd) {
-          date = new Date(parseInt(ymd[1]), parseInt(ymd[2]) - 1, parseInt(ymd[3]));
+          date = new Date(
+            parseInt(ymd[1], 10),
+            parseInt(ymd[2], 10) - 1,
+            parseInt(ymd[3], 10)
+          );
+        } else if (/^\d{4}$/.test(point.time_period.trim())) {
+          // Native yearly series may use "2024" as time_period
+          date = new Date(parseInt(point.time_period, 10), 0, 1);
         } else {
           date = new Date(point.time_period);
         }
@@ -536,6 +568,207 @@ function aggregateDataByGroup(
   return aggregatedByGroup;
 }
 
+/**
+ * Generates a complete ordered sequence of period keys between minPeriod and maxPeriod
+ * for the given periodType, so sparse metrics show zeros on empty periods.
+ */
+function generatePeriodSequence(
+  minPeriod: string,
+  maxPeriod: string,
+  periodType: PeriodType
+): string[] {
+  const periods: string[] = [];
+
+  if (periodType === "day") {
+    const [minY, minM, minD] = minPeriod.split("-").map(Number);
+    const [maxY, maxM, maxD] = maxPeriod.split("-").map(Number);
+    const cur = new Date(minY, minM - 1, minD);
+    const end = new Date(maxY, maxM - 1, maxD);
+    while (cur <= end) {
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, "0");
+      const d = String(cur.getDate()).padStart(2, "0");
+      periods.push(`${y}-${m}-${d}`);
+      cur.setDate(cur.getDate() + 1);
+    }
+  } else if (periodType === "week") {
+    let [curYear, curWeek] = minPeriod.split("-W").map(Number);
+    const [maxYear, maxWeek] = maxPeriod.split("-W").map(Number);
+    while (curYear < maxYear || (curYear === maxYear && curWeek <= maxWeek)) {
+      periods.push(`${curYear}-W${String(curWeek).padStart(2, "0")}`);
+      curWeek++;
+      if (curWeek > getISOWeeksInYear(curYear)) {
+        curWeek = 1;
+        curYear++;
+      }
+    }
+  } else if (periodType === "month") {
+    const [minY, minM] = minPeriod.split("-").map(Number);
+    const [maxY, maxM] = maxPeriod.split("-").map(Number);
+    let curY = minY;
+    let curM = minM;
+    while (curY < maxY || (curY === maxY && curM <= maxM)) {
+      periods.push(`${curY}-${String(curM).padStart(2, "0")}`);
+      curM++;
+      if (curM > 12) {
+        curM = 1;
+        curY++;
+      }
+    }
+  } else if (periodType === "year") {
+    const minY = parseInt(minPeriod, 10);
+    const maxY = parseInt(maxPeriod, 10);
+    for (let y = minY; y <= maxY; y++) {
+      periods.push(String(y));
+    }
+  }
+
+  return periods;
+}
+
+/**
+ * Fills in missing periods with zero values so sparse metrics (e.g. homicides with only
+ * a few events per year) display a continuous axis instead of skipping empty dates.
+ * YTD uses {@link fillMissingYTDPeriods} instead (day-of-year indices).
+ */
+function fillMissingPeriods(
+  aggregatedByGroup: Map<string, TimeSeriesDataPoint[]>,
+  periodType: PeriodType
+): Map<string, TimeSeriesDataPoint[]> {
+  if (periodType === "ytd") return aggregatedByGroup;
+  if (aggregatedByGroup.size === 0) return aggregatedByGroup;
+
+  // Collect all distinct period keys across every group
+  const allPeriods = new Set<string>();
+  for (const points of aggregatedByGroup.values()) {
+    for (const p of points) {
+      allPeriods.add(p.time_period);
+    }
+  }
+  if (allPeriods.size === 0) return aggregatedByGroup;
+
+  const sortedExisting = Array.from(allPeriods).sort((a, b) => {
+    if (a.includes("W") && b.includes("W")) {
+      const [yearA, weekA] = a.split("-W").map(Number);
+      const [yearB, weekB] = b.split("-W").map(Number);
+      if (yearA !== yearB) return yearA - yearB;
+      return weekA - weekB;
+    }
+    return a.localeCompare(b);
+  });
+
+  const minPeriod = sortedExisting[0];
+  const maxPeriod = sortedExisting[sortedExisting.length - 1];
+  const completePeriods = generatePeriodSequence(minPeriod, maxPeriod, periodType);
+
+  if (completePeriods.length <= allPeriods.size) {
+    // No gaps — nothing to fill
+    return aggregatedByGroup;
+  }
+
+  const filled = new Map<string, TimeSeriesDataPoint[]>();
+  for (const [groupValue, points] of aggregatedByGroup.entries()) {
+    const periodMap = new Map<string, number>();
+    for (const p of points) {
+      periodMap.set(p.time_period, p.numeric_value ?? 0);
+    }
+    const filledPoints: TimeSeriesDataPoint[] = completePeriods.map((period) => ({
+      time_period: period,
+      numeric_value: periodMap.get(period) ?? 0,
+      group_value: groupValue || null,
+    }));
+    filled.set(groupValue, filledPoints);
+  }
+  return filled;
+}
+
+function daysInCalendarYear(year: number): number {
+  const start = new Date(year, 0, 1);
+  const end = new Date(year + 1, 0, 1);
+  return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Parse calendar year from an aggregateDataByGroup key: "2024" or "District 1|2024".
+ */
+function parseYtdSeriesYear(groupKey: string): number | null {
+  const trimmed = groupKey.trim();
+  if (!trimmed) return null;
+  const yearStr = trimmed.includes("|") ? trimmed.split("|").pop()! : trimmed;
+  const y = parseInt(yearStr, 10);
+  return Number.isFinite(y) ? y : null;
+}
+
+/** Max day-of-year among all series for a calendar year (handles keys like "2026" or "D1|2026"). */
+function getYtdMaxDayOfYearForCalendarYear(
+  aggregatedByGroup: Map<string, TimeSeriesDataPoint[]>,
+  calendarYear: number
+): number | null {
+  let maxD = 0;
+  for (const [key, points] of aggregatedByGroup.entries()) {
+    if (parseYtdSeriesYear(key) !== calendarYear) continue;
+    for (const p of points) {
+      const d = parseInt(p.time_period, 10);
+      if (Number.isFinite(d)) maxD = Math.max(maxD, d);
+    }
+  }
+  return maxD > 0 ? maxD : null;
+}
+
+/**
+ * Pad each YTD series with day-of-year 1..N (zeros where no events).
+ * Matches other product YTD views: **current year** stops at today (YTD); **prior
+ * completed years** use the full calendar (Jan 1–Dec 31) so the prior-year line
+ * shows the entire year, not truncated to “same DOY as today.”
+ */
+function fillMissingYTDPeriods(
+  aggregatedByGroup: Map<string, TimeSeriesDataPoint[]>
+): Map<string, TimeSeriesDataPoint[]> {
+  if (aggregatedByGroup.size === 0) return aggregatedByGroup;
+
+  const today = new Date();
+  const currentCalendarYear = today.getFullYear();
+  const anchorDoy = getDayOfYear(today);
+
+  const filled = new Map<string, TimeSeriesDataPoint[]>();
+  for (const [groupKey, points] of aggregatedByGroup.entries()) {
+    const year = parseYtdSeriesYear(groupKey);
+    if (year === null || year > currentCalendarYear) {
+      filled.set(groupKey, points);
+      continue;
+    }
+
+    const yearLen = daysInCalendarYear(year);
+    const maxDoy =
+      year === currentCalendarYear
+        ? Math.min(anchorDoy, yearLen)
+        : yearLen;
+    if (maxDoy < 1) {
+      filled.set(groupKey, points);
+      continue;
+    }
+
+    const sampleGv =
+      points.length > 0 ? points[0].group_value ?? String(year) : String(year);
+    const byDoy = new Map<number, number>();
+    for (const p of points) {
+      const d = parseInt(p.time_period, 10);
+      if (!Number.isFinite(d)) continue;
+      byDoy.set(d, p.numeric_value ?? 0);
+    }
+
+    const filledPoints: TimeSeriesDataPoint[] = [];
+    for (let doy = 1; doy <= maxDoy; doy++) {
+      filledPoints.push({
+        time_period: String(doy),
+        numeric_value: byDoy.get(doy) ?? 0,
+        group_value: sampleGv,
+      });
+    }
+    filled.set(groupKey, filledPoints);
+  }
+  return filled;
+}
 
 /**
  * Format date for display based on period type.
@@ -581,6 +814,7 @@ export default function TimeSeriesChart({
   showExternalTitle = false,
   onPeriodChange,
   forcedTheme,
+  staleness_days,
 }: TimeSeriesChartProps) {
   const { theme } = useTheme();
   const resolvedTheme = forcedTheme ?? theme;
@@ -601,10 +835,14 @@ export default function TimeSeriesChart({
     setShowPartialInfo(false); // Reset disclosure when period changes
   };
 
-  // Aggregate by period, filter partial periods, then limit to default range (last 24 weeks, 24 months, 10 years, etc.)
+  // Aggregate by period, fill sparse gaps with zeros, filter partial periods, then limit to default range
   const { aggregatedByGroup, partialPeriodInfo } = useMemo(() => {
     const rawAggregated = aggregateDataByGroup(data, periodType);
-    const { filtered, partialInfo } = filterPartialPeriods(rawAggregated, periodType, data);
+    const gapFilled =
+      periodType === "ytd"
+        ? fillMissingYTDPeriods(rawAggregated)
+        : fillMissingPeriods(rawAggregated, periodType);
+    const { filtered, partialInfo } = filterPartialPeriods(gapFilled, periodType, data);
     const limited = limitToDefaultRange(filtered, periodType);
     return { aggregatedByGroup: limited, partialPeriodInfo: partialInfo };
   }, [data, periodType]);
@@ -630,7 +868,8 @@ export default function TimeSeriesChart({
     // Special handling for YTD - compare years by day-of-year
     if (periodType === "ytd") {
       const currentYear = new Date().getFullYear();
-      
+      const incompleteColor = "#f5a623";
+
       // Check if we have original groups (like supervisor_district)
       const hasOriginalGroups = Array.from(aggregatedByGroup.keys()).some(key => key.includes("|"));
       
@@ -655,26 +894,42 @@ export default function TimeSeriesChart({
           // Sort years descending
           const sortedYears = Array.from(yearGroups.keys()).sort((a, b) => parseInt(b) - parseInt(a));
           const limitedYears = sortedYears.filter((yearStr) => {
-            const year = parseInt(yearStr);
-            return year === currentYear || year === currentYear - 1;
+            const year = parseInt(yearStr, 10);
+            return isYearInYtdWindow(year, currentYear);
           });
           
           for (const yearStr of limitedYears) {
             const points = yearGroups.get(yearStr)!;
             if (points.length === 0) continue;
-            
-            const year = parseInt(yearStr);
+
+            const year = parseInt(yearStr, 10);
             const x = points.map((point) => parseInt(point.time_period));
             const y = points.map((point) => point.numeric_value);
-            
-            // Check if data is sparse
+
             const uniqueDays = new Set(x).size;
             const isSparseData = uniqueDays <= 12;
-            
+
+            const isCurrentYear = year === currentYear;
+            const showIncomplete =
+              isCurrentYear && staleness_days && staleness_days > 0;
+            const cutoffDay = showIncomplete
+              ? Math.max(...x) - staleness_days!
+              : Infinity;
+            const cutoffIdx = showIncomplete
+              ? x.reduce((last, d, i) => (d <= cutoffDay ? i : last), -1)
+              : x.length - 1;
+
+            const completeX = x.slice(0, cutoffIdx + 1);
+            const completeY = y.slice(0, cutoffIdx + 1);
+            const incompleteX =
+              showIncomplete && cutoffIdx >= 0 ? x.slice(cutoffIdx) : [];
+            const incompleteY =
+              showIncomplete && cutoffIdx >= 0 ? y.slice(cutoffIdx) : [];
+
             if (isSparseData) {
               traces.push({
-                x,
-                y,
+                x: completeX,
+                y: completeY,
                 type: "scatter",
                 mode: "lines+markers",
                 name: `${originalGroup} ${yearStr}`,
@@ -682,24 +937,49 @@ export default function TimeSeriesChart({
                 marker: { color: groupColor, size: 5 },
                 showlegend: true,
                 hovertemplate: `${originalGroup} ${yearStr}<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
-                customdata: x.map((dayOfYear) => {
+                customdata: completeX.map((dayOfYear) => {
                   const date = new Date(year, 0, dayOfYear);
-                  return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+                  return date.toLocaleDateString("en-US", {
+                    month: "long",
+                    year: "numeric",
+                  });
                 }),
               });
+              if (incompleteX.length > 1) {
+                traces.push({
+                  x: incompleteX,
+                  y: incompleteY,
+                  type: "scatter",
+                  mode: "lines+markers",
+                  name: `${originalGroup} ${yearStr} (incomplete)`,
+                  line: { color: incompleteColor, width: 2, dash: "dash" },
+                  marker: { color: incompleteColor, size: 5 },
+                  showlegend: true,
+                  hovertemplate: `${originalGroup} ${yearStr} (incomplete est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                  customdata: incompleteX.map((dayOfYear) => {
+                    const date = new Date(year, 0, dayOfYear);
+                    return date.toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                    });
+                  }),
+                });
+              }
             } else {
-              // 7-day trailing average
               const avg7 = y.map((_, idx) => {
                 const start = Math.max(0, idx - 6);
                 const window = y.slice(start, idx + 1);
                 const sum = window.reduce((acc, v) => acc + v, 0);
                 return sum / window.length;
               });
-              
-              // Raw daily (faint)
+
+              const completeAvg7 = avg7.slice(0, cutoffIdx + 1);
+              const incompleteAvg7 =
+                showIncomplete && cutoffIdx >= 0 ? avg7.slice(cutoffIdx) : [];
+
               traces.push({
-                x,
-                y,
+                x: completeX,
+                y: completeY,
                 type: "scatter",
                 mode: "lines",
                 name: `${originalGroup} ${yearStr}`,
@@ -708,22 +988,55 @@ export default function TimeSeriesChart({
                 showlegend: false,
                 hoverinfo: "skip",
               });
-              
-              // 7-day average (primary)
+
               traces.push({
-                x,
-                y: avg7,
+                x: completeX,
+                y: completeAvg7,
                 type: "scatter",
                 mode: "lines",
                 name: `${originalGroup} ${yearStr} 7-Day Avg`,
                 line: { color: groupColor, width: 2 },
                 showlegend: true,
                 hovertemplate: `${originalGroup} ${yearStr} 7-Day Avg<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
-                customdata: x.map((dayOfYear) => {
+                customdata: completeX.map((dayOfYear) => {
                   const date = new Date(year, 0, dayOfYear);
-                  return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+                  return date.toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                  });
                 }),
               });
+
+              if (incompleteX.length > 1) {
+                traces.push({
+                  x: incompleteX,
+                  y: incompleteY,
+                  type: "scatter",
+                  mode: "lines",
+                  name: `${originalGroup} ${yearStr} (incomplete)`,
+                  line: { color: incompleteColor, width: 0.75 },
+                  opacity: 0.2,
+                  showlegend: false,
+                  hoverinfo: "skip",
+                });
+                traces.push({
+                  x: incompleteX,
+                  y: incompleteAvg7,
+                  type: "scatter",
+                  mode: "lines",
+                  name: `${originalGroup} ${yearStr} 7-Day Avg (incomplete)`,
+                  line: { color: incompleteColor, width: 2, dash: "dash" },
+                  showlegend: true,
+                  hovertemplate: `${originalGroup} ${yearStr} 7-Day Avg (incomplete est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                  customdata: incompleteX.map((dayOfYear) => {
+                    const date = new Date(year, 0, dayOfYear);
+                    return date.toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                    });
+                  }),
+                });
+              }
             }
           }
         }
@@ -736,8 +1049,8 @@ export default function TimeSeriesChart({
         });
 
         const limitedYears = groupValues.filter((yearStr) => {
-          const year = parseInt(yearStr) || 0;
-          return year === currentYear || year === currentYear - 1;
+          const year = parseInt(yearStr, 10);
+          return isYearInYtdWindow(year, currentYear);
         });
 
         limitedYears.forEach((yearStr) => {
@@ -756,10 +1069,26 @@ export default function TimeSeriesChart({
           const isCurrentYear = year === currentYear;
           const lineColor = isCurrentYear ? "#ad35fa" : "#888888";
 
+          // Split current-year data into complete / incomplete based on reporting lag
+          const showIncomplete = isCurrentYear && staleness_days && staleness_days > 0;
+          const cutoffDay = showIncomplete
+            ? Math.max(...x) - staleness_days!
+            : Infinity;
+          // Index of the last "complete" point (overlap by 1 so lines connect visually)
+          const cutoffIdx = showIncomplete
+            ? x.reduce((last, d, i) => (d <= cutoffDay ? i : last), -1)
+            : x.length - 1;
+
+          const completeX = x.slice(0, cutoffIdx + 1);
+          const completeY = y.slice(0, cutoffIdx + 1);
+          // Incomplete starts from the cutoff point (overlap ensures connected line)
+          const incompleteX = showIncomplete && cutoffIdx >= 0 ? x.slice(cutoffIdx) : [];
+          const incompleteY = showIncomplete && cutoffIdx >= 0 ? y.slice(cutoffIdx) : [];
+
           if (isSparseData) {
             traces.push({
-              x,
-              y,
+              x: completeX,
+              y: completeY,
               type: "scatter",
               mode: "lines+markers",
               name: yearStr,
@@ -767,13 +1096,30 @@ export default function TimeSeriesChart({
               marker: { color: lineColor, size: 5 },
               showlegend: true,
               hovertemplate: `${yearStr}<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
-              customdata: x.map((dayOfYear) => {
+              customdata: completeX.map((dayOfYear) => {
                 const date = new Date(year, 0, dayOfYear);
-                return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+                return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
               }),
             });
+            if (incompleteX.length > 1) {
+              traces.push({
+                x: incompleteX,
+                y: incompleteY,
+                type: "scatter",
+                mode: "lines+markers",
+                name: "Incomplete",
+                line: { color: incompleteColor, width: 2, dash: "dash" },
+                marker: { color: incompleteColor, size: 5 },
+                showlegend: true,
+                hovertemplate: `Incomplete (est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                customdata: incompleteX.map((dayOfYear) => {
+                  const date = new Date(year, 0, dayOfYear);
+                  return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+                }),
+              });
+            }
           } else {
-            // 7-day trailing average
+            // 7-day trailing average computed on the full year array for continuity
             const avg7 = y.map((_, idx) => {
               const start = Math.max(0, idx - 6);
               const window = y.slice(start, idx + 1);
@@ -781,10 +1127,13 @@ export default function TimeSeriesChart({
               return sum / window.length;
             });
 
-            // Raw daily values – faint for context
+            const completeAvg7 = avg7.slice(0, cutoffIdx + 1);
+            const incompleteAvg7 = showIncomplete && cutoffIdx >= 0 ? avg7.slice(cutoffIdx) : [];
+
+            // Raw daily values – faint for context (complete portion)
             traces.push({
-              x,
-              y,
+              x: completeX,
+              y: completeY,
               type: "scatter",
               mode: "lines",
               name: yearStr,
@@ -794,21 +1143,50 @@ export default function TimeSeriesChart({
               hoverinfo: "skip",
             });
 
-            // 7-day trailing average – primary focus
+            // 7-day trailing average – primary focus (complete portion)
             traces.push({
-              x,
-              y: avg7,
+              x: completeX,
+              y: completeAvg7,
               type: "scatter",
               mode: "lines",
               name: `${yearStr} 7-Day Avg`,
               line: { color: lineColor, width: 2 },
               showlegend: true,
               hovertemplate: `${yearStr} 7-Day Avg<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
-              customdata: x.map((dayOfYear) => {
+              customdata: completeX.map((dayOfYear) => {
                 const date = new Date(year, 0, dayOfYear);
                 return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
               }),
             });
+
+            // Incomplete: raw faint + dashed avg7
+            if (incompleteX.length > 1) {
+              traces.push({
+                x: incompleteX,
+                y: incompleteY,
+                type: "scatter",
+                mode: "lines",
+                name: "Incomplete",
+                line: { color: incompleteColor, width: 0.75 },
+                opacity: 0.2,
+                showlegend: false,
+                hoverinfo: "skip",
+              });
+              traces.push({
+                x: incompleteX,
+                y: incompleteAvg7,
+                type: "scatter",
+                mode: "lines",
+                name: "Incomplete",
+                line: { color: incompleteColor, width: 2, dash: "dash" },
+                showlegend: true,
+                hovertemplate: `Incomplete (est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                customdata: incompleteX.map((dayOfYear) => {
+                  const date = new Date(year, 0, dayOfYear);
+                  return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+                }),
+              });
+            }
           }
         });
       }
@@ -935,7 +1313,7 @@ export default function TimeSeriesChart({
     }
 
     return traces;
-  }, [aggregatedByGroup, periodType, hasGroups, metadata, stackedView]);
+  }, [aggregatedByGroup, periodType, hasGroups, metadata, stackedView, staleness_days]);
 
   const chartTitleText =
     metadata?.chart_title ||
@@ -945,6 +1323,14 @@ export default function TimeSeriesChart({
   
   // Hide internal title when showing external title
   const chartTitle = showExternalTitle ? "" : chartTitleText;
+
+  const cityName = metadata?.city_name;
+
+  // When chart title is shown internally (e.g. embedded / PNG), append city name as
+  // a Plotly-supported subtitle so it appears in any PNG export.
+  const plotlyTitleText = cityName && chartTitle
+    ? `${chartTitle}<br><sup>${cityName}</sup>`
+    : chartTitle;
 
   const yAxisLabel = metadata?.y_axis_label || metadata?.field_name || "Value";
   
@@ -1031,10 +1417,32 @@ export default function TimeSeriesChart({
       
       const minDay = allDayValues.length > 0 ? Math.min(...allDayValues) : 1;
       const maxDay = allDayValues.length > 0 ? Math.max(...allDayValues) : 365;
+
+      // Shaded incomplete region for current year (works for keys "2026" or "District|2026")
+      const incompleteShapes: any[] = [];
+      if (staleness_days && staleness_days > 0) {
+        const cy = new Date().getFullYear();
+        const cyMaxDay = getYtdMaxDayOfYearForCalendarYear(aggregatedByGroup, cy);
+        if (cyMaxDay !== null) {
+          const cutoffDay = cyMaxDay - staleness_days;
+          incompleteShapes.push({
+            type: "rect",
+            xref: "x",
+            yref: "paper",
+            x0: cutoffDay,
+            x1: cyMaxDay + 5,
+            y0: 0,
+            y1: 1,
+            fillcolor: "rgba(245, 166, 35, 0.07)",
+            line: { width: 0 },
+            layer: "below",
+          });
+        }
+      }
       
       return {
         title: {
-          text: chartTitle,
+          text: plotlyTitleText,
           font: {
             family: "Inter, Arial, sans-serif",
             size: 14,
@@ -1112,7 +1520,7 @@ export default function TimeSeriesChart({
           itemwidth: 30,
         },
         margin: {
-          t: 55,
+          t: cityName && chartTitle ? 75 : 55,
           b: 95,
           l: 50,
           r: 45,
@@ -1129,6 +1537,7 @@ export default function TimeSeriesChart({
             color: hoverTextColor,
           },
         },
+        shapes: incompleteShapes,
         height,
       };
     }
@@ -1144,7 +1553,7 @@ export default function TimeSeriesChart({
     
     return {
       title: {
-        text: chartTitle,
+        text: plotlyTitleText,
         font: {
           family: "Inter, Arial, sans-serif",
           size: 14,
@@ -1192,8 +1601,8 @@ export default function TimeSeriesChart({
         tickcolor: textColor,
       },
       margin: { 
-        t: 50, 
-        b: hasGroups && traces.length > 1 ? 80 : 50, // More space for legend
+        t: cityName && chartTitle ? 70 : 50,
+        b: hasGroups && traces.length > 1 ? 80 : 50,
         l: 60, 
         r: 30 
       },
@@ -1225,7 +1634,7 @@ export default function TimeSeriesChart({
       },
       height,
     };
-  }, [chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, hoverBgColor, hoverTextColor, legendBgColor]);
+  }, [plotlyTitleText, cityName, chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, hoverBgColor, hoverTextColor, legendBgColor, staleness_days]);
 
   const config = {
     responsive: true,
@@ -1271,6 +1680,8 @@ export default function TimeSeriesChart({
         <div className={styles.externalTitle}>
           <div className={styles.externalTitleMain}>{chartTitleText}</div>
           <div className={styles.externalTitleSub}>
+            {cityName && <span className={styles.externalCityName}>{cityName}</span>}
+            {cityName && <span className={styles.titleSeparator}>•</span>}
             {districtLabel && <span>{districtLabel}</span>}
             {districtLabel && <span className={styles.titleSeparator}>•</span>}
             <span>{periodTypeLabel}</span>

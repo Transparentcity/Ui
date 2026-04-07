@@ -65,7 +65,7 @@ export default function Header({
 
   const handleLogin = async () => {
     if (isAuthenticated) {
-      router.push("/dashboard");
+      router.push("/home");
       return;
     }
     await loginWithRedirect({
@@ -73,13 +73,13 @@ export default function Header({
         screen_hint: "login",
         prompt: "login",
       },
-      appState: { returnTo: "/dashboard" },
+      appState: { returnTo: "/home" },
     });
   };
 
   const handleGoToDashboard = async () => {
     if (isAuthenticated) {
-      router.push("/dashboard");
+      router.push("/home");
       return;
     }
     await handleSignup("resident");
@@ -94,7 +94,7 @@ export default function Header({
       authorizationParams: {
         screen_hint: "signup",
       },
-      appState: { returnTo: `/dashboard?signup=${intent}` },
+      appState: { returnTo: `/home?signup=${intent}` },
     });
   };
 
@@ -418,7 +418,7 @@ export default function Header({
             {isAuthenticated ? (
               <button
                 className={styles.buttonSignUp}
-                onClick={() => router.push("/dashboard")}
+                onClick={() => router.push("/home")}
                 disabled={isLoading}
               >
                 Go to dashboard

@@ -42,7 +42,7 @@ export default function CitySignupButton() {
         screen_hint: "signup",
         ...(prefillEmail && { login_hint: prefillEmail }),
       },
-      appState: { returnTo: `/dashboard?signup=${intent}` },
+      appState: { returnTo: `/home?signup=${intent}` },
     });
   };
 
@@ -55,7 +55,7 @@ export default function CitySignupButton() {
         prompt: "login",
         ...(prefillEmail && prefillEmail.includes("@") ? { login_hint: prefillEmail } : {}),
       },
-      appState: { returnTo: "/dashboard" },
+      appState: { returnTo: "/home" },
     });
   };
 
@@ -63,7 +63,7 @@ export default function CitySignupButton() {
     return (
       <button
         className="btn btn-primary nav-signup"
-        onClick={() => router.push("/dashboard")}
+        onClick={() => router.push("/home")}
         disabled={isLoading}
       >
         Dashboard

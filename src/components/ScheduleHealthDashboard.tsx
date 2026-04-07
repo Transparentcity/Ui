@@ -16,6 +16,7 @@ const SCHEDULE_KEYS = [
   { key: "daily_metrics", label: "Daily" },
   { key: "weekly_metrics", label: "Weekly" },
   { key: "monthly_metrics", label: "Monthly" },
+  { key: "annual_metrics", label: "Annual" },
 ] as const;
 
 type PeriodKey = (typeof SCHEDULE_KEYS)[number]["key"];
@@ -28,6 +29,8 @@ function freshCountForPeriod(f: CityFreshness, period: PeriodKey): number {
       return f.fresh_weekly;
     case "monthly_metrics":
       return f.fresh_monthly;
+    case "annual_metrics":
+      return f.fresh_annual;
     default:
       return 0;
   }
@@ -187,17 +190,20 @@ function MetricHealthTable({ rows }: { rows: CityFreshnessMetricRow[] }) {
             <th>Age</th>
             <th>Last run</th>
             <th>Run status</th>
-            <th title="Time series data points stored">Points</th>
+            <th title="Active time series charts (time_series_metadata rows) for this metric">
+              Charts
+            </th>
           </tr>
         </thead>
         <tbody>
           {sorted.map((m) => {
             const execStatus = formatExecStatus(m.last_execution_status);
+            const charts = m.charts ?? 0;
             const isProblematic =
               m.bucket === "stale" ||
               m.bucket === "no_data" ||
               execStatus.isError ||
-              m.ts_count === 0;
+              charts === 0;
             const rowStyle = isProblematic
               ? { background: "rgba(239,68,68,0.06)" }
               : undefined;
@@ -234,10 +240,10 @@ function MetricHealthTable({ rows }: { rows: CityFreshnessMetricRow[] }) {
                   )}
                 </td>
                 <td style={{ whiteSpace: "nowrap" }}>
-                  {m.ts_count === 0 ? (
+                  {charts === 0 ? (
                     <span style={{ color: "#ef4444", fontWeight: 600 }}>0</span>
                   ) : (
-                    <span>{m.ts_count.toLocaleString()}</span>
+                    <span>{charts.toLocaleString()}</span>
                   )}
                 </td>
               </tr>
@@ -369,7 +375,7 @@ export default function ScheduleHealthDashboard({
           <h3 className={styles.title}>City schedule health</h3>
           <p className={styles.subtitle}>
             Top chip: last batch run per period. Bottom: data freshness via{" "}
-            <code>most_recent_data_date</code> (2d / 10d / 35d thresholds).
+            <code>most_recent_data_date</code> (2d / 10d / 35d / 400d thresholds).
             {lastLoaded && (
               <>
                 {" "}

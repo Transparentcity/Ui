@@ -19,6 +19,12 @@ interface DistrictComparisonTableProps {
   cityName?: string;
   currentPeriodEnd?: string;
   currentPeriodStart?: string;
+  /** Citywide (authoritative) totals. When provided these replace the
+   *  summed-district totals in the Total row and caption, avoiding
+   *  overcounting for COUNT(DISTINCT) metrics where some incidents are
+   *  associated with more than one supervisor district. */
+  citywideCurrent?: number | null;
+  citywideComparison?: number | null;
 }
 
 type SortField = "district" | "current" | "previous" | "change";
@@ -32,6 +38,8 @@ export default function DistrictComparisonTable({
   metricName,
   cityName,
   currentPeriodEnd,
+  citywideCurrent,
+  citywideComparison,
 }: DistrictComparisonTableProps) {
   const [data, setData] = useState<PublicDistrictComparisonsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -161,22 +169,29 @@ export default function DistrictComparisonTable({
 
   const labels = comparisonLabels[comparisonType] || comparisonLabels.ytd;
 
-  // Calculate totals
+  // Calculate totals — prefer authoritative citywide values when provided
+  // (summing per-district COUNT DISTINCT values overcounts incidents that
+  // span multiple supervisor districts).
   const totals = useMemo(() => {
     if (!data?.districts || data.districts.length === 0) return null;
-    
-    const totalCurrent = data.districts.reduce((sum, d) => sum + (d.current_value || 0), 0);
-    const totalPrevious = data.districts.reduce((sum, d) => sum + (d.comparison_value || 0), 0);
-    const totalChangePercent = totalPrevious > 0 
-      ? ((totalCurrent - totalPrevious) / totalPrevious) * 100 
-      : 0;
-    
+
+    const current =
+      citywideCurrent != null
+        ? citywideCurrent
+        : data.districts.reduce((sum, d) => sum + (d.current_value || 0), 0);
+    const previous =
+      citywideComparison != null
+        ? citywideComparison
+        : data.districts.reduce((sum, d) => sum + (d.comparison_value || 0), 0);
+    const changePercent =
+      previous > 0 ? ((current - previous) / previous) * 100 : 0;
+
     return {
-      current_value: totalCurrent,
-      comparison_value: totalPrevious,
-      change_percent: totalChangePercent,
+      current_value: current,
+      comparison_value: previous,
+      change_percent: changePercent,
     };
-  }, [data?.districts]);
+  }, [data?.districts, citywideCurrent, citywideComparison]);
 
   // Top district by current value (for caption)
   const topDistrict = useMemo(() => {

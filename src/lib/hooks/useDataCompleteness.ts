@@ -34,42 +34,60 @@ export interface CompletenessData {
 }
 
 export function useCompletenessData(): CompletenessData {
-  const { getAccessTokenSilently } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
+
+  const authReady = !isLoading && !!isAuthenticated;
 
   const citiesQuery = useQuery({
     queryKey: completenessKeys.cities(),
     queryFn: async () => {
       const token = await getAccessTokenSilently();
+      if (!token?.trim()) {
+        throw new Error("Not authenticated: no access token. Log in and try again.");
+      }
       return listCities(token);
     },
     staleTime: 5 * 60 * 1000,
+    enabled: authReady,
   });
 
   const metricCitiesQuery = useQuery({
     queryKey: completenessKeys.metricCities(),
     queryFn: async () => {
       const token = await getAccessTokenSilently();
+      if (!token?.trim()) {
+        throw new Error("Not authenticated: no access token. Log in and try again.");
+      }
       return listAdminMetricCities(token);
     },
     staleTime: 5 * 60 * 1000,
+    enabled: authReady,
   });
 
   const metricsQuery = useQuery({
     queryKey: completenessKeys.metrics(),
     queryFn: async () => {
       const token = await getAccessTokenSilently();
+      if (!token?.trim()) {
+        throw new Error("Not authenticated: no access token. Log in and try again.");
+      }
       return listAdminMetrics(token, { limit: 500 });
     },
     staleTime: 5 * 60 * 1000,
+    enabled: authReady,
   });
 
   const summaryQuery = useQuery({
     queryKey: completenessKeys.summary(),
     queryFn: async () => {
       const token = await getAccessTokenSilently();
+      if (!token?.trim()) {
+        throw new Error("Not authenticated: no access token. Log in and try again.");
+      }
       return getAdminMetricsSummary(token);
     },
     staleTime: 5 * 60 * 1000,
+    enabled: authReady,
   });
 
   return {
@@ -89,15 +107,18 @@ export function useCompletenessData(): CompletenessData {
 }
 
 export function useCityDetail(cityId: number | null) {
-  const { getAccessTokenSilently } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
 
   return useQuery({
     queryKey: completenessKeys.cityDetail(cityId ?? 0),
     queryFn: async () => {
       const token = await getAccessTokenSilently();
+      if (!token?.trim()) {
+        throw new Error("Not authenticated: no access token. Log in and try again.");
+      }
       return getCity(cityId!, token);
     },
-    enabled: cityId !== null,
+    enabled: cityId !== null && !isLoading && !!isAuthenticated,
     staleTime: 5 * 60 * 1000,
   });
 }

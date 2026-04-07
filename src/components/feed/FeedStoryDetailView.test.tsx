@@ -7,6 +7,10 @@ vi.mock("./EscalateSheet", () => ({
   default: () => null,
 }));
 
+vi.mock("./MetricKeyContext", () => ({
+  useMetricKey: () => ({ resolveMetricKey: () => null }),
+}));
+
 function makeStory(
   overrides: Partial<EnrichedFeedStory> = {},
 ): EnrichedFeedStory {
@@ -65,6 +69,7 @@ describe("FeedStoryDetailView", () => {
       />,
     );
 
+    // Lede paragraph is shown before the article body when article_html is present
     expect(screen.getByText("A shorter feed summary.")).toBeInTheDocument();
     expect(screen.getByText("What changed")).toBeInTheDocument();
     expect(

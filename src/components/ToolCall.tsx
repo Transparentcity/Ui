@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import styles from "./ToolCall.module.css";
 import { API_BASE } from "@/lib/apiBase";
-import TimeSeriesChart from "./TimeSeriesChart";
+import TimeSeriesChart, { type PeriodType } from "./TimeSeriesChart";
 import Loader from "./Loader";
 
 interface ToolCallProps {
@@ -77,6 +77,36 @@ function getTimeSeriesData(response: any): any {
   const parsed = parseResponse(response);
   // Handle both formats: {data: {chart_id, ...}} and {chart_id, ...}
   return parsed?.data || parsed;
+}
+
+/** Match `/t/[id]` period query handling */
+function parsePeriodQuery(value: string | null | undefined): PeriodType | null {
+  if (!value) return null;
+  const v = value.toLowerCase();
+  if (v === "day" || v === "week" || v === "month" || v === "year" || v === "ytd") {
+    return v;
+  }
+  return null;
+}
+
+function resolveChartIdForPeriod(
+  period: PeriodType,
+  permalinkChartId: string,
+  siblings: Record<string, number> | undefined | null
+): string {
+  if (period === "ytd") {
+    const dayId = siblings?.["day"];
+    if (dayId != null) return String(dayId);
+    return permalinkChartId;
+  }
+  const sid = siblings?.[period];
+  if (sid != null) return String(sid);
+  return permalinkChartId;
+}
+
+function periodDisplayLabel(p: PeriodType): string {
+  if (p === "ytd") return "Year-to-Date";
+  return p;
 }
 
 // Render an embedded map with iframe
@@ -222,36 +252,71 @@ function EmbeddedAnomalyCard({ data }: { data: any }) {
 function EmbeddedTimeSeriesCard({ data }: { data: any }) {
   const [showEmbed, setShowEmbed] = useState(true);
   const [chartData, setChartData] = useState<{ data: any[]; metadata?: any } | null>(null);
+  const [displayPeriod, setDisplayPeriod] = useState<PeriodType>("month");
   const [loading, setLoading] = useState(true);
 
   const timeSeriesData = getTimeSeriesData(data);
   const chartId = timeSeriesData.chart_id;
+  const requestedPeriodRaw = timeSeriesData.requested_period as string | undefined;
   const metricName = timeSeriesData.metric_name || "Time Series";
-  const periodType = timeSeriesData.period_type || "N/A";
-  const dataPointCount = timeSeriesData.data_point_count || 0;
+  const dataPointCount =
+    chartData?.data?.length ?? timeSeriesData.data_point_count ?? 0;
   const viewUrl = timeSeriesData.view_url || `/t/${chartId}`;
 
-  const title = `${metricName} (${periodType})`;
+  const title = `${metricName} (${periodDisplayLabel(displayPeriod)})`;
 
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    fetch(`${API_BASE}/api/time-series/public/${chartId}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load time series");
-        return res.json();
-      })
-      .then((res) => {
-        if (mounted) setChartData(res);
-      })
-      .catch(() => {
+
+    const load = async () => {
+      const permalinkId = String(chartId);
+      const periodFromTool = requestedPeriodRaw ?? null;
+
+      const fetchOne = async (id: string) => {
+        let response = await fetch(`${API_BASE}/api/time-series/public/${id}`);
+        if (!response.ok) {
+          response = await fetch(`${API_BASE}/api/time-series/${id}`, {
+            credentials: "include",
+          });
+        }
+        if (!response.ok) throw new Error("Failed to load time series");
+        return response.json();
+      };
+
+      try {
+        const first = await fetchOne(permalinkId);
+        if (!mounted) return;
+        const siblings = first.sibling_chart_ids || {};
+        const metaPeriod = (
+          first.metadata?.period_type || "month"
+        ).toLowerCase() as PeriodType;
+        const urlPeriod = parsePeriodQuery(periodFromTool);
+        const effectivePeriod = (urlPeriod ?? metaPeriod) as PeriodType;
+        const effectiveId = resolveChartIdForPeriod(
+          effectivePeriod,
+          permalinkId,
+          siblings
+        );
+        let final = first;
+        if (effectiveId !== permalinkId) {
+          final = await fetchOne(effectiveId);
+        }
+        if (!mounted) return;
+        setChartData(final);
+        setDisplayPeriod(effectivePeriod);
+      } catch {
         if (mounted) setChartData(null);
-      })
-      .finally(() => {
+      } finally {
         if (mounted) setLoading(false);
-      });
-    return () => { mounted = false; };
-  }, [chartId]);
+      }
+    };
+
+    void load();
+    return () => {
+      mounted = false;
+    };
+  }, [chartId, requestedPeriodRaw]);
 
   const aggregated = useMemo(() => {
     if (!chartData?.data) return [];
@@ -275,7 +340,7 @@ function EmbeddedTimeSeriesCard({ data }: { data: any }) {
           <div className={styles.mapEmbedTitle}>{title}</div>
         </div>
         <div className={styles.mapEmbedMeta}>
-          <span>{periodType}</span>
+          <span>{periodDisplayLabel(displayPeriod)}</span>
           {timeSeriesData.group_field && timeSeriesData.group_value && (
             <>
               <span className={styles.mapPreviewDot}>•</span>
@@ -315,7 +380,7 @@ function EmbeddedTimeSeriesCard({ data }: { data: any }) {
               data={aggregated}
               metadata={chartData?.metadata}
               height={320}
-              defaultPeriod="week"
+              defaultPeriod={displayPeriod}
               fullBleed={true}
               hidePeriodSelector={false}
               showExternalTitle={false}

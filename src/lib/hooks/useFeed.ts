@@ -170,16 +170,18 @@ export function useFeedStoryDetail(storyId: number | null) {
     },
     enabled: !!storyId,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    // List view seeds this cache so the modal can paint immediately; still refresh
+    // from the server so detail-only fields stay correct.
+    refetchOnMount: "always",
   });
 }
 
 /**
  * Hook to track engagement with a feed story.
- * Automatically invalidates the story query on success.
+ * Does not invalidate feed queries (avoids refetch storms that slow the detail modal).
  */
 export function useTrackFeedEngagement() {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
-  const queryClient = useQueryClient();
   // Kill switch: set NEXT_PUBLIC_DISABLE_FEED_ENGAGEMENT=true to disable.
   // Enabled by default so applause/engagement counts persist.
   const engagementEnabled =
@@ -202,13 +204,6 @@ export function useTrackFeedEngagement() {
       }
       const token = await getAccessTokenSilently();
       return trackFeedEngagement(storyId, action, token);
-    },
-    onSuccess: (result, variables) => {
-      if (!(result as { success?: boolean } | undefined)?.success) return;
-      // Invalidate the story detail query to refresh engagement counts
-      queryClient.invalidateQueries({ queryKey: feedKeys.detail(variables.storyId) });
-      // Also invalidate lists to refresh counts in list views
-      queryClient.invalidateQueries({ queryKey: feedKeys.lists() });
     },
   });
 }

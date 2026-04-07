@@ -21,7 +21,7 @@ export function CityReadinessSidebar() {
     <aside className="w-[280px] min-w-[280px] h-screen bg-white border-r border-gray-200 flex flex-col sticky top-0 left-0 z-50">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 min-h-16">
-        <Link href="/dashboard" className="flex items-center gap-2.5 text-inherit no-underline flex-1">
+        <Link href="/home" className="flex items-center gap-2.5 text-inherit no-underline flex-1">
           <div className="w-5 h-5 shrink-0">
             <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className="overflow-visible w-full h-full">
               <path
@@ -45,7 +45,7 @@ export function CityReadinessSidebar() {
       <div className="px-4 pt-3 pb-2 flex items-center justify-between">
         <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">City Readiness</span>
         <Link
-          href="/dashboard"
+          href="/home"
           className="flex items-center gap-1 text-xs text-gray-400 no-underline hover:text-purple-600 transition-colors"
         >
           <ArrowLeft className="w-3 h-3" />

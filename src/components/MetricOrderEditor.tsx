@@ -141,12 +141,16 @@ export default function MetricOrderEditor({
   useEffect(() => {
     if (!metrics || metrics.length === 0) return;
 
-    // Initial "visible on dashboard" set: from saved ordering if present, else from show_on_dash
+    // Initial "visible on dashboard" set: admin city editor uses ordering rows when present;
+    // user editor only treats ordering as the visibility set when user saved a personal order
+    // (same rule as CityView / public dashboard).
     const orderingIds = (orderingData?.orderings?.map((o) => o.metric_id).filter(Boolean) ?? []) as number[];
-    const initialVisible =
-      orderingIds.length > 0
-        ? new Set(orderingIds)
-        : new Set(metrics.filter((m) => m.show_on_dash !== false).map((m) => m.id));
+    const useOrderingAsVisibility =
+      orderingIds.length > 0 &&
+      (useCityOrdering || orderingData?.is_personal_order === true);
+    const initialVisible = useOrderingAsVisibility
+      ? new Set(orderingIds)
+      : new Set(metrics.filter((m) => m.show_on_dash !== false).map((m) => m.id));
     setVisibleMetricIds(initialVisible);
 
     // Create a map of saved ordering - same structure as dashboard
@@ -248,7 +252,7 @@ export default function MetricOrderEditor({
 
     setCategoryGroups(groups);
     setHasChanges(false);
-  }, [metrics, orderingData]);
+  }, [metrics, orderingData, useCityOrdering]);
 
   const toggleMetricVisible = useCallback((metricId: number) => {
     setVisibleMetricIds((prev) => {

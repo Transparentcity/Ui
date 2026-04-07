@@ -96,7 +96,7 @@ export default function NewResearchPage() {
       }
       
       // Redirect to research detail page or back to dashboard
-      if (window.location.pathname.startsWith("/dashboard")) {
+      if (window.location.pathname.startsWith("/home")) {
         // In dashboard view, stay in dashboard and show the new research
         window.dispatchEvent(new CustomEvent("research:created", { detail: response.report_id }));
       } else {

@@ -19,10 +19,10 @@ describe("getSiteOrigin", () => {
   });
 
   it("prefers NEXT_PUBLIC_SITE_URL and trims trailing slash", () => {
-    process.env.NEXT_PUBLIC_SITE_URL = "https://app.transparent.city/";
+    process.env.NEXT_PUBLIC_SITE_URL = "https://transparent.city/";
     process.env.SITE_URL = "https://fallback.example.com/";
 
-    expect(getSiteOrigin()).toBe("https://app.transparent.city");
+    expect(getSiteOrigin()).toBe("https://transparent.city");
   });
 
   it("uses SITE_URL when NEXT_PUBLIC_SITE_URL is missing", () => {

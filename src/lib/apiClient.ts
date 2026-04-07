@@ -134,6 +134,8 @@ export interface CityAdminData {
   main_domain?: string;
   main_portal_url?: string;
   all_portal_urls?: string[];
+  /** e.g. socrata, arcgis, ckan — from extra_metadata or URL inference */
+  portal_type?: string | null;
   is_active: boolean;
   datasets_count?: number;
   vector_db_points?: number;
@@ -689,13 +691,14 @@ export function refreshCityUrls(cityId: number, token: string): Promise<JobRespo
     {
       city_ids: [cityId],
       fetch_urls: true,
-      fetch_metadata: false,
-      refresh: false,
+      fetch_metadata: true,
+      refresh: true,
     },
     token
   );
 }
 
+/** Metadata-only load; refresh must stay false — backend refresh deletes DB rows before fetch. */
 export function refreshCityMetadata(cityId: number, token: string): Promise<JobResponse> {
   return request<JobResponse>(
     "/api/admin/cities/load-data",
@@ -820,6 +823,7 @@ export interface CityListItem {
   vector_db_size_mb?: number | null;
   structure_status?: string;
   is_active?: boolean;
+  is_launched?: boolean;
   population_source_type?: string | null;
   population_source_name?: string | null;
   population_data_year?: number | null;
@@ -873,6 +877,11 @@ export function loadCityData(
   );
 }
 
+/**
+ * Start async job: per city, optionally discover open-data portal if missing,
+ * probe catalog API for platform type, set extra_metadata.portal_type.
+ * Does not merge catalog rows into the DB (use load-data for that).
+ */
 export function determinePortalTypes(
   cityIds: number[],
   token: string
@@ -1245,6 +1254,64 @@ export async function importAdminMetrics(
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`Import failed: ${res.status} ${text}`);
+  }
+  return res.json();
+}
+
+/** Full platform metadata bundle (cities, structure, leaders, jobs, metrics). */
+export async function exportAdminPlatformMetadata(
+  token: string,
+  options?: { city_id?: number; include_shapefile_geometry?: boolean }
+): Promise<Blob> {
+  const params = new URLSearchParams();
+  if (options?.city_id != null) params.set("city_id", String(options.city_id));
+  if (options?.include_shapefile_geometry === true) {
+    params.set("include_shapefile_geometry", "true");
+  }
+  const q = params.toString();
+  const res = await fetch(
+    `${API_BASE}/api/admin/metrics/metadata-bundle/export${q ? `?${q}` : ""}`,
+    {
+      method: "GET",
+      credentials: "include",
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Platform export failed: ${res.status} ${text}`);
+  }
+  return res.blob();
+}
+
+export interface AdminPlatformMetadataImportResponse {
+  message: string;
+  counts: Record<string, number>;
+}
+
+export async function importAdminPlatformMetadata(
+  token: string,
+  file: File,
+  options?: { target_city_id?: number }
+): Promise<AdminPlatformMetadataImportResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  const query =
+    options?.target_city_id != null
+      ? `?target_city_id=${options.target_city_id}`
+      : "";
+  const res = await fetch(
+    `${API_BASE}/api/admin/metrics/metadata-bundle/import${query}`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    }
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Platform import failed: ${res.status} ${text}`);
   }
   return res.json();
 }
@@ -2119,53 +2186,13 @@ export function getJobStats(token: string): Promise<{ status: string; stats: Job
   return request<{ status: string; stats: JobStats }>("/api/jobs/stats", "GET", undefined, token);
 }
 
-export interface ScheduledJobRunSummary {
-  job_id: string;
-  status: "pending" | "running" | "completed" | "failed" | "cancelled";
-  created_at?: string | null;
-  completed_at?: string | null;
-  city_id?: number | null;
-  city_name?: string | null;
-  metrics_total?: number | null;
-  metrics_completed?: number | null;
-  metrics_failed?: number | null;
-  period_type?: string | null;
-  city_count?: number | null;
-  cities_succeeded?: number | null;
-  cities_failed?: number | null;
-  datasets_found?: number | null;
-  datasets_indexed?: number | null;
-  // Database cleanup fields
-  time_series_deleted?: number | null;
-  anomalies_deleted?: number | null;
-  retention_days?: number | null;
-  remove_all_inactive?: boolean | null;
-}
-
-export interface ScheduledJobSummary {
-  key: string;
-  label: string;
-  cadence: string;
-  description: string;
-  last_run?: ScheduledJobRunSummary | null;
-  recent_runs: ScheduledJobRunSummary[];
-}
-
-export function getScheduledJobSummary(token: string): Promise<ScheduledJobSummary[]> {
-  return request<{ status: string; schedules: ScheduledJobSummary[] }>(
-    "/api/jobs/schedules/summary",
-    "GET",
-    undefined,
-    token
-  ).then((res) => res.schedules);
-}
-
 /** City Health dashboard: execution + data freshness per schedule */
 export interface CityFreshness {
   total_metrics: number;
   fresh_daily: number;
   fresh_weekly: number;
   fresh_monthly: number;
+  fresh_annual: number;
   no_data: number;
   newest_data_date: string | null;
   oldest_data_date: string | null;
@@ -2181,7 +2208,8 @@ export interface CityFreshnessMetricRow {
   bucket: FreshnessMetricBucket;
   last_execution_at: string | null;
   last_execution_status: string | null;
-  ts_count: number;
+  /** Active time_series_metadata rows for this metric */
+  charts: number;
 }
 
 export interface CityScheduleRun {
@@ -2275,17 +2303,6 @@ export interface CustomScheduledJob {
 }
 
 export interface ScheduledJobsAllResponse {
-  system_schedules: Array<{
-    key: string;
-    name: string;
-    description: string;
-    cadence: string;
-    type: "system";
-    is_system: true;
-    status: "active";
-    last_run?: any;
-    recent_runs?: any[];
-  }>;
   custom_schedules: CustomScheduledJob[];
   total_count: number;
 }
@@ -2345,40 +2362,6 @@ export function runCustomScheduledJob(jobId: number, token: string): Promise<any
 
 export function runCustomScheduledJobForCurrentUser(jobId: number, token: string): Promise<any> {
   return request(`/api/jobs/schedules/custom/${jobId}/run`, "POST", { use_current_user: true }, token);
-}
-
-export interface RunScheduleRequest {
-  schedule_key: string;
-  max_concurrent_cities?: number;
-  per_city_concurrency?: number;
-  /** For database_cleanup only: removes ALL inactive records regardless of age */
-  remove_all_inactive?: boolean;
-}
-
-export interface RunScheduleResponse {
-  status: string;
-  result: {
-    schedule_key: string;
-    cities: number;
-    results: Array<{
-      job_id?: string;
-      city_id: number;
-      city_name: string;
-      status: string;
-    }>;
-  };
-}
-
-export function runSchedule(
-  scheduleRequest: RunScheduleRequest,
-  token: string
-): Promise<RunScheduleResponse> {
-  return request<RunScheduleResponse>(
-    "/api/jobs/schedules/run",
-    "POST",
-    scheduleRequest,
-    token
-  );
 }
 
 async function _executeChatStream(
@@ -3187,7 +3170,12 @@ export interface Dataset {
   file_size_bytes?: number;
   fetch_status: "success" | "pending" | "error";
   last_updated_date?: string;
+  /** Portal / dataset landing page */
   url?: string;
+  /** API or canonical resource URL (e.g. CKAN /dataset/.../resource/{uuid}, Socrata /resource/id.json) */
+  api_url?: string | null;
+  /** File or remote service URL from CKAN resource (often COSAGIS/ArcGIS), distinct from api_url */
+  source_data_url?: string | null;
 }
 
 export function getDatasetStats(token: string): Promise<DatasetStats> {
@@ -3545,6 +3533,62 @@ export function setUserNewsletterSubscriptions(
     `/api/admin/users/${userId}/newsletter-subscriptions`,
     "PUT",
     { subscriptions },
+    token
+  );
+}
+
+/** Admin: one user's email prefs, home location, and newsletter_subscribers rows. */
+export interface AdminUserNewsletterOverview {
+  user_id: number;
+  email: string | null;
+  name: string | null;
+  communication_preferences: Record<string, unknown>;
+  newsletter_description: string;
+  newsletter_frequency: "weekly" | "monthly";
+  home_location: { city_id?: number; district?: number | string | null } | null;
+  subscriptions: NewsletterSubscription[];
+}
+
+export function getAdminUserNewsletterOverview(
+  userId: number,
+  token: string
+): Promise<AdminUserNewsletterOverview> {
+  return request<AdminUserNewsletterOverview>(
+    `/api/admin/users/${userId}/newsletter-overview`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface AdminNewsletterHistoryItem {
+  id: number | string;
+  to_email: string;
+  subject: string;
+  source: string;
+  user_id: number | null;
+  city_id: number | null;
+  created_at: string | null;
+  type: "outbound_email" | "newsletter_send";
+  status?: string;
+  job_id?: string | null;
+  session_id?: string | null;
+  /** ID of the matching newsletter_pending_sends row, when the body is stored there. */
+  pending_send_id?: number | null;
+}
+
+export function getAdminUserNewsletterSendHistory(
+  userId: number,
+  token: string,
+  options?: { limit?: number }
+): Promise<{ user_id: number; email: string | null; items: AdminNewsletterHistoryItem[]; count: number }> {
+  const params = new URLSearchParams();
+  if (options?.limit != null) params.append("limit", String(options.limit));
+  const q = params.toString();
+  return request(
+    `/api/admin/users/${userId}/newsletter-send-history${q ? `?${q}` : ""}`,
+    "GET",
+    undefined,
     token
   );
 }
@@ -4316,6 +4360,8 @@ export interface NewsletterReport {
   social_summary: string | null;
   created_at: string | null;
   public_url: string;
+  /** Seymour job session tied to this research report, when present. */
+  session_id?: string | null;
 }
 
 export function listNewsletterReports(
@@ -4448,7 +4494,7 @@ export function createResearch(
   return request<CreateResearchResponse>("/api/research/create", "POST", payload, token);
 }
 
-/** Generate sample newsletter via email one-shot (no research report, no email sent). */
+/** Generate sample newsletter via email one-shot (same pipeline as weekly send; logs outbox and sends when configured). */
 export interface GenerateSampleNewsletterRequest {
   /** City ID for this environment. Omit when using city_slug. */
   city_id?: number | null;
@@ -4457,6 +4503,10 @@ export interface GenerateSampleNewsletterRequest {
   district?: number | null;
   frequency?: string;
   prompt_override?: string | null;
+  /** Default "stories" matches weekly send; "seymour" runs the LLM + tools personalized prompt. */
+  generation_mode?: "stories" | "seymour";
+  /** When generation_mode is seymour, optional model key from /api/chat/models; omit for server default. */
+  seymour_model_key?: string | null;
 }
 
 export interface GenerateSampleNewsletterResponse {
@@ -4472,6 +4522,274 @@ export function generateSampleNewsletter(
     "/api/newsletter/generate-sample",
     "POST",
     payload,
+    token
+  );
+}
+
+/** Admin: run generate-sample for a target user (their inbox + outbox user_id). */
+export function adminGenerateSampleNewsletterForUser(
+  userId: number,
+  payload: GenerateSampleNewsletterRequest,
+  token: string
+): Promise<GenerateSampleNewsletterResponse & { user_id: number }> {
+  return request<GenerateSampleNewsletterResponse & { user_id: number }>(
+    `/api/admin/users/${userId}/generate-sample-newsletter`,
+    "POST",
+    payload,
+    token
+  );
+}
+
+/** Admin: enqueue background job to generate a draft into newsletter_pending_sends. */
+export function adminQueueNewsletterPendingForUser(
+  userId: number,
+  payload: GenerateSampleNewsletterRequest,
+  token: string
+): Promise<{ job_id: string }> {
+  return request<{ job_id: string }>(
+    `/api/admin/users/${userId}/queue-newsletter-pending`,
+    "POST",
+    payload,
+    token
+  );
+}
+
+/** Weekly job output queued for admin send (no body in list). */
+export interface NewsletterPendingListItem {
+  id: number;
+  job_id: string;
+  user_id: number | null;
+  recipient_email: string;
+  subject: string;
+  generation_mode: string;
+  city_id: number | null;
+  /** Seymour job session created for this draft — usable for reviewing how it was produced. */
+  session_id: string | null;
+  /** Target district string ("0" = citywide). */
+  district: string | null;
+  /** Generation path: "shared_city_district" | "personalized_custom" | "personalized_place". */
+  draft_type: string | null;
+  created_at: string | null;
+  sent_at: string | null;
+  send_error: string | null;
+  /** LLM token usage from edition curation; null for feed-story-only renders. */
+  llm_usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
+}
+
+export function listNewsletterPending(
+  token: string,
+  options?: { unsent_only?: boolean; sent_only?: boolean; limit?: number }
+): Promise<{ items: NewsletterPendingListItem[]; count: number }> {
+  const params = new URLSearchParams();
+  if (options?.unsent_only === false) params.append("unsent_only", "false");
+  if (options?.sent_only) params.append("sent_only", "true");
+  if (options?.limit != null) params.append("limit", String(options.limit));
+  const q = params.toString();
+  return request<{ items: NewsletterPendingListItem[]; count: number }>(
+    `/api/admin/newsletter-pending${q ? `?${q}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getNewsletterPendingDetail(
+  pendingId: number,
+  token: string
+): Promise<NewsletterPendingListItem & { body_html: string; unsubscribe_url: string | null }> {
+  return request(
+    `/api/admin/newsletter-pending/${pendingId}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function sendNewsletterPendingBatch(
+  ids: number[],
+  token: string
+): Promise<{
+  sent: number;
+  failed: number;
+  skipped: number;
+  details: Array<{ id: number; status: string; reason?: string }>;
+}> {
+  return request(`/api/admin/newsletter-pending/send`, "POST", { ids }, token);
+}
+
+export function deleteNewsletterPendingBatch(
+  ids: number[],
+  token: string
+): Promise<{ deleted: number }> {
+  return request(`/api/admin/newsletter-pending/delete`, "POST", { ids }, token);
+}
+
+/** One row from the newsletter_sends audit log (every email the system has dispatched). */
+export interface NewsletterSendItem {
+  id: number;
+  to_email: string;
+  subject: string | null;
+  source: string;
+  status: string;
+  city_id: number | null;
+  job_id: string | null;
+  session_id: string | null;
+  sent_at: string | null;
+  /** True when this send originated from the admin pending-review queue. */
+  via_queue: boolean;
+  /** ID of the matching newsletter_pending_sends row; use getNewsletterPendingDetail to fetch body. */
+  pending_send_id?: number | null;
+  /** LLM token usage pulled from the matching pending_send row, when available. */
+  llm_usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
+}
+
+export function listNewsletterSends(
+  token: string,
+  options?: { limit?: number; city_id?: number }
+): Promise<{ items: NewsletterSendItem[]; count: number }> {
+  const params = new URLSearchParams();
+  if (options?.limit != null) params.append("limit", String(options.limit));
+  if (options?.city_id != null) params.append("city_id", String(options.city_id));
+  const q = params.toString();
+  return request<{ items: NewsletterSendItem[]; count: number }>(
+    `/api/admin/newsletter-sends${q ? `?${q}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface NewsletterGenerationPreview {
+  /** Upper bound on LLM curation calls for the next weekly run. */
+  llm_edition_slots_planned: number;
+  /** Per-city breakdown: city_id, city_name, slots (1 city-wide + N district), districts list. */
+  llm_edition_slots_per_city: Array<{
+    city_id: number;
+    city_name: string;
+    slots: number;
+    districts: number[];
+  }>;
+  total_weekly_recipients: number;
+  /** Recipients who will receive the shared LLM edition (no LLM per recipient). */
+  standard_recipients: number;
+  /** Recipients on the personalized feed-story path (no LLM in the weekly job). */
+  personalized_recipients: number;
+  /** Active weekly subscribers currently excluded because they have no saved places. */
+  weekly_subscribers_without_places: number;
+}
+
+export function getNewsletterGenerationPreview(
+  token: string
+): Promise<NewsletterGenerationPreview> {
+  return request<NewsletterGenerationPreview>(
+    "/api/admin/newsletter-generation-preview",
+    "GET",
+    undefined,
+    token
+  );
+}
+
+/** Stored shared (non-personalized) LLM newsletter editions — `newsletter_editions` table. */
+export interface NewsletterEditionAdminItem {
+  id: number;
+  city_id: number;
+  district: number;
+  edition_date: string | null;
+  city_slug: string | null;
+  city_name: string | null;
+  summary_headline: string | null;
+  created_at: string | null;
+}
+
+export function listNewsletterEditionsAdmin(
+  token: string,
+  options?: { limit?: number }
+): Promise<{ items: NewsletterEditionAdminItem[]; count: number }> {
+  const params = new URLSearchParams();
+  if (options?.limit != null) params.set("limit", String(options.limit));
+  const q = params.toString();
+  return request<{ items: NewsletterEditionAdminItem[]; count: number }>(
+    `/api/admin/newsletter-editions${q ? `?${q}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+/** Manual run of a system schedule (e.g. weekly_newsletter). */
+export function runScheduleJob(
+  token: string,
+  payload: {
+    schedule_key: string;
+    max_concurrent_cities?: number;
+    per_city_concurrency?: number;
+    remove_all_inactive?: boolean;
+    /** When true with weekly_newsletter, queue drafts instead of sending. */
+    queue_newsletters?: boolean;
+  }
+): Promise<{ status: string; result: Record<string, unknown> }> {
+  return request("/api/jobs/schedules/run", "POST", payload, token);
+}
+
+export interface NewsletterPromptsResponse {
+  shared_newsletter_prompt: string;
+  personalized_newsletter_prompt: string;
+  shared_is_default: boolean;
+  personalized_is_default: boolean;
+  default_shared_prompt: string;
+  default_personalized_prompt: string;
+  custom_job_id: number | null;
+}
+
+export function getNewsletterPrompts(token: string): Promise<NewsletterPromptsResponse> {
+  return request<NewsletterPromptsResponse>("/api/admin/newsletter-prompts", "GET", undefined, token);
+}
+
+export function updateNewsletterPrompts(
+  payload: { shared_newsletter_prompt?: string; personalized_newsletter_prompt?: string },
+  token: string
+): Promise<{ status: string; custom_job_id: number | null }> {
+  return request("/api/admin/newsletter-prompts", "PUT", payload, token);
+}
+
+/**
+ * Admin: Run the standard weekly generation pipeline for one user and queue
+ * the result in newsletter_pending_sends (no immediate send).
+ */
+export function adminGenerateNewsletterForUser(
+  userId: number,
+  token: string,
+  options?: { model_key?: string }
+): Promise<{
+  status: string;
+  user_id: number;
+  pending_id: number | null;
+  subject: string | null;
+  draft_type: string | null;
+  session_id: string | null;
+}> {
+  return request(
+    `/api/admin/users/${userId}/generate-newsletter`,
+    "POST",
+    options?.model_key ? { model_key: options.model_key } : {},
+    token
+  );
+}
+
+/** Per-user unsent pending newsletter drafts. */
+export function getUserNewsletterPending(
+  userId: number,
+  token: string,
+  options?: { unsent_only?: boolean; limit?: number }
+): Promise<{ user_id: number; email: string | null; items: NewsletterPendingListItem[]; count: number }> {
+  const params = new URLSearchParams();
+  if (options?.unsent_only === false) params.append("unsent_only", "false");
+  if (options?.limit != null) params.append("limit", String(options.limit));
+  const q = params.toString();
+  return request(
+    `/api/admin/users/${userId}/newsletter-pending${q ? `?${q}` : ""}`,
+    "GET",
+    undefined,
     token
   );
 }
@@ -5103,6 +5421,11 @@ export interface MetricOrderingItem {
 export interface MetricOrderingResponse {
   city_id: number;
   orderings: MetricOrderingItem[];
+  /**
+   * From GET /api/admin/me/metric-ordering/{cityId} only: true if the user saved their own
+   * metric subset/order; false if these rows are the city default (show all dashboard metrics).
+   */
+  is_personal_order?: boolean;
 }
 
 export interface SaveMetricOrderingRequest {

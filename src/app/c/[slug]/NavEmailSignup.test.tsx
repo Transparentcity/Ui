@@ -181,7 +181,7 @@ describe("NavEmailSignup", () => {
             screen_hint: "login",
             prompt: "login",
           }),
-          appState: { returnTo: "/dashboard" },
+          appState: { returnTo: "/home" },
         })
       );
     });

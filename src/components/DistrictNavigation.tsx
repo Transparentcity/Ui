@@ -11,7 +11,7 @@ import { createPortal } from "react-dom";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import type { CityLeader, CityShapefile } from "@/lib/apiClient";
-import { createPlace } from "@/lib/apiClient";
+import { createPlace, type UserPlace } from "@/lib/apiClient";
 import {
   isLikelyZipcode,
   isLikelyAddress,
@@ -23,6 +23,15 @@ import {
 import LocationMapSave from "@/components/LocationMapSave";
 import { DEFAULT_PLACE_RADIUS_M } from "@/lib/mapUtils";
 import "./DistrictNavigation.css";
+
+function normalizeDistrictValue(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  const parsed = parseInt(String(value), 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
 
 function isLikelyDistrictNumber(q: string): boolean {
   const s = q.trim();
@@ -58,7 +67,7 @@ interface DistrictNavigationProps {
   /** Called when user selects a place (clears district). Call onDistrictSelect(null) when selecting a place. */
   onPlaceSelect?: (placeId: number | null) => void;
   /** Called after user saves a new place from this dialog; parent should refetch user places. */
-  onPlaceSaved?: (place: { id: number }) => void;
+  onPlaceSaved?: (place: UserPlace) => void;
   /** When this value changes and is > 0, open the modal (e.g. from Search Cities "Find your district"). */
   openTrigger?: number;
   /** When the batch place-refresh job last ran (ISO string); shown next to place name. */
@@ -185,7 +194,11 @@ export default function DistrictNavigation({
   openTrigger,
   placeRefreshLastRunAt,
 }: DistrictNavigationProps) {
-  const district = selectedDistrict ?? 0;
+  const normalizedSelectedDistrict = useMemo(() => {
+    const normalized = normalizeDistrictValue(selectedDistrict);
+    return normalized ?? 0;
+  }, [selectedDistrict]);
+  const district = normalizedSelectedDistrict;
   const isPlaceScope = selectedPlaceId != null && selectedPlaceId > 0;
   const selectedPlace = userPlaces.find((p) => p.id === selectedPlaceId);
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
@@ -216,43 +229,46 @@ export default function DistrictNavigation({
 
   // Get current district representative (or mayor for district 0)
   const currentRepresentative = useMemo(() => {
-    // Default to district 0 (citywide/mayor) if null
-    const district = selectedDistrict === null ? 0 : selectedDistrict;
-    
     // For district 0, look for mayor (district 0 or title contains "mayor")
     if (district === 0) {
       return leaders.find((leader) => 
-        (leader.district === 0 || leader.district === null) &&
+        ((normalizeDistrictValue(leader.district) ?? 0) === 0) &&
         (leader.title?.toLowerCase().includes("mayor") || 
          leader.name?.toLowerCase().includes("mayor"))
-      ) || leaders.find((leader) => leader.district === 0 || leader.district === null) || null;
+      ) || leaders.find((leader) => (normalizeDistrictValue(leader.district) ?? 0) === 0) || null;
     }
     
-    return leaders.find((leader) => leader.district === district) || null;
-  }, [selectedDistrict, leaders]);
+    return leaders.find((leader) => normalizeDistrictValue(leader.district) === district) || null;
+  }, [district, leaders]);
   
   // Check if current selection is district 0 (mayor/citywide)
   const isMayor = useMemo(() => {
-    const district = selectedDistrict === null ? 0 : selectedDistrict;
     return district === 0;
-  }, [selectedDistrict]);
+  }, [district]);
 
   // Get all districts with representatives for search (including mayor for district 0)
   const districtOptions = useMemo(() => {
     // Find the mayor (district 0) from leaders
     const mayor = leaders.find((leader) => 
-      (leader.district === 0 || leader.district === null) &&
+      ((normalizeDistrictValue(leader.district) ?? 0) === 0) &&
       (leader.title?.toLowerCase().includes("mayor") || 
        leader.name?.toLowerCase().includes("mayor"))
-    ) || leaders.find((leader) => leader.district === 0 || leader.district === null) || null;
+    ) || leaders.find((leader) => (normalizeDistrictValue(leader.district) ?? 0) === 0) || null;
     
     // Build options from all leaders (excluding district 0, we'll add it separately)
     const otherOptions = leaders
-      .filter((leader) => leader.district !== null && leader.district !== undefined && leader.district !== 0)
       .map((leader) => ({
-        district: leader.district!,
-        name: leader.name,
         leader,
+        district: normalizeDistrictValue(leader.district),
+      }))
+      .filter(
+        (item): item is { leader: CityLeader; district: number } =>
+          item.district !== null && item.district !== 0,
+      )
+      .map((leader) => ({
+        district: leader.district,
+        name: leader.leader.name,
+        leader: leader.leader,
         isMayor: false,
       }))
       .sort((a, b) => a.district - b.district);
@@ -472,8 +488,13 @@ export default function DistrictNavigation({
     setError("Location found but not within any known district");
   };
 
-  const handleDistrictSelect = (district: number) => {
-    onDistrictSelect(district);
+  const handleDistrictSelect = (district: number | string) => {
+    const normalizedDistrict = normalizeDistrictValue(district);
+    if (normalizedDistrict === null) {
+      setError("Invalid district selection");
+      return;
+    }
+    onDistrictSelect(normalizedDistrict);
     onPlaceSelect?.(null);
     closeModal();
   };
@@ -681,8 +702,8 @@ export default function DistrictNavigation({
     ? currentRepresentative.name
     : isMayor
     ? "Mayor"
-    : selectedDistrict !== null
-    ? `District ${selectedDistrict}`
+    : district > 0
+    ? `District ${district}`
     : "Mayor";
   const labelText = isPlaceScope ? "My block:" : isMayor ? "Mayor:" : "District Representative:";
 
@@ -929,8 +950,8 @@ export default function DistrictNavigation({
                       All Districts:
                     </div>
                     {districtOptions.map((option) => {
-                      const isSelected = !isPlaceScope && (selectedDistrict === option.district ||
-                        (selectedDistrict === null && option.district === 0));
+                      const isSelected =
+                        !isPlaceScope && normalizedSelectedDistrict === option.district;
                       return (
                         <button
                           key={option.district}

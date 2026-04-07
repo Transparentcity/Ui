@@ -30,32 +30,36 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   try {
     const { story } = await getPublicFeedStoryByHash(hash);
     const cityName = story.city_name ?? slug;
-    const headline = improveGenericHeadline(story.headline, {
+    const headline = improveGenericHeadline(story.headline ?? "", {
       summary: story.summary,
       description: story.description,
       cityName: story.city_name,
     });
+    const lede = (story.description ?? story.summary ?? "").trim();
+    const descSnippet = lede.length > 0 ? lede.slice(0, 160) : headline.slice(0, 160);
     const canonical = `/c/${slug}/stories/${hash}`;
     return {
-      title: headline,
-      description: story.description.slice(0, 160),
+      title: headline || "Story",
+      description: descSnippet,
       alternates: { canonical },
       openGraph: {
-        title: headline,
-        description: story.description.slice(0, 160),
+        title: headline || "Story",
+        description: descSnippet,
         url: canonical,
         type: "article",
         ...(story.image_url ? { images: [{ url: story.image_url }] } : {}),
       },
       twitter: {
         card: story.image_url ? "summary_large_image" : "summary",
-        title: headline,
-        description: story.description.slice(0, 160),
+        title: headline || "Story",
+        description: descSnippet,
         ...(story.image_url ? { images: [story.image_url] } : {}),
       },
       other: {
         "article:section": cityName,
-        "article:published_time": story.published_at ?? story.story_date,
+        ...(story.published_at || story.story_date
+          ? { "article:published_time": story.published_at ?? story.story_date }
+          : {}),
       },
     };
   } catch {
@@ -77,7 +81,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
   if (!story) notFound();
 
   // Fix generic placeholder headlines ("The Fact", etc.)
-  const headline = improveGenericHeadline(story.headline, {
+  const headline = improveGenericHeadline(story.headline ?? "", {
     summary: story.summary,
     description: story.description,
     cityName: story.city_name,
@@ -186,7 +190,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
                 : "var(--brand-primary, #ad35fa)",
             }}
           >
-            {story.story_type.replace(/_/g, " ")}
+            {(story.story_type ?? "story").replace(/_/g, " ")}
           </span>
         </div>
 
@@ -199,7 +203,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
             marginBottom: 16,
           }}
         >
-          {headline}
+          {headline.trim() || "Story"}
         </h1>
 
         {/* Meta */}
@@ -232,16 +236,18 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         )}
 
         {/* Short description / lede */}
-        <p
-          style={{
-            fontSize: "1.125rem",
-            lineHeight: 1.7,
-            marginBottom: 32,
-            fontWeight: 500,
-          }}
-        >
-          {story.description}
-        </p>
+        {(story.description ?? "").trim().length > 0 && (
+          <p
+            style={{
+              fontSize: "1.125rem",
+              lineHeight: 1.7,
+              marginBottom: 32,
+              fontWeight: 500,
+            }}
+          >
+            {story.description}
+          </p>
+        )}
 
         {/* Long-form article body — shortcodes like [chart:N], [anomaly:N], [map:HASH] become iframes */}
         {story.article_html ? (
@@ -321,7 +327,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
 
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <ShareButton
-            title={headline}
+            title={headline.trim() || "Story"}
             url={`/c/${slug}/stories/${hash}`}
           />
         </div>

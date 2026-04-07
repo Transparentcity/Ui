@@ -65,7 +65,7 @@ export default function NavEmailSignup({ citySlug, cityName }: Props) {
           prompt: "login",
           ...(email && email.includes("@") ? { login_hint: email } : {}),
         },
-        appState: { returnTo: "/dashboard" },
+        appState: { returnTo: "/home" },
       });
     } catch (err) {
       console.error("[NavEmailSignup] Auth0 login redirect failed:", err);
@@ -75,7 +75,7 @@ export default function NavEmailSignup({ citySlug, cityName }: Props) {
 
   if (isAuthenticated) {
     return (
-      <button className="btn btn-primary nav-signup" onClick={() => router.push("/dashboard")} disabled={isLoading}>
+      <button className="btn btn-primary nav-signup" onClick={() => router.push("/home")} disabled={isLoading}>
         Dashboard
       </button>
     );

@@ -66,7 +66,7 @@ describe("CitySignupButton", () => {
           authorizationParams: expect.objectContaining({
             screen_hint: "signup",
           }),
-          appState: { returnTo: "/dashboard?signup=resident" },
+          appState: { returnTo: "/home?signup=resident" },
         })
       );
     });
@@ -82,7 +82,7 @@ describe("CitySignupButton", () => {
           authorizationParams: expect.objectContaining({
             screen_hint: "signup",
           }),
-          appState: { returnTo: "/dashboard?signup=public-servant" },
+          appState: { returnTo: "/home?signup=public-servant" },
         })
       );
     });
@@ -147,7 +147,7 @@ describe("CitySignupButton", () => {
             screen_hint: "login",
             prompt: "login",
           }),
-          appState: { returnTo: "/dashboard" },
+          appState: { returnTo: "/home" },
         })
       );
     });

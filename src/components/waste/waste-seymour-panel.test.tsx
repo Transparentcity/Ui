@@ -127,7 +127,7 @@ describe("WasteSeymourPanel", () => {
     })
 
     fireEvent.click(screen.getByText("Open full Seymour chat"))
-    expect(mockPush).toHaveBeenCalledWith(expect.stringContaining("/dashboard?prefill="))
+    expect(mockPush).toHaveBeenCalledWith(expect.stringContaining("/home?prefill="))
   })
 
   // ── Run analysis button ────────────────────────────────────────────────────

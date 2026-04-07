@@ -7,8 +7,14 @@
  * Development: http://localhost:8001 (or from env var)
  */
 export function getApiBaseUrl(): string {
-  // Browser: always use same-origin proxy (Next.js rewrites handle /api/*)
+  // Browser: prefer an explicit API origin when set so requests include Authorization
+  // on a direct cross-origin call (CORS is allowed for localhost in the platform).
+  // Otherwise use same-origin /api/* (Next.js rewrites proxy to the backend).
   if (typeof window !== "undefined") {
+    const fromEnv = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
+    if (fromEnv) {
+      return fromEnv;
+    }
     return "";
   }
 

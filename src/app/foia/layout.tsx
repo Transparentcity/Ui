@@ -9,7 +9,7 @@ export const metadata = {
 
 export default function FoiaLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AdminGuard fallbackUrl="/dashboard">
+    <AdminGuard fallbackUrl="/home">
       <div className="flex h-screen overflow-hidden bg-background">
         <FoiaSidebar />
         <main className="flex-1 overflow-y-auto">

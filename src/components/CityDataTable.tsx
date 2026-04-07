@@ -22,6 +22,7 @@ import {
   getCityStats,
   refreshAllAcs,
 } from "@/lib/apiClient";
+import { portalPlatformLabel } from "@/lib/portalPlatformLabel";
 import { emitSavedCitiesChanged } from "@/lib/uiEvents";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import Loader from "./Loader";
@@ -137,7 +138,7 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
         onViewJob(jobId);
         return;
       }
-      const base = pathname || "/dashboard";
+      const base = pathname || "/home";
       const q = new URLSearchParams({ tab: "logs", job_id: jobId });
       router.push(`${base}?${q.toString()}`);
     },
@@ -362,6 +363,15 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
   const handleLoadMetadata = async () => {
     if (selectedCityIds.length === 0) return;
 
+    if (
+      !confirm(
+        `Re-load URLs, metadata, and search index for ${selectedCityIds.length} selected cities?\n\n` +
+          "This removes existing dataset rows and Qdrant vectors for those cities, then re-fetches and re-indexes."
+      )
+    ) {
+      return;
+    }
+
     try {
       setLoadingData(true);
       const token = await getAccessTokenSilently();
@@ -370,7 +380,7 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
           city_ids: selectedCityIds,
           fetch_urls: true,
           fetch_metadata: true,
-          refresh: false,
+          refresh: true,
         },
         token
       );
@@ -394,9 +404,10 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
       const result = await determinePortalTypes(selectedCityIds, token);
       notifyJobCreated(result.job_id);
       alert(
-        `Portal type determination started for ${selectedCityIds.length} cities!\n\n` +
-          `Job ID: ${result.job_id}\n\n` +
-          `You can monitor progress in the jobs badge at the top of the page.`
+        `Portal type job started for ${selectedCityIds.length} cities (job ${result.job_id}).\n\n` +
+          `Open the Jobs panel to watch progress. When it completes, Status will summarize how many ` +
+          `cities got a portal type; the Result section lists counts and any errors.\n\n` +
+          `This does not load or save catalog datasets—only platform detection.`
       );
       clearSelectedCities();
       setTimeout(() => loadCities(), 2000);
@@ -671,23 +682,6 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
     return stateMap[state] || state;
   };
 
-  const getPlatformType = (city: CityListItem) => {
-    if (city.portal_type) {
-      const p = city.portal_type;
-      if (p === "socrata") return "Socrata";
-      if (p === "arcgis") return "ArcGIS";
-      if (p === "ckan") return "CKAN";
-      if (p === "data.gov") return "Data.gov";
-      if (p === "dcat_ap") return "DCAT-AP";
-      return p.charAt(0).toUpperCase() + p.slice(1).replace(/_/g, " ");
-    }
-    const url = city.main_portal_url || "";
-    if (url.includes("socrata")) return "Socrata";
-    if (url.includes("arcgis")) return "ArcGIS";
-    if (url.includes("ckan")) return "CKAN";
-    return "Other";
-  };
-
   const getCityAvatar = (city: CityListItem) => {
     const emoji = city.emoji?.trim();
     if (emoji) return emoji;
@@ -753,10 +747,27 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
         <>
       {/* Action Buttons */}
       <div className={styles.card}>
-        <div className="city-actions-header" style={{ marginBottom: "16px" }}>
+        <div className="city-actions-header" style={{ marginBottom: "12px" }}>
           <h3 className="city-actions-title" style={{ margin: 0, fontSize: "18px", fontWeight: 600 }}>
             City Data Actions
           </h3>
+          <p
+            style={{
+              margin: "10px 0 0 0",
+              fontSize: "13px",
+              color: "var(--text-secondary, #6b7280)",
+              maxWidth: "52rem",
+              lineHeight: 1.5,
+            }}
+          >
+            <strong>Determine Portal Type</strong> runs a background job: optional portal discovery when
+            the URL is missing, then a catalog API probe to set{" "}
+            <code style={{ fontSize: "12px" }}>extra_metadata.portal_type</code>. The job stops after
+            detecting the platform; it does <strong>not</strong> merge catalog rows into the database—use{" "}
+            <strong>Load Metadata</strong> for that (full refresh: clears existing datasets and Qdrant for
+            selected cities, then re-fetches and re-indexes). <strong>Refresh all from ACS</strong> is{" "}
+            <em>not</em> a background job: it finishes in this page and shows counts below when done.
+          </p>
         </div>
         <div
           className="city-actions-buttons"
@@ -781,7 +792,7 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
           <button
             onClick={handleDeterminePortalTypes}
             disabled={selectedCityIds.length === 0 || determiningPortalTypes}
-            title="Detect and update platform type (Socrata, CKAN, ArcGIS, etc.) for selected cities"
+            title="Background job: optional portal discovery if URL missing, then API probe for platform type only (no catalog merge into DB)."
             style={{
               padding: "10px 20px",
               background: "#7c3aed",
@@ -912,9 +923,11 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
                 fontSize: "14px",
               }}
             >
-              {refreshAcsResult.refreshed_count} city(ies) refreshed, {refreshAcsResult.error_count} error(s).
+              <strong>ACS refresh finished</strong> (this request runs to completion here—not a background job).{" "}
+              {refreshAcsResult.refreshed_count} city population value(s) updated from Census ACS;{" "}
+              {refreshAcsResult.error_count} error(s).
               {refreshAcsResult.errors?.length
-                ? ` Errors: ${refreshAcsResult.errors.map((e) => `${e.city_name ?? e.city_id}: ${e.error}`).join("; ")}`
+                ? ` Details: ${refreshAcsResult.errors.map((e) => `${e.city_name ?? e.city_id}: ${e.error}`).join("; ")}`
                 : ""}
             </div>
           )}
@@ -1178,7 +1191,7 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
                     return (
                       <tr
                         key={city.city_id}
-                        
+                        className={city.is_launched ? styles.launchedRow : undefined}
                         style={{
                           borderBottom: "1px solid var(--border-primary)",
                         }}
@@ -1264,7 +1277,7 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
                             >
                               <button
                                 type="button"
-                                className="city-name"
+                                className={`city-name${city.is_launched ? ` ${styles.launchedCityName}` : ""}`}
                                 onClick={() => onOpenCity && onOpenCity(city.city_id)}
                                 style={{
                                   cursor: onOpenCity ? "pointer" : "default",
@@ -1273,11 +1286,17 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
                                   padding: 0,
                                   margin: 0,
                                   textAlign: "left",
-                                  color: "var(--text-primary)",
+                                  ...(city.is_launched
+                                    ? {}
+                                    : { color: "var(--text-primary)" }),
                                   fontSize: "13px",
                                   fontWeight: 600,
                                 }}
-                                title="Open city view"
+                                title={
+                                  city.is_launched
+                                    ? "Launched — open city view"
+                                    : "Open city view"
+                                }
                               >
                                 {city.city_name || "—"}
                               </button>
@@ -1387,7 +1406,7 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
                               fontSize: "11px",
                             }}
                           >
-                            {getPlatformType(city)}
+                            {portalPlatformLabel(city.portal_type, city.main_portal_url)}
                           </span>
                         </td>
                         <td className={styles.datasetsCol} style={{ padding: "12px" }}>

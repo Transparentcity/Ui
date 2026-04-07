@@ -22,7 +22,7 @@ export default function CustomizeMetricsTrigger({
 
   const handleSignUpToCustomize = () => {
     const returnTo =
-      typeof window !== "undefined" ? window.location.pathname : "/dashboard";
+      typeof window !== "undefined" ? window.location.pathname : "/home";
     loginWithRedirect({
       authorizationParams: { screen_hint: "signup", prompt: "login" },
       appState: { returnTo },

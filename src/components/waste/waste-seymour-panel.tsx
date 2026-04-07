@@ -353,7 +353,7 @@ export function WasteSeymourPanel({
 
   const handleOpenFullChat = () => {
     const prompt = encodeURIComponent(promptDraft || (finding ? buildAnalysisPrompt(finding) : ""))
-    router.push(`/dashboard?prefill=${prompt}`)
+    router.push(`/home?prefill=${prompt}`)
   }
 
   const handleResizeStart = (event: React.PointerEvent<HTMLDivElement>) => {

@@ -38,7 +38,7 @@ export function CRMSidebar() {
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 min-h-16">
         <Link
-          href="/dashboard"
+          href="/home"
           className="flex items-center gap-2.5 text-inherit no-underline flex-1"
         >
           {/* Logo */}
@@ -67,7 +67,7 @@ export function CRMSidebar() {
           CRM Dashboard
         </span>
         <Link
-          href="/dashboard"
+          href="/home"
           className="flex items-center gap-1 text-xs text-gray-400 no-underline hover:text-purple-600 transition-colors"
         >
           <ArrowLeft className="w-3 h-3" />

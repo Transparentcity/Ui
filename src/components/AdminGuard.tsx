@@ -20,11 +20,11 @@ const CRM_DEV_MODE = process.env.NEXT_PUBLIC_CRM_DEV_MODE === 'true';
 
 /**
  * Protects CRM routes by checking if the user is an admin.
- * Redirects non-admins to the fallback URL (default: /dashboard).
+ * Redirects non-admins to the fallback URL (default: /home).
  * 
  * In development mode (NEXT_PUBLIC_CRM_DEV_MODE=true), auth is bypassed.
  */
-export function AdminGuard({ children, fallbackUrl = "/dashboard" }: AdminGuardProps) {
+export function AdminGuard({ children, fallbackUrl = "/home" }: AdminGuardProps) {
   const { isAuthenticated, isLoading: authLoading, getAccessTokenSilently, loginWithRedirect } = useAuth0();
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(CRM_DEV_MODE ? true : null);
