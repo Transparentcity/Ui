@@ -231,7 +231,7 @@ describe("NavEmailSignup (authenticated)", () => {
     vi.clearAllMocks();
   });
 
-  it("shows Dashboard button when authenticated", () => {
+  it("shows home link when authenticated", () => {
     vi.doMock("@auth0/auth0-react", () => ({
       useAuth0: () => ({
         isAuthenticated: true,

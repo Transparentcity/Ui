@@ -1,14 +1,18 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
-import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { trackSignupStart, trackSignupClick, trackLogin } from "@/lib/analytics";
 import { useSignupEmail } from "./SignupEmailContext";
 
-export default function CitySignupButton() {
+type Props = {
+  citySlug?: string;
+  cityName?: string;
+};
+
+export default function CitySignupButton({ citySlug, cityName }: Props = {}) {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
-  const router = useRouter();
   const [signupMenuOpen, setSignupMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { email: prefillEmail } = useSignupEmail();
@@ -60,14 +64,11 @@ export default function CitySignupButton() {
   };
 
   if (isAuthenticated) {
+    const href = citySlug ? `/c/${citySlug}` : "/";
     return (
-      <button
-        className="btn btn-primary nav-signup"
-        onClick={() => router.push("/home")}
-        disabled={isLoading}
-      >
-        Dashboard
-      </button>
+      <Link href={href} className="nav-home-link">
+        &larr; {cityName || "Home"}
+      </Link>
     );
   }
 

@@ -158,7 +158,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
     // noop
   }
 
-  const cityDisplayName = city?.display ?? slug;
+  const cityDisplayName = city?.display ?? slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
   // Fetch mayor-level dashboard data, district list, and recent maps for CityDashboardSection
   let cityDetail: Awaited<ReturnType<typeof getPublicCityDetail>> | null = null;
   let comparisonsMap: Awaited<
@@ -230,7 +230,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       />
       <CityViewTracker citySlug={slug} cityId={city?.id} />
       <PublicNavBar>
-        <NavEmailSignup citySlug={slug} cityName={city?.name} />
+        <NavEmailSignup citySlug={slug} cityName={city?.name} isHome />
       </PublicNavBar>
 
       {/* Section 1: City Hero */}

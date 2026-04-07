@@ -212,6 +212,20 @@
   flex-shrink: 0;
 }
 
+.nav-home-link {
+  margin-left: 24px;
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.nav-home-link:hover {
+  color: var(--text-primary);
+}
+
 .mobile-menu-toggle {
   display: none;
   flex-direction: column;
