@@ -62,7 +62,7 @@ export default function DistrictPageContent({
   return (
     <SignupEmailProvider>
       <PublicNavBar>
-        <CitySignupButton />
+        <CitySignupButton citySlug={slug} cityName={city.shortDisplay} />
       </PublicNavBar>
 
       {/* ── ACCOUNTABILITY HEADER ─────────────────────────────────────────── */}

@@ -2,17 +2,18 @@
 
 import { useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useSignupEmail } from "./SignupEmailContext";
 
 type Props = {
   citySlug: string;
   cityName?: string;
+  /** When true, hides the authenticated home link (used on the feed page itself). */
+  isHome?: boolean;
 };
 
-export default function NavEmailSignup({ citySlug, cityName }: Props) {
+export default function NavEmailSignup({ citySlug, cityName, isHome }: Props) {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
-  const router = useRouter();
   const { setEmail: setSharedEmail } = useSignupEmail();
   const [email, setEmail] = useState("");
   const [focused, setFocused] = useState(false);
@@ -74,10 +75,11 @@ export default function NavEmailSignup({ citySlug, cityName }: Props) {
   };
 
   if (isAuthenticated) {
+    if (isHome) return null;
     return (
-      <button className="btn btn-primary nav-signup" onClick={() => router.push("/home")} disabled={isLoading}>
-        Dashboard
-      </button>
+      <Link href={`/c/${citySlug}`} className="nav-home-link">
+        &larr; {cityName || "Home"}
+      </Link>
     );
   }
 

@@ -10,7 +10,7 @@
   max-width: 720px;
   min-width: 0;
   margin: 0 auto;
-  padding: 16px 20px;
+  padding: 12px 20px;
   color: var(--text-primary);
   box-sizing: border-box;
   overflow-x: hidden;
@@ -20,8 +20,16 @@
 .feedHeader {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
+}
+
+.feedHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .feedTitle {
@@ -46,7 +54,6 @@
   border-radius: 8px;
   background: var(--bg-secondary);
   padding: 3px;
-  margin-bottom: 12px;
   gap: 2px;
 }
 
@@ -202,7 +209,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   flex-wrap: wrap;
 }
 
@@ -295,6 +302,16 @@
   color: #fff;
 }
 
+.moreChip {
+  border-style: dashed;
+  color: var(--text-tertiary, #999);
+  font-size: 11px;
+}
+.moreChip:hover {
+  color: var(--text-primary);
+  border-color: var(--border-secondary);
+}
+
 /* ── City chip row ─────────────────────────────────────────────────────────── */
 
 .cityChipRow {
@@ -304,7 +321,7 @@
   scrollbar-width: none;          /* Firefox */
   -ms-overflow-style: none;       /* IE/Edge */
   padding: 2px 0;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   flex-shrink: 0;
 }
 .cityChipRow::-webkit-scrollbar { display: none; }
@@ -344,6 +361,17 @@
   background: var(--brand-primary-dark, #9125d6);
   border-color: var(--brand-primary-dark, #9125d6);
   color: #fff;
+}
+
+.cityChipExplore {
+  border-style: dashed;
+  color: var(--brand-primary, #ad35fa);
+  text-decoration: none;
+}
+.cityChipExplore:hover {
+  background: var(--brand-primary-light, rgba(173, 53, 250, 0.08));
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary, #ad35fa);
 }
 
 /* ── Filter chip caret (for collapsible district button) ───────────────────── */
@@ -1445,11 +1473,11 @@
 
 @media (max-width: 767px) {
   .feedContainer {
-    padding: 12px 8px 12px;
+    padding: 10px 8px 12px;
   }
 
   .feedHeader {
-    margin-bottom: 10px;
+    margin-bottom: 6px;
   }
 
   .feedTitle { font-size: 20px; }
@@ -1461,13 +1489,13 @@
   }
 
   .cityChip {
-    padding: 4px 10px;
+    padding: 6px 12px;
     font-size: 12px;
   }
 
   .secondaryFilterRow {
     gap: 4px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
 
   .filterChipScroll {
@@ -1476,7 +1504,7 @@
   }
 
   .filterChip {
-    padding: 4px 10px;
+    padding: 6px 12px;
     font-size: 11px;
   }
 
@@ -1494,6 +1522,11 @@
     -webkit-overflow-scrolling: touch;
   }
 
+  .feedOrderBtn {
+    padding: 5px 12px;
+    font-size: 12px;
+  }
+
   .chip {
     padding: 5px 10px;
     font-size: 12px;
@@ -1506,6 +1539,23 @@
   .vizAreaPhoto {
     margin-left: -14px;
     margin-right: -14px;
+  }
+}
+
+@media (max-width: 400px) {
+  .feedHeader {
+    flex-wrap: wrap;
+  }
+
+  .feedTitle {
+    flex: 1 1 100%;
+    font-size: 18px;
+    margin-bottom: 2px;
+  }
+
+  .feedHeaderRight {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 

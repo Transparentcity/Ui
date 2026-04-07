@@ -45,7 +45,7 @@ export default function MetricNotFound() {
             <Link href="/" className="metric-detail-nav-link">
               Home
             </Link>
-            <CitySignupButton />
+            <CitySignupButton citySlug={citySlug ?? undefined} cityName={cityName} />
           </div>
         </div>
       </nav>

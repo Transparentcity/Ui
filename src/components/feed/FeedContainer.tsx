@@ -147,6 +147,7 @@ export default function FeedContainer({
   }, [homeCityId, cityId]);
 
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showMoreTopics, setShowMoreTopics] = useState(false);
   const [feedDetailStoryId, setFeedDetailStoryId] = useState<number | null>(null);
   const hasAddress = userPlaces.length > 0;
 
@@ -630,14 +631,25 @@ export default function FeedContainer({
     onlyMySavedPlacesFeed;
 
   // ── Dynamic header ──
-  const selectedCityName = useMemo(() => {
-    if (selectedCityIds.size !== 1) return null;
-    const cid = [...selectedCityIds][0];
-    const city = uniqueCities.find((c) => c.city_id === cid);
-    return city?.city_name ?? null;
-  }, [selectedCityIds, uniqueCities]);
-
-  const feedTitle = selectedCityName ?? "Your Cities";
+  const feedTitle = useMemo(() => {
+    if (selectedCityIds.size === 0) return "Your Cities";
+    // Build list with home city first, then alphabetical
+    const selected = [...selectedCityIds]
+      .map((id) => uniqueCities.find((c) => c.city_id === id))
+      .filter(Boolean) as typeof uniqueCities;
+    // Sort: home city (from prop) first, then alphabetical
+    selected.sort((a, b) => {
+      if (cityId != null) {
+        if (a.city_id === cityId) return -1;
+        if (b.city_id === cityId) return 1;
+      }
+      return a.city_name.localeCompare(b.city_name);
+    });
+    if (selected.length === 0) return "Your Cities";
+    if (selected.length === 1) return selected[0].city_name;
+    if (selected.length === 2) return `${selected[0].city_name}, ${selected[1].city_name}`;
+    return `${selected[0].city_name}, ${selected[1].city_name} + ${selected.length - 2} More`;
+  }, [selectedCityIds, uniqueCities, cityId]);
 
   return (
     <div
@@ -649,49 +661,49 @@ export default function FeedContainer({
     >
       <div className={`${styles.feedHeader} dashboard-page-header`}>
         <h1 className={styles.feedTitle}>{feedTitle}</h1>
-        <button
-          type="button"
-          className={styles.refreshBtn}
-          onClick={() => runExplicitFeedRefetch()}
-          aria-label="Refresh feed"
-          aria-busy={headerRefreshSpinning}
-          title="Refresh feed"
-        >
-          {headerRefreshSpinning ? (
-            <BrandedLoader
-              size="sm"
-              color="brand"
-              ariaHidden
-              className={styles.refreshBtnIconWrap}
-            />
-          ) : (
-            <span className={styles.refreshBtnIconWrap}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="23 4 23 10 17 10"></polyline>
-                <polyline points="1 20 1 14 7 14"></polyline>
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-              </svg>
-            </span>
-          )}
-        </button>
-      </div>
-
-      {/* For You / Latest toggle */}
-      <div className={styles.feedOrderToggle}>
-        <button
-          type="button"
-          className={`${styles.feedOrderBtn} ${feedOrder === "for_you" ? styles.feedOrderBtnActive : ""}`}
-          onClick={() => setFeedOrder("for_you")}
-        >
-          For You
-        </button>
-        <button
-          type="button"
-          className={`${styles.feedOrderBtn} ${feedOrder === "published_at" ? styles.feedOrderBtnActive : ""}`}
-          onClick={() => setFeedOrder("published_at")}
-        >
-          Latest
-        </button>
+        <div className={styles.feedHeaderRight}>
+          <div className={styles.feedOrderToggle}>
+            <button
+              type="button"
+              className={`${styles.feedOrderBtn} ${feedOrder === "for_you" ? styles.feedOrderBtnActive : ""}`}
+              onClick={() => setFeedOrder("for_you")}
+            >
+              For You
+            </button>
+            <button
+              type="button"
+              className={`${styles.feedOrderBtn} ${feedOrder === "published_at" ? styles.feedOrderBtnActive : ""}`}
+              onClick={() => setFeedOrder("published_at")}
+            >
+              Latest
+            </button>
+          </div>
+          <button
+            type="button"
+            className={styles.refreshBtn}
+            onClick={() => runExplicitFeedRefetch()}
+            aria-label="Refresh feed"
+            aria-busy={headerRefreshSpinning}
+            title="Refresh feed"
+          >
+            {headerRefreshSpinning ? (
+              <BrandedLoader
+                size="sm"
+                color="brand"
+                ariaHidden
+                className={styles.refreshBtnIconWrap}
+              />
+            ) : (
+              <span className={styles.refreshBtnIconWrap}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <polyline points="1 20 1 14 7 14"></polyline>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* City chips row */}
@@ -715,6 +727,11 @@ export default function FeedContainer({
             {c.city_emoji} {c.city_name}
           </button>
         ))}
+        {uniqueCities.length <= 1 && (
+          <a href="/settings/feed" className={`${styles.cityChip} ${styles.cityChipExplore}`}>
+            + Explore cities
+          </a>
+        )}
       </div>
 
       {/* Topic filter chips */}
@@ -770,15 +787,56 @@ export default function FeedContainer({
             </button>
           )}
 
-          {/* Topic chips */}
+          {/* Topic chips — primary (always visible) */}
           {[
             { value: "", label: "All topics" },
             { value: "safety", label: "Safety" },
-            { value: "justice", label: "Justice" },
             { value: "business", label: "Business" },
             { value: "spending", label: "Spending" },
             { value: "alert", label: "Alerts" },
             { value: "trend", label: "Trends" },
+          ].map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              className={`${styles.filterChip} ${(selectedTopic ?? "") === t.value ? styles.filterChipActive : ""}`}
+              onClick={() => setSelectedTopic(t.value || null)}
+            >
+              {t.label}
+            </button>
+          ))}
+          {/* Show active secondary topic inline if selected but overflow is collapsed */}
+          {!showMoreTopics && selectedTopic && [
+            { value: "justice", label: "Justice" },
+            { value: "context", label: "Context" },
+            { value: "off_the_charts", label: "Off the Charts" },
+            { value: "comparison", label: "Your District" },
+            { value: "milestone", label: "Milestones" },
+            { value: "311_images", label: "311 Photos" },
+          ].some((t) => t.value === selectedTopic) && (
+            <button
+              key={selectedTopic}
+              type="button"
+              className={`${styles.filterChip} ${styles.filterChipActive}`}
+              onClick={() => setSelectedTopic(null)}
+            >
+              {
+                { justice: "Justice", context: "Context", off_the_charts: "Off the Charts", comparison: "Your District", milestone: "Milestones", "311_images": "311 Photos" }[selectedTopic]
+              }
+            </button>
+          )}
+          {/* More toggle */}
+          <button
+            type="button"
+            className={`${styles.filterChip} ${styles.moreChip}`}
+            onClick={() => setShowMoreTopics((v) => !v)}
+            aria-expanded={showMoreTopics}
+          >
+            More {showMoreTopics ? "▲" : "▼"}
+          </button>
+          {/* Secondary topics (shown when More is expanded) */}
+          {showMoreTopics && [
+            { value: "justice", label: "Justice" },
             { value: "context", label: "Context" },
             { value: "off_the_charts", label: "Off the Charts" },
             { value: "comparison", label: "Your District" },
@@ -931,7 +989,7 @@ export default function FeedContainer({
                       };
                       parts.push(topicLabels[selectedTopic] ?? selectedTopic);
                     }
-                    if (selectedCityName) parts.push(selectedCityName);
+                    if (selectedCityIds.size > 0) parts.push(feedTitle);
                     if (selectedDistrict != null) {
                       parts.push(selectedDistrict === 0 ? "city-wide" : `${districtTerm} ${selectedDistrict}`);
                     }

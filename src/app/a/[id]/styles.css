@@ -439,6 +439,17 @@
   padding: 1rem;
 }
 
+.anomaly-page.embedded .error-container.embedded-error {
+  margin: 2rem auto;
+  background: transparent;
+  border: none;
+  font-size: 0.85rem;
+}
+
+.anomaly-page.embedded .error-container.embedded-error p {
+  color: var(--text-tertiary);
+}
+
 .anomaly-page.embedded .embedded-header {
   padding: 0.5rem 0.75rem;
   background: var(--bg-secondary);
