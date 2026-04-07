@@ -61,6 +61,23 @@ function extractRealMetrics(story: EnrichedFeedStory): Metric[] | null {
   });
 }
 
+const PERIOD_TYPE_LABELS: Record<string, string> = {
+  yoy: "Year-over-Year",
+  mom: "vs. Last Month",
+  wow: "vs. Last Week",
+  ytd: "Year-to-Date",
+  qtd: "Quarter-to-Date",
+  mtd: "Month-to-Date",
+};
+
+function resolvePeriodLabel(meta: Record<string, unknown>): string | null {
+  if (typeof meta.period_label === "string" && meta.period_label) return meta.period_label;
+  if (typeof meta.period_type === "string" && meta.period_type in PERIOD_TYPE_LABELS) {
+    return PERIOD_TYPE_LABELS[meta.period_type];
+  }
+  return null;
+}
+
 interface MultiMetricCardProps {
   story: EnrichedFeedStory;
   children: React.ReactNode;
@@ -76,6 +93,7 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
   const meta = story.metadata ?? {};
   const isComparison = meta.comparison_type === "district_vs_city";
   const displayHeadline = stripLeadingScope(story.headline ?? "");
+  const periodLabel = useMemo(() => resolvePeriodLabel(meta), [meta]);
 
   // Find the lead metric (largest absolute % change) for highlighting
   const leadIdx = useMemo(() => {
@@ -104,6 +122,7 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
           neighborhoodLabel={story.neighborhood_label}
         />
         <h2 className={styles.cardHeadline}>{displayHeadline}</h2>
+        {periodLabel && <div className={styles.metricPeriodLabel}>{periodLabel}</div>}
         <div className={styles.comparisonGrid}>
           <div className={styles.comparisonSide}>
             <div className={styles.comparisonSideLabel}>Your District</div>
@@ -142,6 +161,7 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
         neighborhoodLabel={story.neighborhood_label}
       />
       <h2 className={styles.cardHeadline}>{displayHeadline}</h2>
+      {periodLabel && <div className={styles.metricPeriodLabel}>{periodLabel}</div>}
 
       {!(realMetrics && realMetrics.length > 0) && story.cleaned_description ? (
         <p className={styles.cardDescription}>{story.cleaned_description}</p>

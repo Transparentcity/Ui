@@ -2,7 +2,8 @@
  * Tests for FeedCard component.
  *
  * Covers: rendering, share behavior, template selection,
- * off_the_charts styling, hide functionality, navigation.
+ * off_the_charts styling, hide functionality, navigation,
+ * multi-metric period context labels.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -214,5 +215,55 @@ describe("FeedCard", () => {
     const shareBtn = screen.getByLabelText("Share");
     fireEvent.click(shareBtn);
     expect(mockMutate).toHaveBeenCalledWith({ storyId: 42, action: "share" });
+  });
+
+  // ── Multi-metric period context ─────────────────────────────────────────
+
+  it("renders period_label on multi-metric card when provided", () => {
+    renderCard({
+      card_type: "multi_metric",
+      template: "multi_metric",
+      headline: "Crime Down + 2 More",
+      metadata: {
+        period_label: "Year-over-Year",
+        metrics: [
+          { name: "Crime", direction: "down", pct: 12 },
+          { name: "Violent Crime", direction: "down", pct: 8 },
+        ],
+      },
+    });
+    expect(screen.getByText("Year-over-Year")).toBeInTheDocument();
+  });
+
+  it("maps period_type to human-readable label on multi-metric card", () => {
+    renderCard({
+      card_type: "multi_metric",
+      template: "multi_metric",
+      headline: "Crime Down + 1 More",
+      metadata: {
+        period_type: "mom",
+        metrics: [
+          { name: "Crime", direction: "down", pct: 12 },
+          { name: "Violent Crime", direction: "down", pct: 8 },
+        ],
+      },
+    });
+    expect(screen.getByText("vs. Last Month")).toBeInTheDocument();
+  });
+
+  it("does not render period label when metadata lacks period info", () => {
+    renderCard({
+      card_type: "multi_metric",
+      template: "multi_metric",
+      headline: "Crime Down + 1 More",
+      metadata: {
+        metrics: [
+          { name: "Crime", direction: "down", pct: 12 },
+          { name: "Violent Crime", direction: "down", pct: 8 },
+        ],
+      },
+    });
+    expect(screen.queryByText("Year-over-Year")).not.toBeInTheDocument();
+    expect(screen.queryByText("vs. Last Month")).not.toBeInTheDocument();
   });
 });
