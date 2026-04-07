@@ -2,7 +2,13 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useFeedStories, useFeedPlaces, useTrackFeedEngagement, feedKeys } from "@/lib/hooks/useFeed";
+import {
+  useFeedStories,
+  useFeedPlaces,
+  useTrackFeedEngagement,
+  feedKeys,
+  type FeedStory,
+} from "@/lib/hooks/useFeed";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
   deleteFeedStory,
@@ -10,6 +16,8 @@ import {
 } from "@/lib/apiClient";
 import { enrichStories, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { fetchNarratives } from "@/lib/feed/fetchReportNarratives";
+import { getPublicCityDetail } from "@/lib/publicApiClient";
+import { MetricKeyProvider } from "./MetricKeyContext";
 import FeedCard from "./FeedCard";
 import FeedStoryModal from "./FeedStoryModal";
 import SkeletonCard from "./SkeletonCard";
@@ -37,6 +45,7 @@ interface FeedContainerProps {
   cityLeadCityIds?: number[];
   userPlaces?: UserPlace[];
   onPlaceSaved?: () => void;
+  homeCityId?: number | null;
 }
 
 export default function FeedContainer({
@@ -45,6 +54,7 @@ export default function FeedContainer({
   isAdmin = false,
   userPlaces = [],
   onPlaceSaved,
+  homeCityId,
 }: FeedContainerProps) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   const queryClient = useQueryClient();
@@ -89,7 +99,10 @@ export default function FeedContainer({
   const saved = useRef(loadSavedFilters());
 
   const [selectedCityIds, setSelectedCityIds] = useState<Set<number>>(() =>
-    saved.current?.cityIds ?? (cityId != null ? new Set([cityId]) : new Set()),
+    saved.current?.cityIds ??
+    (cityId != null ? new Set([cityId]) :
+     homeCityId != null ? new Set([homeCityId]) :
+     new Set()),
   );
   const [selectedDistrict, setSelectedDistrict] = useState<number | null>(
     saved.current?.district ?? district ?? null,
@@ -118,6 +131,21 @@ export default function FeedContainer({
   const [selectedPlaceId, setSelectedPlaceId] = useState<number | null>(
     saved.current?.placeId ?? null,
   );
+  // When homeCityId arrives asynchronously, default to it if no filters were
+  // previously saved and no explicit cityId prop was provided.
+  const appliedHomeCityRef = useRef(false);
+  useEffect(() => {
+    if (
+      homeCityId != null &&
+      !appliedHomeCityRef.current &&
+      saved.current == null &&
+      cityId == null
+    ) {
+      appliedHomeCityRef.current = true;
+      setSelectedCityIds((prev) => (prev.size === 0 ? new Set([homeCityId]) : prev));
+    }
+  }, [homeCityId, cityId]);
+
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [feedDetailStoryId, setFeedDetailStoryId] = useState<number | null>(null);
   const hasAddress = userPlaces.length > 0;
@@ -267,6 +295,37 @@ export default function FeedContainer({
     return () => { stale = true; };
   }, [stories]);
 
+  // ── Metric name → key lookup (for hotlinking metric names in cards) ──
+  const [metricLookupItems, setMetricLookupItems] = useState<Array<{ metric_name: string; metric_key: string }>>([]);
+  const fetchedCityIdsRef = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    const cityIds = new Set(stories.map((s) => s.city_id).filter(Boolean));
+    const toFetch: number[] = [];
+    for (const cid of cityIds) {
+      if (!fetchedCityIdsRef.current.has(cid)) toFetch.push(cid);
+    }
+    if (toFetch.length === 0) return;
+
+    let stale = false;
+    Promise.all(
+      toFetch.map((cid) =>
+        getPublicCityDetail(cid)
+          .then((d) => d.metrics ?? [])
+          .catch(() => [] as Array<{ metric_name: string; metric_key: string }>),
+      ),
+    ).then((results) => {
+      if (stale) return;
+      for (const cid of toFetch) fetchedCityIdsRef.current.add(cid);
+      const newItems = results.flat();
+      if (newItems.length > 0) {
+        setMetricLookupItems((prev) => [...prev, ...newItems]);
+      }
+    });
+
+    return () => { stale = true; };
+  }, [stories]);
+
   // Merge fetched narratives into enriched stories
   const enrichedWithNarratives = useMemo(() => {
     if (narratives.size === 0) return enriched;
@@ -335,6 +394,17 @@ export default function FeedContainer({
     }
   }, [getAccessTokenSilently, queryClient]);
 
+  /** Prime detail cache from list data so the modal renders immediately; detail hook refetches in background. */
+  const openFeedDetail = useCallback(
+    (s: EnrichedFeedStory) => {
+      queryClient.setQueryData(feedKeys.detail(s.id), {
+        story: s as FeedStory,
+      });
+      setFeedDetailStoryId(s.id);
+    },
+    [queryClient],
+  );
+
   const visibleStories = useMemo(() => {
     const filtered = enrichedWithNarratives.filter((s) => {
       // Filter out broken early prototype stories
@@ -360,14 +430,16 @@ export default function FeedContainer({
     const deduped: typeof filtered = [];
     const seenKeys = new Map<string, number>(); // normalized headline → index in deduped
 
-    for (const story of filtered) {
-      // Build a dedup key: strip emoji, punctuation, extra spaces, lowercase
-      const normKey = (story.headline ?? "")
+    const normalizeForDedup = (h: string) =>
+      (h ?? "")
         .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, "")
         .replace(/[^a-zA-Z0-9\s]/g, "")
         .replace(/\s+/g, " ")
         .trim()
         .toLowerCase();
+
+    for (const story of filtered) {
+      const normKey = normalizeForDedup(story.headline);
       const dedupKey = `${story.city_id}:${story.district ?? 0}:${normKey}`;
 
       if (seenKeys.has(dedupKey)) {
@@ -383,18 +455,61 @@ export default function FeedContainer({
       }
     }
 
+    // Second pass: fuzzy dedup for same-city stories about the same entity
+    // (e.g., same business opening reported in two districts within 24h).
+    const entityKeys = new Map<string, number>();
+    const toRemove = new Set<number>();
+
+    for (let i = 0; i < deduped.length; i++) {
+      const story = deduped[i];
+      const bizName = normalizeForDedup(
+        (story.metadata?.business_name as string) ?? "",
+      );
+      const entityRaw =
+        bizName ||
+        normalizeForDedup(story.headline).split(" ").slice(0, 4).join(" ");
+      if (!entityRaw || entityRaw.length < 5) continue;
+
+      const entityKey = `${story.city_id}:${story.card_type}:${entityRaw}`;
+
+      if (entityKeys.has(entityKey)) {
+        const existingIdx = entityKeys.get(entityKey)!;
+        const existing = deduped[existingIdx];
+        // Only dedup if published within 24 hours of each other
+        const timeDiff = Math.abs(
+          new Date(story.published_at ?? 0).getTime() -
+            new Date(existing.published_at ?? 0).getTime(),
+        );
+        if (timeDiff < 24 * 60 * 60 * 1000) {
+          if (story.id > existing.id) {
+            toRemove.add(existingIdx);
+            entityKeys.set(entityKey, i);
+          } else {
+            toRemove.add(i);
+          }
+        }
+      } else {
+        entityKeys.set(entityKey, i);
+      }
+    }
+
+    const finalDeduped =
+      toRemove.size > 0
+        ? deduped.filter((_, i) => !toRemove.has(i))
+        : deduped;
+
     // First-impression rule: ensure at least one visual card in the top 3
     // so new users see something engaging right away.
-    if (deduped.length > 3) {
-      const hasVisualInTop3 = deduped
+    if (finalDeduped.length > 3) {
+      const hasVisualInTop3 = finalDeduped
         .slice(0, 3)
         .some((s) => VISUAL_TEMPLATES.has(s.template));
       if (!hasVisualInTop3) {
-        const visualIdx = deduped.findIndex(
+        const visualIdx = finalDeduped.findIndex(
           (s, i) => i >= 3 && VISUAL_TEMPLATES.has(s.template),
         );
         if (visualIdx !== -1) {
-          const reordered = [...deduped];
+          const reordered = [...finalDeduped];
           const [visual] = reordered.splice(visualIdx, 1);
           reordered.splice(2, 0, visual); // insert at position 3 (index 2)
           return reordered;
@@ -402,7 +517,7 @@ export default function FeedContainer({
       }
     }
 
-    return deduped;
+    return finalDeduped;
   }, [
     enrichedWithNarratives,
     hiddenIds,
@@ -930,6 +1045,7 @@ export default function FeedContainer({
       )}
 
       {/* Stories */}
+      <MetricKeyProvider metrics={metricLookupItems}>
       {visibleStories.length > 0 && (
         <div className={styles.storiesList}>
           {visibleStories.map((story, storyIdx) => {
@@ -961,7 +1077,7 @@ export default function FeedContainer({
                 onHide={handleHide}
                 onDelete={isAdmin ? handleDelete : undefined}
                 compact={isCompact}
-                onOpenFeedDetail={(s) => setFeedDetailStoryId(s.id)}
+                onOpenFeedDetail={openFeedDetail}
               />
             );
           })}
@@ -1004,6 +1120,7 @@ export default function FeedContainer({
         }}
         onSelectRelatedStory={(id) => setFeedDetailStoryId(id)}
       />
+      </MetricKeyProvider>
     </div>
   );
 }
