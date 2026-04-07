@@ -1,14 +1,31 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type {
   CityFreshness,
   CityFreshnessMetricRow,
   CityScheduleHealth,
   CityScheduleRun,
+  CityScheduleStructureSummary,
 } from "@/lib/apiClient";
 import { batchExecuteMetrics, getCityScheduleHealth } from "@/lib/apiClient";
+import {
+  BadgeCheck,
+  Layers,
+  ListTree,
+  Map as MapIcon,
+  MapPinned,
+  UserRound,
+  Users,
+} from "lucide-react";
 import Loader from "./Loader";
 import styles from "./ScheduleHealthDashboard.module.css";
 
@@ -175,6 +192,154 @@ function fmtShortDateTime(iso: string | null): string {
   }
 }
 
+/** Day + month only for at-a-glance last-run in schedule columns */
+function fmtDayMonth(iso: string | null): string {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  } catch {
+    return "—";
+  }
+}
+
+type StructurePillStatus = "ok" | "warn" | "bad" | "neutral";
+
+function ratioPillStatus(total: number, ok: number): StructurePillStatus {
+  if (total <= 0) return "neutral";
+  if (ok >= total) return "ok";
+  if (ok > 0) return "warn";
+  return "bad";
+}
+
+function StructurePill({
+  status,
+  icon,
+  shortLabel,
+  title,
+}: {
+  status: StructurePillStatus;
+  icon: ReactNode;
+  shortLabel: string;
+  title: string;
+}) {
+  const stClass =
+    status === "ok"
+      ? styles.structurePillOk
+      : status === "warn"
+        ? styles.structurePillWarn
+        : status === "bad"
+          ? styles.structurePillBad
+          : styles.structurePillNeutral;
+  return (
+    <span className={`${styles.structurePill} ${stClass}`} title={title}>
+      <span className={styles.structurePillIcon} aria-hidden>
+        {icon}
+      </span>
+      <span className={styles.structurePillText}>{shortLabel}</span>
+    </span>
+  );
+}
+
+function CityStructureStrip({ structure }: { structure?: CityScheduleStructureSummary }) {
+  if (!structure) return null;
+  const c = structure.counts;
+  const mt = structure.metrics_total;
+  const md = structure.metrics_with_district_field;
+  const mw = structure.metrics_district_working;
+  const mm = structure.metrics_with_map_fields;
+
+  return (
+    <div className={styles.structureStrip} role="group" aria-label="City data structure">
+      <StructurePill
+        status={structure.elected_officials ? "ok" : "bad"}
+        icon={<Users size={11} strokeWidth={2.2} />}
+        shortLabel="Leaders"
+        title={
+          structure.elected_officials
+            ? `Elected officials: ${c.elected_officials} in city_leaders`
+            : "No rows in city_leaders"
+        }
+      />
+      <StructurePill
+        status={structure.geographic_structures ? "ok" : "bad"}
+        icon={<MapPinned size={11} strokeWidth={2.2} />}
+        shortLabel="Geo"
+        title={
+          structure.geographic_structures
+            ? `Geographic structures: ${c.geographic_structures}`
+            : "No city_geographic_structures"
+        }
+      />
+      <StructurePill
+        status={structure.shape_layers ? "ok" : "bad"}
+        icon={<Layers size={11} strokeWidth={2.2} />}
+        shortLabel="Shapes"
+        title={
+          structure.shape_layers
+            ? `Active shape layers (city_shapefiles): ${c.shape_layers}`
+            : "No active city_shapefiles"
+        }
+      />
+      <StructurePill
+        status={structure.population_defined ? "ok" : "warn"}
+        icon={<UserRound size={11} strokeWidth={2.2} />}
+        shortLabel="Pop"
+        title={
+          structure.population_defined
+            ? "City population is set on cities.population"
+            : "cities.population is null"
+        }
+      />
+      <StructurePill
+        status={structure.city_district_fields ? "ok" : "bad"}
+        icon={<ListTree size={11} strokeWidth={2.2} />}
+        shortLabel="City Δ"
+        title={
+          structure.city_district_fields
+            ? "City district_field / district_fields configured"
+            : "No city-level district_field(s)"
+        }
+      />
+      <StructurePill
+        status={ratioPillStatus(mt, md)}
+        icon={<ListTree size={11} strokeWidth={2.2} />}
+        shortLabel={mt > 0 ? `MΔ ${md}/${mt}` : "MΔ —"}
+        title={
+          mt > 0
+            ? `Metrics with district in map_config or location_fields: ${md} of ${mt}`
+            : "No active metrics for this city"
+        }
+      />
+      <StructurePill
+        status={ratioPillStatus(mt, mw)}
+        icon={<BadgeCheck size={11} strokeWidth={2.2} />}
+        shortLabel={mt > 0 ? `OK ${mw}/${mt}` : "OK —"}
+        title={
+          mt > 0
+            ? `Metrics with district wiring, data date, and last run success: ${mw} of ${mt}`
+            : "No active metrics for this city"
+        }
+      />
+      <StructurePill
+        status={ratioPillStatus(mt, mm)}
+        icon={<MapIcon size={11} strokeWidth={2.2} />}
+        shortLabel={mt > 0 ? `Map ${mm}/${mt}` : "Map —"}
+        title={
+          mt > 0
+            ? `Metrics with map_query or map_config map fields: ${mm} of ${mt}`
+            : "No active metrics for this city"
+        }
+      />
+    </div>
+  );
+}
+
+function lastRunIsoForDisplay(run: CityScheduleRun | null): string | null {
+  if (!run) return null;
+  return run.completed_at ?? run.updated_at ?? run.created_at;
+}
+
 function MetricHealthTable({ rows }: { rows: CityFreshnessMetricRow[] }) {
   const sorted = sortMetricsByStaleness(rows);
   if (sorted.length === 0) {
@@ -193,12 +358,18 @@ function MetricHealthTable({ rows }: { rows: CityFreshnessMetricRow[] }) {
             <th title="Active time series charts (time_series_metadata rows) for this metric">
               Charts
             </th>
+            <th title="District in map_config or location_fields (name heuristic)">Dist</th>
+            <th title="District + data date + last run success">Δ OK</th>
+            <th title="map_query or lat/lon in map_config">Map</th>
           </tr>
         </thead>
         <tbody>
           {sorted.map((m) => {
             const execStatus = formatExecStatus(m.last_execution_status);
             const charts = m.charts ?? 0;
+            const hasDist = m.has_district_field === true;
+            const distOk = m.district_working === true;
+            const hasMap = m.has_map_fields === true;
             const isProblematic =
               m.bucket === "stale" ||
               m.bucket === "no_data" ||
@@ -244,6 +415,29 @@ function MetricHealthTable({ rows }: { rows: CityFreshnessMetricRow[] }) {
                     <span style={{ color: "#ef4444", fontWeight: 600 }}>0</span>
                   ) : (
                     <span>{charts.toLocaleString()}</span>
+                  )}
+                </td>
+                <td style={{ whiteSpace: "nowrap", textAlign: "center" }}>
+                  {hasDist ? (
+                    <span style={{ color: "#10b981", fontWeight: 600 }}>✓</span>
+                  ) : (
+                    <span style={{ color: "#9ca3af" }}>—</span>
+                  )}
+                </td>
+                <td style={{ whiteSpace: "nowrap", textAlign: "center" }}>
+                  {distOk ? (
+                    <span style={{ color: "#10b981", fontWeight: 600 }}>✓</span>
+                  ) : hasDist ? (
+                    <span style={{ color: "#f59e0b", fontWeight: 600 }}>!</span>
+                  ) : (
+                    <span style={{ color: "#9ca3af" }}>—</span>
+                  )}
+                </td>
+                <td style={{ whiteSpace: "nowrap", textAlign: "center" }}>
+                  {hasMap ? (
+                    <span style={{ color: "#10b981", fontWeight: 600 }}>✓</span>
+                  ) : (
+                    <span style={{ color: "#9ca3af" }}>—</span>
                   )}
                 </td>
               </tr>
@@ -374,7 +568,8 @@ export default function ScheduleHealthDashboard({
         <div className={styles.titleRow}>
           <h3 className={styles.title}>City schedule health</h3>
           <p className={styles.subtitle}>
-            Top chip: last batch run per period. Bottom: data freshness via{" "}
+            Under each city: structure (leaders, geo, shapes, population, districts, metric
+            wiring). Top chip: last batch run per period. Bottom: freshness via{" "}
             <code>most_recent_data_date</code> (2d / 10d / 35d / 400d thresholds).
             {lastLoaded && (
               <>
@@ -440,26 +635,29 @@ export default function ScheduleHealthDashboard({
                   <Fragment key={city.city_id}>
                     <tr className={city.is_launched ? styles.launchedRow : undefined}>
                       <td className={styles.cityCell}>
-                        <span
-                          className={city.is_launched ? styles.launchedCityName : undefined}
-                          title={city.is_launched ? "Launched" : undefined}
-                        >
-                          {city.city_name}
-                        </span>
-                        <button
-                          type="button"
-                          className={styles.expandBtn}
-                          aria-expanded={isOpen}
-                          onClick={() => toggleExpand(city.city_id)}
-                          title={isOpen ? "Collapse" : "Runs & freshness detail"}
-                        >
+                        <div className={styles.cityCellTop}>
                           <span
-                            className={`${styles.expandChevron} ${isOpen ? styles.expandChevronOpen : ""}`}
-                            aria-hidden
+                            className={city.is_launched ? styles.launchedCityName : undefined}
+                            title={city.is_launched ? "Launched" : undefined}
                           >
-                            ▶
+                            {city.city_name}
                           </span>
-                        </button>
+                          <button
+                            type="button"
+                            className={styles.expandBtn}
+                            aria-expanded={isOpen}
+                            onClick={() => toggleExpand(city.city_id)}
+                            title={isOpen ? "Collapse" : "Runs & freshness detail"}
+                          >
+                            <span
+                              className={`${styles.expandChevron} ${isOpen ? styles.expandChevronOpen : ""}`}
+                              aria-hidden
+                            >
+                              ▶
+                            </span>
+                          </button>
+                        </div>
+                        <CityStructureStrip structure={city.structure} />
                       </td>
                       {SCHEDULE_KEYS.map((col) => {
                         const slot = city.schedules[col.key];
@@ -471,6 +669,13 @@ export default function ScheduleHealthDashboard({
                         const key = slotKey(city.city_id, col.key);
                         const runState = runSlots.get(key);
                         const isSlotBusy = runState?.status === "loading" || runState?.status === "running" || exec.running;
+                        const lastRunIso = lastRunIsoForDisplay(run);
+                        const lastRunTitle = lastRunIso
+                          ? new Date(lastRunIso).toLocaleString()
+                          : undefined;
+                        const chipTitle = lastRunTitle
+                          ? `${exec.label} · Last run: ${lastRunTitle}`
+                          : `${exec.label} · No run in lookback`;
                         return (
                           <td key={col.key}>
                             <div className={styles.cellStack}>
@@ -480,12 +685,18 @@ export default function ScheduleHealthDashboard({
                                   background: `${exec.dotColor}18`,
                                   border: `1px solid ${exec.dotColor}44`,
                                 }}
+                                title={chipTitle}
                               >
-                                <span
-                                  className={styles.dot}
-                                  style={{ background: exec.dotColor }}
-                                />
-                                <span>{exec.label}</span>
+                                <div className={styles.chipTopRow}>
+                                  <span
+                                    className={styles.dot}
+                                    style={{ background: exec.dotColor }}
+                                  />
+                                  <span className={styles.chipLabel}>{exec.label}</span>
+                                </div>
+                                <span className={styles.chipDate}>
+                                  {fmtDayMonth(lastRunIso)}
+                                </span>
                               </div>
                               <FreshnessBar total={totalM} fresh={freshN} />
                               <div className={styles.reRunRow}>

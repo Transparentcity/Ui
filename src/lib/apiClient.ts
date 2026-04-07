@@ -2210,6 +2210,32 @@ export interface CityFreshnessMetricRow {
   last_execution_status: string | null;
   /** Active time_series_metadata rows for this metric */
   charts: number;
+  /** District column in map_config / location_fields heuristic */
+  has_district_field?: boolean;
+  /** District configured, has data date, last run success/completed */
+  district_working?: boolean;
+  /** map_query or map_config map_query / lat+lon */
+  has_map_fields?: boolean;
+}
+
+/** City governance / geo / metric wiring (city-health API structure block) */
+export interface CityScheduleStructureCounts {
+  elected_officials: number;
+  geographic_structures: number;
+  shape_layers: number;
+}
+
+export interface CityScheduleStructureSummary {
+  elected_officials: boolean;
+  geographic_structures: boolean;
+  shape_layers: boolean;
+  population_defined: boolean;
+  city_district_fields: boolean;
+  counts: CityScheduleStructureCounts;
+  metrics_total: number;
+  metrics_with_district_field: number;
+  metrics_district_working: number;
+  metrics_with_map_fields: number;
 }
 
 export interface CityScheduleRun {
@@ -2239,6 +2265,7 @@ export interface CityScheduleHealth {
   freshness: CityFreshness;
   freshness_metrics: CityFreshnessMetricRow[];
   schedules: Record<string, CityScheduleSlot>;
+  structure?: CityScheduleStructureSummary;
 }
 
 export interface CityScheduleHealthResponse {
@@ -2906,6 +2933,25 @@ export function updateShapeLayerInstance(
     `/api/shape-layers/cities/${cityId}/instances/${instanceId}`,
     "PUT",
     updates,
+    token
+  );
+}
+
+export interface DeleteShapeLayerInstanceResponse {
+  city_id: number;
+  instance_id: number;
+  deleted: boolean;
+}
+
+export function deleteShapeLayerInstance(
+  cityId: number,
+  instanceId: number,
+  token: string
+): Promise<DeleteShapeLayerInstanceResponse> {
+  return request<DeleteShapeLayerInstanceResponse>(
+    `/api/shape-layers/cities/${cityId}/instances/${instanceId}`,
+    "DELETE",
+    undefined,
     token
   );
 }

@@ -202,9 +202,13 @@ export type PublicCityDetail = {
   is_launched?: boolean;
 };
 
-export function getPublicCityDetail(cityId: number): Promise<PublicCityDetail> {
+export function getPublicCityDetail(
+  cityId: number,
+  options?: { includeMetrics?: boolean }
+): Promise<PublicCityDetail> {
+  const includeMetrics = options?.includeMetrics ?? true;
   return requestPublic<PublicCityDetail>(
-    `/api/public/cities/${cityId}?include_metrics=true`
+    `/api/public/cities/${cityId}?include_metrics=${includeMetrics ? "true" : "false"}`
   );
 }
 

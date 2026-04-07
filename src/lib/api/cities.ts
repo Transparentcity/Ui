@@ -1030,6 +1030,25 @@ export function updateShapeLayerInstance(
   );
 }
 
+export interface DeleteShapeLayerInstanceResponse {
+  city_id: number;
+  instance_id: number;
+  deleted: boolean;
+}
+
+export function deleteShapeLayerInstance(
+  cityId: number,
+  instanceId: number,
+  token: string
+): Promise<DeleteShapeLayerInstanceResponse> {
+  return request<DeleteShapeLayerInstanceResponse>(
+    `/api/shape-layers/cities/${cityId}/instances/${instanceId}`,
+    "DELETE",
+    undefined,
+    token
+  );
+}
+
 export function getCityShapefiles(cityId: number, token: string): Promise<CityShapefile[]> {
   return request<any>(`/api/cities/${cityId}/structure`, "GET", undefined, token)
     .then((data: any) => {
