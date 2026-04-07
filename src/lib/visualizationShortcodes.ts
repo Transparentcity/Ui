@@ -1,11 +1,14 @@
 /**
  * Utility for processing visualization shortcodes in research report HTML.
- * 
+ *
  * Shortcode formats:
- * - Charts: [chart:123] → embeds chart with ID 123
- * - Maps: [map:abc123] or [map:AzOP6s-N] or [map:915Xp_iU] → embeds map with short hash (alphanumeric + hyphens + underscores)
- * - Anomalies: [anomaly:456] → embeds anomaly result with ID 456
- * 
+ * - Charts: [chart:123]       → embeds chart with ID 123 (native period)
+ *           [chart:123:ytd]   → embeds chart with period override (ytd/day/week/month/year)
+ *                               appends ?period=ytd to the iframe src
+ * - Maps:   [map:abc123]      → embeds saved map by short hash (choropleth, delta, point, etc.)
+ *                               the map type is encoded in the saved map record, not the shortcode
+ * - Anomalies: [anomaly:456]  → embeds anomaly result with ID 456
+ *
  * Note: Charts (/t/{id}) and Maps (/m/{hash}) are FRONTEND routes,
  * so we use relative URLs that work within the same Next.js app.
  */
@@ -50,24 +53,30 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+const VALID_CHART_PERIODS = new Set(["day", "week", "month", "year", "ytd"]);
+
 /**
  * Generate an iframe embed HTML for a chart.
  * Uses relative URL since /t/{id} is a frontend route.
+ * @param period - Optional period override (day, week, month, year, ytd).
+ *                 Appends ?period=... to the embed URL for the correct time window.
  */
-export function getChartEmbed(chartId: string | number, config: EmbedConfig = {}): string {
+export function getChartEmbed(chartId: string | number, config: EmbedConfig = {}, period?: string): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const height = cfg.chartHeight || cfg.height;
-  const shortcode = `[chart:${chartId}]`;
+  const validPeriod = period && VALID_CHART_PERIODS.has(period.toLowerCase()) ? period.toLowerCase() : undefined;
+  const shortcode = validPeriod ? `[chart:${chartId}:${validPeriod}]` : `[chart:${chartId}]`;
   const shortcodeEscaped = escapeHtml(shortcode);
   const themeQuery = getEmbedThemeQuery();
+  const periodQuery = validPeriod ? `&period=${validPeriod}` : "";
   // Relative URL - /t/{id} is a frontend route in this same app
-  const url = `/t/${chartId}?embedded=true${themeQuery}`;
+  const url = `/t/${chartId}?embedded=true${periodQuery}${themeQuery}`;
   
   const debugHtml = cfg.showDebug
     ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
     : "";
   return `
-    <div class="${cfg.className} chart-embed" data-chart-id="${chartId}" data-shortcode="${shortcodeEscaped}">
+    <div class="${cfg.className} chart-embed" data-chart-id="${chartId}"${validPeriod ? ` data-period="${validPeriod}"` : ""} data-shortcode="${shortcodeEscaped}">
       <iframe 
         src="${url}" 
         width="${cfg.width}" 
@@ -150,9 +159,10 @@ export function getAnomalyEmbed(resultId: string | number, config: EmbedConfig =
  * Process HTML content and replace visualization shortcodes with iframe embeds.
  * 
  * Shortcode patterns:
- * - [chart:123] - Time series chart
- * - [map:abc123] or [map:AzOP6s-N] - Saved map by short hash (alphanumeric + hyphens)
- * - [anomaly:456] - Anomaly detection result
+ * - [chart:123]      - Time series chart (native period)
+ * - [chart:123:ytd]  - Time series chart with period override (ytd/day/week/month/year)
+ * - [map:abc123] or [map:AzOP6s-N] - Saved map by short hash (choropleth, delta, point, etc.)
+ * - [anomaly:456]    - Anomaly detection result
  * 
  * @param html - The HTML content containing shortcodes
  * @param config - Optional embed configuration
@@ -167,10 +177,10 @@ export function processVisualizationShortcodes(html: string, config: EmbedConfig
   let processed = html;
   processed = processed.replace(FEED_IMAGE_SHORTCODE_RE, "");
 
-  // Process chart shortcodes: [chart:123]
-  const chartRegex = /\[chart:(\d+)\]/g;
-  processed = processed.replace(chartRegex, (match, chartId) => {
-    return getChartEmbed(chartId, config);
+  // Process chart shortcodes: [chart:123] or [chart:123:ytd] (period-aware)
+  const chartRegex = /\[chart:(\d+)(?::([a-z]+))?\]/g;
+  processed = processed.replace(chartRegex, (match, chartId, period) => {
+    return getChartEmbed(chartId, config, period);
   });
   
   // Process map shortcodes: [map:abc123] or [map:AzOP6s-N] - alphanumeric + hyphens + underscores
@@ -203,8 +213,8 @@ export function extractVisualizationRefs(html: string): {
   
   if (!html) return { charts, maps, anomalies };
   
-  // Extract chart IDs
-  const chartMatches = html.matchAll(/\[chart:(\d+)\]/g);
+  // Extract chart IDs (supports [chart:123] and [chart:123:ytd])
+  const chartMatches = html.matchAll(/\[chart:(\d+)(?::[a-z]+)?\]/g);
   for (const match of chartMatches) {
     charts.push(parseInt(match[1], 10));
   }
@@ -229,6 +239,6 @@ export function extractVisualizationRefs(html: string): {
  */
 export function hasVisualizationShortcodes(html: string): boolean {
   if (!html) return false;
-  // Match [chart:123], [map:abc-123], [anomaly:456] patterns
-  return /\[(chart|map|anomaly):[a-zA-Z0-9_-]+\]/.test(html);
+  // Match [chart:123], [chart:123:ytd], [map:abc-123], [anomaly:456] patterns
+  return /\[(chart|map|anomaly):[a-zA-Z0-9_-]+(?::[a-z]+)?\]/.test(html);
 }

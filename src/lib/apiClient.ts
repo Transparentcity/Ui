@@ -2210,8 +2210,6 @@ export interface CityFreshnessMetricRow {
   last_execution_status: string | null;
   /** Active time_series_metadata rows for this metric */
   charts: number;
-  /** Latest numeric_value from active dashboard series (newest period; citywide ungrouped preferred) */
-  most_recent_value: number | null;
 }
 
 export interface CityScheduleRun {
