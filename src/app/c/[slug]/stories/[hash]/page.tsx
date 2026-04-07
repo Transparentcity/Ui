@@ -340,10 +340,10 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
               More from {story.city_name || "this city"}
             </h2>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {relatedStories.map((rs) => (
+              {relatedStories.filter(rs => rs.short_hash).map((rs) => (
                 <Link
                   key={rs.id}
-                  href={rs.short_hash ? `/c/${slug}/stories/${rs.short_hash}` : `/feed/${rs.id}`}
+                  href={`/c/${slug}/stories/${rs.short_hash}`}
                   style={{
                     display: "flex",
                     alignItems: "flex-start",

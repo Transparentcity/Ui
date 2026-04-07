@@ -7,7 +7,7 @@ import type {
   PublicMapListItem,
 } from "@/lib/publicApiClient";
 import type { MetricOrderingEntry } from "../../CityDashboardSection";
-import CitySignupButton from "../../CitySignupButton";
+import NavEmailSignup from "../../NavEmailSignup";
 import CityDashboardSection from "../../CityDashboardSection";
 import DistrictFollowClaimBlock from "../DistrictFollowClaimBlock";
 import EmailSignInLink from "../../EmailSignInLink";
@@ -64,7 +64,7 @@ export default function DistrictPageContent({
   return (
     <SignupEmailProvider>
       <PublicNavBar>
-        <CitySignupButton citySlug={slug} cityName={city.shortDisplay} />
+        <NavEmailSignup citySlug={slug} cityName={city.shortDisplay} />
       </PublicNavBar>
 
       {/* ── ACCOUNTABILITY HEADER ─────────────────────────────────────────── */}

@@ -1294,8 +1294,8 @@ export default function AnomalyChartPage() {
                 })()}
               </p>
               
-              {anomaly.metric_id && (
-                <Link href={`/c/${cityDetail?.slug || 'sf'}/metrics/${metricDetail.metric_key}`} className="view-metric-link">
+              {anomaly.metric_id && cityDetail?.slug && (
+                <Link href={`/c/${cityDetail.slug}/metrics/${metricDetail.metric_key}`} className="view-metric-link">
                   View full metric details →
                 </Link>
               )}
