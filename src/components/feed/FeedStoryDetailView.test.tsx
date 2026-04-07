@@ -8,7 +8,16 @@ vi.mock("./EscalateSheet", () => ({
 }));
 
 vi.mock("./MetricKeyContext", () => ({
-  useMetricKey: () => ({ resolveMetricKey: () => null }),
+  useMetricKey: () => ({
+    resolveMetricKey: (name: string) => {
+      const map: Record<string, string> = {
+        "crime rate": "crime-rate",
+        "response time": "response-time",
+        homelessness: "homelessness",
+      };
+      return map[name.toLowerCase().trim()] ?? null;
+    },
+  }),
 }));
 
 function makeStory(
@@ -76,5 +85,60 @@ describe("FeedStoryDetailView", () => {
       screen.getByText("Transit performance improved this month."),
     ).toBeInTheDocument();
     expect(screen.getByTitle("Chart 123")).toBeInTheDocument();
+  });
+
+  it("renders metric detail view with MetricLink hotlinks when metadata.metrics present", () => {
+    render(
+      <FeedStoryDetailView
+        story={makeStory({
+          city_name: "San Francisco",
+          district: 6,
+          metadata: {
+            metrics: [
+              { name: "Crime Rate", direction: "down", pct: -15 },
+              { name: "Response Time", direction: "up", pct: 22 },
+            ],
+          },
+        })}
+        detailNarrative={null}
+        relatedStories={[]}
+        onShare={vi.fn()}
+      />,
+    );
+
+    // MetricLink should render as links since our mock resolves these names
+    const crimeLink = screen.getByRole("link", { name: /Crime Rate/ });
+    expect(crimeLink).toHaveAttribute(
+      "href",
+      "/c/san-francisco/metrics/crime-rate?district=6",
+    );
+
+    const responseLink = screen.getByRole("link", { name: /Response Time/ });
+    expect(responseLink).toHaveAttribute(
+      "href",
+      "/c/san-francisco/metrics/response-time?district=6",
+    );
+  });
+
+  it("renders metric as plain text when resolveMetricKey returns null", () => {
+    render(
+      <FeedStoryDetailView
+        story={makeStory({
+          city_name: "San Francisco",
+          metadata: {
+            metrics: [
+              { name: "Unknown Metric", direction: "up", pct: 10 },
+            ],
+          },
+        })}
+        detailNarrative={null}
+        relatedStories={[]}
+        onShare={vi.fn()}
+      />,
+    );
+
+    // Should render text but not as a link
+    expect(screen.getByText("Unknown Metric")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Unknown Metric/ })).toBeNull();
   });
 });
