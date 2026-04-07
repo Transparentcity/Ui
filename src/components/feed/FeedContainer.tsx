@@ -45,6 +45,7 @@ interface FeedContainerProps {
   cityLeadCityIds?: number[];
   userPlaces?: UserPlace[];
   onPlaceSaved?: () => void;
+  homeCityId?: number | null;
 }
 
 export default function FeedContainer({
@@ -53,6 +54,7 @@ export default function FeedContainer({
   isAdmin = false,
   userPlaces = [],
   onPlaceSaved,
+  homeCityId,
 }: FeedContainerProps) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   const queryClient = useQueryClient();
@@ -97,7 +99,10 @@ export default function FeedContainer({
   const saved = useRef(loadSavedFilters());
 
   const [selectedCityIds, setSelectedCityIds] = useState<Set<number>>(() =>
-    saved.current?.cityIds ?? (cityId != null ? new Set([cityId]) : new Set()),
+    saved.current?.cityIds ??
+    (cityId != null ? new Set([cityId]) :
+     homeCityId != null ? new Set([homeCityId]) :
+     new Set()),
   );
   const [selectedDistrict, setSelectedDistrict] = useState<number | null>(
     saved.current?.district ?? district ?? null,
@@ -126,6 +131,21 @@ export default function FeedContainer({
   const [selectedPlaceId, setSelectedPlaceId] = useState<number | null>(
     saved.current?.placeId ?? null,
   );
+  // When homeCityId arrives asynchronously, default to it if no filters were
+  // previously saved and no explicit cityId prop was provided.
+  const appliedHomeCityRef = useRef(false);
+  useEffect(() => {
+    if (
+      homeCityId != null &&
+      !appliedHomeCityRef.current &&
+      saved.current == null &&
+      cityId == null
+    ) {
+      appliedHomeCityRef.current = true;
+      setSelectedCityIds((prev) => (prev.size === 0 ? new Set([homeCityId]) : prev));
+    }
+  }, [homeCityId, cityId]);
+
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [feedDetailStoryId, setFeedDetailStoryId] = useState<number | null>(null);
   const hasAddress = userPlaces.length > 0;

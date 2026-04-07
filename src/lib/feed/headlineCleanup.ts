@@ -180,14 +180,25 @@ const GENERIC_HEADLINES = new Set([
   "the facts",
   "fact",
   "facts",
+  "the category that exists",
 ]);
+
+/**
+ * Patterns that match backend template artifacts which slipped through
+ * AI headline generation. Checked when the exact-match set above misses.
+ */
+const GENERIC_HEADLINE_PATTERNS = [
+  /^the\s+\w+\s+that\s+\w+s?$/i,  // "The [Noun] That [Verb]"
+];
 
 /**
  * Returns true if the headline is a generic placeholder that should be replaced.
  */
 export function isGenericHeadline(headline: string): boolean {
   if (!headline) return true;
-  return GENERIC_HEADLINES.has(headline.trim().toLowerCase());
+  const normalized = headline.trim().toLowerCase();
+  if (GENERIC_HEADLINES.has(normalized)) return true;
+  return GENERIC_HEADLINE_PATTERNS.some((re) => re.test(normalized));
 }
 
 /**
@@ -302,5 +313,8 @@ export function improveMultiMetricHeadline(
   const others = metrics.length - 1;
   const suffix = others > 0 ? ` + ${others} More` : "";
 
-  return `${prefix} — ${leadMetric.name} ${dir} ${pctStr}${suffix}`;
+  // Strip any leading emoji from the metric name (backend often prefixes with category emoji)
+  const cleanName = stripLeadingEmoji(leadMetric.name);
+
+  return `${prefix} — ${cleanName} ${dir} ${pctStr}${suffix}`;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeHeadlineCaps, normalizeBusinessName, improveMultiMetricHeadline, stripLeadingEmoji, improveContextHeadline } from "./headlineCleanup";
+import { normalizeHeadlineCaps, normalizeBusinessName, improveMultiMetricHeadline, stripLeadingEmoji, improveContextHeadline, isGenericHeadline } from "./headlineCleanup";
 
 describe("normalizeHeadlineCaps", () => {
   it("leaves normal mixed-case headlines unchanged", () => {
@@ -168,6 +168,48 @@ describe("stripLeadingEmoji", () => {
     expect(stripLeadingEmoji("🗺️ Excelsior Crime Surge")).toBe(
       "Excelsior Crime Surge",
     );
+  });
+});
+
+describe("isGenericHeadline", () => {
+  it("detects exact-match placeholders", () => {
+    expect(isGenericHeadline("The Fact")).toBe(true);
+    expect(isGenericHeadline("the facts")).toBe(true);
+    expect(isGenericHeadline("Facts")).toBe(true);
+  });
+
+  it("detects 'The Category That Exists'", () => {
+    expect(isGenericHeadline("The Category That Exists")).toBe(true);
+  });
+
+  it("detects pattern-match template artifacts", () => {
+    expect(isGenericHeadline("The Trend That Emerges")).toBe(true);
+    expect(isGenericHeadline("The Story That Matters")).toBe(true);
+  });
+
+  it("does not flag real headlines", () => {
+    expect(isGenericHeadline("SF Crime Drops in District 5")).toBe(false);
+    expect(isGenericHeadline("The Tenderloin's Drug Crime Surge")).toBe(false);
+    expect(isGenericHeadline("Austin's 311 Backlog Has a Problem")).toBe(false);
+  });
+
+  it("treats empty/null as generic", () => {
+    expect(isGenericHeadline("")).toBe(true);
+  });
+});
+
+describe("improveMultiMetricHeadline - emoji stripping", () => {
+  it("strips emoji from lead metric name in rewritten headline", () => {
+    const result = improveMultiMetricHeadline(
+      "Citywide This Week — 4 Metrics Moving",
+      [
+        { name: "\u{1F6E9}\uFE0F SFPD Drone Flights", direction: "up", pct: 905.8 },
+        { name: "\u2696\uFE0F DA Convictions", direction: "down", pct: -83.3 },
+        { name: "\u{1F48A} Drug-related 911 calls", direction: "up", pct: 69.3 },
+        { name: "\u{1F9FD} 311 Offensive Graffiti", direction: "down", pct: -56.7 },
+      ],
+    );
+    expect(result).toBe("Citywide — SFPD Drone Flights Up 9x + 3 More");
   });
 });
 

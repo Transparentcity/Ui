@@ -1367,6 +1367,7 @@ export default function DashboardPage() {
                 isImpersonating={isImpersonating}
                 cityLeadCityIds={cityLeadCityIds}
                 userPlaces={allUserPlaces}
+                homeCityId={userPreferences?.extra?.home_location?.city_id ?? null}
               />
             </div>
           )}
