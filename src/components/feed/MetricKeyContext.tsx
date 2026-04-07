@@ -5,6 +5,7 @@ import { createContext, useContext, useMemo } from "react";
 type MetricItem = { metric_name: string; metric_key: string };
 
 type MetricKeyContextValue = {
+  /** Resolve a human-readable metric display name to its URL-safe metric key. Returns null if not found. */
   resolveMetricKey: (displayName: string) => string | null;
 };
 
@@ -12,6 +13,7 @@ const MetricKeyContext = createContext<MetricKeyContextValue>({
   resolveMetricKey: () => null,
 });
 
+/** Build a case-insensitive lookup map from display names to metric keys. */
 function buildLookup(metrics: MetricItem[]): Map<string, string> {
   const map = new Map<string, string>();
   for (const m of metrics) {

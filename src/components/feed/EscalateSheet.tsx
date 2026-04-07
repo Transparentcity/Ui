@@ -50,7 +50,7 @@ export default function EscalateSheet({ open, headline, isOfficial, onClose, onS
     toast.success(
       isOfficial
         ? "Added to your Research Queue."
-        : "Your flag was sent to your District Supervisor. They'll see it in their dashboard.",
+        : "Your flag was sent to your district representative. They'll see it in their dashboard.",
     );
   }, [onSend, onClose, comment, includeName, isOfficial]);
 
