@@ -3,6 +3,11 @@
  *
  * Derives new fields (card_type, template, engagement counts, etc.) from the
  * existing FeedStory interface without changing the backend API contract.
+ *
+ * Also filters out incoherent multi-metric cards whose metrics span 3+
+ * unrelated categories (e.g., Safety + Justice + Quality of Life), since
+ * these produce confusing summary cards. See inferMetricCategory() and
+ * isCoherentMultiMetric() for the filtering logic.
  */
 
 import type { FeedStory } from "@/lib/hooks/useFeed";
@@ -389,9 +394,51 @@ export function enrichStory(story: FeedStory, placeMap?: PlaceMap): EnrichedFeed
   return enriched;
 }
 
+// ── Multi-metric coherence check ───────────────────────────────────────────
+
+const METRIC_CATEGORIES: Array<[string, RegExp]> = [
+  ["Safety", /crime|assault|theft|burglary|robbery|shooting|homicide|911|response time|fire|arson|drone|police|sfpd|weapon|battery|motor vehicle|larceny|violent/i],
+  ["Justice", /\bda\b|conviction|charges|court|prosecution|filing|arrest|sentence|incarcerat/i],
+  ["Quality of Life", /311|graffiti|pothole|litter|noise|encampment|tent|dumping|sidewalk|streetlight|rodent|illegal dumping|blocked|offensive/i],
+  ["Housing", /housing|rent|eviction|permit|unit|building|construction|zoning/i],
+  ["Business", /business|restaurant|store|license|opening|closing|retail/i],
+  ["Transit", /transit|muni|bus|bart|bike|traffic|parking|pedestrian/i],
+  ["Spending", /budget|spending|contract|cost|revenue|funding|expenditure/i],
+];
+
+export function inferMetricCategory(name: string): string {
+  for (const [category, pattern] of METRIC_CATEGORIES) {
+    if (pattern.test(name)) return category;
+  }
+  return "Other";
+}
+
+/**
+ * Returns true if a multi-metric card's metrics are thematically coherent
+ * (span fewer than 3 distinct inferred categories). Non-multi-metric cards
+ * always return true.
+ */
+export function isCoherentMultiMetric(story: EnrichedFeedStory): boolean {
+  if (story.template !== "multi_metric") return true;
+  // Comparison cards (district vs city) are inherently coherent
+  if (story.card_type === "comparison") return true;
+
+  const metrics = story.metadata?.metrics as
+    | Array<{ name?: string | null }>
+    | undefined;
+  if (!Array.isArray(metrics) || metrics.length < 2) return true;
+
+  const categories = new Set(
+    metrics.map((m) => inferMetricCategory(m.name ?? ""))
+  );
+  return categories.size < 3;
+}
+
 /** Enrich an array of stories and interleave viz stories among text-only. */
 export function enrichStories(stories: FeedStory[], placeMap?: PlaceMap): EnrichedFeedStory[] {
-  const enriched = stories.map((s) => enrichStory(s, placeMap));
+  const enriched = stories
+    .map((s) => enrichStory(s, placeMap))
+    .filter(isCoherentMultiMetric);
 
   // Separate visual stories (embeds OR photos) from text-only
   const isVisual = (s: EnrichedFeedStory) => s.embed_url_resolved || s.template === "text_photo";

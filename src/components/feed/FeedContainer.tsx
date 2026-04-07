@@ -16,6 +16,8 @@ import {
 } from "@/lib/apiClient";
 import { enrichStories, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { fetchNarratives } from "@/lib/feed/fetchReportNarratives";
+import { getPublicCityDetail } from "@/lib/publicApiClient";
+import { MetricKeyProvider } from "./MetricKeyContext";
 import FeedCard from "./FeedCard";
 import FeedStoryModal from "./FeedStoryModal";
 import SkeletonCard from "./SkeletonCard";
@@ -269,6 +271,37 @@ export default function FeedContainer({
       .catch(() => {
         // Non-critical — stories keep their existing descriptions
       });
+
+    return () => { stale = true; };
+  }, [stories]);
+
+  // ── Metric name → key lookup (for hotlinking metric names in cards) ──
+  const [metricLookupItems, setMetricLookupItems] = useState<Array<{ metric_name: string; metric_key: string }>>([]);
+  const fetchedCityIdsRef = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    const cityIds = new Set(stories.map((s) => s.city_id).filter(Boolean));
+    const toFetch: number[] = [];
+    for (const cid of cityIds) {
+      if (!fetchedCityIdsRef.current.has(cid)) toFetch.push(cid);
+    }
+    if (toFetch.length === 0) return;
+
+    let stale = false;
+    Promise.all(
+      toFetch.map((cid) =>
+        getPublicCityDetail(cid)
+          .then((d) => d.metrics ?? [])
+          .catch(() => [] as Array<{ metric_name: string; metric_key: string }>),
+      ),
+    ).then((results) => {
+      if (stale) return;
+      for (const cid of toFetch) fetchedCityIdsRef.current.add(cid);
+      const newItems = results.flat();
+      if (newItems.length > 0) {
+        setMetricLookupItems((prev) => [...prev, ...newItems]);
+      }
+    });
 
     return () => { stale = true; };
   }, [stories]);
@@ -947,6 +980,7 @@ export default function FeedContainer({
       )}
 
       {/* Stories */}
+      <MetricKeyProvider metrics={metricLookupItems}>
       {visibleStories.length > 0 && (
         <div className={styles.storiesList}>
           {visibleStories.map((story, storyIdx) => {
@@ -1021,6 +1055,7 @@ export default function FeedContainer({
         }}
         onSelectRelatedStory={(id) => setFeedDetailStoryId(id)}
       />
+      </MetricKeyProvider>
     </div>
   );
 }

@@ -2,6 +2,9 @@
 
 import { useMemo } from "react";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
+import { slugify } from "@/lib/utils";
+import { useMetricKey } from "../MetricKeyContext";
+import MetricLink from "../MetricLink";
 import CardHeader from "../CardHeader";
 import styles from "../feed.module.css";
 
@@ -61,6 +64,23 @@ function extractRealMetrics(story: EnrichedFeedStory): Metric[] | null {
   });
 }
 
+const PERIOD_TYPE_LABELS: Record<string, string> = {
+  yoy: "Year-over-Year",
+  mom: "vs. Last Month",
+  wow: "vs. Last Week",
+  ytd: "Year-to-Date",
+  qtd: "Quarter-to-Date",
+  mtd: "Month-to-Date",
+};
+
+function resolvePeriodLabel(meta: Record<string, unknown>): string | null {
+  if (typeof meta.period_label === "string" && meta.period_label) return meta.period_label;
+  if (typeof meta.period_type === "string" && meta.period_type in PERIOD_TYPE_LABELS) {
+    return PERIOD_TYPE_LABELS[meta.period_type];
+  }
+  return null;
+}
+
 interface MultiMetricCardProps {
   story: EnrichedFeedStory;
   children: React.ReactNode;
@@ -76,6 +96,10 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
   const meta = story.metadata ?? {};
   const isComparison = meta.comparison_type === "district_vs_city";
   const displayHeadline = stripLeadingScope(story.headline ?? "");
+  const periodLabel = useMemo(() => resolvePeriodLabel(meta), [meta]);
+  const { resolveMetricKey } = useMetricKey();
+  const citySlug = story.city_name ? slugify(story.city_name) : null;
+  const district = story.district > 0 ? story.district : null;
 
   // Find the lead metric (largest absolute % change) for highlighting
   const leadIdx = useMemo(() => {
@@ -104,6 +128,7 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
           neighborhoodLabel={story.neighborhood_label}
         />
         <h2 className={styles.cardHeadline}>{displayHeadline}</h2>
+        {periodLabel && <div className={styles.metricPeriodLabel}>{periodLabel}</div>}
         <div className={styles.comparisonGrid}>
           <div className={styles.comparisonSide}>
             <div className={styles.comparisonSideLabel}>Your District</div>
@@ -112,7 +137,14 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
             }`}>
               {districtMetric.arrow} {districtMetric.percent}
             </div>
-            <div className={styles.comparisonSideMetric}>{districtMetric.name}</div>
+            <div className={styles.comparisonSideMetric}>
+              <MetricLink
+                label={districtMetric.name}
+                metricKey={resolveMetricKey(districtMetric.name)}
+                citySlug={citySlug}
+                district={district}
+              />
+            </div>
           </div>
           <div className={styles.comparisonVs}>
             {ratio ?? "vs."}
@@ -124,7 +156,13 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
             }`}>
               {cityMetric.arrow} {cityMetric.percent}
             </div>
-            <div className={styles.comparisonSideMetric}>{cityMetric.name}</div>
+            <div className={styles.comparisonSideMetric}>
+              <MetricLink
+                label={cityMetric.name}
+                metricKey={resolveMetricKey(cityMetric.name)}
+                citySlug={citySlug}
+              />
+            </div>
           </div>
         </div>
         {children}
@@ -142,6 +180,7 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
         neighborhoodLabel={story.neighborhood_label}
       />
       <h2 className={styles.cardHeadline}>{displayHeadline}</h2>
+      {periodLabel && <div className={styles.metricPeriodLabel}>{periodLabel}</div>}
 
       {!(realMetrics && realMetrics.length > 0) && story.cleaned_description ? (
         <p className={styles.cardDescription}>{story.cleaned_description}</p>
@@ -159,7 +198,14 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
                 >
                   <span className={styles.metricArrow}>{m.arrow}</span> {m.percent}
                 </div>
-                <div className={styles.metricTileLabel}>{m.name}</div>
+                <div className={styles.metricTileLabel}>
+                  <MetricLink
+                    label={m.name}
+                    metricKey={resolveMetricKey(m.name)}
+                    citySlug={citySlug}
+                    district={district}
+                  />
+                </div>
               </div>
               <div className={styles.sparklineWrap} />
             </div>

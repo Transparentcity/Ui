@@ -1571,6 +1571,15 @@
   margin-bottom: 8px;
 }
 
+.metricPeriodLabel {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  margin: 4px 0 8px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 /* ── Redesigned multi-metric grid ──────────────────────────────────────────── */
 
 .metricGridRedesigned {
@@ -2234,6 +2243,10 @@
   display: inline-block;
   margin-left: 2px;
   font-size: 0.85em;
+}
+
+.metricLinkPlain {
+  color: inherit;
 }
 
 /* ── Skeleton variants for new card types ──────────────────────────────────── */

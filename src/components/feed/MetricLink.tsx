@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import Link from "next/link";
 import styles from "./feed.module.css";
 
 interface MetricLinkProps {
@@ -8,45 +8,55 @@ interface MetricLinkProps {
   label: string;
   /** Direction indicator: "up" | "down" | null */
   direction?: "up" | "down" | null;
-  /** Metric ID or slug for the link target */
-  metricId?: string | number;
-  /** Optional city ID for scoping the metric link */
-  cityId?: string | number;
+  /** Metric key (URL slug) for the link target */
+  metricKey?: string | null;
+  /** City slug for building the metric detail URL */
+  citySlug?: string | null;
+  /** Optional district number for scoping the metric link */
+  district?: number | null;
 }
 
 /**
- * Inline metric link rendered inside card descriptions.
+ * Inline metric link rendered inside card descriptions and metric tiles.
  * Shows a branded purple underlined link with an optional directional arrow
  * that navigates to the metric detail page.
+ *
+ * When metricKey or citySlug is missing, renders as plain styled text (no link).
  */
 export default function MetricLink({
   label,
   direction,
-  metricId,
-  cityId,
+  metricKey,
+  citySlug,
+  district,
 }: MetricLinkProps) {
-  const handleClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (metricId) {
-        const base = cityId ? `/home?city=${cityId}&metric=${metricId}` : `/home?metric=${metricId}`;
-        window.location.href = base;
-      }
-    },
-    [metricId, cityId],
-  );
-
   const arrow = direction === "up" ? "\u2197" : direction === "down" ? "\u2198" : null;
 
-  return (
-    <span
-      className={styles.metricLink}
-      onClick={handleClick}
-      role={metricId ? "link" : undefined}
-      tabIndex={metricId ? 0 : undefined}
-    >
+  const hasLink = metricKey && citySlug;
+
+  const content = (
+    <>
       {label}
       {arrow && <span className={styles.metricIndicator}>{arrow}</span>}
-    </span>
+    </>
+  );
+
+  if (!hasLink) {
+    return <span className={styles.metricLinkPlain}>{content}</span>;
+  }
+
+  const href =
+    district && district > 0
+      ? `/c/${citySlug}/metrics/${metricKey}?district=${district}`
+      : `/c/${citySlug}/metrics/${metricKey}`;
+
+  return (
+    <Link
+      href={href}
+      className={styles.metricLink}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {content}
+    </Link>
   );
 }

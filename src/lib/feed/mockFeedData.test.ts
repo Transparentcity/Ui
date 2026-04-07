@@ -2,7 +2,8 @@
  * Tests for the Feed V2 enrichment layer.
  *
  * Covers: deriveCardType, deriveTemplate, deriveActor, enrichStory,
- * enrichStories interleaving, buildPlaceMap, and all new card types
+ * enrichStories interleaving, buildPlaceMap, inferMetricCategory,
+ * isCoherentMultiMetric, and all new card types
  * (context, multi_metric, off_the_charts, my_block, 311_images).
  */
 
@@ -12,6 +13,8 @@ import {
   enrichStory,
   enrichStories,
   buildPlaceMap,
+  inferMetricCategory,
+  isCoherentMultiMetric,
   type CardType,
   type EnrichedFeedStory,
 } from "./mockFeedData";
@@ -488,6 +491,185 @@ describe("enrichStories", () => {
   it("handles empty input", () => {
     const result = enrichStories([]);
     expect(result).toEqual([]);
+  });
+});
+
+// ── inferMetricCategory ───────────────────────────────────────────────────
+
+describe("inferMetricCategory", () => {
+  it.each<[string, string]>([
+    ["Crime Incidents", "Safety"],
+    ["SFPD Drone Flights", "Safety"],
+    ["911 Response Time", "Safety"],
+    ["Violent Crime", "Safety"],
+    ["Motor Vehicle Theft", "Safety"],
+    ["DA Convictions", "Justice"],
+    ["Charges Filed", "Justice"],
+    ["Arrests Presented", "Justice"],
+    ["311 Graffiti Cases", "Quality of Life"],
+    ["Offensive Graffiti", "Quality of Life"],
+    ["Pothole Complaints", "Quality of Life"],
+    ["Encampment Reports", "Quality of Life"],
+    ["Housing Permits", "Housing"],
+    ["Eviction Notices", "Housing"],
+    ["Building Permits Filed", "Housing"],
+    ["Business Licenses", "Business"],
+    ["Restaurant Openings", "Business"],
+    ["Muni Ridership", "Transit"],
+    ["BART Delays", "Transit"],
+    ["Traffic Incidents", "Transit"],
+    ["Budget Expenditures", "Spending"],
+    ["Contract Awards", "Spending"],
+    ["City Revenue", "Spending"],
+    ["SFO Passengers", "Other"],
+    ["", "Other"],
+  ])("'%s' → %s", (name, expected) => {
+    expect(inferMetricCategory(name)).toBe(expected);
+  });
+});
+
+// ── isCoherentMultiMetric ─────────────────────────────────────────────────
+
+describe("isCoherentMultiMetric", () => {
+  function makeEnrichedStory(overrides: Partial<EnrichedFeedStory> = {}): EnrichedFeedStory {
+    return enrichStory(makeStory({
+      story_type: "multi_metric",
+      ...overrides,
+    }));
+  }
+
+  it("returns true for non-multi-metric cards", () => {
+    const story = enrichStory(makeStory({ story_type: "alert" }));
+    expect(isCoherentMultiMetric(story)).toBe(true);
+  });
+
+  it("returns true for comparison cards (always coherent)", () => {
+    const story = enrichStory(makeStory({
+      story_type: "comparison",
+      metadata: {
+        comparison_type: "district_vs_city",
+        metrics: [
+          { name: "Crime", direction: "down", pct: 10 },
+          { name: "DA Convictions", direction: "up", pct: 5 },
+        ],
+      },
+    }));
+    expect(isCoherentMultiMetric(story)).toBe(true);
+  });
+
+  it("returns true when all metrics share one category", () => {
+    const story = makeEnrichedStory({
+      metadata: {
+        metrics: [
+          { name: "Crime Incidents", direction: "down", pct: 12 },
+          { name: "Violent Crime", direction: "down", pct: 8 },
+          { name: "911 Response Time", direction: "up", pct: 15 },
+        ],
+      },
+    });
+    expect(isCoherentMultiMetric(story)).toBe(true);
+  });
+
+  it("returns true when metrics span exactly 2 categories", () => {
+    const story = makeEnrichedStory({
+      metadata: {
+        metrics: [
+          { name: "Crime Incidents", direction: "down", pct: 12 },
+          { name: "DA Convictions", direction: "up", pct: 20 },
+        ],
+      },
+    });
+    expect(isCoherentMultiMetric(story)).toBe(true);
+  });
+
+  it("returns false when metrics span 3+ categories", () => {
+    const story = makeEnrichedStory({
+      metadata: {
+        metrics: [
+          { name: "SFPD Drone Flights", direction: "up", pct: 906 },
+          { name: "DA Convictions", direction: "down", pct: 83 },
+          { name: "Drug-related 911 calls with GOA disposition", direction: "up", pct: 69 },
+          { name: "311 Offensive Graffiti Cases", direction: "down", pct: 57 },
+        ],
+      },
+    });
+    expect(isCoherentMultiMetric(story)).toBe(false);
+  });
+
+  it("returns true when metrics array is empty", () => {
+    const story = makeEnrichedStory({ metadata: { metrics: [] } });
+    expect(isCoherentMultiMetric(story)).toBe(true);
+  });
+
+  it("returns true when metrics array has only 1 entry", () => {
+    const story = makeEnrichedStory({
+      metadata: { metrics: [{ name: "Crime", direction: "down", pct: 10 }] },
+    });
+    expect(isCoherentMultiMetric(story)).toBe(true);
+  });
+
+  it("returns true when metadata has no metrics", () => {
+    const story = makeEnrichedStory({ metadata: {} });
+    expect(isCoherentMultiMetric(story)).toBe(true);
+  });
+
+  it("handles metrics with null names gracefully", () => {
+    const story = makeEnrichedStory({
+      metadata: {
+        metrics: [
+          { name: null, direction: "down", pct: 10 },
+          { name: null, direction: "up", pct: 20 },
+        ],
+      },
+    });
+    // Both null names → "Other" category → 1 category → coherent
+    expect(isCoherentMultiMetric(story)).toBe(true);
+  });
+});
+
+// ── enrichStories coherence filtering ─────────────────────────────────────
+
+describe("enrichStories coherence filtering", () => {
+  it("filters out incoherent multi-metric cards", () => {
+    const coherentMultiMetric = makeStory({
+      id: 1,
+      story_type: "multi_metric",
+      metadata: {
+        metrics: [
+          { name: "Crime Incidents", direction: "down", pct: 12 },
+          { name: "Violent Crime", direction: "down", pct: 8 },
+        ],
+      },
+    });
+    const incoherentMultiMetric = makeStory({
+      id: 2,
+      story_type: "multi_metric",
+      metadata: {
+        metrics: [
+          { name: "SFPD Drone Flights", direction: "up", pct: 906 },
+          { name: "DA Convictions", direction: "down", pct: 83 },
+          { name: "311 Graffiti Cases", direction: "down", pct: 57 },
+          { name: "Housing Permits", direction: "up", pct: 20 },
+        ],
+      },
+    });
+    const regularStory = makeStory({ id: 3, story_type: "alert" });
+
+    const result = enrichStories([coherentMultiMetric, incoherentMultiMetric, regularStory]);
+    const ids = result.map((s) => s.id);
+    expect(ids).toContain(1);
+    expect(ids).not.toContain(2);
+    expect(ids).toContain(3);
+  });
+
+  it("keeps all non-multi-metric cards regardless of content", () => {
+    const stories = [
+      makeStory({ id: 1, story_type: "alert" }),
+      makeStory({ id: 2, story_type: "trend" }),
+      makeStory({ id: 3, story_type: "spending" }),
+    ];
+    const result = enrichStories(stories);
+    expect(result).toHaveLength(3);
   });
 });
 
