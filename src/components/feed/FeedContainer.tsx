@@ -225,16 +225,12 @@ export default function FeedContainer({
   // Pass story_type to the API for server-side filtering
   const apiStoryType = selectedTopic ?? undefined;
 
-  // Only send only_my_saved_places to the API when the user has address-level
-  // places but NO saved cities. When saved cities exist, client-side filtering
-  // by savedCityIds provides broader (and correct) "my places" scoping.
   const apiOnlyMySavedPlaces =
     isAuthenticated &&
     onlyMySavedPlacesFeed &&
     selectedPlaceId == null &&
     !personalNewsletterOnly &&
-    userPlaces.length > 0 &&
-    savedCities.length === 0;
+    userPlaces.length > 0;
 
   const {
     data: feedData,
@@ -411,8 +407,22 @@ export default function FeedContainer({
         if (!matchesColumn && !matchesLegacy) return false;
       }
       if (selectedCityIds.size === 1 && !selectedCityIds.has(s.city_id)) return false;
-      // When "My Places" is active, also constrain to user's saved cities
-      if (onlyMySavedPlacesFeed && selectedPlaceId === null && savedCityIds.size > 0 && !savedCityIds.has(s.city_id)) return false;
+      // When "My Places" is active (no specific city or place selected),
+      // constrain to saved cities. Also allow stories that match an
+      // address-level place so they aren't lost when saved cities exist.
+      if (
+        onlyMySavedPlacesFeed &&
+        selectedPlaceId === null &&
+        selectedCityIds.size === 0 &&
+        savedCityIds.size > 0
+      ) {
+        const inSavedCity = savedCityIds.has(s.city_id);
+        const matchesAddressPlace =
+          userPlaces.length > 0 &&
+          s.user_place_id != null &&
+          userPlaces.some((p) => p.id === s.user_place_id);
+        if (!inSavedCity && !matchesAddressPlace) return false;
+      }
       return true;
     });
 
