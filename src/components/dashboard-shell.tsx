@@ -18,7 +18,7 @@ interface DashboardShellProps {
  */
 export function DashboardShell({ children, title, description, actions }: DashboardShellProps) {
   return (
-    <AdminGuard fallbackUrl="/dashboard">
+    <AdminGuard fallbackUrl="/home">
       <div className="flex min-h-screen bg-gray-50">
         <CRMSidebar />
         <main className="flex-1 flex flex-col min-w-0">

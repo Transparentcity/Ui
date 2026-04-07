@@ -211,7 +211,7 @@ export default function Sidebar({
           </button>
           {isOpen && (
             <Link
-              href="/dashboard"
+              href="/home"
               className={styles.sidebarLogo}
               aria-label="Transparent.city home"
             >

@@ -49,7 +49,7 @@ export default function JobLogsViewer() {
   const { jobs: webSocketJobs, isConnected, refreshJobs } = useJobWebSocketContext();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Sync tab from URL (e.g. /dashboard?tab=logs&job_id=xxx)
+  // Sync tab from URL (e.g. /home?tab=logs&job_id=xxx)
   useEffect(() => {
     if (tabParam === "scheduled") setActiveTab("scheduled");
     else if (tabParam === "logs" || jobIdParam) setActiveTab("logs");
@@ -57,7 +57,7 @@ export default function JobLogsViewer() {
 
   const handleViewJob = useCallback(
     (jobId: string) => {
-      const base = pathname || "/dashboard";
+      const base = pathname || "/home";
       const q = new URLSearchParams({ tab: "logs", job_id: jobId });
       router.push(`${base}?${q.toString()}`);
       setActiveTab("logs");
@@ -195,7 +195,7 @@ export default function JobLogsViewer() {
             className={`${styles.tabButton} ${activeTab === tab.id ? styles.tabButtonActive : ""}`}
             onClick={() => {
               setActiveTab(tab.id);
-              const base = pathname || "/dashboard";
+              const base = pathname || "/home";
               if (tab.id === "scheduled") {
                 router.replace(`${base}?tab=scheduled`, { scroll: false });
               } else {

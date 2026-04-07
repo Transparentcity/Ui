@@ -143,63 +143,69 @@ export function FeedStoryDetailView({
         )}
       </p>
 
-      {!hasFullArticleHtml && (
-      <div className={styles.detailNarrativeSection}>
-        {detailNarrative ? (
-          detailNarrative.above.map((para, i) => (
-            <p key={`above-${i}`} className={styles.detailDescription}>
-              {para}
+      {hasFullArticleHtml ? (
+        <>
+          {/* Lede paragraph — shown before article body, mirrors the canonical story page */}
+          {(story.description ?? "").trim().length > 0 && (
+            <p className={styles.detailLede}>
+              {story.description}
             </p>
-          ))
-        ) : story.metadata?.metrics ? (
-          <div className={styles.metricGrid} style={{ marginTop: 8 }}>
-            {(story.metadata.metrics as Array<{ name: string; direction: string; pct: number }>)
-              .slice(0, 6)
-              .map((m, i) => {
-                const rawPct = typeof m.pct === "number" ? m.pct : parseFloat(String(m.pct)) || 0;
-                const cappedPct = Math.max(Math.min(rawPct, 9999), -9999);
-                const arrow =
-                  m.direction === "up" ? "\u2191" : m.direction === "down" ? "\u2193" : "\u2500";
-                const formatted = `${cappedPct >= 0 ? "+" : ""}${Math.round(cappedPct)}%`;
-                return (
-                  <div key={i} className={styles.metricCell}>
-                    <span className={styles.metricName}>{m.name}</span>
-                    <span
-                      className={`${styles.metricValue} ${
-                        m.direction === "up"
-                          ? styles.metricUp
-                          : m.direction === "down"
-                            ? styles.metricDown
-                            : styles.metricFlat
-                      }`}
-                    >
-                      {arrow} {formatted}
-                    </span>
-                  </div>
-                );
-              })}
+          )}
+          <div className={styles.detailNarrativeSection}>
+            <div
+              className={styles.detailArticleBody}
+              dangerouslySetInnerHTML={{
+                __html: processVisualizationShortcodes(articleHtml!, {
+                  showDebug: false,
+                  chartHeight: "420px",
+                  mapHeight: "480px",
+                  anomalyHeight: "380px",
+                }),
+              }}
+            />
           </div>
-        ) : story.summary || story.cleaned_description || story.description ? (
-          <p className={styles.detailDescription}>
-            {story.summary || story.cleaned_description || story.description}
-          </p>
-        ) : null}
-      </div>
-      )}
-
-      {articleHtml && (
+        </>
+      ) : (
         <div className={styles.detailNarrativeSection}>
-          <div
-            className={styles.detailArticleBody}
-            dangerouslySetInnerHTML={{
-              __html: processVisualizationShortcodes(articleHtml, {
-                showDebug: false,
-                chartHeight: "420px",
-                mapHeight: "480px",
-                anomalyHeight: "380px",
-              }),
-            }}
-          />
+          {detailNarrative ? (
+            detailNarrative.above.map((para, i) => (
+              <p key={`above-${i}`} className={styles.detailDescription}>
+                {para}
+              </p>
+            ))
+          ) : story.metadata?.metrics ? (
+            <div className={styles.metricGrid} style={{ marginTop: 8 }}>
+              {(story.metadata.metrics as Array<{ name: string; direction: string; pct: number }>)
+                .slice(0, 6)
+                .map((m, i) => {
+                  const rawPct = typeof m.pct === "number" ? m.pct : parseFloat(String(m.pct)) || 0;
+                  const cappedPct = Math.max(Math.min(rawPct, 9999), -9999);
+                  const arrow =
+                    m.direction === "up" ? "\u2191" : m.direction === "down" ? "\u2193" : "\u2500";
+                  const formatted = `${cappedPct >= 0 ? "+" : ""}${Math.round(cappedPct)}%`;
+                  return (
+                    <div key={i} className={styles.metricCell}>
+                      <span className={styles.metricName}>{m.name}</span>
+                      <span
+                        className={`${styles.metricValue} ${
+                          m.direction === "up"
+                            ? styles.metricUp
+                            : m.direction === "down"
+                              ? styles.metricDown
+                              : styles.metricFlat
+                        }`}
+                      >
+                        {arrow} {formatted}
+                      </span>
+                    </div>
+                  );
+                })}
+            </div>
+          ) : story.summary || story.cleaned_description || story.description ? (
+            <p className={styles.detailDescription}>
+              {story.summary || story.cleaned_description || story.description}
+            </p>
+          ) : null}
         </div>
       )}
 

@@ -29,7 +29,7 @@ export default function MetricLink({
     (e: React.MouseEvent) => {
       e.stopPropagation();
       if (metricId) {
-        const base = cityId ? `/dashboard?city=${cityId}&metric=${metricId}` : `/dashboard?metric=${metricId}`;
+        const base = cityId ? `/home?city=${cityId}&metric=${metricId}` : `/home?metric=${metricId}`;
         window.location.href = base;
       }
     },

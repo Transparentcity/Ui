@@ -19,7 +19,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
       onClose();
-      router.push("/dashboard");
+      router.push("/home");
     }
   }, [isAuthenticated, isLoading, onClose, router]);
 
@@ -45,7 +45,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         screen_hint: "signup",
         prompt: "login",
       },
-      appState: { returnTo: `/dashboard?signup=${intent}` },
+      appState: { returnTo: `/home?signup=${intent}` },
     });
   };
 
@@ -56,7 +56,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         screen_hint: "login",
         prompt: "login",
       },
-      appState: { returnTo: "/dashboard" },
+      appState: { returnTo: "/home" },
     });
   };
 

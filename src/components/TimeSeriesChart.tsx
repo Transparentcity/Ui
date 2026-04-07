@@ -61,6 +61,7 @@ export interface TimeSeriesChartProps {
     field_name?: string;
     period_type?: string; // Source data period type (day, week, month, year)
     district?: number | null; // District number (0 = citywide)
+    city_name?: string;
   };
   height?: number;
   defaultPeriod?: PeriodType;
@@ -1322,6 +1323,14 @@ export default function TimeSeriesChart({
   
   // Hide internal title when showing external title
   const chartTitle = showExternalTitle ? "" : chartTitleText;
+
+  const cityName = metadata?.city_name;
+
+  // When chart title is shown internally (e.g. embedded / PNG), append city name as
+  // a Plotly-supported subtitle so it appears in any PNG export.
+  const plotlyTitleText = cityName && chartTitle
+    ? `${chartTitle}<br><sup>${cityName}</sup>`
+    : chartTitle;
 
   const yAxisLabel = metadata?.y_axis_label || metadata?.field_name || "Value";
   

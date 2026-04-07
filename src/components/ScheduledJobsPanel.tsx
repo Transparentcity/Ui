@@ -488,7 +488,7 @@ export default function ScheduledJobsPanel({
           <span>
             <strong>{runSuccessMessage.jobName}</strong> run started.{" "}
             <Link
-              href={`/dashboard?tab=logs&job_id=${encodeURIComponent(runSuccessMessage.jobId)}`}
+              href={`/home?tab=logs&job_id=${encodeURIComponent(runSuccessMessage.jobId)}`}
               className={styles.viewRunLink}
             >
               View in Job Logs
@@ -733,7 +733,7 @@ export default function ScheduledJobsPanel({
                           <>
                             {" "}
                             <Link
-                              href={`/dashboard?tab=logs&job_id=${encodeURIComponent(job.last_run_job_id)}`}
+                              href={`/home?tab=logs&job_id=${encodeURIComponent(job.last_run_job_id)}`}
                               className={styles.viewRunLink}
                             >
                               log

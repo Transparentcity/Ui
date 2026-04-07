@@ -155,7 +155,7 @@ function WasteShellInner({
         <div className="flex items-center justify-between px-4 lg:px-6 py-2.5">
           <div className="flex items-center gap-3">
             <Link
-              href="/dashboard"
+              href="/home"
               className="flex items-center gap-2.5 text-inherit no-underline"
             >
               <div className="w-5 h-5 shrink-0">
@@ -238,7 +238,7 @@ function WasteShellInner({
             </div>
 
             <Link
-              href="/dashboard"
+              href="/home"
               className="flex items-center gap-1.5 text-xs text-gray-400 no-underline hover:text-purple-600 transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />

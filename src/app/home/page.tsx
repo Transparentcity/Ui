@@ -676,7 +676,7 @@ export default function DashboardPage() {
 
   const handleOpenJobLogsFromCityData = useCallback((jobId: string) => {
     setCurrentView("job-logs");
-    const base = pathname || "/dashboard";
+    const base = pathname || "/home";
     const q = new URLSearchParams({ tab: "logs", job_id: jobId });
     router.replace(`${base}?${q.toString()}`, { scroll: false });
   }, [pathname, router]);

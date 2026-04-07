@@ -138,7 +138,7 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
         onViewJob(jobId);
         return;
       }
-      const base = pathname || "/dashboard";
+      const base = pathname || "/home";
       const q = new URLSearchParams({ tab: "logs", job_id: jobId });
       router.push(`${base}?${q.toString()}`);
     },

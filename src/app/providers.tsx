@@ -133,7 +133,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const cleanUrl = url.pathname + url.search;
       window.history.replaceState({}, "", cleanUrl || "/");
     }
-    router.push(appState?.returnTo || "/dashboard");
+    router.push(appState?.returnTo || "/home");
   };
 
   return (

@@ -29,7 +29,7 @@ export default function HomeClient() {
   const handleSignup = async () => {
     await loginWithRedirect({
       authorizationParams: { screen_hint: "signup" },
-      appState: { returnTo: "/dashboard" },
+      appState: { returnTo: "/home" },
     });
   };
   const [cityQuery, setCityQuery] = useState("");
@@ -147,7 +147,7 @@ export default function HomeClient() {
   // Redirect authenticated users directly to dashboard
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      router.replace("/dashboard");
+      router.replace("/home");
     }
   }, [isAuthenticated, isLoading, router]);
 

@@ -125,7 +125,7 @@ export default function AboutSeymourPage() {
 
         <p style={{ fontSize: "0.9375rem", color: "#6b7280" }}>
           <Link
-            href="/dashboard"
+            href="/home"
             style={{ color: "#ad35fa", textDecoration: "none", fontWeight: 500 }}
           >
             Go to dashboard →

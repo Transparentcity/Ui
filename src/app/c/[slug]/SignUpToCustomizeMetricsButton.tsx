@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 export default function SignUpToCustomizeMetricsButton() {
   const { loginWithRedirect } = useAuth0();
   const pathname = usePathname();
-  const returnTo = pathname ?? "/dashboard";
+  const returnTo = pathname ?? "/home";
 
   const handleClick = () => {
     loginWithRedirect({

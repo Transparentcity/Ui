@@ -228,8 +228,7 @@ export default function TimeSeriesChartPage() {
         timeSeries.metadata.field_name ||
         "Time Series";
       const cityName = timeSeries.metadata.city_name;
-      let pageTitle = metricName;
-      if (cityName) pageTitle = `${metricName} | ${cityName}`;
+      let pageTitle = cityName ? `${cityName} — ${metricName}` : metricName;
       pageTitle += " | TransparentCity";
       document.title = pageTitle;
     } else {
@@ -364,6 +363,9 @@ export default function TimeSeriesChartPage() {
             <span className="brand-city">.city</span>
           </span>
         </a>
+        {metadata.city_name && (
+          <div className="header-city-name">{metadata.city_name}</div>
+        )}
         <div className="header-right">
           <button
             onClick={handleShare}

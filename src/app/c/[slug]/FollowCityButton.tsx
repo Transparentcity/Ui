@@ -40,7 +40,7 @@ export default function FollowCityButton({
   const handleFollow = async () => {
     persistFollowIntent();
 
-    const returnTo = `/dashboard?follow_city_slug=${encodeURIComponent(citySlug)}${
+    const returnTo = `/home?follow_city_slug=${encodeURIComponent(citySlug)}${
       typeof cityId === "number" ? `&follow_city_id=${cityId}` : ""
     }${
       cityDisplayName
