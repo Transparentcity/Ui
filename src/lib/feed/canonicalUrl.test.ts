@@ -42,7 +42,24 @@ function makeStory(overrides: Partial<EnrichedFeedStory> = {}): EnrichedFeedStor
 }
 
 describe("resolveCanonicalUrl", () => {
-  // ── Primary path: stories with short_hash → canonical story page ──
+  // ── Multi-metric / comparison: always route to dashboard, never story page ──
+
+  it("routes multi_metric with short_hash to city dashboard (not story page)", () => {
+    const story = makeStory({ card_type: "multi_metric", short_hash: "xyz789", district: 0 });
+    expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco");
+  });
+
+  it("routes multi_metric with short_hash and district to district dashboard", () => {
+    const story = makeStory({ card_type: "multi_metric", short_hash: "xyz789", district: 3 });
+    expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/district/3");
+  });
+
+  it("routes comparison with short_hash to city dashboard (not story page)", () => {
+    const story = makeStory({ card_type: "comparison", short_hash: "cmp456", district: 0 });
+    expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco");
+  });
+
+  // ── Other card types with short_hash → canonical story page ──
 
   it("routes story with short_hash and city to canonical story page", () => {
     const story = makeStory({ short_hash: "abc123" });
@@ -52,11 +69,6 @@ describe("resolveCanonicalUrl", () => {
   it("falls back to /s/{hash} when short_hash exists but no city_name", () => {
     const story = makeStory({ short_hash: "abc123", city_name: null });
     expect(resolveCanonicalUrl(story)).toBe("/s/abc123");
-  });
-
-  it("prefers short_hash over multi_metric city routing", () => {
-    const story = makeStory({ card_type: "multi_metric", short_hash: "xyz789", district: 0 });
-    expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/stories/xyz789");
   });
 
   it("prefers short_hash over metric_key metadata", () => {
@@ -114,7 +126,7 @@ describe("resolveCanonicalUrl", () => {
     expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/stories/rsh12345");
   });
 
-  // ── Legacy no-hash: multi_metric / comparison → city/district page ──
+  // ── Legacy no-hash: multi_metric / comparison also route to dashboard ──
 
   it("routes legacy multi_metric (no hash) citywide to city dashboard", () => {
     const story = makeStory({ card_type: "multi_metric", district: 0 });
