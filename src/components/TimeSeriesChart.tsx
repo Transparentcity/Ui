@@ -1442,7 +1442,7 @@ export default function TimeSeriesChart({
       
       return {
         title: {
-          text: chartTitle,
+          text: plotlyTitleText,
           font: {
             family: "Inter, Arial, sans-serif",
             size: 14,
@@ -1520,7 +1520,7 @@ export default function TimeSeriesChart({
           itemwidth: 30,
         },
         margin: {
-          t: 55,
+          t: cityName && chartTitle ? 75 : 55,
           b: 95,
           l: 50,
           r: 45,
@@ -1553,7 +1553,7 @@ export default function TimeSeriesChart({
     
     return {
       title: {
-        text: chartTitle,
+        text: plotlyTitleText,
         font: {
           family: "Inter, Arial, sans-serif",
           size: 14,
@@ -1601,8 +1601,8 @@ export default function TimeSeriesChart({
         tickcolor: textColor,
       },
       margin: { 
-        t: 50, 
-        b: hasGroups && traces.length > 1 ? 80 : 50, // More space for legend
+        t: cityName && chartTitle ? 70 : 50,
+        b: hasGroups && traces.length > 1 ? 80 : 50,
         l: 60, 
         r: 30 
       },
@@ -1634,7 +1634,7 @@ export default function TimeSeriesChart({
       },
       height,
     };
-  }, [chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, hoverBgColor, hoverTextColor, legendBgColor, staleness_days]);
+  }, [plotlyTitleText, cityName, chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, hoverBgColor, hoverTextColor, legendBgColor, staleness_days]);
 
   const config = {
     responsive: true,
@@ -1680,6 +1680,8 @@ export default function TimeSeriesChart({
         <div className={styles.externalTitle}>
           <div className={styles.externalTitleMain}>{chartTitleText}</div>
           <div className={styles.externalTitleSub}>
+            {cityName && <span className={styles.externalCityName}>{cityName}</span>}
+            {cityName && <span className={styles.titleSeparator}>•</span>}
             {districtLabel && <span>{districtLabel}</span>}
             {districtLabel && <span className={styles.titleSeparator}>•</span>}
             <span>{periodTypeLabel}</span>

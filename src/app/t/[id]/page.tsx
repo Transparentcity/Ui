@@ -316,6 +316,9 @@ export default function TimeSeriesChartPage() {
               <span className="brand-city">.city</span>
             </span>
           </a>
+          {metadata.city_name && (
+            <span className="embedded-city-name">{metadata.city_name}</span>
+          )}
           <a
             href={fullViewHref}
             target="_blank"

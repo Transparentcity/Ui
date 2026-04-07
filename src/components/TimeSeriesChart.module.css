@@ -149,6 +149,11 @@
   color: var(--text-tertiary, #9ca3af);
 }
 
+.externalCityName {
+  font-weight: 600;
+  color: var(--text-primary, #111111);
+}
+
 :global([data-theme="dark"]) .externalTitleMain {
   color: #f8fafc;
 }
