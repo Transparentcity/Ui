@@ -209,7 +209,7 @@ describe("improveMultiMetricHeadline - emoji stripping", () => {
         { name: "\u{1F9FD} 311 Offensive Graffiti", direction: "down", pct: -56.7 },
       ],
     );
-    expect(result).toBe("Citywide — SFPD Drone Flights Up 9x + 3 More");
+    expect(result).toBe("Citywide — SFPD Drone Flights Up 906% + 3 More");
   });
 });
 
