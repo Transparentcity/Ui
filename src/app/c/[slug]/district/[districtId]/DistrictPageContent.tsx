@@ -58,6 +58,8 @@ export default function DistrictPageContent({
 }: DistrictPageContentProps) {
   const base = `/c/${slug}`;
   const year = new Date().getFullYear();
+  const primaryLeader = leaders.find((l) => l.district === d);
+  const leaderTitle = primaryLeader?.title || "Representative";
 
   return (
     <SignupEmailProvider>
@@ -84,7 +86,7 @@ export default function DistrictPageContent({
                 <>
                   <h1 className="district-supervisor-name">{supervisorName}</h1>
                   <p className="district-supervisor-role">
-                    District {d} Supervisor &middot; {city.shortDisplay}
+                    District {d} {leaderTitle} &middot; {city.shortDisplay}
                   </p>
                 </>
               ) : (

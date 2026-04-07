@@ -7,6 +7,7 @@ import MetricDetailContent from "@/components/MetricDetailContent";
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
 import NavEmailSignup from "../../NavEmailSignup";
+import CityHeroNewsletter from "../../CityHeroNewsletter";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 import { trackMetricView } from "@/lib/analytics";
 import "@/app/landing.css";
@@ -54,7 +55,9 @@ export default function MetricDetailClient({
             {cityName}
           </Link>
           <span className="metric-detail-breadcrumb-sep">/</span>
-          <span>{metric.category || "Metrics"}</span>
+          <Link href={`/c/${citySlug}/category/${encodeURIComponent(metric.category || "Metrics")}`} className="metric-detail-breadcrumb-link">
+            {metric.category || "Metrics"}
+          </Link>
         </nav>
         <h1 className="metric-detail-page-title">
           <span className="metric-detail-title-text">{metric.metric_name} in {year}</span>
@@ -76,6 +79,22 @@ export default function MetricDetailClient({
           initialTimeSeriesSummary={initialTimeSeriesSummary}
         />
       </div>
+
+      <section className="city-explainer-section">
+        <div className="container">
+          <div className="city-explainer-inner">
+            <p className="city-explainer-text">
+              {cityName}&rsquo;s public data, explained once a week.
+              Crime trends, housing, city services, and 311 reports, sourced
+              from {cityName}&rsquo;s open data portal with links to
+              every number.
+            </p>
+            <div className="city-explainer-cta">
+              <CityHeroNewsletter cityName={cityName} citySlug={citySlug} />
+            </div>
+          </div>
+        </div>
+      </section>
 
       <PublicFooter
         citySlug={citySlug}
