@@ -6,6 +6,9 @@ import { Share2 } from "lucide-react";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import type { DetailNarrative } from "@/lib/feed/fetchReportNarratives";
 import { processVisualizationShortcodes } from "@/lib/visualizationShortcodes";
+import { slugify } from "@/lib/utils";
+import { useMetricKey } from "./MetricKeyContext";
+import MetricLink from "./MetricLink";
 import styles from "./feed.module.css";
 
 /**
@@ -115,6 +118,9 @@ export function FeedStoryDetailView({
 }: FeedStoryDetailViewProps) {
   const publishedDate = formatFullDate(story.published_at);
   const articleHtml = story.article_html?.trim() || null;
+  const { resolveMetricKey } = useMetricKey();
+  const citySlug = story.city_name ? slugify(story.city_name) : null;
+  const district = story.district > 0 ? story.district : null;
 
   const pv = story.primary_visualization;
   const vizType = (story.visualization_type ?? pv?.type ?? "").toLowerCase();
@@ -160,7 +166,14 @@ export function FeedStoryDetailView({
                 const formatted = `${cappedPct >= 0 ? "+" : ""}${Math.round(cappedPct)}%`;
                 return (
                   <div key={i} className={styles.metricCell}>
-                    <span className={styles.metricName}>{m.name}</span>
+                    <span className={styles.metricName}>
+                      <MetricLink
+                        label={m.name}
+                        metricKey={resolveMetricKey(m.name)}
+                        citySlug={citySlug}
+                        district={district}
+                      />
+                    </span>
                     <span
                       className={`${styles.metricValue} ${
                         m.direction === "up"

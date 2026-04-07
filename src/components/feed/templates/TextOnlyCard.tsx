@@ -1,6 +1,9 @@
 "use client";
 
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
+import { slugify } from "@/lib/utils";
+import { useMetricKey } from "../MetricKeyContext";
+import MetricLink from "../MetricLink";
 import CardHeader from "../CardHeader";
 import styles from "../feed.module.css";
 
@@ -11,6 +14,8 @@ interface TextOnlyCardProps {
 
 export default function TextOnlyCard({ story, children }: TextOnlyCardProps) {
   const meta = story.metadata ?? {};
+  const { resolveMetricKey } = useMetricKey();
+  const citySlug = story.city_name ? slugify(story.city_name) : null;
 
   return (
     <>
@@ -83,7 +88,13 @@ export default function TextOnlyCard({ story, children }: TextOnlyCardProps) {
       {/* Trend story: metric strip */}
       {story.card_type === "trend" && meta.trend_metric_name && (
         <div className={styles.trendStrip}>
-          <span className={styles.trendMetricName}>{meta.trend_metric_name as string}</span>
+          <span className={styles.trendMetricName}>
+            <MetricLink
+              label={meta.trend_metric_name as string}
+              metricKey={resolveMetricKey(meta.trend_metric_name as string)}
+              citySlug={citySlug}
+            />
+          </span>
           {meta.trend_direction && (
             <span
               className={styles.trendDirection}

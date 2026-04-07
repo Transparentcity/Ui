@@ -2244,6 +2244,10 @@
   font-size: 0.85em;
 }
 
+.metricLinkPlain {
+  color: inherit;
+}
+
 /* ── Skeleton variants for new card types ──────────────────────────────────── */
 
 .skeletonAlert .skeletonMetricHero {

@@ -2,6 +2,9 @@
 
 import { useMemo } from "react";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
+import { slugify } from "@/lib/utils";
+import { useMetricKey } from "../MetricKeyContext";
+import MetricLink from "../MetricLink";
 import CardHeader from "../CardHeader";
 import styles from "../feed.module.css";
 
@@ -94,6 +97,9 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
   const isComparison = meta.comparison_type === "district_vs_city";
   const displayHeadline = stripLeadingScope(story.headline ?? "");
   const periodLabel = useMemo(() => resolvePeriodLabel(meta), [meta]);
+  const { resolveMetricKey } = useMetricKey();
+  const citySlug = story.city_name ? slugify(story.city_name) : null;
+  const district = story.district > 0 ? story.district : null;
 
   // Find the lead metric (largest absolute % change) for highlighting
   const leadIdx = useMemo(() => {
@@ -131,7 +137,14 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
             }`}>
               {districtMetric.arrow} {districtMetric.percent}
             </div>
-            <div className={styles.comparisonSideMetric}>{districtMetric.name}</div>
+            <div className={styles.comparisonSideMetric}>
+              <MetricLink
+                label={districtMetric.name}
+                metricKey={resolveMetricKey(districtMetric.name)}
+                citySlug={citySlug}
+                district={district}
+              />
+            </div>
           </div>
           <div className={styles.comparisonVs}>
             {ratio ?? "vs."}
@@ -143,7 +156,13 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
             }`}>
               {cityMetric.arrow} {cityMetric.percent}
             </div>
-            <div className={styles.comparisonSideMetric}>{cityMetric.name}</div>
+            <div className={styles.comparisonSideMetric}>
+              <MetricLink
+                label={cityMetric.name}
+                metricKey={resolveMetricKey(cityMetric.name)}
+                citySlug={citySlug}
+              />
+            </div>
           </div>
         </div>
         {children}
@@ -179,7 +198,14 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
                 >
                   <span className={styles.metricArrow}>{m.arrow}</span> {m.percent}
                 </div>
-                <div className={styles.metricTileLabel}>{m.name}</div>
+                <div className={styles.metricTileLabel}>
+                  <MetricLink
+                    label={m.name}
+                    metricKey={resolveMetricKey(m.name)}
+                    citySlug={citySlug}
+                    district={district}
+                  />
+                </div>
               </div>
               <div className={styles.sparklineWrap} />
             </div>
