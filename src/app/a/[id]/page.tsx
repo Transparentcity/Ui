@@ -290,7 +290,7 @@ export default function AnomalyChartPage() {
           setAnomaly(anomalyData);
         }
       } catch (err: any) {
-        console.error("Error fetching anomaly:", err);
+        console.warn("Error fetching anomaly:", err);
         setError(err.message || "Failed to load anomaly data");
       } finally {
         setLoading(false);
@@ -708,26 +708,29 @@ export default function AnomalyChartPage() {
     );
   }
 
-  if (error) {
-    return (
-      <div className={`anomaly-page ${isEmbedded ? "embedded" : ""}`}>
-        <div className="error-container">
-          <h1>Anomaly Not Available</h1>
-          <p>{error}</p>
-          {!isEmbedded && (
-            <p>This anomaly may not exist or the link may be incorrect.</p>
-          )}
+  if (error || !anomaly) {
+    // Embedded mode: compact message that looks clean inside an iframe
+    if (isEmbedded) {
+      return (
+        <div className="anomaly-page embedded">
+          <div className="error-container embedded-error">
+            <p>This chart is no longer available.</p>
+          </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  if (!anomaly) {
+    // Full page: helpful message with navigation
     return (
-      <div className={`anomaly-page ${isEmbedded ? "embedded" : ""}`}>
+      <div className="anomaly-page">
         <div className="error-container">
           <h1>Anomaly Not Found</h1>
-          <p>No anomaly data available.</p>
+          <p>This anomaly may have been updated or removed since the link was created.</p>
+          <p style={{ marginTop: "1.5rem" }}>
+            <Link href="/" style={{ color: "var(--accent-primary)", textDecoration: "underline" }}>
+              Back to Transparent.city
+            </Link>
+          </p>
         </div>
       </div>
     );
