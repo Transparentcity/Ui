@@ -14,6 +14,7 @@ import {
   deleteFeedStory,
   deleteFeedStoriesByCity,
 } from "@/lib/apiClient";
+import { useSavedCities } from "@/lib/hooks/useCities";
 import { enrichStories, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { fetchNarratives } from "@/lib/feed/fetchReportNarratives";
 import { getPublicCityDetail } from "@/lib/publicApiClient";
@@ -60,6 +61,8 @@ export default function FeedContainer({
   const viewedRef = useRef<Set<number>>(new Set());
   const sentinelRef = useRef<HTMLDivElement>(null);
   const { data: placesData } = useFeedPlaces();
+  const { data: savedCities = [] } = useSavedCities();
+  const savedCityIds = useMemo(() => new Set(savedCities.map((c) => c.id)), [savedCities]);
 
   // ── Filters (restored from sessionStorage when navigating back) ──
   const FILTER_STORAGE_KEY = "feed-filters";
@@ -130,6 +133,7 @@ export default function FeedContainer({
   const [showMoreTopics, setShowMoreTopics] = useState(false);
   const [feedDetailStoryId, setFeedDetailStoryId] = useState<number | null>(null);
   const hasAddress = userPlaces.length > 0;
+  const hasMyPlaces = userPlaces.length > 0 || savedCities.length > 0;
 
   // Persist filters to sessionStorage whenever they change
   useEffect(() => {
@@ -221,12 +225,16 @@ export default function FeedContainer({
   // Pass story_type to the API for server-side filtering
   const apiStoryType = selectedTopic ?? undefined;
 
+  // Only send only_my_saved_places to the API when the user has address-level
+  // places but NO saved cities. When saved cities exist, client-side filtering
+  // by savedCityIds provides broader (and correct) "my places" scoping.
   const apiOnlyMySavedPlaces =
     isAuthenticated &&
     onlyMySavedPlacesFeed &&
     selectedPlaceId == null &&
     !personalNewsletterOnly &&
-    userPlaces.length > 0;
+    userPlaces.length > 0 &&
+    savedCities.length === 0;
 
   const {
     data: feedData,
@@ -403,6 +411,8 @@ export default function FeedContainer({
         if (!matchesColumn && !matchesLegacy) return false;
       }
       if (selectedCityIds.size === 1 && !selectedCityIds.has(s.city_id)) return false;
+      // When "My Places" is active, also constrain to user's saved cities
+      if (onlyMySavedPlacesFeed && selectedPlaceId === null && savedCityIds.size > 0 && !savedCityIds.has(s.city_id)) return false;
       return true;
     });
 
@@ -461,6 +471,8 @@ export default function FeedContainer({
     selectedCityIds,
     selectedPlaceId,
     userPlaces,
+    onlyMySavedPlacesFeed,
+    savedCityIds,
   ]);
 
   // Restore scroll position once stories have loaded (only on initial mount)
@@ -694,7 +706,7 @@ export default function FeedContainer({
           className={`${styles.cityChip} ${selectedCityIds.size === 0 ? styles.cityChipActive : ""}`}
           onClick={() => setSelectedCityIds(new Set())}
         >
-          All Cities{visibleStories.length > 0 && selectedCityIds.size === 0 ? ` (${visibleStories.length})` : ""}
+          All Cities
         </button>
         {uniqueCities.map((c) => (
           <button
@@ -717,8 +729,8 @@ export default function FeedContainer({
       {/* Topic filter chips */}
       <div className={styles.secondaryFilterRow}>
         <div className={styles.filterChipScroll}>
-          {/* My Places toggle — shown when user has saved places */}
-          {userPlaces.length > 0 && (
+          {/* My Places toggle — shown when user has saved places or saved cities */}
+          {hasMyPlaces && (
             <button
               key="my-places-toggle"
               type="button"
@@ -853,7 +865,7 @@ export default function FeedContainer({
       </div>
 
       {/* Expandable My Places chips */}
-      {userPlaces.length > 0 && showPlaces && (
+      {hasMyPlaces && showPlaces && (
         <div className={styles.districtDrawer}>
           <div className={styles.filterChipScroll}>
             <button
@@ -861,12 +873,28 @@ export default function FeedContainer({
               className={`${styles.filterChip} ${selectedPlaceId === null && onlyMySavedPlacesFeed ? styles.filterChipActive : ""}`}
               onClick={() => {
                 setSelectedPlaceId(null);
+                setSelectedCityIds(new Set());
                 setOnlyMySavedPlacesFeed(true);
                 setShowPlaces(false);
               }}
             >
-              All Places
+              All My Places
             </button>
+            {savedCities.map((c) => (
+              <button
+                key={`city-${c.id}`}
+                type="button"
+                className={`${styles.filterChip} ${selectedCityIds.size === 1 && selectedCityIds.has(c.id) && onlyMySavedPlacesFeed ? styles.filterChipActive : ""}`}
+                onClick={() => {
+                  setSelectedCityIds(new Set([c.id]));
+                  setSelectedPlaceId(null);
+                  setOnlyMySavedPlacesFeed(true);
+                  setShowPlaces(false);
+                }}
+              >
+                {c.emoji} {c.display_name}
+              </button>
+            ))}
             {userPlaces.map((p) => (
               <button
                 key={p.id}
