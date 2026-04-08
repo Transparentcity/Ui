@@ -9,6 +9,7 @@ import JobSessionList from "./JobSessionList";
 import MyCities from "./MyCities";
 import ResearchList from "./ResearchList";
 import SidebarCitySearch from "./SidebarCitySearch";
+import SidebarRecentQuestions from "./SidebarRecentQuestions";
 import styles from "./Sidebar.module.css";
 import type { UserPlace } from "@/lib/apiClient";
 
@@ -60,6 +61,12 @@ interface SidebarProps {
   sidebarWidth?: number;
   /** Called when the user drags the resize handle. */
   onWidthChange?: (width: number) => void;
+  /** When false (default), hides New Chat, Recent Chats, and gov-only items for launch. */
+  chatEnabled?: boolean;
+  /** City name for the active city (used in Recent Questions). */
+  activeCityName?: string | null;
+  /** Called when user clicks a sample question in Recent Questions. */
+  onQuestionClick?: (question: string) => void;
 }
 
 // Mobile breakpoint (matches CSS media query)
@@ -109,6 +116,9 @@ export default function Sidebar({
   currentView,
   sidebarWidth,
   onWidthChange,
+  chatEnabled = false,
+  activeCityName,
+  onQuestionClick,
 }: SidebarProps) {
   const governmentApproved =
     governmentVerified &&
@@ -356,11 +366,17 @@ export default function Sidebar({
         </div>
         
         <div className={styles.navItems} id="nav-items">
-          {/* Top Navigation Items */}
-          <button 
-            className={`${styles.navItem} ${styles.newChatBtn}`} 
-            id="new-chat-btn" 
-            onClick={() => handleActionWithClose(onNewChat)}
+          {/* Feed - always at top */}
+          <button
+            className={`${styles.navItem} ${styles.newChatBtn} ${currentView === "feed" ? styles.navItemActive : ""}`}
+            id="feed-btn"
+            onClick={() =>
+              handleActionWithClose(() => {
+                if (onViewChange) {
+                  onViewChange("feed");
+                }
+              })
+            }
           >
             <span className={styles.navIcon}>
               <svg
@@ -373,14 +389,42 @@ export default function Sidebar({
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path>
+                <path d="M18 14h-8"></path>
+                <path d="M15 18h-5"></path>
+                <path d="M10 6h8v4h-8V6Z"></path>
               </svg>
             </span>
-            <span>New Chat</span>
+            <span>Feed</span>
           </button>
 
-          {(canAccessResearch || isAdmin) && (
+          {/* Chat-enabled items (admin mode) */}
+          {chatEnabled && (
+            <button
+              className={`${styles.navItem} ${styles.newChatBtn}`}
+              id="new-chat-btn"
+              onClick={() => handleActionWithClose(onNewChat)}
+            >
+              <span className={styles.navIcon}>
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+              </span>
+              <span>New Chat</span>
+            </button>
+          )}
+
+          {chatEnabled && isAdmin && (
             <button
               className={`${styles.navItem} ${styles.newChatBtn}`}
               id="new-research-report-btn"
@@ -413,92 +457,6 @@ export default function Sidebar({
             </button>
           )}
 
-          {canAccessResearch && (
-            <Link
-              href="/research-queue"
-              className={`${styles.navItem} ${styles.newChatBtn} ${pathname === "/research-queue" ? styles.navItemActive : ""}`}
-              id="research-queue-btn"
-              onClick={() => {
-                if (isNarrowScreen() && onClose) onClose();
-              }}
-            >
-              <span className={styles.navIcon}>
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-              </span>
-              <span>Research Queue</span>
-            </Link>
-          )}
-
-          {canAccessResearch && (
-            <Link
-              href="/applause"
-              className={`${styles.navItem} ${styles.newChatBtn} ${pathname === "/applause" ? styles.navItemActive : ""}`}
-              id="applause-dashboard-btn"
-              onClick={() => {
-                if (isNarrowScreen() && onClose) onClose();
-              }}
-            >
-              <span className={styles.navIcon}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M7 10v12"></path>
-                  <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"></path>
-                </svg>
-              </span>
-              <span>Applause Dashboard</span>
-            </Link>
-          )}
-
-          {canAccessResearch && (
-            <Link
-              href="/flags"
-              className={`${styles.navItem} ${styles.newChatBtn} ${pathname === "/flags" ? styles.navItemActive : ""}`}
-              id="flag-dashboard-btn"
-              onClick={() => {
-                if (isNarrowScreen() && onClose) onClose();
-              }}
-            >
-              <span className={styles.navIcon}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
-                  <line x1="4" y1="22" x2="4" y2="15"></line>
-                </svg>
-              </span>
-              <span>Flag Dashboard</span>
-            </Link>
-          )}
-
-          {canAccessResearch && (
-            <Link
-              href="/signals"
-              className={`${styles.navItem} ${styles.newChatBtn} ${pathname === "/signals" ? styles.navItemActive : ""}`}
-              id="signals-dashboard-btn"
-              onClick={() => {
-                if (isNarrowScreen() && onClose) onClose();
-              }}
-            >
-              <span className={styles.navIcon}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="20" x2="18" y2="10"></line>
-                  <line x1="12" y1="20" x2="12" y2="4"></line>
-                  <line x1="6" y1="20" x2="6" y2="14"></line>
-                </svg>
-              </span>
-              <span>Constituent Signals</span>
-            </Link>
-          )}
-
           {/* City Search */}
           {onCitySelect && (
             <SidebarCitySearch
@@ -514,42 +472,9 @@ export default function Sidebar({
             />
           )}
 
-          <button
-            className={`${styles.navItem} ${styles.newChatBtn} ${currentView === "feed" ? styles.navItemActive : ""}`}
-            id="feed-btn"
-            onClick={() =>
-              handleActionWithClose(() => {
-                if (onViewChange) {
-                  onViewChange("feed");
-                }
-              })
-            }
-          >
-            <span className={styles.navIcon}>
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path>
-                <path d="M18 14h-8"></path>
-                <path d="M15 18h-5"></path>
-                <path d="M10 6h8v4h-8V6Z"></path>
-              </svg>
-            </span>
-            <span>Feed</span>
-          </button>
-
-          {/* Spacing */}
-          <div className={styles.navSectionSpacer}></div>
-
-          {/* My Places & Districts Section */}
+          {/* My Places Section - collapsed by default for normal users */}
           <MyCities
+            defaultExpanded={chatEnabled}
             onCityClick={(cityId) => {
               if (onCityClick) {
                 onCityClick(cityId);
@@ -591,103 +516,137 @@ export default function Sidebar({
             activeDistrict={activeDistrict != null ? String(activeDistrict) : undefined}
           />
 
+          {/* Gov-only items - only when chat enabled */}
+          {chatEnabled && canAccessResearch && (
+            <Link
+              href="/research-queue"
+              className={`${styles.navItem} ${styles.newChatBtn} ${pathname === "/research-queue" ? styles.navItemActive : ""}`}
+              id="research-queue-btn"
+              onClick={() => {
+                if (isNarrowScreen() && onClose) onClose();
+              }}
+            >
+              <span className={styles.navIcon}>
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+              </span>
+              <span>Research Queue</span>
+            </Link>
+          )}
+
+          {chatEnabled && canAccessResearch && (
+            <Link
+              href="/applause"
+              className={`${styles.navItem} ${styles.newChatBtn} ${pathname === "/applause" ? styles.navItemActive : ""}`}
+              id="applause-dashboard-btn"
+              onClick={() => {
+                if (isNarrowScreen() && onClose) onClose();
+              }}
+            >
+              <span className={styles.navIcon}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M7 10v12"></path>
+                  <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"></path>
+                </svg>
+              </span>
+              <span>Applause Dashboard</span>
+            </Link>
+          )}
+
+          {chatEnabled && canAccessResearch && (
+            <Link
+              href="/flags"
+              className={`${styles.navItem} ${styles.newChatBtn} ${pathname === "/flags" ? styles.navItemActive : ""}`}
+              id="flag-dashboard-btn"
+              onClick={() => {
+                if (isNarrowScreen() && onClose) onClose();
+              }}
+            >
+              <span className={styles.navIcon}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                  <line x1="4" y1="22" x2="4" y2="15"></line>
+                </svg>
+              </span>
+              <span>Flag Dashboard</span>
+            </Link>
+          )}
+
+          {chatEnabled && canAccessResearch && (
+            <Link
+              href="/signals"
+              className={`${styles.navItem} ${styles.newChatBtn} ${pathname === "/signals" ? styles.navItemActive : ""}`}
+              id="signals-dashboard-btn"
+              onClick={() => {
+                if (isNarrowScreen() && onClose) onClose();
+              }}
+            >
+              <span className={styles.navIcon}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="20" x2="18" y2="10"></line>
+                  <line x1="12" y1="20" x2="12" y2="4"></line>
+                  <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg>
+              </span>
+              <span>Constituent Signals</span>
+            </Link>
+          )}
+
           {/* Spacing */}
           <div className={styles.navSectionSpacer}></div>
 
-          {/* Research Section - Admin or government-verified */}
-          {(canAccessResearch || isAdmin) && (
-            <>
-              <div id="research-section">
-                <div
-                  className={`${styles.navSectionHeader} ${styles.navSectionCollapsible}`}
-                  id="research-header"
-                  onClick={() => setResearchExpanded(!researchExpanded)}
+          {/* Recent Chats Section - only when chat enabled */}
+          {chatEnabled && (
+            <div id="recent-chats-section">
+              <div
+                className={`${styles.navSectionHeader} ${styles.navSectionCollapsible}` }
+                id="recent-chats-header"
+                onClick={() => setRecentChatsExpanded(!recentChatsExpanded)}
+              >
+                <span>Recent Chats</span>
+                <span
+                  id="recent-chats-chevron"
+                  className={styles.navSectionChevron}
                 >
-                  <span>Research</span>
-                  <span
-                    id="research-chevron"
-                    className={styles.navSectionChevron}
-                  >
-                    {researchExpanded ? "▼" : "▶"}
-                  </span>
-                </div>
-                {researchExpanded && (
-                  <div id="research-list">
-                    <ResearchList
-                      isAdmin={isAdmin}
-                      onResearchClick={(reportId) => {
-                        if (onResearchClick) {
-                          onResearchClick(reportId);
-                        }
-                        if (onViewChange) {
-                          onViewChange("research");
-                        }
-                        // Auto-close sidebar in narrow mode after research selection
-                        if (isNarrowScreen() && onClose) {
-                          onClose();
-                        }
-                      }}
-                      currentResearchId={currentResearchId}
-                      onResearchDeleted={onResearchDeleted}
-                      onCreateNew={() => {
-                        if (onViewChange) {
-                          onViewChange("research-new");
-                        }
-                        // Auto-close sidebar in narrow mode after action
-                        if (isNarrowScreen() && onClose) {
-                          onClose();
-                        }
-                      }}
-                    />
-                  </div>
-                )}
+                  {recentChatsExpanded ? "▼" : "▶"}
+                </span>
               </div>
-
-              {/* Spacing */}
-              <div className={styles.navSectionSpacer}></div>
-            </>
+              {recentChatsExpanded && (
+                <div id="session-list">
+                  <SessionList
+                    onSessionClick={(sessionId) => {
+                      if (onSessionClick) {
+                        onSessionClick(sessionId);
+                      }
+                      if (onViewChange) {
+                        onViewChange("chat");
+                      }
+                      if (isNarrowScreen() && onClose) {
+                        onClose();
+                      }
+                    }}
+                    currentSessionId={currentSessionId}
+                    isCurrentSessionJobSession={isCurrentSessionJobSession}
+                    onSessionDeleted={onSessionDeleted}
+                  />
+                </div>
+              )}
+            </div>
           )}
 
-          {/* Recent Chats Section */}
-          <div id="recent-chats-section">
-            <div
-              className={`${styles.navSectionHeader} ${styles.navSectionCollapsible}` }
-              id="recent-chats-header"
-              onClick={() => setRecentChatsExpanded(!recentChatsExpanded)}
-            >
-              <span>Recent Chats</span>
-              <span
-                id="recent-chats-chevron"
-                className={styles.navSectionChevron}
-              >
-                {recentChatsExpanded ? "▼" : "▶"}
-              </span>
-            </div>
-            {recentChatsExpanded && (
-              <div id="session-list">
-                <SessionList
-                  onSessionClick={(sessionId) => {
-                    if (onSessionClick) {
-                      onSessionClick(sessionId);
-                    }
-                    if (onViewChange) {
-                      onViewChange("chat");
-                    }
-                    // Auto-close sidebar in narrow mode after session selection
-                    if (isNarrowScreen() && onClose) {
-                      onClose();
-                    }
-                  }}
-                  currentSessionId={currentSessionId}
-                  isCurrentSessionJobSession={isCurrentSessionJobSession}
-                  onSessionDeleted={onSessionDeleted}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Job Sessions Section (Admin Only) */}
-          {isAdmin && (
+          {/* Job Sessions Section (Admin Only, chat mode) */}
+          {chatEnabled && isAdmin && (
             <>
               <div className={styles.navSectionSpacer} />
               <div
@@ -732,6 +691,14 @@ export default function Sidebar({
               )}
               </div>
             </>
+          )}
+
+          {/* Recent Questions - shown for normal users (non-chat mode) */}
+          {!chatEnabled && (
+            <SidebarRecentQuestions
+              activeCityName={activeCityName}
+              onQuestionClick={onQuestionClick}
+            />
           )}
         </div>
 

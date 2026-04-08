@@ -140,6 +140,8 @@ export default function DashboardPage() {
   const [isCurrentSessionJobSession, setIsCurrentSessionJobSession] = useState(false);
   const [selectedCityId, setSelectedCityId] = useState<number | null>(null);
   const [activeCityId, setActiveCityId] = useState<number | null>(null);
+  const [activeCityName, setActiveCityName] = useState<string | null>(null);
+  const savedCitiesRef = useRef<Array<{ id: number; display_name: string }>>([]);
   const [initialDistrict, setInitialDistrict] = useState<number | null>(null);
   const [currentResearchId, setCurrentResearchId] = useState<number | null>(null);
   const [initialChatPrompt, setInitialChatPrompt] = useState<string | null>(null);
@@ -243,6 +245,50 @@ export default function DashboardPage() {
     setUserEmail(null);
     setHomeCity(null);
   }, [identityScopeKey, isImpersonating]);
+
+  // Resolve a display name for the active (or best-available) city.
+  // Priority: active city > home city > first saved city > null.
+  // Uses getSavedCities which has a 5s promise cache, so no duplicate network calls.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getAccessTokenSilently();
+        const cities = await getSavedCities(token);
+        savedCitiesRef.current = cities;
+        if (cancelled) return;
+
+        // 1. Try active city
+        if (activeCityId) {
+          const match = cities.find((c) => c.id === activeCityId);
+          if (match) {
+            setActiveCityName(match.display_name || match.city_name || null);
+            return;
+          }
+        }
+
+        // 2. Try home city (from preferences)
+        if (homeCity) {
+          setActiveCityName(homeCity.display_name || homeCity.name || null);
+          return;
+        }
+
+        // 3. Fall back to first saved city
+        if (cities.length > 0) {
+          setActiveCityName(cities[0].display_name || cities[0].city_name || null);
+          return;
+        }
+
+        // 4. No cities at all
+        setActiveCityName(null);
+      } catch {
+        if (!cancelled) {
+          setActiveCityName(homeCity?.display_name || homeCity?.name || null);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeCityId, getAccessTokenSilently, homeCity]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -1097,6 +1143,17 @@ export default function DashboardPage() {
         governmentEmail={govVerificationStatus?.government_email ?? null}
         onNewChat={handleNewChat}
         onSearchCities={handleSearchCities}
+        chatEnabled={false} // TODO: restore to {isAdmin} once backend admin check is fixed
+        activeCityName={activeCityName}
+        onQuestionClick={() => {
+          // Toast: chat coming soon
+          const toast = document.createElement("div");
+          toast.textContent = "Chat with Seymour is coming soon";
+          toast.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg-secondary,#333);color:var(--text-primary,#fff);padding:10px 20px;border-radius:8px;font-size:14px;z-index:9999;box-shadow:0 2px 8px rgba(0,0,0,0.2);transition:opacity 0.3s ease";
+          document.body.appendChild(toast);
+          setTimeout(() => { toast.style.opacity = "0"; }, 2500);
+          setTimeout(() => { toast.remove(); }, 3000);
+        }}
         onOpenSettings={handleOpenSettings}
         onViewChange={handleViewChange}
         onSessionClick={handleSessionClick}
@@ -1449,8 +1506,9 @@ export default function DashboardPage() {
 
                   {/* Communication preferences */}
                   <section className={styles.settingsSection}>
-                    <h3 className={styles.settingsSectionTitle}>Communication preferences</h3>
+                    <h3 className={styles.settingsSectionTitle}>{isAdmin ? "Communication preferences" : "Newsletter"}</h3>
                     <div className={styles.settingsSectionCard}>
+                      {isAdmin && (
                       <label className={styles.settingsRow} style={{ cursor: "pointer" }}>
                         <div className={styles.settingsRowLabel}>
                           <div className={styles.settingsRowTitle}>Anomaly alerts</div>
@@ -1463,10 +1521,11 @@ export default function DashboardPage() {
                           </label>
                         </div>
                       </label>
+                      )}
                       <label className={styles.settingsRow} style={{ cursor: "pointer" }}>
                         <div className={styles.settingsRowLabel}>
-                          <div className={styles.settingsRowTitle}>Weekly digest</div>
-                          <div className={styles.settingsRowDescription}>Summary of key metrics and changes</div>
+                          <div className={styles.settingsRowTitle}>Weekly newsletter</div>
+                          <div className={styles.settingsRowDescription}>{isAdmin ? "Summary of key metrics and changes" : "Get a weekly summary of your city"}</div>
                         </div>
                         <div className={styles.settingsRowControl}>
                           <label style={{ display: "inline-flex", alignItems: "center", gap: "8px", cursor: "pointer", userSelect: "none", fontSize: "13px", color: "var(--text-secondary)" }}>
@@ -1475,6 +1534,7 @@ export default function DashboardPage() {
                           </label>
                         </div>
                       </label>
+                      {isAdmin && (
                       <div className={styles.settingsRow}>
                         <div className={styles.settingsRowLabel} style={{ flex: 1 }}>
                           <div className={styles.settingsRowTitle}>Monthly report</div>
@@ -1499,11 +1559,12 @@ export default function DashboardPage() {
                           </label>
                         </div>
                       </div>
+                      )}
                     </div>
                   </section>
 
-                  {/* Personalized newsletter */}
-                  <section className={styles.settingsSection}>
+                  {/* Personalized newsletter - admin only */}
+                  {isAdmin && <section className={styles.settingsSection}>
                     <h3 className={styles.settingsSectionTitle}>Personalized newsletter</h3>
                     <div className={styles.settingsNewsletterBlock}>
                       <p className={styles.settingsNewsletterIntro}>
@@ -1563,7 +1624,7 @@ export default function DashboardPage() {
                         </p>
                       )}
                     </div>
-                  </section>
+                  </section>}
 
                   {/* Display */}
                   <section className={styles.settingsSection}>
@@ -1598,7 +1659,8 @@ export default function DashboardPage() {
                     </button>
                   </div>
 
-                  {/* System status */}
+                  {/* System status - admin only */}
+                  {isAdmin && (
                   <div className={styles.settingsFooterBlock}>
                     <div className={styles.settingsFooterRow}>
                       <div>
@@ -1608,9 +1670,10 @@ export default function DashboardPage() {
                       <RedisStatusIndicator subtle />
                     </div>
                   </div>
+                  )}
 
-                  {/* Government mode (preview) */}
-                  <section className={styles.settingsSection}>
+                  {/* Government mode (preview) - admin only */}
+                  {isAdmin && <section className={styles.settingsSection}>
                     <h3 className={styles.settingsSectionTitle}>Government mode (preview)</h3>
                     <div className={styles.settingsSectionCard}>
                       <div className={styles.settingsRow}>
@@ -1639,9 +1702,10 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     </div>
-                  </section>
+                  </section>}
 
-                  {/* Onboarding */}
+                  {/* Onboarding - admin only */}
+                  {isAdmin && (
                   <section className={styles.settingsSection}>
                     <h3 className={styles.settingsSectionTitle}>Onboarding</h3>
                     <div className={styles.settingsSectionCard}>
@@ -1665,8 +1729,10 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </section>
+                  )}
 
-                  {/* System statistics */}
+                  {/* System statistics - admin only */}
+                  {isAdmin && (
                   <section className={styles.settingsSection}>
                     <h3 className={styles.settingsSectionTitle}>System statistics</h3>
                     <div className={styles.settingsSectionCard}>
@@ -1677,6 +1743,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </section>
+                  )}
                 </div>
               )}
             </div>

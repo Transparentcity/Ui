@@ -173,7 +173,7 @@
 
 .navItems {
   flex: 1;
-  padding: var(--space-lg) 0 0 0;
+  padding: var(--space-sm) 0 0 0;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -245,7 +245,7 @@
 
 /* Spacing between sections */
 .navSectionSpacer {
-  height: var(--space-md);
+  height: var(--space-sm);
   flex-shrink: 0;
 }
 
@@ -281,9 +281,9 @@
 }
 
 .newChatBtn {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
-  padding: var(--space-md) var(--space-lg);
+  padding: var(--space-sm) var(--space-lg);
   text-align: left;
   justify-content: flex-start;
 }
