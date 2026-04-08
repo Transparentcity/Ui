@@ -90,15 +90,10 @@ export default function GovernmentOnboardingModal({
     }
   }, [isOpen, hasClaimContext]);
 
-  const handleSkip = async () => {
-    try {
-      const token = await getAccessTokenSilently();
-      await updateUserPreferences({ has_completed_onboarding: true }, token);
-      onComplete();
-      onClose();
-    } catch {
-      onClose();
-    }
+  const handleSkip = () => {
+    // Dismiss for this session only — don't mark onboarding complete
+    // so the modal re-appears on future sign-ins until verification is done.
+    onClose();
   };
 
   const handleConfirmProfileYes = () => {

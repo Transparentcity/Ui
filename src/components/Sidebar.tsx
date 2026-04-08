@@ -693,12 +693,14 @@ export default function Sidebar({
             </>
           )}
 
-          {/* Recent Questions - shown for normal users (non-chat mode) */}
+          {/* Recent Questions - shown for normal users (non-chat mode), pushed to bottom */}
           {!chatEnabled && (
-            <SidebarRecentQuestions
-              activeCityName={activeCityName}
-              onQuestionClick={onQuestionClick}
-            />
+            <div style={{ marginTop: "auto" }}>
+              <SidebarRecentQuestions
+                activeCityName={activeCityName}
+                onQuestionClick={onQuestionClick}
+              />
+            </div>
           )}
         </div>
 

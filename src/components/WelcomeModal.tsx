@@ -105,8 +105,7 @@ export default function WelcomeModal({
       setPlaceRadius(DEFAULT_PLACE_RADIUS_M);
       setAddressSuggestions([]);
       setShowAddressDropdown(false);
-      // Reset preferences (both opt-ins on by default)
-      setAlertsOptIn(true);
+      // Reset preferences
       setWeeklyNewsletterOptIn(true);
       setNewsletterDescription("");
       setSelectedCategoryIds([]);
@@ -155,16 +154,10 @@ export default function WelcomeModal({
 
   if (!isOpen) return null;
 
-  const handleSkip = async () => {
-    try {
-      const token = await getAccessTokenSilently();
-      await updateUserPreferences({ has_completed_onboarding: true }, token);
-      onComplete();
-      onClose();
-    } catch (err) {
-      console.error("Error completing onboarding:", err);
-      onClose();
-    }
+  const handleSkip = () => {
+    // Dismiss for this session only — don't mark onboarding complete
+    // so the modal re-appears on future sign-ins until a city is selected.
+    onClose();
   };
 
   const fetchSuggestions = async (query: string) => {

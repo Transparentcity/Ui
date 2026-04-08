@@ -474,6 +474,10 @@ export default function DashboardPage() {
   // Load permissions and government verification in parallel (single round-trip for sidebar state)
   useEffect(() => {
     if (!isAuthenticated || !user) {
+      setIsAdmin(false);
+      setCityLeadCityIds([]);
+      setCurrentUserId(null);
+      setGovVerificationStatus(null);
       setIsCheckingAdmin(false);
       return;
     }
@@ -1143,7 +1147,7 @@ export default function DashboardPage() {
         governmentEmail={govVerificationStatus?.government_email ?? null}
         onNewChat={handleNewChat}
         onSearchCities={handleSearchCities}
-        chatEnabled={false} // TODO: restore to {isAdmin} once backend admin check is fixed
+        chatEnabled={isAdmin}
         activeCityName={activeCityName}
         onQuestionClick={() => {
           // Toast: chat coming soon

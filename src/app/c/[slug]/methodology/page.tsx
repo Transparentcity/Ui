@@ -109,8 +109,7 @@ export default async function MethodologyPage({ params }: PageProps) {
             <p>
               We are independent of any government. We are not affiliated with
               the City or County of {cityDisplay}, or with any other city we
-              cover. We do not take government funding to build or run this
-              platform. Our goal is objectivity: we present the numbers as they
+              cover. Our goal is objectivity: we present the numbers as they
               come from official sources, with documented methods and direct
               links so you can verify everything yourself. We do not lobby,
               endorse candidates, or advocate for specific policies. We advocate
