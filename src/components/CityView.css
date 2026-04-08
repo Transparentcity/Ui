@@ -2898,3 +2898,71 @@ button.metrics-table-row {
   }
 }
 
+/* Section jump nav: pill bar inside sticky header for Map / Dashboard / Anomalies */
+.city-view-jump-nav {
+  display: flex;
+  gap: 4px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--border-primary);
+}
+
+.city-view-jump-nav-btn {
+  flex: 1;
+  padding: 6px 12px;
+  border: 1px solid var(--border-primary);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.city-view-jump-nav-btn:hover {
+  background: var(--bg-secondary, #f3f4f6);
+  color: var(--text-primary);
+}
+
+.city-view-jump-nav-btn-active {
+  background: var(--text-primary, #111827);
+  color: #fff;
+  border-color: var(--text-primary, #111827);
+}
+
+.city-view-jump-nav-btn-active:hover {
+  background: var(--text-primary, #111827);
+  color: #fff;
+}
+
+[data-theme="dark"] .city-view-jump-nav,
+.dark .city-view-jump-nav {
+  background: rgba(17, 24, 39, 0.95);
+}
+
+[data-theme="dark"] .city-view-jump-nav-btn:hover,
+.dark .city-view-jump-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .city-view-jump-nav-btn-active,
+.dark .city-view-jump-nav-btn-active {
+  background: #e5e7eb;
+  color: #111827;
+  border-color: #e5e7eb;
+}
+
+@media (max-width: 640px) {
+  .city-view-jump-nav {
+    padding: 5px 8px;
+    gap: 3px;
+  }
+
+  .city-view-jump-nav-btn {
+    padding: 5px 8px;
+    font-size: 0.75rem;
+  }
+}
+

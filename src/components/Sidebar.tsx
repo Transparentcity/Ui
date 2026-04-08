@@ -33,6 +33,8 @@ interface SidebarProps {
   onClose?: () => void;
   onCityClick?: (cityId: number) => void;
   onDistrictClick?: (cityId: number, district: number) => void;
+  /** Called when user clicks a section shortcut (Dashboard/Anomalies) under a city in My Places. */
+  onCitySectionClick?: (cityId: number, section: "dashboard" | "anomalies") => void;
   activeCityId?: number | null;
   /** Active district when viewing a city (for highlighting in My Places). */
   activeDistrict?: string | number | null;
@@ -98,6 +100,7 @@ export default function Sidebar({
   onClose,
   onCityClick,
   onDistrictClick,
+  onCitySectionClick,
   activeCityId,
   activeDistrict,
   userPlaces = [],
@@ -514,6 +517,12 @@ export default function Sidebar({
             onPlaceDeleted={onPlaceDeleted}
             activeCityId={activeCityId}
             activeDistrict={activeDistrict != null ? String(activeDistrict) : undefined}
+            onCitySectionClick={onCitySectionClick ? (cityId, section) => {
+              onCitySectionClick(cityId, section);
+              if (isNarrowScreen() && onClose) {
+                onClose();
+              }
+            } : undefined}
           />
 
           {/* Recent Chats Section - only when chat enabled */}

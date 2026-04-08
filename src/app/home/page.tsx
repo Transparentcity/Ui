@@ -149,6 +149,7 @@ export default function DashboardPage() {
   const [initialPlaceGps, setInitialPlaceGps] = useState<{ lat: number; lng: number; radius_m: number } | null>(null);
   const [requestOpenDistrictModal, setRequestOpenDistrictModal] = useState<number | null>(null);
   const [initialPlaceId, setInitialPlaceId] = useState<number | null>(null);
+  const [initialSection, setInitialSection] = useState<"map" | "dashboard" | "anomalies" | null>(null);
   /** Official Selector selection (district / place) so left nav can stay in sync; only when currentView === "city". */
   const [citySelection, setCitySelection] = useState<{ district: number | null; placeId: number | null }>({ district: null, placeId: null });
   /** After saving a new block, run metrics job once before showing place dashboard (see CityView). */
@@ -718,6 +719,7 @@ export default function DashboardPage() {
     if (nextView !== "city") {
       setActiveCityId(null);
       setInitialDistrict(null); // Clear initial district when leaving city view
+      setInitialSection(null);
       setGpsLocation(null); // Clear GPS location when leaving city view
       setInitialPlaceGps(null);
     }
@@ -736,6 +738,7 @@ export default function DashboardPage() {
     setInitialDistrict(null);
     setInitialPlaceId(null);
     setInitialPlaceGps(null);
+    setInitialSection(null);
     setCitySelection({ district: null, placeId: null });
     setCurrentView("city");
     setCurrentSessionId(null);
@@ -1193,6 +1196,19 @@ export default function DashboardPage() {
         onPlaceSaved={handlePlaceSaved}
         onPlaceRenamed={handlePlaceRenamed}
         onPlaceDeleted={handlePlaceDeleted}
+        onCitySectionClick={(cityId, section) => {
+          setActiveCityId(cityId);
+          setInitialDistrict(null);
+          setInitialPlaceId(null);
+          setInitialPlaceGps(null);
+          setInitialSection(section);
+          setCitySelection({ district: null, placeId: null });
+          setCurrentView("city");
+          setCurrentSessionId(null);
+          setIsCurrentSessionJobSession(false);
+          setCurrentResearchId(null);
+          setGpsLocation(null);
+        }}
         activeCityId={activeCityId}
         onResearchClick={(reportId) => {
           setCurrentResearchId(reportId);
@@ -1340,6 +1356,7 @@ export default function DashboardPage() {
                   initialDistrict={initialDistrict}
                   initialPlaceId={initialPlaceId}
                   initialPlaceGps={initialPlaceGps}
+                  initialSection={initialSection}
                   requestOpenDistrictModal={requestOpenDistrictModal}
                   onClearDistrictModalRequest={() => setRequestOpenDistrictModal(null)}
                   onOfficialSelectionChange={onOfficialSelectionChange}
