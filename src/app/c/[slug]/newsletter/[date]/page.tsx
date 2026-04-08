@@ -12,9 +12,9 @@ import NavEmailSignup from "../../NavEmailSignup";
 import CityHeroNewsletter from "../../CityHeroNewsletter";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 
-// Archive pages: cache permanently once rendered; never auto-revalidate.
-// If an edition is regenerated, redeploy or manually purge the route cache.
-export const dynamic = "force-static";
+// Render on each request so newly generated editions are immediately viewable.
+// The underlying fetch uses `revalidate: 3600` so responses are still cached.
+export const dynamic = "force-dynamic";
 
 type PageProps = {
   params: Promise<{ slug: string; date: string }>;
