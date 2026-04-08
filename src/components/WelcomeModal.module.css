@@ -966,6 +966,47 @@
   margin-top: 2px;
 }
 
+.recommendedBadge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--brand-primary, #ad35fa);
+  background: rgba(173, 53, 250, 0.08);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.digestNudge {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+  background: var(--bg-secondary, #f9fafb);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-top: -4px;
+  line-height: 1.4;
+}
+
+.digestNudgeDismiss {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-tertiary, #9ca3af);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.digestNudgeDismiss:hover {
+  color: var(--text-secondary, #6b7280);
+}
+
 /* Show More / Hide More Buttons */
 .showMoreButton,
 .hideMoreButton {

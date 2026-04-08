@@ -25,9 +25,11 @@ interface MyCitiesProps {
   activeDistrict?: string | null;
   /** Whether the section starts expanded (default true). */
   defaultExpanded?: boolean;
+  /** Called when user clicks a section shortcut (Dashboard/Anomalies) under a city. */
+  onCitySectionClick?: (cityId: number, section: "dashboard" | "anomalies") => void;
 }
 
-export default function MyCities({ onCityClick, onDistrictClick, userPlaces = [], onPlaceClick, activePlaceId, onPlaceRenamed, onPlaceDeleted, activeCityId, activeDistrict, defaultExpanded = true }: MyCitiesProps) {
+export default function MyCities({ onCityClick, onDistrictClick, userPlaces = [], onPlaceClick, activePlaceId, onPlaceRenamed, onPlaceDeleted, activeCityId, activeDistrict, defaultExpanded = true, onCitySectionClick }: MyCitiesProps) {
   const { getAccessTokenSilently } = useAuth0();
   const [cities, setCities] = useState<SavedCity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -221,6 +223,12 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
     }
   };
 
+  // Count total items to decide compact mode (cities + districts + places)
+  const totalItems = cities.length
+    + Object.values(districtsByCityId).reduce((sum, arr) => sum + arr.length, 0)
+    + userPlaces.length;
+  const isCompact = totalItems >= 6;
+
   // Don't render if no cities
   if (!loading && cities.length === 0) {
     return null;
@@ -239,7 +247,7 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
         </span>
       </div>
       {expanded && (
-        <div id="my-cities-list">
+        <div id="my-cities-list" className={isCompact ? styles.compact : ""}>
           {loading ? (
             <div className={styles.emptyState} style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center" }}>
               <Loader size="sm" color="dark" />
@@ -370,6 +378,30 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
                           </div>
                         );
                       })}
+                    </div>
+                  )}
+                  {/* Section shortcuts: Dashboard + Anomalies on one line */}
+                  {onCitySectionClick && (
+                    <div className={styles.sectionShortcutRow}>
+                      <button
+                        type="button"
+                        className={styles.sectionShortcut}
+                        onClick={() => onCitySectionClick(city.id, "dashboard")}
+                        aria-label={`${city.display_name} Dashboard`}
+                      >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                        Dashboard
+                      </button>
+                      <span className={styles.sectionShortcutDot}>·</span>
+                      <button
+                        type="button"
+                        className={styles.sectionShortcut}
+                        onClick={() => onCitySectionClick(city.id, "anomalies")}
+                        aria-label={`${city.display_name} Anomalies`}
+                      >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                        Anomalies
+                      </button>
                     </div>
                   )}
                 </div>

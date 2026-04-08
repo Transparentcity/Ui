@@ -373,6 +373,109 @@
   opacity: 0.6;
 }
 
+/* Compact mode: tighter spacing when many items in My Places */
+.compact .item {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.compact .myCitiesEmoji {
+  font-size: 13px;
+}
+
+.compact .myCitiesName {
+  font-size: 12px;
+}
+
+.compact .districtSubItem {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.compact .districtNumber {
+  font-size: 10px;
+  min-width: 18px;
+}
+
+.compact .districtName {
+  font-size: 11px;
+}
+
+.compact .placeSubItem {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.compact .placeSubItemIcon {
+  width: 10px;
+  height: 12px;
+}
+
+.compact .placeSubItemIcon svg {
+  width: 10px;
+  height: 12px;
+}
+
+.compact .placeSubItemLabel {
+  font-size: 11px;
+}
+
+/* Section shortcut row (Dashboard · Anomalies) under cities — single line */
+.sectionShortcutRow {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px var(--space-lg) 4px calc(var(--space-lg) + 28px);
+}
+
+.sectionShortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 4px;
+  margin: 0;
+  border: none;
+  background: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  color: var(--text-tertiary, #999);
+  white-space: nowrap;
+  transition: color 0.15s ease, background 0.15s ease;
+  line-height: 1;
+}
+
+.sectionShortcut svg {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.sectionShortcut:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.sectionShortcut:active {
+  background: var(--bg-tertiary);
+}
+
+.sectionShortcut:hover svg {
+  opacity: 1;
+}
+
+.sectionShortcutDot {
+  color: var(--text-tertiary, #999);
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0.5;
+}
+
+.compact .sectionShortcutRow {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
 /* Research List Specific Styles */
 .list {
   display: flex;

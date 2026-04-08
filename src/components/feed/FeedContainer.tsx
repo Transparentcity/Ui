@@ -149,6 +149,24 @@ export default function FeedContainer({
     }
   }, [homeCityId, cityId]);
 
+  // When savedCities load asynchronously (e.g. after onboarding), auto-select
+  // them if no filters were previously saved and nothing is selected yet.
+  const appliedSavedCitiesRef = useRef(false);
+  useEffect(() => {
+    if (
+      savedCities.length > 0 &&
+      !appliedSavedCitiesRef.current &&
+      saved.current == null &&
+      cityId == null &&
+      !appliedHomeCityRef.current
+    ) {
+      appliedSavedCitiesRef.current = true;
+      setSelectedCityIds((prev) =>
+        prev.size === 0 ? new Set(savedCities.map((c) => c.id)) : prev
+      );
+    }
+  }, [savedCities, cityId]);
+
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showMoreTopics, setShowMoreTopics] = useState(false);
   const [feedDetailStoryId, setFeedDetailStoryId] = useState<number | null>(null);
@@ -1010,9 +1028,9 @@ export default function FeedContainer({
         <div className={styles.emptyState}>
           <p>
             {personalNewsletterOnly
-              ? "No personal newsletter samples yet. Generate one from Settings \u2192 Personalized newsletter."
+              ? "No newsletter stories yet. Check back soon as new data comes in."
               : onlyMySavedPlacesFeed
-                ? "No personalized place stories yet. We generate these for your saved places over time—check back soon."
+                ? "No stories yet for your saved places. New stories appear as city data updates."
               : hasSecondaryFilters || selectedCityIds.size > 0
                 ? (() => {
                     const parts: string[] = [];
@@ -1037,7 +1055,9 @@ export default function FeedContainer({
                   })()
                 : isAdmin
                   ? "No feed stories yet. New stories appear as city data updates. Check back soon!"
-                  : "Follow a city to see stories in your feed. Visit a city page and click Follow to get started."}
+                  : savedCities.length > 0
+                    ? "No stories yet for your cities. New stories appear as city data updates. Check back soon!"
+                    : "Follow a city to see stories in your feed. Visit a city page and click Follow to get started."}
           </p>
           {(hasSecondaryFilters || selectedCityIds.size > 0) && !personalNewsletterOnly && (
             <button

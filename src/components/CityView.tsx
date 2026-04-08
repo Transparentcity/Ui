@@ -33,6 +33,8 @@ import { slugify } from "@/lib/utils";
 import { formatMetricValue } from "@/lib/formatters";
 import "./CityView.css";
 
+type CityViewSection = "map" | "dashboard" | "anomalies";
+
 interface CityViewProps {
   cityId: number;
   isAdmin: boolean;
@@ -54,6 +56,8 @@ interface CityViewProps {
   onConsumePlaceMetricsBootstrap?: () => void;
   /** Notify parent to set bootstrap id when user saves a new place from the city header (DistrictNavigation). */
   onRequestPlaceMetricsBootstrap?: (placeId: number) => void;
+  /** When set, scroll to this section on mount (e.g. from sidebar Dashboard shortcut). */
+  initialSection?: CityViewSection | null;
 }
 
 interface MetricWithYTD {
@@ -1931,6 +1935,7 @@ export default function CityView({
   bootstrapPlaceMetricsForPlaceId = null,
   onConsumePlaceMetricsBootstrap,
   onRequestPlaceMetricsBootstrap,
+  initialSection,
 }: CityViewProps) {
   const [adminDrawerOpen, setAdminDrawerOpen] = useState(false);
   const [alertsSectionVisible, setAlertsSectionVisible] = useState(false);
@@ -1956,9 +1961,12 @@ export default function CityView({
   const [userOrderDialogOpen, setUserOrderDialogOpen] = useState(false);
   const [lastPlaceRefreshAt, setLastPlaceRefreshAt] = useState<string | null>(null);
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
+  const dashboardSectionRef = useRef<HTMLDivElement | null>(null);
   const alertsSectionRef = useRef<HTMLDivElement | null>(null);
+  const [activeSection, setActiveSection] = useState<CityViewSection>("map");
   const [isCityDataReady, setIsCityDataReady] = useState(false);
   const previousCityIdRef = useRef<number | null>(null);
+  const initialSectionScrolled = useRef(false);
 
   useEffect(() => {
     if (requestOpenDistrictModal != null && requestOpenDistrictModal === cityId) {
@@ -2165,6 +2173,50 @@ export default function CityView({
     return () => observer.disconnect();
   }, [cityData]);
 
+  // Track active section based on scroll position
+  useEffect(() => {
+    const refs: { section: CityViewSection; el: HTMLElement | null }[] = [
+      { section: "map", el: mapSectionRef.current },
+      { section: "dashboard", el: dashboardSectionRef.current },
+      { section: "anomalies", el: alertsSectionRef.current },
+    ];
+    const elements = refs.filter((r) => r.el != null) as { section: CityViewSection; el: HTMLElement }[];
+    if (elements.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const match = elements.find((r) => r.el === entry.target);
+            if (match) setActiveSection(match.section);
+          }
+        }
+      },
+      { rootMargin: "-40% 0px -55% 0px", threshold: 0 }
+    );
+    for (const { el } of elements) observer.observe(el);
+    return () => observer.disconnect();
+  }, [cityData]);
+
+  // Scroll to initialSection on mount (e.g. sidebar Dashboard shortcut)
+  useEffect(() => {
+    if (!initialSection || initialSectionScrolled.current) return;
+    const refMap: Record<CityViewSection, React.RefObject<HTMLElement | null>> = {
+      map: mapSectionRef,
+      dashboard: dashboardSectionRef,
+      anomalies: alertsSectionRef,
+    };
+    const target = refMap[initialSection]?.current;
+    if (target) {
+      initialSectionScrolled.current = true;
+      // Force anomalies visible if scrolling there
+      if (initialSection === "anomalies") setAlertsSectionVisible(true);
+      requestAnimationFrame(() => {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }, [initialSection, cityData]);
+
   // Close admin drawer on Escape
   useEffect(() => {
     if (!adminDrawerOpen) return;
@@ -2296,6 +2348,30 @@ export default function CityView({
               </span>
             </div>
           )}
+          {/* Section jump nav */}
+          <nav className="city-view-jump-nav" aria-label="Jump to section">
+            {(["map", "dashboard", "anomalies"] as CityViewSection[]).map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={`city-view-jump-nav-btn${activeSection === s ? " city-view-jump-nav-btn-active" : ""}`}
+                onClick={() => {
+                  const refMap: Record<CityViewSection, React.RefObject<HTMLElement | null>> = {
+                    map: mapSectionRef,
+                    dashboard: dashboardSectionRef,
+                    anomalies: alertsSectionRef,
+                  };
+                  const target = refMap[s]?.current;
+                  if (target) {
+                    if (s === "anomalies") setAlertsSectionVisible(true);
+                    target.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }
+                }}
+              >
+                {s === "map" ? "Map" : s === "dashboard" ? "Dashboard" : "Anomalies"}
+              </button>
+            ))}
+          </nav>
         </header>
         {(() => {
           const selectedPlace =
@@ -2351,7 +2427,7 @@ export default function CityView({
         </section>
 
         {/* Dashboard section - YTD default, no DistrictNavigation (uses sticky selector) */}
-        <section className="city-view-dashboard-section" aria-label="Dashboard">
+        <section ref={dashboardSectionRef} className="city-view-dashboard-section" id="dashboard-section" aria-label="Dashboard">
           <h2 className="city-view-section-title">
             Dashboard
             {lastPlaceRefreshAt ? (
@@ -2395,7 +2471,7 @@ export default function CityView({
         </section>
 
         {/* Anomalies section - lazy-mounted when in viewport */}
-        <section ref={alertsSectionRef} className="city-view-alerts-section" aria-label="Anomalies">
+        <section ref={alertsSectionRef} className="city-view-alerts-section" id="anomalies-section" aria-label="Anomalies">
           <h2 className="city-view-section-title">Anomalies</h2>
           {alertsSectionVisible ? (
             <AnomaliesTabPanel

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
+import { emitSavedCitiesChanged } from "@/lib/uiEvents";
 import {
   searchPublicCities,
   type PublicCitySearchResult,
@@ -79,6 +80,7 @@ export default function WelcomeModal({
   // Preferences state — two opt-ins: alerts + custom weekly newsletter
   const alertsOptIn = false; // anomaly alerts not available at launch
   const [weeklyNewsletterOptIn, setWeeklyNewsletterOptIn] = useState(true);
+  const [showDigestNudge, setShowDigestNudge] = useState(false);
   const [newsletterDescription, setNewsletterDescription] = useState("");
   const newsletterFrequency = "weekly" as const;
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
@@ -741,11 +743,6 @@ export default function WelcomeModal({
             We have data for your city! Explore crime, safety, traffic, and more.
           </p>
         )}
-        {(mayor || councilMember) && (
-          <p className={styles.locationHint}>
-            Flag stories to {councilMember ? councilMember.name : "your rep"} or applaud good work.
-          </p>
-        )}
 
         {showMapAndPlace && (
           <div className={styles.leaderStepMapSection}>
@@ -849,13 +846,33 @@ export default function WelcomeModal({
             <input
               type="checkbox"
               checked={weeklyNewsletterOptIn}
-              onChange={() => setWeeklyNewsletterOptIn(!weeklyNewsletterOptIn)}
+              onChange={() => {
+                const next = !weeklyNewsletterOptIn;
+                setWeeklyNewsletterOptIn(next);
+                if (!next) setShowDigestNudge(true);
+                else setShowDigestNudge(false);
+              }}
             />
             <div>
-              <span className={styles.emailOptInTitle}>Weekly digest</span>
+              <span className={styles.emailOptInTitle}>
+                Weekly digest <span className={styles.recommendedBadge}>Recommended</span>
+              </span>
               <span className={styles.emailOptInDesc}>A personalized email based on your topics</span>
             </div>
           </label>
+          {showDigestNudge && (
+            <div className={styles.digestNudge}>
+              <span>Are you sure? You can unsubscribe at any time, and this is the best way to keep up.</span>
+              <button
+                type="button"
+                className={styles.digestNudgeDismiss}
+                onClick={() => setShowDigestNudge(false)}
+                aria-label="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </div>
 
         {error && <div className={styles.error}>{error}</div>}
@@ -942,6 +959,7 @@ export default function WelcomeModal({
 
       const cityId = locationResult.matchedCity.id;
       await saveCity(cityId, token);
+      emitSavedCitiesChanged();
 
       const districtToLoad = locationResult.councilMember?.district ?? locationResult.district ?? null;
       if (districtToLoad !== null && districtToLoad !== undefined) {
@@ -1080,7 +1098,7 @@ export default function WelcomeModal({
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
                 <polyline points="22,6 12,13 2,6" />
               </svg>
-              <span>Personalized {newsletterFrequency} email</span>
+              <span>Your weekly newsletter arrives Sunday</span>
             </div>
           )}
         </div>
