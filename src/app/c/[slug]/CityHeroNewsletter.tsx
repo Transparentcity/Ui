@@ -13,9 +13,20 @@ type CityHeroNewsletterProps = {
   withContainer?: boolean;
   /** Display name for the city (used in container subtitle) */
   cityDisplay?: string;
+  /** Override the container heading (default: "Get stories like this once a week") */
+  containerHeading?: string;
+  /** Override the container subtitle */
+  containerSubtitle?: string;
 };
 
-export default function CityHeroNewsletter({ cityName, cityDisplay, citySlug, label, withContainer }: CityHeroNewsletterProps) {
+export default function CityHeroNewsletter({
+  cityName,
+  cityDisplay,
+  label,
+  withContainer,
+  containerHeading,
+  containerSubtitle,
+}: CityHeroNewsletterProps) {
   const { isAuthenticated } = useAuth0();
 
   if (isAuthenticated) return null;
@@ -34,14 +45,14 @@ export default function CityHeroNewsletter({ cityName, cityDisplay, citySlug, la
           margin: "0 0 4px",
           color: "var(--text-primary)",
         }}>
-          Get stories like this once a week
+          {containerHeading ?? "Get stories like this once a week"}
         </p>
         <p style={{
           fontSize: 13,
           color: "var(--text-secondary)",
           margin: "0 0 8px",
         }}>
-          {cityDisplay ?? cityName}&rsquo;s public data, explained. Crime trends, housing, city services, and more.
+          {containerSubtitle ?? `${cityDisplay ?? cityName}\u2019s public data, explained. Crime trends, housing, city services, and more.`}
         </p>
         <EmailSignInLink label={label ?? `To get updates for ${cityName}`} />
       </div>

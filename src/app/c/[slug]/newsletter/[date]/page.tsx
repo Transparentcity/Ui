@@ -194,30 +194,14 @@ export default async function NewsletterEditionPage({ params, searchParams }: Pa
           dangerouslySetInnerHTML={{ __html: edition.body_html }}
         />
 
-        {/* Newsletter signup CTA */}
-        <div style={{
-          margin: "32px 0",
-          padding: "24px",
-          borderRadius: 12,
-          background: "var(--bg-secondary, #f5f5f5)",
-        }}>
-          <p style={{
-            fontSize: 15,
-            fontWeight: 600,
-            margin: "0 0 4px",
-            color: "var(--text-primary)",
-          }}>
-            Get this in your inbox every week
-          </p>
-          <p style={{
-            fontSize: 13,
-            color: "var(--text-secondary)",
-            margin: "0 0 8px",
-          }}>
-            Sign up to receive {cityDisplay}&rsquo;s weekly briefing{districtLabel ? ` for District ${edition.district}` : ""}.
-          </p>
-          <CityHeroNewsletter cityName={cityDisplay} citySlug={slug} />
-        </div>
+        {/* Newsletter signup CTA — only shown to logged-out users */}
+        <CityHeroNewsletter
+          cityName={cityDisplay}
+          citySlug={slug}
+          withContainer
+          containerHeading="Get this in your inbox every week"
+          containerSubtitle={`Sign up to receive ${cityDisplay}\u2019s weekly briefing${districtLabel ? ` for District ${edition.district}` : ""}.`}
+        />
 
         <hr style={{ border: "none", borderTop: "1px solid var(--border-primary, #e5e7eb)", margin: "32px 0" }} />
 

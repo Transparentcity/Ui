@@ -7,6 +7,7 @@ import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
 import { getDataPortalForCity } from "@/lib/dataPortals";
 import NavEmailSignup from "../NavEmailSignup";
 import CityHeroNewsletter from "../CityHeroNewsletter";
+import LoggedOutOnly from "../LoggedOutOnly";
 import { SignupEmailProvider } from "../SignupEmailContext";
 
 import "../../../landing.css";
@@ -203,25 +204,27 @@ export default async function MethodologyPage({ params }: PageProps) {
         </div>
       </main>
 
-      {/* Explainer + bottom CTA (matching city page) */}
-      <section className="city-explainer-section">
-        <div className="container">
-          <div className="city-explainer-inner">
-            <p className="city-explainer-text">
-              {cityName}&rsquo;s public data, explained once a week.
-              Crime trends, housing, city services, and 311 reports, sourced
-              from {cityName}&rsquo;s open data portal with links to
-              every number.
-            </p>
-            <div className="city-explainer-cta">
-              <CityHeroNewsletter
-                cityName={cityName}
-                citySlug={slug}
-              />
+      {/* Explainer + bottom CTA — only shown to logged-out users */}
+      <LoggedOutOnly>
+        <section className="city-explainer-section">
+          <div className="container">
+            <div className="city-explainer-inner">
+              <p className="city-explainer-text">
+                {cityName}&rsquo;s public data, explained once a week.
+                Crime trends, housing, city services, and 311 reports, sourced
+                from {cityName}&rsquo;s open data portal with links to
+                every number.
+              </p>
+              <div className="city-explainer-cta">
+                <CityHeroNewsletter
+                  cityName={cityName}
+                  citySlug={slug}
+                />
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </LoggedOutOnly>
 
       <PublicFooter citySlug={slug} feedbackPageUrl={`/c/${slug}/methodology`} feedbackPageType="methodology" />
     </SignupEmailProvider>
