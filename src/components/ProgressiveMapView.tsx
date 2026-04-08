@@ -397,6 +397,7 @@ export default function ProgressiveMapView({
       setPoints(data.points || []);
     } catch (err) {
       console.error("Error fetching points:", err);
+      setPoints([]); // Recover so fetchPoints can be retried
       onError?.(err instanceof Error ? err.message : "Failed to fetch points");
     } finally {
       setLoadingPoints(false);
@@ -900,10 +901,12 @@ export default function ProgressiveMapView({
           ...feature,
           properties: {
             ...feature.properties,
+            ...districtData,
+            // Must be last: aggregation rows often include unrelated fields
+            // (e.g. crime 'color') that would overwrite Mapbox fill-color.
             district_id: districtId,
             value: value,
             color: color,
-            ...districtData,
           },
         };
       });
