@@ -22,6 +22,14 @@ function isStoryPageUrl(detailUrl: string, canonicalUrl?: string): boolean {
   if (detailUrl.startsWith("/s/")) return true;
   if (/^\/c\/[^/]+\/stories\//.test(detailUrl)) return true;
   if (canonicalUrl && detailUrl === canonicalUrl) return true;
+  // Also catch absolute URLs (e.g. https://transparent.city/s/HASH)
+  try {
+    const path = new URL(detailUrl, "https://transparent.city").pathname;
+    if (path.startsWith("/s/")) return true;
+    if (/^\/c\/[^/]+\/stories\//.test(path)) return true;
+  } catch {
+    // not a valid URL
+  }
   return false;
 }
 
