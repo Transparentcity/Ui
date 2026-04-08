@@ -4,12 +4,17 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import TimeSeriesChart, { type PeriodType } from "@/components/TimeSeriesChart";
 import Loader from "@/components/Loader";
+import PublicNavBar from "@/components/PublicNavBar";
+import PublicFooter from "@/components/PublicFooter";
+import NavEmailSignup from "../../../../NavEmailSignup";
+import { SignupEmailProvider } from "../../../../SignupEmailContext";
 import {
   getPublicTimeSeriesChart,
   type PublicTimeSeriesChartPoint,
   type PublicTimeSeriesChartResponse,
 } from "@/lib/publicApiClient";
 import type { PublicMetricDetail } from "@/lib/publicApiClient";
+import "@/app/landing.css";
 
 function aggregateTimeSeriesPoints(
   data: PublicTimeSeriesChartPoint[]
@@ -141,92 +146,92 @@ export default function ChartViewClient({
   const chartTitle =
     displayChart.metadata?.chart_title || metric.metric_name;
 
+  const cityName =
+    metric.city_name ||
+    citySlug
+      .split("-")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+
   const defaultPeriod: PeriodType =
     useNativeYearSeries && yearChartId != null ? "year" : baseDefaultPeriod;
 
   return (
+    <SignupEmailProvider>
     <div className="chart-view-page">
-      <nav className="metric-detail-nav">
-        <div className="metric-detail-nav-inner">
-          <Link
-            href="/"
-            className="metric-detail-nav-logo"
-            aria-label="Transparent.city home"
-          >
-            <span className="logo-text">
-              <span className="logo-transparent">transparent</span>
-              <span className="logo-city">.city</span>
-            </span>
-          </Link>
-          <div className="metric-detail-nav-links">
-            <Link
-              href={`/c/${citySlug}`}
-              className="metric-detail-nav-link"
-            >
-              {metric.city_name || citySlug.replace(/-/g, " ")}
-            </Link>
-            <span className="metric-detail-nav-sep" aria-hidden>/</span>
-            <Link
-              href={`/c/${citySlug}/metrics/${metric.metric_key}`}
-              className="metric-detail-nav-link"
-            >
-              {metric.metric_name}
-            </Link>
-            <span className="metric-detail-nav-sep" aria-hidden>/</span>
-            <span className="metric-detail-nav-current">Time series</span>
-          </div>
-        </div>
-      </nav>
+      <PublicNavBar>
+        <NavEmailSignup citySlug={citySlug} cityName={cityName} />
+      </PublicNavBar>
 
-      <main className="chart-view-main">
-        <div className="chart-view-inner">
-          <h1 className="chart-view-title">{chartTitle}</h1>
-          {displayChart.metadata?.caption && (
-            <p className="chart-view-caption">{displayChart.metadata.caption}</p>
-          )}
-          <div className="chart-view-chart">
-            {yearLoading ? (
-              <div
-                className="metric-placeholder"
-                style={{
-                  display: "flex",
-                  minHeight: 400,
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.75rem",
-                }}
-              >
-                <Loader size="md" color="dark" />
-                <span>Loading annual series…</span>
-              </div>
-            ) : (
-              <TimeSeriesChart
-                key={`${useNativeYearSeries ? yearChartId : urlChartId}`}
-                data={displayChart.data}
-                metadata={displayChart.metadata}
-                height={500}
-                defaultPeriod={defaultPeriod}
-                showExternalTitle={false}
-                onPeriodChange={handlePeriodChange}
-              />
-            )}
-          </div>
-          <p className="chart-view-meta">
-            {displayChart.count.toLocaleString()} data points
-            {displayChart.metadata?.district != null &&
-              displayChart.metadata.district !== 0 && (
-                <> · District {displayChart.metadata.district}</>
-              )}
-          </p>
+      <div className="chart-view-content-wrapper">
+        <nav className="metric-detail-breadcrumb" aria-label="Breadcrumb">
+          <Link href={`/c/${citySlug}`} className="metric-detail-breadcrumb-link">
+            {cityName}
+          </Link>
+          <span className="metric-detail-breadcrumb-sep">/</span>
           <Link
             href={`/c/${citySlug}/metrics/${metric.metric_key}`}
-            className="chart-view-back"
+            className="metric-detail-breadcrumb-link"
           >
-            ← Back to {metric.metric_name}
+            {metric.metric_name}
           </Link>
-        </div>
-      </main>
+          <span className="metric-detail-breadcrumb-sep">/</span>
+          <span className="metric-detail-breadcrumb-current">Time series</span>
+        </nav>
+
+        <main className="chart-view-main">
+          <div className="chart-view-inner">
+            <h1 className="chart-view-title">{chartTitle}</h1>
+            {displayChart.metadata?.caption && (
+              <p className="chart-view-caption">{displayChart.metadata.caption}</p>
+            )}
+            <div className="chart-view-chart">
+              {yearLoading ? (
+                <div
+                  className="metric-placeholder"
+                  style={{
+                    display: "flex",
+                    minHeight: 400,
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "0.75rem",
+                  }}
+                >
+                  <Loader size="md" color="dark" />
+                  <span>Loading annual series…</span>
+                </div>
+              ) : (
+                <TimeSeriesChart
+                  key={`${useNativeYearSeries ? yearChartId : urlChartId}`}
+                  data={displayChart.data}
+                  metadata={displayChart.metadata}
+                  height={500}
+                  defaultPeriod={defaultPeriod}
+                  showExternalTitle={false}
+                  onPeriodChange={handlePeriodChange}
+                />
+              )}
+            </div>
+            <p className="chart-view-meta">
+              {displayChart.count.toLocaleString()} data points
+              {displayChart.metadata?.district != null &&
+                displayChart.metadata.district !== 0 && (
+                  <> · District {displayChart.metadata.district}</>
+                )}
+            </p>
+            <Link
+              href={`/c/${citySlug}/metrics/${metric.metric_key}`}
+              className="chart-view-back"
+            >
+              ← Back to {metric.metric_name}
+            </Link>
+          </div>
+        </main>
+      </div>
+
+      <PublicFooter />
     </div>
+    </SignupEmailProvider>
   );
 }

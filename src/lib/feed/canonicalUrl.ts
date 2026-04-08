@@ -41,8 +41,9 @@ export function resolveCanonicalUrl(story: EnrichedFeedStory): string {
     return `/s/${story.short_hash}`;
   }
 
-  // Legacy no-hash fallback.
-  return `/feed/${story.id}`;
+  // Legacy no-hash fallback: city dashboard rather than auth-gated feed.
+  if (slug) return `/c/${slug}`;
+  return "/";
 }
 
 /**
