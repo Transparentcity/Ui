@@ -77,7 +77,7 @@ export default function NavEmailSignup({ citySlug, cityName, isHome }: Props) {
   if (isAuthenticated) {
     if (isHome) return null;
     return (
-      <Link href={`/c/${citySlug}`} className="nav-home-link">
+      <Link href="/home" className="nav-home-link">
         &larr; {cityName || "Home"}
       </Link>
     );
