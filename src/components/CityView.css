@@ -171,6 +171,13 @@
   width: 100%;
 }
 
+/* Offset scroll targets so section titles clear the sticky header + jump nav */
+.city-view-map-section,
+.city-view-dashboard-section,
+.city-view-alerts-section {
+  scroll-margin-top: 80px;
+}
+
 @media (max-width: 640px) {
   .city-view-dashboard-section {
     padding: 12px 8px 0;
@@ -178,6 +185,12 @@
 
   .city-view-alerts-section {
     padding: 12px 8px 8px;
+  }
+
+  .city-view-map-section,
+  .city-view-dashboard-section,
+  .city-view-alerts-section {
+    scroll-margin-top: 72px;
   }
 }
 
@@ -2909,6 +2922,7 @@ button.metrics-table-row {
 .city-view-jump-nav-btn {
   flex: 1;
   padding: 6px 12px;
+  min-height: 36px;
   border: 1px solid var(--border-primary);
   border-radius: 20px;
   background: transparent;
@@ -2962,6 +2976,7 @@ button.metrics-table-row {
 
   .city-view-jump-nav-btn {
     padding: 5px 8px;
+    min-height: 32px;
     font-size: 0.75rem;
   }
 }
