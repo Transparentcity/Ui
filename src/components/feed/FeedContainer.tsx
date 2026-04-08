@@ -1028,9 +1028,9 @@ export default function FeedContainer({
         <div className={styles.emptyState}>
           <p>
             {personalNewsletterOnly
-              ? "No personal newsletter samples yet. Generate one from Settings \u2192 Personalized newsletter."
+              ? "No newsletter stories yet. Check back soon as new data comes in."
               : onlyMySavedPlacesFeed
-                ? "No personalized place stories yet. We generate these for your saved places over time—check back soon."
+                ? "No stories yet for your saved places. New stories appear as city data updates."
               : hasSecondaryFilters || selectedCityIds.size > 0
                 ? (() => {
                     const parts: string[] = [];
