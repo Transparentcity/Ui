@@ -410,7 +410,7 @@ export default function PublicMapPage() {
   const hash = params.hash as string;
   const isEmbedded = searchParams.get("embedded") === "true";
   const { theme } = useTheme();
-  const { loginWithRedirect } = useAuth0();
+  const { loginWithRedirect, isAuthenticated } = useAuth0();
   
   const [map, setMap] = useState<SavedMap | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2929,27 +2929,29 @@ export default function PublicMapPage() {
               </div>
             )}
           
-          <div className="cta-section">
-            <h3>Sign up now</h3>
-            <p>
-              Get updates, maps, and block-level context about your city and neighborhood.
-            </p>
-            <button
-              type="button"
-              className="cta-button"
-              onClick={() => {
-                if (typeof window !== "undefined") {
-                  window.localStorage.setItem("transparentcity.signup_intent", "subscriber");
-                }
-                loginWithRedirect({
-                  authorizationParams: { screen_hint: "signup" },
-                  appState: { returnTo: "/home" },
-                });
-              }}
-            >
-              Sign up
-            </button>
-          </div>
+          {!isAuthenticated && (
+            <div className="cta-section">
+              <h3>Sign up now</h3>
+              <p>
+                Get updates, maps, and block-level context about your city and neighborhood.
+              </p>
+              <button
+                type="button"
+                className="cta-button"
+                onClick={() => {
+                  if (typeof window !== "undefined") {
+                    window.localStorage.setItem("transparentcity.signup_intent", "subscriber");
+                  }
+                  loginWithRedirect({
+                    authorizationParams: { screen_hint: "signup" },
+                    appState: { returnTo: "/home" },
+                  });
+                }}
+              >
+                Sign up
+              </button>
+            </div>
+          )}
         </footer>
       </article>
     </div>
