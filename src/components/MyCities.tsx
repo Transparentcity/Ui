@@ -23,13 +23,15 @@ interface MyCitiesProps {
   onPlaceDeleted?: (placeId: number) => void;
   activeCityId?: number | null;
   activeDistrict?: string | null;
+  /** Whether the section starts expanded (default true). */
+  defaultExpanded?: boolean;
 }
 
-export default function MyCities({ onCityClick, onDistrictClick, userPlaces = [], onPlaceClick, activePlaceId, onPlaceRenamed, onPlaceDeleted, activeCityId, activeDistrict }: MyCitiesProps) {
+export default function MyCities({ onCityClick, onDistrictClick, userPlaces = [], onPlaceClick, activePlaceId, onPlaceRenamed, onPlaceDeleted, activeCityId, activeDistrict, defaultExpanded = true }: MyCitiesProps) {
   const { getAccessTokenSilently } = useAuth0();
   const [cities, setCities] = useState<SavedCity[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [openPlaceMenuId, setOpenPlaceMenuId] = useState<number | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -53,16 +55,22 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
     return acc;
   }, {});
 
+  const hasLoadedRef = useRef(false);
+
   useEffect(() => {
-    loadCities();
-    
+    // Always load cities on mount so the section renders even when collapsed
+    if (!hasLoadedRef.current || expanded) {
+      loadCities();
+      hasLoadedRef.current = true;
+    }
+
     // Cleanup prefetch timeout on unmount
     return () => {
       if (prefetchTimeoutRef.current) {
         clearTimeout(prefetchTimeoutRef.current);
       }
     };
-  }, []);
+  }, [expanded]);
 
   useEffect(() => {
     const handleSavedCitiesChanged = () => {

@@ -303,21 +303,6 @@ export default function HomeClient() {
                 you can read in 30 seconds.
               </p>
 
-              {/* Stats bar */}
-              <div className={styles.statsBar}>
-                <div className={styles.stat}>
-                  <span className={styles.statNumber}>{(cityCount ?? liveCities.length) || 42}</span>
-                  <span className={styles.statLabel}>{((cityCount ?? liveCities.length) || 42) === 1 ? "city tracked" : "cities tracked"}</span>
-                </div>
-                <div className={styles.stat}>
-                  <span className={styles.statNumber}>{(storyCount ?? 555).toLocaleString()}+</span>
-                  <span className={styles.statLabel}>stories generated</span>
-                </div>
-                <div className={styles.stat}>
-                  <span className={styles.statNumber}>100%</span>
-                  <span className={styles.statLabel}>sourced from open data</span>
-                </div>
-              </div>
 
               <div className={styles.heroCtas}>
                 <button
@@ -325,7 +310,7 @@ export default function HomeClient() {
                   onClick={handleSignup}
                   className={`${styles.button} ${styles.buttonPrimary} ${styles.heroBtn}`}
                 >
-                  Get your city feed
+                  Explore your city
                 </button>
 
                 {liveCities.length > 0 && (
@@ -351,7 +336,7 @@ export default function HomeClient() {
         <section className={styles.section}>
           <div className={styles.container}>
             <div className={styles.feedPreviewHeader}>
-              <h2 className={styles.sectionTitle}>See what the feed looks like</h2>
+              <h2 className={styles.sectionTitle}>Recent stories</h2>
               <p className={styles.sectionLead}>
                 These are real stories from the last few days, generated automatically from public data.
                 Sign up to follow your city and get stories tailored to your district.
@@ -376,18 +361,18 @@ export default function HomeClient() {
               </div>
               <div className={styles.step}>
                 <div className={styles.stepNumber}>2</div>
-                <h3 className={styles.stepTitle}>Get your feed</h3>
+                <h3 className={styles.stepTitle}>See what&apos;s happening</h3>
                 <p className={styles.stepDesc}>
-                  We analyze trends, anomalies, and changes, then write
-                  plain-language stories with charts and source links.
+                  We turn raw data into plain-language stories with charts
+                  and source links.
                 </p>
               </div>
               <div className={styles.step}>
                 <div className={styles.stepNumber}>3</div>
-                <h3 className={styles.stepTitle}>Stay informed</h3>
+                <h3 className={styles.stepTitle}>Find changes early</h3>
                 <p className={styles.stepDesc}>
-                  New stories appear as data updates. Get alerts for
-                  spikes, weekly digests, or browse whenever you want.
+                  New stories appear as the data changes. Browse
+                  anytime or get a weekly digest.
                 </p>
               </div>
             </div>
@@ -411,7 +396,7 @@ export default function HomeClient() {
                   Get started
                 </button>
                 <a href="/pro" className={styles.ctaBtnOutline}>
-                  Add your city
+                  Request your city
                 </a>
               </div>
             </div>

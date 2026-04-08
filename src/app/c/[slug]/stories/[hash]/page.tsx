@@ -21,6 +21,27 @@ import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
 
 export const revalidate = 3600;
 
+/**
+ * Returns true when detail_url points back to this story's own page,
+ * whether as a relative path (/s/HASH, /c/slug/stories/HASH) or an
+ * absolute URL (https://transparent.city/c/slug/stories/HASH).
+ */
+function isSelfReferentialUrl(detailUrl: string, slug: string, hash: string): boolean {
+  if (!detailUrl) return true;
+  if (detailUrl.startsWith("/s/")) return true;
+  if (/^\/c\/[^/]+\/stories\//.test(detailUrl)) return true;
+  // Strip absolute origin so "https://transparent.city/s/HASH" is also caught
+  try {
+    const parsed = new URL(detailUrl, "https://transparent.city");
+    const path = parsed.pathname;
+    if (path.startsWith("/s/")) return true;
+    if (/^\/c\/[^/]+\/stories\//.test(path)) return true;
+  } catch {
+    // not a valid URL, fall through
+  }
+  return false;
+}
+
 type PageProps = {
   params: Promise<{ slug: string; hash: string }>;
 };
@@ -308,19 +329,23 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           </>
         )}
 
-        {/* CTA */}
-        {story.detail_url && story.detail_url !== `/s/${hash}` && story.detail_url !== `/c/${slug}/stories/${hash}` && !/^\/c\/[^/]+\/stories\//.test(story.detail_url) && (
-          <div style={{ marginTop: 40, paddingTop: 24, borderTop: "1px solid var(--border-subtle, #e5e7eb)" }}>
-            <a
-              href={story.detail_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-primary"
-            >
-              {story.cta_label ?? "View source data"}
-            </a>
-          </div>
-        )}
+        {/* CTA — strip #story-{hash} fragments so the report page doesn't
+             redirect right back to this canonical story page. */}
+        {story.detail_url && !isSelfReferentialUrl(story.detail_url, slug, hash) && (() => {
+          const ctaUrl = story.detail_url!.replace(/#story-[A-Za-z0-9_-]+$/, "");
+          return ctaUrl ? (
+            <div style={{ marginTop: 40, paddingTop: 24, borderTop: "1px solid var(--border-subtle, #e5e7eb)" }}>
+              <a
+                href={ctaUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary"
+              >
+                {story.cta_label ?? "View source data"}
+              </a>
+            </div>
+          ) : null;
+        })()}
 
         {/* Divider + Share */}
         <hr style={{ border: "none", borderTop: "1px solid var(--border-primary, #e5e7eb)", margin: "24px 0" }} />
@@ -386,30 +411,8 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           </>
         )}
 
-        {/* Newsletter signup CTA */}
-        <div style={{
-          margin: "32px 0",
-          padding: "24px",
-          borderRadius: 12,
-          background: "var(--bg-secondary, #f5f5f5)",
-        }}>
-          <p style={{
-            fontSize: 15,
-            fontWeight: 600,
-            margin: "0 0 4px",
-            color: "var(--text-primary)",
-          }}>
-            Get stories like this once a week
-          </p>
-          <p style={{
-            fontSize: 13,
-            color: "var(--text-secondary)",
-            margin: "0 0 8px",
-          }}>
-            {cityDisplay}&rsquo;s public data, explained. Crime trends, housing, city services, and more.
-          </p>
-          <CityHeroNewsletter cityName={cityDisplay} citySlug={slug} />
-        </div>
+        {/* Newsletter signup CTA — only shown to logged-out users */}
+        <CityHeroNewsletter cityName={cityDisplay} citySlug={slug} cityDisplay={cityDisplay} withContainer />
       </article>
 
       <PublicFooter citySlug={slug} feedbackPageUrl={`/c/${slug}/stories/${hash}`} feedbackPageType="story" />

@@ -443,7 +443,6 @@ export default function Header({
                       disabled={isLoading}
                     >
                       <span className={styles.menuItemTitle}>Sign up as citizen</span>
-                      <span className={styles.menuItemDesc}>Follow cities, research, and maps.</span>
                     </button>
                     <button
                       className={styles.menuItem}
@@ -452,7 +451,6 @@ export default function Header({
                       disabled={isLoading}
                     >
                       <span className={styles.menuItemTitle}>I&apos;m city staff</span>
-                      <span className={styles.menuItemDesc}>Briefs, context, and operational clarity.</span>
                     </button>
                   </div>
                 )}

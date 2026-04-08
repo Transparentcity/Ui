@@ -14,7 +14,7 @@
 }
 
 .item {
-  padding: var(--space-xs) var(--space-lg);
+  padding: 1px var(--space-lg);
   cursor: pointer;
   transition: background 0.2s ease;
   border-left: 3px solid transparent;
@@ -155,7 +155,7 @@
 .myCitiesItemWrapper {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: 6px;
 }
 
 .myCitiesEmoji {
@@ -188,7 +188,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px var(--space-lg) 4px calc(var(--space-lg) + 28px);
+  padding: 1px var(--space-lg) 1px calc(var(--space-lg) + 28px);
   cursor: pointer;
   transition: background 0.2s ease;
   border-left: 3px solid transparent;
@@ -244,7 +244,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px var(--space-lg) 4px calc(var(--space-lg) + 28px);
+  padding: 1px var(--space-lg) 1px calc(var(--space-lg) + 28px);
   cursor: pointer;
   transition: background 0.2s ease;
   border-left: 3px solid transparent;
@@ -344,7 +344,7 @@
 }
 
 .sectionHeader {
-  padding: var(--space-md) var(--space-lg);
+  padding: 4px var(--space-lg);
   font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
@@ -387,7 +387,7 @@
 }
 
 .listItem {
-  padding: var(--space-xs) var(--space-lg);
+  padding: 3px var(--space-lg);
   cursor: pointer;
   transition: background 0.2s ease;
   border-left: 3px solid transparent;

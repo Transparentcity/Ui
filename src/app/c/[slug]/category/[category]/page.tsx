@@ -22,6 +22,7 @@ import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
 import NavEmailSignup from "../../NavEmailSignup";
 import CityHeroNewsletter from "../../CityHeroNewsletter";
+import LoggedOutOnly from "../../LoggedOutOnly";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 
 export const revalidate = 3600;
@@ -282,21 +283,23 @@ export default async function CityCategoryPage({
         maps={maps}
       />
 
-      <section className="city-explainer-section">
-        <div className="container">
-          <div className="city-explainer-inner">
-            <p className="city-explainer-text">
-              {city.name}&rsquo;s public data, explained once a week.
-              Crime trends, housing, city services, and 311 reports, sourced
-              from {city.name}&rsquo;s open data portal with links to
-              every number.
-            </p>
-            <div className="city-explainer-cta">
-              <CityHeroNewsletter cityName={city.name} citySlug={slug} />
+      <LoggedOutOnly>
+        <section className="city-explainer-section">
+          <div className="container">
+            <div className="city-explainer-inner">
+              <p className="city-explainer-text">
+                {city.name}&rsquo;s public data, explained once a week.
+                Crime trends, housing, city services, and 311 reports, sourced
+                from {city.name}&rsquo;s open data portal with links to
+                every number.
+              </p>
+              <div className="city-explainer-cta">
+                <CityHeroNewsletter cityName={city.name} citySlug={slug} />
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </LoggedOutOnly>
 
       <PublicFooter
         citySlug={slug}

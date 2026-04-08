@@ -30,6 +30,7 @@ import DistrictFollowClaimBlock from "./district/DistrictFollowClaimBlock";
 import CityMapPreview from "./CityMapPreview";
 import FeaturedStories from "./FeaturedStories";
 import CityHeroNewsletter from "./CityHeroNewsletter";
+import LoggedOutOnly from "./LoggedOutOnly";
 
 export const revalidate = 3600;
 
@@ -340,25 +341,27 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         />
       )}
 
-      {/* Section 7: Explainer + Bottom CTA */}
-      <section className="city-explainer-section">
-        <div className="container">
-          <div className="city-explainer-inner">
-            <p className="city-explainer-text">
-              {city?.name ?? slug}&rsquo;s public data, explained once a week.
-              Crime trends, housing, city services, and 311 reports, sourced
-              from {city?.name ?? slug}&rsquo;s open data portal with links to
-              every number.
-            </p>
-            <div className="city-explainer-cta">
-              <CityHeroNewsletter
-                cityName={city?.name ?? slug}
-                citySlug={slug}
-              />
+      {/* Section 7: Explainer + Bottom CTA — only shown to logged-out users */}
+      <LoggedOutOnly>
+        <section className="city-explainer-section">
+          <div className="container">
+            <div className="city-explainer-inner">
+              <p className="city-explainer-text">
+                {city?.name ?? slug}&rsquo;s public data, explained once a week.
+                Crime trends, housing, city services, and 311 reports, sourced
+                from {city?.name ?? slug}&rsquo;s open data portal with links to
+                every number.
+              </p>
+              <div className="city-explainer-cta">
+                <CityHeroNewsletter
+                  cityName={city?.name ?? slug}
+                  citySlug={slug}
+                />
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </LoggedOutOnly>
 
       <PublicFooter citySlug={slug} feedbackPageUrl={`/c/${slug}`} feedbackPageType="city" />
     </CityPageClient>

@@ -8,6 +8,7 @@ import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
 import NavEmailSignup from "../../NavEmailSignup";
 import CityHeroNewsletter from "../../CityHeroNewsletter";
+import LoggedOutOnly from "../../LoggedOutOnly";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 import { trackMetricView } from "@/lib/analytics";
 import "@/app/landing.css";
@@ -80,21 +81,23 @@ export default function MetricDetailClient({
         />
       </div>
 
-      <section className="city-explainer-section">
-        <div className="container">
-          <div className="city-explainer-inner">
-            <p className="city-explainer-text">
-              {cityName}&rsquo;s public data, explained once a week.
-              Crime trends, housing, city services, and 311 reports, sourced
-              from {cityName}&rsquo;s open data portal with links to
-              every number.
-            </p>
-            <div className="city-explainer-cta">
-              <CityHeroNewsletter cityName={cityName} citySlug={citySlug} />
+      <LoggedOutOnly>
+        <section className="city-explainer-section">
+          <div className="container">
+            <div className="city-explainer-inner">
+              <p className="city-explainer-text">
+                {cityName}&rsquo;s public data, explained once a week.
+                Crime trends, housing, city services, and 311 reports, sourced
+                from {cityName}&rsquo;s open data portal with links to
+                every number.
+              </p>
+              <div className="city-explainer-cta">
+                <CityHeroNewsletter cityName={cityName} citySlug={citySlug} />
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </LoggedOutOnly>
 
       <PublicFooter
         citySlug={citySlug}
