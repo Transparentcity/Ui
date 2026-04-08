@@ -58,8 +58,8 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
   const hasLoadedRef = useRef(false);
 
   useEffect(() => {
-    // Defer initial fetch until section is expanded (or load immediately if starting expanded)
-    if (expanded || hasLoadedRef.current) {
+    // Always load cities on mount so the section renders even when collapsed
+    if (!hasLoadedRef.current || expanded) {
       loadCities();
       hasLoadedRef.current = true;
     }
