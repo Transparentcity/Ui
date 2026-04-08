@@ -10,6 +10,7 @@ import {
   type PublicDistrictComparisonsResponse,
   type PublicShapefileResponse,
 } from "@/lib/publicApiClient";
+import { getDeltaMapFillColor } from "@/lib/deltaMapColors";
 import Loader from "./Loader";
 import "./DeltaMapView.css";
 
@@ -54,6 +55,33 @@ function getBoundsFromGeoJson(
     [minLng, minLat],
     [maxLng, maxLat],
   ];
+}
+
+/**
+ * Read district id from feature properties using city district_field names and
+ * the shapefile's identifier_field (GeoJSON column). Case-insensitive fallback
+ * for sources that normalize property keys differently than city config.
+ */
+function resolveDistrictIdFromFeatureProps(
+  props: Record<string, unknown>,
+  candidateKeys: string[]
+): string | number | undefined {
+  for (const key of candidateKeys) {
+    if (key && props[key] != null) {
+      return props[key] as string | number;
+    }
+  }
+  const lowerToActual = new Map(
+    Object.keys(props).map((k) => [k.toLowerCase(), k] as const)
+  );
+  for (const key of candidateKeys) {
+    if (!key) continue;
+    const actual = lowerToActual.get(key.toLowerCase());
+    if (actual != null && props[actual] != null) {
+      return props[actual] as string | number;
+    }
+  }
+  return undefined;
 }
 
 interface DeltaMapViewProps {
@@ -172,19 +200,22 @@ export default function DeltaMapView({
       districtMap.set(`district ${d.district}`, d);
     }
 
-    const districtFieldNames = shapeData.district_field_names ?? [];
+    const districtFieldNames = [
+      ...new Set(
+        [
+          ...(shapeData.district_field_names ?? []),
+          ...(shapeData.identifier_field ? [shapeData.identifier_field] : []),
+        ].filter((k): k is string => Boolean(k && String(k).trim()))
+      ),
+    ];
 
     // Enrich features with change data
     const features = shapeData.geometry.features.map((feature) => {
-      const props = feature.properties || {};
-      // Use the city's district field names: first property present wins
-      let districtId: string | number | undefined;
-      for (const key of districtFieldNames) {
-        if (props[key] != null) {
-          districtId = props[key] as string | number;
-          break;
-        }
-      }
+      const props = (feature.properties || {}) as Record<string, unknown>;
+      const districtId = resolveDistrictIdFromFeatureProps(
+        props,
+        districtFieldNames
+      );
 
       const data =
         districtId === undefined
@@ -195,11 +226,18 @@ export default function DeltaMapView({
               ? districtMap.get(Number(districtId))
               : undefined);
 
+      const changePctRaw = data?.change_percent;
+      const changePct =
+        changePctRaw != null && Number.isFinite(Number(changePctRaw))
+          ? Number(changePctRaw)
+          : null;
+
       return {
         ...feature,
         properties: {
           ...props,
-          _change_percent: data?.change_percent ?? null,
+          _change_percent: changePct,
+          _fill_color: getDeltaMapFillColor(changePct, greenDirection),
           _current_value: data?.current_value ?? null,
           _comparison_value: data?.comparison_value ?? null,
           _district: data?.district ?? districtId,
@@ -211,43 +249,7 @@ export default function DeltaMapView({
       type: "FeatureCollection" as const,
       features,
     };
-  }, [shapeData, districtData]);
-
-  // Get color for a change percent value
-  const getColorForChange = (
-    changePercent: number | null,
-    greenDir: "up" | "down" | null
-  ): string => {
-    if (changePercent === null) return "#e0e0e0"; // Gray for no data
-
-    const absChange = Math.abs(changePercent);
-
-    // Near zero = white/light gray
-    if (absChange <= 5) return "#f5f5f5";
-
-    // Determine if increase is good or bad
-    const increaseIsGood = greenDir === "up";
-    const isIncrease = changePercent > 0;
-    const isGood = increaseIsGood ? isIncrease : !isIncrease;
-
-    // Scale intensity based on magnitude (5-200% range for full color)
-    // Use a logarithmic-ish scale for better spread
-    const intensity = Math.min(1, (absChange - 5) / 195);
-
-    if (isGood) {
-      // Green gradient: #f5f5f5 -> #15803d (green-700)
-      const r = Math.round(245 - intensity * (245 - 21));
-      const g = Math.round(245 - intensity * (245 - 128));
-      const b = Math.round(245 - intensity * (245 - 61));
-      return `rgb(${r}, ${g}, ${b})`;
-    } else {
-      // Red gradient: #f5f5f5 -> #991b1b (red-800)
-      const r = Math.round(245 - intensity * (245 - 153));
-      const g = Math.round(245 - intensity * (245 - 27));
-      const b = Math.round(245 - intensity * (245 - 27));
-      return `rgb(${r}, ${g}, ${b})`;
-    }
-  };
+  }, [shapeData, districtData, greenDirection]);
 
   // Initialize map and add layers
   useEffect(() => {
@@ -277,62 +279,13 @@ export default function DeltaMapView({
         data: geoJsonWithData,
       });
 
-      // Build fill-color expression
-      const features = geoJsonWithData.features;
-      const fillColorStops: (string | number | null)[] = [];
-
-      for (const feature of features) {
-        const changePercent = feature.properties._change_percent;
-        const color = getColorForChange(changePercent, greenDirection);
-        fillColorStops.push(changePercent, color);
-      }
-
-      // Add fill layer with data-driven colors
-      // Extended range with more stops for better differentiation
       map.addLayer({
         id: "delta-districts-fill",
         type: "fill",
         source: "delta-districts",
         paint: {
-          "fill-color": [
-            "case",
-            ["==", ["get", "_change_percent"], null],
-            "#e0e0e0",
-            [
-              "interpolate",
-              ["linear"],
-              ["get", "_change_percent"],
-              // Negative values (decrease)
-              -200,
-              greenDirection === "down" ? "#15803d" : "#991b1b", // Very dark green/red
-              -100,
-              greenDirection === "down" ? "#16a34a" : "#b91c1c", // Dark green/red
-              -50,
-              greenDirection === "down" ? "#22c55e" : "#dc2626", // Medium green/red
-              -25,
-              greenDirection === "down" ? "#4ade80" : "#ef4444", // Light-medium green/red
-              -10,
-              greenDirection === "down" ? "#86efac" : "#f87171", // Light green/red
-              -5,
-              greenDirection === "down" ? "#bbf7d0" : "#fecaca", // Very light green/red
-              0,
-              "#f5f5f5", // Neutral
-              // Positive values (increase)
-              5,
-              greenDirection === "down" ? "#fecaca" : "#bbf7d0", // Very light red/green
-              10,
-              greenDirection === "down" ? "#f87171" : "#86efac", // Light red/green
-              25,
-              greenDirection === "down" ? "#ef4444" : "#4ade80", // Light-medium red/green
-              50,
-              greenDirection === "down" ? "#dc2626" : "#22c55e", // Medium red/green
-              100,
-              greenDirection === "down" ? "#b91c1c" : "#16a34a", // Dark red/green
-              200,
-              greenDirection === "down" ? "#991b1b" : "#15803d", // Very dark red/green
-            ],
-          ],
-          "fill-opacity": 0.8,
+          "fill-color": ["get", "_fill_color"],
+          "fill-opacity": 0.88,
         },
       });
 
@@ -478,7 +431,9 @@ export default function DeltaMapView({
         <div className="legend-item">
           <span
             className="legend-color"
-            style={{ backgroundColor: greenDirection === "down" ? "#4ade80" : "#f87171" }}
+            style={{
+              backgroundColor: greenDirection === "down" ? "#22c55e" : "#ef4444",
+            }}
           />
           <span className="legend-label">
             {greenDirection === "down" ? "Decreased" : "Increased"}
@@ -491,7 +446,9 @@ export default function DeltaMapView({
         <div className="legend-item">
           <span
             className="legend-color"
-            style={{ backgroundColor: greenDirection === "down" ? "#f87171" : "#4ade80" }}
+            style={{
+              backgroundColor: greenDirection === "down" ? "#ef4444" : "#22c55e",
+            }}
           />
           <span className="legend-label">
             {greenDirection === "down" ? "Increased" : "Decreased"}

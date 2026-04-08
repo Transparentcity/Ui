@@ -2,18 +2,6 @@
   "redirects": [
     {
       "source": "/(.*)",
-      "has": [{ "type": "host", "value": "app.transparent.city" }],
-      "destination": "https://transparent.city/$1",
-      "permanent": true
-    },
-    {
-      "source": "/(.*)",
-      "has": [{ "type": "host", "value": "www.transparent.city" }],
-      "destination": "https://transparent.city/$1",
-      "permanent": true
-    },
-    {
-      "source": "/(.*)",
       "has": [{ "type": "host", "value": "transparentcity.com" }],
       "destination": "https://transparent.city/$1",
       "permanent": true

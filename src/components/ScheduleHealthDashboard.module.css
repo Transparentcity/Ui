@@ -87,7 +87,7 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 0.8rem;
-  min-width: 880px;
+  min-width: 960px;
 }
 
 .table th,
@@ -107,7 +107,77 @@
 
 .cityCell {
   font-weight: 500;
-  min-width: 120px;
+  min-width: 200px;
+  max-width: 320px;
+}
+
+.cityCellTop {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+}
+
+.structureStrip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.35rem;
+  margin-top: 0.45rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border-primary, #e5e7eb);
+}
+
+.structurePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.15rem 0.4rem 0.15rem 0.32rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.structurePillIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0.95;
+}
+
+.structurePillText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.structurePillOk {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #047857;
+}
+
+.structurePillWarn {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #b45309;
+}
+
+.structurePillBad {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #b91c1c;
+}
+
+.structurePillNeutral {
+  background: var(--bg-secondary, #f3f4f6);
+  border-color: var(--border-primary, #e5e7eb);
+  color: var(--text-secondary, #6b7280);
 }
 
 .launchedRow {
@@ -154,15 +224,44 @@
 }
 
 .chip {
-  display: inline-flex;
+  display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 0.35rem;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  box-sizing: border-box;
   padding: 0.25rem 0.45rem;
   border-radius: 6px;
   font-size: 0.72rem;
   line-height: 1.25;
   max-width: 100%;
   cursor: default;
+}
+
+.chipTopRow {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.chipLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipDate {
+  font-size: 0.65rem;
+  line-height: 1.2;
+  opacity: 0.88;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-align: right;
+  color: var(--text-secondary, #4b5563);
 }
 
 .chipRunning {
@@ -404,4 +503,37 @@
 :global([data-theme="dark"]) .launchedRow,
 :global(.dark) .launchedRow {
   background: rgba(16, 185, 129, 0.08);
+}
+
+:global([data-theme="dark"]) .structureStrip,
+:global(.dark) .structureStrip {
+  border-top-color: var(--bg-tertiary);
+}
+
+:global([data-theme="dark"]) .structurePillOk,
+:global(.dark) .structurePillOk {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(52, 211, 153, 0.35);
+  color: #6ee7b7;
+}
+
+:global([data-theme="dark"]) .structurePillWarn,
+:global(.dark) .structurePillWarn {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(251, 191, 36, 0.35);
+  color: #fcd34d;
+}
+
+:global([data-theme="dark"]) .structurePillBad,
+:global(.dark) .structurePillBad {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(248, 113, 113, 0.35);
+  color: #fca5a5;
+}
+
+:global([data-theme="dark"]) .structurePillNeutral,
+:global(.dark) .structurePillNeutral {
+  background: var(--bg-tertiary);
+  border-color: var(--bg-tertiary);
+  color: var(--text-secondary);
 }

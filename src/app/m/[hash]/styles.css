@@ -145,12 +145,22 @@
   margin-bottom: 1.5rem;
 }
 
-.map-city-name {
+.map-city-line {
   margin: 0 0 0.5rem 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--brand-primary);
   font-family: var(--font-heading, "Inter", sans-serif);
+  line-height: 1.3;
+}
+
+.map-city-name {
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: var(--brand-primary);
+}
+
+.map-city-state {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 
 .map-title {

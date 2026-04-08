@@ -19,6 +19,7 @@ export interface NewFeedViewProps {
   cityLeadCityIds?: number[];
   userPlaces?: UserPlace[];
   onPlaceSaved?: () => void;
+  homeCityId?: number | null;
 }
 
 /**
@@ -32,6 +33,7 @@ export default function NewFeedView({
   cityLeadCityIds = [],
   userPlaces = [],
   onPlaceSaved,
+  homeCityId,
 }: NewFeedViewProps) {
   return (
     <FeedContainer
@@ -41,6 +43,7 @@ export default function NewFeedView({
       cityLeadCityIds={cityLeadCityIds}
       userPlaces={userPlaces}
       onPlaceSaved={onPlaceSaved}
+      homeCityId={homeCityId}
     />
   );
 }

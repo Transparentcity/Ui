@@ -19,6 +19,7 @@ import {
   getCityShapefiles,
   getCityShapeLayers,
   updateShapeLayerInstance,
+  deleteShapeLayerInstance,
   saveCity,
   unsaveCity,
   type CityDetail,
@@ -412,6 +413,29 @@ export function useUpdateShapeLayerInstance(cityId: number | null) {
     },
     onSuccess: () => {
       // Invalidate shape layers cache so it refetches
+      queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayers(cityId!, false) });
+      queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayers(cityId!, true) });
+      queryClient.invalidateQueries({ queryKey: cityKeys.shapefiles(cityId!) });
+      queryClient.invalidateQueries({ queryKey: cityKeys.structure(cityId!) });
+    },
+  });
+}
+
+/**
+ * Hook to delete a shape layer instance.
+ * Invalidates shape layers cache on success.
+ */
+export function useDeleteShapeLayerInstance(cityId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (instanceId: number) => {
+      if (!cityId) throw new Error("City ID is required");
+      const token = await getAccessTokenSilently();
+      return deleteShapeLayerInstance(cityId, instanceId, token);
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayers(cityId!, false) });
       queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayers(cityId!, true) });
       queryClient.invalidateQueries({ queryKey: cityKeys.shapefiles(cityId!) });

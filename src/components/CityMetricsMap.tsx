@@ -107,6 +107,37 @@ function buildShapefileBounds(shapefiles: any[]): MapBoundsBox | null {
   return hasBounds ? bounds : null;
 }
 
+/** True when the row has usable point geometry for circle layers (lat/lon or GeoJSON-style coords). */
+function mapPointHasCoordinates(item: unknown): boolean {
+  if (!item || typeof item !== "object") return false;
+  const row = item as Record<string, unknown>;
+  if (row.lon !== undefined && row.lat !== undefined) {
+    const lon = typeof row.lon === "number" ? row.lon : parseFloat(String(row.lon));
+    const lat = typeof row.lat === "number" ? row.lat : parseFloat(String(row.lat));
+    if (!Number.isNaN(lat) && !Number.isNaN(lon) && Number.isFinite(lat) && Number.isFinite(lon)) {
+      return true;
+    }
+  }
+  const loc = row.location as { coordinates?: unknown } | undefined;
+  if (loc?.coordinates && Array.isArray(loc.coordinates) && loc.coordinates.length >= 2) {
+    const coords = loc.coordinates as unknown[];
+    const lon = typeof coords[0] === "number" ? coords[0] : parseFloat(String(coords[0]));
+    const lat = typeof coords[1] === "number" ? coords[1] : parseFloat(String(coords[1]));
+    if (!Number.isNaN(lat) && !Number.isNaN(lon) && Number.isFinite(lat) && Number.isFinite(lon)) {
+      return true;
+    }
+  }
+  if (row.coordinates && Array.isArray(row.coordinates) && row.coordinates.length >= 2) {
+    const coords = row.coordinates as unknown[];
+    const lon = typeof coords[0] === "number" ? coords[0] : parseFloat(String(coords[0]));
+    const lat = typeof coords[1] === "number" ? coords[1] : parseFloat(String(coords[1]));
+    if (!Number.isNaN(lat) && !Number.isNaN(lon) && Number.isFinite(lat) && Number.isFinite(lon)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function coerceDistrictIdentifier(value: unknown): number | string | null {
   if (typeof value === "number" && Number.isFinite(value)) {
     return Number.isInteger(value) ? value : parseInt(String(value), 10);
@@ -1189,6 +1220,16 @@ export default function CityMetricsMap({
         const isExplicitChoropleth =
           explicitMapType === "choropleth" || explicitMapType === "delta";
 
+        const mapCfg = mapData.map_config && typeof mapData.map_config === "object"
+          ? (mapData.map_config as Record<string, unknown>)
+          : {};
+        const shapeLayerWiring =
+          mapCfg.default_view != null &&
+          typeof mapCfg.default_view === "object" &&
+          (mapCfg.default_view as { shape_layer_instance_id?: unknown }).shape_layer_instance_id != null;
+        const hasAvailableShapeLayers =
+          Array.isArray(mapCfg.available_shape_layers) && mapCfg.available_shape_layers.length > 0;
+
         // Also detect pre-aggregated district data heuristically: rows have a count
         // and at least one district-like identifier field but no lat/lon coordinates.
         // Note: we no longer rely on a generic "district" key — the backend now stores
@@ -1202,27 +1243,47 @@ export default function CityMetricsMap({
           'district', 'supervisor_district', 'sup_dist_num', 'council_district',
           'ward', 'precinct', 'neighborhood', 'zone', 'borough',
         ];
+        const rowHasDistrictLikeField = (row: any) =>
+          DISTRICT_LIKE_FIELDS.some((f) => row?.[f] !== undefined) ||
+          (configuredDistrictField ? row?.[configuredDistrictField] !== undefined : false);
         const hasDistrictLikeField =
-          DISTRICT_LIKE_FIELDS.some((f) => firstRow?.[f] !== undefined) ||
-          (configuredDistrictField
-            ? firstRow?.[configuredDistrictField] !== undefined
-            : false);
+          locationData.some((row: any) => rowHasDistrictLikeField(row));
+
+        const anyRowHasPointGeometry = locationData.some((row) => mapPointHasCoordinates(row));
+
+        const hasNumericMeasure = (row: any) =>
+          row?.count !== undefined ||
+          row?.value !== undefined ||
+          row?.total !== undefined;
+
         const isPreAggregatedDistrict =
           pointCount > 0 &&
-          pointCount <= 100 &&
-          firstRow?.count !== undefined &&
+          pointCount <= 500 &&
+          hasNumericMeasure(firstRow) &&
           hasDistrictLikeField &&
-          firstRow?.lat === undefined &&
-          firstRow?.lon === undefined;
+          !mapPointHasCoordinates(firstRow);
+
+        // District-tabular metrics: map query / data has no point geometry but rows tie to
+        // districts; city shape wiring (structure) supplies boundaries in addLayersToMap.
+        const shouldUseDistrictChoroplethNoGeometry =
+          pointCount > 0 && !anyRowHasPointGeometry && hasDistrictLikeField;
 
         // Only use choropleth when we can plausibly aggregate by district.
         // Otherwise, keep point rendering as a safe fallback to avoid empty layers.
         const canAutoAggregateByDistrict = hasDistrictLikeField;
         const shouldAutoUseChoropleth = pointCount > 1000 && canAutoAggregateByDistrict;
+        const explicitChoroplethWithShapeWiring =
+          isExplicitChoropleth &&
+          (shapeLayerWiring || hasAvailableShapeLayers) &&
+          (hasDistrictLikeField ||
+            (typeof mapCfg.district_field === "string" && String(mapCfg.district_field).trim().length > 0));
         const shouldExplicitlyUseChoropleth =
-          isExplicitChoropleth && canAutoAggregateByDistrict;
+          (isExplicitChoropleth && canAutoAggregateByDistrict) || explicitChoroplethWithShapeWiring;
         const useChoropleth =
-          shouldAutoUseChoropleth || shouldExplicitlyUseChoropleth || isPreAggregatedDistrict;
+          shouldAutoUseChoropleth ||
+          shouldExplicitlyUseChoropleth ||
+          isPreAggregatedDistrict ||
+          shouldUseDistrictChoroplethNoGeometry;
 
         if (locationData.length === 0) {
           return {

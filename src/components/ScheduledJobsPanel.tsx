@@ -159,6 +159,11 @@ export default function ScheduledJobsPanel({
   const [feedProducerUsesLiveTemplate, setFeedProducerUsesLiveTemplate] =
     useState(false);
 
+  /** Autocomplete for feed_producer city_ids (synced with editForm.city_ids CSV). */
+  const [feedProducerCityQuery, setFeedProducerCityQuery] = useState("");
+  const [feedProducerCityHighlight, setFeedProducerCityHighlight] = useState(0);
+  const [feedProducerCityFocused, setFeedProducerCityFocused] = useState(false);
+
   useEffect(() => {
     getAvailableModels().then(setAvailableModels).catch(() => {});
   }, []);
@@ -272,6 +277,67 @@ export default function ScheduledJobsPanel({
     setEditJob(null);
     setEditForm(null);
     setFeedProducerUsesLiveTemplate(false);
+    setFeedProducerCityQuery("");
+    setFeedProducerCityHighlight(0);
+    setFeedProducerCityFocused(false);
+  };
+
+  const feedProducerSelectedCityIds = useMemo(() => {
+    if (!editForm || editForm.job_type !== "feed_producer") return [];
+    return parseCityIdsFromCsv(editForm.city_ids);
+  }, [editForm?.city_ids, editForm?.job_type]);
+
+  const feedProducerCitySuggestions = useMemo(() => {
+    if (!editForm || editForm.job_type !== "feed_producer") return [];
+    const q = feedProducerCityQuery.trim().toLowerCase();
+    const selected = new Set(feedProducerSelectedCityIds);
+    let rows = cityDirectory.filter((c) => !selected.has(c.city_id));
+    if (q) {
+      rows = rows.filter((c) => {
+        const name = (c.city_name || "").toLowerCase();
+        const st = (c.state || "").toLowerCase();
+        const country = (c.country || "").toLowerCase();
+        const idStr = String(c.city_id);
+        return (
+          name.includes(q) ||
+          st.includes(q) ||
+          country.includes(q) ||
+          idStr === q ||
+          idStr.includes(q)
+        );
+      });
+    }
+    rows = [...rows].sort((a, b) =>
+      a.city_name.localeCompare(b.city_name, undefined, { sensitivity: "base" }),
+    );
+    return rows.slice(0, 20);
+  }, [
+    cityDirectory,
+    editForm?.job_type,
+    feedProducerCityQuery,
+    feedProducerSelectedCityIds,
+  ]);
+
+  useEffect(() => {
+    setFeedProducerCityHighlight(0);
+  }, [feedProducerCityQuery, editForm?.city_ids, editForm?.job_type]);
+
+  const addFeedProducerCityId = (id: number) => {
+    setEditForm((f) => {
+      if (!f || f.job_type !== "feed_producer") return f;
+      const ids = parseCityIdsFromCsv(f.city_ids);
+      if (ids.includes(id)) return f;
+      return { ...f, city_ids: [...ids, id].join(", ") };
+    });
+    setFeedProducerCityQuery("");
+  };
+
+  const removeFeedProducerCityId = (id: number) => {
+    setEditForm((f) => {
+      if (!f || f.job_type !== "feed_producer") return f;
+      const ids = parseCityIdsFromCsv(f.city_ids).filter((x) => x !== id);
+      return { ...f, city_ids: ids.join(", ") };
+    });
   };
 
   const handleSaveEdit = async () => {
@@ -790,6 +856,11 @@ export default function ScheduledJobsPanel({
                 onChange={(e) => {
                   const nextType = e.target.value;
                   if (!editForm) return;
+                  if (nextType !== "feed_producer") {
+                    setFeedProducerCityQuery("");
+                    setFeedProducerCityHighlight(0);
+                    setFeedProducerCityFocused(false);
+                  }
                   const wasFeed =
                     editForm.job_type === "feed_producer" ||
                     editForm.job_type === "feed_stories";
@@ -858,7 +929,153 @@ export default function ScheduledJobsPanel({
               </div>
             )}
 
-            {(editForm.job_type === "feed_producer" || editForm.job_type === "feed_stories" || editForm.job_type === "context_stories") && (
+            {editForm.job_type === "feed_producer" && cityDirectory.length > 0 && (
+              <div className={styles.formRow}>
+                <label className={styles.label} id="feed-producer-cities-label">
+                  Cities{" "}
+                  <span style={{ fontWeight: 400 }}>(search by name or ID; required)</span>
+                </label>
+                <div
+                  className={styles.cityPillWrap}
+                  role="group"
+                  aria-labelledby="feed-producer-cities-label"
+                >
+                  {feedProducerSelectedCityIds.length === 0 ? (
+                    <span className={styles.cityPillEmpty}>No cities selected</span>
+                  ) : (
+                    <div className={styles.cityPillRow}>
+                      {feedProducerSelectedCityIds.map((id) => (
+                        <span key={id} className={styles.cityPill}>
+                          <span className={styles.cityPillText}>
+                            {cityLabel(id)}
+                            <span className={styles.cityPillId}>#{id}</span>
+                          </span>
+                          <button
+                            type="button"
+                            className={styles.cityPillRemove}
+                            onClick={() => removeFeedProducerCityId(id)}
+                            aria-label={`Remove ${cityLabel(id)}`}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className={styles.cityAutocomplete}>
+                    <input
+                      className={styles.input}
+                      type="text"
+                      value={feedProducerCityQuery}
+                      onChange={(e) => setFeedProducerCityQuery(e.target.value)}
+                      onFocus={() => setFeedProducerCityFocused(true)}
+                      onBlur={() => {
+                        window.setTimeout(() => setFeedProducerCityFocused(false), 200);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "ArrowDown") {
+                          e.preventDefault();
+                          if (feedProducerCitySuggestions.length === 0) return;
+                          setFeedProducerCityHighlight((h) =>
+                            Math.min(feedProducerCitySuggestions.length - 1, h + 1),
+                          );
+                        } else if (e.key === "ArrowUp") {
+                          e.preventDefault();
+                          setFeedProducerCityHighlight((h) => Math.max(0, h - 1));
+                        } else if (e.key === "Enter") {
+                          e.preventDefault();
+                          const pick = feedProducerCitySuggestions[feedProducerCityHighlight];
+                          if (pick) {
+                            addFeedProducerCityId(pick.city_id);
+                            return;
+                          }
+                          const raw = feedProducerCityQuery.trim();
+                          if (/^\d+$/.test(raw)) {
+                            addFeedProducerCityId(Number(raw));
+                          }
+                        } else if (e.key === "Escape") {
+                          setFeedProducerCityQuery("");
+                        } else if (e.key === "Backspace" && !feedProducerCityQuery.trim()) {
+                          const ids = feedProducerSelectedCityIds;
+                          if (ids.length > 0) {
+                            removeFeedProducerCityId(ids[ids.length - 1]);
+                          }
+                        }
+                      }}
+                      placeholder="Search cities…"
+                      aria-label="Search cities to add"
+                      aria-autocomplete="list"
+                      aria-controls="feed-producer-city-suggestions"
+                      aria-expanded={
+                        feedProducerCityFocused && feedProducerCitySuggestions.length > 0
+                      }
+                      autoComplete="off"
+                    />
+                    {feedProducerCityFocused && feedProducerCitySuggestions.length > 0 && (
+                      <ul
+                        id="feed-producer-city-suggestions"
+                        className={styles.citySuggestionList}
+                        role="listbox"
+                      >
+                        {feedProducerCitySuggestions.map((c, i) => {
+                          const region = [c.state, c.country].filter(Boolean).join(", ");
+                          return (
+                            <li key={c.city_id} role="presentation">
+                              <button
+                                type="button"
+                                role="option"
+                                aria-selected={i === feedProducerCityHighlight}
+                                className={
+                                  i === feedProducerCityHighlight
+                                    ? styles.citySuggestionOptionActive
+                                    : styles.citySuggestionOption
+                                }
+                                onMouseDown={(ev) => {
+                                  ev.preventDefault();
+                                  addFeedProducerCityId(c.city_id);
+                                }}
+                                onMouseEnter={() => setFeedProducerCityHighlight(i)}
+                              >
+                                <span className={styles.citySuggestionName}>{c.city_name}</span>
+                                {region ? (
+                                  <span className={styles.citySuggestionMeta}>{region}</span>
+                                ) : null}
+                                <span className={styles.citySuggestionId}>#{c.city_id}</span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                  <p className={styles.promptVariablesNote}>
+                    Add by search or type a numeric ID and press Enter. Backspace on an empty
+                    search removes the last city.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {editForm.job_type === "feed_producer" && cityDirectory.length === 0 && (
+              <div className={styles.formRow}>
+                <label className={styles.label}>
+                  City IDs{" "}
+                  <span style={{ fontWeight: 400 }}>
+                    (comma-separated; city list failed to load — enter IDs manually)
+                  </span>
+                </label>
+                <input
+                  className={styles.input}
+                  type="text"
+                  value={editForm.city_ids}
+                  onChange={(e) => setEditForm({ ...editForm, city_ids: e.target.value })}
+                  placeholder="e.g. 1, 3, 12"
+                  aria-label="City IDs"
+                />
+              </div>
+            )}
+
+            {(editForm.job_type === "feed_stories" || editForm.job_type === "context_stories") && (
               <div className={styles.formRow}>
                 <label className={styles.label}>
                   City IDs{" "}

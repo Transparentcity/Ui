@@ -49,6 +49,70 @@ interface AvailableView {
 const EMPTY_AVAILABLE_VIEWS: AvailableView[] = [];
 const EMPTY_SHAPE_LAYERS: ShapeLayer[] = [];
 
+/** ProgressiveMapView fallback center when backend sends no bounds (matches map init default). */
+const CONTINENTAL_US_FALLBACK_LNG = -98.5795;
+const CONTINENTAL_US_FALLBACK_LAT = 39.8283;
+
+function isContinentalUsFallbackView(
+  bounds: [[number, number], [number, number]] | null | undefined,
+  center: { lat?: number; lng?: number; zoom?: number } | null | undefined
+): boolean {
+  if (bounds && bounds.length === 2) return false;
+  if (
+    !center ||
+    typeof center.lat !== "number" ||
+    typeof center.lng !== "number" ||
+    !Number.isFinite(center.lat) ||
+    !Number.isFinite(center.lng)
+  ) {
+    return true;
+  }
+  return (
+    Math.abs(center.lng - CONTINENTAL_US_FALLBACK_LNG) < 1.5 &&
+    Math.abs(center.lat - CONTINENTAL_US_FALLBACK_LAT) < 1.5
+  );
+}
+
+/** Bounding box [[sw_lng, sw_lat], [ne_lng, ne_lat]] from choropleth polygons. */
+function getBoundsFromPolygonFeatures(
+  features: Array<{ geometry?: GeoJSON.Geometry }>
+): [[number, number], [number, number]] | null {
+  let minLng = Infinity;
+  let minLat = Infinity;
+  let maxLng = -Infinity;
+  let maxLat = -Infinity;
+  const addPoint = (lng: number, lat: number) => {
+    minLng = Math.min(minLng, lng);
+    minLat = Math.min(minLat, lat);
+    maxLng = Math.max(maxLng, lng);
+    maxLat = Math.max(maxLat, lat);
+  };
+  for (const f of features) {
+    const geom = f?.geometry;
+    if (!geom) continue;
+    if (geom.type === "Polygon") {
+      for (const ring of geom.coordinates) {
+        for (const pos of ring) {
+          if (pos.length >= 2) addPoint(pos[0], pos[1]);
+        }
+      }
+    } else if (geom.type === "MultiPolygon") {
+      for (const polygon of geom.coordinates) {
+        for (const ring of polygon) {
+          for (const pos of ring) {
+            if (pos.length >= 2) addPoint(pos[0], pos[1]);
+          }
+        }
+      }
+    }
+  }
+  if (minLng === Infinity || minLat === Infinity) return null;
+  return [
+    [minLng, minLat],
+    [maxLng, maxLat],
+  ];
+}
+
 interface Aggregation {
   identifier_field: string;
   display_name: string;
@@ -241,11 +305,76 @@ export default function ProgressiveMapView({
 
   // Initial view from default_view (backend decides); with few points always show points so dots are visible.
   // Use 1000 so that "Last month" and similar bounded ranges (often a few hundred points) show points by default.
+  // Map preview (embedded metric maps) often has available_views + aggregations but omits available_shape_layers;
+  // the old branch only read shapeLayersFromConfig, so we fell through to "many points => show dots".
   const initialViewRef = useRef(false);
   useEffect(() => {
     if (initialViewRef.current) return;
     initialViewRef.current = true;
     const fewPoints = locationDataCount <= 1000;
+    const aggregationKeys = Object.keys(aggregations);
+
+    const aggRowCount = (shapeLayerId: string): number => {
+      const rows = (aggregations[shapeLayerId] as { rows?: unknown[] } | undefined)?.rows;
+      return Array.isArray(rows) ? rows.length : 0;
+    };
+
+    /** Choropleth layer id when we have aggregation rows (row_count on views is sometimes omitted). */
+    const resolveChoroShapeLayerId = (): string | null => {
+      if (aggregationKeys.length === 0) return null;
+
+      const viewHasUsableRows = (v: AvailableView): boolean => {
+        if (v.type !== "choropleth" || v.shape_layer_instance_id == null) return false;
+        const sid = String(v.shape_layer_instance_id);
+        if (!aggregationKeys.includes(sid)) return false;
+        const meta = v.row_count;
+        return (meta != null && meta > 0) || aggRowCount(sid) > 0;
+      };
+
+      const fromCity = availableViews.find(
+        (v) => viewHasUsableRows(v) && v.is_city_district
+      );
+      if (fromCity?.shape_layer_instance_id != null) {
+        return String(fromCity.shape_layer_instance_id);
+      }
+      const fromViews = availableViews.find((v) => viewHasUsableRows(v));
+      if (fromViews?.shape_layer_instance_id != null) {
+        return String(fromViews.shape_layer_instance_id);
+      }
+
+      for (const sl of initialShapeLayers) {
+        const sid = String(sl.shape_layer_instance_id);
+        if (aggregationKeys.includes(sid) && aggRowCount(sid) > 0) return sid;
+      }
+      for (const sl of shapeLayersFromConfig ?? []) {
+        const sid = String(sl.shape_layer_instance_id);
+        if (aggregationKeys.includes(sid) && aggRowCount(sid) > 0) return sid;
+      }
+      return null;
+    };
+
+    const choroLayerId = resolveChoroShapeLayerId();
+    const preferChoroOverPoints =
+      choroLayerId != null &&
+      !fewPoints &&
+      locationDataCount > 1000 &&
+      aggregationKeys.length > 0;
+
+    if (defaultView?.type === "choropleth" && defaultView.shape_layer_instance_id != null) {
+      setShowPoints(false);
+      setSelectedShapeLayer(String(defaultView.shape_layer_instance_id));
+      return;
+    }
+
+    if (
+      preferChoroOverPoints &&
+      (defaultView == null || defaultView.type === "points")
+    ) {
+      setShowPoints(false);
+      setSelectedShapeLayer(choroLayerId);
+      return;
+    }
+
     if (defaultView) {
       if (defaultView.type === "points" || fewPoints) {
         setShowPoints(true);
@@ -254,15 +383,32 @@ export default function ProgressiveMapView({
         setShowPoints(false);
         setSelectedShapeLayer(String(defaultView.shape_layer_instance_id));
       }
-    } else if (shapeLayersFromConfig?.length && locationDataCount > 1000) {
+      return;
+    }
+
+    if (initialShapeLayers.length > 0 && locationDataCount > 1000) {
+      setShowPoints(false);
+      setSelectedShapeLayer(String(initialShapeLayers[0].shape_layer_instance_id));
+      return;
+    }
+    if (shapeLayersFromConfig?.length && locationDataCount > 1000) {
       const first = shapeLayersFromConfig[0];
       setShowPoints(false);
       setSelectedShapeLayer(String(first.shape_layer_instance_id));
-    } else if (locationDataCount > 0 && locationDataCount <= MAX_POINTS_LIMIT) {
+      return;
+    }
+    if (locationDataCount > 0 && locationDataCount <= MAX_POINTS_LIMIT) {
       setShowPoints(true);
       setSelectedShapeLayer(null);
     }
-  }, [defaultView, shapeLayersFromConfig, locationDataCount]);
+  }, [
+    defaultView,
+    shapeLayersFromConfig,
+    locationDataCount,
+    aggregations,
+    availableViews,
+    initialShapeLayers,
+  ]);
 
   // Sync from prop-derived list only when content actually changes (avoid loop from new array refs)
   useEffect(() => {
@@ -349,11 +495,18 @@ export default function ProgressiveMapView({
         setPoints(validLocationData);
         // Don't auto-show points for choropleth maps - let user toggle them
       } else if (points === null && !loadingPoints && validLocationData.length === 0) {
-        // location_data doesn't have valid points, fetch from API
-        console.log(`[ProgressiveMapView] location_data has ${mapData.location_data.length} items but no valid points, fetching from API`);
-        fetchPoints().catch((err) => {
-          console.error("Auto-fetch points failed:", err);
-        });
+        // Choropleth rows (no lat/lon): only saved maps can lazy-load points via API.
+        // Preview/embed has no mapHash — avoid /public//points 404 noise.
+        if (!mapHash?.trim()) {
+          setPoints([]);
+        } else {
+          console.log(
+            `[ProgressiveMapView] location_data has ${mapData.location_data.length} items but no valid points, fetching from API`
+          );
+          fetchPoints().catch((err) => {
+            console.error("Auto-fetch points failed:", err);
+          });
+        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -380,16 +533,23 @@ export default function ProgressiveMapView({
     document.head.appendChild(script);
   }, []);
 
-  // Fetch points on demand
+  // Fetch points on demand (saved public maps only; choropleth-only maps may 404)
   const fetchPoints = async () => {
     if (points !== null) {
-      // Already loaded
+      return;
+    }
+    if (!mapHash?.trim()) {
+      setPoints([]);
       return;
     }
 
     setLoadingPoints(true);
     try {
       const response = await fetch(`${API_BASE}/api/maps/public/${mapHash}/points`);
+      if (response.status === 404) {
+        setPoints([]);
+        return;
+      }
       if (!response.ok) {
         throw new Error(`Failed to fetch points: ${response.status}`);
       }
@@ -970,10 +1130,18 @@ export default function ProgressiveMapView({
         },
       }, beforeLayerId);
 
-      // Don't fit to shape layer bounds - respect the map's initial center and zoom
-      // from mapData.center which is typically set to show the city at an appropriate zoom level.
-      // Fitting to shape layer bounds (like supervisor districts) can zoom all the way out
-      // if the shape layer extends beyond the city boundaries.
+      // When preview/embed has no bounds or still uses the continental-US fallback center,
+      // frame the map on district polygons so Austin (etc.) does not appear as Kansas.
+      if (isContinentalUsFallbackView(mapData.bounds ?? undefined, mapData.center ?? undefined)) {
+        const shapeBounds = getBoundsFromPolygonFeatures(features);
+        if (shapeBounds) {
+          try {
+            mapInstance.fitBounds(shapeBounds, { padding: 50, maxZoom: 12, duration: 0 });
+          } catch (e) {
+            console.warn("[ProgressiveMapView] choropleth fitBounds failed:", e);
+          }
+        }
+      }
 
       // Click handler for progressive display
       mapInstance.off("click", "choropleth-fill");
@@ -985,13 +1153,16 @@ export default function ProgressiveMapView({
         if (!districtId) return;
 
         setSelectedDistrictId(districtId);
-        
-        // Fetch points if not already loaded
+
         if (points === null) {
-          await fetchPoints();
+          if (mapHash?.trim()) {
+            await fetchPoints();
+          } else {
+            const normalized = normalizePointData(mapData.location_data || []);
+            setPoints(normalized.length > 0 ? normalized : []);
+          }
         }
-        
-        // Show points
+
         setShowPoints(true);
       });
 
@@ -1387,13 +1558,16 @@ export default function ProgressiveMapView({
   };
 
 
-  // Allow showing points whenever we have location data (user can switch from choropleth to points)
-  // When point count > 1000 we show a small warning but still allow it
-  const canShowDots = !!(
-    mapData.location_data &&
-    Array.isArray(mapData.location_data) &&
-    locationDataCount > 0
-  );
+  // Dots need coordinates. Preview/embed often has district rows only — no mapHash means no points API.
+  const canShowDots = useMemo(() => {
+    if (!mapData.location_data || !Array.isArray(mapData.location_data) || mapData.location_data.length === 0) {
+      return false;
+    }
+    if (mapHash?.trim()) {
+      return true;
+    }
+    return normalizePointData(mapData.location_data).length > 0;
+  }, [mapData.location_data, mapHash]);
   const isShowingManyPoints = showPoints && locationDataCount > 1000;
 
   return (

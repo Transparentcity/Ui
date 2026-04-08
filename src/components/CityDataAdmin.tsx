@@ -68,6 +68,7 @@ import {
 import {
   useCityShapeLayers,
   useUpdateShapeLayerInstance,
+  useDeleteShapeLayerInstance,
 } from "@/lib/hooks/useCities";
 import { portalPlatformLabel } from "@/lib/portalPlatformLabel";
 import styles from "./CityDataAdmin.module.css";
@@ -163,6 +164,7 @@ interface CityDataAdminProps {
 function ShapeLayersSection({ cityId }: { cityId: number }) {
   const { data: shapeLayers, isLoading, refetch } = useCityShapeLayers(cityId, false);
   const updateMutation = useUpdateShapeLayerInstance(cityId);
+  const deleteMutation = useDeleteShapeLayerInstance(cityId);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingAliases, setEditingAliases] = useState<string[]>([]);
 
@@ -190,6 +192,22 @@ function ShapeLayersSection({ cityId }: { cityId: number }) {
   const handleCancelEdit = () => {
     setEditingId(null);
     setEditingAliases([]);
+  };
+
+  const handleDeleteShapeLayer = async (instance: any) => {
+    const label = instance.shapefile_name || instance.structure_type || `shape layer ${instance.id}`;
+    if (!confirm(`Delete "${label}"? This cannot be undone.`)) return;
+
+    try {
+      await deleteMutation.mutateAsync(instance.id);
+      if (editingId === instance.id) {
+        handleCancelEdit();
+      }
+      await refetch();
+      alert(`Deleted shape layer "${label}".`);
+    } catch (err: any) {
+      alert("Failed to delete shape layer: " + err.message);
+    }
   };
 
   // Get instances that exist (have been fetched/created)
@@ -244,20 +262,40 @@ function ShapeLayersSection({ cityId }: { cityId: number }) {
                   </div>
                 </div>
                 {editingId !== instance.id && (
-                  <button
-                    onClick={() => handleEditAliases(instance)}
-                    style={{
-                      padding: "4px 10px",
-                      background: "var(--brand-primary)",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                      fontSize: "11px",
-                    }}
-                  >
-                    Edit Aliases
-                  </button>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <button
+                      onClick={() => handleEditAliases(instance)}
+                      disabled={deleteMutation.isPending}
+                      style={{
+                        padding: "4px 10px",
+                        background: "var(--brand-primary)",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: deleteMutation.isPending ? "not-allowed" : "pointer",
+                        fontSize: "11px",
+                        opacity: deleteMutation.isPending ? 0.6 : 1,
+                      }}
+                    >
+                      Edit Aliases
+                    </button>
+                    <button
+                      onClick={() => handleDeleteShapeLayer(instance)}
+                      disabled={deleteMutation.isPending}
+                      style={{
+                        padding: "4px 10px",
+                        background: "#dc2626",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: deleteMutation.isPending ? "not-allowed" : "pointer",
+                        fontSize: "11px",
+                        opacity: deleteMutation.isPending ? 0.6 : 1,
+                      }}
+                    >
+                      {deleteMutation.isPending ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
                 )}
               </div>
 
