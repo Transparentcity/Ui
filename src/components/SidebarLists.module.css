@@ -373,6 +373,53 @@
   opacity: 0.6;
 }
 
+/* Compact mode: tighter spacing when many items in My Places */
+.compact .item {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.compact .myCitiesEmoji {
+  font-size: 13px;
+}
+
+.compact .myCitiesName {
+  font-size: 12px;
+}
+
+.compact .districtSubItem {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.compact .districtNumber {
+  font-size: 10px;
+  min-width: 18px;
+}
+
+.compact .districtName {
+  font-size: 11px;
+}
+
+.compact .placeSubItem {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.compact .placeSubItemIcon {
+  width: 10px;
+  height: 12px;
+}
+
+.compact .placeSubItemIcon svg {
+  width: 10px;
+  height: 12px;
+}
+
+.compact .placeSubItemLabel {
+  font-size: 11px;
+}
+
 /* Research List Specific Styles */
 .list {
   display: flex;

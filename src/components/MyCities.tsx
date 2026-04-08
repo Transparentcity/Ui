@@ -221,6 +221,12 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
     }
   };
 
+  // Count total items to decide compact mode (cities + districts + places)
+  const totalItems = cities.length
+    + Object.values(districtsByCityId).reduce((sum, arr) => sum + arr.length, 0)
+    + userPlaces.length;
+  const isCompact = totalItems >= 6;
+
   // Don't render if no cities
   if (!loading && cities.length === 0) {
     return null;
@@ -239,7 +245,7 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
         </span>
       </div>
       {expanded && (
-        <div id="my-cities-list">
+        <div id="my-cities-list" className={isCompact ? styles.compact : ""}>
           {loading ? (
             <div className={styles.emptyState} style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center" }}>
               <Loader size="sm" color="dark" />
