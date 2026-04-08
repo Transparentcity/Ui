@@ -77,7 +77,7 @@ export default function WelcomeModal({
   const [placeRadius, setPlaceRadius] = useState(DEFAULT_PLACE_RADIUS_M);
 
   // Preferences state — two opt-ins: alerts + custom weekly newsletter
-  const [alertsOptIn, setAlertsOptIn] = useState(true);
+  const alertsOptIn = false; // anomaly alerts not available at launch
   const [weeklyNewsletterOptIn, setWeeklyNewsletterOptIn] = useState(true);
   const [newsletterDescription, setNewsletterDescription] = useState("");
   const newsletterFrequency = "weekly" as const;
@@ -855,17 +855,6 @@ export default function WelcomeModal({
           <label className={styles.emailOptInOption}>
             <input
               type="checkbox"
-              checked={alertsOptIn}
-              onChange={() => setAlertsOptIn(!alertsOptIn)}
-            />
-            <div>
-              <span className={styles.emailOptInTitle}>Anomaly alerts</span>
-              <span className={styles.emailOptInDesc}>Get notified when something unusual happens</span>
-            </div>
-          </label>
-          <label className={styles.emailOptInOption}>
-            <input
-              type="checkbox"
               checked={weeklyNewsletterOptIn}
               onChange={() => setWeeklyNewsletterOptIn(!weeklyNewsletterOptIn)}
             />
@@ -1099,15 +1088,6 @@ export default function WelcomeModal({
                 <polyline points="22,6 12,13 2,6" />
               </svg>
               <span>Personalized {newsletterFrequency} email</span>
-            </div>
-          )}
-          {alertsOptIn && (
-            <div className={styles.summaryItem}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
-              <span>Anomaly alerts</span>
             </div>
           )}
         </div>
