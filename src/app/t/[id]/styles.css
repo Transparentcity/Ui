@@ -295,6 +295,12 @@
   flex-direction: column;
 }
 
+/* Thumbnail mode: chart only, no chrome, fills the frame */
+.time-series-page.thumbnail {
+  padding: 4px 2px 0;
+  justify-content: center;
+}
+
 .time-series-page.embedded .error-container {
   margin: 1rem;
   padding: 1rem;

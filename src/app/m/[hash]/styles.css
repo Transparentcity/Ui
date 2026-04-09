@@ -681,6 +681,22 @@
   overflow: hidden;
 }
 
+/* Thumbnail mode: map fills frame, compact legend, no header */
+.public-map-page.thumbnail {
+  padding: 0;
+}
+
+.map-legend-thumbnail {
+  font-size: 0.65rem;
+  padding: 4px 6px;
+  bottom: 4px;
+  right: 4px;
+}
+
+.map-legend-thumbnail .map-legend-title {
+  display: none;
+}
+
 .public-map-page.embedded .error-container {
   margin: 1rem;
   padding: 1rem;

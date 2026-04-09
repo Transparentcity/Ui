@@ -434,6 +434,15 @@
   flex-direction: column;
 }
 
+/* Thumbnail mode: chart only, no header, fills the frame */
+.anomaly-page.thumbnail {
+  padding: 0;
+}
+
+.anomaly-page.thumbnail .embedded-chart {
+  padding: 2px 2px 0;
+}
+
 .anomaly-page.embedded .error-container {
   margin: 1rem;
   padding: 1rem;

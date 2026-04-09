@@ -3,11 +3,25 @@
 import { useState } from "react";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import CardHeader from "../CardHeader";
+import LazyVizEmbed from "../LazyVizEmbed";
 import styles from "../feed.module.css";
 
 interface TextChartCardProps {
   story: EnrichedFeedStory;
   children: React.ReactNode; // action bar
+}
+
+/**
+ * Returns true when the image_url points to a real photo (311, street view,
+ * DALL-E, etc.) rather than a server-generated chart/map PNG.  Photos should
+ * still render as <img>; chart/map PNGs are replaced by live iframe embeds.
+ */
+function isPhotoImage(url: string | null): boolean {
+  if (!url) return false;
+  if (url.includes("/api/time-series/")) return false;
+  if (url.includes("/api/anomalies/")) return false;
+  if (url.includes("/api/maps/")) return false;
+  return true;
 }
 
 export default function TextChartCard({ story, children }: TextChartCardProps) {
@@ -16,7 +30,8 @@ export default function TextChartCard({ story, children }: TextChartCardProps) {
   const isMapFocus = meta.map_focus === true;
   const hotspots = (meta.hotspot_neighborhoods as string[] | undefined) ?? [];
 
-  const showImage = story.image_url_resolved && !imgFailed;
+  const hasEmbed = !!story.embed_url_resolved;
+  const hasPhoto = isPhotoImage(story.image_url_resolved) && !imgFailed;
 
   return (
     <>
@@ -33,20 +48,19 @@ export default function TextChartCard({ story, children }: TextChartCardProps) {
       )}
 
       <div className={`${styles.vizArea} ${isMapFocus ? styles.vizAreaMapFocus : ""}`}>
-        {showImage ? (
+        {hasEmbed ? (
+          <LazyVizEmbed
+            src={story.embed_url_resolved!}
+            title={story.headline}
+            className={isMapFocus ? styles.vizIframeMapFocus : undefined}
+          />
+        ) : hasPhoto ? (
           <img
             src={story.image_url_resolved!}
             alt={story.headline}
             className={`${styles.vizImage} ${isMapFocus ? styles.vizImageMapFocus : ""}`}
             loading="lazy"
             onError={() => setImgFailed(true)}
-          />
-        ) : story.embed_url_resolved ? (
-          <iframe
-            src={story.embed_url_resolved}
-            title={story.headline}
-            className={styles.vizIframeThumb}
-            loading="lazy"
           />
         ) : (
           <div className={styles.vizPlaceholder}>

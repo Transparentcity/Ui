@@ -138,6 +138,7 @@ export default function AnomalyChartPage() {
   const { theme } = useTheme();
   const anomalyId = params.id as string;
   const isEmbedded = searchParams.get("embedded") === "true";
+  const isThumbnail = searchParams.get("thumbnail") === "true";
   const forcedTheme =
     searchParams.get("theme") === "dark"
       ? "dark"
@@ -699,17 +700,17 @@ export default function AnomalyChartPage() {
 
   if (loading) {
     return (
-      <div className={`anomaly-page loading ${isEmbedded ? "embedded" : ""}`}>
+      <div className={`anomaly-page loading ${isEmbedded || isThumbnail ? "embedded" : ""} ${isThumbnail ? "thumbnail" : ""}`}>
         <div className="tc-loading-state tc-loading-state--stacked">
           <Loader size="md" color="dark" />
-          <span>Loading anomaly chart…</span>
+          {!isThumbnail && <span>Loading anomaly chart…</span>}
         </div>
       </div>
     );
   }
 
   if (error || !anomaly) {
-    // Embedded mode: compact message that looks clean inside an iframe
+    if (isThumbnail) return <div className="anomaly-page embedded thumbnail" />;
     if (isEmbedded) {
       return (
         <div className="anomaly-page embedded">
@@ -720,7 +721,6 @@ export default function AnomalyChartPage() {
       );
     }
 
-    // Full page: helpful message with navigation
     return (
       <div className="anomaly-page">
         <div className="error-container">
@@ -731,6 +731,76 @@ export default function AnomalyChartPage() {
               Back to Transparent.city
             </Link>
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Thumbnail mode — chart only, no chrome, for feed card previews
+  if (isThumbnail) {
+    return (
+      <div className="anomaly-page embedded thumbnail">
+        <div className="chart-container embedded-chart" ref={chartContainerRef}>
+          {traces.length > 0 && (
+            <Plot
+              data={traces}
+              layout={{
+                title: {
+                  text: chartTitle,
+                  font: {
+                    family: "Inter, Arial, sans-serif",
+                    size: 13,
+                    color: plotTextColor,
+                  },
+                  y: 0.97,
+                  x: 0.5,
+                  xanchor: "center",
+                  pad: { t: 2, b: 2 },
+                },
+                xaxis: {
+                  visible: true,
+                  title: "",
+                  showgrid: false,
+                  ...xAxisTicks,
+                  tickfont: {
+                    family: "IBM Plex Sans, Arial, sans-serif",
+                    size: 8,
+                    color: plotTextColor,
+                  },
+                  ticklen: 3,
+                  tickcolor: plotTextColor,
+                  showline: true,
+                  linecolor: plotAxisLineColor,
+                  linewidth: 1,
+                },
+                yaxis: {
+                  visible: true,
+                  title: "",
+                  showgrid: true,
+                  gridcolor: plotGridColor,
+                  zeroline: false,
+                  tickfont: {
+                    family: "IBM Plex Sans, Arial, sans-serif",
+                    size: 8,
+                    color: plotTextColor,
+                  },
+                },
+                showlegend: false,
+                margin: { t: 30, b: 20, l: 40, r: 10 },
+                autosize: true,
+                paper_bgcolor: "transparent",
+                plot_bgcolor: "transparent",
+                hovermode: false,
+              }}
+              config={{
+                responsive: true,
+                displayModeBar: false,
+                staticPlot: true,
+              }}
+              style={{ width: "100%", height: "100%" }}
+              useResizeHandler={true}
+            />
+          )}
         </div>
       </div>
     );

@@ -22,11 +22,13 @@ import {
   getCityStats,
   refreshAllAcs,
 } from "@/lib/apiClient";
-import { portalPlatformLabel } from "@/lib/portalPlatformLabel";
+import { portalMatchStatusLabel, portalPlatformLabel } from "@/lib/portalPlatformLabel";
 import { emitSavedCitiesChanged } from "@/lib/uiEvents";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import Loader from "./Loader";
+import PortalReviewModal from "./PortalReviewModal";
 import styles from "./CityDataTable.module.css";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
 const ScheduleHealthDashboard = dynamic(() => import("./ScheduleHealthDashboard"), {
   ssr: false,
@@ -59,6 +61,134 @@ interface CityStats {
   usPopCoveredByData: number;
 }
 
+const PLATFORM_COLORS: Record<string, string> = {
+  Socrata: "#3b82f6",
+  ArcGIS: "#10b981",
+  CKAN: "#8b5cf6",
+  "Data.gov": "#f59e0b",
+  "DCAT-AP": "#ec4899",
+  Opendatasoft: "#06b6d4",
+  Junar: "#f97316",
+  Unknown: "#9ca3af",
+  None: "#d4d4d8",
+};
+const FALLBACK_COLORS = [
+  "#14b8a6", "#a855f7", "#eab308", "#ef4444", "#22d3ee", "#84cc16",
+];
+
+function classifyPlatform(city: CityListItem): string {
+  const type = city.portal_type;
+  if (type && type !== "unknown") {
+    if (type === "socrata") return "Socrata";
+    if (type === "arcgis" || type === "arcgis_hub_v3") return "ArcGIS";
+    if (type === "ckan") return "CKAN";
+    if (type === "data_json" || type === "data.gov") return "Data.gov";
+    if (type === "dcat_ap") return "DCAT-AP";
+    if (type === "opendatasoft") return "Opendatasoft";
+    if (type === "junar") return "Junar";
+    return type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " ");
+  }
+  if (
+    type === "unknown" ||
+    city.main_portal_url ||
+    (city.all_portal_urls && city.all_portal_urls.length > 0)
+  ) {
+    return "Unknown";
+  }
+  return "None";
+}
+
+function getPlatformColor(name: string, idx: number): string {
+  return PLATFORM_COLORS[name] ?? FALLBACK_COLORS[idx % FALLBACK_COLORS.length];
+}
+
+function PlatformPie({
+  title,
+  subtitle,
+  data,
+  formatValue,
+}: {
+  title: string;
+  subtitle: string;
+  data: Array<{ name: string; value: number }>;
+  formatValue: (v: number) => string;
+}) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  if (total === 0) {
+    return (
+      <div style={{ textAlign: "center", color: "var(--text-secondary)", padding: "8px" }}>
+        <div style={{ fontSize: "12px", fontWeight: 600 }}>{title}</div>
+        <div style={{ marginTop: "4px", fontSize: "11px" }}>No data</div>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <div style={{ textAlign: "center", marginBottom: "2px" }}>
+        <div style={{ fontSize: "12px", fontWeight: 600 }}>{title}</div>
+        <div style={{ fontSize: "10px", color: "var(--text-secondary)" }}>{subtitle}</div>
+      </div>
+      <ResponsiveContainer width="100%" height={140}>
+        <PieChart>
+          <Pie
+            data={data}
+            dataKey="value"
+            nameKey="name"
+            cx="50%"
+            cy="50%"
+            outerRadius={52}
+            innerRadius={20}
+            paddingAngle={1}
+          >
+            {data.map((entry, idx) => (
+              <Cell key={entry.name} fill={getPlatformColor(entry.name, idx)} />
+            ))}
+          </Pie>
+          <Tooltip
+            formatter={(value: number, name: string) => {
+              const pct = total > 0 ? ((value / total) * 100).toFixed(1) : "0";
+              return [`${formatValue(value)} (${pct}%)`, name];
+            }}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "center",
+          gap: "3px 8px",
+          fontSize: "10px",
+          marginTop: "2px",
+        }}
+      >
+        {data.map((entry, idx) => {
+          const pct = total > 0 ? ((entry.value / total) * 100).toFixed(1) : "0";
+          return (
+            <span
+              key={entry.name}
+              style={{ display: "inline-flex", alignItems: "center", gap: "3px" }}
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: getPlatformColor(entry.name, idx),
+                  flexShrink: 0,
+                }}
+              />
+              <span>
+                {entry.name}: {formatValue(entry.value)} ({pct}%)
+              </span>
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTableProps) {
   const { getAccessTokenSilently } = useAuth0();
   const router = useRouter();
@@ -81,6 +211,7 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
   const [loadingData, setLoadingData] = useState(false);
   const [determiningPortalTypes, setDeterminingPortalTypes] = useState(false);
   const [structuringCities, setStructuringCities] = useState(false);
+  const [portalReviewCity, setPortalReviewCity] = useState<CityListItem | null>(null);
   const [vectorStatsLoadingCityIds, setVectorStatsLoadingCityIds] = useState<
     Set<number>
   >(() => new Set());
@@ -92,6 +223,8 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
   const [structuringMetrics, setStructuringMetrics] = useState(false);
   const [lastRunsByCityId, setLastRunsByCityId] = useState<Record<string, StructureMetricsLastRunSummary>>({});
   const [activeTab, setActiveTab] = useState<"city-list" | "city-health">("city-list");
+  const [platformChartsOpen, setPlatformChartsOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<"state" | "population">("state");
   const [dashboardStats, setDashboardStats] = useState<{
     total_metrics: number;
     cities_with_metrics_count: number;
@@ -263,6 +396,25 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
     };
   }, [cities]);
 
+  const platformCharts = useMemo(() => {
+    const usCities = cities.filter((c) => c.country === "United States");
+    function aggregate(list: CityListItem[]) {
+      const countMap: Record<string, number> = {};
+      const popMap: Record<string, number> = {};
+      for (const c of list) {
+        const p = classifyPlatform(c);
+        countMap[p] = (countMap[p] || 0) + 1;
+        popMap[p] = (popMap[p] || 0) + parsePopulation(c.population || 0);
+      }
+      const toArr = (m: Record<string, number>) =>
+        Object.entries(m)
+          .map(([name, value]) => ({ name, value }))
+          .sort((a, b) => b.value - a.value);
+      return { count: toArr(countMap), population: toArr(popMap) };
+    }
+    return { us: aggregate(usCities), worldwide: aggregate(cities) };
+  }, [cities]);
+
   const filteredCities = useMemo(() => {
     let filtered = [...cities];
 
@@ -288,23 +440,33 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
       );
     }
 
-    // Sort by state, then population
-    filtered.sort((a, b) => {
-      const stateA = (a.state || "").toLowerCase();
-      const stateB = (b.state || "").toLowerCase();
-      if (stateA < stateB) return -1;
-      if (stateA > stateB) return 1;
+    if (sortBy === "population") {
+      filtered.sort((a, b) => {
+        const popA = parsePopulation(a.population || 0);
+        const popB = parsePopulation(b.population || 0);
+        if (popB > popA) return 1;
+        if (popB < popA) return -1;
+        return (a.city_name || "").localeCompare(b.city_name || "");
+      });
+    } else {
+      // Sort by state, then population
+      filtered.sort((a, b) => {
+        const stateA = (a.state || "").toLowerCase();
+        const stateB = (b.state || "").toLowerCase();
+        if (stateA < stateB) return -1;
+        if (stateA > stateB) return 1;
 
-      const popA = parsePopulation(a.population || 0);
-      const popB = parsePopulation(b.population || 0);
-      if (popA > popB) return -1;
-      if (popA < popB) return 1;
+        const popA = parsePopulation(a.population || 0);
+        const popB = parsePopulation(b.population || 0);
+        if (popA > popB) return -1;
+        if (popA < popB) return 1;
 
-      return (a.city_name || "").localeCompare(b.city_name || "");
-    });
+        return (a.city_name || "").localeCompare(b.city_name || "");
+      });
+    }
 
     return filtered;
-  }, [cities, showOnlyPortals, showOnlyInstantiated, countryFilter, citySearchQuery]);
+  }, [cities, showOnlyPortals, showOnlyInstantiated, countryFilter, citySearchQuery, sortBy]);
 
   const citiesByState = useMemo(() => {
     const groups: Record<string, CityListItem[]> = {};
@@ -997,6 +1159,24 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
               />
               <span>Has Instantiated Metrics</span>
             </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", whiteSpace: "nowrap" }}>
+              <span style={{ fontSize: "13px", color: "var(--text-secondary)" }}>Sort by</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as "state" | "population")}
+                style={{
+                  padding: "6px 10px",
+                  border: "1px solid var(--border-primary)",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  background: "var(--bg-primary)",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="state">State</option>
+                <option value="population">Population</option>
+              </select>
+            </label>
           </div>
           <div
             className="city-list-actions"
@@ -1117,6 +1297,13 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
                 </th>
                 <th
                   rowSpan={2}
+                  style={{ padding: "12px", textAlign: "left", whiteSpace: "nowrap" }}
+                  title="City structure analysis status: complete / partial / not started"
+                >
+                  Structure
+                </th>
+                <th
+                  rowSpan={2}
                   className={styles.datasetsCol}
                   style={{ padding: "12px", textAlign: "left" }}
                 >
@@ -1159,7 +1346,149 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
               </tr>
             </thead>
             <tbody>
-              {citiesByState.map((stateGroup) => (
+              {sortBy === "population" ? (
+                filteredCities.map((city) => {
+                  const hasPortalUrl = hasPortal(city);
+                  const portalUrl = city.main_portal_url || "";
+                  const isSelected = selectedCityIds.includes(city.city_id);
+                  const isSaved = savedCityIds.has(city.city_id);
+                  const isSaving = savingCityIds.has(city.city_id);
+                  const lastRun = lastRunsByCityId[String(city.city_id)];
+                  const structIssue =
+                    lastRun?.errors?.[0] ?? lastRun?.opportunities?.[0];
+
+                  return (
+                    <tr
+                      key={city.city_id}
+                      className={city.is_launched ? styles.launchedRow : undefined}
+                      style={{ borderBottom: "1px solid var(--border-primary)" }}
+                    >
+                      <td className={styles.checkboxCol} style={{ padding: "12px" }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => toggleCitySelection(city.city_id, e.target.checked)}
+                        />
+                      </td>
+                      <td className={styles.nameCol} style={{ padding: "12px" }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSavedCity(city.city_id)}
+                            disabled={isSaving}
+                            title={isSaved ? "Remove from My Places" : "Save to My Places"}
+                            aria-label={isSaved ? "Remove from My Places" : "Save to My Places"}
+                            style={{
+                              background: "transparent",
+                              border: "none",
+                              padding: "4px",
+                              borderRadius: "6px",
+                              cursor: isSaving ? "not-allowed" : "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              transition: "all 0.2s ease",
+                              color: isSaved ? "#9333ea" : "var(--text-secondary, #6b7280)",
+                              opacity: isSaving ? 0.6 : 1,
+                            }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill={isSaved ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                          </button>
+                          <div aria-hidden="true" style={{ width: "32px", height: "32px", borderRadius: "999px", background: "var(--bg-secondary, #f3f4f6)", border: "1px solid var(--border-primary, #e5e7eb)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: city.emoji ? "18px" : "13px", fontWeight: 700, flexShrink: 0 }} title={city.city_name || "City"}>
+                            {getCityAvatar(city)}
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                            <button
+                              type="button"
+                              className={`city-name${city.is_launched ? ` ${styles.launchedCityName}` : ""}`}
+                              onClick={() => onOpenCity && onOpenCity(city.city_id)}
+                              style={{ cursor: onOpenCity ? "pointer" : "default", background: "transparent", border: "none", padding: 0, margin: 0, textAlign: "left", ...(city.is_launched ? {} : { color: "var(--text-primary)" }), fontSize: "13px", fontWeight: 600 }}
+                              title={city.is_launched ? "Launched — open city view" : "Open city view"}
+                            >
+                              {city.city_name || "—"}
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding: "12px 8px", textAlign: "center", fontSize: "12px", fontWeight: 600 }} title="Template metrics attempted">{city.template_metrics_attempted ?? 0}</td>
+                      <td style={{ padding: "12px 8px", textAlign: "center", fontSize: "12px", fontWeight: 600 }} title="Template metrics instantiated">
+                        <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+                          <span>{city.template_metrics_instantiated ?? 0}</span>
+                          {lastRun ? (<span aria-label={getStructRunTooltip(lastRun)} title={getStructRunTooltip(lastRun)} style={{ color: lastRun.success === false ? "var(--error, #dc2626)" : "var(--text-secondary, #6b7280)", fontSize: "11px", lineHeight: 1, cursor: "help" }}>i</span>) : null}
+                        </div>
+                      </td>
+                      <td style={{ padding: "12px 8px", textAlign: "center", fontSize: "12px", fontWeight: 600 }} title="Template metrics missing">
+                        <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+                          <span>{city.template_metrics_missing ?? 0}</span>
+                          {structIssue ? (<span aria-label={getStructIssueTooltip(lastRun)} title={getStructIssueTooltip(lastRun)} style={{ color: "var(--error, #dc2626)", fontSize: "12px", lineHeight: 1, cursor: "help" }}>!</span>) : null}
+                        </div>
+                      </td>
+                      <td className={styles.stateCol} style={{ padding: "12px" }}>{getStateAbbreviation(city.state)}</td>
+                      <td className={styles.populationCol} style={{ padding: "12px" }}>{formatPopulation(city.population)}</td>
+                      <td className={styles.popSourceCol} style={{ padding: "12px", fontSize: "12px", color: "var(--text-secondary)" }}>
+                        {city.population_source_name ? `${city.population_source_name}${city.population_data_year != null ? ` ${city.population_data_year}` : ""}` : "—"}
+                      </td>
+                      <td className={styles.platformCol} style={{ padding: "12px" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-start" }}>
+                          <span className={styles.platformBadge} style={{ padding: "4px 8px", background: "var(--bg-secondary)", borderRadius: "4px", fontSize: "11px" }}>{portalPlatformLabel(city.portal_type, city.main_portal_url)}</span>
+                          {(() => {
+                            const badge = portalMatchStatusLabel(city.portal_match_status, city.portal_match_confidence);
+                            if (!badge) return null;
+                            const isReviewable = city.portal_match_status === "review_needed" && (city.portal_match_candidates?.length ?? 0) > 0;
+                            return (
+                              <span title={isReviewable ? `Click to review ${city.portal_match_candidates?.length} candidate(s)` : `Portal match: ${city.portal_match_status} (${city.portal_match_confidence ?? "?"})`} onClick={isReviewable ? () => setPortalReviewCity(city) : undefined} role={isReviewable ? "button" : undefined} style={{ padding: "2px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: 600, color: badge.color, background: `${badge.color}18`, border: `1px solid ${badge.color}40`, whiteSpace: "nowrap", cursor: isReviewable ? "pointer" : "default", textDecoration: isReviewable ? "underline dotted" : "none" }}>
+                                {badge.label}{isReviewable && " →"}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      </td>
+                      <td style={{ padding: "12px", whiteSpace: "nowrap" }}>
+                        {(() => {
+                          const s = city.structure_status;
+                          const fields = city.district_fields ?? [];
+                          const color = s === "complete" ? "#16a34a" : s === "partial" ? "#d97706" : "#6b7280";
+                          const label = s === "complete" ? "Complete" : s === "partial" ? "Partial" : "Not started";
+                          const tooltip = fields.length ? `District fields: ${fields.join(", ")}` : label;
+                          return (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                              <span title={tooltip} style={{ display: "inline-block", padding: "2px 7px", borderRadius: "4px", fontSize: "11px", fontWeight: 600, color, background: `${color}18`, border: `1px solid ${color}40`, cursor: fields.length ? "help" : "default" }}>{label}</span>
+                              {fields.length > 0 && (<span title={`District field aliases: ${fields.join(", ")}`} style={{ fontSize: "10px", color: "var(--text-secondary)", fontFamily: "monospace" }}>{fields[0]}{fields.length > 1 ? ` +${fields.length - 1}` : ""}</span>)}
+                            </div>
+                          );
+                        })()}
+                      </td>
+                      <td className={styles.datasetsCol} style={{ padding: "12px" }}>
+                        {hasPortalUrl && portalUrl ? (
+                          <a href={portalUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand-primary)", textDecoration: "none", fontWeight: 600 }} title="Open portal">{city.datasets_count || 0}</a>
+                        ) : (
+                          <span style={{ fontWeight: 600 }}>{city.datasets_count || 0}</span>
+                        )}
+                      </td>
+                      <td className={styles.vectorDbCol} style={{ padding: "12px" }}>
+                        {vectorStatsLoadingCityIds.has(city.city_id) ? (
+                          <button type="button" className={styles.vectorDbBtn} disabled title="Loading Vector DB stats..."><span className={styles.loadingSpinner} aria-hidden="true" /></button>
+                        ) : city.vector_db_points !== null && city.vector_db_points !== undefined ? (
+                          <button type="button" className={`${styles.vectorDbBtn} ${styles.vectorDbBtnStatsLoaded}`} title={`Vector DB: ${city.vector_db_points} points, ${(city.vector_db_size_mb || 0).toFixed(2)} MB`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                            <span className="vector-db-stats-display">{city.vector_db_points > 0 ? `✓ ${city.vector_db_points}` : "—"}</span>
+                          </button>
+                        ) : (
+                          <button type="button" className={styles.vectorDbBtn} title={vectorStatsErrorCityIds.has(city.city_id) ? "Failed to load Vector DB stats — click to retry" : "Click to load Vector DB stats"} onClick={(e) => { e.preventDefault(); e.stopPropagation(); loadVectorDbStats(city.city_id); }}>
+                            {vectorStatsErrorCityIds.has(city.city_id) ? (<span style={{ color: "var(--error, #dc2626)", fontWeight: 700 }}>⚠</span>) : (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>)}
+                          </button>
+                        )}
+                      </td>
+                      <td className={styles.actionsCol} style={{ padding: "12px" }}>
+                        <button type="button" onClick={() => setCityToDelete(city)} disabled={!!deletingCityId} title="Delete city" aria-label={`Delete ${city.city_name || "city"}`} style={{ background: "transparent", border: "none", padding: "6px", borderRadius: "6px", cursor: deletingCityId ? "not-allowed" : "pointer", color: "var(--text-secondary)", opacity: deletingCityId ? 0.5 : 1 }}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : citiesByState.map((stateGroup) => (
                 <React.Fragment key={`state-${stateGroup.state}`}>
                   <tr className={styles.stateHeaderRow}>
                     <td
@@ -1397,17 +1726,109 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
                             : "—"}
                         </td>
                         <td className={styles.platformCol} style={{ padding: "12px" }}>
-                          <span
-                            className={styles.platformBadge}
-                            style={{
-                              padding: "4px 8px",
-                              background: "var(--bg-secondary)",
-                              borderRadius: "4px",
-                              fontSize: "11px",
-                            }}
-                          >
-                            {portalPlatformLabel(city.portal_type, city.main_portal_url)}
-                          </span>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-start" }}>
+                            <span
+                              className={styles.platformBadge}
+                              style={{
+                                padding: "4px 8px",
+                                background: "var(--bg-secondary)",
+                                borderRadius: "4px",
+                                fontSize: "11px",
+                              }}
+                            >
+                              {portalPlatformLabel(city.portal_type, city.main_portal_url)}
+                            </span>
+                            {(() => {
+                              const badge = portalMatchStatusLabel(
+                                city.portal_match_status,
+                                city.portal_match_confidence
+                              );
+                              if (!badge) return null;
+                              const isReviewable =
+                                city.portal_match_status === "review_needed" &&
+                                (city.portal_match_candidates?.length ?? 0) > 0;
+                              return (
+                                <span
+                                  title={
+                                    isReviewable
+                                      ? `Click to review ${city.portal_match_candidates?.length} candidate(s)`
+                                      : `Portal match: ${city.portal_match_status} (${city.portal_match_confidence ?? "?"})`
+                                  }
+                                  onClick={isReviewable ? () => setPortalReviewCity(city) : undefined}
+                                  role={isReviewable ? "button" : undefined}
+                                  style={{
+                                    padding: "2px 6px",
+                                    borderRadius: "4px",
+                                    fontSize: "10px",
+                                    fontWeight: 600,
+                                    color: badge.color,
+                                    background: `${badge.color}18`,
+                                    border: `1px solid ${badge.color}40`,
+                                    whiteSpace: "nowrap",
+                                    cursor: isReviewable ? "pointer" : "default",
+                                    textDecoration: isReviewable ? "underline dotted" : "none",
+                                  }}
+                                >
+                                  {badge.label}
+                                  {isReviewable && " →"}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        </td>
+                        <td style={{ padding: "12px", whiteSpace: "nowrap" }}>
+                          {(() => {
+                            const s = city.structure_status;
+                            const fields = city.district_fields ?? [];
+                            const color =
+                              s === "complete"
+                                ? "#16a34a"
+                                : s === "partial"
+                                ? "#d97706"
+                                : "#6b7280";
+                            const label =
+                              s === "complete"
+                                ? "Complete"
+                                : s === "partial"
+                                ? "Partial"
+                                : "Not started";
+                            const tooltip = fields.length
+                              ? `District fields: ${fields.join(", ")}`
+                              : label;
+                            return (
+                              <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                                <span
+                                  title={tooltip}
+                                  style={{
+                                    display: "inline-block",
+                                    padding: "2px 7px",
+                                    borderRadius: "4px",
+                                    fontSize: "11px",
+                                    fontWeight: 600,
+                                    color,
+                                    background: `${color}18`,
+                                    border: `1px solid ${color}40`,
+                                    cursor: fields.length ? "help" : "default",
+                                  }}
+                                >
+                                  {label}
+                                </span>
+                                {fields.length > 0 && (
+                                  <span
+                                    title={`District field aliases: ${fields.join(", ")}`}
+                                    style={{
+                                      fontSize: "10px",
+                                      color: "var(--text-secondary)",
+                                      fontFamily: "monospace",
+                                    }}
+                                  >
+                                    {fields[0]}
+                                    {fields.length > 1 ? ` +${fields.length - 1}` : ""}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className={styles.datasetsCol} style={{ padding: "12px" }}>
                           {hasPortalUrl && portalUrl ? (
@@ -1613,179 +2034,73 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
 
       {activeTab === "city-health" && (
         <>
-          <div className={styles.card}>
-            <div className="city-stats-header">
-              <h3 style={{ margin: "0 0 16px", fontSize: "18px", fontWeight: 600 }}>
-                Summary
-              </h3>
-              {dashboardStatsLoading ? (
-                <span style={{ color: "var(--text-secondary)" }}>Loading…</span>
-              ) : dashboardStats ? (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                    gap: "16px",
-                  }}
-                >
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Total cities</span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>{formatNumber(stats.totalCitiesCount)}</span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Total metrics</span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>{formatNumber(dashboardStats.total_metrics)}</span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Cities with metrics</span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>{formatNumber(dashboardStats.cities_with_metrics_count)}</span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Portals</span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>{formatNumber(stats.citiesWithPortalsCount)}</span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Datasets</span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>{formatNumber(stats.totalDatasetsCount)}</span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Pop covered by data</span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>{formatTotalPopulation(stats.worldwidePopCoveredByData)}</span>
-                  </div>
-                </div>
-              ) : (
-                <span style={{ color: "var(--text-secondary)" }}>Unable to load summary stats.</span>
-              )}
-            </div>
-          </div>
-
-          <div className={styles.card} style={{ marginTop: "16px" }}>
-            <div className="city-stats-header">
-              <div className="stats-row" style={{ marginBottom: "24px" }}>
-                <div className="stats-row-label" style={{ fontWeight: 600, marginBottom: "12px" }}>
-                  Worldwide
-                </div>
-                <div
-                  className={styles.cityStatsGrid}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                    gap: "16px",
-                  }}
-                >
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Countries
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatNumber(stats.totalCountriesCount)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Cities
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatNumber(stats.totalCitiesCount)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Population
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatTotalPopulation(stats.totalPopulation)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Portals
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatNumber(stats.citiesWithPortalsCount)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Datasets
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatNumber(stats.totalDatasetsCount)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Pop Covered by Data
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatTotalPopulation(stats.worldwidePopCoveredByData)}
-                    </span>
-                  </div>
-                </div>
+          <div className={styles.card} style={{ padding: "12px 16px" }}>
+            <button
+              type="button"
+              onClick={() => setPlatformChartsOpen((o) => !o)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+                width: "100%",
+                textAlign: "left",
+              }}
+            >
+              <span
+                style={{
+                  display: "inline-block",
+                  fontSize: "10px",
+                  transition: "transform 0.15s",
+                  transform: platformChartsOpen ? "rotate(90deg)" : "rotate(0deg)",
+                }}
+                aria-hidden
+              >
+                ▶
+              </span>
+              <span style={{ fontSize: "14px", fontWeight: 600 }}>Platform Distribution</span>
+              <span style={{ fontSize: "11px", color: "var(--text-secondary)", marginLeft: "4px" }}>
+                {stats.totalCitiesCount} cities · {formatTotalPopulation(stats.totalPopulation)} pop
+              </span>
+            </button>
+            {platformChartsOpen && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "16px 12px",
+                  marginTop: "12px",
+                }}
+              >
+                <PlatformPie
+                  title="US — by City Count"
+                  subtitle={`${platformCharts.us.count.reduce((s, d) => s + d.value, 0).toLocaleString()} cities`}
+                  data={platformCharts.us.count}
+                  formatValue={(v) => `${v.toLocaleString()} cities`}
+                />
+                <PlatformPie
+                  title="US — by Population"
+                  subtitle={`${formatTotalPopulation(platformCharts.us.population.reduce((s, d) => s + d.value, 0))} total pop`}
+                  data={platformCharts.us.population}
+                  formatValue={(v) => formatTotalPopulation(v)}
+                />
+                <PlatformPie
+                  title="Worldwide — by City Count"
+                  subtitle={`${platformCharts.worldwide.count.reduce((s, d) => s + d.value, 0).toLocaleString()} cities`}
+                  data={platformCharts.worldwide.count}
+                  formatValue={(v) => `${v.toLocaleString()} cities`}
+                />
+                <PlatformPie
+                  title="Worldwide — by Population"
+                  subtitle={`${formatTotalPopulation(platformCharts.worldwide.population.reduce((s, d) => s + d.value, 0))} total pop`}
+                  data={platformCharts.worldwide.population}
+                  formatValue={(v) => formatTotalPopulation(v)}
+                />
               </div>
-              <div className="stats-row">
-                <div className="stats-row-label" style={{ fontWeight: 600, marginBottom: "12px" }}>
-                  US
-                </div>
-                <div
-                  className={styles.cityStatsGrid}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                    gap: "16px",
-                  }}
-                >
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Countries
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatNumber(stats.usCountriesCount)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Cities
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatNumber(stats.usCitiesCount)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Population
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatTotalPopulation(stats.usPopulation)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Portals
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatNumber(stats.usCitiesWithPortalsCount)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Datasets
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatNumber(stats.usDatasetsCount)}
-                    </span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      Pop Covered by Data
-                    </span>
-                    <span className="stat-value" style={{ fontSize: "20px", fontWeight: 600 }}>
-                      {formatTotalPopulation(stats.usPopCoveredByData)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
           <div style={{ marginTop: "16px" }}>
@@ -1796,6 +2111,29 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
             />
           </div>
         </>
+      )}
+
+      {portalReviewCity && (
+        <PortalReviewModal
+          city={portalReviewCity}
+          onClose={() => setPortalReviewCity(null)}
+          onAccepted={(cityId, acceptedUrl) => {
+            // Optimistically update the city row so the badge clears immediately
+            setCities((prev) =>
+              prev.map((c) =>
+                c.city_id === cityId
+                  ? {
+                      ...c,
+                      main_portal_url: acceptedUrl,
+                      portal_match_status: "matched",
+                      portal_match_confidence: "high",
+                      portal_match_candidates: null,
+                    }
+                  : c
+              )
+            );
+          }}
+        />
       )}
     </div>
   );

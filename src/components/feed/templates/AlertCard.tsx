@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import CardHeader from "../CardHeader";
+import LazyVizEmbed from "../LazyVizEmbed";
 import styles from "../feed.module.css";
 
 interface AlertCardProps {
@@ -60,7 +61,7 @@ export default function AlertCard({ story, children }: AlertCardProps) {
   const color = effectiveSeverity === "critical" ? "var(--error, #ef4444)" : "var(--warning, #f59e0b)";
 
   const hasMetrics = value != null || changePct != null;
-  const showImage = story.image_url_resolved && !imgFailed;
+  const hasEmbed = !!story.embed_url_resolved;
 
   return (
     <>
@@ -104,8 +105,15 @@ export default function AlertCard({ story, children }: AlertCardProps) {
         </div>
       )}
 
-      {/* Show chart/anomaly image when available */}
-      {showImage && (
+      {/* Prefer live iframe embed over static PNG for chart/anomaly viz */}
+      {hasEmbed ? (
+        <div className={styles.vizArea}>
+          <LazyVizEmbed
+            src={story.embed_url_resolved!}
+            title={story.headline}
+          />
+        </div>
+      ) : story.image_url_resolved && !imgFailed ? (
         <div className={styles.vizArea}>
           <img
             src={story.image_url_resolved!}
@@ -115,7 +123,7 @@ export default function AlertCard({ story, children }: AlertCardProps) {
             onError={() => setImgFailed(true)}
           />
         </div>
-      )}
+      ) : null}
 
       {story.cleaned_description && (
         <p className={styles.cardDescription}>{story.cleaned_description}</p>

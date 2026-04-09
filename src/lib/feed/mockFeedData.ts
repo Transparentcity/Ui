@@ -242,10 +242,10 @@ function resolveEmbedUrl(story: FeedStory): string | null {
   const id = pv.id;
   const hash = pv.short_hash;
 
-  if ((type === "anomaly" || type === "anomaly_chart") && id != null) return `/a/${id}?embedded=true`;
-  if (type === "chart" && id != null) return `/t/${id}?embedded=true`;
-  if (type === "map" && hash) return `/m/${hash}?embedded=true`;
-  if (type === "map" && id != null) return `/m/${id}?embedded=true`;
+  if ((type === "anomaly" || type === "anomaly_chart") && id != null) return `/a/${id}?thumbnail=true`;
+  if (type === "chart" && id != null) return `/t/${id}?thumbnail=true`;
+  if (type === "map" && hash) return `/m/${hash}?thumbnail=true`;
+  if (type === "map" && id != null) return `/m/${id}?thumbnail=true`;
 
   return null;
 }

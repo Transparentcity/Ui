@@ -17,6 +17,7 @@ import type {
   CityScheduleStructureSummary,
 } from "@/lib/apiClient";
 import { batchExecuteMetrics, getCityScheduleHealth } from "@/lib/apiClient";
+import MetricEditModal from "./MetricEditModal";
 import {
   BadgeCheck,
   Layers,
@@ -340,7 +341,13 @@ function lastRunIsoForDisplay(run: CityScheduleRun | null): string | null {
   return run.completed_at ?? run.updated_at ?? run.created_at;
 }
 
-function MetricHealthTable({ rows }: { rows: CityFreshnessMetricRow[] }) {
+function MetricHealthTable({
+  rows,
+  onEditMetric,
+}: {
+  rows: CityFreshnessMetricRow[];
+  onEditMetric: (metricId: number) => void;
+}) {
   const sorted = sortMetricsByStaleness(rows);
   if (sorted.length === 0) {
     return <p style={{ fontSize: "0.72rem", margin: "0.25rem 0", color: "var(--text-secondary, #6b7280)" }}>No metrics.</p>;
@@ -353,14 +360,14 @@ function MetricHealthTable({ rows }: { rows: CityFreshnessMetricRow[] }) {
             <th>Metric</th>
             <th>Last data</th>
             <th>Age</th>
-            <th>Last run</th>
-            <th>Run status</th>
+            <th title="Date of last execution, colored by run status">Last run</th>
             <th title="Active time series charts (time_series_metadata rows) for this metric">
               Charts
             </th>
             <th title="District in map_config or location_fields (name heuristic)">Dist</th>
             <th title="District + data date + last run success">Δ OK</th>
             <th title="map_query or lat/lon in map_config">Map</th>
+            <th />
           </tr>
         </thead>
         <tbody>
@@ -379,6 +386,7 @@ function MetricHealthTable({ rows }: { rows: CityFreshnessMetricRow[] }) {
               ? { background: "rgba(239,68,68,0.06)" }
               : undefined;
             const bucketColor = BUCKET_COLOR[m.bucket];
+            const runDateColor = execStatus.isError ? "#ef4444" : "#10b981";
             return (
               <tr key={m.metric_id} style={rowStyle}>
                 <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={m.metric_name}>
@@ -400,15 +408,15 @@ function MetricHealthTable({ rows }: { rows: CityFreshnessMetricRow[] }) {
                     <span style={{ color: "#9ca3af" }}>—</span>
                   )}
                 </td>
-                <td style={{ whiteSpace: "nowrap", fontSize: "0.68rem" }}>
-                  {fmtShortDateTime(m.last_execution_at)}
-                </td>
-                <td style={{ whiteSpace: "nowrap" }}>
-                  {execStatus.isError ? (
-                    <span style={{ color: "#ef4444", fontWeight: 600 }}>{execStatus.label}</span>
-                  ) : (
-                    <span style={{ color: "#10b981" }}>{execStatus.label}</span>
-                  )}
+                <td
+                  style={{ whiteSpace: "nowrap", fontSize: "0.68rem" }}
+                  title={`${execStatus.label}${m.last_execution_at ? ` · ${new Date(m.last_execution_at).toLocaleString()}` : ""}`}
+                >
+                  <span style={{ color: runDateColor, fontWeight: execStatus.isError ? 600 : undefined }}>
+                    {m.last_execution_at ? fmtShortDateTime(m.last_execution_at) : (
+                      <span style={{ fontWeight: 600 }}>{execStatus.label}</span>
+                    )}
+                  </span>
                 </td>
                 <td style={{ whiteSpace: "nowrap" }}>
                   {charts === 0 ? (
@@ -439,6 +447,16 @@ function MetricHealthTable({ rows }: { rows: CityFreshnessMetricRow[] }) {
                   ) : (
                     <span style={{ color: "#9ca3af" }}>—</span>
                   )}
+                </td>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  <button
+                    type="button"
+                    className={styles.linkBtn}
+                    onClick={() => onEditMetric(m.metric_id)}
+                    title="Edit metric"
+                  >
+                    Edit
+                  </button>
                 </td>
               </tr>
             );
@@ -474,6 +492,7 @@ export default function ScheduleHealthDashboard({
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   // Map of "cityId-periodKey" -> RunSlotState for tracking re-run status
   const [runSlots, setRunSlots] = useState<Map<string, RunSlotState>>(new Map());
+  const [editingMetricId, setEditingMetricId] = useState<number | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
@@ -833,7 +852,10 @@ export default function ScheduleHealthDashboard({
                               <h4>
                                 Metric health ({city.freshness_metrics.length} metrics)
                               </h4>
-                              <MetricHealthTable rows={city.freshness_metrics} />
+                              <MetricHealthTable
+                                rows={city.freshness_metrics}
+                                onEditMetric={setEditingMetricId}
+                              />
                             </div>
                           </div>
                         </td>
@@ -845,6 +867,14 @@ export default function ScheduleHealthDashboard({
             </tbody>
           </table>
         </div>
+      )}
+
+      {editingMetricId != null && (
+        <MetricEditModal
+          metricId={editingMetricId}
+          isOpen
+          onClose={() => setEditingMetricId(null)}
+        />
       )}
     </div>
   );

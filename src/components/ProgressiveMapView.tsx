@@ -4,6 +4,11 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import type { SavedMap } from "@/lib/apiClient";
 import { getMapView } from "@/lib/apiClient";
 import { API_BASE } from "@/lib/apiBase";
+import {
+  getCaseInsensitiveProp,
+  getInitialMapView,
+  normalizeChoroplethDistrictKey,
+} from "@/lib/mapUtils";
 import Loader from "./Loader";
 import MapLayerPanel from "./MapLayerPanel";
 import "./ProgressiveMapView.css";
@@ -590,34 +595,86 @@ export default function ProgressiveMapView({
       return;
     }
 
-    try {
-      mapboxgl.accessToken = MAPBOX_TOKEN;
+    let cancelled = false;
 
-      // Default center: use map center, or midpoint of bounds, or neutral US center (not city-specific)
-      const bounds = mapData.bounds;
-      let initialCenter: [number, number];
-      if (mapData.center) {
-        initialCenter = [mapData.center.lng, mapData.center.lat];
-      } else if (bounds && bounds.length === 2) {
-        const [[swLng, swLat], [neLng, neLat]] = bounds;
-        initialCenter = [(swLng + neLng) / 2, (swLat + neLat) / 2];
-      } else {
-        initialCenter = [-98.5795, 39.8283]; // Continental US center (neutral fallback when backend sends no center/bounds)
-      }
+    (async () => {
+      try {
+        mapboxgl.accessToken = MAPBOX_TOKEN;
 
-      const baseZoom = mapData.center?.zoom || 11;
-      const embeddedZoom = Math.max(baseZoom - 1, 10);
+        const bounds = mapData.bounds;
+        let initialCenter: [number, number];
+        let embeddedZoom: number;
+        if (mapData.center) {
+          initialCenter = [mapData.center.lng, mapData.center.lat];
+          embeddedZoom = Math.max((mapData.center.zoom ?? 11) - 1, 10);
+        } else if (bounds && bounds.length === 2) {
+          const [[swLng, swLat], [neLng, neLat]] = bounds;
+          initialCenter = [(swLng + neLng) / 2, (swLat + neLat) / 2];
+          embeddedZoom = 11;
+        } else {
+          initialCenter = [-98.5795, 39.8283];
+          embeddedZoom = 10;
+        }
 
-      const map = new mapboxgl.Map({
-        container: container,
-        style: "mapbox://styles/mapbox/light-v11",
-        center: initialCenter,
-        zoom: embeddedZoom,
-        attributionControl: false,
-        scrollZoom: false, // Disable scroll zoom for embedded maps
-      });
+        const isDistrictMap =
+          mapData.map_type === "choropleth" || mapData.map_type === "delta";
+        const hasPointCoords = mapData.location_data?.some(
+          (p: any) =>
+            (p?.lat != null || p?.latitude != null) &&
+            (p?.lon != null || p?.lng != null || p?.longitude != null)
+        );
+        if (
+          mapData.city_id &&
+          isDistrictMap &&
+          !mapData.center &&
+          !bounds &&
+          !hasPointCoords
+        ) {
+          try {
+            const res = await fetch(
+              `/api/public/cities/${mapData.city_id}?include_metrics=false`
+            );
+            if (res.ok) {
+              const city = await res.json();
+              const lat = city.latitude ?? city.lat;
+              const lng = city.longitude ?? city.lng ?? city.lon;
+              if (
+                lat != null &&
+                lng != null &&
+                Number.isFinite(Number(lat)) &&
+                Number.isFinite(Number(lng))
+              ) {
+                initialCenter = [Number(lng), Number(lat)];
+                embeddedZoom = 10;
+              } else {
+                const iv = getInitialMapView({
+                  name: city.name,
+                  state: city.state,
+                  country: city.country,
+                });
+                initialCenter = iv.center;
+                embeddedZoom = iv.zoom;
+              }
+            }
+          } catch {
+            /* keep fallback */
+          }
+        }
 
-      mapInstanceRef.current = map;
+        if (cancelled || !mapContainerRef.current || mapInstanceRef.current) {
+          return;
+        }
+
+        const map = new mapboxgl.Map({
+          container: mapContainerRef.current,
+          style: "mapbox://styles/mapbox/light-v11",
+          center: initialCenter,
+          zoom: embeddedZoom,
+          attributionControl: false,
+          scrollZoom: false,
+        });
+
+        mapInstanceRef.current = map;
 
       map.addControl(
         new mapboxgl.NavigationControl({ showCompass: false }),
@@ -652,12 +709,16 @@ export default function ProgressiveMapView({
         console.error("Mapbox error:", e);
         onError?.(`Map error: ${e?.error?.message || e?.message || String(e)}`);
       });
-    } catch (err) {
-      console.error("Error initializing map:", err);
-      onError?.(`Failed to initialize map: ${err instanceof Error ? err.message : String(err)}`);
-    }
+      } catch (err) {
+        console.error("Error initializing map:", err);
+        onError?.(
+          `Failed to initialize map: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    })();
 
     return () => {
+      cancelled = true;
       if (mapInstanceRef.current) {
         try {
           mapInstanceRef.current.remove();
@@ -906,58 +967,75 @@ export default function ProgressiveMapView({
 
       const geometryData = shapeLayerData.instance.geometry_data;
 
-      // Create lookup map from aggregation rows
-      // Store both string and number versions of district IDs for flexible matching
-      const districtDataMap = new Map();
+      // Create lookup map from aggregation rows (case-insensitive keys; never "NaN" for text ids)
+      const districtDataMap = new Map<string | number, any>();
       console.log(`[ProgressiveMapView] Building districtDataMap from ${aggregation.rows.length} aggregation rows`);
       console.log(`[ProgressiveMapView] Using identifierField: ${identifierField}`);
       console.log(`[ProgressiveMapView] Sample aggregation row:`, aggregation.rows[0]);
-      
+
+      const districtFieldCfg =
+        typeof mapData.map_config?.district_field === "string"
+          ? mapData.map_config.district_field.trim()
+          : "";
+
+      const addRowUnderKeys = (row: any, raw: unknown) => {
+        const norm = normalizeChoroplethDistrictKey(raw);
+        if (!norm) return;
+        districtDataMap.set(norm, row);
+        const n = Number(norm);
+        if (!Number.isNaN(n) && Number.isFinite(n)) {
+          const f = Math.floor(n);
+          districtDataMap.set(n, row);
+          districtDataMap.set(f, row);
+          districtDataMap.set(`District ${f}`, row);
+          districtDataMap.set(`district ${f}`, row);
+        }
+        const rawStr = String(raw).trim();
+        if (rawStr && rawStr !== norm) districtDataMap.set(rawStr, row);
+      };
+
       aggregation.rows.forEach((row: any) => {
-        // Try multiple ways to get the district ID from the aggregation row
-        // The row should have: district, [identifierField], count, value
-        const districtId = String(
-          row[identifierField] || 
-          row.district || 
-          row.supervisor_district ||
-          row.district_id ||
-          ""
-        ).trim();
-        
-        if (districtId && districtId !== "null" && districtId !== "undefined" && districtId !== "") {
-          // Normalize: convert numeric strings to consistent format
-          let normalizedId = districtId;
-          const districtIdNum = Number(districtId);
-          if (!isNaN(districtIdNum) && isFinite(districtIdNum)) {
-            // Normalize numeric IDs (e.g., "1.0" -> "1")
-            normalizedId = String(Math.floor(districtIdNum));
-          }
-          
-          // Store with normalized string key
-          districtDataMap.set(normalizedId, row);
-          
-          // Also store with number key if it's a valid number
-          if (!isNaN(districtIdNum) && isFinite(districtIdNum)) {
-            districtDataMap.set(districtIdNum, row);
-            districtDataMap.set(Math.floor(districtIdNum), row);
-            // Also store as "District X" format
-            districtDataMap.set(`District ${normalizedId}`, row);
-            districtDataMap.set(`district ${normalizedId}`, row);
-          }
-          
-          // Store original format too in case shape layer uses it
-          if (districtId !== normalizedId) {
-            districtDataMap.set(districtId, row);
-          }
+        const rowObj = row as Record<string, unknown>;
+        const cands: unknown[] = [];
+        if (districtFieldCfg) {
+          cands.push(
+            rowObj[districtFieldCfg],
+            getCaseInsensitiveProp(rowObj, districtFieldCfg)
+          );
+        }
+        cands.push(
+          getCaseInsensitiveProp(rowObj, identifierField),
+          getCaseInsensitiveProp(rowObj, "district"),
+          getCaseInsensitiveProp(rowObj, "supervisor_district"),
+          getCaseInsensitiveProp(rowObj, "district_id"),
+          getCaseInsensitiveProp(rowObj, "council_district"),
+          rowObj.district,
+          rowObj.supervisor_district,
+          rowObj.district_id,
+          rowObj.council_district
+        );
+        for (const raw of cands) {
+          if (raw == null || String(raw).trim() === "") continue;
+          addRowUnderKeys(row, raw);
         }
       });
-      
+
       console.log(`[ProgressiveMapView] districtDataMap has ${districtDataMap.size} entries`);
       console.log(`[ProgressiveMapView] Sample keys:`, Array.from(districtDataMap.keys()).slice(0, 5));
 
       const valueField = "value";
-      const values = Array.from(districtDataMap.values())
-        .map((item: any) => Number(item[valueField] || item.count || 0))
+      const rowNumericValue = (item: any) => {
+        const o = item as Record<string, unknown>;
+        const v =
+          getCaseInsensitiveProp(o, "value") ??
+          getCaseInsensitiveProp(o, "count") ??
+          o.value ??
+          o.count ??
+          0;
+        return Number(v);
+      };
+      const values = aggregation.rows
+        .map((item: any) => rowNumericValue(item))
         .filter((v: number) => !isNaN(v) && isFinite(v));
       const minValue = values.length > 0 ? Math.min(...values) : 0;
       const maxValue = values.length > 0 ? Math.max(...values) : 1;
@@ -991,59 +1069,48 @@ export default function ProgressiveMapView({
         metricField: metricDistrictField, // Field from metric config
       });
       
-      const features = geometryData.features.map((feature: any) => {
-        // Try multiple ways to get district ID from shape layer properties
-        const props = feature.properties || {};
-        
-        // Priority for reading from shape layer properties:
-        // 1. API's identifier_field (authoritative)
-        // 2. Shape identifier field we discovered
-        // 3. Common district field names
-        const districtIdRaw = 
-          props[apiIdentifierField] ||
-          props[shapeIdentifierField] ||
-          props[identifierField] ||
-          props.district ||
-          props.district_id ||
-          props.supervisor_district ||
-          props.sup_dist_num ||
-          props.name ||
-          props.label ||
-          "";
-        
-        // Normalize the district ID
-        let districtId = String(districtIdRaw).trim();
-        const districtIdNum = Number(districtId);
-        if (!isNaN(districtIdNum) && isFinite(districtIdNum)) {
-          // Normalize numeric IDs
-          districtId = String(Math.floor(districtIdNum));
+      const lookupDistrictData = (raw: unknown) => {
+        if (raw == null) return undefined;
+        const norm = normalizeChoroplethDistrictKey(raw);
+        if (norm) {
+          let d = districtDataMap.get(norm);
+          if (d) return d;
+          const n = Number(norm);
+          if (!Number.isNaN(n) && Number.isFinite(n)) {
+            d =
+              districtDataMap.get(n) ??
+              districtDataMap.get(Math.floor(n)) ??
+              districtDataMap.get(`District ${Math.floor(n)}`) ??
+              districtDataMap.get(`district ${Math.floor(n)}`);
+            if (d) return d;
+          }
         }
+        const s = String(raw).trim();
+        return s ? districtDataMap.get(s) : undefined;
+      };
 
-        // Try multiple lookup strategies
-        let districtData = districtDataMap.get(districtId);
-        if (!districtData && districtIdRaw) {
-          // Try with original format
-          districtData = districtDataMap.get(String(districtIdRaw).trim());
-        }
-        if (!districtData && !isNaN(districtIdNum) && isFinite(districtIdNum)) {
-          // Try as number
-          districtData = districtDataMap.get(districtIdNum) || 
-                        districtDataMap.get(Math.floor(districtIdNum));
-        }
-        if (!districtData) {
-          // Try "District X" format
-          districtData = districtDataMap.get(`District ${districtId}`) || 
-                        districtDataMap.get(`district ${districtId}`);
-        }
-        if (!districtData && districtIdRaw) {
-          // Try "District X" with original format
-          districtData = districtDataMap.get(`District ${String(districtIdRaw).trim()}`) || 
-                        districtDataMap.get(`district ${String(districtIdRaw).trim()}`);
-        }
+      const features = geometryData.features.map((feature: any) => {
+        const props = feature.properties || {};
+
+        const districtIdRaw =
+          getCaseInsensitiveProp(props, apiIdentifierField) ??
+          getCaseInsensitiveProp(props, shapeIdentifierField) ??
+          getCaseInsensitiveProp(props, identifierField) ??
+          getCaseInsensitiveProp(props, "district") ??
+          getCaseInsensitiveProp(props, "district_id") ??
+          getCaseInsensitiveProp(props, "supervisor_district") ??
+          props.sup_dist_num ??
+          props.name ??
+          props.label ??
+          "";
+
+        const districtId = normalizeChoroplethDistrictKey(districtIdRaw);
+        let districtData =
+          lookupDistrictData(districtIdRaw) ?? lookupDistrictData(districtId);
+
+        const value = districtData ? rowNumericValue(districtData) : null;
         
-        const value = districtData ? Number(districtData[valueField] || districtData.count || 0) : null;
-        
-        if (!districtData && districtId) {
+        if (!districtData && String(districtIdRaw).trim()) {
           console.log(`[ProgressiveMapView] No data found for districtId: "${districtId}" (raw: "${districtIdRaw}")`);
           console.log(`[ProgressiveMapView] Available keys in districtDataMap:`, Array.from(districtDataMap.keys()).slice(0, 10));
           console.log(`[ProgressiveMapView] Feature properties:`, Object.keys(props));
@@ -1057,14 +1124,17 @@ export default function ProgressiveMapView({
           color = `rgb(${r}, ${g}, ${b})`;
         }
 
+        const districtLabel =
+          districtId || String(districtIdRaw).trim() || "";
+
         return {
           ...feature,
           properties: {
             ...feature.properties,
-            ...districtData,
-            // Must be last: aggregation rows often include unrelated fields
-            // (e.g. crime 'color') that would overwrite Mapbox fill-color.
-            district_id: districtId,
+            ...(districtData || {}),
+            // Must be last: aggregation rows often include unrelated fields (e.g. crime
+            // "color") that would overwrite Mapbox fill-color if spread after these.
+            district_id: districtLabel,
             value: value,
             color: color,
           },

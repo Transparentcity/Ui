@@ -43,6 +43,11 @@ const getLayerIcon = (layerKey?: string, category?: string, displayName?: string
 import "./styles.css";
 import MapLayerPanel from "@/components/MapLayerPanel";
 import { getDeltaMapFillColor } from "@/lib/deltaMapColors";
+import {
+  getCaseInsensitiveProp,
+  getInitialMapView,
+  normalizeChoroplethDistrictKey,
+} from "@/lib/mapUtils";
 
 // Types for the map data
 interface MapCenter {
@@ -237,6 +242,27 @@ type ChoroplethAggBlock = {
   display_name?: string;
 };
 
+const CHOROPLETH_ROW_META_KEYS = new Set([
+  "count",
+  "value",
+  "delta",
+  "delta_pct",
+  "sample_data",
+  "count_current",
+  "count_comparison",
+  "color",
+  "objectid",
+  "object_id",
+  "fid",
+  "globalid",
+  "shape_length",
+  "shape_area",
+  "lat",
+  "lon",
+  "latitude",
+  "longitude",
+]);
+
 function inferNumericDistrictKeyFromRow(row: Record<string, unknown>): string | null {
   const ordered = [
     "supervisor_district",
@@ -245,14 +271,11 @@ function inferNumericDistrictKeyFromRow(row: Record<string, unknown>): string | 
     "district_id",
   ];
   for (const k of ordered) {
-    const v = row[k];
+    const v = getCaseInsensitiveProp(row, k);
     if (v != null && /^\d+$/.test(String(v).trim())) return k;
   }
   for (const key of Object.keys(row)) {
-    if (
-      ["count", "value", "delta", "delta_pct", "sample_data"].includes(key) ||
-      key.startsWith("_")
-    ) {
+    if (CHOROPLETH_ROW_META_KEYS.has(key.toLowerCase()) || key.startsWith("_")) {
       continue;
     }
     const v = row[key];
@@ -269,13 +292,48 @@ function inferDataDistrictFieldForChoropleth(
     typeof mapData.map_config?.district_field === "string"
       ? mapData.map_config.district_field.trim()
       : "";
-  const r0 = aggregation?.rows?.[0];
-  if (configured && r0 && r0[configured] != null && String(r0[configured]).trim() !== "") {
-    return configured;
+  const r0 = aggregation?.rows?.[0] as Record<string, unknown> | undefined;
+  if (configured && r0) {
+    const v = getCaseInsensitiveProp(r0, configured);
+    if (v != null && String(v).trim() !== "") {
+      return configured;
+    }
   }
-  const inferred = r0 ? inferNumericDistrictKeyFromRow(r0 as Record<string, unknown>) : null;
+  const inferred = r0 ? inferNumericDistrictKeyFromRow(r0) : null;
   if (inferred) return inferred;
   return configured || "supervisor_district";
+}
+
+/** True if rows carry a district / ward field (including metric district_field and ArcGIS-style columns). */
+function savedMapRowsHaveGeographicIds(
+  mapData: SavedMap,
+  locationData: MapDataPoint[] | undefined
+): boolean {
+  if (!locationData?.length) return false;
+  const df =
+    typeof mapData.map_config?.district_field === "string"
+      ? mapData.map_config.district_field.trim()
+      : "";
+  return locationData.some((point: any) => {
+    if (df) {
+      const v =
+        point[df] ??
+        getCaseInsensitiveProp(point as Record<string, unknown>, df);
+      if (v != null && String(v).trim() !== "") return true;
+    }
+    const keys = [
+      "supervisor_district",
+      "district",
+      "district_id",
+      "council_district",
+      "ward",
+      "precinct",
+      "sup_dist_num",
+    ];
+    return keys.some(
+      (k) => point[k] != null && String(point[k]).trim() !== ""
+    );
+  });
 }
 
 /**
@@ -409,6 +467,7 @@ export default function PublicMapPage() {
   const searchParams = useSearchParams();
   const hash = params.hash as string;
   const isEmbedded = searchParams.get("embedded") === "true";
+  const isThumbnail = searchParams.get("thumbnail") === "true";
   const { theme } = useTheme();
   const { loginWithRedirect, isAuthenticated } = useAuth0();
   
@@ -562,6 +621,17 @@ export default function PublicMapPage() {
   const getMapDisplayCount = (m: SavedMap | null): { count: number; itemNoun: string } | null => {
     if (!m) return null;
     const itemNoun = (m.map_config?.item_noun as string) || "items";
+    const locRows = m.location_data;
+    if (
+      (m.map_type === "choropleth" || m.map_type === "delta") &&
+      Array.isArray(locRows) &&
+      locRows.length > 0
+    ) {
+      return {
+        count: locRows.length,
+        itemNoun: (m.map_config?.choropleth_area_noun as string) || "districts",
+      };
+    }
     if (m.map_type === "multi_layer") {
       const layerMaps = m.map_config?.layer_maps as Array<{ location_data?: any[] }> | undefined;
       if (Array.isArray(layerMaps) && layerMaps.length > 0) {
@@ -1196,31 +1266,39 @@ export default function PublicMapPage() {
         aggregation.rows.forEach((row: any) => {
           const dataField =
             (aggregation as ChoroplethAggBlock).data_field || dataDistrictField;
-          const districtId = String(
-            row[dataDistrictField] ||
-            row[dataField] ||
-            row[aggregation.identifier_field] ||
-            row.supervisor_district ||
-            row.sup_dist_num ||
-            row.district ||
-            ""
-          ).trim();
-          if (districtId && districtId !== "null" && districtId !== "undefined") {
-            const normalizedId = String(Math.floor(Number(districtId))) || districtId;
-            const entry = {
-              count: row.count ?? row.value ?? 0,
-              value: row.value ?? row.count ?? 0,
-              // Delta-specific fields (present only for delta maps)
-              delta: row.delta ?? null,
-              delta_pct: row.delta_pct ?? null,
-              count_current: row.count_current ?? null,
-              count_comparison: row.count_comparison ?? null,
-            };
-            districtDataMap.set(normalizedId, entry);
-            const districtIdNum = Number(normalizedId);
-            if (!isNaN(districtIdNum)) {
-              districtDataMap.set(String(districtIdNum), entry);
-            }
+          const rowRec = row as Record<string, unknown>;
+          const rawDistrict =
+            row[dataDistrictField] ??
+            getCaseInsensitiveProp(rowRec, dataDistrictField) ??
+            row[dataField] ??
+            getCaseInsensitiveProp(rowRec, String(dataField)) ??
+            (aggregation.identifier_field
+              ? row[aggregation.identifier_field] ??
+                getCaseInsensitiveProp(rowRec, String(aggregation.identifier_field))
+              : undefined) ??
+            row.supervisor_district ??
+            row.sup_dist_num ??
+            row.district ??
+            "";
+          const normalizedId = normalizeChoroplethDistrictKey(rawDistrict);
+          if (!normalizedId) return;
+          const entry = {
+            count: row.count ?? row.value ?? 0,
+            value: row.value ?? row.count ?? 0,
+            // Delta-specific fields (present only for delta maps)
+            delta: row.delta ?? null,
+            delta_pct: row.delta_pct ?? null,
+            count_current: row.count_current ?? null,
+            count_comparison: row.count_comparison ?? null,
+          };
+          districtDataMap.set(normalizedId, entry);
+          const rawStr = String(rawDistrict).trim();
+          if (rawStr && rawStr !== normalizedId) {
+            districtDataMap.set(rawStr, entry);
+          }
+          const districtIdNum = Number(normalizedId);
+          if (!isNaN(districtIdNum) && isFinite(districtIdNum)) {
+            districtDataMap.set(String(districtIdNum), entry);
           }
         });
       } else {
@@ -1230,17 +1308,19 @@ export default function PublicMapPage() {
         const isCountAgg = valueField === "count";
 
         mapData.location_data.forEach((item: any) => {
-          const districtId = String(
-            item[dataDistrictField] ||
-              item.supervisor_district ||
-              item.sup_dist_num ||
-              item[shapeGeoPropertyField] ||
-              item.district ||
-              ""
-          ).trim();
-          if (!districtId || districtId === "null" || districtId === "undefined") return;
-          
-          const normalizedId = String(Math.floor(Number(districtId))) || districtId;
+          const itemRec = item as Record<string, unknown>;
+          const rawDistrict =
+            item[dataDistrictField] ??
+            getCaseInsensitiveProp(itemRec, dataDistrictField) ??
+            item.supervisor_district ??
+            item.sup_dist_num ??
+            item[shapeGeoPropertyField] ??
+            getCaseInsensitiveProp(itemRec, String(shapeGeoPropertyField)) ??
+            item.district ??
+            "";
+          const normalizedId = normalizeChoroplethDistrictKey(rawDistrict);
+          if (!normalizedId) return;
+
           const prev = districtDataMap.get(normalizedId) || { count: 0, value: 0 };
           if (isCountAgg) {
             prev.count = (prev.count || 0) + 1;
@@ -1250,10 +1330,12 @@ export default function PublicMapPage() {
             prev.count = prev.value;
           }
           districtDataMap.set(normalizedId, prev);
-          
-          // Also store with number key as string
+          const rawStr = String(rawDistrict).trim();
+          if (rawStr && rawStr !== normalizedId) {
+            districtDataMap.set(rawStr, prev);
+          }
           const districtIdNum = Number(normalizedId);
-          if (!isNaN(districtIdNum)) {
+          if (!isNaN(districtIdNum) && isFinite(districtIdNum)) {
             districtDataMap.set(String(districtIdNum), prev);
           }
         });
@@ -1310,27 +1392,25 @@ export default function PublicMapPage() {
       // ── Merge district data with shape features ───────────────────────────────
       const features = geometryData.features.map((feature: any) => {
         const props = feature.properties || {};
+        const propsRec = props as Record<string, unknown>;
         const districtIdRaw =
-          (dataDistrictField && props[dataDistrictField]) ??
+          (dataDistrictField && getCaseInsensitiveProp(propsRec, dataDistrictField)) ??
           props.supervisor_district ??
           props.sup_dist_num ??
           props.district_id ??
-          (shapeGeoPropertyField && props[shapeGeoPropertyField]) ??
+          (shapeGeoPropertyField &&
+            getCaseInsensitiveProp(propsRec, String(shapeGeoPropertyField))) ??
           props.district ??
           props.name ??
           props.label ??
           "";
 
-        // Normalize district ID
-        let districtId = String(districtIdRaw).trim();
+        const districtId = normalizeChoroplethDistrictKey(districtIdRaw);
         const districtIdNum = Number(districtId);
-        if (!isNaN(districtIdNum) && isFinite(districtIdNum)) {
-          districtId = String(Math.floor(districtIdNum));
-        }
 
         // Try multiple lookup strategies
         let districtData = districtDataMap.get(districtId);
-        if (!districtData && districtIdRaw) {
+        if (!districtData && districtIdRaw != null && districtIdRaw !== "") {
           districtData = districtDataMap.get(String(districtIdRaw).trim());
         }
         if (!districtData && !isNaN(districtIdNum) && isFinite(districtIdNum)) {
@@ -1573,60 +1653,124 @@ export default function PublicMapPage() {
   useEffect(() => {
     if (!map || !mapboxLoaded || !mapContainerRef.current) return;
     if (mapInstanceRef.current) return; // Already initialized
-    
+
     const mapboxgl = (window as any).mapboxgl;
     const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-    
+
     if (!mapboxToken) {
       setError("Mapbox token not configured");
       return;
     }
-    
+
     mapboxgl.accessToken = mapboxToken;
-    
-    // Calculate center and zoom
-    let center: [number, number];
-    let zoom: number;
-    if (map.center) {
-      center = [map.center.lng, map.center.lat];
-      zoom = map.center.zoom;
-    } else if (map.bounds) {
-      // Derive center from bounds [[sw_lng, sw_lat], [ne_lng, ne_lat]]
-      center = [
-        (map.bounds[0][0] + map.bounds[1][0]) / 2,
-        (map.bounds[0][1] + map.bounds[1][1]) / 2,
-      ];
-      zoom = 11;
-    } else {
-      // Derive center from location_data points
-      const pts = map.location_data?.filter(
-        (p: any) => p.lat != null && p.lon != null && isFinite(Number(p.lat)) && isFinite(Number(p.lon))
-      ) ?? [];
-      if (pts.length > 0) {
-        const avgLat = pts.reduce((s: number, p: any) => s + Number(p.lat), 0) / pts.length;
-        const avgLon = pts.reduce((s: number, p: any) => s + Number(p.lon), 0) / pts.length;
-        center = [avgLon, avgLat];
+
+    let cancelled = false;
+
+    (async () => {
+      // Calculate center and zoom
+      let center: [number, number];
+      let zoom: number;
+      if (map.center) {
+        center = [map.center.lng, map.center.lat];
+        zoom = map.center.zoom ?? 11;
+      } else if (map.bounds) {
+        center = [
+          (map.bounds[0][0] + map.bounds[1][0]) / 2,
+          (map.bounds[0][1] + map.bounds[1][1]) / 2,
+        ];
+        zoom = 11;
       } else {
-        center = [0, 20];
+        const pts =
+          map.location_data?.filter(
+            (p: any) =>
+              (p.lat != null || p.latitude != null) &&
+              (p.lon != null || p.lng != null || p.longitude != null) &&
+              isFinite(Number(p.lat ?? p.latitude)) &&
+              isFinite(Number(p.lon ?? p.lng ?? p.longitude))
+          ) ?? [];
+        if (pts.length > 0) {
+          const avgLat =
+            pts.reduce(
+              (s: number, p: any) => s + Number(p.lat ?? p.latitude),
+              0
+            ) / pts.length;
+          const avgLon =
+            pts.reduce(
+              (s: number, p: any) => s + Number(p.lon ?? p.lng ?? p.longitude),
+              0
+            ) / pts.length;
+          center = [avgLon, avgLat];
+          zoom = 11;
+        } else {
+          center = [0, 20];
+          zoom = 11;
+        }
       }
-      zoom = 11;
-    }
-    
-    // Use dark or light map style based on theme
-    const mapStyle = theme === "dark" 
-      ? "mapbox://styles/mapbox/dark-v11"
-      : "mapbox://styles/mapbox/light-v11";
-    
-    const mapInstance = new mapboxgl.Map({
-      container: mapContainerRef.current,
-      style: mapStyle,
-      center: center,
-      zoom: zoom,
-    });
-    
-    mapInstanceRef.current = mapInstance;
-    
-    mapInstance.on("load", async () => {
+
+      const isDistrictMap =
+        map.map_type === "choropleth" || map.map_type === "delta";
+      const needsCityCenter =
+        map.city_id &&
+        isDistrictMap &&
+        !map.center &&
+        !map.bounds &&
+        ((center[0] === 0 && center[1] === 20) ||
+          !map.location_data?.some(
+            (p: any) =>
+              (p.lat != null || p.latitude != null) &&
+              (p.lon != null || p.lng != null || p.longitude != null)
+          ));
+
+      if (needsCityCenter) {
+        try {
+          const res = await fetch(
+            `/api/public/cities/${map.city_id}?include_metrics=false`
+          );
+          if (res.ok) {
+            const city = await res.json();
+            const lat = city.latitude ?? city.lat;
+            const lng = city.longitude ?? city.lng ?? city.lon;
+            if (
+              lat != null &&
+              lng != null &&
+              Number.isFinite(Number(lat)) &&
+              Number.isFinite(Number(lng))
+            ) {
+              center = [Number(lng), Number(lat)];
+              zoom = 10;
+            } else {
+              const iv = getInitialMapView({
+                name: city.name,
+                state: city.state,
+                country: city.country,
+              });
+              center = iv.center;
+              zoom = iv.zoom;
+            }
+          }
+        } catch {
+          /* keep prior center */
+        }
+      }
+
+      if (cancelled || !mapContainerRef.current || mapInstanceRef.current) return;
+
+      // Use dark or light map style based on theme
+      const mapStyle =
+        theme === "dark"
+          ? "mapbox://styles/mapbox/dark-v11"
+          : "mapbox://styles/mapbox/light-v11";
+
+      const mapInstance = new mapboxgl.Map({
+        container: mapContainerRef.current,
+        style: mapStyle,
+        center: center,
+        zoom: zoom,
+      });
+
+      mapInstanceRef.current = mapInstance;
+
+      mapInstance.on("load", async () => {
       const layerMaps = map.map_config?.layer_maps as Array<{ title?: string; location_data?: any[]; map_type?: string }> | undefined;
       const isMultiLayer = map.map_type === "multi_layer" && layerMaps && layerMaps.length > 0;
       if (!isMultiLayer && (!map.location_data || map.location_data.length === 0)) {
@@ -1642,14 +1786,10 @@ export default function PublicMapPage() {
       // 1. City ID (to fetch shape layers)
       // 2. Location data with geographic identifiers (supervisor_district, etc.)
       // 3. At least some data points
-      const hasGeographicIdentifiers = !!(map.location_data?.some((point: any) => 
-        point.supervisor_district !== undefined || 
-        point.supervisor_district !== null ||
-        point.district !== undefined ||
-        point.district !== null ||
-        point.district_id !== undefined ||
-        point.district_id !== null
-      ));
+      const hasGeographicIdentifiers = savedMapRowsHaveGeographicIds(
+        map,
+        map.location_data
+      );
       
       // Use choropleth if:
       // 1. Map type is choropleth OR we have aggregations OR discovered shape layers OR (point map with geographic identifiers)
@@ -2027,11 +2167,17 @@ export default function PublicMapPage() {
           maxZoom: 15,
         });
       }
-    });
-    
+      });
+    })();
+
     return () => {
+      cancelled = true;
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
+        try {
+          mapInstanceRef.current.remove();
+        } catch {
+          /* ignore */
+        }
         mapInstanceRef.current = null;
       }
     };
@@ -2097,14 +2243,10 @@ export default function PublicMapPage() {
 
     // Check if we should render choropleth
     const hasAggregations = !!(map.map_config?.aggregations && Object.keys(map.map_config.aggregations).length > 0);
-    const hasGeographicIdentifiers = !!(map.location_data?.some((point: any) => 
-      point.supervisor_district !== undefined || 
-      point.supervisor_district !== null ||
-      point.district !== undefined ||
-      point.district !== null ||
-      point.district_id !== undefined ||
-      point.district_id !== null
-    ));
+    const hasGeographicIdentifiers = savedMapRowsHaveGeographicIds(
+      map,
+      map.location_data
+    );
     
     const shouldUseChoropleth =
       !showPoints &&
@@ -2265,16 +2407,17 @@ export default function PublicMapPage() {
   
   if (loading) {
     return (
-      <div className={`public-map-page loading ${isEmbedded ? "embedded" : ""}`}>
+      <div className={`public-map-page loading ${isEmbedded || isThumbnail ? "embedded" : ""} ${isThumbnail ? "thumbnail" : ""}`}>
         <div className="tc-loading-state tc-loading-state--stacked">
           <Loader size="md" color="dark" />
-          <span>Loading map…</span>
+          {!isThumbnail && <span>Loading map…</span>}
         </div>
       </div>
     );
   }
   
   if (error) {
+    if (isThumbnail) return <div className="public-map-page embedded thumbnail" />;
     return (
       <div className={`public-map-page ${isEmbedded ? "embedded" : ""}`}>
         <div className="error-container">
@@ -2287,7 +2430,34 @@ export default function PublicMapPage() {
   }
   
   if (!map) {
+    if (isThumbnail) return <div className="public-map-page embedded thumbnail" />;
     return <div className={`public-map-page ${isEmbedded ? "embedded" : ""}`}>Map not found</div>;
+  }
+
+  // Thumbnail mode — map only, no chrome, for feed card previews
+  if (isThumbnail) {
+    return (
+      <div className="public-map-page embedded thumbnail">
+        <div className="map-container-wrapper embedded-map-wrapper">
+          <div className="map-container embedded-map" ref={mapContainerRef} />
+          {legend && legend.items.length > 0 && map.map_type !== "multi_layer" && (
+            <div className="map-legend map-legend-thumbnail" aria-label="Map legend">
+              <div className="map-legend-items">
+                {legend.items.map((item) => (
+                  <div key={item.label} className="map-legend-item">
+                    <span
+                      className="map-legend-swatch"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className="map-legend-label">{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
 
   // Embedded mode - minimal UI, just the map with a small header

@@ -97,6 +97,7 @@ export default function TimeSeriesChartPage() {
   const chartId = params.id as string;
   const periodParam = searchParams.get("period");
   const isEmbedded = searchParams.get("embedded") === "true";
+  const isThumbnail = searchParams.get("thumbnail") === "true";
   const forcedTheme =
     searchParams.get("theme") === "dark"
       ? "dark"
@@ -265,16 +266,17 @@ export default function TimeSeriesChartPage() {
 
   if (loading) {
     return (
-      <div className={`time-series-page loading ${isEmbedded ? "embedded" : ""}`}>
+      <div className={`time-series-page loading ${isEmbedded || isThumbnail ? "embedded" : ""} ${isThumbnail ? "thumbnail" : ""}`}>
         <div className="tc-loading-state tc-loading-state--stacked">
           <Loader size="md" color="dark" />
-          <span>Loading chart…</span>
+          {!isThumbnail && <span>Loading chart…</span>}
         </div>
       </div>
     );
   }
 
   if (error) {
+    if (isThumbnail) return <div className="time-series-page embedded thumbnail" />;
     return (
       <div className={`time-series-page ${isEmbedded ? "embedded" : ""}`}>
         <div className="error-container">
@@ -304,6 +306,24 @@ export default function TimeSeriesChartPage() {
     (metadata.period_type?.toLowerCase() as PeriodType) || "month";
   const urlPeriod = parsePeriodQuery(periodParam);
   const displayPeriod = (urlPeriod ?? metaPeriod) as PeriodType;
+
+  if (isThumbnail) {
+    return (
+      <div className="time-series-page embedded thumbnail">
+        <TimeSeriesChart
+          key={`${metadata.chart_id}-${displayPeriod}`}
+          data={aggregated}
+          metadata={metadata}
+          height={260}
+          defaultPeriod={displayPeriod}
+          fullBleed={true}
+          hidePeriodSelector={true}
+          showExternalTitle={false}
+          forcedTheme={forcedTheme}
+        />
+      </div>
+    );
+  }
 
   if (isEmbedded) {
     return (
