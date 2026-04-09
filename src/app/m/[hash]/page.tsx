@@ -44,6 +44,8 @@ import "./styles.css";
 import MapLayerPanel from "@/components/MapLayerPanel";
 import { getDeltaMapFillColor } from "@/lib/deltaMapColors";
 import {
+  CHOROPLETH_BRAND_HIGH_RGB,
+  CHOROPLETH_BRAND_LOW_RGB,
   getCaseInsensitiveProp,
   getInitialMapView,
   normalizeChoroplethDistrictKey,
@@ -1382,9 +1384,9 @@ export default function PublicMapPage() {
         ] as [number, number, number];
       };
 
-      // Regular choropleth: white → brand purple
-      const CHORO_LOW: [number, number, number] = [255, 255, 255];
-      const CHORO_HIGH: [number, number, number] = [173, 53, 250]; // #ad35fa
+      // Regular choropleth: light lavender → brand purple (see mapUtils ramp)
+      const CHORO_LOW = CHOROPLETH_BRAND_LOW_RGB;
+      const CHORO_HIGH = CHOROPLETH_BRAND_HIGH_RGB;
 
       console.log(`[PublicMapPage] Processing ${geometryData.features.length} shape features`);
       console.log(`[PublicMapPage] Sample feature properties:`, geometryData.features[0]?.properties);

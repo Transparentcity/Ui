@@ -5,6 +5,8 @@ import type { SavedMap } from "@/lib/apiClient";
 import { getMapView } from "@/lib/apiClient";
 import { API_BASE } from "@/lib/apiBase";
 import {
+  CHOROPLETH_BRAND_HIGH_RGB,
+  CHOROPLETH_BRAND_LOW_RGB,
   getCaseInsensitiveProp,
   getInitialMapView,
   normalizeChoroplethDistrictKey,
@@ -1051,8 +1053,8 @@ export default function ProgressiveMapView({
         ] as [number, number, number];
       };
 
-      const CHORO_LOW: [number, number, number] = [255, 255, 255];
-      const CHORO_HIGH: [number, number, number] = [173, 53, 250];
+      const CHORO_LOW = CHOROPLETH_BRAND_LOW_RGB;
+      const CHORO_HIGH = CHOROPLETH_BRAND_HIGH_RGB;
 
       console.log(`[ProgressiveMapView] Processing ${geometryData.features.length} shape features`);
       console.log(`[ProgressiveMapView] Sample feature properties:`, geometryData.features[0]?.properties);

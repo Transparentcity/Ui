@@ -1942,7 +1942,7 @@ export default function CityView({
   const [openDistrictTrigger, setOpenDistrictTrigger] = useState(0);
   const [saving, setSaving] = useState(false);
   const [metricDateRange, setMetricDateRange] = useState<MetricDateRange>(
-    getPresetMetricDateRange("mtd")
+    getPresetMetricDateRange("ytd")
   );
   // Use initialDistrict if provided, otherwise default to 0 (mayor/citywide)
   // When initialPlaceId is set (My block), we use place scope so district is 0 and place is set from the start to avoid flashing "Citywide".
@@ -2095,15 +2095,9 @@ export default function CityView({
     }
   }, [followPending, isFollowed, unfollowMutation, followMutation, headerDistrictStr]);
 
-  // Set default date range when city data loads
-  // Default to "month to date" (MTD) for Map Panel so it matches dashboard comparison
+  // Default map date range to YTD so it aligns with dashboard YTD comparisons
   useEffect(() => {
-    if (cityData?.metrics && cityData.metrics.length > 0) {
-      setMetricDateRange(getPresetMetricDateRange("mtd"));
-    } else {
-      // Reset to MTD when switching cities or if no metrics
-      setMetricDateRange(getPresetMetricDateRange("mtd"));
-    }
+    setMetricDateRange(getPresetMetricDateRange("ytd"));
   }, [cityData?.metrics, cityId]);
 
   // Clear old city data immediately when cityId changes

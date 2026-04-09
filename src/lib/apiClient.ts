@@ -805,6 +805,23 @@ export function recreateStructureFromQueryConfigs(
   );
 }
 
+export interface PortalMatchSignal {
+  name: string;
+  score: number;
+  desc: string;
+}
+
+export interface PortalMatchCandidate {
+  url: string;
+  hostname_score: number;
+  total_score: number;
+  source: "existing_url" | "heuristic" | "web_search" | string;
+  signals: PortalMatchSignal[];
+  probe_status: "success" | "not_found" | "blocked_403" | "error" | "unprobed" | string;
+  api_format: string | null;
+  winning_endpoint: string | null;
+}
+
 export interface CityListItem {
   city_id: number;
   city_name: string;
@@ -821,13 +838,22 @@ export interface CityListItem {
   last_fetch_error?: string;
   vector_db_points?: number | null;
   vector_db_size_mb?: number | null;
+  /** complete | partial | not_started */
   structure_status?: string;
+  /** District field name(s) identified during city structure analysis */
+  district_fields?: string[];
   is_active?: boolean;
   is_launched?: boolean;
   population_source_type?: string | null;
   population_source_name?: string | null;
   population_data_year?: number | null;
   portal_type?: string | null;
+  /** Set by "Determine Portal Type" job: matched | review_needed | unresolved */
+  portal_match_status?: string | null;
+  /** Set by "Determine Portal Type" job: high | medium | low */
+  portal_match_confidence?: string | null;
+  /** Top candidate origins from last matcher run, for review_needed cities */
+  portal_match_candidates?: PortalMatchCandidate[] | null;
   template_metrics_attempted?: number;
   template_metrics_instantiated?: number;
   template_metrics_missing?: number;
@@ -873,6 +899,24 @@ export function loadCityData(
     "/api/admin/cities/load-data",
     "POST",
     data,
+    token
+  );
+}
+
+/**
+ * Accept a candidate from the portal matcher review queue as the city's canonical portal.
+ * Sets main_portal_url, main_domain, portal_type, and clears the review badge.
+ */
+export function acceptPortalMatch(
+  cityId: number,
+  candidateUrl: string,
+  candidateApiFormat: string | null | undefined,
+  token: string
+): Promise<{ city_id: number; accepted_url: string; status: string }> {
+  return request(
+    `/api/admin/cities/${cityId}/accept-portal-match`,
+    "POST",
+    { candidate_url: candidateUrl, candidate_api_format: candidateApiFormat ?? null },
     token
   );
 }
@@ -2577,6 +2621,8 @@ export interface CityDetail {
   country?: string | null;
   emoji?: string | null;
   population?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   main_domain?: string | null;
   main_portal_url?: string | null;
   all_portal_urls?: string[] | null;

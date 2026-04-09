@@ -668,6 +668,8 @@ export interface CityDetail {
   country?: string | null;
   emoji?: string | null;
   population?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   main_domain?: string | null;
   main_portal_url?: string | null;
   all_portal_urls?: string[] | null;

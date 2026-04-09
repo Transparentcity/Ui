@@ -298,22 +298,29 @@ export default function FeedContainer({
   const stories = feedData?.stories ?? [];
   const enriched = useMemo(() => enrichStories(stories), [stories]);
 
-  // Fetch narrative text from research reports for stories with thin descriptions
+  // Fetch narrative text from research reports for stories with thin descriptions.
+  // Incremental: only fetch for stories we haven't processed yet.
   const [narratives, setNarratives] = useState<Map<number, string>>(new Map());
-  const prevStoriesRef = useRef<typeof stories>(undefined);
+  const fetchedNarrativeIdsRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
-    if (stories.length === 0 || stories === prevStoriesRef.current) return;
-    prevStoriesRef.current = stories;
-    let stale = false;
+    if (stories.length === 0) return;
+    const newStories = stories.filter((s) => !fetchedNarrativeIdsRef.current.has(s.id));
+    if (newStories.length === 0) return;
+    for (const s of newStories) fetchedNarrativeIdsRef.current.add(s.id);
 
-    fetchNarratives(stories)
+    let stale = false;
+    fetchNarratives(newStories)
       .then((narrs) => {
-        if (!stale && narrs.size > 0) setNarratives(narrs);
+        if (!stale && narrs.size > 0) {
+          setNarratives((prev) => {
+            const merged = new Map(prev);
+            for (const [k, v] of narrs) merged.set(k, v);
+            return merged;
+          });
+        }
       })
-      .catch(() => {
-        // Non-critical — stories keep their existing descriptions
-      });
+      .catch(() => {});
 
     return () => { stale = true; };
   }, [stories]);

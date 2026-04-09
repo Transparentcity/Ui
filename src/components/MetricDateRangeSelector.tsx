@@ -118,6 +118,15 @@ export default function MetricDateRangeSelector({
                   <button
                     type="button"
                     className={`metric-date-range-preset ${
+                      draft.preset === "ytd" ? "active" : ""
+                    }`}
+                    onClick={() => setPreset("ytd")}
+                  >
+                    Year to date
+                  </button>
+                  <button
+                    type="button"
+                    className={`metric-date-range-preset ${
                       draft.preset === "mtd" ? "active" : ""
                     }`}
                     onClick={() => setPreset("mtd")}

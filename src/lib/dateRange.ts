@@ -1,4 +1,4 @@
-export type DateRangePreset = "all" | "mtd" | "last_week" | "last_month" | "custom";
+export type DateRangePreset = "all" | "ytd" | "mtd" | "last_week" | "last_month" | "custom";
 
 export interface MetricDateRange {
   preset: DateRangePreset;
@@ -42,6 +42,12 @@ export function getPresetMetricDateRange(preset: DateRangePreset): MetricDateRan
 
   const today = new Date();
   const end = toIsoDateString(today);
+
+  if (preset === "ytd") {
+    const startOfYear = new Date(today.getFullYear(), 0, 1);
+    const start = toIsoDateString(startOfYear);
+    return { preset: "ytd", start_date: start, end_date: end };
+  }
 
   if (preset === "mtd") {
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -105,6 +111,12 @@ function formatDateRangeInParentheses(start_date: string, end_date: string): str
 
 export function formatMetricDateRangeLabel(range: MetricDateRange): string {
   if (!range.start_date && !range.end_date) return "All time";
+  if (range.preset === "ytd") {
+    if (range.start_date && range.end_date) {
+      return `Year to date (${formatDateRangeInParentheses(range.start_date, range.end_date)})`;
+    }
+    return "Year to date";
+  }
   if (range.preset === "mtd") {
     if (range.start_date && range.end_date) {
       return `Month to date (${formatDateRangeInParentheses(range.start_date, range.end_date)})`;

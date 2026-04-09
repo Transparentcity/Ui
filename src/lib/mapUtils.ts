@@ -11,6 +11,14 @@ export const INITIAL_ZOOM_DISTRICT = 12;
 /** Block view default: zoomed out ~2 levels from close-up so more context is visible. */
 export const INITIAL_ZOOM_BLOCK = 13;
 
+/**
+ * Default brand choropleth ramp (Mapbox fill from GeoJSON `color`).
+ * Low is a very light lavender (#f6edff), not pure white, so polygons stay visible on light basemaps.
+ */
+export const CHOROPLETH_BRAND_LOW_RGB: [number, number, number] = [246, 237, 255];
+/** Saturated end of the default ramp (#ad35fa). */
+export const CHOROPLETH_BRAND_HIGH_RGB: [number, number, number] = [173, 53, 250];
+
 /** Approximate US state centroids [lng, lat] for fast initial map center (city-level view). */
 const US_STATE_CENTROIDS: Record<string, [number, number]> = {
   AL: [-86.9023, 32.3182],
@@ -143,7 +151,18 @@ export function getInitialMapView(city: {
   name?: string | null;
   state?: string | null;
   country?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }): InitialMapView {
+  if (
+    city.latitude != null &&
+    city.longitude != null &&
+    Number.isFinite(city.latitude) &&
+    Number.isFinite(city.longitude)
+  ) {
+    return { center: [city.longitude, city.latitude], zoom: INITIAL_ZOOM_CITYWIDE };
+  }
+
   const state = (city.state || "").trim();
   const country = (city.country || "").trim();
   const isUS =
@@ -159,6 +178,36 @@ export function getInitialMapView(city: {
   }
 
   return { center: DEFAULT_US_CENTER, zoom: 4 };
+}
+
+/**
+ * Look up a property on an object by key, ignoring case.
+ * Returns the value of the first key that matches case-insensitively,
+ * or undefined if no match is found.
+ */
+export function getCaseInsensitiveProp(
+  obj: Record<string, unknown>,
+  key: string
+): unknown {
+  if (key in obj) return obj[key];
+  const lower = key.toLowerCase();
+  for (const k of Object.keys(obj)) {
+    if (k.toLowerCase() === lower) return obj[k];
+  }
+  return undefined;
+}
+
+/**
+ * Normalize a choropleth district identifier to a trimmed string suitable
+ * for matching against shapefile feature properties.
+ * Strips whitespace, leading zeros from purely numeric values, and lowercases.
+ */
+export function normalizeChoroplethDistrictKey(raw: unknown): string {
+  if (raw == null) return "";
+  const s = String(raw).trim();
+  if (!s) return "";
+  if (/^\d+$/.test(s)) return String(Number(s));
+  return s.toLowerCase();
 }
 
 export function buildStaticMapUrl(
