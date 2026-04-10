@@ -1057,7 +1057,7 @@ export default function FeedContainer({
                   ? "No feed stories yet. New stories appear as city data updates. Check back soon!"
                   : savedCities.length > 0
                     ? "No stories yet for your cities. New stories appear as city data updates. Check back soon!"
-                    : "Follow a city to see stories in your feed. Visit a city page and click Follow to get started."}
+                    : "Follow a city to see stories in your feed. Search for a city to get started."}
           </p>
           {(hasSecondaryFilters || selectedCityIds.size > 0) && !personalNewsletterOnly && (
             <button
