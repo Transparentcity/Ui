@@ -242,6 +242,24 @@ export default function FeedContainer({
     });
   }, [places]);
 
+  // Detect when a selected city has no feed stories (e.g. newly-launched city)
+  const selectedCityWithNoStories = useMemo(() => {
+    if (selectedCityIds.size !== 1) return null;
+    const id = [...selectedCityIds][0];
+    // City exists in feed places → it has stories, nothing to do
+    if (uniqueCities.some((c) => c.city_id === id)) return null;
+    // Find city name from savedCities for display
+    const saved = savedCities.find((c) => c.id === id);
+    return saved
+      ? { id, name: saved.display_name || saved.city_name || "your city" }
+      : null;
+  }, [selectedCityIds, uniqueCities, savedCities]);
+
+  // When a city has no stories, auto-switch to All Cities so user sees content
+  const [noStoriesCity, setNoStoriesCity] = useState<{ id: number; name: string } | null>(null);
+  const [showCityLaunchBanner, setShowCityLaunchBanner] = useState(true);
+  const autoSwitchedCityRef = useRef<number | null>(null);
+
   // Determine API params: single-city → server-side filter, multi/all → fetch all + client filter
   const singleCityId = selectedCityIds.size === 1 ? [...selectedCityIds][0] : undefined;
 
@@ -313,6 +331,26 @@ export default function FeedContainer({
 
   const stories = feedData?.stories ?? [];
   const enriched = useMemo(() => enrichStories(stories), [stories]);
+
+  // When a city has no stories, capture its name (for the banner) then auto-switch to All Cities
+  useEffect(() => {
+    if (selectedCityWithNoStories) {
+      setNoStoriesCity(selectedCityWithNoStories);
+      setShowCityLaunchBanner(true);
+    }
+  }, [selectedCityWithNoStories]);
+
+  useEffect(() => {
+    if (
+      selectedCityWithNoStories &&
+      !isLoading &&
+      stories.length === 0 &&
+      autoSwitchedCityRef.current !== selectedCityWithNoStories.id
+    ) {
+      autoSwitchedCityRef.current = selectedCityWithNoStories.id;
+      setSelectedCityIds(new Set());
+    }
+  }, [selectedCityWithNoStories, isLoading, stories.length]);
 
   // Fetch narrative text from research reports for stories with thin descriptions.
   // Incremental: only fetch for stories we haven't processed yet.
@@ -1038,6 +1076,26 @@ export default function FeedContainer({
         </div>
       )}
 
+      {/* "Help us launch your city" banner for cities with no stories */}
+      {noStoriesCity && showCityLaunchBanner && (
+        <div className={styles.cityLaunchBanner}>
+          <p className={styles.cityLaunchText}>
+            We&apos;re building {noStoriesCity.name}. Want to help us launch it?{" "}
+            <a href="/pro" className={styles.cityLaunchLink}>Learn more</a>
+          </p>
+          <button
+            type="button"
+            className={styles.cityLaunchDismiss}
+            onClick={() => setShowCityLaunchBanner(false)}
+            aria-label="Dismiss"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* Onboarding progress banner (shows while neighborhood data is building).
           Hidden during initial feed load to avoid two loaders at once. */}
       {!(isLoading && visibleStories.length === 0) && <OnboardingBanner />}
@@ -1074,6 +1132,14 @@ export default function FeedContainer({
 
       {/* Empty */}
       {!isLoading && !error && stories.length === 0 && (
+        (onboarding.status === "scanning" || onboarding.status === "found_rep") ? (
+          /* Onboarding job still running: show skeleton cards, banner handles messaging */
+          <div className={styles.storiesList}>
+            <SkeletonCard variant="default" />
+            <SkeletonCard variant="alert" />
+            <SkeletonCard variant="photo" />
+          </div>
+        ) : (
         <div className={styles.emptyState}>
           <p>
             {personalNewsletterOnly
@@ -1104,7 +1170,7 @@ export default function FeedContainer({
                   })()
                 : isAdmin
                   ? "No feed stories yet. New stories appear as city data updates. Check back soon!"
-                  : savedCities.length > 0
+                  : hasMyPlaces
                     ? "No stories yet for your cities. New stories appear as city data updates. Check back soon!"
                     : "Follow a city to see stories in your feed. Search for a city to get started."}
           </p>
@@ -1121,10 +1187,11 @@ export default function FeedContainer({
                 setOnlyMySavedPlacesFeed(false);
               }}
             >
-              Clear all filters
+              {hasSecondaryFilters ? "Clear all filters" : "Browse stories from other cities"}
             </button>
           )}
         </div>
+        )
       )}
 
       {/* My Block / My Places empty state (client-side filter returned nothing) */}

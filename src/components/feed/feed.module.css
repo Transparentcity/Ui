@@ -1356,6 +1356,71 @@
   font-size: 15px;
 }
 
+/* "Help us launch your city" banner */
+.cityLaunchBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  background: var(--bg-secondary, #f8f9fa);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-left: 3px solid var(--brand-primary, #ad35fa);
+  border-radius: var(--radius-lg, 12px);
+}
+
+.cityLaunchText {
+  flex: 1;
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary, #6b7280);
+  line-height: 1.4;
+}
+
+.cityLaunchLink {
+  color: var(--brand-primary, #ad35fa);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.cityLaunchLink:hover {
+  text-decoration: underline;
+}
+
+.cityLaunchDismiss {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary, #9ca3af);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.cityLaunchDismiss:hover {
+  background: var(--bg-tertiary, #f3f4f6);
+  color: var(--text-secondary, #6b7280);
+}
+
+@media (max-width: 768px) {
+  .cityLaunchBanner {
+    padding: 8px 10px;
+    gap: 8px;
+    margin-bottom: 8px;
+    border-radius: var(--radius-md, 8px);
+  }
+
+  .cityLaunchText {
+    font-size: 13px;
+  }
+}
+
 .errorState { color: var(--error, #ef4444); }
 
 .retryBtn {
