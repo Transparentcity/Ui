@@ -31,6 +31,7 @@ import {
   readNewsletterPreferenceFields,
 } from "@/lib/newsletterPreferences";
 import { CATEGORY_PRESETS } from "@/lib/feed/categoryPresets";
+import { slugify } from "@/lib/utils";
 import styles from "./WelcomeModal.module.css";
 import Loader from "./Loader";
 
@@ -961,9 +962,11 @@ export default function WelcomeModal({
       await updateUserPreferences(preferencesData, token);
 
       // Send welcome email with stories from their city (fire-and-forget)
+      const welcomeCityName = locationResult.matchedCity.name ?? locationResult.cityName;
       sendWelcomeEmail({
         cityId,
-        cityName: locationResult.matchedCity.name ?? locationResult.cityName,
+        citySlug: slugify(welcomeCityName),
+        cityName: welcomeCityName,
       });
 
       // Skip the all-set screen — go straight to the feed

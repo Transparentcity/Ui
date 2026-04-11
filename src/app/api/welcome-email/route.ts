@@ -101,13 +101,13 @@ function buildEmailHtml(
   citySlug: string | null,
   siteOrigin: string,
 ): string {
-  const heading = cityName
-    ? `Here's what's happening in ${cityName}`
-    : "Here's a taste of what we cover";
+  const isMultiCity = !cityName;
 
-  const subheading = cityName
-    ? "Your first weekly briefing is on its way. In the meantime, here are recent stories from your city."
-    : "Your first weekly briefing is on its way. Here are recent stories from cities we cover.";
+  const heading = cityName
+    ? `Welcome! Here's what's happening in ${cityName}.`
+    : "Welcome! Here's a taste of what we cover.";
+
+  const subtext = "Your first weekly briefing is on its way.";
 
   const ctaUrl = citySlug
     ? `${siteOrigin}/c/${citySlug}`
@@ -115,28 +115,22 @@ function buildEmailHtml(
 
   const ctaLabel = cityName
     ? `Explore ${cityName}`
-    : "Explore Transparent.city";
+    : "Explore all cities";
 
   const storyRows = stories
     .map((s) => {
-      const emoji = s.city_emoji || typeEmoji(s.story_type);
+      const emoji = typeEmoji(s.story_type);
       const url = storyUrl(s, siteOrigin);
       const desc = truncate(s.description, 120);
-      const cityLabel = !cityName && s.city_name ? `<span style="color:#888;font-size:12px;">${s.city_name}</span><br/>` : "";
+      const cityTag = isMultiCity && s.city_name
+        ? `<div style="font-size:11px;font-weight:600;color:#6B46C1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">${s.city_emoji || ""} ${s.city_name}</div>`
+        : "";
 
       return `
         <tr>
-          <td style="padding:16px 0;border-bottom:1px solid #eee;">
-            ${cityLabel}
-            <a href="${url}" style="color:#1a1a1a;text-decoration:none;font-weight:600;font-size:15px;">
-              ${emoji} ${s.headline}
-            </a>
-            <div style="color:#555;font-size:13px;line-height:1.5;margin-top:4px;">
-              ${desc}
-            </div>
-            <a href="${url}" style="color:#6B46C1;font-size:13px;text-decoration:none;margin-top:4px;display:inline-block;">
-              Read more &rarr;
-            </a>
+          <td style="padding:14px 0;border-bottom:1px solid #f0f0f0;">
+            ${cityTag}<a href="${url}" style="color:#1a1a1a;text-decoration:none;font-weight:600;font-size:15px;line-height:1.35;">${emoji} ${s.headline}</a>
+            <div style="color:#555;font-size:13px;line-height:1.5;margin-top:4px;">${desc}</div>
           </td>
         </tr>`;
     })
@@ -146,23 +140,17 @@ function buildEmailHtml(
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#f7f7f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f7f7;padding:32px 16px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f7f7;padding:24px 16px;">
     <tr>
       <td align="center">
-        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fff;border-radius:12px;overflow:hidden;">
-          <!-- Header -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:540px;background:#fff;border-radius:12px;overflow:hidden;">
           <tr>
-            <td style="padding:32px 24px 0;">
-              <div style="font-size:13px;color:#888;font-weight:600;letter-spacing:0.5px;margin-bottom:8px;">TRANSPARENT.CITY</div>
-              <h1 style="margin:0 0 8px;font-size:22px;color:#1a1a1a;font-weight:700;">Welcome!</h1>
-              <h2 style="margin:0 0 8px;font-size:17px;color:#1a1a1a;font-weight:600;">${heading}</h2>
-              <p style="margin:0 0 24px;color:#555;font-size:14px;line-height:1.5;">
-                ${subheading}
-              </p>
+            <td style="padding:28px 24px 0;">
+              <div style="font-size:12px;color:#888;font-weight:600;letter-spacing:0.5px;margin-bottom:12px;">TRANSPARENT.CITY</div>
+              <h1 style="margin:0 0 8px;font-size:20px;color:#1a1a1a;font-weight:700;line-height:1.3;">${heading}</h1>
+              <p style="margin:0 0 20px;color:#555;font-size:14px;line-height:1.5;">${subtext}</p>
             </td>
           </tr>
-
-          <!-- Stories -->
           <tr>
             <td style="padding:0 24px;">
               <table width="100%" cellpadding="0" cellspacing="0">
@@ -170,8 +158,6 @@ function buildEmailHtml(
               </table>
             </td>
           </tr>
-
-          <!-- CTA -->
           <tr>
             <td style="padding:24px;text-align:center;">
               <a href="${ctaUrl}" style="display:inline-block;background:#6B46C1;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:14px;">
@@ -179,12 +165,10 @@ function buildEmailHtml(
               </a>
             </td>
           </tr>
-
-          <!-- Footer -->
           <tr>
-            <td style="padding:16px 24px 24px;text-align:center;color:#999;font-size:12px;line-height:1.5;">
-              You're receiving this because you signed up at Transparent.city.<br/>
-              <a href="${siteOrigin}/settings" style="color:#999;">Manage email preferences</a>
+            <td style="padding:12px 24px 24px;text-align:center;color:#999;font-size:12px;line-height:1.5;">
+              You signed up at <a href="${siteOrigin}" style="color:#999;">Transparent.city</a><br/>
+              <a href="${siteOrigin}/settings" style="color:#999;">Manage preferences</a>
             </td>
           </tr>
         </table>
