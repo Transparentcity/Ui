@@ -76,6 +76,16 @@ function truncate(text: string, max: number): string {
   return text.slice(0, max).replace(/\s+\S*$/, "") + "...";
 }
 
+/** Escape HTML special characters to prevent injection in email templates. */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function typeEmoji(storyType: string): string {
   const map: Record<string, string> = {
     alert: "🔴",
@@ -103,33 +113,36 @@ function buildEmailHtml(
 ): string {
   const isMultiCity = !cityName;
 
-  const heading = cityName
-    ? `Welcome! Here's what's happening in ${cityName}.`
+  const safeCityName = cityName ? escapeHtml(cityName) : null;
+
+  const heading = safeCityName
+    ? `Welcome! Here's what's happening in ${safeCityName}.`
     : "Welcome! Here's a taste of what we cover.";
 
   const subtext = "Your first weekly briefing is on its way.";
 
   const ctaUrl = citySlug
-    ? `${siteOrigin}/c/${citySlug}`
+    ? `${siteOrigin}/c/${encodeURIComponent(citySlug)}`
     : siteOrigin;
 
-  const ctaLabel = cityName
-    ? `Explore ${cityName}`
+  const ctaLabel = safeCityName
+    ? `Explore ${safeCityName}`
     : "Explore all cities";
 
   const storyRows = stories
     .map((s) => {
       const emoji = typeEmoji(s.story_type);
-      const url = storyUrl(s, siteOrigin);
-      const desc = truncate(s.description, 120);
+      const url = escapeHtml(storyUrl(s, siteOrigin));
+      const desc = escapeHtml(truncate(s.description, 120));
+      const headline = escapeHtml(s.headline);
       const cityTag = isMultiCity && s.city_name
-        ? `<div style="font-size:11px;font-weight:600;color:#6B46C1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">${s.city_emoji || ""} ${s.city_name}</div>`
+        ? `<div style="font-size:11px;font-weight:600;color:#6B46C1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">${escapeHtml(s.city_emoji || "")} ${escapeHtml(s.city_name)}</div>`
         : "";
 
       return `
         <tr>
           <td style="padding:14px 0;border-bottom:1px solid #f0f0f0;">
-            ${cityTag}<a href="${url}" style="color:#1a1a1a;text-decoration:none;font-weight:600;font-size:15px;line-height:1.35;">${emoji} ${s.headline}</a>
+            ${cityTag}<a href="${url}" style="color:#1a1a1a;text-decoration:none;font-weight:600;font-size:15px;line-height:1.35;">${emoji} ${headline}</a>
             <div style="color:#555;font-size:13px;line-height:1.5;margin-top:4px;">${desc}</div>
           </td>
         </tr>`;
@@ -180,6 +193,13 @@ function buildEmailHtml(
 }
 
 export async function POST(req: NextRequest): Promise<Response> {
+  // Only allow calls from the same origin (internal API route).
+  const origin = req.headers.get("origin") ?? req.headers.get("referer") ?? "";
+  const siteOriginForAuth = getSiteOrigin();
+  if (!origin.startsWith(siteOriginForAuth)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   let body: { email?: string; cityId?: number; citySlug?: string; cityName?: string };
   try {
     body = await req.json();

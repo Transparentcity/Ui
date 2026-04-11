@@ -5,7 +5,7 @@ import "../landing.css";
 import styles from "./sitemap.module.css";
 
 import PublicFooter from "@/components/PublicFooter";
-import SitemapHeader from "@/components/SitemapHeader";
+import Header from "@/components/Header";
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
 import { API_BASE } from "@/lib/apiBase";
 
@@ -117,7 +117,7 @@ export default async function SiteMapPage() {
 
   return (
     <>
-      <SitemapHeader />
+      <Header />
 
       <section className={styles.sitemapSection}>
         <div className="container">

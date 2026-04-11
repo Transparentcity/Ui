@@ -165,6 +165,8 @@ export default function WelcomeModal({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, ...opts }),
+    }).then((res) => {
+      if (!res.ok) console.error("[WelcomeModal] welcome email returned", res.status);
     }).catch((err) => console.error("[WelcomeModal] welcome email failed:", err));
   };
 
