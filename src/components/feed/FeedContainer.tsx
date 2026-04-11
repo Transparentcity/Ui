@@ -452,6 +452,8 @@ export default function FeedContainer({
     const filtered = enrichedWithNarratives.filter((s) => {
       // Filter out broken early prototype stories
       if (s.id <= 10) return false;
+      // Temporarily hide 311 cards (not rendering correctly)
+      if (s.card_type === "311_images") return false;
       if (hiddenIds.has(s.id)) return false;
       if (selectedTopic && s.card_type !== selectedTopic) return false;
       if (selectedPlaceId !== null) {
