@@ -193,10 +193,15 @@ function buildEmailHtml(
 }
 
 export async function POST(req: NextRequest): Promise<Response> {
-  // Only allow calls from the same origin (internal API route).
+  // Only allow calls from the same origin or Vercel preview deployments.
   const origin = req.headers.get("origin") ?? req.headers.get("referer") ?? "";
   const siteOriginForAuth = getSiteOrigin();
-  if (!origin.startsWith(siteOriginForAuth)) {
+  const isAllowed =
+    origin.startsWith(siteOriginForAuth) ||
+    origin.includes(".vercel.app") ||
+    origin.startsWith("http://localhost");
+  if (!isAllowed) {
+    console.warn("[welcome-email] Blocked origin:", origin, "expected:", siteOriginForAuth);
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -242,14 +247,15 @@ export async function POST(req: NextRequest): Promise<Response> {
       stories = cityId
         ? data.stories.slice(0, 5)
         : pickDiverseStories(data.stories, 5);
+    } else {
+      console.error("[welcome-email] Feed API returned", res.status, await res.text().catch(() => ""));
     }
   } catch (err) {
     console.error("[welcome-email] Failed to fetch stories:", err);
-    // Continue without stories rather than failing the email entirely
   }
 
   if (stories.length === 0) {
-    // Nothing to show; skip the email rather than sending an empty one
+    console.warn("[welcome-email] No stories found for", { email, cityId }, "- skipping email");
     return NextResponse.json({ sent: false, reason: "no_stories" });
   }
 
