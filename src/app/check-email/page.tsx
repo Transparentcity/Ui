@@ -41,7 +41,7 @@ export default function CheckEmailPage() {
   if (isLoading) {
     return (
       <>
-        <Header showCityPicker={false} />
+        <Header />
         <main style={{ padding: "2rem", textAlign: "center" }}>Loading…</main>
       </>
     );
@@ -50,7 +50,7 @@ export default function CheckEmailPage() {
   if (isAuthenticated) {
     return (
       <>
-        <Header showCityPicker={false} />
+        <Header />
         <main style={{ padding: "2rem", textAlign: "center" }}>Taking you back…</main>
       </>
     );

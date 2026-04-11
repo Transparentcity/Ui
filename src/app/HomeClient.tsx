@@ -1,21 +1,16 @@
 "use client";
 
 import styles from "./home.module.css";
-// This file is the client-side home page component.
-// The RSC wrapper (page.tsx) exports metadata and canonical tags.
 import { useAuth0 } from "@auth0/auth0-react";
 import PublicFooter from "@/components/PublicFooter";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
-  searchPublicCities,
-  type PublicCitySearchResult,
+  listPublicCitiesForSitemap,
+  type PublicCitySitemapItem,
 } from "@/lib/publicApiClient";
-import { listPublicFeedPlaces, listPublicFeedStories, type FeedPlace } from "@/lib/apiClient";
-import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
 import Loader from "@/components/Loader";
 import Header from "@/components/Header";
 import HomeFeedPreview from "@/components/feed/HomeFeedPreview";
@@ -32,117 +27,25 @@ export default function HomeClient() {
       appState: { returnTo: "/home" },
     });
   };
-  const [cityQuery, setCityQuery] = useState("");
-  const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
-  const [cityResults, setCityResults] = useState<PublicCitySearchResult[]>([]);
-  const [suggestedCities, setSuggestedCities] = useState<PublicCitySearchResult[]>(
-    [],
-  );
-  const [cityLoading, setCityLoading] = useState(false);
-  const [cityError, setCityError] = useState<string | null>(null);
-  const [selectedIndex, setSelectedIndex] = useState(-1);
-  const searchTimeoutRef = useRef<number | null>(null);
-  const lastRequestIdRef = useRef(0);
 
-  // Live cities and stats from public APIs
-  type LiveCity = { city_id: number; city_name: string; city_emoji: string; slug: string };
-  const [liveCities, setLiveCities] = useState<LiveCity[]>([]);
-  const [storyCount, setStoryCount] = useState<number | null>(null);
-  const [cityCount, setCityCount] = useState<number | null>(null);
+  const [launchedCities, setLaunchedCities] = useState<PublicCitySitemapItem[]>([]);
 
-  // Landing-hero screenshot carousel (matches original landing page)
-  const [activeSlide, setActiveSlide] = useState(0);
-
-  const normalizedCityQuery = useMemo(() => cityQuery.trim(), [cityQuery]);
-
-
-  const slugify = (text: string): string => {
-    const slug = text.trim().toLowerCase();
-    return slug
-      .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/[\s_-]+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-+|-+$/g, "");
-  };
-
-  const runCitySearch = async (query: string) => {
-    const q = query.trim();
-    if (q.length < 2) {
-      setCityResults([]);
-      setCityError(null);
-      setCityLoading(false);
-      setSelectedIndex(-1);
-      return;
+  // Load launched cities from public API
+  useEffect(() => {
+    let cancelled = false;
+    async function loadCities() {
+      try {
+        const cities = await listPublicCitiesForSitemap();
+        if (cancelled) return;
+        const launched = cities.filter((c) => c.is_launched).slice(0, 10);
+        setLaunchedCities(launched);
+      } catch {
+        // Non-critical; page still works without city links
+      }
     }
-
-    const requestId = ++lastRequestIdRef.current;
-    setCityLoading(true);
-    setCityError(null);
-
-    try {
-      const results = await searchPublicCities(q, 10);
-      if (lastRequestIdRef.current !== requestId) return; // stale
-      setCityResults(Array.isArray(results) ? results : []);
-      setSelectedIndex(-1);
-      setCityLoading(false);
-    } catch (e) {
-      if (lastRequestIdRef.current !== requestId) return; // stale
-      setCityResults([]);
-      setSelectedIndex(-1);
-      setCityLoading(false);
-      setCityError(e instanceof Error ? e.message : "City search failed");
-    }
-  };
-
-  const loadSuggestedCities = async () => {
-    // Mirror the platform landing behavior: show SF first until the user types.
-    try {
-      const results = await searchPublicCities("San Francisco", 10);
-      const sfFirst = [...results].sort((a, b) => {
-        const aIsSf = a.name.toLowerCase() === "san francisco" ? 0 : 1;
-        const bIsSf = b.name.toLowerCase() === "san francisco" ? 0 : 1;
-        if (aIsSf !== bIsSf) return aIsSf - bIsSf;
-        return a.display_name.localeCompare(b.display_name);
-      });
-      setSuggestedCities(sfFirst);
-      setCityResults(sfFirst);
-      setCityError(null);
-      setCityLoading(false);
-      setSelectedIndex(-1);
-    } catch (e) {
-      setSuggestedCities([]);
-      setCityResults([]);
-      setCityError(e instanceof Error ? e.message : "City search failed");
-      setCityLoading(false);
-      setSelectedIndex(-1);
-    }
-  };
-
-  const scheduleCitySearch = (query: string) => {
-    if (searchTimeoutRef.current) {
-      window.clearTimeout(searchTimeoutRef.current);
-    }
-    searchTimeoutRef.current = window.setTimeout(() => {
-      void runCitySearch(query);
-    }, 300);
-  };
-
-  const selectCity = (city: PublicCitySearchResult) => {
-    const display = city.display_name || city.name;
-    const slug = slugify(city.name);
-
-    setCityQuery(display);
-    setCityDropdownOpen(false);
-    setSelectedIndex(-1);
-
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("transparentcity.preferred_city_slug", slug);
-      window.localStorage.setItem("transparentcity.preferred_city_name", display);
-      window.localStorage.setItem("transparentcity.preferred_city_id", String(city.id));
-    }
-
-    router.push(`/c/${slug}`);
-  };
+    void loadCities();
+    return () => { cancelled = true; };
+  }, []);
 
   // Redirect authenticated users directly to dashboard
   useEffect(() => {
@@ -150,61 +53,6 @@ export default function HomeClient() {
       router.replace("/home");
     }
   }, [isAuthenticated, isLoading, router]);
-
-  useEffect(() => {
-    return () => {
-      if (searchTimeoutRef.current) {
-        window.clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, []);
-
-
-  useEffect(() => {
-    const slideCount = 2;
-    const interval = window.setInterval(() => {
-      setActiveSlide((prev) => (prev + 1) % slideCount);
-    }, 8000);
-
-    return () => window.clearInterval(interval);
-  }, []);
-
-  // Load live cities and story count from public APIs
-  useEffect(() => {
-    let cancelled = false;
-    async function loadStats() {
-      try {
-        const [placesRes, storiesRes, sitemapCities] = await Promise.all([
-          listPublicFeedPlaces(),
-          listPublicFeedStories({ limit: 1 }),
-          listPublicCitiesForSitemap(),
-        ]);
-        if (cancelled) return;
-        // Deduplicate by city_id (places include per-district entries)
-        const seen = new Set<number>();
-        const unique: LiveCity[] = [];
-        for (const p of placesRes.places) {
-          if (!seen.has(p.city_id)) {
-            seen.add(p.city_id);
-            unique.push({
-              city_id: p.city_id,
-              city_name: p.city_name,
-              city_emoji: p.city_emoji,
-              slug: slugify(p.city_name),
-            });
-          }
-        }
-        setLiveCities(unique);
-        const totalStories = storiesRes.total_count ?? storiesRes.count;
-        if (totalStories > 0) setStoryCount(totalStories);
-        if (sitemapCities.length > 0) setCityCount(sitemapCities.length);
-      } catch {
-        // Non-critical; page still works without stats
-      }
-    }
-    void loadStats();
-    return () => { cancelled = true; };
-  }, []);
 
   // Track search referrer on mount
   useEffect(() => {
@@ -214,54 +62,6 @@ export default function HomeClient() {
       trackSearchReferrer(query);
     }
   }, []);
-
-
-  const handleCityQueryChange = (query: string) => {
-    setCityQuery(query);
-    setCityDropdownOpen(true);
-    scheduleCitySearch(query);
-  };
-
-  const handleCityFocus = () => {
-    setCityDropdownOpen(true);
-    const q = cityQuery.trim();
-    if (q.length < 2) {
-      if (suggestedCities.length) {
-        setCityResults(suggestedCities);
-        setSelectedIndex(-1);
-      } else {
-        setCityLoading(true);
-        void loadSuggestedCities();
-      }
-      return;
-    }
-    scheduleCitySearch(cityQuery);
-  };
-
-  const handleCityDropdownClose = () => {
-    setCityDropdownOpen(false);
-    setSelectedIndex(-1);
-  };
-
-  const handleCityKeyDown = (e: React.KeyboardEvent) => {
-    if (!cityDropdownOpen) return;
-    if (!cityResults.length) return;
-
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setSelectedIndex((prev) => Math.min(prev + 1, cityResults.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setSelectedIndex((prev) => Math.max(prev - 1, -1));
-    } else if (e.key === "Enter" && selectedIndex >= 0) {
-      e.preventDefault();
-      const city = cityResults[selectedIndex];
-      if (city) selectCity(city);
-    } else if (e.key === "Escape") {
-      setCityDropdownOpen(false);
-      setSelectedIndex(-1);
-    }
-  };
 
   // Show loader while checking auth or redirecting authenticated users to dashboard
   if (isLoading || isAuthenticated) {
@@ -274,20 +74,7 @@ export default function HomeClient() {
 
   return (
     <div className={styles.page}>
-      <Header
-        showCityPicker={true}
-        cityQuery={cityQuery}
-        onCityQueryChange={handleCityQueryChange}
-        cityResults={cityResults}
-        cityLoading={cityLoading}
-        cityError={cityError}
-        selectedIndex={selectedIndex}
-        onCitySelect={selectCity}
-        onCityKeyDown={handleCityKeyDown}
-        cityDropdownOpen={cityDropdownOpen}
-        onCityFocus={handleCityFocus}
-        onCityDropdownClose={handleCityDropdownClose}
-      />
+      <Header />
 
       <main>
         {/* ── Hero ──────────────────────────────────────────────────────── */}
@@ -295,14 +82,11 @@ export default function HomeClient() {
           <div className={styles.container}>
             <div className={styles.heroCentered}>
               <h1 className={styles.headline}>
-                Know what&apos;s actually happening in your city
+                Know what&apos;s actually happening in your city.
               </h1>
               <p className={styles.subhead}>
-                Crime trending down? Permits spiking? 311 complaints changing?
-                We turn your city&apos;s open data into clear, source-linked stories
-                you can read in 30 seconds.
+                Real stories from your city&apos;s own data. Updated daily.
               </p>
-
 
               <div className={styles.heroCtas}>
                 <button
@@ -313,16 +97,16 @@ export default function HomeClient() {
                   Explore your city
                 </button>
 
-                {liveCities.length > 0 && (
+                {launchedCities.length > 0 && (
                   <div className={styles.heroExplore}>
                     <span className={styles.heroExploreLabel}>or explore:</span>
-                    {liveCities.slice(0, 4).map((c) => (
+                    {launchedCities.map((c) => (
                       <Link
-                        key={c.city_id}
+                        key={c.id}
                         href={`/c/${c.slug}`}
                         className={styles.heroCityLink}
                       >
-                        {c.city_emoji ? `${c.city_emoji} ` : ""}{c.city_name}
+                        {c.emoji ? `${c.emoji} ` : ""}{c.name}
                       </Link>
                     ))}
                   </div>
@@ -338,8 +122,7 @@ export default function HomeClient() {
             <div className={styles.feedPreviewHeader}>
               <h2 className={styles.sectionTitle}>Recent stories</h2>
               <p className={styles.sectionLead}>
-                These are real stories from the last few days, generated automatically from public data.
-                Sign up to follow your city and get stories tailored to your district.
+                Sign up to follow your city and get stories for your district.
               </p>
             </div>
             <HomeFeedPreview />
@@ -408,4 +191,3 @@ export default function HomeClient() {
     </div>
   );
 }
-

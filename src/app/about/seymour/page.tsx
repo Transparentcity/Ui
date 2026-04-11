@@ -11,7 +11,7 @@ export const metadata = {
 export default function AboutSeymourPage() {
   return (
     <>
-      <Header showCityPicker={false} />
+      <Header />
       <main
         className="about-seymour"
         style={{
