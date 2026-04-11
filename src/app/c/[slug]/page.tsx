@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { unstable_noStore as noStore } from "next/cache";
 import { CityStructuredData } from "@/components/StructuredData";
 import PublicFooter from "@/components/PublicFooter";
 
@@ -126,7 +125,6 @@ export async function generateMetadata({
 }
 
 export default async function CityLandingPage({ params, searchParams }: PageProps) {
-  noStore();
   const { slug } = await params;
   const sp = (await searchParams) || {};
   const idParam = Array.isArray(sp.id) ? sp.id[0] : sp.id;
