@@ -345,9 +345,9 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
           <div className="container">
             <div className="city-explainer-inner">
               <p className="city-explainer-text">
-                {city?.name ?? slug}&rsquo;s public data, explained once a week.
-                Crime trends, housing, city services, and 311 reports, sourced
-                from {city?.name ?? slug}&rsquo;s open data portal with links to
+                Sign up now and get your first weekly briefing this week.
+                Crime trends, housing, city spending, and more from{" "}
+                {city?.name ?? slug}&rsquo;s open data portal, with links to
                 every number.
               </p>
               <div className="city-explainer-cta">

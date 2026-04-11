@@ -45,7 +45,7 @@ export default function CityHeroNewsletter({
           margin: "0 0 4px",
           color: "var(--text-primary)",
         }}>
-          {containerHeading ?? "Get stories like this once a week"}
+          {containerHeading ?? "Sign up now, get your first newsletter this week"}
         </p>
         <p style={{
           fontSize: 13,

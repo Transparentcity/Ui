@@ -63,7 +63,7 @@ export default function WelcomeModal({
   onCitySelected,
   onComplete,
 }: WelcomeModalProps) {
-  const { getAccessTokenSilently } = useAuth0();
+  const { getAccessTokenSilently, user } = useAuth0();
   const [step, setStep] = useState<Step>("welcome");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -151,6 +151,21 @@ export default function WelcomeModal({
       }
     };
   }, []);
+
+  /** Fire-and-forget: send welcome email with story previews */
+  const sendWelcomeEmail = (opts?: {
+    cityId?: number;
+    citySlug?: string;
+    cityName?: string;
+  }) => {
+    const email = user?.email;
+    if (!email) return;
+    fetch("/api/welcome-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, ...opts }),
+    }).catch((err) => console.error("[WelcomeModal] welcome email failed:", err));
+  };
 
   if (!isOpen) return null;
 
@@ -511,6 +526,9 @@ export default function WelcomeModal({
       
       // Mark onboarding complete
       await updateUserPreferences({ has_completed_onboarding: true }, token);
+
+      // Send welcome email with diverse stories (no city selected)
+      sendWelcomeEmail();
     } catch (err) {
       console.error("Error submitting interest:", err);
       setError("Failed to submit interest. Please try again.");
@@ -941,6 +959,12 @@ export default function WelcomeModal({
       }
 
       await updateUserPreferences(preferencesData, token);
+
+      // Send welcome email with stories from their city (fire-and-forget)
+      sendWelcomeEmail({
+        cityId,
+        cityName: locationResult.matchedCity.name ?? locationResult.cityName,
+      });
 
       // Skip the all-set screen — go straight to the feed
       handleFinalNavigation();
