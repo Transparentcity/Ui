@@ -2038,6 +2038,19 @@ export default function CityView({
     });
   }, [mapLeaders, syntheticLeadersFromDistricts]);
 
+  // Compute mayor subtitle for the hero header (e.g. "Mayor: Daniel Lurie")
+  const heroSubtitle = useMemo(() => {
+    const mayor = effectiveLeaders.find((l) => {
+      const d = l.district === null || l.district === undefined ? 0 : Number(l.district);
+      return d === 0;
+    });
+    if (mayor?.name) {
+      const title = mayor.title?.toLowerCase().includes("mayor") ? "Mayor" : (mayor.title || "Mayor");
+      return `${title}: ${mayor.name}`;
+    }
+    return undefined;
+  }, [effectiveLeaders]);
+
   // Mutations for save/unsave
   const saveCityMutation = useSaveCity();
   const unsaveCityMutation = useUnsaveCity();
@@ -2278,6 +2291,7 @@ export default function CityView({
           <CityHeader
             emoji={cityData.emoji || undefined}
             name={cityData.name}
+            subtitle={heroSubtitle}
             metricDateRange={metricDateRange}
             onMetricDateRangeChange={setMetricDateRange}
             variant="overlay"
@@ -2426,7 +2440,7 @@ export default function CityView({
             Dashboard
             {lastPlaceRefreshAt ? (
               <span className="city-view-dashboard-last-refresh">
-                {" "}(last place refresh: {new Date(lastPlaceRefreshAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })})
+                {" "}Last updated {new Date(lastPlaceRefreshAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
               </span>
             ) : null}
           </h2>

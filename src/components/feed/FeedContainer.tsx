@@ -14,7 +14,7 @@ import {
   deleteFeedStory,
   deleteFeedStoriesByCity,
 } from "@/lib/apiClient";
-import { useSavedCities } from "@/lib/hooks/useCities";
+import { useSavedCities, useSaveCity, useUnsaveCity } from "@/lib/hooks/useCities";
 import { enrichStories, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { fetchNarratives } from "@/lib/feed/fetchReportNarratives";
 import { getPublicCityDetail } from "@/lib/publicApiClient";
@@ -65,6 +65,21 @@ export default function FeedContainer({
   const { data: placesData } = useFeedPlaces();
   const { data: savedCities = [] } = useSavedCities();
   const savedCityIds = useMemo(() => new Set(savedCities.map((c) => c.id)), [savedCities]);
+  const saveCityMutation = useSaveCity();
+  const unsaveCityMutation = useUnsaveCity();
+
+  const toggleFollowCity = useCallback(
+    (cityId: number, e: React.MouseEvent) => {
+      e.stopPropagation(); // don't trigger chip selection
+      if (!isAuthenticated) return;
+      if (savedCityIds.has(cityId)) {
+        unsaveCityMutation.mutate(cityId);
+      } else {
+        saveCityMutation.mutate(cityId);
+      }
+    },
+    [isAuthenticated, savedCityIds, saveCityMutation, unsaveCityMutation],
+  );
 
   // ── Filters (restored from sessionStorage when navigating back) ──
   const FILTER_STORAGE_KEY = "feed-filters";
@@ -284,11 +299,9 @@ export default function FeedContainer({
     category: personalNewsletterOnly ? "personal_newsletter" : undefined,
     limit: displayLimit,
     order_by: feedOrder,
-    // For admins, all_cities=true shows all stories when no specific city is selected.
-    // For regular users the backend always scopes to followed cities, so all_cities only
-    // needs to be set when the user explicitly wants the unfiltered platform-wide view
-    // (admin only).
-    all_cities: isAdmin && (personalNewsletterOnly || !singleCityId),
+    // When no specific city is selected ("All Cities"), fetch stories across all
+    // available cities so the feed isn't empty for users who haven't followed any yet.
+    all_cities: personalNewsletterOnly || !singleCityId,
     story_type: apiStoryType,
     user_place_id:
       isAuthenticated && selectedPlaceId != null ? selectedPlaceId : undefined,
@@ -679,7 +692,7 @@ export default function FeedContainer({
 
   // ── Dynamic header ──
   const feedTitle = useMemo(() => {
-    if (selectedCityIds.size === 0) return "Your Cities";
+    if (selectedCityIds.size === 0) return "Feed";
     // Build list with home city first, then alphabetical
     const selected = [...selectedCityIds]
       .map((id) => uniqueCities.find((c) => c.city_id === id))
@@ -692,7 +705,7 @@ export default function FeedContainer({
       }
       return a.city_name.localeCompare(b.city_name);
     });
-    if (selected.length === 0) return "Your Cities";
+    if (selected.length === 0) return "Feed";
     if (selected.length === 1) return selected[0].city_name;
     if (selected.length === 2) return `${selected[0].city_name}, ${selected[1].city_name}`;
     return `${selected[0].city_name}, ${selected[1].city_name} + ${selected.length - 2} More`;
@@ -763,17 +776,33 @@ export default function FeedContainer({
         >
           All Cities
         </button>
-        {uniqueCities.map((c) => (
-          <button
-            key={c.city_id}
-            type="button"
-            aria-pressed={selectedCityIds.has(c.city_id)}
-            className={`${styles.cityChip} ${selectedCityIds.has(c.city_id) ? styles.cityChipActive : ""}`}
-            onClick={() => selectCity(c.city_id)}
-          >
-            {c.city_emoji} {c.city_name}
-          </button>
-        ))}
+        {uniqueCities.map((c) => {
+          const isFollowed = savedCityIds.has(c.city_id);
+          const isSelected = selectedCityIds.has(c.city_id);
+          return (
+            <span key={c.city_id} className={styles.cityChipWrapper}>
+              <button
+                type="button"
+                aria-pressed={isSelected}
+                className={`${styles.cityChip} ${isSelected ? styles.cityChipActive : ""}`}
+                onClick={() => selectCity(c.city_id)}
+              >
+                {c.city_emoji} {c.city_name}
+              </button>
+              {isAuthenticated && (
+                <button
+                  type="button"
+                  className={`${styles.cityFollowBtn} ${isFollowed ? styles.cityFollowBtnActive : ""} ${isSelected ? styles.cityFollowBtnOnActive : ""}`}
+                  onClick={(e) => toggleFollowCity(c.city_id, e)}
+                  title={isFollowed ? `Unfollow ${c.city_name}` : `Follow ${c.city_name}`}
+                  aria-label={isFollowed ? `Unfollow ${c.city_name}` : `Follow ${c.city_name}`}
+                >
+                  {isFollowed ? "✓" : "+"}
+                </button>
+              )}
+            </span>
+          );
+        })}
         {uniqueCities.length <= 1 && (
           <a href="/settings/feed" className={`${styles.cityChip} ${styles.cityChipExplore}`}>
             + Explore cities
