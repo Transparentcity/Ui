@@ -374,6 +374,58 @@
   color: var(--brand-primary, #ad35fa);
 }
 
+/* ── City chip follow button ───────────────────────────────────────────────── */
+
+.cityChipWrapper {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.cityFollowBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: -6px;
+  border: 1px solid var(--border-primary);
+  border-radius: 50%;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+  line-height: 1;
+}
+.cityFollowBtn:hover {
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary-light, rgba(173, 53, 250, 0.08));
+}
+.cityFollowBtnActive {
+  background: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary, #ad35fa);
+  color: #fff;
+  font-size: 11px;
+}
+.cityFollowBtnActive:hover {
+  background: var(--brand-primary-dark, #9125d6);
+  border-color: var(--brand-primary-dark, #9125d6);
+  color: #fff;
+}
+/* When the chip itself is active (purple), adjust the follow button border */
+.cityFollowBtnOnActive {
+  border-color: var(--brand-primary, #ad35fa);
+}
+.cityFollowBtnOnActive:not(.cityFollowBtnActive) {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--brand-primary, #ad35fa);
+}
+
 /* ── Filter chip caret (for collapsible district button) ───────────────────── */
 
 .filterChipCaret {

@@ -20,6 +20,8 @@ interface CityHeaderProps {
   onFollowToggle?: () => void;
   showAdminIcon?: boolean;
   onAdminClick?: () => void;
+  /** Optional subtitle shown after the city name (e.g. "Mayor: Daniel Lurie") */
+  subtitle?: string;
 }
 
 export default function CityHeader({
@@ -38,6 +40,7 @@ export default function CityHeader({
   onFollowToggle,
   showAdminIcon = false,
   onAdminClick,
+  subtitle,
 }: CityHeaderProps) {
   const className =
     variant === "overlay"
@@ -53,6 +56,9 @@ export default function CityHeader({
       <div className="city-header-left">
         {emoji && <span className="city-emoji-icon">{emoji}</span>}
         <h1 className="city-name">{name}</h1>
+        {subtitle && (
+          <span className="city-header-subtitle">{subtitle}</span>
+        )}
         {showAdminIcon && onAdminClick && (
           <button
             type="button"
