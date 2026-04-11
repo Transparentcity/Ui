@@ -6,48 +6,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import styles from "./Header.module.css";
 
-interface HeaderProps {
-  showCityPicker?: boolean;
-  cityQuery?: string;
-  onCityQueryChange?: (query: string) => void;
-  cityResults?: Array<{
-    id: number;
-    name: string;
-    display_name: string;
-    emoji?: string | null;
-  }>;
-  cityLoading?: boolean;
-  cityError?: string | null;
-  selectedIndex?: number;
-  onCitySelect?: (city: {
-    id: number;
-    name: string;
-    display_name: string;
-    emoji?: string | null;
-  }) => void;
-  onCityKeyDown?: (e: React.KeyboardEvent) => void;
-  cityDropdownOpen?: boolean;
-  onCityFocus?: () => void;
-  onCityDropdownClose?: () => void;
-}
-
-export default function Header({
-  showCityPicker = false,
-  cityQuery = "",
-  onCityQueryChange,
-  cityResults = [],
-  cityLoading = false,
-  cityError = null,
-  selectedIndex = -1,
-  onCitySelect,
-  onCityKeyDown,
-  cityDropdownOpen = false,
-  onCityFocus,
-  onCityDropdownClose,
-}: HeaderProps) {
+export default function Header() {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const router = useRouter();
-  const cityPickerRef = useRef<HTMLDivElement | null>(null);
   const signupMenuRef = useRef<HTMLDivElement | null>(null);
   const [signupMenuOpen, setSignupMenuOpen] = useState(false);
 
@@ -77,14 +38,6 @@ export default function Header({
     });
   };
 
-  const handleGoToDashboard = async () => {
-    if (isAuthenticated) {
-      router.push("/home");
-      return;
-    }
-    await handleSignup("resident");
-  };
-
   const handleSignup = async (intent: "resident" | "public-servant") => {
     setSignupMenuOpen(false);
     if (typeof window !== "undefined") {
@@ -98,23 +51,7 @@ export default function Header({
     });
   };
 
-  useEffect(() => {
-    if (!showCityPicker || !cityDropdownOpen) return;
-
-    const onDocumentClick = (e: MouseEvent) => {
-      const target = e.target as Node | null;
-      if (!target) return;
-      if (cityPickerRef.current && !cityPickerRef.current.contains(target)) {
-        onCityDropdownClose?.();
-      }
-    };
-
-    document.addEventListener("click", onDocumentClick);
-    return () => document.removeEventListener("click", onDocumentClick);
-  }, [showCityPicker, cityDropdownOpen, onCityDropdownClose]);
-
   // Generate unique IDs for logo masks to avoid conflicts
-  // Use useId hook which generates stable IDs that work with SSR
   const baseId = useId();
   const logoMaskIdBl = `${baseId}-logo-mask-bl`;
   const logoMaskIdTr = `${baseId}-logo-mask-tr`;
@@ -250,162 +187,6 @@ export default function Header({
             </span>
           </Link>
 
-          {showCityPicker && (
-            <div className={styles.cityPicker} ref={cityPickerRef}>
-              <input
-                className={styles.cityInput}
-                value={cityQuery}
-                placeholder="Start with San Francisco — or search for your city…"
-                onChange={(e) => {
-                  onCityQueryChange?.(e.target.value);
-                }}
-                onFocus={onCityFocus}
-                onKeyDown={onCityKeyDown}
-              />
-
-              {cityDropdownOpen && (
-                <div
-                  className={styles.cityDropdown}
-                  role="listbox"
-                  aria-label="City options"
-                >
-                  {cityLoading && (
-                    <div
-                      className={styles.cityOption}
-                      role="option"
-                      aria-selected={false}
-                    >
-                      <div>Searching…</div>
-                      <div className={styles.cityMeta}>
-                        Type at least 2 characters
-                      </div>
-                    </div>
-                  )}
-
-                  {!cityLoading && cityError && (
-                    <div
-                      className={styles.cityOption}
-                      role="option"
-                      aria-selected={false}
-                    >
-                      <div>City search unavailable</div>
-                      <div className={styles.cityMeta}>{cityError}</div>
-                    </div>
-                  )}
-
-                  {!cityLoading &&
-                    !cityError &&
-                    cityQuery.trim().length < 2 && (
-                      <>
-                        {cityResults.length ? null : (
-                          <div
-                            className={styles.cityOption}
-                            role="option"
-                            aria-selected={false}
-                          >
-                            <div>Start with San Francisco</div>
-                            <div className={styles.cityMeta}>
-                              Or search by city, state, or country
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                  {!cityLoading &&
-                    !cityError &&
-                    cityQuery.trim().length >= 2 &&
-                    cityResults.map((city, idx) => (
-                      <div
-                        key={`${city.id}-${city.display_name}`}
-                        className={styles.cityOption}
-                        role="option"
-                        aria-selected={idx === selectedIndex}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          onCitySelect?.(city);
-                        }}
-                        style={{
-                          background:
-                            idx === selectedIndex
-                              ? "rgba(17, 24, 39, 0.05)"
-                              : "transparent",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 10,
-                          }}
-                        >
-                          {city.emoji ? (
-                            <span aria-hidden style={{ fontSize: 18 }}>
-                              {city.emoji}
-                            </span>
-                          ) : null}
-                          <div>{city.display_name}</div>
-                        </div>
-                        <div className={styles.cityMeta}>Browse</div>
-                      </div>
-                    ))}
-
-                  {!cityLoading &&
-                    !cityError &&
-                    cityQuery.trim().length < 2 &&
-                    cityResults.map((city, idx) => (
-                      <div
-                        key={`${city.id}-${city.display_name}`}
-                        className={styles.cityOption}
-                        role="option"
-                        aria-selected={idx === selectedIndex}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          onCitySelect?.(city);
-                        }}
-                        style={{
-                          background:
-                            idx === selectedIndex
-                              ? "rgba(17, 24, 39, 0.05)"
-                              : "transparent",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 10,
-                          }}
-                        >
-                          {city.emoji ? (
-                            <span aria-hidden style={{ fontSize: 18 }}>
-                              {city.emoji}
-                            </span>
-                          ) : null}
-                          <div>{city.display_name}</div>
-                        </div>
-                        <div className={styles.cityMeta}>Suggested</div>
-                      </div>
-                    ))}
-
-                  {!cityLoading &&
-                    !cityError &&
-                    cityQuery.trim().length >= 2 &&
-                    cityResults.length === 0 && (
-                      <div
-                        className={styles.cityOption}
-                        role="option"
-                        aria-selected={false}
-                      >
-                        <div>No cities found</div>
-                        <div className={styles.cityMeta}>Try another spelling</div>
-                      </div>
-                    )}
-                </div>
-              )}
-            </div>
-          )}
-
           <nav className={styles.navRight} aria-label="Top navigation">
             <button
               className={styles.buttonSignIn}
@@ -462,4 +243,3 @@ export default function Header({
     </header>
   );
 }
-
