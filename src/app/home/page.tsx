@@ -60,6 +60,7 @@ import {
   setImpersonation,
   type ImpersonationState,
 } from "@/lib/impersonation";
+import { slugify } from "@/lib/utils";
 import styles from "./page.module.css";
 import dynamic from "next/dynamic";
 
@@ -167,6 +168,7 @@ export default function DashboardPage() {
   const [showGovernmentOnboardingModal, setShowGovernmentOnboardingModal] = useState(false);
   const [governmentClaimContext, setGovernmentClaimContext] = useState<ClaimContext | null>(null);
   const hasAutoSelectedCity = useRef(false);
+  const autoSelectedCityRef = useRef<{ id: number; name: string; slug: string } | null>(null);
   const hasCheckedOnboarding = useRef(false);
   const activeCityIdRef = useRef<number | null>(null);
   activeCityIdRef.current = activeCityId;
@@ -381,9 +383,12 @@ export default function DashboardPage() {
       } else {
         trackLogin(user.sub);
       }
+      const followCityName = urlParams.get("follow_city_name") || window.localStorage.getItem("transparentcity.follow_city_name") || "";
+      const followCitySlug = urlParams.get("follow_city_slug") || window.localStorage.getItem("transparentcity.follow_city_slug") || slugify(followCityName);
       setActiveCityId(followCityId);
       setCurrentView("city");
       hasAutoSelectedCity.current = true;
+      autoSelectedCityRef.current = { id: followCityId, name: followCityName, slug: followCitySlug };
       // Clean up URL params and localStorage
       window.history.replaceState({}, "", window.location.pathname);
       window.localStorage.removeItem("transparentcity.follow_city_slug");
@@ -394,8 +399,7 @@ export default function DashboardPage() {
         try {
           const token = await getAccessTokenSilently();
           await saveCity(followCityId, token);
-          const followCityName = urlParams.get("follow_city_name") || "Unknown";
-          trackCitySaved(followCityId, followCityName);
+          trackCitySaved(followCityId, autoSelectedCityRef.current?.name || "Unknown");
         } catch {
           // Non-blocking
         }
@@ -631,6 +635,20 @@ export default function DashboardPage() {
                   trackOnboardingComplete(user.sub);
                 }
                 toast.success("You\u2019re all set! Welcome to your city feed.");
+                // Send welcome email (fire-and-forget)
+                const city = autoSelectedCityRef.current;
+                if (user?.email) {
+                  fetch("/api/welcome-email", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      email: user.email,
+                      cityId: city?.id,
+                      citySlug: city?.slug,
+                      cityName: city?.name || null,
+                    }),
+                  }).catch(() => {});
+                }
               }).catch(() => {
                 // Non-blocking
               });
