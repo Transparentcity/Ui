@@ -16,6 +16,7 @@ import {
   getUserPreferences,
   updateUserPreferences,
   getCity,
+  saveCity,
   generateSampleNewsletter,
   saveUserMetricOrdering,
   recordSignupIntent,
@@ -362,14 +363,44 @@ export default function DashboardPage() {
     // Check if this is a signup completion (from URL params)
     const urlParams = new URLSearchParams(window.location.search);
     const signupIntent = urlParams.get("signup") as "resident" | "public-servant" | null;
-    
-    if (signupIntent) {
-      // User just completed signup: show feed view by default
+
+    // Check for follow-city intent (from URL params or localStorage, set by FollowCityButton)
+    const followCityIdParam = urlParams.get("follow_city_id");
+    const followCityIdLS = typeof window !== "undefined" ? window.localStorage.getItem("transparentcity.follow_city_id") : null;
+    const followCityId = followCityIdParam ? parseInt(followCityIdParam, 10) : (followCityIdLS ? parseInt(followCityIdLS, 10) : NaN);
+
+    if (Number.isFinite(followCityId)) {
+      // User arrived via "Follow this city" - jump straight to that city
+      if (signupIntent) {
+        trackSignupComplete(signupIntent, user.sub);
+        trackUserActivation("signup_complete");
+      } else {
+        trackLogin(user.sub);
+      }
+      setActiveCityId(followCityId);
+      setCurrentView("city");
+      hasAutoSelectedCity.current = true;
+      // Clean up URL params and localStorage
+      window.history.replaceState({}, "", window.location.pathname);
+      window.localStorage.removeItem("transparentcity.follow_city_slug");
+      window.localStorage.removeItem("transparentcity.follow_city_id");
+      window.localStorage.removeItem("transparentcity.follow_city_name");
+      // Save city in the background (for already-onboarded users)
+      void (async () => {
+        try {
+          const token = await getAccessTokenSilently();
+          await saveCity(followCityId, token);
+          const followCityName = urlParams.get("follow_city_name") || "Unknown";
+          trackCitySaved(followCityId, followCityName);
+        } catch {
+          // Non-blocking
+        }
+      })();
+    } else if (signupIntent) {
+      // User just completed signup without a follow intent
       trackSignupComplete(signupIntent, user.sub);
       trackUserActivation("signup_complete");
-      // Don't overwrite view if user has already navigated to a city/district/place
       setCurrentView((prev) => (currentActiveCityId != null && prev === "city" ? "city" : "feed"));
-      // Clean up URL
       const newUrl = window.location.pathname;
       window.history.replaceState({}, "", newUrl);
     } else {
@@ -536,7 +567,6 @@ export default function DashboardPage() {
       try {
         const token = await getAccessTokenSilently();
         const prefs = await getUserPreferences(token);
-
         if (!prefs.has_completed_onboarding) {
           const savedCities = await getSavedCities(token);
           if (savedCities.length === 0) {
@@ -590,6 +620,16 @@ export default function DashboardPage() {
                 preferredType === "government" && !signup ? null : claimContext
               );
               setShowGovernmentOnboardingModal(true);
+            } else if (hasAutoSelectedCity.current) {
+              // Follow intent already handled by the signup/login effect; just mark onboarding complete
+              updateUserPreferences({ has_completed_onboarding: true }, token).then(() => {
+                if (user?.sub) {
+                  trackOnboardingComplete(user.sub);
+                }
+                toast.success("You\u2019re all set! Welcome to your city feed.");
+              }).catch(() => {
+                // Non-blocking
+              });
             } else {
               setShowWelcomeModal(true);
             }

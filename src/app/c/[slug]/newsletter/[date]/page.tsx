@@ -25,6 +25,12 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, "").trim();
 }
 
+/** Extract a fallback headline from the first <h2> in the body HTML. */
+function extractFirstH2(html: string): string {
+  const match = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
+  return match ? stripHtml(match[1]) : "";
+}
+
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { slug, date } = await params;
   const { district: districtParam } = await searchParams;
@@ -33,7 +39,8 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
     const edition = await getNewsletterEdition(slug, date, district);
     const cityName = edition.city_name ?? slug;
     const districtLabel = edition.district > 0 ? ` — District ${edition.district}` : "";
-    const title = `${edition.summary_headline} — ${cityName}${districtLabel} Newsletter`;
+    const headline = edition.summary_headline || edition.subject || extractFirstH2(edition.body_html) || "Newsletter";
+    const title = `${headline} — ${cityName}${districtLabel} Newsletter`;
     const introText = edition.intro_html ? stripHtml(edition.intro_html) : "";
     const description = introText.slice(0, 160);
     const canonical = `/c/${slug}/newsletter/${date}${district ? `?district=${district}` : ""}`;
@@ -166,7 +173,7 @@ export default async function NewsletterEditionPage({ params, searchParams }: Pa
             marginBottom: 16,
           }}
         >
-          {edition.summary_headline || edition.subject}
+          {edition.summary_headline || edition.subject || extractFirstH2(edition.body_html)}
         </h1>
 
         {/* Meta */}
