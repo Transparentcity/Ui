@@ -25,6 +25,8 @@ import SkeletonCard from "./SkeletonCard";
 import FeedEndState from "./FeedEndState";
 import BrandedLoader from "@/components/BrandedLoader";
 import EditHomeLocationModal from "@/components/EditHomeLocationModal";
+import OnboardingBanner from "./OnboardingBanner";
+import { usePlaceOnboarding } from "@/contexts/PlaceOnboardingContext";
 import styles from "./feed.module.css";
 
 /** Templates considered "visual" for the first-impression rule. */
@@ -60,6 +62,7 @@ export default function FeedContainer({
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   const queryClient = useQueryClient();
   const trackEngagement = useTrackFeedEngagement();
+  const onboarding = usePlaceOnboarding();
   const viewedRef = useRef<Set<number>>(new Set());
   const sentinelRef = useRef<HTMLDivElement>(null);
   const { data: placesData } = useFeedPlaces();
@@ -820,7 +823,11 @@ export default function FeedContainer({
             <button
               key="my-places-toggle"
               type="button"
-              className={`${styles.filterChip} ${showPlaces || selectedPlaceId !== null || onlyMySavedPlacesFeed ? styles.filterChipActive : ""}`}
+              className={[
+                styles.filterChip,
+                (showPlaces || selectedPlaceId !== null || onlyMySavedPlacesFeed) && styles.filterChipActive,
+                (onboarding.status === "scanning" || onboarding.status === "found_rep") && styles.filterChipBuilding,
+              ].filter(Boolean).join(" ")}
               onClick={() => {
                 setShowDistricts(false);
                 setShowPlaces((prev) => {
@@ -1031,6 +1038,10 @@ export default function FeedContainer({
         </div>
       )}
 
+      {/* Onboarding progress banner (shows while neighborhood data is building).
+          Hidden during initial feed load to avoid two loaders at once. */}
+      {!(isLoading && visibleStories.length === 0) && <OnboardingBanner />}
+
       {/* Loading: branded loader + skeleton cards on initial load */}
       {isLoading && visibleStories.length === 0 && (
         <>
@@ -1125,9 +1136,19 @@ export default function FeedContainer({
           selectedPlaceId !== null ||
           onlyMySavedPlacesFeed) && (
         <div className={styles.emptyState}>
-          <p className={styles.myBlockEmptyTitle}>No stories for this place yet</p>
+          <p className={styles.myBlockEmptyTitle}>
+            {onboarding.status === "scanning" || onboarding.status === "found_rep"
+              ? "Building your neighborhood feed"
+              : onboarding.status === "completed"
+                ? "Your neighborhood feed is ready!"
+                : "No stories for this place yet"}
+          </p>
           <p className={styles.myBlockEmptyText}>
-            We&apos;re working on generating stories for your saved places. Check back soon.
+            {onboarding.status === "scanning" || onboarding.status === "found_rep"
+              ? onboarding.message
+              : onboarding.status === "completed"
+                ? "Try refreshing to see your new stories."
+                : "We\u2019re working on generating stories for your saved places. Check back soon."}
           </p>
         </div>
       )}

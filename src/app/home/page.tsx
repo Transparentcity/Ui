@@ -10,6 +10,7 @@ import FeedView from "@/components/feed/NewFeedView";
 import ImpersonationBanner from "@/components/ImpersonationBanner";
 import { toast } from "sonner";
 import { useTheme } from "@/contexts/ThemeContext";
+import { PlaceOnboardingProvider } from "@/contexts/PlaceOnboardingContext";
 import {
   getMyPermissions,
   getSavedCities,
@@ -23,6 +24,7 @@ import {
   getGovernmentVerificationStatus,
   updateGovernmentVerification,
   listMyPlaces,
+  runPlaceMetricsAndAnomaliesAsJob,
   getCityLeaders,
   followRepresentative,
   type ClaimContext,
@@ -159,6 +161,8 @@ export default function DashboardPage() {
   /** After saving a new block, run metrics job once before showing place dashboard (see CityView). */
   const [placeIdPendingPlaceMetricsBootstrap, setPlaceIdPendingPlaceMetricsBootstrap] = useState<number | null>(null);
   const [allUserPlaces, setAllUserPlaces] = useState<UserPlace[]>([]);
+  const [onboardingJob, setOnboardingJob] = useState<{ placeId: number; jobId: string } | null>(null);
+  const onboardingRepNotifyRef = useRef<((name: string) => void) | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showGovernmentOnboardingModal, setShowGovernmentOnboardingModal] = useState(false);
   const [governmentClaimContext, setGovernmentClaimContext] = useState<ClaimContext | null>(null);
@@ -1068,37 +1072,50 @@ export default function DashboardPage() {
   const handleWelcomeComplete = () => {
     setShowWelcomeModal(false);
     setCurrentView("feed");
-    toast.success("You\u2019re all set! Your personalized feed is ready.");
+    toast.success("Welcome! We\u2019re building your neighborhood feed now.");
     if (user?.sub) {
       trackOnboardingComplete(user.sub);
       trackUserActivation("onboarding_complete");
     }
 
-    // Deferred rep discovery: look up district + leaders in the background
+    // Deferred background work: rep discovery + place metrics job (parallel)
     void (async () => {
       try {
         const token = await getAccessTokenSilently();
-        const prefs = await getUserPreferences(token);
-        const homeLoc = prefs?.extra?.home_location;
-        if (!homeLoc?.coordinates || !homeLoc?.city_id) return;
 
-        const { lat, lng } = homeLoc.coordinates as { lat: number; lng: number };
-        const cityId = homeLoc.city_id as number;
+        // Run rep discovery and place metrics kick-off in parallel
+        const repDiscovery = (async () => {
+          const prefs = await getUserPreferences(token);
+          const homeLoc = prefs?.extra?.home_location;
+          if (!homeLoc?.coordinates || !homeLoc?.city_id) return;
 
-        const district = await findDistrictFromCoordinates(lat, lng, cityId, token);
-        if (!district) return;
+          const { lat, lng } = homeLoc.coordinates as { lat: number; lng: number };
+          const cId = homeLoc.city_id as number;
 
-        // Follow the district rep
-        await followRepresentative(cityId, String(district), token);
+          const district = await findDistrictFromCoordinates(lat, lng, cId, token);
+          if (!district) return;
 
-        // Fetch leaders to show the rep name
-        const leaders = await getCityLeaders(cityId, token);
-        const rep = leaders.find((l) => l.district === district);
-        if (rep) {
-          toast.success(`We found your representative: ${rep.name}, District ${district}`);
-        }
+          await followRepresentative(cId, String(district), token);
+
+          const leaders = await getCityLeaders(cId, token);
+          const rep = leaders.find((l) => l.district === district);
+          if (rep) {
+            // Show in onboarding banner (no toast, to avoid duplicate messaging)
+            onboardingRepNotifyRef.current?.(rep.name);
+          }
+        })();
+
+        const placeMetrics = (async () => {
+          const { places } = await listMyPlaces(token);
+          if (!places || places.length === 0) return;
+          const newest = places.reduce((a, b) => (a.id > b.id ? a : b));
+          const { job_id } = await runPlaceMetricsAndAnomaliesAsJob(newest.id, token);
+          setOnboardingJob({ placeId: newest.id, jobId: job_id });
+        })();
+
+        await Promise.allSettled([repDiscovery, placeMetrics]);
       } catch {
-        // Non-blocking — silently ignore if rep lookup fails
+        // Non-blocking — token fetch failed, user still gets the general feed
       }
     })();
   };
@@ -1312,6 +1329,10 @@ export default function DashboardPage() {
         onOpenFindDistrict={handleOpenFindDistrict}
       />
 
+      <PlaceOnboardingProvider
+        initialJob={onboardingJob}
+        notifyRepFoundRef={onboardingRepNotifyRef}
+      >
       <main className={`${styles.mainContent} ${sidebarOpen ? "" : styles.mainContentCollapsed}`} id="main-content">
         {impersonationState && (
           <ImpersonationBanner
@@ -1523,6 +1544,7 @@ export default function DashboardPage() {
           )}
         </div>
       </main>
+      </PlaceOnboardingProvider>
 
       {/* Settings Overlay */}
       {settingsOpen && (

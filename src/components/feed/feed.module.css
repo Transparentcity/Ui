@@ -302,6 +302,24 @@
   color: #fff;
 }
 
+.filterChipBuilding {
+  position: relative;
+  border-color: var(--brand-primary, #ad35fa);
+  animation: chipPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes chipPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(173, 53, 250, 0.3); }
+  50% { box-shadow: 0 0 0 3px rgba(173, 53, 250, 0.1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filterChipBuilding {
+    animation: none;
+    border-color: var(--brand-primary, #ad35fa);
+  }
+}
+
 .moreChip {
   border-style: dashed;
   color: var(--text-tertiary, #999);

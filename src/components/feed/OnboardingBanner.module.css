@@ -1,0 +1,132 @@
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  background: var(--bg-secondary, #f8f9fa);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-left: 3px solid var(--brand-primary, #ad35fa);
+  border-radius: var(--radius-lg, 12px);
+  transition: opacity 0.3s ease, max-height 0.3s ease, margin 0.3s ease, padding 0.3s ease;
+  overflow: hidden;
+  max-height: 120px;
+}
+
+.bannerComplete {
+  border-left-color: var(--success, #10b981);
+}
+
+.bannerFailed {
+  border-left-color: var(--text-tertiary, #9ca3af);
+}
+
+.bannerDismissing {
+  opacity: 0;
+  max-height: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.loaderWrap {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.checkmark {
+  width: 18px;
+  height: 18px;
+  color: var(--success, #10b981);
+}
+
+.message {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary, #6b7280);
+  line-height: 1.4;
+  /* Messages are short by design; allow natural wrap on small screens */
+}
+
+.dismissBtn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 44px minimum touch target for mobile accessibility */
+  width: 44px;
+  height: 44px;
+  /* Visually 28px (padding absorbs the rest) */
+  padding: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary, #9ca3af);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dismissBtn:hover {
+  background: var(--bg-tertiary, #f3f4f6);
+  color: var(--text-secondary, #6b7280);
+}
+
+/* ── Mobile: compact single row ─────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .banner {
+    padding: 8px 10px;
+    gap: 8px;
+    margin-bottom: 8px;
+    /* Respect safe-area for notched phones */
+    margin-left: env(safe-area-inset-left, 0);
+    margin-right: env(safe-area-inset-right, 0);
+    border-radius: var(--radius-md, 8px);
+  }
+
+  .loaderWrap {
+    width: 20px;
+    height: 20px;
+  }
+
+  .message {
+    font-size: 13px;
+    line-height: 1.3;
+  }
+
+  .dismissBtn {
+    /* Still 44px touch target on mobile */
+    width: 44px;
+    height: 44px;
+    padding: 10px;
+  }
+}
+
+/* Very small screens: even tighter */
+@media (max-width: 400px) {
+  .banner {
+    padding: 8px;
+    gap: 6px;
+  }
+
+  .message {
+    font-size: 12px;
+  }
+}
+
+/* Reduced motion: skip collapse animation */
+@media (prefers-reduced-motion: reduce) {
+  .banner {
+    transition: none;
+  }
+
+  .bannerDismissing {
+    display: none;
+  }
+}
