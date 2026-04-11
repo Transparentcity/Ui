@@ -22,6 +22,8 @@ import {
   getGovernmentVerificationStatus,
   updateGovernmentVerification,
   listMyPlaces,
+  getCityLeaders,
+  followRepresentative,
   type ClaimContext,
   type GovernmentVerificationStatus,
   type UserPreferences,
@@ -29,6 +31,7 @@ import {
   type CityDetail,
   type UserPlace,
 } from "@/lib/apiClient";
+import { findDistrictFromCoordinates } from "@/lib/findDistrictFromCoordinates";
 import { PENDING_ORDER_STORAGE_KEY_PREFIX } from "@/components/MetricOrderEditor";
 import Loader from "@/components/Loader";
 import WelcomeModal from "@/components/WelcomeModal";
@@ -1024,11 +1027,40 @@ export default function DashboardPage() {
 
   const handleWelcomeComplete = () => {
     setShowWelcomeModal(false);
+    setCurrentView("feed");
     toast.success("You\u2019re all set! Your personalized feed is ready.");
     if (user?.sub) {
       trackOnboardingComplete(user.sub);
       trackUserActivation("onboarding_complete");
     }
+
+    // Deferred rep discovery: look up district + leaders in the background
+    void (async () => {
+      try {
+        const token = await getAccessTokenSilently();
+        const prefs = await getUserPreferences(token);
+        const homeLoc = prefs?.extra?.home_location;
+        if (!homeLoc?.coordinates || !homeLoc?.city_id) return;
+
+        const { lat, lng } = homeLoc.coordinates as { lat: number; lng: number };
+        const cityId = homeLoc.city_id as number;
+
+        const district = await findDistrictFromCoordinates(lat, lng, cityId, token);
+        if (!district) return;
+
+        // Follow the district rep
+        await followRepresentative(cityId, String(district), token);
+
+        // Fetch leaders to show the rep name
+        const leaders = await getCityLeaders(cityId, token);
+        const rep = leaders.find((l) => l.district === district);
+        if (rep) {
+          toast.success(`We found your representative: ${rep.name}, District ${district}`);
+        }
+      } catch {
+        // Non-blocking — silently ignore if rep lookup fails
+      }
+    })();
   };
 
   const handleGovernmentOnboardingComplete = () => {

@@ -17,9 +17,7 @@ import {
   getUserPreferences,
   submitCityLeadInterest,
   getCity,
-  getCityLeaders,
   createPlace,
-  followRepresentative,
   getCityMetrics,
   saveUserMetricOrdering,
   type CityDetail,
@@ -32,7 +30,6 @@ import {
   mergeNewsletterPreferenceFields,
   readNewsletterPreferenceFields,
 } from "@/lib/newsletterPreferences";
-import LocationMapSave from "./LocationMapSave";
 import { CATEGORY_PRESETS } from "@/lib/feed/categoryPresets";
 import styles from "./WelcomeModal.module.css";
 import Loader from "./Loader";
@@ -45,7 +42,7 @@ interface WelcomeModalProps {
   onComplete: () => void;
 }
 
-type Step = "welcome" | "leader" | "preferences" | "all-set" | "coming-soon";
+type Step = "welcome" | "confirm" | "preferences" | "coming-soon";
 
 interface LocationResult {
   cityName: string;
@@ -72,8 +69,8 @@ export default function WelcomeModal({
   const [error, setError] = useState<string | null>(null);
   const [locationInput, setLocationInput] = useState("");
   const [locationResult, setLocationResult] = useState<LocationResult | null>(null);
-  const [leadSubmitted, setLeadSubmitted] = useState(false);
   const [homeCoordinates, setHomeCoordinates] = useState<{ lat: number; lng: number } | null>(null);
+  const [hasPreciseLocation, setHasPreciseLocation] = useState(false);
   const [placeLabel, setPlaceLabel] = useState("My Block");
   const [placeRadius, setPlaceRadius] = useState(DEFAULT_PLACE_RADIUS_M);
 
@@ -101,8 +98,9 @@ export default function WelcomeModal({
       setLocationInput("");
       setLocationResult(null);
       setError(null);
-      setLeadSubmitted(false);
+
       setHomeCoordinates(null);
+      setHasPreciseLocation(false);
       setPlaceLabel("My Block");
       setPlaceRadius(DEFAULT_PLACE_RADIUS_M);
       setAddressSuggestions([]);
@@ -217,6 +215,7 @@ export default function WelcomeModal({
     }
 
     setHomeCoordinates({ lat: suggestion.lat, lng: suggestion.lon });
+    setHasPreciseLocation(true);
     try {
       await processLocationAndFindCity(
         cityName,
@@ -233,56 +232,32 @@ export default function WelcomeModal({
     }
   };
 
-  // Fetch city details, leaders, and determine if active
+  // Fetch city details and determine if active (leaders deferred to post-onboarding)
   const fetchCityDetailsAndLeaders = async (
     city: PublicCitySearchResult,
     district: number | null = null
   ): Promise<LocationResult> => {
     const token = await getAccessTokenSilently();
-    
+
     let cityDetail: CityDetail | null = null;
-    let leaders: CityLeader[] = [];
-    let mayor: CityLeader | null = null;
-    let councilMember: CityLeader | null = null;
-    
+
     try {
       cityDetail = await getCity(city.id, token);
     } catch (err) {
       console.error("Error fetching city details:", err);
     }
-    
-    try {
-      leaders = await getCityLeaders(city.id, token);
-    } catch (err) {
-      console.error("Error fetching leaders:", err);
-    }
-    
-    // Find mayor (citywide leader)
-    if (leaders.length > 0) {
-      mayor = leaders.find(
-        (l) => 
-          l.title?.toLowerCase().includes("mayor") ||
-          l.district === null ||
-          l.district === 0
-      ) || null;
-    }
-    
-    // Find council member based on district
-    if (district !== null && leaders.length > 0) {
-      councilMember = leaders.find((l) => l.district === district) || null;
-    }
-    
+
     const isActive = cityDetail?.is_active ?? false;
-    
+
     return {
       cityName: city.name,
       state: city.state || null,
       country: city.country || null,
       matchedCity: city,
       cityDetail,
-      leaders,
-      mayor,
-      councilMember,
+      leaders: [],
+      mayor: null,
+      councilMember: null,
       district,
       isActive,
     };
@@ -345,28 +320,41 @@ export default function WelcomeModal({
       return;
     }
     
-    // If we have coordinates but no district, try to determine district from coordinates
+    // Run district lookup (only for precise locations) and city detail fetch in parallel
+    const token = await getAccessTokenSilently();
+
     let finalDistrict = district;
-    if (coordinates && !finalDistrict && matchedCity) {
-      try {
-        const token = await getAccessTokenSilently();
-        finalDistrict = await findDistrictFromCoordinates(
-          coordinates.lat,
-          coordinates.lng,
-          matchedCity.id,
-          token
-        );
-      } catch (error) {
-        console.error("Error determining district from coordinates:", error);
-        // Continue without district if lookup fails
-      }
-    }
-    
-    const result = await fetchCityDetailsAndLeaders(matchedCity, finalDistrict);
+    const districtPromise =
+      coordinates && hasPreciseLocation && !finalDistrict && matchedCity
+        ? findDistrictFromCoordinates(coordinates.lat, coordinates.lng, matchedCity.id, token)
+            .catch((error) => { console.error("Error determining district from coordinates:", error); return null; })
+        : Promise.resolve(null);
+
+    const cityDetailPromise = getCity(matchedCity.id, token)
+      .catch((err) => { console.error("Error fetching city details:", err); return null; });
+
+    const [districtResult, cityDetail] = await Promise.all([districtPromise, cityDetailPromise]);
+
+    if (districtResult != null) finalDistrict = districtResult;
+
+    const isActive = cityDetail?.is_active ?? false;
+
+    const result: LocationResult = {
+      cityName: matchedCity.name,
+      state: matchedCity.state || null,
+      country: matchedCity.country || null,
+      matchedCity,
+      cityDetail,
+      leaders: [],
+      mayor: null,
+      councilMember: null,
+      district: finalDistrict,
+      isActive,
+    };
     setLocationResult(result);
     
     if (result.isActive) {
-      setStep("leader");
+      setStep("preferences");
     } else {
       setStep("coming-soon");
     }
@@ -468,6 +456,7 @@ export default function WelcomeModal({
       
       // Store home coordinates
       setHomeCoordinates({ lat: latitude, lng: longitude });
+      setHasPreciseLocation(true);
 
       const reverseRes = await fetch(`/api/reverse-geocode?lat=${latitude}&lng=${longitude}`);
       
@@ -520,8 +509,6 @@ export default function WelcomeModal({
         token
       );
       
-      setLeadSubmitted(true);
-      
       // Mark onboarding complete
       await updateUserPreferences({ has_completed_onboarding: true }, token);
     } catch (err) {
@@ -544,40 +531,23 @@ export default function WelcomeModal({
     }
   };
 
-  /** After notify-me success, send user to an active city instead of an empty dashboard. */
-  const handleBrowseActiveCity = async () => {
-    try {
-      const token = await getAccessTokenSilently();
-      await updateUserPreferences({ has_completed_onboarding: true }, token);
-    } catch {
-      // non-blocking
-    }
-    onComplete();
-    onClose();
-    // Navigate to the first active city (San Francisco as default)
-    if (typeof window !== "undefined") {
-      window.location.href = "/c/san-francisco";
-    }
-  };
-
   // Render step indicator
   const renderStepIndicator = () => {
-    // Determine steps based on current flow (no separate "preferences" step)
     let steps: string[] = [];
     if (step === "coming-soon") {
       steps = ["welcome", "coming-soon"];
     } else {
-      steps = ["welcome", "leader", "preferences", "all-set"];
+      steps = ["welcome", "preferences"];
     }
-    
+
     const currentIndex = steps.indexOf(step);
-    
+
     return (
       <div className={styles.stepIndicator}>
         {steps.map((s, i) => (
-          <div 
-            key={s} 
-            className={`${styles.stepDot} ${i === currentIndex ? styles.stepDotActive : ""} ${i < currentIndex ? styles.stepDotComplete : ""}`} 
+          <div
+            key={s}
+            className={`${styles.stepDot} ${i === currentIndex ? styles.stepDotActive : ""} ${i < currentIndex ? styles.stepDotComplete : ""}`}
           />
         ))}
       </div>
@@ -593,15 +563,12 @@ export default function WelcomeModal({
 
       <h1 className={styles.title}>Where do you live?</h1>
       <p className={styles.subtitle}>
-        We&apos;ll show you who represents you and what&apos;s happening in your neighborhood.
+        Find out what&apos;s happening in your neighborhood.
       </p>
 
       {error && <div className={styles.error}>{error}</div>}
 
       <div className={styles.locationSection}>
-        <p className={styles.locationHint}>
-          Enter your address or tap GPS. You can adjust your exact spot next.
-        </p>
         <div className={styles.inputGroup} ref={locationInputRef}>
           <div className={styles.inputWithGPS}>
             <input
@@ -623,10 +590,11 @@ export default function WelcomeModal({
               aria-expanded={showAddressDropdown && addressSuggestions.length > 0}
             />
             <button
-              className={styles.gpsButton}
+              className={styles.gpsInlineButton}
               onClick={handleGPSLocation}
               disabled={loading}
-              title="Use my current location"
+              title="Use my location"
+              type="button"
             >
               {loading ? (
                 <Loader size="sm" color="purple" />
@@ -683,99 +651,43 @@ export default function WelcomeModal({
     </div>
   );
 
-  // Advance from leader step — city is saved in the final preferences step to avoid duplicates
-  const handleLeaderContinue = () => {
+  // Advance from confirm step to preferences
+  const handleConfirmContinue = () => {
     if (!locationResult?.matchedCity) return;
     setStep("preferences");
   };
 
-  // Render leader step - show representative info
-  const renderLeaderStep = () => {
+  // Render confirm step - city confirmation + optional map for precise locations
+  const renderConfirmStep = () => {
     if (!locationResult) return null;
 
     const cityDisplayName = locationResult.state
       ? `${locationResult.cityName}, ${locationResult.state}`
       : locationResult.cityName;
 
-    const { mayor, councilMember } = locationResult;
-    const showMapAndPlace = homeCoordinates != null && locationResult.matchedCity != null;
+    const showMapAndPlace = hasPreciseLocation && homeCoordinates != null && locationResult.matchedCity != null;
 
     return (
-      <div className={`${styles.stepContent} ${styles.leaderStepContent}`}>
-        <div className={styles.successIcon}>
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-            <polyline points="22 4 12 14.01 9 11.01" />
-          </svg>
-        </div>
-
-        <h2 className={styles.stepTitle}>
+      <div className={`${styles.stepContent} ${styles.confirmStepContent}`}>
+        <div className={styles.cityConfirmCard}>
           {locationResult.matchedCity?.emoji && (
-            <span className={styles.titleEmoji}>{locationResult.matchedCity.emoji}</span>
+            <span className={styles.cityConfirmEmoji}>{locationResult.matchedCity.emoji}</span>
           )}
-          {cityDisplayName}
-        </h2>
-
-        {/* Mayor & Rep above the map */}
-        {(mayor || councilMember) && (
-          <div className={styles.leadersContainerCompact}>
-            {mayor && (
-              <div className={styles.leaderCardCompact}>
-                <div className={styles.leaderLabel}>Your Mayor</div>
-                <div className={styles.leaderName}>{mayor.name}</div>
-                <div className={styles.leaderTitle}>{mayor.title}</div>
-              </div>
-            )}
-            {councilMember && (
-              <div className={styles.leaderCardCompact}>
-                <div className={styles.leaderLabel}>Your Representative</div>
-                <div className={styles.leaderName}>{councilMember.name}</div>
-                <div className={styles.leaderTitle}>{councilMember.title}</div>
-                {councilMember.district && (
-                  <div className={styles.leaderDistrict}>District {councilMember.district}</div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-        {!mayor && !councilMember && (
-          <p className={styles.stepDescription}>
-            We have data for your city! Explore crime, safety, traffic, and more.
+          <h2 className={styles.cityConfirmName}>{cityDisplayName}</h2>
+          <p className={styles.cityConfirmSubtext}>
+            We have city-wide data. You can add your address later for block-level news.
           </p>
-        )}
-
-        {showMapAndPlace && (
-          <div className={styles.leaderStepMapSection}>
-            <LocationMapSave
-              cityId={locationResult.matchedCity!.id}
-              lat={homeCoordinates!.lat}
-              lng={homeCoordinates!.lng}
-              valueLabel={placeLabel}
-              valueRadiusM={placeRadius}
-              onLabelChange={setPlaceLabel}
-              onRadiusChange={setPlaceRadius}
-              defaultLabel="My Block"
-              defaultRadiusM={DEFAULT_PLACE_RADIUS_M}
-              className={styles.leaderStepLocationMapSave}
-            />
-          </div>
-        )}
+        </div>
 
         {error && <div className={styles.error}>{error}</div>}
 
         <div className={styles.actions}>
           <button
             className={styles.primaryButton}
-            onClick={handleLeaderContinue}
+            onClick={handleConfirmContinue}
             disabled={loading}
           >
-            {loading ? (
-              <span className={styles.buttonLoader}>
-                <Loader size="sm" color="white" />
-              </span>
-            ) : (
-              "Continue"
-            )}
+            Continue
           </button>
           <button className={styles.backButton} onClick={() => setStep("welcome")}>
             Try a different city
@@ -888,10 +800,10 @@ export default function WelcomeModal({
                 <Loader size="sm" color="white" />
               </span>
             ) : (
-              "Continue"
+              "Let\u2019s go"
             )}
           </button>
-          <button className={styles.backButton} onClick={() => setStep("leader")}>
+          <button className={styles.backButton} onClick={() => setStep("welcome")}>
             Back
           </button>
         </div>
@@ -961,16 +873,9 @@ export default function WelcomeModal({
       await saveCity(cityId, token);
       emitSavedCitiesChanged();
 
-      const districtToLoad = locationResult.councilMember?.district ?? locationResult.district ?? null;
-      if (districtToLoad !== null && districtToLoad !== undefined) {
-        try {
-          await followRepresentative(cityId, String(districtToLoad), token);
-        } catch {
-          // ignore
-        }
-      }
+      // District rep follow is deferred to post-onboarding for speed
 
-      if (homeCoordinates) {
+      if (hasPreciseLocation && homeCoordinates) {
         try {
           await createPlace(token, {
             city_id: cityId,
@@ -1028,21 +933,17 @@ export default function WelcomeModal({
         },
       };
 
-      if (homeCoordinates) {
+      if (hasPreciseLocation && homeCoordinates) {
         preferencesData.extra.home_location = {
           city_id: cityId,
-          district: districtToLoad,
           coordinates: homeCoordinates,
-        };
-      } else if (districtToLoad !== null) {
-        preferencesData.extra.home_location = {
-          city_id: cityId,
-          district: districtToLoad,
         };
       }
 
       await updateUserPreferences(preferencesData, token);
-      setStep("all-set");
+
+      // Skip the all-set screen — go straight to the feed
+      handleFinalNavigation();
     } catch (err) {
       console.error("Error saving preferences:", err);
       setError("Failed to save preferences. Please try again.");
@@ -1051,72 +952,14 @@ export default function WelcomeModal({
     }
   };
 
-  // Handle final navigation to city
+  // Handle final navigation to city — skip the all-set screen, land directly in feed
   const handleFinalNavigation = () => {
     if (!locationResult?.matchedCity) return;
-    
-    const districtToLoad = locationResult.councilMember?.district ?? locationResult.district ?? null;
+
+    const districtToLoad = locationResult.district ?? null;
     onCitySelected(locationResult.matchedCity.id, districtToLoad);
     onComplete();
     onClose();
-  };
-
-  // Render all-set step
-  const renderAllSetStep = () => {
-    if (!locationResult) return null;
-
-    const cityDisplayName = locationResult.state
-      ? `${locationResult.cityName}, ${locationResult.state}`
-      : locationResult.cityName;
-
-    return (
-      <div className={styles.stepContent}>
-        <div className={styles.successIcon}>
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-            <polyline points="22 4 12 14.01 9 11.01" />
-          </svg>
-        </div>
-
-        <h2 className={styles.stepTitle}>You&apos;re all set!</h2>
-        <p className={styles.stepDescription}>
-          You&apos;re set up for {cityDisplayName}.
-        </p>
-
-        <div className={styles.allSetSummary}>
-          {selectedCategoryIds.length > 0 && (
-            <div className={styles.summaryItem}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-              </svg>
-              <span>Tracking: {selectedCategoryIds.map(id => EMAIL_PRESETS.find(p => p.id === id)?.label).filter(Boolean).join(", ")}</span>
-            </div>
-          )}
-          {weeklyNewsletterOptIn && (
-            <div className={styles.summaryItem}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                <polyline points="22,6 12,13 2,6" />
-              </svg>
-              <span>Your weekly newsletter arrives Sunday</span>
-            </div>
-          )}
-        </div>
-        <p className={styles.disclaimer}>
-          You can change these anytime in Settings.
-        </p>
-
-        <div className={styles.actions}>
-          <button
-            className={styles.primaryButton}
-            onClick={handleFinalNavigation}
-            disabled={loading}
-          >
-            Take me to my city
-          </button>
-        </div>
-      </div>
-    );
   };
 
   // Render coming soon step
@@ -1135,47 +978,31 @@ export default function WelcomeModal({
             <polyline points="12 6 12 12 16 14" />
           </svg>
         </div>
-        <h2 className={styles.stepTitle}>{cityDisplayName} is coming soon</h2>
+        <h2 className={styles.stepTitle}>We don&apos;t have {cityDisplayName} yet</h2>
         <p className={styles.stepDescription}>
-          We don&apos;t have your city yet. Sign up to be notified when we launch there.
+          We&apos;re growing fast. Request your city and we&apos;ll let you know when it launches.
         </p>
 
         {error && <div className={styles.error}>{error}</div>}
 
-        {!leadSubmitted ? (
-          <>
-            <div className={styles.actions}>
-              <button
-                className={styles.primaryButton}
-                onClick={handleNotifyMe}
-                disabled={loading}
-              >
-                {loading ? "Submitting..." : "Notify me when available"}
-              </button>
-              <button className={styles.backButton} onClick={() => setStep("welcome")}>
-                Try a different city
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className={styles.successMessage}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-              You&apos;re on the list! We&apos;ll email you when {cityDisplayName} launches.
-            </div>
-            <div className={styles.actions}>
-              <button className={styles.primaryButton} onClick={handleBrowseActiveCity}>
-                Explore an active city
-              </button>
-              <button className={styles.backButton} onClick={() => setStep("welcome")}>
-                Try a different city
-              </button>
-            </div>
-          </>
-        )}
+        <div className={styles.actions}>
+          <a
+            className={styles.primaryButton}
+            href="https://transparent.city/pro"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => {
+              // Fire lead capture in background
+              void handleNotifyMe();
+            }}
+            style={{ display: "block", textAlign: "center", textDecoration: "none" }}
+          >
+            Request this city
+          </a>
+          <button className={styles.backButton} onClick={() => setStep("welcome")}>
+            Try a different city
+          </button>
+        </div>
       </div>
     );
   };
@@ -1193,9 +1020,8 @@ export default function WelcomeModal({
         {renderStepIndicator()}
 
         {step === "welcome" && renderWelcomeStep()}
-        {step === "leader" && renderLeaderStep()}
+        {step === "confirm" && renderConfirmStep()}
         {step === "preferences" && renderPreferencesStep()}
-        {step === "all-set" && renderAllSetStep()}
         {step === "coming-soon" && renderComingSoonStep()}
       </div>
     </div>

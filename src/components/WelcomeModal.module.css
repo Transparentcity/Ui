@@ -87,7 +87,7 @@
 
 /* Step Content */
 .stepContent {
-  padding: 20px 28px 28px;
+  padding: 20px 16px 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -118,10 +118,18 @@
   margin-right: 8px;
 }
 
+.titleSecondLine {
+  display: block;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-secondary, #4b5563);
+  margin-top: 2px;
+}
+
 .subtitle {
-  font-size: 15px;
-  color: var(--text-secondary, #6b7280);
-  margin: 0 0 20px 0;
+  font-size: 14px;
+  color: var(--text-tertiary, #9ca3af);
+  margin: 0 0 12px 0;
   line-height: 1.4;
 }
 
@@ -170,16 +178,65 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
-.locationHint {
-  font-size: 13px;
-  color: var(--text-secondary, #6b7280);
-  margin: 0;
-  line-height: 1.4;
-  text-align: center;
+/* GPS Hero Button — the primary action */
+.gpsHeroButton {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--brand-primary, #ad35fa);
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: 0.01em;
+}
+
+.gpsHeroButton:hover:not(:disabled) {
+  background: var(--brand-primary-hover, #9333ea);
+  box-shadow: 0 4px 16px rgba(173, 53, 250, 0.35);
+}
+
+.gpsHeroButton:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.gpsHeroButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.gpsHeroButton svg {
+  flex-shrink: 0;
+}
+
+/* "or type your address" divider */
+.locationDivider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0;
+}
+
+.locationDividerLine {
+  flex: 1;
+  height: 1px;
+  background: var(--border-primary, #e5e7eb);
+}
+
+.locationDividerText {
+  font-size: 12px;
+  color: var(--text-tertiary, #9ca3af);
+  white-space: nowrap;
 }
 
 .inputGroup {
@@ -207,7 +264,7 @@
   padding: 14px 16px;
   font-size: 15px;
   border: none;
-  border-radius: var(--radius-md, 8px) 0 0 var(--radius-md, 8px);
+  border-radius: var(--radius-md, 8px);
   background: transparent;
   color: var(--text-primary, #111827);
 }
@@ -240,6 +297,30 @@
 }
 
 .gpsButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.gpsInlineButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 0 var(--radius-md, 8px) var(--radius-md, 8px) 0;
+  cursor: pointer;
+  color: var(--text-secondary, #6b7280);
+  transition: all 0.15s ease;
+}
+
+.gpsInlineButton:hover:not(:disabled) {
+  background: var(--bg-tertiary, #f3f4f6);
+  color: var(--brand-primary, #ad35fa);
+}
+
+.gpsInlineButton:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -334,6 +415,33 @@
   cursor: not-allowed;
 }
 
+.secondaryButton {
+  width: 100%;
+  padding: 14px 24px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--brand-primary, #ad35fa);
+  background: transparent;
+  border: 1.5px solid var(--brand-primary, #ad35fa);
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: 0.01em;
+}
+
+.secondaryButton:hover:not(:disabled) {
+  background: rgba(173, 53, 250, 0.06);
+}
+
+.secondaryButton:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.secondaryButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .buttonLoader {
   display: inline-flex;
   align-items: center;
@@ -390,96 +498,41 @@
   color: var(--text-secondary, #6b7280);
 }
 
-/* Leaders Container */
-.leadersContainer {
-  width: 100%;
+/* City Confirm Card — the "we found your city" moment */
+.confirmStepContent {
+  gap: 0;
+}
+
+.cityConfirmCard {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin: 12px 0 16px;
+  align-items: center;
+  padding: 24px 20px 16px;
+  animation: iconPop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Leader Card */
-.leaderCard {
-  width: 100%;
-  padding: 18px 20px;
-  background: linear-gradient(135deg, var(--brand-primary-light, rgba(173, 53, 250, 0.08)) 0%, var(--bg-secondary, #f8f9fa) 100%);
-  border: 1px solid var(--brand-primary, #ad35fa);
-  border-radius: var(--radius-lg, 12px);
-  text-align: center;
+.cityConfirmEmoji {
+  font-size: 48px;
+  line-height: 1;
+  margin-bottom: 12px;
 }
 
-.leaderLabel {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--brand-primary, #ad35fa);
-  margin-bottom: 8px;
-}
-
-.leaderName {
-  font-size: 22px;
+.cityConfirmName {
+  font-size: 24px;
   font-weight: 700;
   color: var(--text-primary, #111827);
-  margin-bottom: 4px;
-}
-
-.leaderTitle {
-  font-size: 14px;
-  color: var(--text-secondary, #6b7280);
-}
-
-.leaderDistrict {
-  font-size: 13px;
-  color: var(--text-tertiary, #9ca3af);
-  margin-top: 4px;
-}
-
-/* Leader step: compact cards + map + add to places */
-.leaderStepContent .stepTitle {
-  margin-bottom: 8px;
-}
-
-.leadersContainerCompact {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 8px 0 12px;
-}
-
-.leaderCardCompact {
-  padding: 14px 16px;
-  background: linear-gradient(135deg, var(--brand-primary-light, rgba(173, 53, 250, 0.06)) 0%, var(--bg-secondary, #f8f9fa) 100%);
-  border: 1px solid rgba(173, 53, 250, 0.25);
-  border-radius: var(--radius-md, 8px);
+  margin: 0 0 6px 0;
   text-align: center;
-  transition: border-color 0.15s ease;
 }
 
-.leaderCardCompact .leaderLabel {
-  font-size: 10px;
-  margin-bottom: 4px;
+.cityConfirmSubtext {
+  font-size: 15px;
+  color: var(--text-secondary, #6b7280);
+  margin: 0;
+  line-height: 1.4;
+  text-align: center;
 }
 
-.leaderCardCompact .leaderName {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 2px;
-}
-
-.leaderCardCompact .leaderTitle,
-.leaderCardCompact .leaderDistrict {
-  font-size: 12px;
-}
-
-.leaderStepMapSection {
-  margin: 12px 0;
-}
-
-.leaderStepLocationMapSave {
-  border-radius: var(--radius-md, 8px);
-}
 
 /* Track Options */
 .trackOptions {
@@ -635,7 +688,7 @@
   }
 
   .stepContent {
-    padding: 16px 20px 24px;
+    padding: 16px 12px 20px;
   }
 
   .title {
@@ -654,11 +707,11 @@
     font-size: 12px;
   }
 
-  .leaderCard {
-    padding: 16px 20px;
+  .cityConfirmEmoji {
+    font-size: 40px;
   }
 
-  .leaderName {
+  .cityConfirmName {
     font-size: 20px;
   }
 }
@@ -703,10 +756,6 @@
 
 [data-theme="dark"] .gpsButton:hover:not(:disabled) {
   background: var(--bg-primary);
-}
-
-[data-theme="dark"] .leaderCard {
-  background: linear-gradient(135deg, rgba(173, 53, 250, 0.12) 0%, var(--bg-secondary) 100%);
 }
 
 [data-theme="dark"] .trackOption {
@@ -1034,34 +1083,6 @@
   align-self: flex-start;
 }
 
-/* All Set Summary */
-.allSetSummary {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 20px 0;
-  padding: 16px 18px;
-  background: var(--bg-secondary, #f8f9fa);
-  border-radius: var(--radius-lg, 12px);
-  border: 1px solid var(--border-primary, #e5e7eb);
-}
-
-.summaryItem {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 14px;
-  color: var(--text-secondary, #6b7280);
-  line-height: 1.4;
-}
-
-.summaryItem svg {
-  color: var(--success, #10b981);
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-}
 
 /* Button Loader */
 .buttonLoader {
@@ -1204,10 +1225,6 @@
 [data-theme="dark"] .learningFocusInput {
   background: var(--bg-secondary);
   border-color: var(--border-primary);
-}
-
-[data-theme="dark"] .allSetSummary {
-  background: var(--bg-secondary);
 }
 
 [data-theme="dark"] .reportScopeOptions {
