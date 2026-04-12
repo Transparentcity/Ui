@@ -62,7 +62,7 @@ export default function HomeFeedPreview({ initialStories }: HomeFeedPreviewProps
     <div className={homeStyles.previewGrid}>
       {loading
         ? Array.from({ length: DISPLAY_COUNT }).map((_, i) => (
-            <div key={i} className={homeStyles.previewCard}>
+            <div key={i} className={homeStyles.previewCard} role="article" aria-label="Loading story">
               <div className={homeStyles.skeletonHeader} />
               <div className={homeStyles.skeletonHeadline} />
               <div className={homeStyles.skeletonBody} />
