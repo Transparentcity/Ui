@@ -224,8 +224,25 @@ function resolveImageUrl(story: FeedStory): string | null {
   const id = pv.id;
   const hash = pv.short_hash;
   if (type === "chart" && id != null) return `${base}/api/time-series/public/${id}/image`;
-  if (type === "anomaly" && id != null) return `${base}/api/anomalies/public/result/${id}/image`;
+  if ((type === "anomaly" || type === "anomaly_chart") && id != null) return `${base}/api/anomalies/public/result/${id}/image`;
   if (type === "map" && hash) return `${base}/api/maps/public/${hash}/image`;
+  if (type === "map" && id != null) return `${base}/api/maps/public/${id}/image`;
+
+  // Fallback: derive image URL from the embed URL when the visualization type
+  // doesn't match known patterns (e.g. backend set pv.embed_url directly).
+  const embedUrl = pv.embed_url as string | undefined;
+  if (embedUrl) {
+    // /t/{id}... -> time-series image
+    const tMatch = embedUrl.match(/^\/t\/(\d+)/);
+    if (tMatch) return `${base}/api/time-series/public/${tMatch[1]}/image`;
+    // /a/{id}... -> anomaly image
+    const aMatch = embedUrl.match(/^\/a\/(\d+)/);
+    if (aMatch) return `${base}/api/anomalies/public/result/${aMatch[1]}/image`;
+    // /m/{hash}... -> map image
+    const mMatch = embedUrl.match(/^\/m\/([^?/]+)/);
+    if (mMatch) return `${base}/api/maps/public/${mMatch[1]}/image`;
+  }
+
   return null;
 }
 

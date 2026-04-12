@@ -11,27 +11,16 @@ interface TextChartCardProps {
   children: React.ReactNode; // action bar
 }
 
-/**
- * Returns true when the image_url points to a real photo (311, street view,
- * DALL-E, etc.) rather than a server-generated chart/map PNG.  Photos should
- * still render as <img>; chart/map PNGs are replaced by live iframe embeds.
- */
-function isPhotoImage(url: string | null): boolean {
-  if (!url) return false;
-  if (url.includes("/api/time-series/")) return false;
-  if (url.includes("/api/anomalies/")) return false;
-  if (url.includes("/api/maps/")) return false;
-  return true;
-}
-
 export default function TextChartCard({ story, children }: TextChartCardProps) {
   const [imgFailed, setImgFailed] = useState(false);
   const meta = story.metadata ?? {};
   const isMapFocus = meta.map_focus === true;
   const hotspots = (meta.hotspot_neighborhoods as string[] | undefined) ?? [];
 
-  const hasEmbed = !!story.embed_url_resolved;
-  const hasPhoto = isPhotoImage(story.image_url_resolved) && !imgFailed;
+  // Prefer static PNG image (fast) over iframe embed (slow). Fall back to
+  // iframe only when the backend didn't generate an image URL.
+  const hasImage = !!story.image_url_resolved && !imgFailed;
+  const hasEmbed = !hasImage && !!story.embed_url_resolved;
 
   return (
     <>
@@ -48,19 +37,19 @@ export default function TextChartCard({ story, children }: TextChartCardProps) {
       )}
 
       <div className={`${styles.vizArea} ${isMapFocus ? styles.vizAreaMapFocus : ""}`}>
-        {hasEmbed ? (
-          <LazyVizEmbed
-            src={story.embed_url_resolved!}
-            title={story.headline}
-            className={isMapFocus ? styles.vizIframeMapFocus : undefined}
-          />
-        ) : hasPhoto ? (
+        {hasImage ? (
           <img
             src={story.image_url_resolved!}
             alt={story.headline}
             className={`${styles.vizImage} ${isMapFocus ? styles.vizImageMapFocus : ""}`}
             loading="lazy"
             onError={() => setImgFailed(true)}
+          />
+        ) : hasEmbed ? (
+          <LazyVizEmbed
+            src={story.embed_url_resolved!}
+            title={story.headline}
+            className={isMapFocus ? styles.vizIframeMapFocus : undefined}
           />
         ) : (
           <div className={styles.vizPlaceholder}>

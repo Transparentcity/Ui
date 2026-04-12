@@ -61,7 +61,6 @@ export default function AlertCard({ story, children }: AlertCardProps) {
   const color = effectiveSeverity === "critical" ? "var(--error, #ef4444)" : "var(--warning, #f59e0b)";
 
   const hasMetrics = value != null || changePct != null;
-  const hasEmbed = !!story.embed_url_resolved;
 
   return (
     <>
@@ -105,22 +104,22 @@ export default function AlertCard({ story, children }: AlertCardProps) {
         </div>
       )}
 
-      {/* Prefer live iframe embed over static PNG for chart/anomaly viz */}
-      {hasEmbed ? (
-        <div className={styles.vizArea}>
-          <LazyVizEmbed
-            src={story.embed_url_resolved!}
-            title={story.headline}
-          />
-        </div>
-      ) : story.image_url_resolved && !imgFailed ? (
+      {/* Prefer static PNG (fast) over iframe embed (slow) */}
+      {story.image_url_resolved && !imgFailed ? (
         <div className={styles.vizArea}>
           <img
-            src={story.image_url_resolved!}
+            src={story.image_url_resolved}
             alt={story.headline}
             className={styles.vizImage}
             loading="lazy"
             onError={() => setImgFailed(true)}
+          />
+        </div>
+      ) : story.embed_url_resolved ? (
+        <div className={styles.vizArea}>
+          <LazyVizEmbed
+            src={story.embed_url_resolved}
+            title={story.headline}
           />
         </div>
       ) : null}
