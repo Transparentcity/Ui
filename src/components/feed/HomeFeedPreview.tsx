@@ -9,29 +9,40 @@ import CardHeader from "./CardHeader";
 import styles from "./feed.module.css";
 import homeStyles from "./homeFeedPreview.module.css";
 
+const DISPLAY_COUNT = 10;
+
+interface HomeFeedPreviewProps {
+  /** Pre-fetched stories from the server (SSR). Skips client fetch when provided. */
+  initialStories?: EnrichedFeedStory[];
+}
+
 /**
- * Renders 6 recent public feed cards on the logged-out home page.
- * Uses the public (no-auth) feed endpoint and a simplified card
- * layout without action bars or interactive features.
+ * Renders up to 10 curated public feed cards on the logged-out home page.
+ * When initialStories are provided (SSR), renders instantly with no loading state.
+ * Falls back to client-side fetch when no initial data is available.
  */
-export default function HomeFeedPreview() {
-  const [stories, setStories] = useState<EnrichedFeedStory[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function HomeFeedPreview({ initialStories }: HomeFeedPreviewProps) {
+  const hasInitial = initialStories && initialStories.length > 0;
+  const [stories, setStories] = useState<EnrichedFeedStory[]>(hasInitial ? initialStories : []);
+  const [loading, setLoading] = useState(!hasInitial);
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    // Skip client fetch if server already provided stories
+    if (hasInitial) return;
+
     let cancelled = false;
 
     async function load() {
       try {
         const res = await listPublicFeedStories({
-          limit: 6,
+          limit: DISPLAY_COUNT,
           order_by: "published_at",
         });
         if (cancelled) return;
 
         const enriched = (res.stories ?? []).map((s) => enrichStory(s));
-        setStories(enriched.slice(0, 6));
+        setStories(enriched.slice(0, DISPLAY_COUNT));
       } catch {
         if (!cancelled) setError(true);
       } finally {
@@ -43,14 +54,14 @@ export default function HomeFeedPreview() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [hasInitial]);
 
   if (error || (!loading && stories.length === 0)) return null;
 
   return (
     <div className={homeStyles.previewGrid}>
       {loading
-        ? Array.from({ length: 6 }).map((_, i) => (
+        ? Array.from({ length: DISPLAY_COUNT }).map((_, i) => (
             <div key={i} className={homeStyles.previewCard}>
               <div className={homeStyles.skeletonHeader} />
               <div className={homeStyles.skeletonHeadline} />

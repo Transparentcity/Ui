@@ -15,9 +15,13 @@ import Loader from "@/components/Loader";
 import Header from "@/components/Header";
 import HomeFeedPreview from "@/components/feed/HomeFeedPreview";
 import { trackSearchReferrer } from "@/lib/analytics";
+import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 
+interface HomeClientProps {
+  stories?: EnrichedFeedStory[];
+}
 
-export default function HomeClient() {
+export default function HomeClient({ stories }: HomeClientProps) {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const router = useRouter();
 
@@ -125,7 +129,7 @@ export default function HomeClient() {
                 Sign up to follow your city and get a weekly newsletter for what's happening in your city and on your block.
               </p>
             </div>
-            <HomeFeedPreview />
+            <HomeFeedPreview initialStories={stories} />
           </div>
         </section>
 

@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import HomeClient from "./HomeClient";
 import "./landing.css";
+import { getApiBaseUrl } from "@/lib/apiBase";
+import { enrichStory, isCoherentMultiMetric, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
+import { pickFeaturedStories } from "@/lib/feed/pickFeaturedStories";
+import type { FeedStory } from "@/lib/hooks/useFeed";
+
+export const revalidate = 3600; // ISR: regenerate every hour
 
 export const metadata: Metadata = {
   title: "Transparent.city \u2013 See What\u2019s Working in Your City",
@@ -25,6 +31,25 @@ export const metadata: Metadata = {
   },
 };
 
-export default function HomePage() {
-  return <HomeClient />;
+async function fetchFeaturedStories(): Promise<EnrichedFeedStory[]> {
+  try {
+    const apiBase = getApiBaseUrl();
+    const url = `${apiBase}/api/feed/public?limit=200&order_by=published_at`;
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const stories = (data.stories ?? []) as FeedStory[];
+    const enriched = stories.map((s) => enrichStory(s)).filter(isCoherentMultiMetric);
+    return pickFeaturedStories(enriched);
+  } catch {
+    return [];
+  }
+}
+
+export default async function HomePage() {
+  const stories = await fetchFeaturedStories();
+  return <HomeClient stories={stories} />;
 }
