@@ -270,6 +270,22 @@ function extractFirstSentence(text?: string | null): string | null {
 }
 
 /**
+ * Maximum character length for a feed card headline.
+ * Headlines longer than this are truncated at a word boundary with an ellipsis.
+ */
+const MAX_HEADLINE_LENGTH = 90;
+
+/**
+ * Truncate a headline to MAX_HEADLINE_LENGTH at a word boundary.
+ * Returns the original headline if it's already within the limit.
+ */
+export function truncateHeadline(headline: string): string {
+  if (!headline || headline.length <= MAX_HEADLINE_LENGTH) return headline;
+  const truncated = headline.slice(0, MAX_HEADLINE_LENGTH).replace(/\s+\S*$/, "");
+  return (truncated || headline.slice(0, MAX_HEADLINE_LENGTH)) + "\u2026";
+}
+
+/**
  * For multi-metric cards with generic "District N This Week — N Metrics Moving"
  * headlines, synthesize a better headline from the metrics data when available.
  */
