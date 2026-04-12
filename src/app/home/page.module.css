@@ -1,6 +1,7 @@
 .dashboardLayout {
   display: flex;
   height: 100vh;
+  height: 100dvh;
   position: relative;
   width: 100%;
   overflow: hidden;
@@ -33,6 +34,7 @@
   left: var(--sidebar-width);
   width: calc(100vw - var(--sidebar-width));
   height: 100vh;
+  height: 100dvh;
   padding: 0;
   overflow: hidden;
   transition: left 0.3s ease, width 0.3s ease;
@@ -126,7 +128,12 @@
     width: 100vw;
     padding: 0;
   }
-  
+
+  /* Bottom nav safe area: applied to the scrollable content, not the fixed shell */
+  .contentViewActive {
+    padding-bottom: calc(var(--bottom-nav-height, 56px) + env(safe-area-inset-bottom, 0px));
+  }
+
   .mainContentCollapsed {
     left: 0;
     width: 100vw;
@@ -176,7 +183,7 @@
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 1000;
+  z-index: 10010;
   cursor: pointer;
 }
 
@@ -191,7 +198,7 @@
   background: var(--bg-primary);
   border-radius: 16px;
   box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.18), 0 12px 24px -8px rgba(0, 0, 0, 0.08);
-  z-index: 1001;
+  z-index: 10011;
   overflow: hidden;
   border: 1px solid var(--border-primary);
   display: flex;

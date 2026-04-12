@@ -1,0 +1,105 @@
+/* Mobile bottom navigation bar
+ * Only visible at <= 768px. Hidden on desktop and when the virtual keyboard is open.
+ */
+
+.bottomNav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  /* Height auto-sizes to content + safe area */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* Solid fallback for browsers without backdrop-filter */
+  background: var(--bg-primary, #ffffff);
+  border-top: 1px solid var(--border-primary, #e5e7eb);
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.2s ease;
+}
+
+/* Blur effect where supported */
+@supports (backdrop-filter: blur(1px)) {
+  .bottomNav {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+}
+
+/* Hide on desktop */
+@media (min-width: 769px) {
+  .bottomNav {
+    display: none;
+  }
+}
+
+/* Hide when virtual keyboard is open */
+.bottomNavKeyboardHidden {
+  transform: translateY(calc(100% + env(safe-area-inset-bottom, 0px)));
+  pointer-events: none;
+  /* Faster hide than show so it doesn't block the keyboard appearing */
+  transition: transform 0.12s ease-in;
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: 1;
+  min-height: 44px;
+  padding: 6px 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s ease;
+  /* Ensure touch target */
+  min-width: 64px;
+}
+
+.tab:active {
+  opacity: 0.7;
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--brand-primary, #ad35fa);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+.tabActive {
+  color: var(--brand-primary, #ad35fa);
+}
+
+.tabIcon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.tabLabel {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+/* Dark mode */
+[data-theme="dark"] .bottomNav,
+.dark .bottomNav {
+  background: var(--bg-primary, #0f172a);
+  border-top-color: var(--border-primary, #334155);
+}
+
+@supports (backdrop-filter: blur(1px)) {
+  [data-theme="dark"] .bottomNav,
+  .dark .bottomNav {
+    background: rgba(15, 23, 42, 0.92);
+  }
+}

@@ -33,8 +33,8 @@ interface SidebarProps {
   onClose?: () => void;
   onCityClick?: (cityId: number) => void;
   onDistrictClick?: (cityId: number, district: number) => void;
-  /** Called when user clicks a section shortcut (Dashboard/Anomalies) under a city in My Places. */
-  onCitySectionClick?: (cityId: number, section: "dashboard" | "anomalies") => void;
+  /** Called when user clicks a section shortcut (Dashboard/Map) under a city in My Places. */
+  onCitySectionClick?: (cityId: number, section: "dashboard" | "map") => void;
   activeCityId?: number | null;
   /** Active district when viewing a city (for highlighting in My Places). */
   activeDistrict?: string | number | null;

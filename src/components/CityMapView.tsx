@@ -835,6 +835,20 @@ export default function CityMapView({
     };
   }, []);
 
+  // Resize map when container becomes visible (e.g. tab switch from display:none).
+  // Mapbox needs explicit resize() to recalculate canvas after container size changes.
+  useEffect(() => {
+    const container = mapContainerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => {
+      if (mapInstanceRef.current) {
+        try { mapInstanceRef.current.resize(); } catch { /* ignore if map not ready */ }
+      }
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
   // Handle GPS location: add marker, My Block bounding box overlay, find district, zoom.
   // useLayoutEffect so we re-zoom immediately when map refresh starts (before paint).
   useLayoutEffect(() => {

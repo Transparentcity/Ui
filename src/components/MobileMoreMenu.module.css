@@ -1,0 +1,119 @@
+/* More menu: slide-up bottom sheet for secondary items on mobile */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  background: var(--bg-overlay, rgba(0, 0, 0, 0.5));
+  animation: moreMenuFadeIn 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@keyframes moreMenuFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10002;
+  background: var(--bg-primary, #ffffff);
+  border-radius: 16px 16px 0 0;
+  padding: 8px 0 0;
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.12);
+  animation: moreMenuSlideUp 0.2s ease-out;
+  overscroll-behavior: contain;
+}
+
+@keyframes moreMenuSlideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-secondary, #d1d5db);
+  margin: 0 auto 12px;
+}
+
+.menuList {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #111827);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: var(--radius-md, 8px);
+  transition: background 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 44px;
+  text-align: left;
+}
+
+.menuItem:active {
+  background: var(--bg-tertiary, #f3f4f6);
+}
+
+.menuItem:focus-visible {
+  outline: 2px solid var(--brand-primary, #ad35fa);
+  outline-offset: -2px;
+}
+
+.menuItemIcon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--text-secondary, #6b7280);
+}
+
+.separator {
+  height: 1px;
+  background: var(--border-primary, #e5e7eb);
+  margin: 4px 16px;
+}
+
+.sectionLabel {
+  padding: 8px 16px 4px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary, #9ca3af);
+}
+
+/* Dark mode */
+[data-theme="dark"] .sheet,
+.dark .sheet {
+  background: var(--bg-primary, #0f172a);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .menuItem:active,
+.dark .menuItem:active {
+  background: var(--bg-tertiary, #334155);
+}
+
+/* Hide on desktop */
+@media (min-width: 769px) {
+  .backdrop,
+  .sheet {
+    display: none;
+  }
+}

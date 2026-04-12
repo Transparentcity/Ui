@@ -107,6 +107,9 @@ const NewsletterAdmin = dynamic(() => import("@/components/NewsletterAdmin"), { 
 // Dynamically import NewResearchPage to avoid SSR issues
 const NewResearchPage = dynamic(() => import("../research/new/page"), { ssr: false });
 
+import MobileBottomNav, { type MobileTab } from "@/components/MobileBottomNav";
+import MobileMoreMenu from "@/components/MobileMoreMenu";
+
 type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "claims-admin" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "feed-admin" | "newsletter-admin" | "city" | "metric" | "job-logs" | "research" | "research-new" | "feed";
 
 // Mobile breakpoint (matches CSS media query)
@@ -156,12 +159,13 @@ export default function DashboardPage() {
   const [initialPlaceGps, setInitialPlaceGps] = useState<{ lat: number; lng: number; radius_m: number } | null>(null);
   const [requestOpenDistrictModal, setRequestOpenDistrictModal] = useState<number | null>(null);
   const [initialPlaceId, setInitialPlaceId] = useState<number | null>(null);
-  const [initialSection, setInitialSection] = useState<"map" | "dashboard" | "anomalies" | null>(null);
+  const [initialSection, setInitialSection] = useState<"dashboard" | "map" | null>(null);
   /** Official Selector selection (district / place) so left nav can stay in sync; only when currentView === "city". */
   const [citySelection, setCitySelection] = useState<{ district: number | null; placeId: number | null }>({ district: null, placeId: null });
   /** After saving a new block, run metrics job once before showing place dashboard (see CityView). */
   const [placeIdPendingPlaceMetricsBootstrap, setPlaceIdPendingPlaceMetricsBootstrap] = useState<number | null>(null);
   const [allUserPlaces, setAllUserPlaces] = useState<UserPlace[]>([]);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [onboardingJob, setOnboardingJob] = useState<{ placeId: number; jobId: string } | null>(null);
   const onboardingRepNotifyRef = useRef<((name: string) => void) | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -1896,6 +1900,45 @@ export default function DashboardPage() {
         onClose={() => setShowWelcomeModal(false)}
         onCitySelected={handleWelcomeCitySelected}
         onComplete={handleWelcomeComplete}
+      />
+
+      {/* Mobile bottom navigation (hidden on desktop via CSS) */}
+      <MobileBottomNav
+        activeTab={
+          moreMenuOpen ? "more"
+            : currentView === "feed" ? "feed"
+            : currentView === "city" ? "my-places"
+            : "more"
+        }
+        onTabChange={(tab: MobileTab) => {
+          setMoreMenuOpen(false);
+          if (tab === "feed") {
+            setCurrentView("feed");
+          } else if (tab === "my-places") {
+            setInitialSection(null);
+            if (activeCityId) {
+              setCurrentView("city");
+            } else {
+              // No city selected: open the sidebar so user can pick a city
+              setSidebarOpen(true);
+            }
+          } else if (tab === "more") {
+            setMoreMenuOpen(true);
+          }
+        }}
+      />
+      <MobileMoreMenu
+        isOpen={moreMenuOpen}
+        onClose={() => setMoreMenuOpen(false)}
+        onOpenSettings={() => setSettingsOpen(true)}
+        isAdmin={isAdmin}
+        onAdminViewChange={(view) => {
+          const validAdminViews: ViewType[] = ["feed-admin", "newsletter-admin", "metrics-admin", "city-data", "system-stats", "user-management", "claims-admin", "datasets-admin", "feed-stories-admin", "job-logs"];
+          if (validAdminViews.includes(view as ViewType)) {
+            setCurrentView(view as ViewType);
+          }
+          setMoreMenuOpen(false);
+        }}
       />
     </div>
   );
