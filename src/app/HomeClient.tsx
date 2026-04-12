@@ -85,7 +85,7 @@ export default function HomeClient() {
                 Know what&apos;s actually happening in your city.
               </h1>
               <p className={styles.subhead}>
-                Real stories from your city&apos;s own data. Updated daily.
+                Real stories from your own neighborhood.
               </p>
 
               <div className={styles.heroCtas}>
@@ -94,7 +94,7 @@ export default function HomeClient() {
                   onClick={handleSignup}
                   className={`${styles.button} ${styles.buttonPrimary} ${styles.heroBtn}`}
                 >
-                  Explore your city
+                  Get the Free Weekly
                 </button>
 
                 {launchedCities.length > 0 && (
@@ -138,8 +138,8 @@ export default function HomeClient() {
                 <div className={styles.stepNumber}>1</div>
                 <h3 className={styles.stepTitle}>Pick your city</h3>
                 <p className={styles.stepDesc}>
-                  Search for your city and we&apos;ll pull the latest open data
-                  from official portals automatically.
+                  We&apos;ve collected millions of data points from official city
+                  sources and normalized them to spot what&apos;s changing.
                 </p>
               </div>
               <div className={styles.step}>
@@ -154,8 +154,8 @@ export default function HomeClient() {
                 <div className={styles.stepNumber}>3</div>
                 <h3 className={styles.stepTitle}>Find changes early</h3>
                 <p className={styles.stepDesc}>
-                  New stories appear as the data changes. Browse
-                  anytime or get a weekly digest.
+                  Get a weekly digest tailored to your interests, or
+                  browse anytime.
                 </p>
               </div>
             </div>
