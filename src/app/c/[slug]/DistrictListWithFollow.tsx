@@ -119,7 +119,7 @@ export default function DistrictListWithFollow({
           const primaryRep = repList[0];
           const repLabel =
             primaryRep != null
-              ? `${primaryRep.title || ""} ${primaryRep.name}`.trim() || primaryRep.name
+              ? primaryRep.name || null
               : null;
           const count = getCount(d);
           const following = isFollowing(d);
@@ -140,7 +140,7 @@ export default function DistrictListWithFollow({
                   className="nav-link"
                   style={{ fontSize: 14, fontWeight: 600, textDecoration: "none" }}
                 >
-                  {cityDisplayName} District {d}
+                  District {d}
                   {repLabel ? ` – ${repLabel}` : ""}
                 </Link>
                 <span style={{ fontSize: 14, color: "var(--text-muted)", marginLeft: 6 }}>
