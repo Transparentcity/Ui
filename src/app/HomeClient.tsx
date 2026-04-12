@@ -122,7 +122,7 @@ export default function HomeClient() {
             <div className={styles.feedPreviewHeader}>
               <h2 className={styles.sectionTitle}>Recent stories</h2>
               <p className={styles.sectionLead}>
-                Sign up to follow your city and get stories for your district.
+                Sign up to follow your city and get a weekly newsletter for what's happening in your city and on your block.
               </p>
             </div>
             <HomeFeedPreview />
