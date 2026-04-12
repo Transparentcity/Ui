@@ -478,7 +478,7 @@ function MyPlacesSection({
                   <div className={`${styles.placeRadio} ${selectedPlaceId === p.id ? styles.placeRadioActive : ""}`}>
                     {selectedPlaceId === p.id && <div className={styles.placeRadioDot} />}
                   </div>
-                  <span>{p.label}</span>
+                  <span>📍 {p.label}</span>
                 </div>
               ))}
             </>

@@ -1049,7 +1049,7 @@ export default function FeedContainer({
                 }}
               >
                 <span className={styles.activePillLabel}>
-                  Near {userPlaces.find((p) => p.id === selectedPlaceId)?.label ?? "address"}
+                  📍 Near {userPlaces.find((p) => p.id === selectedPlaceId)?.label ?? "address"}
                 </span>
                 <span className={styles.activePillX} aria-hidden="true">&times;</span>
               </button>
