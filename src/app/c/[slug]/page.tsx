@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { CityStructuredData } from "@/components/StructuredData";
 import PublicFooter from "@/components/PublicFooter";
 
@@ -12,9 +13,7 @@ import {
   getPublicCityDistricts,
   listPublicMapsForCity,
   getPublicLeadersForCity,
-  listPublicFeedStories,
   getPublicCityMetricOrdering,
-  type PublicFeedStory,
   type PublicMetricOrderingResponse,
 } from "@/lib/publicApiClient";
 import CitySignupButton from "./CitySignupButton";
@@ -27,11 +26,20 @@ import PublicNavBar from "@/components/PublicNavBar";
 import DashboardSwitch from "./DashboardSwitch";
 import DistrictFollowClaimBlock from "./district/DistrictFollowClaimBlock";
 import CityMapPreview from "./CityMapPreview";
-import FeaturedStories from "./FeaturedStories";
+import FeaturedStoriesAsync from "./FeaturedStoriesAsync";
 import CityHeroNewsletter from "./CityHeroNewsletter";
 import LoggedOutOnly from "./LoggedOutOnly";
+import MobileCitySignupBar from "./MobileCitySignupBar";
 
 export const revalidate = 3600;
+
+/** Pre-render launched city pages at build time for instant CDN delivery. */
+export async function generateStaticParams() {
+  const cities = await listPublicCitiesForSitemap();
+  return cities
+    .filter((c) => c.is_launched)
+    .map((c) => ({ slug: c.slug }));
+}
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -158,7 +166,8 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
   }
 
   const cityDisplayName = city?.display ?? slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-  // Fetch mayor-level dashboard data, district list, and recent maps for CityDashboardSection
+  // Fetch mayor-level dashboard data, district list, and recent maps for CityDashboardSection.
+  // Feed stories are fetched separately via FeaturedStoriesAsync (Suspense-streamed).
   let cityDetail: Awaited<ReturnType<typeof getPublicCityDetail>> | null = null;
   let comparisonsMap: Awaited<
     ReturnType<typeof getPublicMetricComparisonsBatch>
@@ -166,20 +175,17 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
   let districts: number[] = [];
   let maps: Awaited<ReturnType<typeof listPublicMapsForCity>> = [];
   let leaders: Awaited<ReturnType<typeof getPublicLeadersForCity>> = [];
-  let feedStories: PublicFeedStory[] = [];
   let cityOrdering: PublicMetricOrderingResponse | null = null;
   if (city?.id) {
     try {
-      const [detail, mapsRes, leadersRes, cityDistrictsRes, feedRes, orderingRes] = await Promise.all([
+      const [detail, mapsRes, leadersRes, cityDistrictsRes, orderingRes] = await Promise.all([
         getPublicCityDetail(city.id),
         listPublicMapsForCity(city.id).catch(() => []),
         getPublicLeadersForCity(city.id).catch(() => []),
         getPublicCityDistricts(city.id).catch((): number[] => []),
-        listPublicFeedStories({ city_id: city.id, district: 0, limit: 6, order_by: "published_at" }).catch(() => ({ stories: [], count: 0 })),
         getPublicCityMetricOrdering(city.id).catch(() => null),
       ]);
       cityOrdering = orderingRes;
-      feedStories = feedRes.stories ?? [];
       cityDetail = detail;
       maps = mapsRes;
       leaders = leadersRes;
@@ -188,24 +194,25 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         districts = [...cityDistrictsRes].sort((a, b) => a - b);
       }
 
-
       const metrics = cityDetail?.metrics ?? [];
       if (metrics.length > 0) {
-        comparisonsMap = await getPublicMetricComparisonsBatch({
-          metric_ids: metrics.map((m) => m.id),
-          district: 0,
-          comparison_types: ["ytd"],
-        }).catch(() => ({}));
-        if (districts.length === 0) {
-          const dc = await getPublicMetricDistrictComparisons(
-            metrics[0].id,
-            "ytd"
-          ).catch(() => null);
-          if (dc?.districts)
-            districts = dc.districts
-              .map((d) => d.district)
-              .filter((n) => n > 0)
-              .sort((a, b) => a - b);
+        // Fetch comparisons and fallback district data in parallel (was sequential)
+        const [batchComparisons, fallbackDc] = await Promise.all([
+          getPublicMetricComparisonsBatch({
+            metric_ids: metrics.map((m) => m.id),
+            district: 0,
+            comparison_types: ["ytd"],
+          }).catch(() => ({})),
+          districts.length === 0 && metrics[0]
+            ? getPublicMetricDistrictComparisons(metrics[0].id, "ytd").catch(() => null)
+            : Promise.resolve(null),
+        ]);
+        comparisonsMap = batchComparisons;
+        if (districts.length === 0 && fallbackDc?.districts) {
+          districts = fallbackDc.districts
+            .map((d) => d.district)
+            .filter((n) => n > 0)
+            .sort((a, b) => a - b);
         }
       }
     } catch {
@@ -295,13 +302,15 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                 }))}
                 cityId={city.id}
                 leaders={leaders}
-                storiesSlot={feedStories.length > 0 ? (
-                  <FeaturedStories
-                    slug={slug}
-                    cityDisplayName={cityDisplayName}
-                    stories={feedStories}
-                  />
-                ) : undefined}
+                storiesSlot={
+                  <Suspense fallback={null}>
+                    <FeaturedStoriesAsync
+                      cityId={city.id}
+                      slug={slug}
+                      cityDisplayName={cityDisplayName}
+                    />
+                  </Suspense>
+                }
               />
             }
             tableView={
@@ -361,6 +370,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         </section>
       </LoggedOutOnly>
 
+      <MobileCitySignupBar cityName={city?.name ?? slug} citySlug={slug} />
       <PublicFooter citySlug={slug} feedbackPageUrl={`/c/${slug}`} feedbackPageType="city" />
     </CityPageClient>
   );

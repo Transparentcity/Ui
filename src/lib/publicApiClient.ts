@@ -59,7 +59,8 @@ async function requestPublic<T>(path: string): Promise<T> {
       headers: {
         Accept: "application/json",
       },
-      // Public SEO endpoints are safe to cache/revalidate at the route level.
+      // Cache public API responses for 1 hour, matching page-level ISR revalidation.
+      next: { revalidate: 3600 },
     });
 
     if (!res.ok) {

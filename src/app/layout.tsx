@@ -68,14 +68,8 @@ export default function RootLayout({
     <html lang="en" className={inter.variable}>
       <head>
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-        {/* Font Awesome via CDN — preloaded to avoid render-blocking.
+        {/* Font Awesome via CDN — non-render-blocking.
             Phase 2: migrate to self-hosted SVGs for full elimination. */}
-        <link
-          rel="preload"
-          as="style"
-          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-          crossOrigin="anonymous"
-        />
         <link
           rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
