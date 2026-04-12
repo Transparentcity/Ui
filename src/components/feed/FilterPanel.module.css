@@ -1,0 +1,596 @@
+/* ════════════════════════════════════════════════════════════════════════════
+ * FilterPanel — bottom sheet (mobile) / dropdown panel (desktop)
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Backdrop overlay ────────────────────────────────────────────────────── */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 900;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ── Panel container ─────────────────────────────────────────────────────── */
+
+.panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 75vh;
+  background: var(--bg-primary);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.12);
+  z-index: 901;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.25s ease;
+  overflow: hidden;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* Desktop: dropdown anchored to trigger */
+@media (min-width: 768px) {
+  .backdrop {
+    background: transparent;
+  }
+
+  .panel {
+    position: absolute;
+    bottom: auto;
+    left: auto;
+    right: 0;
+    top: calc(100% + 8px);
+    max-height: 80vh;
+    width: 380px;
+    max-width: calc(100vw - 32px);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border-primary);
+    animation: fadeInDown 0.15s ease;
+  }
+
+  @keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+/* ── Drag handle (mobile only) ───────────────────────────────────────────── */
+
+.dragHandle {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 4px;
+  flex-shrink: 0;
+}
+
+.dragHandleBar {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-secondary, #ccc);
+}
+
+@media (min-width: 768px) {
+  .dragHandle { display: none; }
+}
+
+/* ── Panel header ────────────────────────────────────────────────────────── */
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 20px 8px;
+  flex-shrink: 0;
+}
+
+.panelTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.clearFiltersBtn {
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--brand-primary, #ad35fa);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.clearFiltersBtn:hover {
+  background: var(--bg-secondary);
+}
+
+/* ── Scrollable content ──────────────────────────────────────────────────── */
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 20px 20px;
+  overscroll-behavior: contain;
+}
+
+/* ── Section ─────────────────────────────────────────────────────────────── */
+
+.section {
+  margin-bottom: 20px;
+}
+
+.section:last-child {
+  margin-bottom: 0;
+}
+
+.sectionTitle {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary, var(--text-secondary));
+  margin: 0 0 10px 0;
+}
+
+/* ── Search input ────────────────────────────────────────────────────────── */
+
+.searchInput {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  margin-bottom: 10px;
+  box-sizing: border-box;
+}
+
+.searchInput::placeholder {
+  color: var(--text-tertiary, #999);
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--brand-primary, #ad35fa);
+  box-shadow: 0 0 0 2px var(--brand-primary-light, rgba(173, 53, 250, 0.1));
+}
+
+/* ── City list ───────────────────────────────────────────────────────────── */
+
+.cityGroup {
+  margin-bottom: 12px;
+}
+
+.cityGroupLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary, #999);
+  margin: 0 0 6px 0;
+}
+
+.cityItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cityItem:hover {
+  background: var(--bg-secondary);
+}
+
+.cityCheckbox {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 2px solid var(--border-secondary, #ccc);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  background: var(--bg-primary);
+}
+
+.cityCheckboxChecked {
+  background: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+.cityCheckmark {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.cityName {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+}
+
+.cityFollowBtn {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  min-height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--border-primary);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.cityFollowBtn:hover {
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary, #ad35fa);
+}
+
+.cityFollowBtnFollowed {
+  background: var(--brand-primary-light, rgba(173, 53, 250, 0.08));
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary, #ad35fa);
+}
+
+/* ── Topic chip grid ─────────────────────────────────────────────────────── */
+
+.topicGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.topicChip {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--border-primary);
+  border-radius: 20px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.topicChip:hover {
+  border-color: var(--border-secondary);
+  color: var(--text-primary);
+}
+
+.topicChipActive {
+  background: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary, #ad35fa);
+  color: #fff;
+}
+
+.topicChipActive:hover {
+  background: var(--brand-primary-dark, #9125d6);
+  border-color: var(--brand-primary-dark, #9125d6);
+  color: #fff;
+}
+
+/* ── My Places ───────────────────────────────────────────────────────────── */
+
+.myPlacesToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.myPlacesLabel {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* Toggle switch */
+.toggleSwitch {
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--border-secondary, #ccc);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+  border: none;
+  padding: 0;
+}
+
+.toggleSwitchActive {
+  background: var(--brand-primary, #ad35fa);
+}
+
+.toggleKnob {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.toggleSwitchActive .toggleKnob {
+  transform: translateX(20px);
+}
+
+.placeItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.placeItem:hover {
+  background: var(--bg-secondary);
+}
+
+.placeItemActive {
+  color: var(--brand-primary, #ad35fa);
+  font-weight: 500;
+}
+
+.placeRadio {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--border-secondary, #ccc);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.placeRadioActive {
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+.placeRadioDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand-primary, #ad35fa);
+}
+
+.addPlaceBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--brand-primary, #ad35fa);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.addPlaceBtn:hover {
+  opacity: 0.8;
+}
+
+/* ── Districts ───────────────────────────────────────────────────────────── */
+
+/* ── District collapsible header ──────────────────────────────────────────── */
+
+.districtToggleHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 4px 0;
+  margin-bottom: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary);
+}
+
+.districtSummary {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  display: block;
+}
+
+.districtCaret {
+  font-size: 10px;
+  color: var(--text-tertiary, #999);
+  flex-shrink: 0;
+}
+
+.districtGroup {
+  margin-bottom: 12px;
+}
+
+.districtGroupLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 6px 0;
+}
+
+.districtChipGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.districtChip {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border-primary);
+  border-radius: 20px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.districtChip:hover {
+  border-color: var(--border-secondary);
+  color: var(--text-primary);
+}
+
+.districtChipActive {
+  background: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary, #ad35fa);
+  color: #fff;
+}
+
+.districtChipActive:hover {
+  background: var(--brand-primary-dark, #9125d6);
+  border-color: var(--brand-primary-dark, #9125d6);
+  color: #fff;
+}
+
+/* ── Sort ─────────────────────────────────────────────────────────────────── */
+
+.sortOption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  user-select: none;
+}
+
+.sortOption:hover {
+  background: var(--bg-secondary);
+}
+
+.sortRadio {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border-secondary, #ccc);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.sortRadioActive {
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+.sortRadioDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--brand-primary, #ad35fa);
+}
+
+.sortLabel {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.sortDesc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+
+/* ── Apply button (mobile) ───────────────────────────────────────────────── */
+
+.applyBar {
+  padding: 12px 20px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border-primary);
+  flex-shrink: 0;
+}
+
+.applyBtn {
+  width: 100%;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  background: var(--brand-primary, #ad35fa);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.applyBtn:hover {
+  background: var(--brand-primary-dark, #9125d6);
+}
+
+@media (min-width: 768px) {
+  .applyBar { display: none; }
+}
+
+/* ── Screen reader only ──────────────────────────────────────────────────── */
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── No results ──────────────────────────────────────────────────────────── */
+
+.noResults {
+  padding: 12px 4px;
+  font-size: 13px;
+  color: var(--text-tertiary, #999);
+}

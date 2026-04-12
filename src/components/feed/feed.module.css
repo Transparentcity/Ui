@@ -1595,6 +1595,209 @@
 .detailActionBtn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 18px; font-size: 14px; font-weight: 500; color: var(--text-secondary); background: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: 8px; cursor: pointer; transition: all 0.15s ease; }
 .detailActionBtn:hover { border-color: var(--brand-primary, #ad35fa); color: var(--text-primary); }
 
+/* ════════════════════════════════════════════════════════════════════════════
+ * New filter icon + active pills + prompts
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Filter icon button ──────────────────────────────────────────────────── */
+
+.filterIconWrap {
+  position: relative;
+}
+
+.filterIconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.15s;
+  position: relative;
+}
+
+.filterIconBtn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.filterBadge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  color: #fff;
+  background: var(--brand-primary, #ad35fa);
+  border-radius: 999px;
+}
+
+/* ── Active filter pills row ─────────────────────────────────────────────── */
+
+.activePillsRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.activePillsScroll {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  flex: 1;
+  min-width: 0;
+}
+
+.activePillsScroll::-webkit-scrollbar { display: none; }
+
+.activePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 999px;
+  border: 1px solid var(--brand-primary, #ad35fa);
+  background: var(--brand-primary-light, rgba(173, 53, 250, 0.08));
+  color: var(--brand-primary, #ad35fa);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.activePill:hover {
+  background: var(--brand-primary-light, rgba(173, 53, 250, 0.16));
+}
+
+.activePillLabel {
+  white-space: nowrap;
+}
+
+.activePillX {
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.clearAllBtn {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  border-radius: 20px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.clearAllBtn:hover {
+  background: var(--border-primary);
+  color: var(--text-primary);
+}
+
+/* ── Follow prompt banner ────────────────────────────────────────────────── */
+
+.followPrompt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  margin-bottom: 10px;
+  background: var(--bg-secondary, #f8f9fa);
+  border: 1px solid var(--border-primary);
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.followPromptText {
+  flex: 1;
+  color: var(--text-secondary);
+}
+
+.followPromptBtn {
+  flex-shrink: 0;
+  padding: 5px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  border-radius: 20px;
+  background: var(--brand-primary, #ad35fa);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+
+.followPromptBtn:hover {
+  background: var(--brand-primary-dark, #9125d6);
+}
+
+/* ── Follow confirmation ─────────────────────────────────────────────────── */
+
+/* ── City discovery prompt ───────────────────────────────────────────────── */
+
+.discoveryPrompt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.discoveryText {
+  color: var(--text-secondary);
+}
+
+.discoveryBtn {
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  background: none;
+  color: var(--brand-primary, #ad35fa);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.discoveryBtn:hover {
+  text-decoration: underline;
+}
+
+/* ── Browse cities button (empty state) ──────────────────────────────────── */
+
+.browseBtn {
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  background: var(--brand-primary, #ad35fa);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.browseBtn:hover {
+  background: var(--brand-primary-dark, #9125d6);
+}
+
 /* Related stories on detail page */
 .relatedTitle { font-size: 16px; font-weight: 600; color: var(--text-primary); margin: 0 0 12px; }
 .relatedList { display: flex; flex-direction: column; gap: 8px; }
