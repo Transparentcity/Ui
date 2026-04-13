@@ -1434,26 +1434,8 @@ export default function FeedContainer({
       {visibleStories.length > 0 && (
         <div className={styles.storiesList}>
           {visibleStories.map((story, storyIdx) => {
-            // Text-only context/trend cards render in compact mode,
-            // UNLESS they contain meaningful data (percentage in headline,
-            // metric metadata, or key insight) that deserves full card treatment.
-            const headlineHasPct = /\d+(\.\d+)?%/.test(story.headline ?? "");
-            const headlineHasKeyword = /\b(jumped|surged|dropped|doubled|tripled|plunged|spiked|soared|plummeted|low|high|record)\b/i.test(story.headline ?? "");
-            const hasMetricData = !!(
-              story.metadata?.pct_change ||
-              story.metadata?.current_period_value ||
-              story.metadata?.trend_pct_change
-            );
-            const hasDescription = !!(story.cleaned_description && story.cleaned_description.length > 30);
-            const isCompact =
-              story.template === "text_only" &&
-              (story.card_type === "context" || story.card_type === "trend") &&
-              !story.metadata?.key_insight && // context with callout stays full
-              !story.metadata?.trend_metric_name && // trend with metric strip stays full
-              !headlineHasPct && // stories with percentages stay full
-              !headlineHasKeyword && // stories with notable change keywords stay full
-              !hasMetricData && // stories with numeric metadata stay full
-              !hasDescription; // stories with real descriptions stay full
+            // All cards render at full size now
+            const isCompact = false;
 
             // Interleave a metric summary card every 5th position (at indices 4, 9, 14, ...)
             const metricCardIdx = storyIdx >= 4 && (storyIdx - 4) % 5 === 0
