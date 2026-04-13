@@ -361,11 +361,14 @@ export default function FeedContainer({
 
   // During onboarding, skip the saved-places filter so city-level stories
   // appear immediately while neighborhood stories are still being generated.
+  // Also skip when the user has explicitly selected a city — they want to
+  // see ALL stories for that city, not just ones near their saved places.
   const isOnboardingScanning = onboarding.status === "scanning" || onboarding.status === "found_rep";
   const apiOnlyMySavedPlaces =
     isAuthenticated &&
     onlyMySavedPlacesFeed &&
     selectedPlaceId == null &&
+    selectedCityIds.size === 0 &&
     !personalNewsletterOnly &&
     !isOnboardingScanning &&
     userPlaces.length > 0;

@@ -46,7 +46,7 @@ interface WelcomeModalProps {
   onCityNotFound?: (cityName: string, state: string | null, country: string | null) => void;
 }
 
-type Step = "welcome" | "confirm" | "preferences";
+type Step = "welcome" | "preferences";
 
 interface LocationResult {
   cityName: string;
@@ -255,6 +255,7 @@ export default function WelcomeModal({
         onClose();
         return;
       }
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -525,18 +526,6 @@ export default function WelcomeModal({
     }
   };
 
-  const handleFinish = async () => {
-    try {
-      const token = await getAccessTokenSilently();
-      await updateUserPreferences({ has_completed_onboarding: true }, token);
-      onComplete();
-      onClose();
-    } catch (err) {
-      console.error("Error completing onboarding:", err);
-      onClose();
-    }
-  };
-
   // Render step indicator
   const renderStepIndicator = () => {
     const steps = ["welcome", "preferences"];
@@ -650,52 +639,6 @@ export default function WelcomeModal({
       </div>
     </div>
   );
-
-  // Advance from confirm step to preferences
-  const handleConfirmContinue = () => {
-    if (!locationResult?.matchedCity) return;
-    setStep("preferences");
-  };
-
-  // Render confirm step - city confirmation + optional map for precise locations
-  const renderConfirmStep = () => {
-    if (!locationResult) return null;
-
-    const cityDisplayName = locationResult.state
-      ? `${locationResult.cityName}, ${locationResult.state}`
-      : locationResult.cityName;
-
-    const showMapAndPlace = hasPreciseLocation && homeCoordinates != null && locationResult.matchedCity != null;
-
-    return (
-      <div className={`${styles.stepContent} ${styles.confirmStepContent}`}>
-        <div className={styles.cityConfirmCard}>
-          {locationResult.matchedCity?.emoji && (
-            <span className={styles.cityConfirmEmoji}>{locationResult.matchedCity.emoji}</span>
-          )}
-          <h2 className={styles.cityConfirmName}>{cityDisplayName}</h2>
-          <p className={styles.cityConfirmSubtext}>
-            We have city-wide data. You can add your address later for block-level news.
-          </p>
-        </div>
-
-        {error && <div className={styles.error}>{error}</div>}
-
-        <div className={styles.actions}>
-          <button
-            className={styles.primaryButton}
-            onClick={handleConfirmContinue}
-            disabled={loading}
-          >
-            Continue
-          </button>
-          <button className={styles.backButton} onClick={() => setStep("welcome")}>
-            Try a different city
-          </button>
-        </div>
-      </div>
-    );
-  };
 
   // One-click preset prompts for personalized newsletter; shared with settings page
   const EMAIL_PRESETS = CATEGORY_PRESETS;
@@ -999,7 +942,6 @@ export default function WelcomeModal({
         {renderStepIndicator()}
 
         {step === "welcome" && renderWelcomeStep()}
-        {step === "confirm" && renderConfirmStep()}
         {step === "preferences" && renderPreferencesStep()}
       </div>
     </div>

@@ -1,6 +1,6 @@
 /**
  * WelcomeModal onboarding tests.
- * Verifies each step (welcome, confirm, preferences, coming-soon)
+ * Verifies each step (welcome, preferences)
  * renders fast and does not block on API calls during initial paint.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -140,6 +140,7 @@ describe("WelcomeModal", () => {
     onClose: vi.fn(),
     onCitySelected: vi.fn(),
     onComplete: vi.fn(),
+    onCityNotFound: vi.fn(),
   };
 
   beforeEach(() => {
@@ -321,10 +322,10 @@ describe("WelcomeModal", () => {
     });
   });
 
-  // ── Coming Soon step (city not found) ────────────────────────────────
+  // ── City not found (delegates to onCityNotFound) ─────────────────────
 
-  describe("Coming Soon step", () => {
-    it("renders quickly when city is not in database", async () => {
+  describe("City not found", () => {
+    it("calls onCityNotFound when city is not in database", async () => {
       mockSearchPublicCities.mockResolvedValue([]);
 
       const user = userEvent.setup();
@@ -334,51 +335,31 @@ describe("WelcomeModal", () => {
       await user.click(screen.getByText(/find my city/i));
 
       await waitFor(() => {
-        expect(screen.getByText(/we don.t have/i)).toBeInTheDocument();
+        expect(defaultProps.onCityNotFound).toHaveBeenCalled();
+        expect(defaultProps.onClose).toHaveBeenCalled();
       });
-
-      expect(screen.getByText(/notify me when available/i)).toBeInTheDocument();
     });
 
-    it("'Notify me' submits interest and completes without blocking", async () => {
-      mockSearchPublicCities.mockResolvedValue([]);
+    it("calls onCityNotFound when city exists but is inactive", async () => {
+      mockSearchPublicCities.mockResolvedValue([
+        { id: 99, name: "San Francisco", state: "California", country: "United States", display_name: "San Francisco, California" },
+      ]);
+      mockGetCity.mockResolvedValue({ id: 99, is_active: false, name: "San Francisco" });
 
       const user = userEvent.setup();
       render(<WelcomeModal {...defaultProps} />);
 
-      await user.type(screen.getByPlaceholderText(/enter your address/i), "Smallville");
+      await user.type(screen.getByPlaceholderText(/enter your address/i), "San Francisco");
       await user.click(screen.getByText(/find my city/i));
 
       await waitFor(() => {
-        expect(screen.getByText(/notify me when available/i)).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText(/notify me when available/i));
-
-      await waitFor(() => {
-        expect(mockSubmitCityLeadInterest).toHaveBeenCalled();
-        expect(mockUpdateUserPreferences).toHaveBeenCalledWith(
-          { has_completed_onboarding: true },
-          "test-token"
+        expect(defaultProps.onCityNotFound).toHaveBeenCalledWith(
+          "San Francisco",
+          "California",
+          "United States"
         );
+        expect(defaultProps.onClose).toHaveBeenCalled();
       });
-    });
-
-    it("allows going back to welcome step", async () => {
-      mockSearchPublicCities.mockResolvedValue([]);
-
-      const user = userEvent.setup();
-      render(<WelcomeModal {...defaultProps} />);
-
-      await user.type(screen.getByPlaceholderText(/enter your address/i), "Smallville");
-      await user.click(screen.getByText(/find my city/i));
-
-      await waitFor(() => {
-        expect(screen.getByText(/try a different city/i)).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText(/try a different city/i));
-      expect(screen.getByText(/where do you live/i)).toBeInTheDocument();
     });
   });
 
