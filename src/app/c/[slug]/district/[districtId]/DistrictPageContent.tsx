@@ -15,7 +15,8 @@ import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
 import { SignupEmailProvider } from "../../SignupEmailContext";
-import MetricSummaryCard, { type MetricCardData } from "@/components/feed/templates/MetricSummaryCard";
+import { type MetricCardData } from "@/components/feed/templates/MetricSummaryCard";
+import MetricFeedCard from "@/components/feed/MetricFeedCard";
 
 export type DistrictPageContentProps = {
   slug: string;
@@ -191,7 +192,7 @@ export default function DistrictPageContent({
             {districtMetricCards.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
                 {districtMetricCards.map((mc) => (
-                  <MetricSummaryCard key={mc.metric.id} data={mc} />
+                  <MetricFeedCard key={mc.metric.id} data={mc} onHide={() => {}} />
                 ))}
               </div>
             )}

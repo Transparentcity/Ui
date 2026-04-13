@@ -16,7 +16,6 @@ export interface NewFeedViewProps {
   district?: number | null;
   isAdmin?: boolean;
   isImpersonating?: boolean;
-  cityLeadCityIds?: number[];
   userPlaces?: UserPlace[];
   onPlaceSaved?: () => void;
   homeCityId?: number | null;
@@ -30,7 +29,6 @@ export default function NewFeedView({
   cityId,
   district,
   isAdmin = false,
-  cityLeadCityIds = [],
   userPlaces = [],
   onPlaceSaved,
   homeCityId,

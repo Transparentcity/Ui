@@ -6,7 +6,8 @@ import { listPublicFeedStories } from "@/lib/apiClient";
 import { enrichStory, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { resolveCanonicalUrl } from "@/lib/feed/canonicalUrl";
 import CardHeader from "./CardHeader";
-import MetricSummaryCard, { type MetricCardData } from "./templates/MetricSummaryCard";
+import { type MetricCardData } from "./templates/MetricSummaryCard";
+import MetricFeedCard from "./MetricFeedCard";
 import styles from "./feed.module.css";
 import homeStyles from "./homeFeedPreview.module.css";
 
@@ -84,7 +85,7 @@ export default function HomeFeedPreview({ initialStories, metricCards = [] }: Ho
             return (
               <Fragment key={story.id}>
                 {metricCard && (
-                  <MetricSummaryCard data={metricCard} />
+                  <MetricFeedCard data={metricCard} onHide={() => {}} />
                 )}
                 <Link
                   href={resolveCanonicalUrl(story)}

@@ -1555,7 +1555,6 @@ export default function DashboardPage() {
                 district={null}
                 isAdmin={isAdmin}
                 isImpersonating={isImpersonating}
-                cityLeadCityIds={cityLeadCityIds}
                 userPlaces={allUserPlaces}
                 homeCityId={userPreferences?.extra?.home_location?.city_id ?? null}
               />

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import type {
   PublicCityMetricItem,
   PublicMetricComparison,
@@ -22,6 +21,8 @@ export interface MetricCardData {
   greendirection?: "up" | "down" | null;
   /** Pseudo-published timestamp for feed ordering */
   publishedAt: string;
+  /** Portal domain for source attribution (e.g. "data.sfgov.org") */
+  portalDomain?: string;
 }
 
 /** Strip leading emoji/symbols from metric names for cleaner headlines */
@@ -87,8 +88,27 @@ function formatRelativeTime(dateStr: string): string {
   });
 }
 
-export default function MetricSummaryCard({ data }: { data: MetricCardData }) {
-  const { metric, comparison, slug, cityName, cityEmoji, greendirection } = data;
+/** Derive actor (department name) from metric category */
+function deriveActorFromCategory(category: string | null | undefined): string {
+  if (!category) return "City Hall";
+  const cat = category.toLowerCase();
+  if (cat.includes("safety") || cat.includes("crime") || cat.includes("police")) return "Police";
+  if (cat.includes("fire")) return "Fire Dept";
+  if (cat.includes("housing") || cat.includes("building")) return "Building Dept";
+  if (cat.includes("transport") || cat.includes("transit")) return "Transit";
+  if (cat.includes("spending") || cat.includes("budget") || cat.includes("finance")) return "Controller";
+  if (cat.includes("quality of life") || cat.includes("public works") || cat.includes("infrastructure")) return "Public Works";
+  if (cat.includes("health")) return "Public Health";
+  if (cat.includes("education") || cat.includes("school")) return "Education";
+  if (cat.includes("park") || cat.includes("recreation")) return "Parks & Rec";
+  if (cat.includes("311") || cat.includes("service request")) return "311";
+  if (cat.includes("business") || cat.includes("economic")) return "Business";
+  if (cat.includes("justice") || cat.includes("attorney")) return "District Attorney";
+  return category;
+}
+
+export default function MetricSummaryCard({ data, children }: { data: MetricCardData; children?: React.ReactNode }) {
+  const { metric, comparison, cityName, cityEmoji, greendirection, portalDomain } = data;
 
   const curr = comparison.current_period_value;
   const prior = comparison.comparison_period_value;
@@ -116,26 +136,32 @@ export default function MetricSummaryCard({ data }: { data: MetricCardData }) {
       ? generateHeadline(metric.metric_name, pctChange, comparison.comparison_type)
       : `${stripLeadingEmoji(metric.metric_name)} ${fallbackSuffix}`;
 
-  const href = `/c/${slug}/metrics/${metric.metric_key}`;
   const subline = formatRelativeTime(data.publishedAt);
 
   const changeColor = isGoodTrend
     ? "var(--success, #10b981)"
     : "var(--error, #ef4444)";
 
+  const actor = deriveActorFromCategory(metric.category);
   const neighborhoodLabel = cityEmoji
     ? `${cityEmoji} ${cityName}`
     : cityName;
 
+  // Source attribution line
+  const sourceText = portalDomain
+    ? `${metric.category || "City"} data from ${portalDomain}`
+    : metric.category
+      ? `${metric.category} data`
+      : null;
+
   return (
-    <Link href={href} className={feedStyles.card} style={{ textDecoration: "none", color: "inherit" }}>
-      {/* Reuse the same CardHeader as all other story cards */}
+    <>
       <CardHeader
         typeIcon="📊"
         typeLabel="Data"
-        actor={cityName}
+        actor={actor}
         subline={subline}
-        neighborhoodLabel={metric.category ?? ""}
+        neighborhoodLabel={neighborhoodLabel}
       />
 
       <h2 className={feedStyles.cardHeadline}>{headline}</h2>
@@ -161,28 +187,12 @@ export default function MetricSummaryCard({ data }: { data: MetricCardData }) {
         )}
       </div>
 
-      {/* Footer link */}
-      <div className={styles.metricFooter}>
-        <span className={styles.metricLink}>
-          View metric
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            fill="none"
-            aria-hidden="true"
-            className={styles.metricArrow}
-          >
-            <path
-              d="M5.25 3.5L8.75 7L5.25 10.5"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </span>
-      </div>
-    </Link>
+      {/* Source attribution */}
+      {sourceText && (
+        <p className={feedStyles.cardDescription}>{sourceText}</p>
+      )}
+
+      {children}
+    </>
   );
 }

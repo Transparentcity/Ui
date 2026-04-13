@@ -5,9 +5,10 @@ import type {
 } from "@/lib/publicApiClient";
 import type { ReactNode } from "react";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
-import MetricSummaryCard, {
+import {
   type MetricCardData,
 } from "@/components/feed/templates/MetricSummaryCard";
+import MetricFeedCard from "@/components/feed/MetricFeedCard";
 
 type Props = {
   slug: string;
@@ -95,7 +96,7 @@ export default function FeaturedStories({
           </header>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {metricCards.map((mc) => (
-              <MetricSummaryCard key={mc.metric.id} data={mc} />
+              <MetricFeedCard key={mc.metric.id} data={mc} onHide={() => {}} />
             ))}
           </div>
         </div>
@@ -154,7 +155,7 @@ export default function FeaturedStories({
         {metricCards.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
             {metricCards.map((mc) => (
-              <MetricSummaryCard key={mc.metric.id} data={mc} />
+              <MetricFeedCard key={mc.metric.id} data={mc} onHide={() => {}} />
             ))}
           </div>
         )}

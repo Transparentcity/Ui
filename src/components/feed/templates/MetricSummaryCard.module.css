@@ -31,25 +31,6 @@
   color: var(--text-secondary);
 }
 
-/* Footer link */
-.metricFooter {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.metricLink {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--brand, #8b5cf6);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.metricArrow {
-  flex-shrink: 0;
-}
-
 /* Mobile adjustments */
 @media (max-width: 600px) {
   .metricValue {
