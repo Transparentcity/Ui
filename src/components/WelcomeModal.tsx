@@ -5,9 +5,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { emitSavedCitiesChanged } from "@/lib/uiEvents";
 import {
   searchPublicCities,
-  listPublicCitiesForSitemap,
   type PublicCitySearchResult,
-  type PublicCitySitemapItem,
 } from "@/lib/publicApiClient";
 import {
   fetchAddressSuggestions,
@@ -85,9 +83,6 @@ export default function WelcomeModal({
   const newsletterFrequency = "weekly" as const;
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
 
-  // City picker state
-  const [launchedCities, setLaunchedCities] = useState<PublicCitySitemapItem[]>([]);
-  const [showAddressSearch, setShowAddressSearch] = useState(false);
 
   // Address autocomplete state
   const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
@@ -116,15 +111,6 @@ export default function WelcomeModal({
       setWeeklyNewsletterOptIn(true);
       setNewsletterDescription("");
       setSelectedCategoryIds(["crime-safety", "government-budget"]);
-      setShowAddressSearch(false);
-
-      // Load launched cities for the city picker
-      listPublicCitiesForSitemap()
-        .then((cities) => {
-          if (cancelled) return;
-          setLaunchedCities(cities.filter((c) => c.is_launched).slice(0, 15));
-        })
-        .catch(() => {});
 
       const loadSavedNewsletterPreferences = async () => {
         try {
@@ -191,18 +177,6 @@ export default function WelcomeModal({
     // Dismiss for this session only — don't mark onboarding complete
     // so the modal re-appears on future sign-ins until a city is selected.
     onClose();
-  };
-
-  const handleCityCardSelect = async (city: PublicCitySitemapItem) => {
-    setLoading(true);
-    setError(null);
-    try {
-      await processLocationAndFindCity(city.name, city.state ?? null, city.country ?? null);
-    } catch {
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
-    }
   };
 
   const fetchSuggestions = async (query: string) => {
@@ -612,127 +586,93 @@ export default function WelcomeModal({
         <Loader size="lg" color="purple" className="loaderStatic" />
       </div>
 
-      <h1 className={styles.title}>Pick your city</h1>
+      <h1 className={styles.title}>Where do you live?</h1>
       <p className={styles.subtitle}>
-        We&apos;ll show you what&apos;s happening in your neighborhood.
+        Find out what&apos;s happening in your neighborhood.
       </p>
 
       {error && <div className={styles.error}>{error}</div>}
 
-      {loading && (
-        <div className={styles.cityPickerLoading}>
-          <Loader size="sm" color="purple" />
-          <span>Finding your city…</span>
-        </div>
-      )}
-
-      {!loading && launchedCities.length > 0 && (
-        <div className={styles.cityPickerGrid}>
-          {launchedCities.map((city) => (
-            <button
-              key={city.id}
-              type="button"
-              className={styles.cityPickerCard}
-              onClick={() => handleCityCardSelect(city)}
+      <div className={styles.locationSection}>
+        <div className={styles.inputGroup} ref={locationInputRef}>
+          <div className={styles.inputWithGPS}>
+            <input
+              type="text"
+              className={styles.input}
+              placeholder="Enter your address"
+              value={locationInput}
+              onChange={(e) => handleLocationInputChange(e.target.value)}
+              onFocus={() => locationInput.trim().length >= 2 && setShowAddressDropdown(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleAddressSubmit();
+                }
+              }}
               disabled={loading}
+              autoComplete="off"
+              aria-autocomplete="list"
+              aria-expanded={showAddressDropdown && addressSuggestions.length > 0}
+            />
+            <button
+              className={styles.gpsInlineButton}
+              onClick={handleGPSLocation}
+              disabled={loading}
+              title="Use my location"
+              type="button"
             >
-              {city.emoji && <span className={styles.cityPickerEmoji}>{city.emoji}</span>}
-              <span className={styles.cityPickerName}>{city.name}</span>
+              {loading ? (
+                <Loader size="sm" color="purple" />
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <circle cx="12" cy="12" r="3" />
+                  <line x1="12" y1="2" x2="12" y2="4" />
+                  <line x1="12" y1="20" x2="12" y2="22" />
+                  <line x1="2" y1="12" x2="4" y2="12" />
+                  <line x1="20" y1="12" x2="22" y2="12" />
+                </svg>
+              )}
             </button>
-          ))}
-        </div>
-      )}
-
-      {!showAddressSearch ? (
-        <button
-          type="button"
-          className={styles.cityPickerDividerButton}
-          onClick={() => setShowAddressSearch(true)}
-        >
-          Don&apos;t see your city? Search by address
-        </button>
-      ) : (
-        <div className={styles.locationSection}>
-          <div className={styles.inputGroup} ref={locationInputRef}>
-            <div className={styles.inputWithGPS}>
-              <input
-                type="text"
-                className={styles.input}
-                placeholder="Enter your address or city"
-                value={locationInput}
-                onChange={(e) => handleLocationInputChange(e.target.value)}
-                onFocus={() => locationInput.trim().length >= 2 && setShowAddressDropdown(true)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddressSubmit();
-                  }
-                }}
-                disabled={loading}
-                autoComplete="off"
-                aria-autocomplete="list"
-                aria-expanded={showAddressDropdown && addressSuggestions.length > 0}
-              />
-              <button
-                className={styles.gpsInlineButton}
-                onClick={handleGPSLocation}
-                disabled={loading}
-                title="Use my location"
-                type="button"
-              >
-                {loading ? (
-                  <Loader size="sm" color="purple" />
-                ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" />
-                    <circle cx="12" cy="12" r="3" />
-                    <line x1="12" y1="2" x2="12" y2="4" />
-                    <line x1="12" y1="20" x2="12" y2="22" />
-                    <line x1="2" y1="12" x2="4" y2="12" />
-                    <line x1="20" y1="12" x2="22" y2="12" />
-                  </svg>
-                )}
-              </button>
-            </div>
-
-            {showAddressDropdown && (addressSuggestions.length > 0 || addressSuggestionsLoading) && (
-              <div className={styles.dropdown} role="listbox">
-                {addressSuggestionsLoading ? (
-                  <div className={styles.dropdownItem}>
-                    <Loader size="sm" color="purple" /> Searching…
-                  </div>
-                ) : (
-                  addressSuggestions.map((suggestion, index) => (
-                    <button
-                      key={`${suggestion.place_name}-${index}`}
-                      type="button"
-                      className={styles.dropdownItem}
-                      onClick={() => handleAddressSuggestionSelect(suggestion)}
-                      role="option"
-                    >
-                      <span>{suggestion.place_name}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
           </div>
 
-          <button
-            className={styles.primaryButton}
-            onClick={handleAddressSubmit}
-            disabled={loading || !locationInput.trim()}
-          >
-            {loading ? (
-              <span className={styles.buttonLoader}>
-                <Loader size="sm" color="white" />
-              </span>
-            ) : (
-              "Find my city"
-            )}
-          </button>
+          {showAddressDropdown && (addressSuggestions.length > 0 || addressSuggestionsLoading) && (
+            <div className={styles.dropdown} role="listbox">
+              {addressSuggestionsLoading ? (
+                <div className={styles.dropdownItem}>
+                  <Loader size="sm" color="purple" /> Searching…
+                </div>
+              ) : (
+                addressSuggestions.map((suggestion, index) => (
+                  <button
+                    key={`${suggestion.place_name}-${index}`}
+                    type="button"
+                    className={styles.dropdownItem}
+                    onClick={() => handleAddressSuggestionSelect(suggestion)}
+                    role="option"
+                  >
+                    <span>{suggestion.place_name}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
         </div>
-      )}
+
+        <button
+          className={styles.primaryButton}
+          onClick={handleAddressSubmit}
+          disabled={loading || !locationInput.trim()}
+        >
+          {loading ? (
+            <span className={styles.buttonLoader}>
+              <Loader size="sm" color="white" />
+            </span>
+          ) : (
+            "Find my city"
+          )}
+        </button>
+      </div>
     </div>
   );
 
