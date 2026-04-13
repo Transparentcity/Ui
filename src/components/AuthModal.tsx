@@ -9,9 +9,10 @@ import styles from "./AuthModal.module.css";
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
+  title?: string;
 }
 
-export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
+export default function AuthModal({ isOpen, onClose, title }: AuthModalProps) {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const router = useRouter();
 
@@ -77,7 +78,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       >
         <div className={styles.header}>
           <h2 id="auth-modal-title" className={styles.title}>
-            Sign in to read this story
+            {title ?? "Create your free account"}
           </h2>
           <button
             type="button"
