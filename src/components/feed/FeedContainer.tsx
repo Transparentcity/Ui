@@ -515,10 +515,12 @@ export default function FeedContainer({
       }),
     ).then((results) => {
       if (stale) return;
-      for (const cid of toFetch) fetchedMetricCityIdsRef.current.add(cid);
       const cards: MetricCardData[] = [];
-      for (const res of results) {
-        if (Array.isArray(res)) continue; // error case
+      for (let i = 0; i < results.length; i++) {
+        const res = results[i];
+        // Error case returns []; only mark city as fetched on success
+        if (Array.isArray(res)) continue;
+        fetchedMetricCityIdsRef.current.add(toFetch[i]);
         const { metrics, comps, slug, cityName, cityEmoji } = res;
         // Build cards ranked by abs(pct_change) descending
         const candidates: Array<{ card: MetricCardData; absPct: number }> = [];
@@ -553,7 +555,7 @@ export default function FeedContainer({
       if (cards.length > 0) {
         setMetricCardPool(cards);
       }
-    });
+    }).catch(() => {});
 
     return () => { stale = true; };
   }, [stories]);
@@ -1394,7 +1396,7 @@ export default function FeedContainer({
               !hasMetricData && // stories with numeric metadata stay full
               !hasDescription; // stories with real descriptions stay full
 
-            // Interleave a metric summary card every 5th position (after indices 3, 8, 13, ...)
+            // Interleave a metric summary card every 5th position (at indices 4, 9, 14, ...)
             const metricCardIdx = storyIdx >= 4 && (storyIdx - 4) % 5 === 0
               ? Math.floor((storyIdx - 4) / 5)
               : -1;

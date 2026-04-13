@@ -106,10 +106,15 @@ export default function MetricSummaryCard({ data }: { data: MetricCardData }) {
       (greendirection === "up" && pctChange > 0) ||
       (greendirection == null && pctChange < 0)); // default: decrease is good
 
+  const fallbackSuffix = comparison.comparison_type === "mtd"
+    ? "this month"
+    : comparison.comparison_type === "mtd_prior_year"
+      ? "vs. same month last year"
+      : "year-to-date";
   const headline =
     pctChange != null
       ? generateHeadline(metric.metric_name, pctChange, comparison.comparison_type)
-      : `${stripLeadingEmoji(metric.metric_name)} year-to-date`;
+      : `${stripLeadingEmoji(metric.metric_name)} ${fallbackSuffix}`;
 
   const href = `/c/${slug}/metrics/${metric.metric_key}`;
   const subline = formatRelativeTime(data.publishedAt);
