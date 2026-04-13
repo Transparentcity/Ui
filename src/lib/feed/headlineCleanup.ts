@@ -273,7 +273,7 @@ function extractFirstSentence(text?: string | null): string | null {
  * Maximum character length for a feed card headline.
  * Headlines longer than this are truncated at a word boundary with an ellipsis.
  */
-const MAX_HEADLINE_LENGTH = 90;
+const MAX_HEADLINE_LENGTH = 70;
 
 /**
  * Truncate a headline to MAX_HEADLINE_LENGTH at a word boundary.
