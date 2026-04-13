@@ -171,3 +171,20 @@
   font-size: 0.75rem;
   margin: 0;
 }
+
+@media (max-width: 640px) {
+  .category-breakdown-bar-row {
+    grid-template-columns: minmax(0, 1fr) 100px auto;
+    font-size: 0.75rem;
+  }
+
+  .category-breakdown-bar-track {
+    width: 100px;
+  }
+
+  .category-breakdown-table th,
+  .category-breakdown-table td {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+  }
+}

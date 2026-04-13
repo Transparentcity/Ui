@@ -77,11 +77,11 @@ export function getChartEmbed(chartId: string | number, config: EmbedConfig = {}
     : "";
   return `
     <div class="${cfg.className} chart-embed" data-chart-id="${chartId}"${validPeriod ? ` data-period="${validPeriod}"` : ""} data-shortcode="${shortcodeEscaped}">
-      <iframe 
-        src="${url}" 
-        width="${cfg.width}" 
-        height="${height}" 
-        frameborder="0" 
+      <iframe
+        src="${url}"
+        width="${cfg.width}"
+        height="${height}"
+        frameborder="0"
         loading="lazy"
         style="border: none; border-radius: 8px; background: #f8f9fa;"
         title="Chart ${chartId}"

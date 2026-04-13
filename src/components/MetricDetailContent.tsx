@@ -43,6 +43,16 @@ export default function MetricDetailContent({
   const [selectedPeriod, setSelectedPeriod] = useState<"ytd" | "mtd" | "mtd_prior_year">("ytd");
   const selectedDistrict = district ?? null; // null = citywide, number = specific district
 
+  // Detect narrow screens for compact map/chart layout
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 640px)");
+    setIsMobile(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
+
   const comparisonsQuery = usePublicMetricComparisons(
     metric.id,
     selectedDistrict,
@@ -437,7 +447,7 @@ export default function MetricDetailContent({
             <MetricMapEmbed
               metricId={metric.id}
               selectedPeriod={selectedPeriod}
-              height={400}
+              height={isMobile ? 280 : 400}
               showLink={true}
               showPeriodSelector={false}
               district={null}
@@ -462,7 +472,7 @@ export default function MetricDetailContent({
             <MetricMapEmbed
               metricId={metric.id}
               selectedPeriod={selectedPeriod}
-              height={400}
+              height={isMobile ? 280 : 400}
               showLink={true}
               showPeriodSelector={false}
               district={selectedDistrict}
@@ -505,7 +515,7 @@ export default function MetricDetailContent({
               metricId={metric.id}
               comparisonType={selectedPeriod}
               greenDirection={metric.greendirection as "up" | "down" | null}
-              height={350}
+              height={isMobile ? 260 : 350}
               showLink={true}
               currentPeriodEnd={comparison?.current_period_end ?? undefined}
               dateRange={{

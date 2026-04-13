@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useTheme } from "@/contexts/ThemeContext";
 import styles from "./TimeSeriesChart.module.css";
@@ -818,7 +818,17 @@ export default function TimeSeriesChart({
 }: TimeSeriesChartProps) {
   const { theme } = useTheme();
   const resolvedTheme = forcedTheme ?? theme;
-  
+
+  // Detect narrow screens for compact chart layout
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 640px)");
+    setIsMobile(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
+
   // Use explicitly passed defaultPeriod first (e.g., "ytd" from modal)
   // Only fall back to metadata.period_type if no explicit default was provided
   const effectiveDefaultPeriod = defaultPeriod !== "month" 
@@ -1467,12 +1477,16 @@ export default function TimeSeriesChart({
           gridcolor: gridColorLight,
           tickfont: {
             family: "IBM Plex Sans, Arial, sans-serif",
-            size: 9,
+            size: isMobile ? 8 : 9,
             color: textColor,
           },
           tickmode: "array" as const,
-          tickvals: [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335], // Approximate start of each month
-          ticktext: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+          tickvals: isMobile
+            ? [1, 60, 121, 182, 244, 305] // Every other month on mobile
+            : [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335],
+          ticktext: isMobile
+            ? ["Jan", "Mar", "May", "Jul", "Sep", "Nov"]
+            : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
           range: [minDay, maxDay + 10], // Use actual data range with small padding
           showline: true,
           linecolor: axisLineColor,
@@ -1482,7 +1496,7 @@ export default function TimeSeriesChart({
           rangeslider: { visible: false },
         },
         yaxis: {
-          title: {
+          title: isMobile ? "" : {
             text: yAxisLabel,
             font: {
               family: "IBM Plex Sans, Arial, sans-serif",
@@ -1497,7 +1511,7 @@ export default function TimeSeriesChart({
           range: [0, maxYValue],
           tickfont: {
             family: "IBM Plex Sans, Arial, sans-serif",
-            size: 9,
+            size: isMobile ? 8 : 9,
             color: textColor,
           },
         },
@@ -1520,10 +1534,10 @@ export default function TimeSeriesChart({
           itemwidth: 30,
         },
         margin: {
-          t: cityName && chartTitle ? 75 : 55,
-          b: 95,
-          l: 50,
-          r: 45,
+          t: cityName && chartTitle ? (isMobile ? 50 : 75) : (isMobile ? 35 : 55),
+          b: isMobile ? 70 : 95,
+          l: isMobile ? 35 : 50,
+          r: isMobile ? 15 : 45,
         },
         paper_bgcolor: "transparent",
         plot_bgcolor: "transparent",
@@ -1568,18 +1582,19 @@ export default function TimeSeriesChart({
         gridcolor: gridColor,
         tickfont: {
           family: "IBM Plex Sans, Arial, sans-serif",
-          size: 10,
+          size: isMobile ? 8 : 10,
           color: textColor,
         },
         tickformat: getTickFormat(periodType),
         ...(tickInterval && { dtick: tickInterval }),
+        tickangle: isMobile ? -45 : undefined,
         showline: true,
         linecolor: axisLineColor,
         linewidth: 1,
         tickcolor: textColor,
       },
       yaxis: {
-        title: {
+        title: isMobile ? "" : {
           text: yAxisLabel,
           font: {
             family: "IBM Plex Sans, Arial, sans-serif",
@@ -1592,7 +1607,7 @@ export default function TimeSeriesChart({
         range: [0, maxYValue],
         tickfont: {
           family: "IBM Plex Sans, Arial, sans-serif",
-          size: 10,
+          size: isMobile ? 8 : 10,
           color: textColor,
         },
         showline: true,
@@ -1600,11 +1615,11 @@ export default function TimeSeriesChart({
         linewidth: 1,
         tickcolor: textColor,
       },
-      margin: { 
-        t: cityName && chartTitle ? 70 : 50,
-        b: hasGroups && traces.length > 1 ? 80 : 50,
-        l: 60, 
-        r: 30 
+      margin: {
+        t: cityName && chartTitle ? (isMobile ? 45 : 70) : (isMobile ? 30 : 50),
+        b: hasGroups && traces.length > 1 ? (isMobile ? 60 : 80) : (isMobile ? 40 : 50),
+        l: isMobile ? 35 : 60,
+        r: isMobile ? 10 : 30
       },
       paper_bgcolor: "transparent",
       plot_bgcolor: "transparent",
@@ -1634,7 +1649,7 @@ export default function TimeSeriesChart({
       },
       height,
     };
-  }, [plotlyTitleText, cityName, chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, hoverBgColor, hoverTextColor, legendBgColor, staleness_days]);
+  }, [plotlyTitleText, cityName, chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, hoverBgColor, hoverTextColor, legendBgColor, staleness_days, isMobile]);
 
   const config = {
     responsive: true,

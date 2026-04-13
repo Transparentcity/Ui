@@ -170,9 +170,23 @@
   .externalTitleMain {
     font-size: 0.9375rem;
   }
-  
+
   .externalTitleSub {
     font-size: 0.75rem;
+  }
+
+  .chartWrapper,
+  .chartWrapperFullBleed {
+    overflow: hidden;
+  }
+
+  .controlsRow {
+    gap: 8px;
+  }
+
+  .select {
+    font-size: 13px;
+    padding: 4px 8px;
   }
 }
 

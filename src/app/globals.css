@@ -103,21 +103,33 @@ a {
     border-radius: 0;
     background: transparent;
   }
-  
+
   .visualization-embed iframe {
     border-radius: 0;
   }
-  
+
   .chart-embed {
+    min-height: 280px;
+  }
+
+  .chart-embed iframe {
+    height: 300px;
+  }
+
+  .map-embed {
     min-height: 320px;
   }
-  
-  .map-embed {
-    min-height: 400px;
+
+  .map-embed iframe {
+    height: 350px;
   }
-  
+
   .anomaly-embed {
-    min-height: 280px;
+    min-height: 260px;
+  }
+
+  .anomaly-embed iframe {
+    height: 280px;
   }
 }
 

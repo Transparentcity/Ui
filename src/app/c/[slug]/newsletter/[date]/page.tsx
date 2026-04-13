@@ -122,11 +122,7 @@ export default async function NewsletterEditionPage({ params, searchParams }: Pa
       </PublicNavBar>
 
       <article
-        style={{
-          maxWidth: 760,
-          margin: "0 auto",
-          padding: "96px 24px 80px",
-        }}
+        className="newsletter-article-container"
       >
         {/* Breadcrumb */}
         <nav aria-label="breadcrumb" style={{ marginBottom: 24, fontSize: 13 }}>
@@ -222,11 +218,25 @@ export default async function NewsletterEditionPage({ params, searchParams }: Pa
       <PublicFooter citySlug={slug} feedbackPageUrl={`/c/${slug}/newsletter/${date}`} feedbackPageType="newsletter" />
 
       <style>{`
-        .newsletter-edition-body h1,
-        .newsletter-edition-body h2 {
-          font-size: 1.1rem;
+        .newsletter-article-container {
+          max-width: 760px;
+          margin: 0 auto;
+          padding: 96px 24px 80px;
+        }
+        @media (max-width: 640px) {
+          .newsletter-article-container {
+            padding: 80px 16px 48px;
+          }
+        }
+        .newsletter-edition-body h1 {
+          font-size: 1.35rem;
           font-weight: 700;
-          margin: 1.5rem 0 0.5rem;
+          margin: 0 0 1rem;
+          color: var(--text-primary, #111827);
+        }
+        .newsletter-edition-body h2 {
+          font-weight: 700;
+          margin: 0 0 0.5rem;
           color: var(--text-primary, #111827);
         }
         .newsletter-edition-body p {
@@ -244,7 +254,7 @@ export default async function NewsletterEditionPage({ params, searchParams }: Pa
         .newsletter-edition-body hr {
           border: none;
           border-top: 1px solid var(--border-subtle, #e5e7eb);
-          margin: 20px 0;
+          margin: 24px 0;
         }
         .newsletter-edition-body div[style*="background:#f3f4f6"] {
           background: var(--bg-subtle, #f3f4f6) !important;

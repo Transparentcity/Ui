@@ -167,13 +167,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
       </PublicNavBar>
 
       <article
-        style={{
-          paddingTop: 96,
-          paddingBottom: 80,
-          maxWidth: 760,
-          margin: "0 auto",
-          padding: "96px 24px 80px",
-        }}
+        className="story-article-container"
       >
         {/* Breadcrumb */}
         <nav aria-label="breadcrumb" style={{ marginBottom: 24, fontSize: 13 }}>
@@ -319,7 +313,8 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
                     <iframe
                       src={iframeSrc}
                       title="Visualization"
-                      style={{ width: "100%", height: "420px", border: "none", display: "block" }}
+                      className="story-viz-iframe"
+                      style={{ width: "100%", border: "none", display: "block" }}
                       loading="lazy"
                     />
                   </div>
@@ -419,6 +414,16 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
 
       {/* Inline styles for article body */}
       <style>{`
+        .story-article-container {
+          max-width: 760px;
+          margin: 0 auto;
+          padding: 96px 24px 80px;
+        }
+        @media (max-width: 640px) {
+          .story-article-container {
+            padding: 80px 16px 48px;
+          }
+        }
         .story-article-body h2 {
           font-size: 1.25rem;
           font-weight: 700;
@@ -445,6 +450,14 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           color: var(--text-secondary);
           font-size: 0.9rem;
         }
+        .story-viz-iframe {
+          height: 420px;
+        }
+        @media (max-width: 640px) {
+          .story-viz-iframe {
+            height: 300px;
+          }
+        }
         /* Visualization embed blocks (chart / map / anomaly iframes) */
         .story-article-body .visualization-embed {
           margin: 2rem 0;
@@ -457,6 +470,15 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           display: block;
           border: none;
           width: 100%;
+        }
+        @media (max-width: 640px) {
+          .story-article-body .visualization-embed {
+            margin-left: -16px;
+            margin-right: -16px;
+            border-radius: 0;
+            border-left: none;
+            border-right: none;
+          }
         }
         /* Source citation blocks written by Seymour */
         .story-article-body .sources {

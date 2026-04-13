@@ -1926,6 +1926,46 @@
     margin-left: -14px;
     margin-right: -14px;
   }
+
+  .vizIframeThumb {
+    height: 200px;
+  }
+
+  .vizIframeMapFocus {
+    height: 220px;
+  }
+
+  .vizSkeleton {
+    height: 200px;
+  }
+
+  .vizEmbedWrap {
+    min-height: 200px;
+  }
+
+  .detailVizIframe {
+    height: 320px;
+  }
+
+  .detailVizArea {
+    min-height: 200px;
+  }
+
+  .detailArticleBody .visualization-embed {
+    margin-left: -20px;
+    margin-right: -20px;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  .detailArticleBody .visualization-embed iframe {
+    height: 300px;
+  }
+
+  .detailContainer {
+    padding: 16px 14px;
+  }
 }
 
 @media (max-width: 400px) {
