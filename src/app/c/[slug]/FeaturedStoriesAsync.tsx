@@ -30,7 +30,7 @@ export default async function FeaturedStoriesAsync({
   const feedRes = await listPublicFeedStories({
     city_id: cityId,
     district: 0,
-    limit: 6,
+    limit: 10,
     order_by: "published_at",
   }).catch(() => ({ stories: [], count: 0 }));
 
