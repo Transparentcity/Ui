@@ -7,7 +7,6 @@ import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { resolveOutboundCanonicalPath } from "@/lib/feed/canonicalUrl";
 import { useTrackFeedEngagement } from "@/lib/hooks/useFeed";
 import CardActionBar from "./CardActionBar";
-import CompactCardActionBar from "./CompactCardActionBar";
 import OverflowMenu from "./OverflowMenu";
 import TextOnlyCard from "./templates/TextOnlyCard";
 import TextChartCard from "./templates/TextChartCard";
@@ -16,7 +15,6 @@ import AlertCard from "./templates/AlertCard";
 import SpendingCard from "./templates/SpendingCard";
 import OffTheChartsCard from "./templates/OffTheChartsCard";
 import PhotoCard from "./templates/PhotoCard";
-import CompactCard from "./templates/CompactCard";
 import { useIsMobile } from "./useIsMobile";
 import styles from "./feed.module.css";
 
@@ -25,9 +23,6 @@ interface FeedCardProps {
   isAdmin?: boolean;
   onHide: (storyId: number) => void;
   onDelete?: (storyId: number) => void;
-  /** @deprecated previewMode is no longer used; feed-preview routes have been removed */
-  previewMode?: boolean;
-  compact?: boolean;
   /**
    * When set, open the story in the in-app feed detail surface instead of
    * navigating away from the feed.
@@ -40,7 +35,6 @@ export default function FeedCard({
   isAdmin,
   onHide,
   onDelete,
-  compact,
   onOpenFeedDetail,
 }: FeedCardProps) {
   const router = useRouter();
@@ -112,7 +106,6 @@ export default function FeedCard({
 
   const cardClassName = [
     styles.card,
-    compact ? styles.cardCompact : "",
     story.card_type === "traction" ? styles.cardTraction : "",
     hiding ? styles.cardHiding : "",
     overflowOpen ? styles.cardMenuOpen : "",
@@ -147,11 +140,7 @@ export default function FeedCard({
   // PhotoCard variant: "generic" for text_photo stories, "311" (default) for 311_images
   const photoVariant = isTextPhoto ? "generic" as const : undefined;
 
-  const actionBar = compact ? (
-    <CompactCardActionBar
-      onOverflow={() => setOverflowOpen((o) => !o)}
-    />
-  ) : (
+  const actionBar = (
     <CardActionBar
       onShare={handleShare}
       onOverflow={() => setOverflowOpen((o) => !o)}
@@ -160,9 +149,7 @@ export default function FeedCard({
 
   return (
     <article className={cardClassName} onClick={handleCardClick} role="link" tabIndex={0} onKeyDown={(e) => { const tag = (e.target as HTMLElement).tagName; if (tag === "TEXTAREA" || tag === "INPUT") return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCardClick(); } }}>
-      {compact ? (
-        <CompactCard story={story}>{actionBar}</CompactCard>
-      ) : Template === PhotoCard ? (
+      {Template === PhotoCard ? (
         <PhotoCard story={story} variant={photoVariant}>{actionBar}</PhotoCard>
       ) : (
         <Template story={story}>{actionBar}</Template>

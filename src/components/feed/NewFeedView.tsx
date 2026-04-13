@@ -40,7 +40,6 @@ export default function NewFeedView({
       cityId={cityId}
       district={district}
       isAdmin={isAdmin}
-      cityLeadCityIds={cityLeadCityIds}
       userPlaces={userPlaces}
       onPlaceSaved={onPlaceSaved}
       homeCityId={homeCityId}

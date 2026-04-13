@@ -24,9 +24,8 @@ import {
   type PublicCityMetricItem,
   type PublicMetricComparisons,
 } from "@/lib/publicApiClient";
-import MetricSummaryCard, {
-  type MetricCardData,
-} from "./templates/MetricSummaryCard";
+import { type MetricCardData } from "./templates/MetricSummaryCard";
+import MetricFeedCard from "./MetricFeedCard";
 import { MetricKeyProvider } from "./MetricKeyContext";
 import FeedCard from "./FeedCard";
 import FeedStoryModal from "./FeedStoryModal";
@@ -57,11 +56,19 @@ interface UserPlace {
   label: string;
 }
 
+const TOPIC_LABELS: Record<string, string> = {
+  safety: "Safety", justice: "Justice",
+  business: "Business", spending: "Spending",
+  alert: "Alerts", trend: "Trends",
+  context: "Context", off_the_charts: "Off the Charts",
+  comparison: "Your District", milestone: "Milestones",
+  "311_images": "311 Photos",
+};
+
 interface FeedContainerProps {
   cityId?: number | null;
   district?: number | null;
   isAdmin?: boolean;
-  cityLeadCityIds?: number[];
   userPlaces?: UserPlace[];
   onPlaceSaved?: () => void;
   homeCityId?: number | null;
@@ -272,15 +279,23 @@ export default function FeedContainer({
     onlyMySavedPlacesFeed,
   ]);
 
-  // Save scroll position on every scroll so we can restore it after back-navigation
+  // Save scroll position (throttled) so we can restore it after back-navigation
   const SCROLL_STORAGE_KEY = "feed-scroll-y";
 
   useEffect(() => {
+    let rafId: number | null = null;
     const handleScroll = () => {
-      try { sessionStorage.setItem(SCROLL_STORAGE_KEY, String(window.scrollY)); } catch {}
+      if (rafId != null) return;
+      rafId = requestAnimationFrame(() => {
+        try { sessionStorage.setItem(SCROLL_STORAGE_KEY, String(window.scrollY)); } catch {}
+        rafId = null;
+      });
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (rafId != null) cancelAnimationFrame(rafId);
+    };
   }, []);
 
   const places = placesData?.places ?? [];
@@ -516,7 +531,8 @@ export default function FeedContainer({
           const slug = slugify(detail.name);
           const cityName = detail.name;
           const cityEmoji = detail.emoji ?? undefined;
-          return { metrics, comps, slug, cityName, cityEmoji };
+          const portalDomain = detail.main_domain ?? undefined;
+          return { metrics, comps, slug, cityName, cityEmoji, portalDomain };
         } catch {
           return [];
         }
@@ -529,7 +545,7 @@ export default function FeedContainer({
         // Error case returns []; only mark city as fetched on success
         if (Array.isArray(res)) continue;
         fetchedMetricCityIdsRef.current.add(toFetch[i]);
-        const { metrics, comps, slug, cityName, cityEmoji } = res;
+        const { metrics, comps, slug, cityName, cityEmoji, portalDomain } = res;
         // Build cards ranked by abs(pct_change) descending
         const candidates: Array<{ card: MetricCardData; absPct: number }> = [];
         for (const m of metrics) {
@@ -551,6 +567,7 @@ export default function FeedContainer({
               slug,
               cityName,
               cityEmoji,
+              portalDomain,
               publishedAt,
             },
             absPct: Math.abs(pct),
@@ -623,6 +640,20 @@ export default function FeedContainer({
         saveHiddenIds(next);
         return next;
       });
+    }
+  }, []);
+
+  // Hidden metric cards (session-only, no persistence)
+  const [hiddenMetricIds, setHiddenMetricIds] = useState<Set<number>>(new Set());
+  const handleMetricHide = useCallback((metricId: number) => {
+    if (metricId < 0) {
+      setHiddenMetricIds((prev) => {
+        const next = new Set(prev);
+        next.delete(-metricId);
+        return next;
+      });
+    } else {
+      setHiddenMetricIds((prev) => new Set(prev).add(metricId));
     }
   }, []);
 
@@ -996,15 +1027,7 @@ export default function FeedContainer({
     }
   }, [showCityDiscovery, visibleStories.length]);
 
-  // ── Topic labels for pills ──
-  const topicLabels: Record<string, string> = {
-    safety: "Safety", justice: "Justice",
-    business: "Business", spending: "Spending",
-    alert: "Alerts", trend: "Trends",
-    context: "Context", off_the_charts: "Off the Charts",
-    comparison: "Your District", milestone: "Milestones",
-    "311_images": "311 Photos",
-  };
+  const topicLabels = TOPIC_LABELS;
 
   return (
     <div
@@ -1435,9 +1458,6 @@ export default function FeedContainer({
       {visibleStories.length > 0 && (
         <div className={styles.storiesList}>
           {visibleStories.map((story, storyIdx) => {
-            // All cards render at full size now
-            const isCompact = false;
-
             // Interleave a metric summary card every 5th position (at indices 4, 9, 14, ...)
             const metricCardIdx = storyIdx >= 4 && (storyIdx - 4) % 5 === 0
               ? Math.floor((storyIdx - 4) / 5)
@@ -1446,13 +1466,15 @@ export default function FeedContainer({
               metricCardIdx >= 0 && metricCardIdx < metricCardPool.length
                 ? metricCardPool[metricCardIdx]
                 : null;
+            const showMetricCard = metricCard && !hiddenMetricIds.has(metricCard.metric.id);
 
             return (
               <React.Fragment key={story.id}>
-                {metricCard && (
-                  <MetricSummaryCard
+                {showMetricCard && (
+                  <MetricFeedCard
                     key={`metric-${metricCard.metric.id}`}
                     data={metricCard}
+                    onHide={handleMetricHide}
                   />
                 )}
                 <FeedCard
@@ -1460,7 +1482,6 @@ export default function FeedContainer({
                   isAdmin={isAdmin}
                   onHide={handleHide}
                   onDelete={isAdmin ? handleDelete : undefined}
-                  compact={isCompact}
                   onOpenFeedDetail={openFeedDetail}
                 />
               </React.Fragment>
