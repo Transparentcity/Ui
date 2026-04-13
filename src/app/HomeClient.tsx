@@ -26,9 +26,12 @@ export default function HomeClient({ stories }: HomeClientProps) {
   const router = useRouter();
 
   const handleSignup = async () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("transparentcity.signup_intent", "resident");
+    }
     await loginWithRedirect({
       authorizationParams: { screen_hint: "signup" },
-      appState: { returnTo: "/home" },
+      appState: { returnTo: "/home?signup=resident" },
     });
   };
 
