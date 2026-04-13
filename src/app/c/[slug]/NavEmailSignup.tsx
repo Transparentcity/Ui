@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import Link from "next/link";
 import { useSignupEmail } from "./SignupEmailContext";
@@ -19,6 +19,15 @@ export default function NavEmailSignup({ citySlug, cityName, cityId, isHome }: P
   const [email, setEmail] = useState("");
   const [focused, setFocused] = useState(false);
   const [status, setStatus] = useState<"idle" | "sending" | "error">("idle");
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 768px)");
+    setIsMobile(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
 
   const handleChange = (val: string) => {
     setEmail(val);
@@ -108,7 +117,7 @@ export default function NavEmailSignup({ citySlug, cityName, cityId, isHome }: P
           onBlur={() => setFocused(false)}
           placeholder={
             cityName
-              ? `Get ${cityName}'s Free Weekly`
+              ? isMobile ? "Free Weekly" : `${cityName}'s Free Weekly`
               : "Enter your email"
           }
           className="nav-email-input"
