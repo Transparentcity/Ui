@@ -4,6 +4,7 @@ import Link from "next/link";
 import PublicFooter from "@/components/PublicFooter";
 import PublicNavBar from "@/components/PublicNavBar";
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
+import { slugify } from "@/lib/utils";
 import { getDataPortalForCity } from "@/lib/dataPortals";
 import NavEmailSignup from "../NavEmailSignup";
 import CityHeroNewsletter from "../CityHeroNewsletter";
@@ -23,7 +24,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   let cityName = slug;
   try {
     const cities = await listPublicCitiesForSitemap();
-    const match = cities.find((c) => c.slug === slug);
+    const match = cities.find((c) => slugify(c.name) === slug);
     if (match) {
       cityName =
         match.state && match.country && match.country !== "United States"
@@ -54,7 +55,7 @@ export default async function MethodologyPage({ params }: PageProps) {
 
   try {
     const cities = await listPublicCitiesForSitemap();
-    const match = cities.find((c) => c.slug === slug);
+    const match = cities.find((c) => slugify(c.name) === slug);
     if (match) {
       const display =
         match.state && match.country && match.country !== "United States"

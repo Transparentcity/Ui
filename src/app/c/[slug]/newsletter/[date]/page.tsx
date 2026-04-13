@@ -6,6 +6,7 @@ import "../../../../landing.css";
 
 import { getNewsletterEdition } from "@/lib/newsletter";
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
+import { slugify } from "@/lib/utils";
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
 import NavEmailSignup from "../../NavEmailSignup";
@@ -18,7 +19,6 @@ export const dynamic = "force-dynamic";
 
 type PageProps = {
   params: Promise<{ slug: string; date: string }>;
-  searchParams: Promise<{ district?: string }>;
 };
 
 function stripHtml(html: string): string {
@@ -31,19 +31,18 @@ function extractFirstH2(html: string): string {
   return match ? stripHtml(match[1]) : "";
 }
 
-export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
-  const { slug, date } = await params;
-  const { district: districtParam } = await searchParams;
-  const district = districtParam ? parseInt(districtParam, 10) : undefined;
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug, date: hash } = await params;
   try {
-    const edition = await getNewsletterEdition(slug, date, district);
+    const edition = await getNewsletterEdition(slug, hash);
     const cityName = edition.city_name ?? slug;
     const districtLabel = edition.district > 0 ? ` — District ${edition.district}` : "";
     const headline = edition.summary_headline || edition.subject || extractFirstH2(edition.body_html) || "Newsletter";
     const title = `${headline} — ${cityName}${districtLabel} Newsletter`;
     const introText = edition.intro_html ? stripHtml(edition.intro_html) : "";
     const description = introText.slice(0, 160);
-    const canonical = `/c/${slug}/newsletter/${date}${district ? `?district=${district}` : ""}`;
+    const canonicalSlug = edition.city_slug ?? slug;
+    const canonical = `/c/${canonicalSlug}/newsletter/${edition.short_hash}`;
     return {
       title,
       description,
@@ -61,7 +60,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       },
       other: {
         "article:section": cityName,
-        "article:published_time": date,
+        "article:published_time": edition.edition_date,
       },
     };
   } catch {
@@ -69,14 +68,12 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   }
 }
 
-export default async function NewsletterEditionPage({ params, searchParams }: PageProps) {
-  const { slug, date } = await params;
-  const { district: districtParam } = await searchParams;
-  const district = districtParam ? parseInt(districtParam, 10) : undefined;
+export default async function NewsletterEditionPage({ params }: PageProps) {
+  const { slug, date: hash } = await params;
 
   let edition: Awaited<ReturnType<typeof getNewsletterEdition>> | null = null;
   try {
-    edition = await getNewsletterEdition(slug, date, district);
+    edition = await getNewsletterEdition(slug, hash);
   } catch {
     notFound();
   }
@@ -87,7 +84,7 @@ export default async function NewsletterEditionPage({ params, searchParams }: Pa
   let cityDisplay = edition.city_name ?? slug;
   try {
     const cities = await listPublicCitiesForSitemap();
-    const match = cities.find((c) => c.slug === slug);
+    const match = cities.find((c) => slugify(c.name) === slug);
     if (match) {
       cityDisplay =
         match.state && match.country && match.country !== "United States"
@@ -215,7 +212,7 @@ export default async function NewsletterEditionPage({ params, searchParams }: Pa
         </div>
       </article>
 
-      <PublicFooter citySlug={slug} feedbackPageUrl={`/c/${slug}/newsletter/${date}`} feedbackPageType="newsletter" />
+      <PublicFooter citySlug={slug} feedbackPageUrl={`/c/${slug}/newsletter/${hash}`} feedbackPageType="newsletter" />
 
       <style>{`
         .newsletter-article-container {

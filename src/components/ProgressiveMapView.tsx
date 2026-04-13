@@ -5,11 +5,11 @@ import type { SavedMap } from "@/lib/apiClient";
 import { getMapView } from "@/lib/apiClient";
 import { API_BASE } from "@/lib/apiBase";
 import {
-  CHOROPLETH_BRAND_HIGH_RGB,
-  CHOROPLETH_BRAND_LOW_RGB,
   getCaseInsensitiveProp,
+  getChoroplethBrandRamp,
   getInitialMapView,
   normalizeChoroplethDistrictKey,
+  type ChoroplethBasemapTheme,
 } from "@/lib/mapUtils";
 import Loader from "./Loader";
 import MapLayerPanel from "./MapLayerPanel";
@@ -22,6 +22,8 @@ interface ProgressiveMapViewProps {
   onError?: (error: string) => void;
   /** Optional comparison period points - rendered as grey dots behind current period */
   comparisonLocationData?: Array<Record<string, any>>;
+  /** Match app theme: dark uses mapbox dark-v11 and a darker choropleth ramp */
+  mapBasemapTheme?: ChoroplethBasemapTheme;
 }
 
 interface ShapeLayer {
@@ -273,6 +275,7 @@ export default function ProgressiveMapView({
   height = 400,
   onError,
   comparisonLocationData,
+  mapBasemapTheme = "light",
 }: ProgressiveMapViewProps) {
   const [selectedShapeLayer, setSelectedShapeLayer] = useState<string | null>(null);
   const [points, setPoints] = useState<Array<{ lat: number; lon: number; [key: string]: any }> | null>(null);
@@ -657,7 +660,10 @@ export default function ProgressiveMapView({
 
         const map = new mapboxgl.Map({
           container: mapContainerRef.current,
-          style: "mapbox://styles/mapbox/light-v11",
+          style:
+            mapBasemapTheme === "dark"
+              ? "mapbox://styles/mapbox/dark-v11"
+              : "mapbox://styles/mapbox/light-v11",
           center: initialCenter,
           zoom: embeddedZoom,
           attributionControl: false,
@@ -718,9 +724,9 @@ export default function ProgressiveMapView({
         mapInstanceRef.current = null;
       }
     };
-    // Only depend on mapboxLoaded and mapData.center - don't re-initialize when shape layers change
+    // Remount when basemap theme changes so style and choropleth colors stay aligned
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapboxLoaded]);
+  }, [mapboxLoaded, mapBasemapTheme]);
 
   // Load choropleth when shape layer is selected (default_view or user selection)
   useEffect(() => {
@@ -761,7 +767,15 @@ export default function ProgressiveMapView({
       
       return () => clearTimeout(timeoutId);
     }
-  }, [selectedShapeLayer, hasAggregations, mapboxLoaded, mapData.location_data, points, effectiveAggregations]);
+  }, [
+    selectedShapeLayer,
+    hasAggregations,
+    mapboxLoaded,
+    mapData.location_data,
+    points,
+    effectiveAggregations,
+    mapBasemapTheme,
+  ]);
 
   // Update points display when showPoints or selectedDistrictId changes
   useEffect(() => {
@@ -1020,8 +1034,9 @@ export default function ProgressiveMapView({
         ] as [number, number, number];
       };
 
-      const CHORO_LOW = CHOROPLETH_BRAND_LOW_RGB;
-      const CHORO_HIGH = CHOROPLETH_BRAND_HIGH_RGB;
+      const choroRamp = getChoroplethBrandRamp(mapBasemapTheme);
+      const CHORO_LOW = choroRamp.low;
+      const CHORO_HIGH = choroRamp.high;
 
       
       // Get the shape layer's identifier field from the API (this is the field used in GeoJSON properties)
@@ -1074,7 +1089,7 @@ export default function ProgressiveMapView({
         if (!districtData && String(districtIdRaw).trim()) {
         }
 
-        let color = "#e5e7eb"; // Default gray for no data
+        let color = choroRamp.noDataFill;
         if (value !== null && !isNaN(value) && isFinite(value)) {
           const normalized = clamp01((value - minValue) / (maxValue - minValue || 1));
           const [r, g, b] = blendRgb(CHORO_LOW, CHORO_HIGH, normalized);
@@ -1150,8 +1165,9 @@ export default function ProgressiveMapView({
         type: "line",
         source: "choropleth-shapes",
         paint: {
-          "line-color": "#ffffff",
+          "line-color": mapBasemapTheme === "dark" ? "#ffffff" : "#000000",
           "line-width": 0.75,
+          "line-opacity": mapBasemapTheme === "dark" ? 0.8 : 0.55,
         },
       }, beforeLayerId);
 

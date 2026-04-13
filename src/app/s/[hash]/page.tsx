@@ -1,5 +1,6 @@
 import { redirect, notFound } from "next/navigation";
 import { getPublicFeedStoryByHash, listPublicCitiesForSitemap } from "@/lib/publicApiClient";
+import { slugify } from "@/lib/utils";
 
 export const revalidate = 3600;
 
@@ -34,7 +35,7 @@ export default async function StoryShortUrlPage({ params }: PageProps) {
     try {
       const cities = await listPublicCitiesForSitemap();
       const match = cities.find((c) => c.id === story!.city_id);
-      citySlug = match?.slug ?? null;
+      citySlug = match?.name ? slugify(match.name) : null;
     } catch {
       // fall through to legacy path
     }

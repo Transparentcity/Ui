@@ -17,6 +17,7 @@ import {
   listPublicMapsForCity,
   getPublicCityMetricOrdering,
 } from "@/lib/publicApiClient";
+import { slugify } from "@/lib/utils";
 import type { MetricOrderingEntry } from "../../CityDashboardSection";
 import DistrictPageContent from "./DistrictPageContent";
 
@@ -48,7 +49,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   try {
     const cities = await listPublicCitiesForSitemap();
-    const match = cities.find((c) => c.slug === slug);
+    const match = cities.find((c) => slugify(c.name) === slug);
     if (match) {
       cityId = match.id;
       cityName = match.state ? `${match.name}, ${match.state}` : match.name;
@@ -114,7 +115,7 @@ export default async function DistrictPage({ params }: PageProps) {
 
   try {
     const cities = await listPublicCitiesForSitemap();
-    const match = cities.find((c) => c.slug === slug);
+    const match = cities.find((c) => slugify(c.name) === slug);
     if (match) {
       const shortDisplay = match.state ? `${match.name}, ${match.state}` : match.name;
       const display =

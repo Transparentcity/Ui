@@ -3091,7 +3091,7 @@ export interface SavedDistrict {
   city_id: number;
   district: string;
   display_name: string;
-  slug: string;
+  city_name: string;
 }
 
 export function getSavedDistricts(token: string): Promise<SavedDistrict[]> {
@@ -4664,6 +4664,8 @@ export interface NewsletterPendingListItem {
   created_at: string | null;
   sent_at: string | null;
   send_error: string | null;
+  /** Public permalink for shared newsletter drafts when an edition exists. */
+  public_url?: string | null;
   /** LLM token usage from edition curation; null for feed-story-only renders. */
   llm_usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
 }
@@ -4752,22 +4754,24 @@ export function listNewsletterSends(
 }
 
 export interface NewsletterGenerationPreview {
-  /** Upper bound on LLM curation calls for the next weekly run. */
-  llm_edition_slots_planned: number;
-  /** Per-city breakdown: city_id, city_name, slots (1 city-wide + N district), districts list. */
-  llm_edition_slots_per_city: Array<{
+  total_weekly_recipients: number;
+  /** Subscribers who will get one personalized Seymour run each. */
+  personalized_recipients: number;
+  /** Subscribers who will receive a shared newsletter draft. */
+  shared_recipients: number;
+  /** Number of shared city/district groups that will each run Seymour once. */
+  shared_city_district_groups_planned: number;
+  personalized_llm_calls_planned: number;
+  shared_llm_calls_planned: number;
+  total_llm_calls_planned: number;
+  /** Per-city shared grouping breakdown for the next run. */
+  shared_groups_per_city: Array<{
     city_id: number;
     city_name: string;
-    slots: number;
+    shared_groups: number;
     districts: number[];
+    shared_recipients: number;
   }>;
-  total_weekly_recipients: number;
-  /** Recipients who will receive the shared LLM edition (no LLM per recipient). */
-  standard_recipients: number;
-  /** Recipients on the personalized feed-story path (no LLM in the weekly job). */
-  personalized_recipients: number;
-  /** Active weekly subscribers currently excluded because they have no saved places. */
-  weekly_subscribers_without_places: number;
 }
 
 export function getNewsletterGenerationPreview(
@@ -4781,12 +4785,20 @@ export function getNewsletterGenerationPreview(
   );
 }
 
+export function adminGenerateSharedNewsletter(
+  payload: { city_id: number; district?: number | null; frequency?: string },
+  token: string
+): Promise<{ job_id: string }> {
+  return request("/api/admin/newsletter-shared-generate", "POST", payload, token);
+}
+
 /** Stored shared (non-personalized) LLM newsletter editions — `newsletter_editions` table. */
 export interface NewsletterEditionAdminItem {
   id: number;
   city_id: number;
   district: number;
   edition_date: string | null;
+  short_hash: string | null;
   city_slug: string | null;
   city_name: string | null;
   summary_headline: string | null;
@@ -5481,7 +5493,6 @@ export function updateGovernmentVerification(
 // Record signup intent (source, claim context) for analytics and onboarding branching
 export interface SignupIntentPayload {
   source: string;
-  citySlug?: string | null;
   cityName?: string | null;
   roleInterest?: string | null;
   timestamp?: string | null;

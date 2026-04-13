@@ -22,7 +22,11 @@ import {
   getCityStats,
   refreshAllAcs,
 } from "@/lib/apiClient";
-import { portalMatchStatusLabel, portalPlatformLabel } from "@/lib/portalPlatformLabel";
+import {
+  portalMatchStatusLabel,
+  portalPlatformLabel,
+  portalTypeDisplayName,
+} from "@/lib/portalPlatformLabel";
 import { emitSavedCitiesChanged } from "@/lib/uiEvents";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import Loader from "./Loader";
@@ -66,6 +70,7 @@ const PLATFORM_COLORS: Record<string, string> = {
   ArcGIS: "#10b981",
   CKAN: "#8b5cf6",
   "Data.gov": "#f59e0b",
+  "DCAT (data.json)": "#ca8a04",
   "DCAT-AP": "#ec4899",
   Opendatasoft: "#06b6d4",
   Junar: "#f97316",
@@ -79,14 +84,7 @@ const FALLBACK_COLORS = [
 function classifyPlatform(city: CityListItem): string {
   const type = city.portal_type;
   if (type && type !== "unknown") {
-    if (type === "socrata") return "Socrata";
-    if (type === "arcgis" || type === "arcgis_hub_v3") return "ArcGIS";
-    if (type === "ckan") return "CKAN";
-    if (type === "data_json" || type === "data.gov") return "Data.gov";
-    if (type === "dcat_ap") return "DCAT-AP";
-    if (type === "opendatasoft") return "Opendatasoft";
-    if (type === "junar") return "Junar";
-    return type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " ");
+    return portalTypeDisplayName(type);
   }
   if (
     type === "unknown" ||

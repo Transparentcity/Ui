@@ -4,10 +4,10 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
+  adminGenerateSharedNewsletter,
   listCities,
   listNewsletterReports,
   generateSampleNewsletter,
-  createResearch,
   listNewsletterPending,
   listNewsletterSends,
   getNewsletterPendingDetail,
@@ -19,7 +19,6 @@ import {
   listNewsletterEditionsAdmin,
   type CityListItem,
   type NewsletterReport,
-  type CreateResearchRequest,
   type NewsletterPendingListItem,
   type NewsletterSendItem,
   type NewsletterGenerationPreview,
@@ -537,40 +536,26 @@ export default function NewsletterAdmin() {
     setError(null);
     try {
       const token = await getAccessTokenSilently();
-      const city = cities.find((c) => c.city_id === genCityId);
-      const cityName = city?.city_name || "Unknown";
-      const districtLabel = genDistrict === "0" ? "city-wide" : `District ${genDistrict}`;
-
-      // Check for saved prompt
-      const savedPrompt = getPromptFromStorage(genFrequency);
-      const defaultPrompt = genFrequency === "weekly" ? DEFAULT_WEEKLY_PROMPT : DEFAULT_MONTHLY_PROMPT;
-      const template = savedPrompt || defaultPrompt;
-      const prompt = resolvePrompt(template, cityName, districtLabel, genFrequency);
-
-      const payload: CreateResearchRequest = {
-        prompt,
-        city_id: genCityId,
-        district: genDistrict === "0" ? null : genDistrict,
-        one_shot: true,
-        model_key: "gpt-5.1",
-        enable_web_search: true,
-        is_newsletter: true,
-        newsletter_frequency: genFrequency,
-      };
-
-      const response = await createResearch(payload, token);
+      const response = await adminGenerateSharedNewsletter(
+        {
+          city_id: genCityId,
+          district: genDistrict === "0" ? null : Number(genDistrict),
+          frequency: genFrequency,
+        },
+        token
+      );
       if (response.job_id) {
         notifyJobCreated(response.job_id);
+        toast.success("Shared newsletter generation queued.");
       }
       setGenCityId(null);
-      // Refresh data
-      loadData();
+      await loadData();
     } catch (err: any) {
-      setError(err?.message || "Failed to generate newsletter");
+      setError(err?.message || "Failed to generate shared newsletter");
     } finally {
       setGenerating(false);
     }
-  }, [genCityId, genDistrict, genFrequency, cities, getAccessTokenSilently, loadData]);
+  }, [genCityId, genDistrict, genFrequency, getAccessTokenSilently, loadData]);
 
   const handleSavePrompt = () => {
     savePromptToStorage(promptFrequency, promptText);
@@ -734,7 +719,7 @@ export default function NewsletterAdmin() {
       {genCityId !== null && (
         <div className={styles.exportOverlay} onClick={() => !generating && setGenCityId(null)}>
           <div className={styles.exportPanel} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.exportTitle}>Generate Newsletter</div>
+            <div className={styles.exportTitle}>Generate Shared Newsletter</div>
             <div className={styles.exportField}>
               <label className={styles.exportLabel}>City</label>
               <div style={{ fontSize: 14, color: "var(--text-primary)" }}>
@@ -764,13 +749,18 @@ export default function NewsletterAdmin() {
                 <option value="weekly">Weekly</option>
                 <option value="monthly">Monthly</option>
               </select>
+              <div className={styles.muted} style={{ marginTop: 6, fontSize: 12 }}>
+                This runs the saved shared prompt once for the selected launched city /
+                district, then queues drafts for the no-place recipients currently routed
+                to that shared group.
+              </div>
             </div>
             <div className={styles.exportActions}>
               <button className={styles.secondaryBtn} onClick={() => setGenCityId(null)} disabled={generating}>
                 Cancel
               </button>
               <button className={styles.primaryBtn} onClick={handleGenerate} disabled={generating}>
-                {generating ? "Generating..." : "Generate"}
+                {generating ? "Generating..." : "Generate shared"}
               </button>
             </div>
           </div>
@@ -866,12 +856,16 @@ function NewsletterDashboardQueue() {
   const [actionBusy, setActionBusy] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewPublicUrl, setPreviewPublicUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
   // Archive preview state (shared between queue archive + direct-send archive)
   // Key format: "q-{id}" for queue archive rows, "d-{id}" for direct-send rows
   const [archiveExpandedKey, setArchiveExpandedKey] = useState<string | null>(null);
   const [archivePreviewHtml, setArchivePreviewHtml] = useState<string | null>(null);
+  const [archivePreviewPublicUrl, setArchivePreviewPublicUrl] = useState<string | null>(
+    null
+  );
   const [archivePreviewLoading, setArchivePreviewLoading] = useState(false);
 
   // Workload preview
@@ -1001,15 +995,18 @@ function NewsletterDashboardQueue() {
     if (expandedId === id) {
       setExpandedId(null);
       setPreviewHtml(null);
+      setPreviewPublicUrl(null);
       return;
     }
     setExpandedId(id);
     setPreviewLoading(true);
     setPreviewHtml(null);
+    setPreviewPublicUrl(null);
     try {
       const token = await getAccessTokenSilently();
       const d = await getNewsletterPendingDetail(id, token);
       setPreviewHtml(d.body_html);
+      setPreviewPublicUrl(d.public_url || null);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Preview failed");
     } finally {
@@ -1023,15 +1020,18 @@ function NewsletterDashboardQueue() {
     if (archiveExpandedKey === key) {
       setArchiveExpandedKey(null);
       setArchivePreviewHtml(null);
+      setArchivePreviewPublicUrl(null);
       return;
     }
     setArchiveExpandedKey(key);
     setArchivePreviewLoading(true);
     setArchivePreviewHtml(null);
+    setArchivePreviewPublicUrl(null);
     try {
       const token = await getAccessTokenSilently();
       const d = await getNewsletterPendingDetail(pendingId, token);
       setArchivePreviewHtml(d.body_html || "(empty)");
+      setArchivePreviewPublicUrl(d.public_url || null);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Preview failed");
     } finally {
@@ -1105,7 +1105,7 @@ function NewsletterDashboardQueue() {
           </span>
           {workload && !workloadLoading && (
             <span className={styles.tableCount} style={{ marginLeft: 8, fontWeight: 400, fontSize: 12 }}>
-              {workload.llm_edition_slots_planned} LLM call{workload.llm_edition_slots_planned !== 1 ? "s" : ""} planned
+              {workload.total_llm_calls_planned} LLM call{workload.total_llm_calls_planned !== 1 ? "s" : ""} planned
               &nbsp;·&nbsp;{workload.total_weekly_recipients} recipients
             </span>
           )}
@@ -1122,6 +1122,11 @@ function NewsletterDashboardQueue() {
               </div>
             ) : workload ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div className={styles.muted} style={{ fontSize: 12 }}>
+                  Only subscribers following launched cities are counted here. Saved places route
+                  to personalized Seymour; subscribers without saved places are grouped into one
+                  shared Seymour run per city / district.
+                </div>
                 {/* Cost summary */}
                 <div style={{
                   display: "grid",
@@ -1129,35 +1134,35 @@ function NewsletterDashboardQueue() {
                   gap: 8,
                 }}>
                   <WorkloadCard
-                    label="LLM curation calls"
-                    value={workload.llm_edition_slots_planned}
-                    sub="city-wide + district editions (upper bound)"
+                    label="Total Seymour runs"
+                    value={workload.total_llm_calls_planned}
+                    sub="shared groups + personalized subscribers"
                     accent
                   />
                   <WorkloadCard
-                    label="Recipients (standard)"
-                    value={workload.standard_recipients}
-                    sub="receive shared LLM edition, no per-recipient LLM"
+                    label="Shared groups"
+                    value={workload.shared_city_district_groups_planned}
+                    sub="one shared Seymour run per city / district group"
                   />
                   <WorkloadCard
                     label="Recipients (personalized)"
                     value={workload.personalized_recipients}
-                    sub="feed-story email — no LLM in weekly job"
+                    sub="saved places -> one Seymour run each"
                   />
                   <WorkloadCard
-                    label="Excluded (no saved places)"
-                    value={workload.weekly_subscribers_without_places}
-                    sub="have weekly subscription but no user_places"
+                    label="Recipients (shared)"
+                    value={workload.shared_recipients}
+                    sub="no saved places -> receive shared draft"
                   />
                 </div>
                 {/* Per-city breakdown */}
-                {workload.llm_edition_slots_per_city.length > 0 && (
+                {workload.shared_groups_per_city.length > 0 && (
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
-                      Editions per city
+                      Shared groups per launched city
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {workload.llm_edition_slots_per_city.map((c) => (
+                      {workload.shared_groups_per_city.map((c) => (
                         <span
                           key={c.city_id}
                           style={{
@@ -1167,9 +1172,9 @@ function NewsletterDashboardQueue() {
                             borderRadius: 4,
                             padding: "2px 8px",
                           }}
-                          title={`Districts: ${c.districts.length > 0 ? c.districts.join(", ") : "none"}`}
+                          title={`Districts: ${c.districts.length > 0 ? c.districts.join(", ") : "none"} · Shared recipients: ${c.shared_recipients}`}
                         >
-                          {c.city_name}: {c.slots} slot{c.slots !== 1 ? "s" : ""}
+                          {c.city_name}: {c.shared_groups} group{c.shared_groups !== 1 ? "s" : ""} · {c.shared_recipients} recipient{c.shared_recipients !== 1 ? "s" : ""}
                         </span>
                       ))}
                     </div>
@@ -1214,17 +1219,17 @@ function NewsletterDashboardQueue() {
                     <th className={styles.th}>Recipients</th>
                     <th className={styles.th}>Queued</th>
                     <th className={styles.th}>Sent</th>
-                    <th className={styles.th} title="LLM edition curation calls actually run">LLM calls</th>
-                    <th className={styles.th} title="Total tokens used in edition curation (prompt + completion)">Tokens</th>
+                    <th className={styles.th} title="Shared city / district groups generated in the run">Shared groups</th>
+                    <th className={styles.th} title="Personalized Seymour calls run in the job">Personalized</th>
+                    <th className={styles.th} title="Total Seymour calls run in the job">LLM calls</th>
                   </tr>
                 </thead>
                 <tbody>
                   {recentJobs.map((job) => {
                     const r = (job.result as Record<string, any>) || {};
-                    const llmCalls = r.edition_llm_calls ?? "—";
-                    const totalTokens = r.edition_total_tokens != null
-                      ? Number(r.edition_total_tokens).toLocaleString()
-                      : "—";
+                    const sharedGroups = r.shared_city_district_groups ?? "—";
+                    const personalizedCount = r.personalized_llm_calls ?? r.personalized_count ?? "—";
+                    const llmCalls = r.total_llm_calls ?? "—";
                     const statusColor =
                       job.status === "completed" ? "var(--green, #16a34a)"
                       : job.status === "failed" ? "var(--red, #dc2626)"
@@ -1249,10 +1254,13 @@ function NewsletterDashboardQueue() {
                           {r.newsletters_sent ?? "—"}
                         </td>
                         <td className={styles.td} style={{ fontSize: 12 }}>
-                          {llmCalls}
+                          {sharedGroups}
                         </td>
                         <td className={styles.td} style={{ fontSize: 12 }}>
-                          {totalTokens}
+                          {personalizedCount}
+                        </td>
+                        <td className={styles.td} style={{ fontSize: 12 }}>
+                          {llmCalls}
                         </td>
                       </tr>
                     );
@@ -1351,11 +1359,24 @@ function NewsletterDashboardQueue() {
                               <span>Loading body…</span>
                             </div>
                           ) : previewHtml ? (
-                            <div
-                              className={styles.previewPanel}
-                              style={{ maxHeight: 360, overflow: "auto" }}
-                              dangerouslySetInnerHTML={{ __html: previewHtml }}
-                            />
+                            <div className={styles.previewPanel}>
+                              {previewPublicUrl ? (
+                                <div style={{ marginBottom: 10, fontSize: 13 }}>
+                                  <a
+                                    href={previewPublicUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ color: "var(--brand-primary)" }}
+                                  >
+                                    Open formatted newsletter permalink
+                                  </a>
+                                </div>
+                              ) : null}
+                              <div
+                                style={{ maxHeight: 360, overflow: "auto" }}
+                                dangerouslySetInnerHTML={{ __html: previewHtml }}
+                              />
+                            </div>
                           ) : (
                             <div className={styles.previewPanel}>
                               <span className={styles.muted}>No body.</span>
@@ -1445,11 +1466,26 @@ function NewsletterDashboardQueue() {
                                       <span>Loading body…</span>
                                     </div>
                                   ) : (
-                                    <div
-                                      className={styles.previewPanel}
-                                      style={{ maxHeight: 360, overflow: "auto" }}
-                                      dangerouslySetInnerHTML={{ __html: archivePreviewHtml || "" }}
-                                    />
+                                    <div className={styles.previewPanel}>
+                                      {archivePreviewPublicUrl ? (
+                                        <div style={{ marginBottom: 10, fontSize: 13 }}>
+                                          <a
+                                            href={archivePreviewPublicUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{ color: "var(--brand-primary)" }}
+                                          >
+                                            Open formatted newsletter permalink
+                                          </a>
+                                        </div>
+                                      ) : null}
+                                      <div
+                                        style={{ maxHeight: 360, overflow: "auto" }}
+                                        dangerouslySetInnerHTML={{
+                                          __html: archivePreviewHtml || "",
+                                        }}
+                                      />
+                                    </div>
                                   )}
                                 </td>
                               </tr>
@@ -1536,11 +1572,26 @@ function NewsletterDashboardQueue() {
                                   <span>Loading body…</span>
                                 </div>
                               ) : (
-                                <div
-                                  className={styles.previewPanel}
-                                  style={{ maxHeight: 360, overflow: "auto" }}
-                                  dangerouslySetInnerHTML={{ __html: archivePreviewHtml || "" }}
-                                />
+                                    <div className={styles.previewPanel}>
+                                      {archivePreviewPublicUrl ? (
+                                        <div style={{ marginBottom: 10, fontSize: 13 }}>
+                                          <a
+                                            href={archivePreviewPublicUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{ color: "var(--brand-primary)" }}
+                                          >
+                                            Open formatted newsletter permalink
+                                          </a>
+                                        </div>
+                                      ) : null}
+                                      <div
+                                        style={{ maxHeight: 360, overflow: "auto" }}
+                                        dangerouslySetInnerHTML={{
+                                          __html: archivePreviewHtml || "",
+                                        }}
+                                      />
+                                    </div>
                               )}
                             </td>
                           </tr>
@@ -1644,6 +1695,7 @@ function DashboardTab({
                   <CityRow
                     key={cs.city.city_id}
                     cs={cs}
+                    editions={editionsByCityId[cs.city.city_id] ?? []}
                     fb={fb}
                     isExpanded={isExpanded}
                     onToggle={() => onToggleExpand(cs.city.city_id)}
@@ -1656,15 +1708,19 @@ function DashboardTab({
         </div>
       </div>
 
-      {/* Non-personalized (shared LLM) editions — same order as Launched Cities */}
+      {/* Stored shared newsletter permalinks */}
       <div className={styles.tableContainer} style={{ marginTop: 16 }}>
         <div className={styles.tableHeader}>
           <div>
-            <span className={styles.tableTitle}>Non-personalized email editions </span>
-            <span className={styles.tableCount}>(shared LLM city / district)</span>
+            <span className={styles.tableTitle}>Stored shared newsletter permalinks </span>
+            <span className={styles.tableCount}>(city / district archive)</span>
           </div>
         </div>
         <div style={{ padding: "12px 16px 16px" }}>
+          <div className={styles.muted} style={{ fontSize: 12, marginBottom: 10 }}>
+            Shared newsletters generated from the dashboard are saved here and can be
+            opened on their formatted public permalink.
+          </div>
           {cityStatuses.length === 0 ? (
             <span className={styles.muted}>No launched cities.</span>
           ) : (
@@ -1702,10 +1758,8 @@ function DashboardTab({
                           const scope =
                             ed.district > 0 ? `District ${ed.district}` : "City-wide";
                           const href =
-                            ed.city_slug && ed.edition_date
-                              ? `/c/${ed.city_slug}/newsletter/${ed.edition_date}${
-                                  ed.district > 0 ? `?district=${ed.district}` : ""
-                                }`
+                            ed.city_slug && ed.short_hash
+                              ? `/c/${ed.city_slug}/newsletter/${ed.short_hash}`
                               : null;
                           return (
                             <li key={ed.id}>
@@ -1753,12 +1807,14 @@ function DashboardTab({
 
 function CityRow({
   cs,
+  editions,
   fb,
   isExpanded,
   onToggle,
   onGenerate,
 }: {
   cs: CityNewsletterStatus;
+  editions: NewsletterEditionAdminItem[];
   fb: { cls: string; label: string };
   isExpanded: boolean;
   onToggle: () => void;
@@ -1794,54 +1850,103 @@ function CityRow({
             className={styles.secondaryBtn}
             onClick={(e) => { e.stopPropagation(); onGenerate(); }}
             style={{ fontSize: 12, padding: "4px 10px" }}
+            title="Generate one shared Seymour newsletter for this launched city/district and queue drafts for all current no-place recipients in that shared group."
           >
-            Generate
+            Generate shared
           </button>
         </td>
       </tr>
-      {isExpanded && cs.reports.length > 0 && (
+      {isExpanded && (cs.reports.length > 0 || editions.length > 0) && (
         <tr className={styles.expandedRow}>
           <td colSpan={8} className={styles.td} style={{ padding: 0 }}>
             <div className={styles.expandedContent}>
-              <table className={styles.subTable}>
-                <thead>
-                  <tr>
-                    <th>District</th>
-                    <th>Title</th>
-                    <th>Frequency</th>
-                    <th>Date</th>
-                    <th>Words</th>
-                    <th>Link</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.from(byDistrict.entries())
-                    .sort(([a], [b]) => Number(a) - Number(b))
-                    .flatMap(([district, reports]) =>
-                      reports.map((r) => (
-                        <tr key={r.id}>
-                          <td>{district === "0" || !district ? "City-wide" : `District ${district}`}</td>
-                          <td style={{ maxWidth: 250, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {r.title || "\u2014"}
-                          </td>
-                          <td>{r.frequency || "\u2014"}</td>
-                          <td>{formatDate(r.created_at)}</td>
-                          <td>{countWords(r.final_report_html).toLocaleString()}</td>
-                          <td>
-                            <a href={r.public_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand-primary)" }}>
-                              View
-                            </a>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                </tbody>
-              </table>
+              {cs.reports.length > 0 && (
+                <table className={styles.subTable}>
+                  <thead>
+                    <tr>
+                      <th>District</th>
+                      <th>Title</th>
+                      <th>Frequency</th>
+                      <th>Date</th>
+                      <th>Words</th>
+                      <th>Link</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from(byDistrict.entries())
+                      .sort(([a], [b]) => Number(a) - Number(b))
+                      .flatMap(([district, reports]) =>
+                        reports.map((r) => (
+                          <tr key={r.id}>
+                            <td>{district === "0" || !district ? "City-wide" : `District ${district}`}</td>
+                            <td style={{ maxWidth: 250, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {r.title || "\u2014"}
+                            </td>
+                            <td>{r.frequency || "\u2014"}</td>
+                            <td>{formatDate(r.created_at)}</td>
+                            <td>{countWords(r.final_report_html).toLocaleString()}</td>
+                            <td>
+                              <a href={r.public_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand-primary)" }}>
+                                View
+                              </a>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                  </tbody>
+                </table>
+              )}
+              {editions.length > 0 && (
+                <div style={{ marginTop: cs.reports.length > 0 ? 14 : 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
+                    Shared edition permalinks
+                  </div>
+                  <table className={styles.subTable}>
+                    <thead>
+                      <tr>
+                        <th>District</th>
+                        <th>Generated</th>
+                        <th>Edition Date</th>
+                        <th>Headline</th>
+                        <th>Link</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {editions.map((ed) => {
+                        const scope = ed.district > 0 ? `District ${ed.district}` : "City-wide";
+                        const href =
+                          ed.city_slug && ed.short_hash
+                            ? `/c/${ed.city_slug}/newsletter/${ed.short_hash}`
+                            : null;
+                        return (
+                          <tr key={`edition-${ed.id}`}>
+                            <td>{scope}</td>
+                            <td>{formatDate(ed.created_at)}</td>
+                            <td>{formatDate(ed.edition_date)}</td>
+                            <td style={{ maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {ed.summary_headline || "\u2014"}
+                            </td>
+                            <td>
+                              {href ? (
+                                <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand-primary)" }}>
+                                  View
+                                </a>
+                              ) : (
+                                "\u2014"
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </td>
         </tr>
       )}
-      {isExpanded && cs.reports.length === 0 && (
+      {isExpanded && cs.reports.length === 0 && editions.length === 0 && (
         <tr className={styles.expandedRow}>
           <td colSpan={8} className={styles.td}>
             <div className={styles.expandedContent}>

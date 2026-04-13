@@ -169,7 +169,6 @@ export type PublicCitySitemapItem = {
   country?: string | null;
   emoji?: string | null;
   datasets_count: number;
-  slug: string;
   is_launched?: boolean;
 };
 
@@ -190,7 +189,6 @@ export type PublicCityMetricItem = {
 export type PublicCityDetail = {
   id: number;
   name: string;
-  slug?: string | null;
   state?: string | null;
   country?: string | null;
   emoji?: string | null;
@@ -413,7 +411,8 @@ export type PublicMetricSitemapItem = {
   metric_key: string;
   metric_name: string;
   category: string;
-  city_slug: string;
+  city_id: number;
+  city_name: string;
 };
 
 export function listPublicMetricsForSitemap(): Promise<PublicMetricSitemapItem[]> {
@@ -422,7 +421,7 @@ export function listPublicMetricsForSitemap(): Promise<PublicMetricSitemapItem[]
 
 // City-district pairs for sitemap (district supervisor pages)
 export type PublicCityDistrictSitemapItem = {
-  city_slug: string;
+  city_name: string;
   district: number;
 };
 

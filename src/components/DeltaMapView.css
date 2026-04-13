@@ -9,6 +9,14 @@
   background: var(--bg-secondary, #f8f9fa);
 }
 
+.delta-map-wrapper--dark .delta-map-container {
+  background: #0d0d0f;
+}
+
+.delta-map-wrapper--dark .legend-color {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
 .delta-map-container.loading,
 .delta-map-container.error {
   display: flex;

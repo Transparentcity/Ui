@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useTheme } from "@/contexts/ThemeContext";
 import { getMetricMapPreview, type MapPreviewResponse } from "@/lib/publicApiClient";
 import "./AnomalyMap.css";
+
+export type AnomalyMapBasemapTheme = "light" | "dark";
 
 function isFiniteNumber(value: number | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value);
@@ -30,6 +33,11 @@ interface AnomalyMapProps {
   onLoad?: (data: { location_data_count: number; period_start: string; period_end: string }) => void;
   /** Hide the built-in header (use external header) */
   hideHeader?: boolean;
+  /**
+   * Mapbox basemap. When omitted, follows app theme from ThemeContext.
+   * Pass from pages that use `?theme=dark` / effectiveTheme (e.g. anomaly chart `/a/[id]`).
+   */
+  basemapTheme?: AnomalyMapBasemapTheme;
 }
 
 /**
@@ -47,7 +55,12 @@ export default function AnomalyMap({
   height = 300,
   onLoad,
   hideHeader = false,
+  basemapTheme: basemapThemeProp,
 }: AnomalyMapProps) {
+  const { theme } = useTheme();
+  const mapBasemapTheme: AnomalyMapBasemapTheme =
+    basemapThemeProp ?? (theme === "dark" ? "dark" : "light");
+
   const [mapData, setMapData] = useState<MapPreviewResponse | null>(null);
   const [actualItemCount, setActualItemCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
@@ -241,9 +254,14 @@ export default function AnomalyMap({
       initialCenter = [-98.5795, 39.8283]; // Continental US center (neutral fallback)
     }
 
+    const mapStyle =
+      mapBasemapTheme === "dark"
+        ? "mapbox://styles/mapbox/dark-v11"
+        : "mapbox://styles/mapbox/light-v11";
+
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
-      style: "mapbox://styles/mapbox/light-v11",
+      style: mapStyle,
       center: initialCenter,
       zoom: center?.zoom || 11,
       attributionControl: false,
@@ -268,7 +286,7 @@ export default function AnomalyMap({
           source: "custom-dimension-circles",
           paint: {
             "fill-color": "#ad35fa",
-            "fill-opacity": 0.08,
+            "fill-opacity": mapBasemapTheme === "dark" ? 0.14 : 0.08,
           },
         });
 
@@ -280,7 +298,7 @@ export default function AnomalyMap({
           paint: {
             "line-color": "#ad35fa",
             "line-width": 2,
-            "line-opacity": 0.7,
+            "line-opacity": mapBasemapTheme === "dark" ? 0.85 : 0.7,
           },
         });
       }
@@ -313,8 +331,9 @@ export default function AnomalyMap({
           "circle-color": "#ad35fa", // Brand primary color
           "circle-opacity": 0.7,
           "circle-stroke-width": 1,
-          "circle-stroke-color": "#ffffff",
-          "circle-stroke-opacity": 0.9,
+          "circle-stroke-color":
+            mapBasemapTheme === "dark" ? "#f8fafc" : "#ffffff",
+          "circle-stroke-opacity": mapBasemapTheme === "dark" ? 0.95 : 0.9,
         },
       });
 
@@ -337,7 +356,7 @@ export default function AnomalyMap({
         mapInstanceRef.current = null;
       }
     };
-  }, [mapboxLoaded, mapData]);
+  }, [mapboxLoaded, mapData, mapBasemapTheme]);
 
   // Don't render if map is unavailable (no map_query)
   if (error === "unavailable") {
@@ -390,7 +409,11 @@ export default function AnomalyMap({
   const dateRangeText = `${formatDate(startDate)} - ${formatDate(endDate)}`;
 
   return (
-    <div className={`anomaly-map-wrapper ${hideHeader ? "no-header" : ""}`}>
+    <div
+      className={`anomaly-map-wrapper ${hideHeader ? "no-header" : ""}${
+        mapBasemapTheme === "dark" ? " anomaly-map-wrapper--dark" : ""
+      }`}
+    >
       {!hideHeader && (
         <div className="anomaly-map-header">
           <span className="anomaly-map-title">Location Map</span>

@@ -9,6 +9,7 @@ import {
   type PublicMetricComparisons,
   type PublicTimeSeriesSummary,
 } from "@/lib/publicApiClient";
+import { slugify } from "@/lib/utils";
 import MetricDetailClient from "./MetricDetailClient";
 import MetricLoadErrorClient from "./MetricLoadErrorClient";
 import { MetricStructuredData } from "@/components/StructuredData";
@@ -46,7 +47,7 @@ export async function generateMetadata({
     let cityName: string = metric.city_name ?? titleCaseSlug(slug);
     try {
       const cities = await listPublicCitiesForSitemap();
-      const match = cities.find((c) => c.slug === slug);
+      const match = cities.find((c) => slugify(c.name) === slug);
       if (match) {
         cityName =
           match.state && match.country && match.country !== "United States"

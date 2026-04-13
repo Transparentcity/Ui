@@ -13,6 +13,7 @@ import {
   getPublicCityDistricts,
   listPublicMapsForCity,
 } from "@/lib/publicApiClient";
+import { slugify } from "@/lib/utils";
 import EmailSignInLink from "../../EmailSignInLink";
 import CityViewTracker from "../../CityViewTracker";
 import CustomizeMetricsTrigger from "../../CustomizeMetricsTrigger";
@@ -59,7 +60,7 @@ export async function generateMetadata({
     const match =
       typeof id === "number" && Number.isFinite(id)
         ? cities.find((c) => c.id === id)
-        : cities.find((c) => c.slug === slug);
+        : cities.find((c) => slugify(c.name) === slug);
     if (match) {
       name = match.name;
       state = match.state;
@@ -115,7 +116,7 @@ export default async function CityCategoryPage({
     const match =
       typeof id === "number" && Number.isFinite(id)
         ? cities.find((c) => c.id === id)
-        : cities.find((c) => c.slug === slug);
+        : cities.find((c) => slugify(c.name) === slug);
     if (match) {
       const display =
         match.state && match.country && match.country !== "United States"

@@ -5,6 +5,7 @@ export type NewsletterEditionData = {
   city_id: number;
   district: number;
   edition_date: string;
+  short_hash: string;
   city_name: string | null;
   city_slug: string | null;
   subject: string;
@@ -18,17 +19,16 @@ export type NewsletterEditionData = {
 
 export type NewsletterEditionSitemapItem = {
   city_slug: string;
+  short_hash: string;
   edition_date: string;
   district: number;
 };
 
 export async function getNewsletterEdition(
   slug: string,
-  date: string,
-  district?: number
+  shortHash: string
 ): Promise<NewsletterEditionData> {
-  const params = district !== undefined ? `?district=${district}` : "";
-  const url = `${API_BASE}/api/newsletter/editions/${encodeURIComponent(slug)}/${encodeURIComponent(date)}${params}`;
+  const url = `${API_BASE}/api/newsletter/editions/by-hash/${encodeURIComponent(shortHash)}`;
 
   const res = await fetch(url, {
     method: "GET",
@@ -41,7 +41,11 @@ export async function getNewsletterEdition(
     throw new Error(`Newsletter edition not found: ${res.status}`);
   }
 
-  return res.json() as Promise<NewsletterEditionData>;
+  const edition = (await res.json()) as NewsletterEditionData;
+  if (edition.city_slug && edition.city_slug !== slug) {
+    throw new Error(`Newsletter edition slug mismatch: expected ${slug}, got ${edition.city_slug}`);
+  }
+  return edition;
 }
 
 export async function listNewsletterEditionsForSitemap(): Promise<NewsletterEditionSitemapItem[]> {

@@ -7,7 +7,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
+<<<<<<< HEAD
 import type { PublicCitySitemapItem } from "@/lib/publicApiClient";
+import { slugify } from "@/lib/utils";
 import Loader from "@/components/Loader";
 import Header from "@/components/Header";
 import HomeFeedPreview from "@/components/feed/HomeFeedPreview";
@@ -91,7 +93,7 @@ export default function HomeClient({ stories, metricCards, launchedCities = [] }
                     {launchedCities.map((c) => (
                       <Link
                         key={c.id}
-                        href={`/c/${c.slug}`}
+                        href={`/c/${slugify(c.name)}`}
                         className={styles.heroCityLink}
                       >
                         {c.emoji ? `${c.emoji} ` : ""}{c.name}

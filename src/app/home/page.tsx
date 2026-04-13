@@ -660,7 +660,6 @@ export default function DashboardPage() {
                     body: JSON.stringify({
                       email: user.email,
                       cityId: city?.id,
-                      citySlug: city?.slug,
                       cityName: city?.name || null,
                     }),
                   }).catch(() => {});

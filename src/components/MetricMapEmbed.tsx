@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTheme } from "@/contexts/ThemeContext";
 import { formatDateRangeFromStrings } from "@/lib/formatters";
 import { getMetricMapPreview, saveMetricMap, type MapPreviewResponse } from "@/lib/publicApiClient";
 import type { SavedMap } from "@/lib/apiClient";
@@ -58,6 +59,8 @@ export default function MetricMapEmbed({
   dateRange,
   comparisonDateRange,
 }: MetricMapEmbedProps) {
+  const { theme } = useTheme();
+  const mapBasemapTheme = theme === "dark" ? "dark" : "light";
   const [mapData, setMapData] = useState<SavedMap | null>(null);
   const [comparisonLocationData, setComparisonLocationData] = useState<Array<Record<string, any>> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -309,6 +312,7 @@ export default function MetricMapEmbed({
           height={height}
           onError={setError}
           comparisonLocationData={comparisonLocationData || undefined}
+          mapBasemapTheme={mapBasemapTheme}
         />
       ) : (
         <div className="map-container-wrapper">

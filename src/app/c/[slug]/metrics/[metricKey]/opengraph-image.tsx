@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { getPublicMetricByKey, listPublicCitiesForSitemap } from "@/lib/publicApiClient";
+import { slugify } from "@/lib/utils";
 
 export const runtime = "edge";
 
@@ -24,7 +25,7 @@ export default async function MetricOgImage({ params }: Props) {
     ]);
     metricName = metric.metric_name;
     category = metric.category;
-    const match = cities.find((c) => c.slug === slug);
+    const match = cities.find((c) => slugify(c.name) === slug);
     if (match) {
       cityName = match.state
         ? `${match.name}, ${match.state}`

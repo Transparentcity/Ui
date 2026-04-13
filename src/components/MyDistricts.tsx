@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useSavedDistricts } from "@/lib/hooks/useCities";
+import { slugify } from "@/lib/utils";
 import Loader from "./Loader";
 import styles from "./SidebarLists.module.css";
 
@@ -53,7 +54,7 @@ export default function MyDistricts({
             </div>
           ) : (
             districts.map((d) => {
-              const href = `/c/${d.slug}/district/${d.district}`;
+              const href = `/c/${slugify(d.city_name)}/district/${d.district}`;
               const isActive =
                 activeCityId === d.city_id && String(activeDistrict) === d.district;
               return (

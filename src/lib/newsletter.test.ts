@@ -14,48 +14,58 @@ describe("getNewsletterEdition", () => {
     vi.clearAllMocks();
   });
 
-  it("fetches with encoded slug and date", async () => {
-    const edition = { id: 1, subject: "Weekly", body_html: "<p>hi</p>" };
+  it("fetches with encoded short hash", async () => {
+    const edition = {
+      id: 1,
+      subject: "Weekly",
+      body_html: "<p>hi</p>",
+      short_hash: "abc12345",
+      city_slug: "san-francisco",
+    };
     mockFetch.mockResolvedValue({
       ok: true,
       json: () => Promise.resolve(edition),
     });
 
-    const result = await getNewsletterEdition("san-francisco", "2024-01-15");
+    const result = await getNewsletterEdition("san-francisco", "abc12345");
     expect(result).toEqual(edition);
 
     const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toContain("/api/newsletter/editions/san-francisco/2024-01-15");
-    expect(url).not.toContain("?district=");
+    expect(url).toContain("/api/newsletter/editions/by-hash/abc12345");
   });
 
-  it("includes district param when provided", async () => {
+  it("throws when the edition belongs to a different city slug", async () => {
     mockFetch.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ id: 2 }),
+      json: () =>
+        Promise.resolve({
+          id: 2,
+          short_hash: "abc12345",
+          city_slug: "other-city",
+        }),
     });
 
-    await getNewsletterEdition("sf", "2024-01-15", 5);
-
-    const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toContain("?district=5");
+    await expect(getNewsletterEdition("sf", "abc12345")).rejects.toThrow(
+      "Newsletter edition slug mismatch"
+    );
   });
 
   it("throws on non-ok response", async () => {
     mockFetch.mockResolvedValue({ ok: false, status: 404 });
 
     await expect(
-      getNewsletterEdition("sf", "2024-01-15")
+      getNewsletterEdition("sf", "abc12345")
     ).rejects.toThrow("Newsletter edition not found: 404");
   });
 
   it("uses omit credentials and revalidate cache", async () => {
     mockFetch.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ id: 1 }),
+      json: () =>
+        Promise.resolve({ id: 1, short_hash: "abc12345", city_slug: "sf" }),
     });
 
-    await getNewsletterEdition("sf", "2024-01-15");
+    await getNewsletterEdition("sf", "abc12345");
 
     const options = mockFetch.mock.calls[0][1];
     expect(options.credentials).toBe("omit");
@@ -70,7 +80,12 @@ describe("listNewsletterEditionsForSitemap", () => {
 
   it("returns editions on success", async () => {
     const items = [
-      { city_slug: "sf", edition_date: "2024-01-15", district: 0 },
+      {
+        city_slug: "sf",
+        short_hash: "abc12345",
+        edition_date: "2024-01-15",
+        district: 0,
+      },
     ];
     mockFetch.mockResolvedValue({
       ok: true,

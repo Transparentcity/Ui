@@ -19,6 +19,45 @@ export const CHOROPLETH_BRAND_LOW_RGB: [number, number, number] = [246, 237, 255
 /** Saturated end of the default ramp (#ad35fa). */
 export const CHOROPLETH_BRAND_HIGH_RGB: [number, number, number] = [173, 53, 250];
 
+/** Basemap style the choropleth colors are tuned for (matches Mapbox light-v11 / dark-v11). */
+export type ChoroplethBasemapTheme = "light" | "dark";
+
+export const CHOROPLETH_NO_DATA_LIGHT = "#e5e7eb";
+/** No-data fill on dark basemap (subtle vs black land). */
+export const CHOROPLETH_NO_DATA_DARK = "#475569";
+
+/**
+ * Dark basemap: same purple high as light mode; low is a cool light grey (not pure white)
+ * so the ramp reads grey → purple on mapbox dark-v11.
+ */
+export const CHOROPLETH_DARK_LOW_RGB: [number, number, number] = [232, 232, 236];
+
+export interface ChoroplethBrandRamp {
+  low: [number, number, number];
+  high: [number, number, number];
+  noDataFill: string;
+}
+
+/**
+ * Brand choropleth interpolation endpoints and no-data fill for the active Mapbox basemap.
+ */
+export function getChoroplethBrandRamp(
+  basemapTheme: ChoroplethBasemapTheme
+): ChoroplethBrandRamp {
+  if (basemapTheme === "dark") {
+    return {
+      low: CHOROPLETH_DARK_LOW_RGB,
+      high: CHOROPLETH_BRAND_HIGH_RGB,
+      noDataFill: CHOROPLETH_NO_DATA_DARK,
+    };
+  }
+  return {
+    low: CHOROPLETH_BRAND_LOW_RGB,
+    high: CHOROPLETH_BRAND_HIGH_RGB,
+    noDataFill: CHOROPLETH_NO_DATA_LIGHT,
+  };
+}
+
 /** Approximate US state centroids [lng, lat] for fast initial map center (city-level view). */
 const US_STATE_CENTROIDS: Record<string, [number, number]> = {
   AL: [-86.9023, 32.3182],
@@ -208,6 +247,23 @@ export function normalizeChoroplethDistrictKey(raw: unknown): string {
   if (!s) return "";
   if (/^\d+$/.test(s)) return String(Number(s));
   return s.toLowerCase();
+}
+
+/**
+ * Interpret a 2D position as WGS84 for Mapbox. GeoJSON uses [lng, lat]; some sources
+ * store [lat, lng] or projected coordinates (invalid as lng/lat).
+ * Prefer native order when valid; otherwise try swapped; otherwise return null.
+ */
+export function normalizeGeoJsonLngLatPair(
+  a: number,
+  b: number
+): [number, number] | null {
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  const ok = (lng: number, lat: number) =>
+    Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  if (ok(a, b)) return [a, b];
+  if (ok(b, a)) return [b, a];
+  return null;
 }
 
 export function buildStaticMapUrl(

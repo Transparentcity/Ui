@@ -527,7 +527,6 @@ export function updateGovernmentVerification(
 // Record signup intent (source, claim context) for analytics and onboarding branching
 export interface SignupIntentPayload {
   source: string;
-  citySlug?: string | null;
   cityName?: string | null;
   roleInterest?: string | null;
   timestamp?: string | null;

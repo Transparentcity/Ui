@@ -1,4 +1,25 @@
 /**
+ * Display name for a stored `extra_metadata.portal_type` value.
+ * Keep in sync with platform pie buckets in CityDataTable.
+ *
+ * - `data_json` = Project Open Data / DCAT catalog at `/data.json` (often on a Socrata host;
+ *   use Determine portal type + Socrata probe for native "Socrata").
+ * - `data.gov` = federal catalog / URL inference for data.gov hosts — not the same as municipal data.json.
+ */
+export function portalTypeDisplayName(portalType: string): string {
+  const p = portalType;
+  if (p === "socrata") return "Socrata";
+  if (p === "arcgis" || p === "arcgis_hub_v3") return "ArcGIS";
+  if (p === "ckan") return "CKAN";
+  if (p === "data.gov") return "Data.gov";
+  if (p === "data_json") return "DCAT (data.json)";
+  if (p === "dcat_ap") return "DCAT-AP";
+  if (p === "opendatasoft") return "Opendatasoft";
+  if (p === "junar") return "Junar";
+  return p.charAt(0).toUpperCase() + p.slice(1).replace(/_/g, " ");
+}
+
+/**
  * Human-readable label for open-data portal platform (matches city list admin column).
  * Uses stored `portal_type` when present; otherwise infers from main portal URL when possible.
  */
@@ -7,14 +28,8 @@ export function portalPlatformLabel(
   mainPortalUrl?: string | null
 ): string {
   if (portalType) {
-    const p = portalType;
-    if (p === "unknown") return "Unknown";
-    if (p === "socrata") return "Socrata";
-    if (p === "arcgis") return "ArcGIS";
-    if (p === "ckan") return "CKAN";
-    if (p === "data.gov") return "Data.gov";
-    if (p === "dcat_ap") return "DCAT-AP";
-    return p.charAt(0).toUpperCase() + p.slice(1).replace(/_/g, " ");
+    if (portalType === "unknown") return "Unknown";
+    return portalTypeDisplayName(portalType);
   }
   const url = (mainPortalUrl || "").toLowerCase();
   if (url.includes("socrata")) return "Socrata";

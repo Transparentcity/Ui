@@ -8,6 +8,7 @@ import PublicFooter from "@/components/PublicFooter";
 import Header from "@/components/Header";
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
 import { API_BASE } from "@/lib/apiBase";
+import { slugify } from "@/lib/utils";
 
 export const revalidate = 3600;
 
@@ -64,7 +65,7 @@ function groupCitiesByCountryAndState(
     list.push({
       id: city.id,
       name: city.name,
-      slug: city.slug,
+      slug: slugify(city.name),
       emoji: city.emoji || "🏙️",
       state: city.state,
       country: city.country,

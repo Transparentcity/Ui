@@ -1136,7 +1136,7 @@ export interface SavedDistrict {
   city_id: number;
   district: string;
   display_name: string;
-  slug: string;
+  city_name: string;
 }
 
 export function getSavedDistricts(token: string): Promise<SavedDistrict[]> {

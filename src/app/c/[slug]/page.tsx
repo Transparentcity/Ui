@@ -29,6 +29,7 @@ import FeaturedStoriesAsync from "./FeaturedStoriesAsync";
 import CityHeroNewsletter from "./CityHeroNewsletter";
 import LoggedOutOnly from "./LoggedOutOnly";
 import MobileCitySignupBar from "./MobileCitySignupBar";
+import { slugify } from "@/lib/utils";
 
 export const revalidate = 3600;
 
@@ -37,7 +38,7 @@ export async function generateStaticParams() {
   const cities = await listPublicCitiesForSitemap();
   return cities
     .filter((c) => c.is_launched)
-    .map((c) => ({ slug: c.slug }));
+    .map((c) => ({ slug: slugify(c.name) }));
 }
 
 type PageProps = {
@@ -65,7 +66,7 @@ export async function generateMetadata({
     const match =
       typeof id === "number" && Number.isFinite(id)
         ? cities.find((c) => c.id === id)
-        : cities.find((c) => c.slug === slug);
+        : cities.find((c) => slugify(c.name) === slug);
     if (match) {
       cityId = match.id;
       name = match.name;
@@ -148,7 +149,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
     const match =
       typeof id === "number" && Number.isFinite(id)
         ? cities.find((c) => c.id === id)
-        : cities.find((c) => c.slug === slug);
+        : cities.find((c) => slugify(c.name) === slug);
     if (match) {
       const display =
         match.state && match.country && match.country !== "United States"

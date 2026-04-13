@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/apiBase";
 import { sendEmail, isSendGridConfigured } from "@/lib/email-sender";
 import { getSiteOrigin } from "@/lib/siteUrl";
+import { slugify } from "@/lib/utils";
 
 interface StoryFromApi {
   id: number;
@@ -121,8 +122,9 @@ function buildEmailHtml(
 
   const subtext = "Your first weekly briefing is on its way.";
 
-  const ctaUrl = citySlug
-    ? `${siteOrigin}/c/${encodeURIComponent(citySlug)}`
+  const pathSegment = citySlug || (cityName ? slugify(cityName) : "");
+  const ctaUrl = pathSegment
+    ? `${siteOrigin}/c/${encodeURIComponent(pathSegment)}`
     : siteOrigin;
 
   const ctaLabel = safeCityName

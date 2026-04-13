@@ -40,6 +40,15 @@
   min-height: 200px;
 }
 
+.anomaly-map-wrapper--dark {
+  background: var(--bg-secondary, #0d0d0f);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.anomaly-map-wrapper--dark .anomaly-map-container {
+  background: #0d0d0f;
+}
+
 /* Loading state */
 .anomaly-map-loading {
   display: flex;

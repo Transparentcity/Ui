@@ -30,6 +30,7 @@ import {
   type GroupedMetric,
 } from "@/lib/metricTemplateConfig";
 import type { AnomalyResult } from "@/lib/hooks/useAnomalies";
+import { CHOROPLETH_DARK_LOW_RGB } from "@/lib/mapUtils";
 
 // Brand purple color for anomaly mode
 const ANOMALY_MODE_COLOR = "#AD35FA";
@@ -2002,28 +2003,30 @@ export default function CityMetricsMap({
                 ? (districtCounts.get(normalizedDistrictId) || districtCounts.get(String(districtId)) || 0)
                 : 0;
               
-              // Calculate color using the metric's assigned color (from layerColor) to white gradient
-              // Use a darker default for no data so it's visible
-              let calculatedColor = '#e0e0e0'; // Slightly darker default for no data
+              const isDarkBasemap = theme === "dark";
+              let calculatedColor = isDarkBasemap ? "#475569" : "#e0e0e0";
               if (count > 0 && maxValue > 0) {
-                // Ensure ratio is between 0 and 1
                 const ratio = Math.max(0, Math.min(1, (count - minValue) / (maxValue - minValue || 1)));
-                // Use the metric's assigned color instead of hardcoded purple
                 const metricColor = hexToRgb(layerColor);
-                const white = [255, 255, 255];
-                // Create a lighter version of the metric color (90% towards white)
+                // Light: near-white anchor; dark: same cool grey as brand choropleth low (not pure white).
+                const blendAnchor: [number, number, number] = isDarkBasemap
+                  ? CHOROPLETH_DARK_LOW_RGB
+                  : [255, 255, 255];
                 const lightMetricColor = [
-                  Math.round(metricColor[0] + (white[0] - metricColor[0]) * 0.85),
-                  Math.round(metricColor[1] + (white[1] - metricColor[1]) * 0.85),
-                  Math.round(metricColor[2] + (white[2] - metricColor[2]) * 0.85)
+                  Math.round(metricColor[0] + (blendAnchor[0] - metricColor[0]) * 0.85),
+                  Math.round(metricColor[1] + (blendAnchor[1] - metricColor[1]) * 0.85),
+                  Math.round(metricColor[2] + (blendAnchor[2] - metricColor[2]) * 0.85),
                 ];
-                
-                // Interpolate between light color (min) and full metric color (max)
-                const r = Math.round(lightMetricColor[0] + (metricColor[0] - lightMetricColor[0]) * ratio);
-                const g = Math.round(lightMetricColor[1] + (metricColor[1] - lightMetricColor[1]) * ratio);
-                const b = Math.round(lightMetricColor[2] + (metricColor[2] - lightMetricColor[2]) * ratio);
-                
-                calculatedColor = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+                const r = Math.round(
+                  lightMetricColor[0] + (metricColor[0] - lightMetricColor[0]) * ratio
+                );
+                const g = Math.round(
+                  lightMetricColor[1] + (metricColor[1] - lightMetricColor[1]) * ratio
+                );
+                const b = Math.round(
+                  lightMetricColor[2] + (metricColor[2] - lightMetricColor[2]) * ratio
+                );
+                calculatedColor = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
               }
 
               return {
@@ -2091,10 +2094,10 @@ export default function CityMetricsMap({
                 visibility: isVisible ? 'visible' : 'none',
               },
               paint: {
-                'line-color': '#666666',
+                'line-color': theme === "dark" ? "#e2e8f0" : "#666666",
                 'line-width': 0.5,
-                'line-opacity': 0.8
-              }
+                'line-opacity': theme === "dark" ? 0.65 : 0.8,
+              },
             }, firstPointLayerId);
 
             // Add click handler
@@ -2469,7 +2472,19 @@ export default function CityMetricsMap({
     
     // Update opacity after adding layers
     updateLayerOpacity(map);
-  }, [maps, mapFeatures, selectedMetricIds, hiddenLayers, updateLayerOpacity, structureQuery.data, findDistrictField, availableMetrics, gpsLocation, scopeBoundaryBounds]);
+  }, [
+    maps,
+    mapFeatures,
+    selectedMetricIds,
+    hiddenLayers,
+    updateLayerOpacity,
+    structureQuery.data,
+    findDistrictField,
+    availableMetrics,
+    gpsLocation,
+    scopeBoundaryBounds,
+    theme,
+  ]);
 
   // Update layers when maps change or district (citywide vs specific) changes
   // Re-running when selectedDistrict changes ensures dots re-appear for citywide after the "remove on district change" effect runs

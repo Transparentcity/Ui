@@ -8,6 +8,7 @@ import {
 } from "@/lib/publicApiClient";
 import { listNewsletterEditionsForSitemap } from "@/lib/newsletter";
 import { getSiteOrigin } from "@/lib/siteUrl";
+import { slugify } from "@/lib/utils";
 
 export const revalidate = 3600;
 
@@ -71,19 +72,19 @@ export async function GET(): Promise<Response> {
 
   const cityEntries: SitemapEntry[] = cities.map((city) => ({
     // Clean slug URL — no ?id= query param.
-    loc: `${origin}/c/${city.slug}`,
+    loc: `${origin}/c/${slugify(city.name)}`,
     changefreq: "weekly",
     priority: 0.7,
   }));
 
   const metricEntries: SitemapEntry[] = metrics.map((m) => ({
-    loc: `${origin}/c/${m.city_slug}/metrics/${m.metric_key}`,
+    loc: `${origin}/c/${slugify(m.city_name)}/metrics/${m.metric_key}`,
     changefreq: "daily",
     priority: 0.8,
   }));
 
   const districtEntries: SitemapEntry[] = districts.map((d) => ({
-    loc: `${origin}/c/${d.city_slug}/district/${d.district}`,
+    loc: `${origin}/c/${slugify(d.city_name)}/district/${d.district}`,
     changefreq: "weekly",
     priority: 0.7,
   }));
@@ -95,10 +96,7 @@ export async function GET(): Promise<Response> {
   }));
 
   const newsletterEntries: SitemapEntry[] = newsletterEditions.map((e) => ({
-    loc:
-      e.district > 0
-        ? `${origin}/c/${e.city_slug}/newsletter/${e.edition_date}?district=${e.district}`
-        : `${origin}/c/${e.city_slug}/newsletter/${e.edition_date}`,
+    loc: `${origin}/c/${e.city_slug}/newsletter/${e.short_hash}`,
     changefreq: "never",
     priority: 0.5,
   }));

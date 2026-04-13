@@ -10,7 +10,12 @@ import {
   type PublicDistrictComparisonsResponse,
   type PublicShapefileResponse,
 } from "@/lib/publicApiClient";
-import { getDeltaMapFillColor } from "@/lib/deltaMapColors";
+import { useTheme } from "@/contexts/ThemeContext";
+import {
+  DELTA_MAP_NEUTRAL_DARK_HEX,
+  getDeltaMapFillColor,
+  type DeltaBasemapTheme,
+} from "@/lib/deltaMapColors";
 import Loader from "./Loader";
 import "./DeltaMapView.css";
 
@@ -113,6 +118,9 @@ export default function DeltaMapView({
   showLink = true,
   currentPeriodEnd,
 }: DeltaMapViewProps) {
+  const { theme } = useTheme();
+  const basemapTheme: DeltaBasemapTheme = theme === "dark" ? "dark" : "light";
+
   // Neutral fallback when no center provided (map will fit to shape bounds once loaded)
   const initialCenter: [number, number] = cityCenter ?? [-98.5795, 39.8283];
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -237,7 +245,7 @@ export default function DeltaMapView({
         properties: {
           ...props,
           _change_percent: changePct,
-          _fill_color: getDeltaMapFillColor(changePct, greenDirection),
+          _fill_color: getDeltaMapFillColor(changePct, greenDirection, basemapTheme),
           _current_value: data?.current_value ?? null,
           _comparison_value: data?.comparison_value ?? null,
           _district: data?.district ?? districtId,
@@ -249,15 +257,29 @@ export default function DeltaMapView({
       type: "FeatureCollection" as const,
       features,
     };
-  }, [shapeData, districtData, greenDirection]);
+  }, [shapeData, districtData, greenDirection, basemapTheme]);
 
-  // Initialize map and add layers
+  // Initialize map and add layers (rebuild when data or basemap theme changes)
   useEffect(() => {
-    if (!mapContainer.current || !geoJsonWithData || mapRef.current) return;
+    if (!mapContainer.current || !geoJsonWithData) return;
+
+    if (mapRef.current) {
+      try {
+        mapRef.current.remove();
+      } catch {
+        /* ignore */
+      }
+      mapRef.current = null;
+    }
+
+    const mapStyle =
+      basemapTheme === "dark"
+        ? "mapbox://styles/mapbox/dark-v11"
+        : "mapbox://styles/mapbox/light-v11";
 
     const map = new mapboxgl.Map({
       container: mapContainer.current,
-      style: "mapbox://styles/mapbox/light-v11",
+      style: mapStyle,
       center: initialCenter,
       zoom: cityZoom,
       scrollZoom: false,
@@ -265,6 +287,9 @@ export default function DeltaMapView({
     });
 
     mapRef.current = map;
+
+    const outlineColor = basemapTheme === "dark" ? "#ffffff" : "#666666";
+    const outlineOpacity = basemapTheme === "dark" ? 0.55 : 0.5;
 
     // Add zoom controls in the bottom-right corner
     map.addControl(
@@ -295,9 +320,9 @@ export default function DeltaMapView({
         type: "line",
         source: "delta-districts",
         paint: {
-          "line-color": "#666666",
+          "line-color": outlineColor,
           "line-width": 1,
-          "line-opacity": 0.5,
+          "line-opacity": outlineOpacity,
         },
       });
 
@@ -349,24 +374,31 @@ export default function DeltaMapView({
 
         const changeColor =
           changePercent === null
-            ? "#666"
+            ? basemapTheme === "dark"
+              ? "#94a3b8"
+              : "#666"
             : changePercent > 5
-            ? greenDirection === "down"
-              ? "#ef4444"
-              : "#22c55e"
-            : changePercent < -5
-            ? greenDirection === "down"
-              ? "#22c55e"
-              : "#ef4444"
-            : "#666";
+              ? greenDirection === "down"
+                ? "#ef4444"
+                : "#22c55e"
+              : changePercent < -5
+                ? greenDirection === "down"
+                  ? "#22c55e"
+                  : "#ef4444"
+                : basemapTheme === "dark"
+                  ? "#94a3b8"
+                  : "#666";
+
+        const muted = basemapTheme === "dark" ? "#94a3b8" : "#666";
+        const titleColor = basemapTheme === "dark" ? "#f8fafc" : "#111827";
 
         popup
           .setLngLat(e.lngLat)
           .setHTML(
-            `<div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 13px;">
+            `<div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; color: ${titleColor};">
               <div style="font-weight: 600; margin-bottom: 4px;">District ${district}</div>
-              <div style="color: #666;">Last Year: ${formatValue(comparisonValue)}</div>
-              <div style="color: #666;">This Year: ${formatValue(currentValue)}</div>
+              <div style="color: ${muted};">Last Year: ${formatValue(comparisonValue)}</div>
+              <div style="color: ${muted};">This Year: ${formatValue(currentValue)}</div>
               <div style="color: ${changeColor}; font-weight: 600;">
                 Change: ${formatPercent(changePercent)}
               </div>
@@ -381,7 +413,7 @@ export default function DeltaMapView({
       map.remove();
       mapRef.current = null;
     };
-  }, [geoJsonWithData, initialCenter, cityZoom, greenDirection]);
+  }, [geoJsonWithData, initialCenter, cityZoom, greenDirection, basemapTheme]);
 
   // Labels for period comparison
   const periodLabel = useMemo(() => {
@@ -413,14 +445,25 @@ export default function DeltaMapView({
 
   if (!districtData || districtData.districts.length === 0) {
     return (
-      <div className="delta-map-container" style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666' }}>
+      <div
+        className="delta-map-container"
+        style={{
+          height,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: basemapTheme === "dark" ? "#94a3b8" : "#666",
+        }}
+      >
         <p>District comparison data not available for this metric.</p>
       </div>
     );
   }
 
   return (
-    <div className="delta-map-wrapper">
+    <div
+      className={`delta-map-wrapper${basemapTheme === "dark" ? " delta-map-wrapper--dark" : ""}`}
+    >
       <div
         ref={mapContainer}
         className="delta-map-container"
@@ -439,7 +482,19 @@ export default function DeltaMapView({
           </span>
         </div>
         <div className="legend-item">
-          <span className="legend-color" style={{ backgroundColor: "#f5f5f5" }} />
+          <span
+            className="legend-color"
+            style={{
+              backgroundColor:
+                basemapTheme === "dark"
+                  ? DELTA_MAP_NEUTRAL_DARK_HEX
+                  : "#f5f5f5",
+              border:
+                basemapTheme === "dark"
+                  ? "1px solid rgba(255, 255, 255, 0.2)"
+                  : undefined,
+            }}
+          />
           <span className="legend-label">No change</span>
         </div>
         <div className="legend-item">

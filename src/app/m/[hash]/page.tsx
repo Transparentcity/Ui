@@ -42,13 +42,16 @@ const getLayerIcon = (layerKey?: string, category?: string, displayName?: string
 };
 import "./styles.css";
 import MapLayerPanel from "@/components/MapLayerPanel";
-import { getDeltaMapFillColor } from "@/lib/deltaMapColors";
 import {
-  CHOROPLETH_BRAND_HIGH_RGB,
-  CHOROPLETH_BRAND_LOW_RGB,
+  DELTA_MAP_NEUTRAL_DARK_HEX,
+  getDeltaMapFillColor,
+} from "@/lib/deltaMapColors";
+import {
   getCaseInsensitiveProp,
+  getChoroplethBrandRamp,
   getInitialMapView,
   normalizeChoroplethDistrictKey,
+  normalizeGeoJsonLngLatPair,
 } from "@/lib/mapUtils";
 
 // Types for the map data
@@ -111,6 +114,8 @@ async function getPublicMap(hash: string): Promise<SavedMap> {
 /**
  * Mapbox rejects addSource/addLayer until the style is loaded. Long async work
  * (e.g. fetching GeoJSON) often finishes after a style swap or during initial load.
+ * Polls as well as listening for events — if style.load/load already fired before we
+ * subscribed, listeners alone would never resolve.
  */
 function waitForMapStyleLoaded(mapInstance: any): Promise<void> {
   return new Promise((resolve) => {
@@ -123,23 +128,36 @@ function waitForMapStyleLoaded(mapInstance: any): Promise<void> {
       return;
     }
     let settled = false;
-    const finish = () => {
-      if (settled) return;
-      if (mapInstance.isStyleLoaded()) {
-        settled = true;
-        window.clearTimeout(tid);
-        mapInstance.off("style.load", finish);
-        mapInstance.off("load", finish);
-        resolve();
-      }
+    let pollId: ReturnType<typeof setInterval> | undefined;
+
+    const cleanupListeners = () => {
+      mapInstance.off("style.load", onMaybeReady);
+      mapInstance.off("styledata", onMaybeReady);
+      mapInstance.off("load", onMaybeReady);
     };
-    mapInstance.on("style.load", finish);
-    mapInstance.on("load", finish);
+
+    const settleOk = () => {
+      if (settled) return;
+      if (!mapInstance.isStyleLoaded()) return;
+      settled = true;
+      if (pollId != null) window.clearInterval(pollId);
+      window.clearTimeout(tid);
+      cleanupListeners();
+      resolve();
+    };
+
+    const onMaybeReady = () => settleOk();
+
+    mapInstance.on("style.load", onMaybeReady);
+    mapInstance.on("styledata", onMaybeReady);
+    mapInstance.on("load", onMaybeReady);
+    pollId = window.setInterval(() => settleOk(), 50);
+
     const tid = window.setTimeout(() => {
       if (settled) return;
       settled = true;
-      mapInstance.off("style.load", finish);
-      mapInstance.off("load", finish);
+      if (pollId != null) window.clearInterval(pollId);
+      cleanupListeners();
       console.warn(
         "[PublicMapPage] waitForMapStyleLoaded timed out; choropleth may fail"
       );
@@ -220,19 +238,31 @@ function fitMapToGeoJsonFeatures(
   const mapboxgl = (window as any).mapboxgl;
   if (!mapInstance || !mapboxgl?.LngLatBounds || !Array.isArray(features)) return;
 
+  const raw: Array<[number, number]> = [];
+  features.forEach((feature) => collectGeometryLngLats(feature?.geometry, raw));
   const points: Array<[number, number]> = [];
-  features.forEach((feature) => collectGeometryLngLats(feature?.geometry, points));
+  for (const [x, y] of raw) {
+    const n = normalizeGeoJsonLngLatPair(x, y);
+    if (n) points.push(n);
+  }
   if (!points.length) return;
 
-  const bounds = new mapboxgl.LngLatBounds(points[0], points[0]);
-  points.slice(1).forEach((p) => bounds.extend(p));
+  try {
+    const bounds = new mapboxgl.LngLatBounds(points[0], points[0]);
+    points.slice(1).forEach((p) => bounds.extend(p));
 
-  if (!bounds.isEmpty()) {
-    mapInstance.fitBounds(bounds, {
-      padding: 50,
-      maxZoom: 12,
-      duration: 0,
-    });
+    if (!bounds.isEmpty()) {
+      mapInstance.fitBounds(bounds, {
+        padding: 50,
+        maxZoom: 12,
+        duration: 0,
+      });
+    }
+  } catch (err) {
+    console.warn(
+      "[PublicMapPage] fitMapToGeoJsonFeatures: could not fit bounds (invalid coordinates?)",
+      err
+    );
   }
 }
 
@@ -304,6 +334,58 @@ function inferDataDistrictFieldForChoropleth(
   const inferred = r0 ? inferNumericDistrictKeyFromRow(r0) : null;
   if (inferred) return inferred;
   return configured || "supervisor_district";
+}
+
+/**
+ * District column on aggregation rows (and point rollups) for joining to GeoJSON.
+ * Prefer explicit aliases from the saved map: per-shape `data_field` in
+ * `available_shape_layers`, then `aggregations[id].data_field` (set when the map
+ * was generated — the true metric↔shape pairing). Only then fall back to
+ * map_config.district_field / row-shape inference.
+ */
+function resolveChoroplethDataDistrictField(
+  mapData: SavedMap,
+  aggregation: ChoroplethAggBlock | undefined,
+  shapeLayerInstanceId: string | number | null | undefined
+): string {
+  const r0 = aggregation?.rows?.[0] as Record<string, unknown> | undefined;
+  const tryField = (field: string): boolean => {
+    const t = field.trim();
+    if (!t || !r0) return false;
+    const v = getCaseInsensitiveProp(r0, t);
+    return v != null && String(v).trim() !== "";
+  };
+
+  const layers = (mapData.map_config?.available_shape_layers || []) as Array<{
+    shape_layer_instance_id?: number | string;
+    data_field?: string;
+  }>;
+  const layerEntry =
+    shapeLayerInstanceId != null && shapeLayerInstanceId !== ""
+      ? layers.find(
+          (sl) =>
+            String(sl.shape_layer_instance_id) === String(shapeLayerInstanceId)
+        )
+      : undefined;
+  const configDf =
+    typeof layerEntry?.data_field === "string"
+      ? layerEntry.data_field.trim()
+      : "";
+
+  const aggDf =
+    typeof aggregation?.data_field === "string"
+      ? aggregation.data_field.trim()
+      : "";
+
+  if (!r0) {
+    if (configDf) return configDf;
+    if (aggDf) return aggDf;
+    return inferDataDistrictFieldForChoropleth(mapData, aggregation);
+  }
+
+  if (configDf && tryField(configDf)) return configDf;
+  if (aggDf && tryField(aggDf)) return aggDf;
+  return inferDataDistrictFieldForChoropleth(mapData, aggregation);
 }
 
 /** True if rows carry a district / ward field (including metric district_field and ArcGIS-style columns). */
@@ -499,6 +581,10 @@ export default function PublicMapPage() {
   const mapInstanceRef = useRef<any>(null);
   const dotsDistrictIdRef = useRef<string | null>(null);
   const multiLayerVisibilityRef = useRef<Record<number, boolean>>({});
+  /** Avoid setStyle on mount — map ctor already applied this theme; redundant setStyle wipes custom layers. */
+  const lastAppliedBasemapThemeRef = useRef<string | null>(null);
+  /** Bumps on each choropleth load so stale async completions skip addSource after newer runs. */
+  const choroplethLoadGenRef = useRef(0);
 
   useEffect(() => {
     dotsDistrictIdRef.current = dotsDistrictId;
@@ -1060,6 +1146,28 @@ export default function PublicMapPage() {
         console.error("[PublicMapPage] Invalid mapInstance provided to loadChoroplethMap");
         return;
       }
+
+      choroplethLoadGenRef.current += 1;
+      const loadGen = choroplethLoadGenRef.current;
+
+      // Layer panel passes "" when clearing shape selection (show dots). Empty string is falsy
+      // and must not fall through to map_config — otherwise we reload choropleth and race the map.
+      if (shapeLayerId === "") {
+        try {
+          if (mapInstance.getLayer?.("choropleth-fill")) {
+            mapInstance.removeLayer("choropleth-fill");
+          }
+          if (mapInstance.getLayer?.("choropleth-outline")) {
+            mapInstance.removeLayer("choropleth-outline");
+          }
+          if (mapInstance.getSource?.("choropleth-shapes")) {
+            mapInstance.removeSource("choropleth-shapes");
+          }
+        } catch (err) {
+          console.warn("[PublicMapPage] Error removing choropleth for cleared selection:", err);
+        }
+        return;
+      }
       
       const aggMap = (mapData.map_config?.aggregations || {}) as Record<
         string,
@@ -1163,9 +1271,10 @@ export default function PublicMapPage() {
       const aggregation =
         aggregations[aggregationKey] || aggregations[Number(aggregationKey)];
 
-      const dataDistrictField = inferDataDistrictFieldForChoropleth(
+      const dataDistrictField = resolveChoroplethDataDistrictField(
         mapData,
-        aggregation
+        aggregation,
+        targetShapeLayerId
       );
       if (String(aggregationKey) !== String(targetShapeLayerId)) {
       }
@@ -1175,14 +1284,10 @@ export default function PublicMapPage() {
       if (aggregation && aggregation.rows) {
         // Use pre-computed aggregation
         aggregation.rows.forEach((row: any) => {
-          const dataField =
-            (aggregation as ChoroplethAggBlock).data_field || dataDistrictField;
           const rowRec = row as Record<string, unknown>;
           const rawDistrict =
             row[dataDistrictField] ??
             getCaseInsensitiveProp(rowRec, dataDistrictField) ??
-            row[dataField] ??
-            getCaseInsensitiveProp(rowRec, String(dataField)) ??
             (aggregation.identifier_field
               ? row[aggregation.identifier_field] ??
                 getCaseInsensitiveProp(rowRec, String(aggregation.identifier_field))
@@ -1210,6 +1315,8 @@ export default function PublicMapPage() {
           const districtIdNum = Number(normalizedId);
           if (!isNaN(districtIdNum) && isFinite(districtIdNum)) {
             districtDataMap.set(String(districtIdNum), entry);
+            districtDataMap.set(`District ${districtIdNum}`, entry);
+            districtDataMap.set(`district ${districtIdNum}`, entry);
           }
         });
       } else {
@@ -1268,6 +1375,11 @@ export default function PublicMapPage() {
 
       const minValue = colorValues.length > 0 ? Math.min(...colorValues) : 0;
       const maxValue = colorValues.length > 0 ? Math.max(...colorValues) : 1;
+
+      console.log(`[PublicMapPage] ${isDeltaMap ? "Delta" : "Choropleth"} value range: ${minValue} to ${maxValue}`);
+
+      const basemapTheme = theme === "dark" ? "dark" : "light";
+      const choroRamp = getChoroplethBrandRamp(basemapTheme);
       // ── Color helpers ─────────────────────────────────────────────────────────
       const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
       const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
@@ -1284,20 +1396,25 @@ export default function PublicMapPage() {
         ] as [number, number, number];
       };
 
-      // Regular choropleth: light lavender → brand purple (see mapUtils ramp)
-      const CHORO_LOW = CHOROPLETH_BRAND_LOW_RGB;
-      const CHORO_HIGH = CHOROPLETH_BRAND_HIGH_RGB;
+      const CHORO_LOW = choroRamp.low;
+      const CHORO_HIGH = choroRamp.high;
+
+      console.log(`[PublicMapPage] Processing ${geometryData.features.length} shape features`);
+      console.log(`[PublicMapPage] Sample feature properties:`, geometryData.features[0]?.properties);
       // ── Merge district data with shape features ───────────────────────────────
       const features = geometryData.features.map((feature: any) => {
         const props = feature.properties || {};
         const propsRec = props as Record<string, unknown>;
+        // Join polygons using the shape layer's identifier_field first (e.g. district_number).
+        // Data rows use map_config / aggregation keys (e.g. council_district). GeoJSON often
+        // repeats the metric field name with wrong/empty values; prefer the canonical shape key.
         const districtIdRaw =
+          (shapeGeoPropertyField &&
+            getCaseInsensitiveProp(propsRec, String(shapeGeoPropertyField))) ??
           (dataDistrictField && getCaseInsensitiveProp(propsRec, dataDistrictField)) ??
           props.supervisor_district ??
           props.sup_dist_num ??
           props.district_id ??
-          (shapeGeoPropertyField &&
-            getCaseInsensitiveProp(propsRec, String(shapeGeoPropertyField))) ??
           props.district ??
           props.name ??
           props.label ??
@@ -1324,14 +1441,15 @@ export default function PublicMapPage() {
         if (!districtData && districtId) {}
 
         // ── Compute fill colour ────────────────────────────────────────────────
-        let color = "#e5e7eb"; // light gray = no data
+        let color = choroRamp.noDataFill;
         if (isDeltaMap) {
           const changePct = districtData
             ? Number(districtData.delta_pct ?? districtData.delta ?? districtData.value ?? null)
             : null;
           color = getDeltaMapFillColor(
             Number.isFinite(changePct as number) ? (changePct as number) : null,
-            greenDirection
+            greenDirection,
+            basemapTheme
           );
         } else if (value !== null && !isNaN(value)) {
           const normalized = clamp01((value - minValue) / (maxValue - minValue || 1));
@@ -1351,8 +1469,20 @@ export default function PublicMapPage() {
         };
       });
       await waitForMapStyleLoaded(mapInstance);
+      if (loadGen !== choroplethLoadGenRef.current) {
+        return;
+      }
       if (!mapInstance || typeof mapInstance.addSource !== "function") {
         return;
+      }
+      // After async fetch, style may still be transitioning (e.g. concurrent setStyle); poll briefly.
+      const styleWaitDeadline = Date.now() + 10000;
+      while (
+        typeof mapInstance.isStyleLoaded === "function" &&
+        !mapInstance.isStyleLoaded() &&
+        Date.now() < styleWaitDeadline
+      ) {
+        await new Promise((r) => window.setTimeout(r, 50));
       }
       if (
         typeof mapInstance.isStyleLoaded === "function" &&
@@ -1363,7 +1493,11 @@ export default function PublicMapPage() {
         );
         return;
       }
-      
+
+      if (loadGen !== choroplethLoadGenRef.current) {
+        return;
+      }
+
       // Remove existing layers if they exist
       try {
         if (mapInstance.getLayer && mapInstance.getLayer("choropleth-fill")) {
@@ -1426,8 +1560,14 @@ export default function PublicMapPage() {
             title: "Change vs prior period",
             items: [
               { label: goodLabel, color: goodColor },
-              { label: "No change",  color: "#f5f5f5"  },
-              { label: badLabel,  color: badColor  },
+              {
+                label: "No change",
+                color:
+                  basemapTheme === "dark"
+                    ? DELTA_MAP_NEUTRAL_DARK_HEX
+                    : "#f5f5f5",
+              },
+              { label: badLabel, color: badColor },
             ],
           });
         } else {
@@ -1653,6 +1793,7 @@ export default function PublicMapPage() {
       });
 
       mapInstanceRef.current = mapInstance;
+      lastAppliedBasemapThemeRef.current = theme;
 
       mapInstance.on("load", async () => {
       const layerMaps = map.map_config?.layer_maps as Array<{ title?: string; location_data?: any[]; map_type?: string }> | undefined;
@@ -1691,19 +1832,25 @@ export default function PublicMapPage() {
       const defaultIsPoints =
         !isExplicitDistrictMap &&
         (defaultView?.type === "points" || locationDataCount <= 100);
+      /** Layer panel selection must show choropleth even when default_view is points (map remount uses this path). */
+      const choroplethExplicitlyChosen = !!selectedShapeLayer;
 
       // Determine if we should use choropleth - respect backend default_view so few-point maps show points.
       // Also respect an explicit points toggle so turning dots back on does not get auto-undone.
       const pointsViewSelected = showPoints && !selectedShapeLayer;
       // If backend says default is points (e.g. small dataset), don't default to choropleth
-      const definitelyUseChoropleth = !defaultIsPoints && (
-        map.map_type === "choropleth" ||
-        map.map_type === "delta" ||
-        hasAggregations ||
-        hasDiscoveredShapeLayers ||
-        hasShapeLayerInConfig
-      );
-      const mightUseChoropleth = !defaultIsPoints && canDiscoverShapeLayers && map.map_type === "point" && hasGeographicIdentifiers;
+      const definitelyUseChoropleth =
+        (!defaultIsPoints || choroplethExplicitlyChosen) &&
+        (map.map_type === "choropleth" ||
+          map.map_type === "delta" ||
+          hasAggregations ||
+          hasDiscoveredShapeLayers ||
+          hasShapeLayerInConfig);
+      const mightUseChoropleth =
+        (!defaultIsPoints || choroplethExplicitlyChosen) &&
+        canDiscoverShapeLayers &&
+        map.map_type === "point" &&
+        hasGeographicIdentifiers;
       // Only use choropleth if we definitely should, OR if we might and shape layers are already discovered
       const shouldUseChoropleth =
         !pointsViewSelected &&
@@ -2023,6 +2170,7 @@ export default function PublicMapPage() {
 
     return () => {
       cancelled = true;
+      lastAppliedBasemapThemeRef.current = null;
       if (mapInstanceRef.current) {
         try {
           mapInstanceRef.current.remove();
@@ -2047,8 +2195,8 @@ export default function PublicMapPage() {
       (defaultView?.type === "points" || locationDataCount <= 100);
 
     // When we should show points (few points, backend default, or explicit user choice),
-    // do NOT switch to choropleth when shape layers appear later.
-    if (preferPoints || showPoints) {
+    // do NOT switch to choropleth when shape layers appear later — unless a shape layer is already selected.
+    if ((preferPoints && !selectedShapeLayer) || showPoints) {
       return;
     }
 
@@ -2123,6 +2271,10 @@ export default function PublicMapPage() {
   // Update map style when theme changes
   useEffect(() => {
     if (mapInstanceRef.current && mapboxLoaded && map) {
+      if (lastAppliedBasemapThemeRef.current === theme) {
+        return;
+      }
+      lastAppliedBasemapThemeRef.current = theme;
       const newStyle = theme === "dark"
         ? "mapbox://styles/mapbox/dark-v11"
         : "mapbox://styles/mapbox/light-v11";

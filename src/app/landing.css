@@ -3366,5 +3366,54 @@
   }
 }
 
+/* Mobile sticky signup bar */
+.mobile-signup-bar {
+  display: none;
+}
 
+@media (max-width: 768px) {
+  .mobile-signup-bar {
+    display: block;
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--bg-primary, #fff);
+    border-top: 1px solid var(--border-color, #e5e7eb);
+    padding: 12px 16px 16px;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
+  }
 
+  .mobile-signup-bar-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 6px;
+  }
+
+  .mobile-signup-bar .newsletter-signup {
+    margin: 0;
+  }
+
+  .mobile-signup-bar .newsletter-label {
+    display: none;
+  }
+
+  .mobile-signup-bar .newsletter-input-group {
+    display: flex;
+    gap: 8px;
+  }
+
+  .mobile-signup-bar .newsletter-input {
+    flex: 1;
+    padding: 9px 12px;
+    font-size: 14px;
+  }
+
+  .mobile-signup-bar .newsletter-button {
+    padding: 9px 16px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+}

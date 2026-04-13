@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { getPublicMetric, getPublicCityDetail, type PublicMetricDetail, type PublicCityDetail } from "@/lib/publicApiClient";
+import { slugify } from "@/lib/utils";
 import { parseLocalDate } from "@/lib/dateRange";
 import Loader from "@/components/Loader";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -1242,6 +1243,7 @@ export default function AnomalyChartPage() {
               groupValue={anomaly.group_value}
               height={350}
               hideHeader={true}
+              basemapTheme={effectiveTheme === "dark" ? "dark" : "light"}
               onLoad={(data) => setMapData({
                 location_data_count: data.location_data_count,
                 period_start: data.period_start,
@@ -1364,8 +1366,8 @@ export default function AnomalyChartPage() {
                 })()}
               </p>
               
-              {anomaly.metric_id && cityDetail?.slug && (
-                <Link href={`/c/${cityDetail.slug}/metrics/${metricDetail.metric_key}`} className="view-metric-link">
+              {anomaly.metric_id && cityDetail?.name && (
+                <Link href={`/c/${slugify(cityDetail.name)}/metrics/${metricDetail.metric_key}`} className="view-metric-link">
                   View full metric details →
                 </Link>
               )}

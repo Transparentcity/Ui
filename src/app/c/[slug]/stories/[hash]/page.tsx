@@ -18,6 +18,7 @@ import ShareButton from "./ShareButton";
 import CityHeroNewsletter from "../../CityHeroNewsletter";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
+import { slugify } from "@/lib/utils";
 
 export const revalidate = 3600;
 
@@ -112,7 +113,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
   let cityDisplay = story.city_name ?? slug;
   try {
     const cities = await listPublicCitiesForSitemap();
-    const match = cities.find((c) => c.slug === slug);
+    const match = cities.find((c) => slugify(c.name) === slug);
     if (match) {
       cityDisplay =
         match.state && match.country && match.country !== "United States"
