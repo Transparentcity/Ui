@@ -59,7 +59,6 @@ export async function POST(req: Request) {
       if (!item.city_name) continue; 
       
       const refineCmd = `"${PYTHON_EXEC}" scripts/smart_refine_match.py --city-id "${item.city_id}" --city-name "${item.city_name}" --metric-key "${item.metric_key}" --rejected-dataset-id "${item.dataset_id}"`
-      console.log(`[Refine] Smart refining: ${refineCmd}`)
       try {
         await execAsync(refineCmd, { cwd: PLATFORM_DIR })
       } catch (e) {
@@ -131,13 +130,11 @@ export async function POST(req: Request) {
     // We execute in the platform directory.
     const cmd = `"${PYTHON_EXEC}" scripts/city_readiness_report.py --city-ids "${TARGET_CITY_IDS}" --output-json "${reportPath}" --baseline-mode all_templates --exclusions-file "${EXCLUSIONS_FILE}" --match-timestamps-file "${MATCH_TIMESTAMPS_FILE}"`
 
-    console.log(`[Refine] Running: ${cmd}`)
     
     // We'll await execution so the UI knows when it's ready.
     // This might take 10-20 seconds.
     try {
       const { stdout, stderr } = await execAsync(cmd, { cwd: PLATFORM_DIR })
-      console.log("[Refine] Stdout:", stdout)
       if (stderr) console.error("[Refine] Stderr:", stderr)
     } catch (e) {
       const details = e instanceof Error ? e.message : String(e)

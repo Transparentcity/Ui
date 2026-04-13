@@ -34,7 +34,6 @@ export function AdminGuard({ children, fallbackUrl = "/home" }: AdminGuardProps)
   useEffect(() => {
     // In dev mode, skip all auth checks
     if (CRM_DEV_MODE) {
-      console.log("[AdminGuard] CRM_DEV_MODE enabled - bypassing auth");
       return;
     }
 

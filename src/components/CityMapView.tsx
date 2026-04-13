@@ -730,7 +730,6 @@ export default function CityMapView({
       // Use calculated center from shapefiles, or default center
       // mapCenter should always be set by now (either from shapefiles or default)
       if (!mapCenter) {
-        console.log("Waiting for map center calculation...");
         return;
       }
 
@@ -776,12 +775,6 @@ export default function CityMapView({
       mapCityIdRef.current = cityId;
 
       map.on("load", () => {
-        console.log(
-          "Map loaded - shapefiles:",
-          shapefilesRef.current.length,
-          "enabled:",
-          enabledLayerInstanceIds.size
-        );
         if (shapefilesRef.current.length > 0) {
           updateMapWithEnabledLayersRef.current(map);
         }
@@ -909,7 +902,6 @@ export default function CityMapView({
       );
 
       if (district) {
-        console.log("GPS location is in district:", district.identifier, "shapefile:", district.shapefile.shapefile_name);
         let districtNum: number | null = null;
         if (typeof district.identifier === "number") {
           districtNum = district.identifier;
@@ -924,7 +916,6 @@ export default function CityMapView({
         }
         zoomToDistrictWithGPS(map, lat, lng, district.feature);
       } else {
-        console.log("GPS location is not within any known district - zooming to location");
         zoomToGPSLocation(map, lat, lng, radiusM);
       }
     };
@@ -1058,7 +1049,6 @@ export default function CityMapView({
   // Remove all shapefile layers from map
   const removeAllShapefileLayers = useCallback((map: any, shapefilesToRemove?: CityShapefile[]) => {
     const filesToRemove = shapefilesToRemove || shapefiles;
-    console.log("removeAllShapefileLayers - removing", filesToRemove.length, "shapefiles");
     
     filesToRemove.forEach((shapefile) => {
       const layerId = `shapefile-layer-${shapefile.id}`;
@@ -1087,7 +1077,6 @@ export default function CityMapView({
     const layerId = `shapefile-layer-${shapefile.id}`;
     const outlineLayerId = `${layerId}-outline`;
 
-    console.log("addShapefileToMap:", { sourceId, layerId, shapefileId: shapefile.id, shapefileName: shapefile.shapefile_name });
 
     // Remove existing layer and source if they exist
     if (map.getLayer(layerId)) {
@@ -1114,10 +1103,8 @@ export default function CityMapView({
         }
       }
 
-      console.log("Geometry data type:", typeof geometryData, "has type property:", geometryData?.type);
 
       if (geometryData && geometryData.type === "FeatureCollection") {
-        console.log("Adding GeoJSON source with", geometryData.features?.length || 0, "features");
         
         map.addSource(sourceId, {
           type: "geojson",
@@ -1143,7 +1130,6 @@ export default function CityMapView({
           },
         });
 
-        console.log("Added fill layer:", layerId);
 
         // Add outline layer
         map.addLayer({
@@ -1156,7 +1142,6 @@ export default function CityMapView({
           },
         });
 
-        console.log("Added outline layer:", outlineLayerId);
 
         // Add hover effect
         map.on("mouseenter", layerId, () => {
@@ -1462,8 +1447,7 @@ export default function CityMapView({
   //         return next;
   //       });
   //       setDefaultStructureSet(true);
-  //       console.log("Enabled default layers based on leaders");
-  //     }
+  //  //     }
   //   }
   // }, [structureDataReady, shapefiles, leaders, defaultStructureSet]);
 

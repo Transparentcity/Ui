@@ -839,12 +839,9 @@ export default function PublicMapPage() {
         }
       });
     });
-    
-    console.log(`[PublicMapPage] Location data fields:`, Array.from(locationDataFields));
-    
+
     // If we already have shape layers from map_config, use those
       if (map.map_config?.available_shape_layers && map.map_config.available_shape_layers.length > 0) {
-      console.log(`[PublicMapPage] Using shape layers from map_config`);
       setAvailableShapeLayers(map.map_config.available_shape_layers);
       // Auto-select the default shape layer for choropleth/delta maps
       if (!selectedShapeLayer) {
@@ -865,9 +862,6 @@ export default function PublicMapPage() {
             defaultView?.shape_layer_instance_id ||
             map.map_config.available_shape_layers[0]?.shape_layer_instance_id;
           if (defaultLayerId) {
-            console.log(
-              `[PublicMapPage] Auto-selecting shape layer from map_config: ${defaultLayerId}`
-            );
             setSelectedShapeLayer(String(defaultLayerId));
           }
         }
@@ -882,13 +876,11 @@ export default function PublicMapPage() {
         const commonDistrictFieldNames = ['supervisor_district', 'district', 'ward', 'sup_dist_num', 'district_id', 'council_district', 'nhood', 'neighborhood'];
         
         // First, fetch city structure to get district fields mapping
-        console.log(`[PublicMapPage] Fetching city structure for city ${map.city_id}`);
         let districtFields: string[] = [];
         try {
           const cityStructureResponse = await fetch(`/api/cities/${map.city_id}/structure`);
           if (cityStructureResponse.ok) {
             const cityStructure = await cityStructureResponse.json();
-            console.log(`[PublicMapPage] City structure response:`, cityStructure);
             // Try different possible locations for district_fields
             districtFields = cityStructure.district_fields || 
                             cityStructure.districtFields ||
@@ -897,7 +889,6 @@ export default function PublicMapPage() {
                               (f.fieldName?.includes('district') || f.fieldName?.includes('ward') || f.name?.includes('district') || f.name?.includes('ward'))
                             ).map((f: any) => typeof f === 'string' ? f : (f.fieldName || f.name))) ||
                             [];
-            console.log(`[PublicMapPage] City structure district_fields:`, districtFields);
           } else {
             const errorText = await cityStructureResponse.text();
             console.warn(`[PublicMapPage] Failed to fetch city structure: ${cityStructureResponse.status}`, errorText);
@@ -917,7 +908,6 @@ export default function PublicMapPage() {
             )
           );
           if (foundDistrictFields.length > 0) {
-            console.log(`[PublicMapPage] Using fallback district fields from location_data:`, foundDistrictFields);
             districtFields = foundDistrictFields;
           }
         }
@@ -931,8 +921,6 @@ export default function PublicMapPage() {
             point[field] !== ""
           )
         );
-        
-        console.log(`[PublicMapPage] Fetching shape layers for city ${map.city_id}`);
         const cityLayersResponse = await fetch(`/api/shape-layers/cities/${map.city_id}`);
         
         if (!cityLayersResponse.ok) {
@@ -942,12 +930,7 @@ export default function PublicMapPage() {
         }
         
         const cityLayersData = await cityLayersResponse.json();
-        console.log(`[PublicMapPage] City shape layers API response:`, cityLayersData);
-        
         const layers = Array.isArray(cityLayersData) ? cityLayersData : (cityLayersData.layers || cityLayersData.shape_layers || cityLayersData.data || []);
-        
-        console.log(`[PublicMapPage] Found ${layers.length} shape layers for city`, layers);
-        
         // Get all unique field names from location_data
         const locationDataFields = new Set<string>();
         map.location_data.forEach((point: any) => {
@@ -957,8 +940,7 @@ export default function PublicMapPage() {
             }
           });
         });
-        console.log(`[PublicMapPage] Location data fields:`, Array.from(locationDataFields));
-        
+
         // For each shape layer, check if we can get its identifier_field
         // and see if it matches any field in location_data OR any district field from city structure
         const matchingLayers: any[] = [];
@@ -977,7 +959,6 @@ export default function PublicMapPage() {
                               layer.instance_id;
             
             if (!instanceId) {
-              console.log(`[PublicMapPage] Skipping layer without ID:`, layer);
               continue;
             }
             
@@ -988,12 +969,8 @@ export default function PublicMapPage() {
                                    layer.default_identifier_field;
             
             if (!identifierField) {
-              console.log(`[PublicMapPage] No identifier_field found for instance ${instanceId}`);
               continue;
             }
-            
-            console.log(`[PublicMapPage] Checking shape layer instance ${instanceId} with identifier_field "${identifierField}"`);
-            
             // Check if identifier_field matches:
             // 1. Direct match in location_data fields
             // 2. Match in city structure district_fields (meaning it's a related district field)
@@ -1002,17 +979,7 @@ export default function PublicMapPage() {
             const isDistrictField = districtFields.includes(identifierField);
             const hasRelatedDistrictField = districtFields.some(df => locationDataFields.has(df));
             const isKnownDistrictFieldName = commonDistrictFieldNames.includes(identifierField);
-            
-            console.log(`[PublicMapPage] Match check for "${identifierField}":`, {
-              hasDirectMatch,
-              isDistrictField,
-              hasRelatedDistrictField,
-              isKnownDistrictFieldName,
-              hasAnyDistrictFieldInData,
-              districtFields,
-              locationDataFields: Array.from(locationDataFields)
-            });
-            
+
             // Match if:
             // - Direct field match in location_data, OR
             // - identifier_field is in district_fields AND location_data has any district field, OR
@@ -1027,8 +994,6 @@ export default function PublicMapPage() {
               const fieldToUse = hasDirectMatch 
                 ? identifierField 
                 : districtFields.find(df => locationDataFields.has(df)) || identifierField;
-              
-              console.log(`[PublicMapPage] ✅ Found matching shape layer: ${instanceId} (identifier_field: ${identifierField}, using field: ${fieldToUse})`);
               matchingLayers.push({
                 shape_layer_instance_id: instanceId,
                 identifier_field: fieldToUse, // Use the field that exists in location_data
@@ -1039,8 +1004,6 @@ export default function PublicMapPage() {
                 layer_key: template?.layer_key || layer.layer_key,
                 category: template?.category || layer.category,
               });
-            } else {
-              console.log(`[PublicMapPage] ❌ No match for field "${identifierField}"`);
             }
           } catch (err) {
             console.error(`[PublicMapPage] Error checking shape layer:`, err, layer);
@@ -1048,7 +1011,6 @@ export default function PublicMapPage() {
         }
         
         if (matchingLayers.length > 0) {
-          console.log(`[PublicMapPage] Found ${matchingLayers.length} matching shape layers`);
           setAvailableShapeLayers(matchingLayers);
           // Auto-select first matching layer only when default view is not points (so point maps stay as points)
           const defaultView = map?.map_config?.default_view as { type?: string } | undefined;
@@ -1062,7 +1024,6 @@ export default function PublicMapPage() {
             setSelectedShapeLayer(String(matchingLayers[0].shape_layer_instance_id));
           }
         } else {
-          console.log(`[PublicMapPage] No matching shape layers found`);
         }
       } catch (err) {
         console.error(`[PublicMapPage] Error discovering shape layers:`, err);
@@ -1071,15 +1032,6 @@ export default function PublicMapPage() {
     
     discoverMatchingShapeLayers();
   }, [map, selectedShapeLayer]);
-  
-  console.log(`[PublicMapPage] Map config:`, {
-    mapType: map?.map_type,
-    hasAggregations: Object.keys(aggregations).length > 0,
-    aggregationKeys: Object.keys(aggregations),
-    availableShapeLayersCount: availableShapeLayers.length,
-    availableShapeLayers: availableShapeLayers,
-    shapeLayerInstanceId: map?.map_config?.shape_layer_instance_id
-  });
 
   // Helper function to compute aggregations from points for a shape layer
   const computeAggregationForShapeLayer = (
@@ -1128,9 +1080,6 @@ export default function PublicMapPage() {
 
       if (!targetShapeLayerId && availableShapeLayers.length > 0) {
         targetShapeLayerId = availableShapeLayers[0].shape_layer_instance_id;
-        console.log(
-          `[PublicMapPage] Using first available discovered shape layer: ${targetShapeLayerId}`
-        );
       }
 
       const preferredId = pickChoroplethShapeLayerInstanceId(mapData, aggMap);
@@ -1146,11 +1095,6 @@ export default function PublicMapPage() {
         console.error("[PublicMapPage] No shape_layer_instance_id available");
         return;
       }
-
-      console.log(
-        `[PublicMapPage] loadChoroplethMap called with shapeLayerId: ${targetShapeLayerId}`
-      );
-      
       // Find the shape layer from discovered layers
       let shapeLayer = availableShapeLayers.find(
         (sl: any) => String(sl.shape_layer_instance_id) === String(targetShapeLayerId)
@@ -1158,7 +1102,6 @@ export default function PublicMapPage() {
       
       // If not found in discovered layers, try to get info from the API
       if (!shapeLayer) {
-        console.log(`[PublicMapPage] Shape layer ${targetShapeLayerId} not in discovered layers, fetching from API`);
         try {
           const response = await fetch(`/api/shape-layers/public/instances/${targetShapeLayerId}?include_geometry=false`);
           if (response.ok) {
@@ -1170,7 +1113,6 @@ export default function PublicMapPage() {
               layer_key: data.template?.layer_key,
               category: data.template?.category,
             };
-            console.log(`[PublicMapPage] Fetched shape layer from API:`, shapeLayer);
           }
         } catch (err) {
           console.error(`[PublicMapPage] Failed to fetch shape layer from API:`, err);
@@ -1200,14 +1142,6 @@ export default function PublicMapPage() {
       }
       
       const shapeLayerData = await response.json();
-      
-      console.log("Shape layer data received:", {
-        hasInstance: !!shapeLayerData?.instance,
-        hasGeometry: !!shapeLayerData?.instance?.geometry_data,
-        instanceId: shapeLayerData?.instance?.id,
-        identifierField: shapeLayerData?.instance?.identifier_field
-      });
-      
       if (!shapeLayerData?.instance?.geometry_data) {
         console.error("Shape layer instance has no geometry data. Response:", shapeLayerData);
         return;
@@ -1233,38 +1167,13 @@ export default function PublicMapPage() {
         mapData,
         aggregation
       );
-
-      console.log("Geometry data loaded:", {
-        type: geometryData?.type,
-        featureCount: geometryData?.features?.length,
-        shapeGeoPropertyField,
-        dataDistrictField,
-      });
-
-      console.log(
-        `[PublicMapPage] Looking for aggregation with key: ${aggregationKey}`
-      );
-      console.log(
-        `[PublicMapPage] Found aggregation:`,
-        aggregation ? `Yes (${aggregation.rows?.length || 0} rows)` : "No"
-      );
       if (String(aggregationKey) !== String(targetShapeLayerId)) {
-        console.log(
-          `[PublicMapPage] Using aggregation ${aggregationKey} with shape layer ${targetShapeLayerId}`
-        );
       }
-      console.log(
-        `[PublicMapPage] Choropleth join: data column="${dataDistrictField}", GeoJSON property="${shapeGeoPropertyField}"`
-      );
-      
       // Build district -> value map
       const districtDataMap = new Map<string, Record<string, number>>();
       
       if (aggregation && aggregation.rows) {
         // Use pre-computed aggregation
-        console.log(`[PublicMapPage] Using pre-computed aggregation with ${aggregation.rows.length} rows`);
-        console.log(`[PublicMapPage] Sample aggregation row:`, aggregation.rows[0]);
-        console.log(`[PublicMapPage] Aggregation identifier_field:`, aggregation.identifier_field);
         aggregation.rows.forEach((row: any) => {
           const dataField =
             (aggregation as ChoroplethAggBlock).data_field || dataDistrictField;
@@ -1305,7 +1214,6 @@ export default function PublicMapPage() {
         });
       } else {
         // Compute aggregation from location_data
-        console.log(`[PublicMapPage] Computing aggregation from ${mapData.location_data.length} location_data items`);
         const valueField = mapData.map_config.value_field || "count";
         const isCountAgg = valueField === "count";
 
@@ -1341,12 +1249,7 @@ export default function PublicMapPage() {
             districtDataMap.set(String(districtIdNum), prev);
           }
         });
-      }
-      
-      console.log(`[PublicMapPage] districtDataMap has ${districtDataMap.size} entries`);
-      console.log(`[PublicMapPage] Sample keys:`, Array.from(districtDataMap.keys()).slice(0, 5));
-
-      // ── Determine if this is a delta (red/green) or regular choropleth ──────────
+      }// ── Determine if this is a delta (red/green) or regular choropleth ──────────
       const isDeltaMap =
         mapData.map_type === "delta" ||
         mapData.map_config?.delta_palette === "red_green";
@@ -1365,9 +1268,6 @@ export default function PublicMapPage() {
 
       const minValue = colorValues.length > 0 ? Math.min(...colorValues) : 0;
       const maxValue = colorValues.length > 0 ? Math.max(...colorValues) : 1;
-
-      console.log(`[PublicMapPage] ${isDeltaMap ? "Delta" : "Choropleth"} value range: ${minValue} to ${maxValue}`);
-
       // ── Color helpers ─────────────────────────────────────────────────────────
       const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
       const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
@@ -1387,10 +1287,6 @@ export default function PublicMapPage() {
       // Regular choropleth: light lavender → brand purple (see mapUtils ramp)
       const CHORO_LOW = CHOROPLETH_BRAND_LOW_RGB;
       const CHORO_HIGH = CHOROPLETH_BRAND_HIGH_RGB;
-
-      console.log(`[PublicMapPage] Processing ${geometryData.features.length} shape features`);
-      console.log(`[PublicMapPage] Sample feature properties:`, geometryData.features[0]?.properties);
-
       // ── Merge district data with shape features ───────────────────────────────
       const features = geometryData.features.map((feature: any) => {
         const props = feature.properties || {};
@@ -1425,9 +1321,7 @@ export default function PublicMapPage() {
           ? Number(districtData.value || districtData.count || 0)
           : null;
 
-        if (!districtData && districtId) {
-          console.log(`[PublicMapPage] No data for districtId: "${districtId}" (raw: "${districtIdRaw}")`);
-        }
+        if (!districtData && districtId) {}
 
         // ── Compute fill colour ────────────────────────────────────────────────
         let color = "#e5e7eb"; // light gray = no data
@@ -1456,9 +1350,6 @@ export default function PublicMapPage() {
           },
         };
       });
-      
-      console.log("Adding choropleth layers with", features.length, "features");
-
       await waitForMapStyleLoaded(mapInstance);
       if (!mapInstance || typeof mapInstance.addSource !== "function") {
         return;
@@ -1498,9 +1389,6 @@ export default function PublicMapPage() {
             features: features,
           },
         });
-        
-        console.log("Choropleth source added successfully");
-        
         mapInstance.addLayer({
           id: "choropleth-fill",
           type: "fill",
@@ -1512,9 +1400,6 @@ export default function PublicMapPage() {
               : CHOROPLETH_FILL_OPACITY,
           },
         });
-        
-        console.log("Choropleth fill layer added");
-        
         // Use theme-aware outline color
         const outlineColor = theme === "dark" ? "#ffffff" : "#000000";
         mapInstance.addLayer({
@@ -1527,9 +1412,6 @@ export default function PublicMapPage() {
             "line-opacity": theme === "dark" ? 0.8 : 0.6,
           },
         });
-        
-        console.log("Choropleth outline layer added");
-
         // For district maps, prefer the selected shape layer's geometry bounds over any
         // saved point bounds so the map opens framed around the actual polygons.
         fitMapToGeoJsonFeatures(mapInstance, features);
@@ -1776,7 +1658,6 @@ export default function PublicMapPage() {
       const layerMaps = map.map_config?.layer_maps as Array<{ title?: string; location_data?: any[]; map_type?: string }> | undefined;
       const isMultiLayer = map.map_type === "multi_layer" && layerMaps && layerMaps.length > 0;
       if (!isMultiLayer && (!map.location_data || map.location_data.length === 0)) {
-        console.log("No location data available");
         return;
       }
 
@@ -1834,29 +1715,7 @@ export default function PublicMapPage() {
             map.city_id &&
             (locationDataCount >= 100 || hasAggregations)
           )
-        );
-      
-      console.log("Map loaded, checking map type:", {
-        mapType: map.map_type,
-        locationDataCount,
-        shouldUseChoropleth,
-        hasAggregations,
-        hasAvailableShapeLayers,
-        hasGeographicIdentifiers,
-        hasDiscoveredShapeLayers,
-        hasShapeLayerInConfig,
-        canDiscoverShapeLayers,
-        aggregationKeys: hasAggregations ? Object.keys(map.map_config!.aggregations) : [],
-        availableShapeLayersCount: hasAvailableShapeLayers ? map.map_config!.available_shape_layers.length : 0,
-        hasShapeLayerId: !!map.map_config?.shape_layer_instance_id,
-        shapeLayerId: map.map_config?.shape_layer_instance_id,
-        hasCityId: !!map.city_id,
-        cityId: map.city_id,
-        mapConfig: map.map_config,
-        sampleLocationData: map.location_data?.[0]
-      });
-      
-      // Handle choropleth maps with district shapes
+        );// Handle choropleth maps with district shapes
       // Only render if we have discovered shape layers or aggregations
       // Wait a bit for shape layers to be discovered if they're being fetched
       if (shouldUseChoropleth) {
@@ -1876,14 +1735,12 @@ export default function PublicMapPage() {
         }
         
         if (availableShapeLayers.length > 0 || hasAggregations || shapeLayerToUse) {
-          console.log("[PublicMapPage] Loading choropleth map with shapes", { shapeLayerToUse, availableShapeLayersCount: availableShapeLayers.length });
           if (mapInstance && typeof mapInstance.getLayer === 'function') {
             await loadChoroplethMap(mapInstance, map, shapeLayerToUse || null);
           } else {
             console.warn("[PublicMapPage] Map instance not ready, skipping choropleth load");
           }
         } else if (mightUseChoropleth && !hasDiscoveredShapeLayers) {
-          console.log("[PublicMapPage] Waiting for shape layers to be discovered...");
           // Shape layers are being discovered asynchronously, they'll trigger a re-render
           // For now, show points as fallback until shape layers are discovered
           // The shape layer discovery effect will switch to choropleth when ready
@@ -2025,15 +1882,7 @@ export default function PublicMapPage() {
           ...point,
           lat: point.lat ?? point.latitude,
           lon: point.lon ?? point.longitude,
-        }));
-        console.log("Rendering point layer:", {
-          totalLocationData: map.location_data?.length || 0,
-          validPointsCount: validPoints.length,
-          points: validPoints.map((p: any) => ({ lat: p.lat, lon: p.lon })),
-          invalidPoints: map.location_data.length - validPoints.length
-        });
-        
-        // Group points by exact location to detect overlaps
+        }));// Group points by exact location to detect overlaps
         const locationMap = new Map<string, number[]>();
         validPoints.forEach((point: any, index: number) => {
           const key = `${point.lat},${point.lon}`;
@@ -2263,7 +2112,6 @@ export default function PublicMapPage() {
         map.map_type === "delta");
     
     if (shouldUseChoropleth && mapInstanceRef.current) {
-      console.log("[PublicMapPage] Shape layers discovered, loading choropleth", { shapeLayerToUse });
       // Ensure points are hidden when choropleth is loaded
       if (showPoints) {
         setShowPoints(false);
@@ -2361,7 +2209,6 @@ export default function PublicMapPage() {
             isDistrictMap);
         
         if (shouldUseChoropleth && mapInstanceRef.current) {
-          console.log("Reloading choropleth layers after style change");
           await loadChoroplethMap(mapInstanceRef.current, map, selectedShapeLayer);
         } else if (mapInstanceRef.current?.getLayer?.("choropleth-outline")) {
           const outlineColor = theme === "dark" ? "#ffffff" : "#000000";

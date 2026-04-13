@@ -412,7 +412,6 @@ export default function DeltaMapView({
   }
 
   if (!districtData || districtData.districts.length === 0) {
-    console.log("[DeltaMapView] No district data available for metric", metricId);
     return (
       <div className="delta-map-container" style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666' }}>
         <p>District comparison data not available for this metric.</p>

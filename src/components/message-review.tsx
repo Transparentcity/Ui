@@ -285,11 +285,7 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
       const d = a.district === 0 ? 'Citywide' : `D${a.district}`
       districtCounts[d] = (districtCounts[d] || 0) + 1
     })
-    console.log('[MessageReview] Regenerating with', slimAnomalies.length, 'anomalies available')
-    console.log('[MessageReview] Citywide anomalies:', citywideCount)
-    console.log('[MessageReview] By district:', districtCounts)
     if (slimAnomalies.length > 0) {
-      console.log('[MessageReview] Sample anomaly:', JSON.stringify(slimAnomalies[0]))
     }
     
     // Mark items as regenerating

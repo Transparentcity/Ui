@@ -37,6 +37,16 @@ describe("CitySignupButton", () => {
     vi.clearAllMocks();
     mockLoginWithRedirect.mockResolvedValue(undefined);
     mockPrefillEmail = "";
+    // Provide a working localStorage mock for the test environment
+    const store: Record<string, string> = {};
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn((key: string) => store[key] ?? null),
+      setItem: vi.fn((key: string, value: string) => { store[key] = value; }),
+      removeItem: vi.fn((key: string) => { delete store[key]; }),
+      clear: vi.fn(() => { Object.keys(store).forEach(k => delete store[k]); }),
+      length: 0,
+      key: vi.fn(),
+    });
   });
 
   it("renders sign in and sign up buttons", () => {
@@ -88,17 +98,42 @@ describe("CitySignupButton", () => {
     });
 
     it("stores signup intent in localStorage", async () => {
-      const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
       const user = userEvent.setup();
       render(<CitySignupButton />);
       await user.click(screen.getByRole("button", { name: /sign up/i }));
       await user.click(screen.getByRole("menuitem", { name: /citizen/i }));
 
-      expect(setItemSpy).toHaveBeenCalledWith(
+      expect(window.localStorage.setItem).toHaveBeenCalledWith(
         "transparentcity.signup_intent",
         "resident"
       );
-      setItemSpy.mockRestore();
+    });
+
+    it("stores follow_city info in localStorage when city props provided", async () => {
+      const user = userEvent.setup();
+      render(<CitySignupButton citySlug="san-francisco" cityName="San Francisco" cityId={42} />);
+      await user.click(screen.getByRole("button", { name: /sign up/i }));
+      await user.click(screen.getByRole("menuitem", { name: /citizen/i }));
+
+      expect(window.localStorage.setItem).toHaveBeenCalledWith(
+        "transparentcity.follow_city_slug",
+        "san-francisco"
+      );
+      expect(window.localStorage.setItem).toHaveBeenCalledWith(
+        "transparentcity.follow_city_name",
+        "San Francisco"
+      );
+      expect(window.localStorage.setItem).toHaveBeenCalledWith(
+        "transparentcity.follow_city_id",
+        "42"
+      );
+      expect(mockLoginWithRedirect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          appState: {
+            returnTo: expect.stringContaining("follow_city_id=42"),
+          },
+        })
+      );
     });
 
     it("prefills email from context in signup flow", async () => {

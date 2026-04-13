@@ -432,7 +432,6 @@ export async function importContacts(contacts: ImportContact[]): Promise<ImportR
     return { success: 0, failed: 0, errors: ['No contacts to import'] }
   }
 
-  console.log('[Import] Starting import of', contacts.length, 'contacts')
 
   let db
   try {
@@ -471,8 +470,6 @@ export async function importContacts(contacts: ImportContact[]): Promise<ImportR
       notes: c.notes,
     }))
 
-    console.log('[Import] Inserting batch', Math.floor(i / batchSize) + 1, 'with', contactsToInsert.length, 'contacts')
-    console.log('[Import] Sample contact:', JSON.stringify(contactsToInsert[0]))
 
     try {
       const { data: insertedContacts, error } = await db
@@ -497,7 +494,6 @@ export async function importContacts(contacts: ImportContact[]): Promise<ImportR
         continue
       }
 
-      console.log('[Import] Successfully inserted', insertedArray.length, 'contacts')
       for (let j = 0; j < insertedArray.length; j++) {
         const contact = insertedArray[j] as { id: string }
         const keywordIds = batch[j]?.keywordIds || []
@@ -527,7 +523,6 @@ export async function importContacts(contacts: ImportContact[]): Promise<ImportR
     }
   }
 
-  console.log('[Import] Complete:', { success, failed, errors })
 
   revalidatePath('/contacts')
   revalidatePath('/')

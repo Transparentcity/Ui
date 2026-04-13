@@ -231,7 +231,6 @@ export default function DistrictComparisonTable({
   }
 
   if (!data || data.districts.length === 0) {
-    console.log("[DistrictComparisonTable] No district data available for metric", metricId);
     return null; // Don't show anything if no district data
   }
 

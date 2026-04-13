@@ -10,9 +10,6 @@ export async function GET(
   const resolvedParams = await params;
   const cityId = resolvedParams.city_id;
 
-  console.log(`[api/cities/structure] Request for city_id: ${cityId}`);
-  console.log(`[api/cities/structure] NEXT_PUBLIC_API_URL: ${process.env.NEXT_PUBLIC_API_URL}`);
-  console.log(`[api/cities/structure] Using backend URL base: ${BACKEND_API_URL}`);
 
   if (!cityId || isNaN(parseInt(cityId, 10))) {
     return NextResponse.json(
@@ -36,7 +33,6 @@ export async function GET(
 
   for (const endpoint of endpoints) {
     try {
-      console.log(`[api/cities/structure] Trying endpoint: ${endpoint}`);
       const backendRes = await fetch(endpoint, {
         method: "GET",
         headers: {
@@ -46,18 +42,15 @@ export async function GET(
         cache: "no-store",
       });
 
-      console.log(`[api/cities/structure] Response status: ${backendRes.status}`);
 
       if (backendRes.ok) {
         const data = await backendRes.json();
-        console.log(`[api/cities/structure] Successfully fetched city structure from: ${endpoint}`);
         return NextResponse.json(data);
       }
 
       // Store the error for fallback
       lastError = await backendRes.text().catch(() => "");
       lastStatus = backendRes.status;
-      console.log(`[api/cities/structure] Endpoint failed, trying next...`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`[api/cities/structure] Fetch error for ${endpoint}:`, errorMessage);

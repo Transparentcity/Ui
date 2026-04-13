@@ -102,7 +102,6 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
           activeCount++;
         }
       });
-      console.log(`📥 Jobs loaded: ${jobsMap.size} total, ${activeCount} active`);
       setJobs(jobsMap);
     } catch (error) {
       // Silently handle expected errors (auth issues, backend unavailable)
@@ -158,7 +157,6 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
           const prevJob = newJobs.get(job.job_id);
           // Only log if status changed
           if (!prevJob || prevJob.status !== job.status) {
-            console.log(`📊 Job ${jobId}: ${prevJob?.status || 'new'} → ${job.status}`);
           }
           newJobs.set(job.job_id, job);
           return newJobs;
@@ -212,7 +210,6 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
     if (wsRetryCountRef.current >= MAX_WS_RETRIES) {
       if (!wsGaveUpRef.current) {
         wsGaveUpRef.current = true;
-        console.log("🔌 WebSocket: Max retries reached, using polling only");
       }
       return;
     }
@@ -230,7 +227,6 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
 
     // Only log on first attempt
     if (wsRetryCountRef.current === 0) {
-      console.log("🔌 Connecting to job WebSocket:", wsUrl);
     }
 
     try {
@@ -246,7 +242,6 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
       ws.onopen = () => {
         clearTimeout(connectionTimeout);
         wsRetryCountRef.current = 0; // Reset retry count on successful connection
-        console.log("✅ Job WebSocket connected");
         setIsConnected(true);
         // Clear any pending reconnection
         if (reconnectTimeoutRef.current) {
@@ -286,7 +281,6 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
               const prevJob = newJobs.get(jobUpdate.job_id);
               // Only log status changes
               if (!prevJob || prevJob.status !== jobUpdate.data.status) {
-                console.log(`📊 Job ${jobUpdate.job_id}: ${prevJob?.status || 'new'} → ${jobUpdate.data.status}`);
               }
               newJobs.set(jobUpdate.job_id, jobUpdate.data);
               return newJobs;
@@ -326,7 +320,6 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
           }, retryDelay);
         } else if (wsRetryCountRef.current >= MAX_WS_RETRIES && !wsGaveUpRef.current) {
           wsGaveUpRef.current = true;
-          console.log("🔌 WebSocket unavailable - using polling for job updates");
         }
       };
 
@@ -364,7 +357,6 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
       try {
         // Use the apiClient function for consistency
         await cancelJobAPI(jobId, token);
-        console.log(`Job ${jobId} cancelled`);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         const statusCode = (error as any)?.status;
@@ -402,7 +394,6 @@ export function useJobWebSocket(token: string | null, enabled: boolean = true) {
 
     if (activeJobsList.length === 0) return;
 
-    console.log(`Cancelling ${activeJobsList.length} active jobs...`);
     await Promise.allSettled(
       activeJobsList.map((job) => cancelJob(job.job_id))
     );

@@ -70,7 +70,7 @@ describe("CityHeroNewsletter", () => {
         withContainer
       />,
     );
-    expect(screen.getByText("Get stories like this once a week")).toBeInTheDocument();
+    expect(screen.getByText("Sign up now, get your first newsletter this week")).toBeInTheDocument();
     expect(
       screen.getByText(/San Francisco, CA.+public data, explained/),
     ).toBeInTheDocument();
@@ -102,6 +102,6 @@ describe("CityHeroNewsletter", () => {
     );
     expect(screen.getByText("Get this in your inbox every week")).toBeInTheDocument();
     expect(screen.getByText("Sign up to receive Oakland's weekly briefing.")).toBeInTheDocument();
-    expect(screen.queryByText("Get stories like this once a week")).not.toBeInTheDocument();
+    expect(screen.queryByText("Sign up now, get your first newsletter this week")).not.toBeInTheDocument();
   });
 });

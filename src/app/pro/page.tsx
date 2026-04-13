@@ -35,7 +35,6 @@ export default function AddYourCityPage() {
     }
 
     try {
-      console.log("City form submitted:", { intent: activeTab, ...formData });
       setFormSubmitted(true);
     } catch {
       setFormError(

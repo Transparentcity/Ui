@@ -29,6 +29,16 @@ describe("NavEmailSignup", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockLoginWithRedirect.mockResolvedValue(undefined);
+    // Provide a working localStorage mock for the test environment
+    const store: Record<string, string> = {};
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn((key: string) => store[key] ?? null),
+      setItem: vi.fn((key: string, value: string) => { store[key] = value; }),
+      removeItem: vi.fn((key: string) => { delete store[key]; }),
+      clear: vi.fn(() => { Object.keys(store).forEach(k => delete store[k]); }),
+      length: 0,
+      key: vi.fn(),
+    });
   });
 
   it("renders email input, sign up button, and sign in button", () => {
@@ -154,25 +164,32 @@ describe("NavEmailSignup", () => {
     });
 
     it("stores return path in sessionStorage before redirecting", async () => {
-      const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+      const mockSessionStorage = {
+        getItem: vi.fn(),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+        clear: vi.fn(),
+        length: 0,
+        key: vi.fn(),
+      };
+      vi.stubGlobal("sessionStorage", mockSessionStorage);
       const user = userEvent.setup();
       render(<NavEmailSignup citySlug="san-francisco" />);
       const input = screen.getByRole("textbox", { name: /email/i });
       await user.type(input, "user@example.com");
       await user.click(screen.getByRole("button", { name: /sign up/i }));
 
-      expect(setItemSpy).toHaveBeenCalledWith(
+      expect(mockSessionStorage.setItem).toHaveBeenCalledWith(
         "auth_return_after_check_email",
-        expect.any(String)
+        expect.any(String),
       );
-      setItemSpy.mockRestore();
     });
   });
 
   describe("sign in flow", () => {
-    it("calls loginWithRedirect with login screen hint", async () => {
+    it("calls loginWithRedirect with login screen hint and city context", async () => {
       const user = userEvent.setup();
-      render(<NavEmailSignup citySlug="san-francisco" />);
+      render(<NavEmailSignup citySlug="san-francisco" cityName="San Francisco" cityId={42} />);
       await user.click(screen.getByRole("button", { name: /sign in/i }));
 
       expect(mockLoginWithRedirect).toHaveBeenCalledWith(
@@ -181,8 +198,14 @@ describe("NavEmailSignup", () => {
             screen_hint: "login",
             prompt: "login",
           }),
-          appState: { returnTo: "/home" },
+          appState: {
+            returnTo: expect.stringContaining("follow_city_slug=san-francisco"),
+          },
         })
+      );
+      expect(window.localStorage.setItem).toHaveBeenCalledWith(
+        "transparentcity.follow_city_slug",
+        "san-francisco"
       );
     });
 

@@ -96,11 +96,6 @@ export default function ChatView({
   
   // Wrap setCurrentSessionId to log all changes
   const setCurrentSessionId = (newId: string | null) => {
-    console.log("📊 setCurrentSessionId called:", {
-      from: currentSessionId,
-      to: newId,
-      stack: new Error().stack?.split('\n').slice(2, 5).join('\n'),
-    });
     setCurrentSessionIdInternal(newId);
   };
   const [currentSession, setCurrentSession] = useState<any>(null);
@@ -114,7 +109,6 @@ export default function ChatView({
   const [sessionStats, setSessionStats] = useState<SessionStats | null>(() => {
     // Initialize stats if sessionId is provided on mount
     if (sessionId) {
-      console.log("📊 Initializing with sessionId, setting placeholder stats:", sessionId);
       return {
         session_id: sessionId,
         total_tokens_used: 0,
@@ -156,7 +150,6 @@ export default function ChatView({
   useEffect(() => {
     // If sessionId prop is provided but currentSessionId doesn't match, update it
     if (sessionId && sessionId !== currentSessionId) {
-      console.log("📊 sessionId prop changed, updating currentSessionId:", sessionId);
       const isBootstrappedSessionAssignment =
         pendingSessionIdRef.current !== null &&
         sessionId === pendingSessionIdRef.current;
@@ -180,7 +173,6 @@ export default function ChatView({
       }
 
       // Set currentSessionId FIRST so the header knows we have a session
-      console.log("📊 Setting currentSessionId to:", sessionId);
       setCurrentSessionId(sessionId);
       if (isBootstrappedSessionAssignment) {
         pendingSessionIdRef.current = null;
@@ -191,7 +183,6 @@ export default function ChatView({
       setSessionStats((prevStats) => {
         // Only set if we don't already have stats for this exact session
         if (!prevStats || prevStats.session_id !== sessionId) {
-          console.log("📊 Setting initial placeholder stats for session:", sessionId);
           return {
             session_id: sessionId,
             total_tokens_used: 0,
@@ -209,18 +200,10 @@ export default function ChatView({
       // Reset when sessionId prop becomes null (e.g., when clicking "New Chat")
       // Only preserve state if we're in the middle of streaming to prevent data loss
       if (isStreaming || hasPendingSendRef.current) {
-        console.log("⚠️ sessionId prop became null during stream - ignoring to prevent data loss");
         return; // Don't clear during active operations
       }
       
       // When explicitly starting a new chat (sessionId becomes null), clear everything
-      console.log("📊 sessionId prop is null, clearing session and resetting to new chat", {
-        currentSessionId,
-        isStreaming,
-        hasPendingSend: hasPendingSendRef.current,
-        messagesCount: messages.length,
-        stack: new Error().stack?.split('\n').slice(2, 6).join('\n')
-      });
       hasShownWelcome.current = false;
       setSessionStats(null);
       statsSetFromSessionLoadRef.current = null;
@@ -232,7 +215,6 @@ export default function ChatView({
       // This is a safety net to prevent header from disappearing
       setSessionStats((prevStats) => {
         if (!prevStats || prevStats.session_id !== sessionId) {
-          console.log("📊 Safety net: Ensuring stats exist for session:", sessionId);
           return {
             session_id: sessionId,
             total_tokens_used: 0,
@@ -312,7 +294,6 @@ export default function ChatView({
     setSessionStats((prevStats) => {
       // If we don't have stats for this session, set placeholder immediately
       if (!prevStats || prevStats.session_id !== currentSessionId) {
-        console.log("📊 useEffect: Setting placeholder stats for session:", currentSessionId);
         return {
           session_id: currentSessionId,
           total_tokens_used: 0,
@@ -332,14 +313,6 @@ export default function ChatView({
       try {
         const token = await getAccessTokenSilently();
         const stats = await getSessionStats(currentSessionId, token);
-        console.log("📊 useEffect: Fetched stats from API:", {
-          session_id: stats.session_id,
-          total_tokens_used: stats.total_tokens_used,
-          llm_call_count: stats.llm_call_count,
-          total_execution_time_ms: stats.total_execution_time_ms,
-          model_key: stats.model_key,
-          hasRealData: stats.total_tokens_used > 0 || stats.llm_call_count > 0,
-        });
         // Always update with fresh stats (they may have changed after a new message)
         // This ensures the header shows the latest token counts
         setSessionStats(stats);
@@ -364,7 +337,6 @@ export default function ChatView({
     // This prevents a race where the session fetch returns before the first
     // message is persisted, wiping the optimistic user message.
     if (hasPendingSendRef.current || isStreaming) {
-      console.log("⏸️ Skipping handleMessagesLoaded - stream in progress");
       return;
     }
 
@@ -372,7 +344,6 @@ export default function ChatView({
       if (loadedMessages.length > 0) {
         // Always accept loaded messages — they are authoritative for the
         // session that ChatSessionLoader just fetched.
-        console.log("📥 Loading messages from session:", loadedMessages.length);
         hasShownWelcome.current = false;
         return loadedMessages;
       }
@@ -387,18 +358,11 @@ export default function ChatView({
       // We have previous messages but loaded is empty — this can happen when
       // streaming just finished and the persisted session hasn't caught up.
       // Keep existing messages to avoid flicker.
-      console.log("📥 Keeping existing messages — loaded was empty");
       return prevMessages;
     });
   }, [isStreaming]);
 
   const handleSessionLoaded = useCallback((session: any) => {
-    console.log("📊 handleSessionLoaded called with session:", {
-      session_id: session.session_id,
-      has_tokens: session.total_tokens_used !== undefined,
-      has_calls: session.llm_call_count !== undefined,
-      model_key: session.model_key,
-    });
     
     // Store session data for intermediate_steps access
     setCurrentSession(session);
@@ -422,14 +386,6 @@ export default function ChatView({
       created_at: session.created_at || new Date().toISOString(),
     };
     
-    console.log("📊 Setting session stats from handleSessionLoaded:", {
-      session_id: stats.session_id,
-      total_tokens_used: stats.total_tokens_used,
-      llm_call_count: stats.llm_call_count,
-      total_execution_time_ms: stats.total_execution_time_ms,
-      model_key: stats.model_key,
-      fullStats: stats,
-    });
     // Always set stats when session loads - this ensures header shows for old conversations
     setSessionStats(stats);
     // Mark that we've set stats from session load to prevent them from being cleared
@@ -437,7 +393,6 @@ export default function ChatView({
     
     // Ensure currentSessionId is set if it's not already
     if (session.session_id && session.session_id !== currentSessionId) {
-      console.log("📊 Updating currentSessionId from", currentSessionId, "to", session.session_id);
       setCurrentSessionId(session.session_id);
     }
     
@@ -513,7 +468,6 @@ export default function ChatView({
     // Create assistant message ID for streaming (but don't add to messages until content arrives)
     const assistantMessageId = `assistant-${Date.now()}`;
     setCurrentAssistantMessageId(assistantMessageId);
-    console.log("➕ Preparing assistant message:", assistantMessageId);
     
     // Don't add empty message to messages array - wait for first token
 
@@ -555,7 +509,6 @@ export default function ChatView({
       abortControllerRef.current = new AbortController();
 
       // Stream the response
-      console.log("🚀 Starting chat stream...");
       await sendChatMessageStream(
         {
           message: userMessageText,
@@ -564,10 +517,8 @@ export default function ChatView({
         },
         token,
         (event: StreamEvent) => {
-          console.log("📬 Received event:", event.type, event);
           
           if (abortControllerRef.current?.signal.aborted) {
-            console.log("⏹️ Stream aborted, ignoring event");
             return;
           }
 
@@ -610,7 +561,6 @@ export default function ChatView({
               const messageExists = prev.some((msg) => msg.id === assistantMessageId);
               if (!messageExists) {
                 // First token - create the message now that we have content
-                console.log("✅ Creating assistant message with first token");
                 return [
                   ...prev,
                   {
@@ -635,7 +585,6 @@ export default function ChatView({
               
               // Log for debugging
               if (updated.length > 0 && updated[updated.length - 1].id === assistantMessageId) {
-                console.log("📝 Updated message content length:", currentContent.length);
               }
               
               return updated;
@@ -666,7 +615,6 @@ export default function ChatView({
               const messageExists = prev.some((msg) => msg.id === assistantMessageId);
               if (!messageExists) {
                 // Create message with tool call even if no text content yet
-                console.log("✅ Creating assistant message with tool call");
                 return [
                   ...prev,
                   {
@@ -721,7 +669,6 @@ export default function ChatView({
             );
           } else if (event.type === "title_update" && event.title) {
             // Title update - notify sidebar to update immediately
-            console.log("Session title updated:", event.title);
             // Dispatch event with session ID and title for optimistic update
             if (typeof window !== "undefined" && sessionIdToUse) {
               window.dispatchEvent(
@@ -743,11 +690,6 @@ export default function ChatView({
             const callCount = tokenData.llm_call_count ?? 0;
             const costUsd = tokenData.estimated_cost_usd ?? 0;
             
-            console.log("💰 Token usage update:", {
-              session_total_tokens: sessionTokens,
-              llm_call_count: callCount,
-              estimated_cost_usd: costUsd,
-            });
             
             // Update session stats in real-time
             setSessionStats((prevStats) => {
@@ -775,11 +717,9 @@ export default function ChatView({
             });
           } else if (event.type === "heartbeat") {
             // Heartbeat event - just keep connection alive, don't process
-            console.log("💓 Heartbeat received");
             return;
           } else if (event.type === "end") {
             // Stream ended
-            console.log("🏁 Stream ended, fetching updated stats for session:", sessionIdToUse);
             setIsTyping(false);
             setIsStreaming(false);
             setCurrentAssistantMessageId(null);
@@ -788,16 +728,8 @@ export default function ChatView({
             // Add a small delay to ensure backend has persisted the stats
             if (sessionIdToUse) {
               setTimeout(() => {
-                console.log("📊 Fetching stats after stream end...");
                 getSessionStats(sessionIdToUse, token)
                   .then((stats) => {
-                    console.log("📊 Updated stats after stream:", {
-                      session_id: stats.session_id,
-                      total_tokens_used: stats.total_tokens_used,
-                      llm_call_count: stats.llm_call_count,
-                      total_execution_time_ms: stats.total_execution_time_ms,
-                      hasRealData: stats.total_tokens_used > 0 || stats.llm_call_count > 0,
-                    });
                     setSessionStats(stats);
                   })
                   .catch((error) => {
@@ -829,7 +761,6 @@ export default function ChatView({
             // Errors might be sent but stream can continue, so we don't stop processing
             // If it's a cancellation, log it but continue - the stream will end naturally
             if (event.content?.includes("cancelled") || event.content?.includes("Stream cancelled")) {
-              console.log("⚠️ Stream cancellation detected, but continuing to process remaining data");
               // Don't stop - let the stream continue to get any remaining data
             } else {
               // For other errors, log but continue - stream might still have data
@@ -838,13 +769,11 @@ export default function ChatView({
             // Don't return or throw - continue processing stream events
           } else {
             // Log unhandled event types
-            console.log("⚠️ Unhandled event type:", event.type, event);
           }
         },
         abortControllerRef.current?.signal // Pass abort signal to fetch
       );
       
-      console.log("✅ Stream completed successfully");
 
       // Finalize the message - ensure it exists and has all content
       if (!streamingStateRef.current) {
@@ -861,7 +790,6 @@ export default function ChatView({
         setMessages((prev) => {
           const messageExists = prev.some((msg) => msg.id === assistantMessageId);
           if (!messageExists) {
-            console.log("✅ Creating assistant message during finalization");
             return [
               ...prev,
               {
@@ -886,11 +814,8 @@ export default function ChatView({
           );
         });
       } else {
-        console.log("⚠️ No content, tool calls, or events - not creating message");
       }
       
-      console.log("✅ Finalized message with content length:", finalContent.length);
-      console.log("✅ Final message preview:", finalContent.substring(0, 100));
     } catch (error: any) {
       console.error("❌ Chat error:", error);
       console.error("Error stack:", error.stack);
@@ -904,7 +829,6 @@ export default function ChatView({
          error.message?.includes("Stream cancelled"));
       
       if (isAbortError) {
-        console.log("⏹️ Stream was cancelled, this is expected");
         // Don't show error message for cancellations - the partial response is fine
       } else {
         // Update assistant message with error for real errors
@@ -920,7 +844,6 @@ export default function ChatView({
         );
       }
     } finally {
-      console.log("🧹 Cleaning up stream state");
       hasPendingSendRef.current = false;
       setIsTyping(false);
       setIsStreaming(false);
@@ -1360,7 +1283,6 @@ export default function ChatView({
                 return true;
               })
               .map((msg) => {
-                console.log("🎨 Rendering message:", msg.id, "content length:", msg.content?.length || 0);
                 return (
                   <div
                     key={msg.id}

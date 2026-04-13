@@ -2081,7 +2081,6 @@ export default function CityMetricsMap({
               }
             }, firstPointLayerId);
             
-            console.log('Choropleth: Added fill layer', layerId, 'with visibility', isVisible ? 'visible' : 'none', 'and', choroplethFeatures.length, 'features', firstPointLayerId ? `below ${firstPointLayerId}` : '');
 
             // Add stroke layer (also below point layers, after fill so it's on top of fill)
             map.addLayer({

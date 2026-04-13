@@ -27,7 +27,15 @@ export default function MobileCitySignupBar({
         window.localStorage.setItem("transparentcity.follow_city_id", String(cityId));
       }
     }
-    const returnTo = `/home?signup=resident&follow_city_slug=${encodeURIComponent(citySlug)}&follow_city_name=${encodeURIComponent(cityName)}${typeof cityId === "number" ? `&follow_city_id=${cityId}` : ""}`;
+    const params = new URLSearchParams({
+      signup: "resident",
+      follow_city_slug: citySlug,
+      follow_city_name: cityName,
+    });
+    if (typeof cityId === "number") {
+      params.set("follow_city_id", String(cityId));
+    }
+    const returnTo = `/home?${params.toString()}`;
     await loginWithRedirect({
       authorizationParams: { screen_hint: "signup" },
       appState: { returnTo },

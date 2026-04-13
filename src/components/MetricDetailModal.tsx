@@ -254,7 +254,6 @@ export default function MetricDetailModal({
         });
       } catch (err) {
         // User cancelled or error occurred
-        console.log("Share cancelled or failed:", err);
       }
     } else if (publicUrl) {
       // Fallback: copy to clipboard

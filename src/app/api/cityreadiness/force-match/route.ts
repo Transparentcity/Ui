@@ -86,11 +86,9 @@ export async function POST(req: Request) {
     // Note: We pass --overrides-file to the script
     const cmd = `"${PYTHON_EXEC}" scripts/city_readiness_report.py --city-ids "${TARGET_CITY_IDS}" --output-json "${reportPath}" --baseline-mode all_templates --exclusions-file "${path.join(DATA_DIR, "dataset_match_exclusions.json")}" --overrides-file "${OVERRIDES_FILE}" --match-timestamps-file "${MATCH_TIMESTAMPS_FILE}"`
 
-    console.log(`[ForceMatch] Running: ${cmd}`)
     
     try {
       const { stdout, stderr } = await execAsync(cmd, { cwd: PLATFORM_DIR })
-      console.log("[ForceMatch] Stdout:", stdout)
       if (stderr) console.error("[ForceMatch] Stderr:", stderr)
     } catch (e) {
       const details = e instanceof Error ? e.message : String(e)

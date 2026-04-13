@@ -82,7 +82,6 @@ export default function ResearchList({
   // Listen for research invalidation events
   useEffect(() => {
     const handleInvalidate = () => {
-      console.log("🔄 Research list invalidated, reloading...");
       loadResearch();
     };
 
@@ -105,14 +104,12 @@ export default function ResearchList({
       
       // Check if this is a research-related job
       if (jobId.startsWith("research_")) {
-        console.log(`🔄 ResearchList: Job update for research job ${jobId}, reloading...`);
         shouldReload = true;
       }
       
       // Check for research_progress or research_item_update message types
       if (!shouldReload && data && (data.type === "research_progress" || data.type === "research_item_update")) {
         if (data.report_id) {
-          console.log(`🔄 ResearchList: Research progress update for report ${data.report_id}, reloading...`);
           shouldReload = true;
         }
       }
@@ -123,7 +120,6 @@ export default function ResearchList({
         if ((status === "completed" || status === "failed") && data.description) {
           const desc = data.description.toLowerCase();
           if (desc.includes("research") || desc.includes("research:")) {
-            console.log(`🔄 ResearchList: Research job ${jobId} ${status}, reloading...`);
             shouldReload = true;
           }
         }
@@ -139,12 +135,10 @@ export default function ResearchList({
           }
           debounceTimeoutRef.current = setTimeout(() => {
             lastUpdateRef.current = Date.now();
-            console.log(`🔄 ResearchList: Debounced reload triggered`);
             void loadResearch();
           }, 500);
         } else {
           lastUpdateRef.current = now;
-          console.log(`🔄 ResearchList: Immediate reload triggered`);
           void loadResearch();
         }
       }
@@ -152,7 +146,6 @@ export default function ResearchList({
     
     if (typeof window !== "undefined") {
       window.addEventListener("job:update", handler);
-      console.log(`👂 ResearchList: Listening for job updates`);
     }
     
     return () => {
@@ -178,7 +171,6 @@ export default function ResearchList({
       return; // No need to poll if nothing is running
     }
     
-    console.log(`🔄 ResearchList: Polling for running reports (${research.filter(r => r.status === "running" || r.status === "synthesizing" || r.status === "agenda_ready").length} running)`);
     
     const pollInterval = setInterval(() => {
       void loadResearch();

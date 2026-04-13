@@ -79,7 +79,6 @@ export default function SessionHeader({
   // Always render if we have a sessionId, even if stats are null
   // This prevents the header from disappearing during streaming
   if (!sessionId) {
-    console.log("🔍 SessionHeader returning null - no sessionId");
     return null;
   }
 
@@ -93,12 +92,6 @@ export default function SessionHeader({
 
   // Log stats for debugging
   if (stats && (stats.total_tokens_used > 0 || stats.llm_call_count > 0)) {
-    console.log("📊 SessionHeader with real stats:", {
-      tokens: stats.total_tokens_used,
-      calls: stats.llm_call_count,
-      time: stats.total_execution_time_ms,
-      cost: stats.estimated_cost_usd,
-    });
   }
 
   return (

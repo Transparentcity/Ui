@@ -9,9 +9,10 @@ import { useSignupEmail } from "./SignupEmailContext";
 type Props = {
   citySlug?: string;
   cityName?: string;
+  cityId?: number | null;
 };
 
-export default function CitySignupButton({ citySlug, cityName }: Props = {}) {
+export default function CitySignupButton({ citySlug, cityName, cityId }: Props = {}) {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const [signupMenuOpen, setSignupMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -39,14 +40,28 @@ export default function CitySignupButton({ citySlug, cityName }: Props = {}) {
     trackSignupStart(intent);
     if (typeof window !== "undefined") {
       window.localStorage.setItem("transparentcity.signup_intent", intent);
+      if (citySlug) {
+        window.localStorage.setItem("transparentcity.follow_city_slug", citySlug);
+      }
+      if (cityName) {
+        window.localStorage.setItem("transparentcity.follow_city_name", cityName);
+      }
+      if (typeof cityId === "number") {
+        window.localStorage.setItem("transparentcity.follow_city_id", String(cityId));
+      }
     }
     trackSignupClick(intent);
+    const params = new URLSearchParams({ signup: intent });
+    if (citySlug) params.set("follow_city_slug", citySlug);
+    if (cityName) params.set("follow_city_name", cityName);
+    if (typeof cityId === "number") params.set("follow_city_id", String(cityId));
+    const returnTo = `/home?${params.toString()}`;
     await loginWithRedirect({
       authorizationParams: {
         screen_hint: "signup",
         ...(prefillEmail && { login_hint: prefillEmail }),
       },
-      appState: { returnTo: `/home?signup=${intent}` },
+      appState: { returnTo },
     });
   };
 

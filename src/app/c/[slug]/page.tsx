@@ -16,7 +16,6 @@ import {
   getPublicCityMetricOrdering,
   type PublicMetricOrderingResponse,
 } from "@/lib/publicApiClient";
-import CitySignupButton from "./CitySignupButton";
 import NavEmailSignup from "./NavEmailSignup";
 import CityDashboardSection from "./CityDashboardSection";
 import CityDashboardSectionWithOrdering from "./CityDashboardSectionWithOrdering";
@@ -236,7 +235,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       />
       <CityViewTracker citySlug={slug} cityId={city?.id} />
       <PublicNavBar>
-        <NavEmailSignup citySlug={slug} cityName={city?.name} isHome />
+        <NavEmailSignup citySlug={slug} cityName={city?.name} cityId={city?.id} isHome />
       </PublicNavBar>
 
       {/* Section 1: City Hero */}
@@ -370,7 +369,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         </section>
       </LoggedOutOnly>
 
-      <MobileCitySignupBar cityName={city?.name ?? slug} citySlug={slug} />
+      <MobileCitySignupBar cityName={city?.name ?? slug} citySlug={slug} cityId={city?.id} />
       <PublicFooter citySlug={slug} feedbackPageUrl={`/c/${slug}`} feedbackPageType="city" />
     </CityPageClient>
   );

@@ -110,17 +110,24 @@ describe("EmailSignInLink", () => {
     });
 
     it("stores return path in sessionStorage", async () => {
-      const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+      const mockSessionStorage = {
+        getItem: vi.fn(),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+        clear: vi.fn(),
+        length: 0,
+        key: vi.fn(),
+      };
+      vi.stubGlobal("sessionStorage", mockSessionStorage);
       const user = userEvent.setup();
       render(<EmailSignInLink />);
       await user.type(screen.getByLabelText(/email/i), "user@example.com");
       await user.click(screen.getByRole("button", { name: /sign up/i }));
 
-      expect(setItemSpy).toHaveBeenCalledWith(
+      expect(mockSessionStorage.setItem).toHaveBeenCalledWith(
         "auth_return_after_check_email",
-        expect.any(String)
+        expect.any(String),
       );
-      setItemSpy.mockRestore();
     });
   });
 

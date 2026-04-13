@@ -428,14 +428,6 @@ export default function ProgressiveMapView({
     });
   }, [initialShapeLayers]);
 
-  console.log(`[ProgressiveMapView] Map config:`, {
-    mapType: mapData.map_type,
-    hasAggregations: Object.keys(aggregations).length > 0,
-    aggregationKeys: Object.keys(aggregations),
-    availableShapeLayersCount: availableShapeLayers.length,
-    availableShapeLayers: availableShapeLayers,
-    mapConfig: mapData.map_config
-  });
 
   // Merged aggregations (map_config + lazy-loaded when user selects alternative view)
   const effectiveAggregations = useMemo(
@@ -498,7 +490,6 @@ export default function ProgressiveMapView({
 
       if (validLocationData.length > 0 && points === null) {
         // Use location_data directly if it has valid points
-        console.log(`[ProgressiveMapView] Using ${validLocationData.length} points from location_data for choropleth map (normalized from ${mapData.location_data.length})`);
         setPoints(validLocationData);
         // Don't auto-show points for choropleth maps - let user toggle them
       } else if (points === null && !loadingPoints && validLocationData.length === 0) {
@@ -507,9 +498,6 @@ export default function ProgressiveMapView({
         if (!mapHash?.trim()) {
           setPoints([]);
         } else {
-          console.log(
-            `[ProgressiveMapView] location_data has ${mapData.location_data.length} items but no valid points, fetching from API`
-          );
           fetchPoints().catch((err) => {
             console.error("Auto-fetch points failed:", err);
           });
@@ -799,16 +787,13 @@ export default function ProgressiveMapView({
       // For choropleth maps, ensure choropleth layers are loaded before adding points
       try {
         if (!mapInstanceRef.current.getLayer("choropleth-fill")) {
-          console.log("[ProgressiveMapView] Waiting for choropleth to load before showing points");
           return;
         }
       } catch (e) {
-        console.log("[ProgressiveMapView] Error checking choropleth layer, map may not be ready:", e);
         return;
       }
     }
 
-    console.log(`[ProgressiveMapView] Rendering ${points.length} points (showPoints=${showPoints}, selectedDistrictId=${selectedDistrictId})`);
 
     // Filter points by selected district
     const filteredPoints = selectedDistrictId
@@ -834,10 +819,8 @@ export default function ProgressiveMapView({
     );
 
     if (validFilteredPoints.length > 0) {
-      console.log(`[ProgressiveMapView] Adding ${validFilteredPoints.length} valid points to map`);
       addPointsLayer(mapInstanceRef.current, validFilteredPoints);
     } else {
-      console.log(`[ProgressiveMapView] No valid points to display (filtered from ${points.length} total)`);
     }
   }, [showPoints, selectedDistrictId, points, selectedShapeLayer, effectiveAggregations, hasAggregations]);
 
@@ -849,8 +832,6 @@ export default function ProgressiveMapView({
   ): Aggregation => {
     const aggregationMap = new Map<string, number>();
     
-    console.log(`[ProgressiveMapView] computeAggregationForShapeLayer: identifierField=${identifierField}, metricDistrictField=${metricDistrictField}`);
-    console.log(`[ProgressiveMapView] Sample point keys:`, points[0] ? Object.keys(points[0]) : []);
     
     points.forEach((point: any) => {
       // Try to get district ID from point data:
@@ -871,8 +852,6 @@ export default function ProgressiveMapView({
       }
     });
     
-    console.log(`[ProgressiveMapView] Aggregation computed: ${aggregationMap.size} unique districts`);
-    console.log(`[ProgressiveMapView] District IDs found:`, Array.from(aggregationMap.keys()).slice(0, 10));
     
     const rows = Array.from(aggregationMap.entries()).map(([id, count]) => ({
       district: id,
@@ -893,9 +872,6 @@ export default function ProgressiveMapView({
   const loadChoroplethMap = async (mapInstance: any, shapeLayerId: string) => {
     try {
       const aggSource = effectiveAggregations;
-      console.log(`[ProgressiveMapView] loadChoroplethMap called for shapeLayerId: ${shapeLayerId}`);
-      console.log(`[ProgressiveMapView] Available aggregations keys:`, Object.keys(aggSource));
-      console.log(`[ProgressiveMapView] Available shape layers:`, availableShapeLayers.map(sl => ({ id: sl.shape_layer_instance_id, name: sl.display_name, field: sl.identifier_field })));
       
       // Try to find aggregation - it might be keyed by shape_layer_instance_id as string or number
       let aggregation = aggSource[shapeLayerId] as Aggregation | undefined;
@@ -907,7 +883,6 @@ export default function ProgressiveMapView({
       }
       if (!aggregation && Object.keys(aggSource).length > 0) {
         const firstKey = Object.keys(aggSource)[0];
-        console.log(`[ProgressiveMapView] Trying first aggregation key: ${firstKey}`);
         aggregation = aggSource[firstKey] as Aggregation | undefined;
       }
       
@@ -920,12 +895,10 @@ export default function ProgressiveMapView({
         if (shapeLayer) {
           // Try to compute from points first
           if (points && points.length > 0) {
-            console.log(`[ProgressiveMapView] Computing aggregation for shape layer ${shapeLayerId} from ${points.length} points`);
             aggregation = computeAggregationForShapeLayer(points, shapeLayer.identifier_field);
           } 
           // Fall back to location_data if points aren't available
           else if (mapData.location_data && Array.isArray(mapData.location_data) && mapData.location_data.length > 0) {
-            console.log(`[ProgressiveMapView] Computing aggregation for shape layer ${shapeLayerId} from ${mapData.location_data.length} location_data items`);
             const validLocationData = mapData.location_data.filter((p: any) => 
               p && 
               typeof p.lat === 'number' && 
@@ -944,7 +917,6 @@ export default function ProgressiveMapView({
         return;
       }
       
-      console.log(`[ProgressiveMapView] Using aggregation with ${aggregation.rows.length} rows`);
 
       const shapeLayer = availableShapeLayers.find(
         (sl) => String(sl.shape_layer_instance_id) === shapeLayerId
@@ -971,9 +943,6 @@ export default function ProgressiveMapView({
 
       // Create lookup map from aggregation rows (case-insensitive keys; never "NaN" for text ids)
       const districtDataMap = new Map<string | number, any>();
-      console.log(`[ProgressiveMapView] Building districtDataMap from ${aggregation.rows.length} aggregation rows`);
-      console.log(`[ProgressiveMapView] Using identifierField: ${identifierField}`);
-      console.log(`[ProgressiveMapView] Sample aggregation row:`, aggregation.rows[0]);
 
       const districtFieldCfg =
         typeof mapData.map_config?.district_field === "string"
@@ -1022,8 +991,6 @@ export default function ProgressiveMapView({
         }
       });
 
-      console.log(`[ProgressiveMapView] districtDataMap has ${districtDataMap.size} entries`);
-      console.log(`[ProgressiveMapView] Sample keys:`, Array.from(districtDataMap.keys()).slice(0, 5));
 
       const valueField = "value";
       const rowNumericValue = (item: any) => {
@@ -1056,20 +1023,12 @@ export default function ProgressiveMapView({
       const CHORO_LOW = CHOROPLETH_BRAND_LOW_RGB;
       const CHORO_HIGH = CHOROPLETH_BRAND_HIGH_RGB;
 
-      console.log(`[ProgressiveMapView] Processing ${geometryData.features.length} shape features`);
-      console.log(`[ProgressiveMapView] Sample feature properties:`, geometryData.features[0]?.properties);
       
       // Get the shape layer's identifier field from the API (this is the field used in GeoJSON properties)
       const apiIdentifierField = shapeLayerData.instance.identifier_field;
       // Also get the shape_identifier_field from our stored shape layer config
       const shapeIdentifierField = shapeLayer.shape_identifier_field || apiIdentifierField;
       
-      console.log(`[ProgressiveMapView] Field mapping:`, {
-        dataField: identifierField, // Field in our point/location data
-        shapeField: shapeIdentifierField, // Field in shape layer GeoJSON
-        apiField: apiIdentifierField, // Field from API response
-        metricField: metricDistrictField, // Field from metric config
-      });
       
       const lookupDistrictData = (raw: unknown) => {
         if (raw == null) return undefined;
@@ -1113,10 +1072,6 @@ export default function ProgressiveMapView({
         const value = districtData ? rowNumericValue(districtData) : null;
         
         if (!districtData && String(districtIdRaw).trim()) {
-          console.log(`[ProgressiveMapView] No data found for districtId: "${districtId}" (raw: "${districtIdRaw}")`);
-          console.log(`[ProgressiveMapView] Available keys in districtDataMap:`, Array.from(districtDataMap.keys()).slice(0, 10));
-          console.log(`[ProgressiveMapView] Feature properties:`, Object.keys(props));
-          console.log(`[ProgressiveMapView] Tried identifier fields: ${identifierField}, ${apiIdentifierField}`);
         }
 
         let color = "#e5e7eb"; // Default gray for no data
@@ -1145,10 +1100,8 @@ export default function ProgressiveMapView({
 
       // Wait for style to load if not already loaded
       if (!mapInstance.isStyleLoaded()) {
-        console.log("[ProgressiveMapView] Style not loaded, waiting for load event before adding choropleth");
         await new Promise<void>((resolve) => {
           mapInstance.once('load', () => {
-            console.log("[ProgressiveMapView] Style now loaded, proceeding with choropleth");
             resolve();
           });
         });
@@ -1280,7 +1233,6 @@ export default function ProgressiveMapView({
   const itemNounCap = itemNoun.charAt(0).toUpperCase() + itemNoun.slice(1);
 
   const addPointsLayer = (mapInstance: any, pointData: Array<{ lat: number; lon: number; [key: string]: any }>) => {
-    console.log(`[ProgressiveMapView] addPointsLayer called with ${pointData.length} points`);
     
     // Aggregate points at identical locations to show count-scaled markers
     const locationMap = new Map<string, { points: any[]; lat: number; lon: number }>();
@@ -1315,7 +1267,6 @@ export default function ProgressiveMapView({
       };
     });
     
-    console.log(`[ProgressiveMapView] Aggregated ${pointData.length} points into ${aggregatedFeatures.length} unique locations`);
     
     const geojsonData = {
       type: "FeatureCollection" as const,
@@ -1327,15 +1278,12 @@ export default function ProgressiveMapView({
       try {
         // Remove existing points layer
         if (mapInstance.getLayer("points-layer")) {
-          console.log("[ProgressiveMapView] Removing existing points-layer");
           mapInstance.removeLayer("points-layer");
         }
         if (mapInstance.getSource("points-source")) {
-          console.log("[ProgressiveMapView] Removing existing points-source");
           mapInstance.removeSource("points-source");
         }
 
-        console.log("[ProgressiveMapView] Adding points-source with", geojsonData.features.length, "features");
         mapInstance.addSource("points-source", {
           type: "geojson",
           data: geojsonData,
@@ -1355,7 +1303,6 @@ export default function ProgressiveMapView({
           return "#ad35fa";
         })();
 
-        console.log("[ProgressiveMapView] Adding points-layer");
         mapInstance.addLayer({
           id: "points-layer",
           type: "circle",
@@ -1396,7 +1343,6 @@ export default function ProgressiveMapView({
           const feature = e.features[0];
           const props = feature.properties || {};
           const count = props.count || 1;
-          console.log("[ProgressiveMapView] Point clicked:", props);
           
           // Build popup content
           let popupContent = `<div class="map-popup" style="max-height:300px;overflow-y:auto;">`;
@@ -1467,7 +1413,6 @@ export default function ProgressiveMapView({
           popup.remove();
         });
         
-        console.log("[ProgressiveMapView] Points layer added successfully");
       } catch (err) {
         console.error("[ProgressiveMapView] Error adding point layers:", err);
       }
@@ -1477,14 +1422,12 @@ export default function ProgressiveMapView({
     if (mapInstance.isStyleLoaded()) {
       doAddPointsLayer();
     } else {
-      console.log("[ProgressiveMapView] Style not loaded yet, waiting for 'load' event before adding points");
       mapInstance.once('load', doAddPointsLayer);
     }
   };
 
   // Add comparison period points as grey dots (rendered below current period points)
   const addComparisonPointsLayer = (mapInstance: any, pointData: Array<{ lat: number; lon: number; [key: string]: any }>) => {
-    console.log(`[ProgressiveMapView] addComparisonPointsLayer called with ${pointData.length} comparison points`);
     
     // Aggregate points at identical locations
     const locationMap = new Map<string, { points: any[]; lat: number; lon: number }>();
@@ -1571,7 +1514,6 @@ export default function ProgressiveMapView({
           },
         }, beforeLayerId); // Insert below points-layer if it exists
         
-        console.log("[ProgressiveMapView] Comparison points layer added successfully");
       } catch (err) {
         console.error("[ProgressiveMapView] Error adding comparison points layer:", err);
       }
@@ -1605,7 +1547,6 @@ export default function ProgressiveMapView({
         // ignore cleanup errors
       }
       if (isChoroplethMode && comparisonLocationData && comparisonLocationData.length > 0) {
-        console.log(`[ProgressiveMapView] Skipping comparison points in choropleth mode - showing recent period only`);
       }
       return;
     }
@@ -1614,10 +1555,8 @@ export default function ProgressiveMapView({
     const validComparisonPoints = normalizePointData(comparisonLocationData);
     
     if (validComparisonPoints.length > 0) {
-      console.log(`[ProgressiveMapView] Rendering ${validComparisonPoints.length} comparison points (normalized from ${comparisonLocationData.length})`);
       addComparisonPointsLayer(mapInstanceRef.current, validComparisonPoints);
     } else {
-      console.log(`[ProgressiveMapView] No valid comparison points found after normalization. Sample data:`, comparisonLocationData[0]);
     }
   }, [comparisonLocationData, mapboxLoaded, defaultView, hasAggregations]);
 

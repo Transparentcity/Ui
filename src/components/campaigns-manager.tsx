@@ -83,12 +83,6 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
   const anomalies = anomalyData?.results ? mapApiAnomaliesToCrm(anomalyData.results) : []
   
   // Debug logging for anomalies
-  console.log('[CampaignsManager] Anomalies status:', {
-    loading: anomaliesLoading,
-    error: anomaliesErrorMessage,
-    count: anomalies.length,
-    rawResultsCount: anomalyData?.results?.length ?? 0
-  })
 
   const filteredCampaigns = campaigns.filter(campaign =>
     campaign.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -130,13 +124,11 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
     }
 
     if (confirm(`Generate ${contactIds.length} AI-personalized messages with anomaly data for this campaign? This may take 30-60 seconds.`)) {
-      console.log('[CampaignsManager] Starting email generation with', anomalies.length, 'anomalies')
       if (anomalies.length === 0) {
         console.warn('[CampaignsManager] WARNING: No anomalies available! Check auth and API connection.')
       }
       // Serialize anomalies to plain objects for server action (Next.js requirement)
       const serializedAnomalies = JSON.parse(JSON.stringify(anomalies))
-      console.log('[CampaignsManager] Serialized anomalies count:', serializedAnomalies.length)
       setGeneratingCampaignId(campaignId)
       setStatusMessage({ type: 'loading', text: `Generating ${contactIds.length} personalized emails with AI...` })
       startTransition(async () => {
@@ -195,14 +187,11 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
     }
 
     if (confirm(`This will clear any pending/queued messages and generate ${contactIds.length} new AI-personalized messages. This may take 30-60 seconds. Continue?`)) {
-      console.log('[CampaignsManager] Starting regeneration with', anomalies.length, 'anomalies')
-      console.log('[CampaignsManager] Anomaly loading state:', { loading: anomaliesLoading, error: anomaliesErrorMessage })
       
       // Filter out ignored anomalies before creating slim versions
       const activeAnomalies = anomalies.filter(a => !isAnomalyIgnored(a.id))
       const ignoredCount = anomalies.length - activeAnomalies.length
       if (ignoredCount > 0) {
-        console.log(`[CampaignsManager] Excluded ${ignoredCount} ignored anomalies`)
       }
       
       // Create slim anomaly objects with only fields needed for email generation
@@ -210,16 +199,13 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
       const slimAnomalies = activeAnomalies.map((a) =>
         toSlimEmailAnomaly(a as CrmEmailAnomaly)
       )
-      console.log('[CampaignsManager] Slim anomalies count:', slimAnomalies.length)
       if (slimAnomalies.length > 0) {
-        console.log('[CampaignsManager] First slim anomaly:', slimAnomalies[0])
       }
       setGeneratingCampaignId(campaignId)
       setStatusMessage({ type: 'loading', text: `Generating ${contactIds.length} personalized emails with AI...` })
 
       // Capture anomalies in closure before startTransition
       const anomaliesToSend = slimAnomalies
-      console.log('[CampaignsManager] About to call regenerateCampaign with', anomaliesToSend.length, 'anomalies')
       
       startTransition(async () => {
         try {

@@ -65,12 +65,11 @@ export default function NavEmailSignup({ citySlug, cityName, cityId, isHome }: P
       if (cityName) window.localStorage.setItem("transparentcity.follow_city_name", cityName);
       if (typeof cityId === "number") window.localStorage.setItem("transparentcity.follow_city_id", String(cityId));
     }
-    let returnTo = "/home";
-    if (citySlug) {
-      returnTo += `?follow_city_slug=${encodeURIComponent(citySlug)}`;
-      if (cityName) returnTo += `&follow_city_name=${encodeURIComponent(cityName)}`;
-      if (typeof cityId === "number") returnTo += `&follow_city_id=${cityId}`;
-    }
+    const params = new URLSearchParams();
+    if (citySlug) params.set("follow_city_slug", citySlug);
+    if (cityName) params.set("follow_city_name", cityName);
+    if (typeof cityId === "number") params.set("follow_city_id", String(cityId));
+    const returnTo = params.toString() ? `/home?${params.toString()}` : "/home";
     try {
       await loginWithRedirect({
         authorizationParams: {

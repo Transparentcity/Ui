@@ -346,7 +346,6 @@ function createQueryBuilder(tableName: string, dbPool: Pool): QueryBuilder {
               RETURNING ${returningCols}
             `
             
-            console.log('[CRM DB] Insert SQL:', sql.trim().replace(/\s+/g, ' '))
             
             const result = await client.query(sql, values)
             resolve({ data: result.rows as T, error: null })
