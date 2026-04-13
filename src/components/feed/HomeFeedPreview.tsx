@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { listPublicFeedStories } from "@/lib/apiClient";
 import { enrichStory, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { resolveCanonicalUrl } from "@/lib/feed/canonicalUrl";
 import CardHeader from "./CardHeader";
+import MetricSummaryCard, { type MetricCardData } from "./templates/MetricSummaryCard";
 import styles from "./feed.module.css";
 import homeStyles from "./homeFeedPreview.module.css";
 
@@ -14,6 +15,8 @@ const DISPLAY_COUNT = 10;
 interface HomeFeedPreviewProps {
   /** Pre-fetched stories from the server (SSR). Skips client fetch when provided. */
   initialStories?: EnrichedFeedStory[];
+  /** Pre-fetched metric cards to interleave in the feed preview. */
+  metricCards?: MetricCardData[];
 }
 
 /**
@@ -21,7 +24,7 @@ interface HomeFeedPreviewProps {
  * When initialStories are provided (SSR), renders instantly with no loading state.
  * Falls back to client-side fetch when no initial data is available.
  */
-export default function HomeFeedPreview({ initialStories }: HomeFeedPreviewProps) {
+export default function HomeFeedPreview({ initialStories, metricCards = [] }: HomeFeedPreviewProps) {
   const hasInitial = initialStories && initialStories.length > 0;
   const [stories, setStories] = useState<EnrichedFeedStory[]>(hasInitial ? initialStories : []);
   const [loading, setLoading] = useState(!hasInitial);
@@ -69,27 +72,41 @@ export default function HomeFeedPreview({ initialStories }: HomeFeedPreviewProps
               <div className={homeStyles.skeletonBody} style={{ width: "60%" }} />
             </div>
           ))
-        : stories.map((story) => (
-            <Link
-              key={story.id}
-              href={resolveCanonicalUrl(story)}
-              className={homeStyles.previewCard}
-            >
-              <CardHeader
-                typeIcon={story.type_icon}
-                typeLabel={story.type_label}
-                actor={story.actor}
-                subline={story.subline}
-                neighborhoodLabel={story.neighborhood_label}
-              />
-              <h3 className={styles.cardHeadline}>{story.headline}</h3>
-              {story.cleaned_description && (
-                <p className={styles.cardDescription}>
-                  {story.cleaned_description}
-                </p>
-              )}
-            </Link>
-          ))}
+        : stories.map((story, idx) => {
+            // Interleave a metric card every 5th position
+            const metricIdx = idx >= 4 && (idx - 4) % 5 === 0
+              ? Math.floor((idx - 4) / 5)
+              : -1;
+            const metricCard =
+              metricIdx >= 0 && metricIdx < metricCards.length
+                ? metricCards[metricIdx]
+                : null;
+            return (
+              <Fragment key={story.id}>
+                {metricCard && (
+                  <MetricSummaryCard data={metricCard} />
+                )}
+                <Link
+                  href={resolveCanonicalUrl(story)}
+                  className={homeStyles.previewCard}
+                >
+                  <CardHeader
+                    typeIcon={story.type_icon}
+                    typeLabel={story.type_label}
+                    actor={story.actor}
+                    subline={story.subline}
+                    neighborhoodLabel={story.neighborhood_label}
+                  />
+                  <h3 className={styles.cardHeadline}>{story.headline}</h3>
+                  {story.cleaned_description && (
+                    <p className={styles.cardDescription}>
+                      {story.cleaned_description}
+                    </p>
+                  )}
+                </Link>
+              </Fragment>
+            );
+          })}
     </div>
   );
 }

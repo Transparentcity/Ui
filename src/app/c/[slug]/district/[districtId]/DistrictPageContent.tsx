@@ -15,6 +15,7 @@ import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
 import { SignupEmailProvider } from "../../SignupEmailContext";
+import MetricSummaryCard, { type MetricCardData } from "@/components/feed/templates/MetricSummaryCard";
 
 export type DistrictPageContentProps = {
   slug: string;
@@ -60,6 +61,34 @@ export default function DistrictPageContent({
   const year = new Date().getFullYear();
   const primaryLeader = leaders.find((l) => l.district === d);
   const leaderTitle = primaryLeader?.title || "Representative";
+
+  // Build up to 2 metric summary cards ranked by biggest movers
+  const districtMetricCards: MetricCardData[] = (() => {
+    if (!metrics.length || !comparisonsMap) return [];
+    const candidates: Array<{ card: MetricCardData; absPct: number }> = [];
+    for (const m of metrics) {
+      const comp = comparisonsMap[m.id]?.comparisons?.ytd;
+      if (!comp) continue;
+      const curr = comp.current_period_value;
+      const prior = comp.comparison_period_value;
+      if (curr == null || prior == null || prior === 0) continue;
+      const pct = ((curr - prior) / prior) * 100;
+      const idx = candidates.length;
+      const hoursAgo = idx * 12 + 2;
+      candidates.push({
+        card: {
+          metric: m,
+          comparison: comp,
+          slug,
+          cityName: `${city.shortDisplay} District ${d}`,
+          publishedAt: new Date(Date.now() - hoursAgo * 3600000).toISOString(),
+        },
+        absPct: Math.abs(pct),
+      });
+    }
+    candidates.sort((a, b) => b.absPct - a.absPct);
+    return candidates.slice(0, 2).map((c) => c.card);
+  })();
 
   return (
     <SignupEmailProvider>
@@ -140,7 +169,7 @@ export default function DistrictPageContent({
       </div>
 
       {/* ── STORY ACCENT STRIP ───────────────────────────────────────────── */}
-      {accentStories.length > 0 && (
+      {(accentStories.length > 0 || districtMetricCards.length > 0) && (
         <section className="district-stories-strip">
           <div className="container">
             <span className="district-stories-label">Latest from District {d}</span>
@@ -159,6 +188,13 @@ export default function DistrictPageContent({
                 );
               })}
             </div>
+            {districtMetricCards.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+                {districtMetricCards.map((mc) => (
+                  <MetricSummaryCard key={mc.metric.id} data={mc} />
+                ))}
+              </div>
+            )}
           </div>
         </section>
       )}

@@ -1,12 +1,22 @@
-import type { PublicFeedStory } from "@/lib/publicApiClient";
+import type {
+  PublicFeedStory,
+  PublicCityMetricItem,
+  PublicMetricComparisons,
+} from "@/lib/publicApiClient";
 import type { ReactNode } from "react";
 import SafeImage from "@/components/SafeImage";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
+import MetricSummaryCard, {
+  type MetricCardData,
+} from "@/components/feed/templates/MetricSummaryCard";
 
 type Props = {
   slug: string;
   cityDisplayName: string;
+  cityEmoji?: string;
   stories: PublicFeedStory[];
+  metrics?: PublicCityMetricItem[];
+  comparisonsMap?: Record<number, PublicMetricComparisons>;
 };
 
 function StoryCard({ href, className, children }: { href: string | null; className: string; children: ReactNode }) {
@@ -24,8 +34,75 @@ function storyHeadline(story: PublicFeedStory): string {
   });
 }
 
-export default function FeaturedStories({ slug, cityDisplayName, stories }: Props) {
-  if (stories.length === 0) return null;
+/**
+ * Build up to 2 metric summary cards from available comparison data,
+ * ranked by absolute percentage change (most interesting first).
+ */
+function buildMetricCards(
+  slug: string,
+  cityDisplayName: string,
+  cityEmoji: string | undefined,
+  metrics?: PublicCityMetricItem[],
+  comparisonsMap?: Record<number, PublicMetricComparisons>,
+): MetricCardData[] {
+  if (!metrics?.length || !comparisonsMap) return [];
+  const candidates: Array<{ card: MetricCardData; absPct: number }> = [];
+  for (const m of metrics) {
+    const comp = comparisonsMap[m.id]?.comparisons?.ytd;
+    if (!comp) continue;
+    const curr = comp.current_period_value;
+    const prior = comp.comparison_period_value;
+    if (curr == null || prior == null || prior === 0) continue;
+    const pct = ((curr - prior) / prior) * 100;
+    const idx = candidates.length;
+    const hoursAgo = idx * 12 + 2;
+    candidates.push({
+      card: {
+        metric: m,
+        comparison: comp,
+        slug,
+        cityName: cityDisplayName,
+        cityEmoji,
+        publishedAt: new Date(Date.now() - hoursAgo * 3600000).toISOString(),
+      },
+      absPct: Math.abs(pct),
+    });
+  }
+  candidates.sort((a, b) => b.absPct - a.absPct);
+  return candidates.slice(0, 2).map((c) => c.card);
+}
+
+export default function FeaturedStories({
+  slug,
+  cityDisplayName,
+  cityEmoji,
+  stories,
+  metrics,
+  comparisonsMap,
+}: Props) {
+  const metricCards = buildMetricCards(slug, cityDisplayName, cityEmoji, metrics, comparisonsMap);
+
+  // If no stories and no metric cards, render nothing
+  if (stories.length === 0 && metricCards.length === 0) return null;
+
+  // If no stories but we have metric cards, render just the metric cards
+  if (stories.length === 0) {
+    return (
+      <section className="featured-stories-section">
+        <div className="container">
+          <header className="section-header" style={{ marginBottom: "1.25rem" }}>
+            <span className="section-badge">What&rsquo;s happening</span>
+            <h2 className="section-heading">Latest from {cityDisplayName}</h2>
+          </header>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {metricCards.map((mc) => (
+              <MetricSummaryCard key={mc.metric.id} data={mc} />
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   // Show 4 stories when available (balanced 2x2 grid), otherwise up to 3
   const visible = stories.slice(0, stories.length >= 4 ? 4 : 3);
@@ -76,6 +153,15 @@ export default function FeaturedStories({ slug, cityDisplayName, stories }: Prop
               </StoryCard>
             ))}
           </div>
+
+          {/* Metric summary cards */}
+          {metricCards.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+              {metricCards.map((mc) => (
+                <MetricSummaryCard key={mc.metric.id} data={mc} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
     );
@@ -139,6 +225,15 @@ export default function FeaturedStories({ slug, cityDisplayName, stories }: Prop
             </div>
           )}
         </div>
+
+        {/* Metric summary cards */}
+        {metricCards.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+            {metricCards.map((mc) => (
+              <MetricSummaryCard key={mc.metric.id} data={mc} />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

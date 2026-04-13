@@ -5,6 +5,12 @@ import { getApiBaseUrl } from "@/lib/apiBase";
 import { enrichStory, isCoherentMultiMetric, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { pickFeaturedStories } from "@/lib/feed/pickFeaturedStories";
 import type { FeedStory } from "@/lib/hooks/useFeed";
+import {
+  listPublicCitiesForSitemap,
+  getPublicCityDetail,
+  getPublicMetricComparisonsBatch,
+} from "@/lib/publicApiClient";
+import type { MetricCardData } from "@/components/feed/templates/MetricSummaryCard";
 
 export const revalidate = 3600; // ISR: regenerate every hour
 
@@ -34,7 +40,7 @@ export const metadata: Metadata = {
 async function fetchFeaturedStories(): Promise<EnrichedFeedStory[]> {
   try {
     const apiBase = getApiBaseUrl();
-    const url = `${apiBase}/api/feed/public?limit=200&order_by=published_at`;
+    const url = `${apiBase}/api/feed/public?limit=50&order_by=published_at`;
     const res = await fetch(url, {
       headers: { Accept: "application/json" },
       next: { revalidate: 3600 },
@@ -49,7 +55,73 @@ async function fetchFeaturedStories(): Promise<EnrichedFeedStory[]> {
   }
 }
 
+/** Fetch metric cards from the top 3 launched cities for the homepage. */
+async function fetchHomeMetricCards(
+  launched: { id: number; slug: string; name: string; emoji?: string | null }[],
+): Promise<MetricCardData[]> {
+  try {
+    const perCity = await Promise.all(
+      launched.map(async (city): Promise<MetricCardData[]> => {
+        try {
+          const detail = await getPublicCityDetail(city.id);
+          const metrics = detail.metrics ?? [];
+          if (metrics.length === 0) return [];
+          const comps = await getPublicMetricComparisonsBatch({
+            metric_ids: metrics.map((m) => m.id),
+            district: 0,
+            comparison_types: ["ytd"],
+          });
+          const slug = city.slug;
+          const cityName = city.name;
+          const cityEmoji = city.emoji ?? undefined;
+          const candidates: Array<{ card: MetricCardData; absPct: number }> = [];
+          for (const m of metrics) {
+            const comp = comps[m.id]?.comparisons?.ytd;
+            if (!comp) continue;
+            const curr = comp.current_period_value;
+            const prior = comp.comparison_period_value;
+            if (curr == null || prior == null || prior === 0) continue;
+            const pct = ((curr - prior) / prior) * 100;
+            const idx = candidates.length;
+            const hoursAgo = idx * 12 + 2;
+            candidates.push({
+              card: {
+                metric: m,
+                comparison: comp,
+                slug,
+                cityName,
+                cityEmoji,
+                publishedAt: new Date(Date.now() - hoursAgo * 3600000).toISOString(),
+              },
+              absPct: Math.abs(pct),
+            });
+          }
+          candidates.sort((a, b) => b.absPct - a.absPct);
+          return candidates.slice(0, 2).map((c) => c.card);
+        } catch {
+          return [];
+        }
+      }),
+    );
+    return perCity.flat();
+  } catch {
+    return [];
+  }
+}
+
 export default async function HomePage() {
-  const stories = await fetchFeaturedStories();
-  return <HomeClient stories={stories} />;
+  const cities = await listPublicCitiesForSitemap().catch(() => []);
+  const launched = cities.filter((c) => c.is_launched).slice(0, 10);
+
+  const [stories, metricCards] = await Promise.all([
+    fetchFeaturedStories(),
+    fetchHomeMetricCards(launched.slice(0, 3)),
+  ]);
+  return (
+    <HomeClient
+      stories={stories}
+      metricCards={metricCards}
+      launchedCities={launched}
+    />
+  );
 }

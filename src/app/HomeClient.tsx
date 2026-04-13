@@ -5,23 +5,23 @@ import { useAuth0 } from "@auth0/auth0-react";
 import PublicFooter from "@/components/PublicFooter";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
-import {
-  listPublicCitiesForSitemap,
-  type PublicCitySitemapItem,
-} from "@/lib/publicApiClient";
+import type { PublicCitySitemapItem } from "@/lib/publicApiClient";
 import Loader from "@/components/Loader";
 import Header from "@/components/Header";
 import HomeFeedPreview from "@/components/feed/HomeFeedPreview";
 import { trackSearchReferrer } from "@/lib/analytics";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
+import type { MetricCardData } from "@/components/feed/templates/MetricSummaryCard";
 
 interface HomeClientProps {
   stories?: EnrichedFeedStory[];
+  metricCards?: MetricCardData[];
+  launchedCities?: PublicCitySitemapItem[];
 }
 
-export default function HomeClient({ stories }: HomeClientProps) {
+export default function HomeClient({ stories, metricCards, launchedCities = [] }: HomeClientProps) {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const router = useRouter();
 
@@ -34,25 +34,6 @@ export default function HomeClient({ stories }: HomeClientProps) {
       appState: { returnTo: "/home?signup=resident" },
     });
   };
-
-  const [launchedCities, setLaunchedCities] = useState<PublicCitySitemapItem[]>([]);
-
-  // Load launched cities from public API
-  useEffect(() => {
-    let cancelled = false;
-    async function loadCities() {
-      try {
-        const cities = await listPublicCitiesForSitemap();
-        if (cancelled) return;
-        const launched = cities.filter((c) => c.is_launched).slice(0, 10);
-        setLaunchedCities(launched);
-      } catch {
-        // Non-critical; page still works without city links
-      }
-    }
-    void loadCities();
-    return () => { cancelled = true; };
-  }, []);
 
   // Redirect authenticated users directly to dashboard
   useEffect(() => {
@@ -132,7 +113,7 @@ export default function HomeClient({ stories }: HomeClientProps) {
                 Sign up to follow your city and get a weekly newsletter for what's happening in your city and on your block.
               </p>
             </div>
-            <HomeFeedPreview initialStories={stories} />
+            <HomeFeedPreview initialStories={stories} metricCards={metricCards} />
           </div>
         </section>
 

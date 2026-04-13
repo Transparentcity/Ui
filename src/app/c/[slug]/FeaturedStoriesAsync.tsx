@@ -1,10 +1,17 @@
-import { listPublicFeedStories } from "@/lib/publicApiClient";
+import {
+  listPublicFeedStories,
+  type PublicCityMetricItem,
+  type PublicMetricComparisons,
+} from "@/lib/publicApiClient";
 import FeaturedStories from "./FeaturedStories";
 
 type Props = {
   cityId: number;
   slug: string;
   cityDisplayName: string;
+  cityEmoji?: string;
+  metrics?: PublicCityMetricItem[];
+  comparisonsMap?: Record<number, PublicMetricComparisons>;
 };
 
 /**
@@ -12,7 +19,14 @@ type Props = {
  * Designed to be wrapped in <Suspense> so the rest of the page can
  * stream without waiting for the feed stories API.
  */
-export default async function FeaturedStoriesAsync({ cityId, slug, cityDisplayName }: Props) {
+export default async function FeaturedStoriesAsync({
+  cityId,
+  slug,
+  cityDisplayName,
+  cityEmoji,
+  metrics,
+  comparisonsMap,
+}: Props) {
   const feedRes = await listPublicFeedStories({
     city_id: cityId,
     district: 0,
@@ -21,13 +35,15 @@ export default async function FeaturedStoriesAsync({ cityId, slug, cityDisplayNa
   }).catch(() => ({ stories: [], count: 0 }));
 
   const stories = feedRes.stories ?? [];
-  if (stories.length === 0) return null;
 
   return (
     <FeaturedStories
       slug={slug}
       cityDisplayName={cityDisplayName}
+      cityEmoji={cityEmoji}
       stories={stories}
+      metrics={metrics}
+      comparisonsMap={comparisonsMap}
     />
   );
 }
