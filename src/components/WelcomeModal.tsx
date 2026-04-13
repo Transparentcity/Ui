@@ -540,8 +540,6 @@ export default function WelcomeModal({
   // Render step indicator
   const renderStepIndicator = () => {
     const steps = ["welcome", "preferences"];
-    }
-
     const currentIndex = steps.indexOf(step);
 
     return (
