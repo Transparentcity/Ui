@@ -90,12 +90,12 @@
   .searchExpanded {
     gap: 4px;
   }
-  
+
   .input {
     width: min(calc(100vw - 160px), 160px);
     max-width: 160px;
     min-width: 100px;
-    font-size: 12px;
+    font-size: 16px; /* Prevent iOS auto-zoom on focus */
   }
   
   .inputWrap {
@@ -132,7 +132,7 @@
     width: min(calc(100vw - 140px), 120px);
     max-width: 120px;
     min-width: 80px;
-    font-size: 11px;
+    font-size: 16px; /* Prevent iOS auto-zoom on focus */
   }
   
   .inputWrap {

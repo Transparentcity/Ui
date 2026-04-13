@@ -627,6 +627,9 @@
   padding: 2px 8px;
   border-radius: 999px;
   flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 50%;
 }
 
 /* ── Card content ──────────────────────────────────────────────────────────── */

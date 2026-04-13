@@ -2850,6 +2850,7 @@
 
 .add-city-wrapper {
   min-height: 100vh;
+  min-height: 100dvh;
   background: radial-gradient(
       1200px 600px at 20% -10%,
       rgba(173, 53, 250, 0.12),

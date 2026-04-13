@@ -23,6 +23,7 @@
   max-width: 440px;
   width: 100%;
   max-height: 90vh;
+  max-height: 90dvh;
   overflow-y: auto;
   overflow-x: hidden;
   position: relative;
@@ -46,10 +47,16 @@
   cursor: pointer;
   color: var(--text-tertiary, #9ca3af);
   padding: 6px;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--radius-sm, 6px);
   transition: all 0.15s ease;
   z-index: 10;
   line-height: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .closeButton:hover {
@@ -684,6 +691,7 @@
 
   .modal {
     max-height: 88vh;
+    max-height: 88dvh;
     border-radius: var(--radius-lg, 16px) var(--radius-lg, 16px) 0 0;
   }
 
@@ -1238,4 +1246,119 @@
 [data-theme="dark"] .newsletterDescriptionInput {
   background: var(--bg-secondary);
   border-color: var(--border-primary);
+}
+
+/* City Picker Grid */
+.cityPickerGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.cityPickerCard {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--bg-secondary, #f8f9fa);
+  border: 1.5px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  font-size: 14px;
+  color: var(--text-primary, #111827);
+  font-weight: 500;
+}
+
+.cityPickerCard:hover:not(:disabled) {
+  border-color: var(--brand-primary, #ad35fa);
+  background: rgba(173, 53, 250, 0.04);
+}
+
+.cityPickerCard:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cityPickerEmoji {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.cityPickerName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cityPickerLoading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px 0;
+  font-size: 14px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.cityPickerDividerButton {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--brand-primary, #ad35fa);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s ease;
+  text-align: center;
+}
+
+.cityPickerDividerButton:hover {
+  color: var(--brand-primary-hover, #9333ea);
+  text-decoration: underline;
+}
+
+.comingSoonLink {
+  display: block;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-tertiary, #9ca3af);
+  text-decoration: none;
+  margin-top: 8px;
+  padding: 0 24px 8px;
+}
+
+.comingSoonLink:hover {
+  color: var(--brand-primary, #ad35fa);
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .cityPickerGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  .cityPickerCard {
+    padding: 10px 10px;
+    font-size: 13px;
+  }
+
+  .cityPickerEmoji {
+    font-size: 18px;
+  }
+}
+
+[data-theme="dark"] .cityPickerCard {
+  background: var(--bg-secondary);
+  border-color: var(--border-primary);
+}
+
+[data-theme="dark"] .cityPickerCard:hover:not(:disabled) {
+  background: rgba(173, 53, 250, 0.1);
 }

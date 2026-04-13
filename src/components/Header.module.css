@@ -352,6 +352,44 @@
   }
 }
 
+@media (max-width: 374px) {
+  .container {
+    padding: 0 12px;
+  }
+
+  .headerInner {
+    gap: 8px;
+  }
+
+  .brand {
+    gap: 6px;
+  }
+
+  .brandText {
+    font-size: 16px;
+  }
+
+  .buttonSignIn {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .buttonSignUp {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .navRight .button {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .menuWrap .buttonPrimary {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+}
+
 
 
 
