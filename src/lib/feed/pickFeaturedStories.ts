@@ -1,9 +1,10 @@
 /**
  * Picks 10 diverse, interesting stories for the landing page.
  *
- * Guarantees at least 1 context, 1 off_the_charts, and 1 traction story
- * (when available), then fills remaining slots with maximum variety across
- * cities and card types.
+ * Only uses stories from the last 2 days. First fills slots with stories
+ * that meet diversity guidelines (required types + variety across cities
+ * and card types), then fills remaining slots with the most recent stories
+ * regardless of diversity.
  */
 
 import type { EnrichedFeedStory, CardType } from "./mockFeedData";
@@ -17,22 +18,21 @@ const REQUIRED_TYPES: CardType[] = ["context", "off_the_charts", "traction"];
 const MIN_HEADLINE_LENGTH = 30;
 
 /** Stories older than this many days are excluded entirely. */
-const MAX_AGE_DAYS = 7;
+const MAX_AGE_DAYS = 2;
 
 /**
  * Returns true if a story looks presentable on the landing page:
- * decent headline, non-empty description, and published within the last week.
+ * decent headline, non-empty description, and published within the last 2 days.
  */
 function isPresent(story: EnrichedFeedStory): boolean {
   if ((story.headline ?? "").length < MIN_HEADLINE_LENGTH) return false;
   if (!story.cleaned_description || story.cleaned_description.length < 20) return false;
 
-  // Exclude stories older than MAX_AGE_DAYS
+  // Exclude stories older than MAX_AGE_DAYS (or with no date at all)
   const published = story.published_at ?? story.story_date;
-  if (published) {
-    const ageMs = Date.now() - new Date(published).getTime();
-    if (ageMs > MAX_AGE_DAYS * 86400000) return false;
-  }
+  if (!published) return false;
+  const ageMs = Date.now() - new Date(published).getTime();
+  if (ageMs > MAX_AGE_DAYS * 86400000) return false;
 
   return true;
 }
@@ -40,7 +40,7 @@ function isPresent(story: EnrichedFeedStory): boolean {
 /** Returns age in days (0 = today). */
 function ageDays(story: EnrichedFeedStory): number {
   const published = story.published_at ?? story.story_date;
-  if (!published) return 7;
+  if (!published) return MAX_AGE_DAYS + 1;
   return Math.max(0, (Date.now() - new Date(published).getTime()) / 86400000);
 }
 
@@ -54,8 +54,8 @@ function diversityScore(
 ): number {
   let score = 0;
 
-  // Recency: prefer newer stories (0-7 days maps to +7 to 0 points)
-  score += Math.max(0, 7 - ageDays(candidate));
+  // Recency: prefer newer stories (0-2 days maps to +2 to 0 points)
+  score += Math.max(0, MAX_AGE_DAYS - ageDays(candidate));
 
   // City diversity: strongly penalize repeats so we spread across launched cities
   const sameCityCount = picked.filter((p) => p.city_id === candidate.city_id).length;
@@ -76,36 +76,44 @@ function diversityScore(
 
 /**
  * From a pool of enriched stories, pick up to 10 with guaranteed variety.
+ *
+ * Uses only stories from the last 2 days. First picks diverse stories
+ * (required types + greedy diversity scoring), then fills any remaining
+ * slots with the most recent stories regardless of diversity rules.
  */
 export function pickFeaturedStories(
   pool: EnrichedFeedStory[],
   count: number = TARGET_COUNT,
 ): EnrichedFeedStory[] {
-  // Filter to presentable stories only
+  // Filter to presentable stories (includes the 2-day recency check)
   const candidates = pool.filter(isPresent);
-  if (candidates.length <= count) return candidates;
 
   const picked: EnrichedFeedStory[] = [];
   const usedIds = new Set<number>();
 
-  // Phase 1: fill required type slots
+  // If we have fewer presentable stories than needed, take them all
+  // and fall through to Phase 3 which relaxes quality checks
+  if (candidates.length <= count) {
+    picked.push(...candidates);
+    for (const c of candidates) usedIds.add(c.id);
+  }
+
+  // Phase 1: fill required type slots (diversity-aware)
   for (const requiredType of REQUIRED_TYPES) {
     if (picked.length >= count) break;
 
-    // Find best candidate of this type (most diverse relative to what's picked)
     const ofType = candidates.filter(
       (c) => c.card_type === requiredType && !usedIds.has(c.id),
     );
     if (ofType.length === 0) continue;
 
-    // Pick the one that adds most diversity (or first if nothing picked yet)
     ofType.sort((a, b) => diversityScore(b, picked) - diversityScore(a, picked));
     const best = ofType[0];
     picked.push(best);
     usedIds.add(best.id);
   }
 
-  // Phase 2: greedily fill remaining slots with most-diverse candidates
+  // Phase 2: greedily fill with most-diverse candidates
   while (picked.length < count) {
     let bestScore = -Infinity;
     let bestCandidate: EnrichedFeedStory | null = null;
@@ -122,6 +130,30 @@ export function pickFeaturedStories(
     if (!bestCandidate) break;
     picked.push(bestCandidate);
     usedIds.add(bestCandidate.id);
+  }
+
+  // Phase 3: if we still don't have enough, fill with most recent stories
+  // from the full pool (only recency filter, skip presentability checks)
+  if (picked.length < count) {
+    const recentPool = pool
+      .filter((s) => {
+        const published = s.published_at ?? s.story_date;
+        if (!published) return false;
+        const ageMs = Date.now() - new Date(published).getTime();
+        return ageMs <= MAX_AGE_DAYS * 86400000;
+      })
+      .sort((a, b) => {
+        const aTime = new Date(a.published_at ?? a.story_date ?? 0).getTime();
+        const bTime = new Date(b.published_at ?? b.story_date ?? 0).getTime();
+        return bTime - aTime;
+      });
+
+    for (const s of recentPool) {
+      if (picked.length >= count) break;
+      if (usedIds.has(s.id)) continue;
+      picked.push(s);
+      usedIds.add(s.id);
+    }
   }
 
   return picked;
