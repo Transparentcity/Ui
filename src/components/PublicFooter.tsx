@@ -39,7 +39,7 @@ export default function PublicFooter({ citySlug, feedbackPageUrl, feedbackPageTy
           </div>
           <div className="footer-column">
             <h4 className="footer-title">Get involved</h4>
-            <Link href="/pro" className="footer-link">
+            <Link href="/add-your-city" className="footer-link">
               Add your city
             </Link>
           </div>

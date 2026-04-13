@@ -1139,7 +1139,7 @@ export default function FeedContainer({
         <div className={styles.cityLaunchBanner}>
           <p className={styles.cityLaunchText}>
             We&apos;re building {noStoriesCity.name}. Want to help us launch it?{" "}
-            <a href="/pro" className={styles.cityLaunchLink}>Learn more</a>
+            <a href="/add-your-city" className={styles.cityLaunchLink}>Learn more</a>
           </p>
           <button
             type="button"

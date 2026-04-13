@@ -185,7 +185,7 @@ export default function HomeClient({ stories }: HomeClientProps) {
                 >
                   Get started
                 </button>
-                <a href="/pro" className={styles.ctaBtnOutline}>
+                <a href="/add-your-city" className={styles.ctaBtnOutline}>
                   Request your city
                 </a>
               </div>
