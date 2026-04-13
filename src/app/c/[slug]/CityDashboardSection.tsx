@@ -150,6 +150,7 @@ export default function CityDashboardSection({
         <div className="ytd-placeholder">
           <p>No metrics with comparison data for {cityDisplayName} yet.</p>
         </div>
+        {storiesSlot}
         {/* District and maps links even when no metrics */}
         {districts.length > 0 &&
           (cityId != null ? (
