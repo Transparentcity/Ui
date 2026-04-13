@@ -36,9 +36,13 @@ vi.mock("@/components/Loader", () => ({
 }));
 
 // ── deltaMapColors ──────────────────────────────────────────
-vi.mock("@/lib/deltaMapColors", () => ({
-  getDeltaMapFillColor: vi.fn(),
-}));
+vi.mock("@/lib/deltaMapColors", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/deltaMapColors")>();
+  return {
+    ...actual,
+    getDeltaMapFillColor: vi.fn(),
+  };
+});
 
 // ── CSS import ──────────────────────────────────────────────
 vi.mock("./styles.css", () => ({}));
