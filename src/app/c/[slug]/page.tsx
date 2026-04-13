@@ -328,6 +328,18 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                 maps={maps}
                 leaders={leaders}
                 cityOrdering={cityOrdering?.orderings ?? []}
+                storiesSlot={
+                  <Suspense fallback={null}>
+                    <FeaturedStoriesAsync
+                      cityId={city.id}
+                      slug={slug}
+                      cityDisplayName={cityDisplayName}
+                      cityEmoji={city.emoji ?? undefined}
+                      metrics={cityDetail?.metrics}
+                      comparisonsMap={comparisonsMap}
+                    />
+                  </Suspense>
+                }
               />
             }
           />

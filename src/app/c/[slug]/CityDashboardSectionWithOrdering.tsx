@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useUserMetricOrdering } from "@/lib/hooks/useCityAdmin";
 import { PENDING_ORDER_STORAGE_KEY_PREFIX } from "@/components/MetricOrderEditor";
@@ -27,6 +27,8 @@ type Props = {
   leaders?: PublicLeader[] | null;
   /** Admin-defined default ordering for the city (used when user has no custom ordering). */
   cityOrdering?: PublicMetricOrderingItem[];
+  /** Slot for featured stories (rendered inside CityDashboardSection). */
+  storiesSlot?: ReactNode;
 };
 
 export default function CityDashboardSectionWithOrdering({
@@ -39,6 +41,7 @@ export default function CityDashboardSectionWithOrdering({
   maps,
   leaders = null,
   cityOrdering,
+  storiesSlot,
 }: Props) {
   const { isAuthenticated } = useAuth0();
   const { data: userOrdering } = useUserMetricOrdering(isAuthenticated ? cityId : null);
@@ -154,6 +157,7 @@ export default function CityDashboardSectionWithOrdering({
         orderings={orderings}
         cityId={cityId}
         leaders={leaders}
+        storiesSlot={storiesSlot}
       />
     </>
   );
