@@ -1312,7 +1312,8 @@ export default function FeedContainer({
                 <FeedCard
                   key={story.id}
                   story={story}
-                  onOpen={() => openFeedDetail(story)}
+                  onHide={handleHide}
+                  onOpenFeedDetail={openFeedDetail}
                 />
               ))}
             </div>
@@ -1394,6 +1395,7 @@ export default function FeedContainer({
                   <FeedCard
                     key={story.id}
                     story={story}
+                    onHide={handleHide}
                     onOpenFeedDetail={openFeedDetail}
                   />
                 ))}
