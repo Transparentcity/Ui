@@ -754,3 +754,10 @@
   }
 }
 
+@media (max-width: 480px) {
+  .city-view.map-view-active .city-metrics-map-panel,
+  .city-view.tab-view-active .city-metrics-map-panel {
+    width: 240px;
+  }
+}
+

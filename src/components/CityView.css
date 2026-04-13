@@ -1343,6 +1343,12 @@
   .dashboard-title {
     font-size: 18px;
   }
+  .dashboard-header {
+    margin-bottom: 8px;
+  }
+  .dashboard-comparison-selector {
+    padding: 5px 12px;
+  }
 }
 
 /* Metrics Cards Container */
@@ -2789,10 +2795,9 @@ button.metrics-table-row {
   }
 
   .city-name {
-    font-size: 20px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: 18px;
+    white-space: normal;
+    word-break: break-word;
   }
 
   .city-header-right {
@@ -2816,8 +2821,12 @@ button.metrics-table-row {
   /* Remove padding from overlays on mobile for full-width map */
   .city-header-overlay {
     padding: 0;
-    padding-top: 12px;
-    padding-bottom: 12px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    height: auto;
+    min-height: 48px;
+    flex-wrap: wrap;
+    gap: 4px;
   }
 
   /* Position city icon beside hamburger on narrow: 12px TitleBar + 36px hamburger + 4px gap */
@@ -2839,7 +2848,12 @@ button.metrics-table-row {
   .city-header-overlay .city-header-right {
     padding-left: 0;
     padding-right: 16px;
-    gap: 16px;
+    gap: 8px;
+  }
+
+  .city-header-overlay .city-header-subtitle {
+    white-space: normal;
+    font-size: 0.75rem;
   }
 
   .tabs-container-overlay {

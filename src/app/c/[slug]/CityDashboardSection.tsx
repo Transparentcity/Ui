@@ -30,10 +30,6 @@ type CityDashboardSectionProps = {
   district?: number;
   /** Optional: custom order (user or city-level). When set, categories/metrics sorted by this. */
   orderings?: MetricOrderingEntry[];
-  /** Optional: when set, shows a "Customize metrics" control in the section header. */
-  onCustomizeMetricsClick?: () => void;
-  /** Optional: when set (e.g. when logged out), shows this CTA instead of Customize metrics. */
-  signUpToCustomizeMetricsNode?: React.ReactNode;
   /** Optional: when set with cityId, district block shows rep names, follow buttons, and Claim my page. */
   cityId?: number;
   leaders?: PublicLeader[] | null;
@@ -50,8 +46,6 @@ export default function CityDashboardSection({
   maps,
   district: districtFilter,
   orderings,
-  onCustomizeMetricsClick,
-  signUpToCustomizeMetricsNode,
   cityId,
   leaders,
   storiesSlot,
@@ -215,25 +209,6 @@ export default function CityDashboardSection({
         <h2 className="dashboard-title">
           {isDistrictView ? `District ${districtFilter} Dashboard` : "Citywide Dashboard"}
         </h2>
-        {!isDistrictView && onCustomizeMetricsClick != null && (
-          <button
-            type="button"
-            onClick={onCustomizeMetricsClick}
-            style={{
-              padding: "6px 12px",
-              fontSize: 13,
-              fontWeight: 500,
-              color: "var(--brand-primary, #ad35fa)",
-              background: "transparent",
-              border: "1px solid var(--brand-primary, #ad35fa)",
-              borderRadius: 6,
-              cursor: "pointer",
-            }}
-          >
-            Customize metrics
-          </button>
-        )}
-        {!isDistrictView && signUpToCustomizeMetricsNode}
       </div>
 
       {/* Comparison bar: YTD only (matches dashboard selector style) */}

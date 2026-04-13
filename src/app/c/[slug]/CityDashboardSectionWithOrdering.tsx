@@ -8,7 +8,6 @@ import UserMetricOrderDialog from "@/components/UserMetricOrderDialog";
 import CityDashboardSection, {
   type MetricOrderingEntry,
 } from "./CityDashboardSection";
-import SignUpToCustomizeMetricsButton from "./SignUpToCustomizeMetricsButton";
 import type {
   PublicCityMetricItem,
   PublicMetricComparisons,
@@ -153,12 +152,6 @@ export default function CityDashboardSectionWithOrdering({
         districts={districts}
         maps={maps}
         orderings={orderings}
-        onCustomizeMetricsClick={
-          isAuthenticated ? () => setDialogOpen(true) : undefined
-        }
-        signUpToCustomizeMetricsNode={
-          !isAuthenticated ? <SignUpToCustomizeMetricsButton /> : undefined
-        }
         cityId={cityId}
         leaders={leaders}
       />

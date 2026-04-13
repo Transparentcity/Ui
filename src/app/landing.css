@@ -2509,11 +2509,26 @@
   .map-preview-bg {
     height: 240px;
   }
+  .map-preview-layers {
+    max-width: calc(50vw - 24px);
+    padding: 8px 10px;
+    min-width: 120px;
+  }
+  .map-preview-layer {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+  }
   .featured-stories-grid {
     grid-template-columns: 1fr;
   }
   .city-hero-v2 {
     padding: 72px 0 12px;
+  }
+  .city-dashboard-wrapper {
+    padding-top: 16px;
+    padding-bottom: 16px;
   }
   .city-hero-v2-inner {
     flex-direction: column;
@@ -2533,6 +2548,13 @@
   }
   .city-hero-v2-subtitle {
     font-size: 13px;
+  }
+  .city-hero-v2-mayor {
+    font-size: 1rem;
+  }
+  .city-hero-v2-mayor-row .hero-official-btn {
+    padding: 2px 8px;
+    font-size: 10px;
   }
   .city-hero-v2-signup {
     max-width: 100%;
