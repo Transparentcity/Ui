@@ -1341,13 +1341,19 @@
   }
   
   .dashboard-title {
-    font-size: 16px;
+    font-size: 14px;
+    font-weight: 600;
   }
   .dashboard-header {
-    margin-bottom: 4px;
+    margin-bottom: 2px;
   }
   .dashboard-comparison-selector {
     padding: 4px 12px;
+    font-size: 12px;
+  }
+  .comparison-selector-label {
+    font-size: 12px;
+    font-weight: 500;
   }
 }
 
