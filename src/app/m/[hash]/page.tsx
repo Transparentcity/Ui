@@ -128,7 +128,7 @@ function waitForMapStyleLoaded(mapInstance: any): Promise<void> {
       return;
     }
     let settled = false;
-    let pollId: ReturnType<typeof setInterval> | undefined;
+    let pollId: number | undefined;
 
     const cleanupListeners = () => {
       mapInstance.off("style.load", onMaybeReady);

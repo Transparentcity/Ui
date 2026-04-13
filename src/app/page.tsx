@@ -9,8 +9,10 @@ import {
   listPublicCitiesForSitemap,
   getPublicCityDetail,
   getPublicMetricComparisonsBatch,
+  type PublicCitySitemapItem,
 } from "@/lib/publicApiClient";
 import type { MetricCardData } from "@/components/feed/templates/MetricSummaryCard";
+import { slugify } from "@/lib/utils";
 
 export const revalidate = 3600; // ISR: regenerate every hour
 
@@ -57,7 +59,7 @@ async function fetchFeaturedStories(): Promise<EnrichedFeedStory[]> {
 
 /** Fetch metric cards from the top 3 launched cities for the homepage. */
 async function fetchHomeMetricCards(
-  launched: { id: number; slug: string; name: string; emoji?: string | null }[],
+  launched: PublicCitySitemapItem[],
 ): Promise<MetricCardData[]> {
   try {
     const perCity = await Promise.all(
@@ -71,7 +73,7 @@ async function fetchHomeMetricCards(
             district: 0,
             comparison_types: ["ytd"],
           });
-          const slug = city.slug;
+          const slug = slugify(city.name);
           const cityName = city.name;
           const cityEmoji = city.emoji ?? undefined;
           const candidates: Array<{ card: MetricCardData; absPct: number }> = [];

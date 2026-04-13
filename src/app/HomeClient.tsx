@@ -7,7 +7,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-<<<<<<< HEAD
 import type { PublicCitySitemapItem } from "@/lib/publicApiClient";
 import { slugify } from "@/lib/utils";
 import Loader from "@/components/Loader";

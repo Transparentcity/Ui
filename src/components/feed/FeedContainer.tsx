@@ -34,6 +34,7 @@ import SkeletonCard from "./SkeletonCard";
 import FeedEndState from "./FeedEndState";
 import BrandedLoader from "@/components/BrandedLoader";
 import EditHomeLocationModal from "@/components/EditHomeLocationModal";
+import { slugify } from "@/lib/utils";
 import OnboardingBanner from "./OnboardingBanner";
 import FilterPanel, {
   type CityInfo,
@@ -512,7 +513,7 @@ export default function FeedContainer({
             district: 0,
             comparison_types: ["ytd"],
           });
-          const slug = detail.slug ?? detail.name.toLowerCase().replace(/\s+/g, "-");
+          const slug = slugify(detail.name);
           const cityName = detail.name;
           const cityEmoji = detail.emoji ?? undefined;
           return { metrics, comps, slug, cityName, cityEmoji };
