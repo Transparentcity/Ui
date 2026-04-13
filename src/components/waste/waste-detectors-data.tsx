@@ -478,7 +478,7 @@ function CollapsibleItem({
         onClick={() => setOpen(!open)}
         className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors"
       >
-        <span className="text-[10px] font-mono text-gray-400 w-8 shrink-0 text-right">
+        <span className="text-[10px] font-mono text-gray-500 w-8 shrink-0 text-right">
           {badge}
         </span>
         <span className="text-sm text-gray-800 font-medium flex-1">
@@ -496,7 +496,7 @@ function CollapsibleItem({
         ) : null}
         <ChevronDown
           className={cn(
-            "w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform",
+            "w-3.5 h-3.5 text-gray-500 shrink-0 transition-transform",
             open && "rotate-180"
           )}
         />
@@ -532,7 +532,7 @@ function CollapsibleItem({
                     <span
                       className={cn(
                         "text-xs leading-relaxed",
-                        step.done ? "text-gray-400 line-through" : "text-gray-700"
+                        step.done ? "text-gray-500 line-through" : "text-gray-700"
                       )}
                     >
                       {step.label}
@@ -589,7 +589,7 @@ function CollapsibleGroup({
         )}
         <ChevronDown
           className={cn(
-            "w-4 h-4 text-gray-400 shrink-0 transition-transform",
+            "w-4 h-4 text-gray-500 shrink-0 transition-transform",
             open && "rotate-180"
           )}
         />
@@ -708,7 +708,7 @@ export function WasteDetectorsData() {
 
       {/* Footer note */}
       <div className="pt-2">
-        <p className="text-xs text-gray-400 text-center">
+        <p className="text-xs text-gray-500 text-center">
           Anomalies are statistical patterns that warrant investigation — they do
           not confirm fraud or waste.
         </p>

@@ -64,7 +64,7 @@ export function FoiaSidebar() {
         </span>
         <Link
           href="/home"
-          className="flex items-center gap-1 text-xs text-gray-400 no-underline hover:text-purple-600 transition-colors"
+          className="flex items-center gap-1 text-xs text-gray-500 no-underline hover:text-purple-600 transition-colors"
         >
           <ArrowLeft className="w-3 h-3" />
           Main App
@@ -98,7 +98,7 @@ export function FoiaSidebar() {
 
       {/* Footer */}
       <div className="px-4 py-3 border-t border-gray-200 bg-white">
-        <p className="text-xs text-gray-400 m-0">
+        <p className="text-xs text-gray-500 m-0">
           FOIA / Public Records
         </p>
       </div>

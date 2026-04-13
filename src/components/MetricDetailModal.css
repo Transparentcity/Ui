@@ -37,7 +37,7 @@
   padding: 1rem 16px;
   background: var(--bg-secondary, #f3f4f6);
   border-bottom: 1px solid var(--border-primary);
-  border-left: 4px solid var(--text-tertiary, #9ca3af);
+  border-left: 4px solid var(--text-tertiary, #6b7280);
 }
 
 .metric-detail-stale-banner-title {

@@ -366,7 +366,7 @@ export function ApiModePage() {
             <div className="hidden md:block w-16 h-px bg-gray-300 relative">
               <div className="absolute right-0 top-1/2 -translate-y-1/2 w-0 h-0 border-l-[6px] border-l-gray-400 border-y-[4px] border-y-transparent" />
             </div>
-            <span className="text-[10px] text-gray-400 font-medium">
+            <span className="text-[10px] text-gray-500 font-medium">
               event
             </span>
           </div>
@@ -389,7 +389,7 @@ export function ApiModePage() {
             <div className="hidden md:block w-16 h-px bg-gray-300 relative">
               <div className="absolute right-0 top-1/2 -translate-y-1/2 w-0 h-0 border-l-[6px] border-l-gray-400 border-y-[4px] border-y-transparent" />
             </div>
-            <span className="text-[10px] text-gray-400 font-medium">
+            <span className="text-[10px] text-gray-500 font-medium">
               score + action
             </span>
           </div>
@@ -410,7 +410,7 @@ export function ApiModePage() {
       </div>
 
       {/* Event Type Selector */}
-      <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+      <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
         Sample Event Types
       </h2>
       <div className="flex items-center gap-2 flex-wrap mb-5">
@@ -439,7 +439,7 @@ export function ApiModePage() {
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
               Event Payload
             </span>
-            <span className="text-[10px] text-gray-400">
+            <span className="text-[10px] text-gray-500">
               POST /api/guardrails/score
             </span>
           </div>
@@ -454,7 +454,7 @@ export function ApiModePage() {
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
               Score Response
             </span>
-            <span className="text-[10px] text-gray-400">200 OK</span>
+            <span className="text-[10px] text-gray-500">200 OK</span>
           </div>
           <div className="p-4">
             {/* Score hero */}
@@ -472,7 +472,7 @@ export function ApiModePage() {
 
             {/* Reasons */}
             <div className="mb-4">
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+              <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
                 Top Reasons
               </p>
               <div className="space-y-1.5">
@@ -490,7 +490,7 @@ export function ApiModePage() {
 
             {/* JSON response */}
             <details className="group">
-              <summary className="text-[11px] text-gray-400 cursor-pointer hover:text-gray-600 list-none [&::-webkit-details-marker]:hidden">
+              <summary className="text-[11px] text-gray-500 cursor-pointer hover:text-gray-600 list-none [&::-webkit-details-marker]:hidden">
                 <span className="group-open:hidden">Show raw JSON</span>
                 <span className="hidden group-open:inline">Hide raw JSON</span>
               </summary>
@@ -513,7 +513,7 @@ export function ApiModePage() {
             <h3 className="text-sm font-semibold text-gray-700">
               Detector Mapping
             </h3>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="text-xs text-gray-500 mt-0.5">
               Which detectors fire for each event type
             </p>
           </div>
@@ -560,7 +560,7 @@ export function ApiModePage() {
             <h3 className="text-sm font-semibold text-gray-700">
               Decision Logic
             </h3>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="text-xs text-gray-500 mt-0.5">
               Score ranges and recommended actions
             </p>
           </div>
@@ -587,7 +587,7 @@ export function ApiModePage() {
             })}
           </div>
           <div className="px-4 pb-4">
-            <p className="text-xs text-gray-400 mt-2">
+            <p className="text-xs text-gray-500 mt-2">
               Thresholds are configurable per event type and department.
             </p>
             <Link
@@ -605,7 +605,7 @@ export function ApiModePage() {
         <h3 className="text-sm font-semibold text-gray-700 mb-1">
           Detectors Applied: {event.label}
         </h3>
-        <p className="text-xs text-gray-400 mb-3">
+        <p className="text-xs text-gray-500 mb-3">
           Suite: {event.suite} &middot; {event.detectors.length} detectors
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">

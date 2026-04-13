@@ -143,7 +143,7 @@
 .metricCount {
   margin-left: auto;
   font-size: 11px;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
   background: var(--bg-tertiary, #f3f4f6);
   padding: 2px 8px;
   border-radius: 10px;
@@ -180,7 +180,7 @@
 
 .subcategoryCount {
   font-size: 11px;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
 }
 
 .subcategoryNameEditable {
@@ -216,7 +216,7 @@
   padding: 2px 8px;
   font-size: 10px;
   font-weight: 500;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
   background: transparent;
   border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 4px;

@@ -342,7 +342,7 @@
 }
 
 .settingsSaveBtn:disabled {
-  background: var(--text-tertiary, #9ca3af);
+  background: var(--text-tertiary, #6b7280);
   cursor: not-allowed;
 }
 
@@ -426,7 +426,7 @@
 }
 
 .settingsGenerateBtn:disabled {
-  background: var(--text-tertiary, #9ca3af);
+  background: var(--text-tertiary, #6b7280);
   cursor: not-allowed;
 }
 

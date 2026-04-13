@@ -205,7 +205,7 @@ export default function AnomalyMapOverlay({
         <div className={styles.headerTitle}>
           {periodTitle || info.metricName}
         </div>
-        <button className={styles.closeBtn} onClick={onClose} title="Close">
+        <button className={styles.closeBtn} onClick={onClose} title="Close" aria-label="Close">
           <i className="fas fa-times" />
         </button>
       </div>

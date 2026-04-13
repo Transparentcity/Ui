@@ -176,7 +176,7 @@ function ImpactPreview({
   return (
     <div className="mt-3 p-3 rounded-lg bg-gray-50 border border-gray-100">
       <div className="flex items-center gap-1.5 mb-2">
-        <BarChart3 className="w-3.5 h-3.5 text-gray-400" />
+        <BarChart3 className="w-3.5 h-3.5 text-gray-500" />
         <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
           Impact Preview
         </span>
@@ -201,7 +201,7 @@ function ImpactPreview({
           <div className="text-[10px] text-gray-500">False positives</div>
         </div>
       </div>
-      <p className="text-[10px] text-gray-400 mt-2">
+      <p className="text-[10px] text-gray-500 mt-2">
         Raising thresholds reduces queue volume but may miss true positives.
         Lowering them increases coverage at the cost of more false positives.
       </p>
@@ -234,7 +234,7 @@ function CategorySensitivity({
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100">
       <div className="flex items-center gap-1.5">
-        <Gauge className="w-3.5 h-3.5 text-gray-400" />
+        <Gauge className="w-3.5 h-3.5 text-gray-500" />
         <span className="text-xs font-medium text-gray-600">Overall Sensitivity</span>
       </div>
       <div className="flex-1 max-w-[200px]">
@@ -249,7 +249,7 @@ function CategorySensitivity({
           }}
         />
       </div>
-      <div className="flex items-center gap-2 text-[10px] text-gray-400">
+      <div className="flex items-center gap-2 text-[10px] text-gray-500">
         <span className="flex items-center gap-0.5">
           <TrendingDown className="w-3 h-3" /> Fewer alerts
         </span>
@@ -490,7 +490,7 @@ export function ThresholdConfigPage() {
                               {threshold.detector_name}
                             </span>
                             {description && (
-                              <p className="text-[11px] text-gray-400 mt-0.5 flex items-start gap-1">
+                              <p className="text-[11px] text-gray-500 mt-0.5 flex items-start gap-1">
                                 <Info className="w-3 h-3 shrink-0 mt-0.5" />
                                 {description}
                               </p>
@@ -509,7 +509,7 @@ export function ThresholdConfigPage() {
                               <button
                                 type="button"
                                 onClick={() => handleReset(threshold.detector_key, threshold.default_value)}
-                                className="text-[11px] text-gray-400 hover:text-purple-600 transition-colors"
+                                className="text-[11px] text-gray-500 hover:text-purple-600 transition-colors"
                               >
                                 Reset ({threshold.default_value.toFixed(2)})
                               </button>
@@ -524,7 +524,7 @@ export function ThresholdConfigPage() {
                             step={(threshold.max_value - threshold.min_value) / 100}
                             onValueChange={([v]) => handleSliderChange(threshold.detector_key, v)}
                           />
-                          <div className="flex justify-between mt-1 text-[10px] text-gray-400">
+                          <div className="flex justify-between mt-1 text-[10px] text-gray-500">
                             <span>Less sensitive ({threshold.min_value.toFixed(2)})</span>
                             <span>Default: {threshold.default_value.toFixed(2)}</span>
                             <span>More sensitive ({threshold.max_value.toFixed(2)})</span>
@@ -568,7 +568,7 @@ export function ThresholdConfigPage() {
                             <button
                               type="button"
                               onClick={() => handleReset(threshold.detector_key, threshold.default_value)}
-                              className="text-[11px] text-gray-400 hover:text-purple-600 transition-colors"
+                              className="text-[11px] text-gray-500 hover:text-purple-600 transition-colors"
                             >
                               Reset ({threshold.default_value.toFixed(2)})
                             </button>
@@ -582,7 +582,7 @@ export function ThresholdConfigPage() {
                         step={(threshold.max_value - threshold.min_value) / 100}
                         onValueChange={([v]) => handleSliderChange(threshold.detector_key, v)}
                       />
-                      <div className="flex justify-between mt-1 text-[10px] text-gray-400">
+                      <div className="flex justify-between mt-1 text-[10px] text-gray-500">
                         <span>{threshold.min_value.toFixed(2)}</span>
                         <span>Default: {threshold.default_value.toFixed(2)}</span>
                         <span>{threshold.max_value.toFixed(2)}</span>
@@ -599,7 +599,7 @@ export function ThresholdConfigPage() {
       {/* Methodology links */}
       <div className="mt-8 bg-white rounded-lg border border-gray-200 p-5">
         <div className="flex items-center gap-2 mb-3">
-          <BookOpen className="w-4 h-4 text-gray-400" />
+          <BookOpen className="w-4 h-4 text-gray-500" />
           <h3 className="text-sm font-semibold text-gray-700">Methodology</h3>
         </div>
         <p className="text-xs text-gray-500 mb-4">

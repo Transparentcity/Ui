@@ -253,7 +253,7 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
             </span>
           )}
           {investigation.opened_at && (
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-gray-500">
               Opened {new Date(investigation.opened_at).toLocaleDateString()}
             </span>
           )}
@@ -323,7 +323,7 @@ export function InvestigationDetailPage({ investigationId }: InvestigationDetail
         </h3>
 
         {sortedActions.length === 0 ? (
-          <p className="text-sm text-gray-400 py-8 text-center">
+          <p className="text-sm text-gray-500 py-8 text-center">
             No notes yet. Add the first note to start tracking this case.
           </p>
         ) : (

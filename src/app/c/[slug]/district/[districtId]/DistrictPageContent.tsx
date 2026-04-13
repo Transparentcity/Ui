@@ -67,6 +67,7 @@ export default function DistrictPageContent({
         <NavEmailSignup citySlug={slug} cityName={city.shortDisplay} />
       </PublicNavBar>
 
+      <main id="main-content">
       {/* ── ACCOUNTABILITY HEADER ─────────────────────────────────────────── */}
       <section className="district-hero">
         <div className="container">
@@ -191,6 +192,7 @@ export default function DistrictPageContent({
         </section>
       )}
 
+      </main>
       <PublicFooter
         citySlug={slug}
         feedbackPageUrl={`${base}/district/${d}`}

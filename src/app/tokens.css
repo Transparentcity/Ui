@@ -25,8 +25,8 @@
 
   --text-primary: #111827;
   --text-secondary: #6b7280;
-  --text-tertiary: #9ca3af;
-  --text-muted: #9ca3af;
+  --text-tertiary: #6b7280;
+  --text-muted: #6b7280;
   --text-inverse: #ffffff;
   /* Text on brand (e.g. primary buttons): always light for contrast on purple */
   --text-on-brand: #ffffff;

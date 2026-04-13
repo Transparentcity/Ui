@@ -45,10 +45,10 @@ export function AccuracyBars({ cityId }: AccuracyBarsProps) {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-5">
         <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-          <Gauge className="w-4 h-4 text-gray-400" />
+          <Gauge className="w-4 h-4 text-gray-500" />
           Detector Accuracy
         </h3>
-        <p className="text-xs text-gray-400 py-8 text-center">No accuracy data yet</p>
+        <p className="text-xs text-gray-500 py-8 text-center">No accuracy data yet</p>
       </div>
     )
   }
@@ -56,7 +56,7 @@ export function AccuracyBars({ cityId }: AccuracyBarsProps) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-5">
       <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-        <Gauge className="w-4 h-4 text-gray-400" />
+        <Gauge className="w-4 h-4 text-gray-500" />
         Detector Accuracy
       </h3>
       <ResponsiveContainer width="100%" height={Math.max(200, chartData.length * 32)}>

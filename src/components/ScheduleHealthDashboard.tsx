@@ -405,7 +405,7 @@ function MetricHealthTable({
                       {Math.round(m.days_old)}d
                     </span>
                   ) : (
-                    <span style={{ color: "#9ca3af" }}>—</span>
+                    <span style={{ color: "#6b7280" }}>—</span>
                   )}
                 </td>
                 <td
@@ -429,7 +429,7 @@ function MetricHealthTable({
                   {hasDist ? (
                     <span style={{ color: "#10b981", fontWeight: 600 }}>✓</span>
                   ) : (
-                    <span style={{ color: "#9ca3af" }}>—</span>
+                    <span style={{ color: "#6b7280" }}>—</span>
                   )}
                 </td>
                 <td style={{ whiteSpace: "nowrap", textAlign: "center" }}>
@@ -438,14 +438,14 @@ function MetricHealthTable({
                   ) : hasDist ? (
                     <span style={{ color: "#f59e0b", fontWeight: 600 }}>!</span>
                   ) : (
-                    <span style={{ color: "#9ca3af" }}>—</span>
+                    <span style={{ color: "#6b7280" }}>—</span>
                   )}
                 </td>
                 <td style={{ whiteSpace: "nowrap", textAlign: "center" }}>
                   {hasMap ? (
                     <span style={{ color: "#10b981", fontWeight: 600 }}>✓</span>
                   ) : (
-                    <span style={{ color: "#9ca3af" }}>—</span>
+                    <span style={{ color: "#6b7280" }}>—</span>
                   )}
                 </td>
                 <td style={{ whiteSpace: "nowrap" }}>

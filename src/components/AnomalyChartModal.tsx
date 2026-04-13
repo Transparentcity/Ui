@@ -46,7 +46,7 @@ export default function AnomalyChartModal({
               </span>
             )}
           </div>
-          <button className={styles.iconBtn} onClick={onClose} title="Close">
+          <button className={styles.iconBtn} onClick={onClose} title="Close" aria-label="Close">
             <i className="fas fa-times" />
           </button>
         </div>

@@ -321,7 +321,7 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
         ) : (
           <div>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <Input
                 placeholder="Search contacts by name, email, or city..."
                 value={contactSearch}
@@ -411,7 +411,7 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
                 ) : (
                   <Check className="w-4 h-4 text-green-500 shrink-0" />
                 )}
-                <span className={!anomalies.length && loadingAnomalies ? "text-gray-700" : "text-gray-400"}>
+                <span className={!anomalies.length && loadingAnomalies ? "text-gray-700" : "text-gray-500"}>
                   Finding anomalies for {selectedContact.city_name || "city"}...
                 </span>
                 {anomalies.length > 0 && (
@@ -427,7 +427,7 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
                 ) : (
                   <Check className="w-4 h-4 text-green-500 shrink-0" />
                 )}
-                <span className={isGenerating ? "text-gray-700" : !anomalies.length ? "text-gray-300" : "text-gray-400"}>
+                <span className={isGenerating ? "text-gray-700" : !anomalies.length ? "text-gray-300" : "text-gray-500"}>
                   Generating personalized email draft...
                 </span>
               </div>
@@ -479,7 +479,7 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
                   : "border-gray-200 bg-gray-50 hover:bg-gray-100"
               }`}
             >
-              <BarChart3 className="w-4 h-4 text-gray-400 shrink-0" />
+              <BarChart3 className="w-4 h-4 text-gray-500 shrink-0" />
               <span className="flex-1 text-gray-700 truncate">{selectedAnomaly.snippet}</span>
               {chartUrl && (
                 <a
@@ -496,9 +496,9 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
                 {anomalies.length} available
               </Badge>
               {showAnomalyPicker ? (
-                <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" />
+                <ChevronUp className="w-4 h-4 text-gray-500 shrink-0" />
               ) : (
-                <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+                <ChevronDown className="w-4 h-4 text-gray-500 shrink-0" />
               )}
             </button>
 
@@ -520,7 +520,7 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
                       {isCurrent ? (
                         <Check className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                       ) : (
-                        <ArrowRightLeft className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <ArrowRightLeft className="w-3.5 h-3.5 text-gray-500 shrink-0" />
                       )}
                       <span className="flex-1 truncate">{a.snippet}</span>
                       {a.district != null && a.district !== 0 && (
@@ -549,7 +549,7 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
                   {/* Subject */}
                   <div>
                     <div className="flex items-center gap-2 mb-1.5">
-                      <Mail className="w-3.5 h-3.5 text-gray-400" />
+                      <Mail className="w-3.5 h-3.5 text-gray-500" />
                       <Label className="text-xs text-gray-500 uppercase tracking-wide">Subject</Label>
                     </div>
                     <p className="font-medium text-gray-900">{draftSubject}</p>
@@ -634,10 +634,10 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
       {!selectedContact && (
         <div className="text-center py-8">
           <Users className="w-10 h-10 mx-auto text-gray-200 mb-3" />
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-gray-500">
             Select a contact to compose a personalized anomaly email
           </p>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-gray-500 mt-1">
             {activeContacts.length} active contact{activeContacts.length !== 1 ? "s" : ""} available
           </p>
         </div>

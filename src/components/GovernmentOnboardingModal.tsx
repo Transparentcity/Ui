@@ -272,7 +272,7 @@ export default function GovernmentOnboardingModal({
             <p className={styles.stepDescription}>
               Enter your government email so we can confirm your role. We&apos;ll send a code to verify you have access.
             </p>
-            <p className={styles.stepDescription} style={{ marginTop: 0, fontSize: 12, color: "var(--text-tertiary, #9ca3af)" }}>
+            <p className={styles.stepDescription} style={{ marginTop: 0, fontSize: 12, color: "var(--text-tertiary, #6b7280)" }}>
               Don&apos;t have a .gov address? Enter the email your office uses and our team will verify manually.
             </p>
             <div className={styles.locationSection}>

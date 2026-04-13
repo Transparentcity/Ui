@@ -15,7 +15,7 @@ const STATUS_STYLE: Record<string, { icon: React.ComponentType<{ className?: str
   completed: { icon: CheckCircle2, color: "text-green-500" },
   failed: { icon: XCircle, color: "text-red-500" },
   running: { icon: Loader2, color: "text-blue-500" },
-  pending: { icon: Clock, color: "text-gray-400" },
+  pending: { icon: Clock, color: "text-gray-500" },
 }
 
 interface AIAuditorStepCardProps {
@@ -41,7 +41,7 @@ export function AIAuditorStepCard({ step, className }: AIAuditorStepCardProps) {
           <div className="rounded-full bg-purple-100 p-1.5">
             <Bot className="w-4 h-4 text-purple-600" />
           </div>
-          <span className="text-[10px] font-mono text-gray-400">
+          <span className="text-[10px] font-mono text-gray-500">
             {step.step_number}/8
           </span>
         </div>
@@ -60,7 +60,7 @@ export function AIAuditorStepCard({ step, className }: AIAuditorStepCardProps) {
               )}
             />
             {step.duration_seconds > 0 && (
-              <span className="text-[10px] text-gray-400 ml-auto">
+              <span className="text-[10px] text-gray-500 ml-auto">
                 {step.duration_seconds.toFixed(1)}s
               </span>
             )}

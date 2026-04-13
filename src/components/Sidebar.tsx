@@ -199,6 +199,7 @@ export default function Sidebar({
       <aside
         className={`${styles.sidebar} ${isOpen ? styles.open : styles.collapsed}`}
         id="sidebar"
+        aria-label="Sidebar navigation"
         style={{
           ...(sidebarWidth && isOpen ? { width: sidebarWidth } : {}),
           ...(isDragging ? { transition: "none" } : {}),

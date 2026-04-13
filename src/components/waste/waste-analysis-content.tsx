@@ -1172,7 +1172,7 @@ export function WasteAnalysisContent() {
                 <div key={f.id} className={`rounded-md border ${f.severity.toLowerCase() === "critical" ? "border-red-300 bg-red-50/50" : f.severity.toLowerCase() === "high" ? "border-orange-300 bg-orange-50/50" : "border-gray-200"}`}>
                   <button onClick={() => toggleFinding(f.id)} className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50/50">
                     <div className="flex items-center gap-3 min-w-0">
-                      {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" /> : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />}
+                      {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-500 shrink-0" /> : <ChevronRight className="h-4 w-4 text-gray-500 shrink-0" />}
                       <span className="text-xs font-mono text-gray-500">#{idx + 1}</span>
                       <span className={`shrink-0 px-2 py-0.5 rounded text-xs font-bold border ${severityColor(f.severity)}`}>{f.severity.toUpperCase()}</span>
                       <span className="text-sm font-medium text-gray-900 truncate">{f.entity}</span>

@@ -90,7 +90,7 @@ export function WasteSubcategoryGroup({
       >
         <ChevronRight
           className={cn(
-            "w-4 h-4 text-gray-400 shrink-0 transition-transform",
+            "w-4 h-4 text-gray-500 shrink-0 transition-transform",
             !isCollapsed && "rotate-90"
           )}
         />
@@ -128,12 +128,12 @@ export function WasteSubcategoryGroup({
                   >
                     <ChevronRight
                       className={cn(
-                        "w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform",
+                        "w-3.5 h-3.5 text-gray-500 shrink-0 transition-transform",
                         isSubOpen && "rotate-90"
                       )}
                     />
                     <span className="font-medium text-sm text-gray-700">{sg.label}</span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-gray-500">
                       {sg.findings.length} finding{sg.findings.length !== 1 ? "s" : ""}
                     </span>
                     <SeverityBadges

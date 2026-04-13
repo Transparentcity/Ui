@@ -263,7 +263,7 @@ export function TasksContent() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900">{task.title}</p>
                 <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">{task.description}</p>
-                <div className="mt-1 flex items-center gap-3 text-xs text-gray-400">
+                <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
                   <span className="capitalize">{task.type.replace(/_/g, " ")}</span>
                   {task.assigned_to && <span>Assigned to {task.assigned_to}</span>}
                   {task.due_at && (
@@ -310,12 +310,12 @@ export function TasksContent() {
           {tasks.length === 0 && !loading && (
             <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
               {apiError ? (
-                <p className="text-sm text-gray-400">Tasks could not be loaded. Check the message above.</p>
+                <p className="text-sm text-gray-500">Tasks could not be loaded. Check the message above.</p>
               ) : (
                 <>
                   <ClipboardList className="h-10 w-10 text-gray-300" />
                   <p className="mt-3 text-sm font-medium text-gray-500">No tasks yet</p>
-                  <p className="mt-1 text-xs text-gray-400">Tasks will appear here when FOIA requests need action.</p>
+                  <p className="mt-1 text-xs text-gray-500">Tasks will appear here when FOIA requests need action.</p>
                 </>
               )}
             </div>

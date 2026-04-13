@@ -7,7 +7,8 @@ import Link from "next/link";
  */
 export default function PublicNavBar({ children }: { children: React.ReactNode }) {
   return (
-    <nav className="navbar public-nav">
+    <header>
+    <nav className="navbar public-nav" aria-label="Main navigation">
       <div className="container">
         <div className="nav-content">
           <Link
@@ -64,5 +65,6 @@ export default function PublicNavBar({ children }: { children: React.ReactNode }
         </div>
       </div>
     </nav>
+    </header>
   );
 }

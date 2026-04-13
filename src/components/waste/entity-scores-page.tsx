@@ -118,7 +118,7 @@ function SortHeader({
       )}
     >
       {children}
-      <ArrowUpDown className={cn("w-3 h-3", activeField === field ? "text-purple-600" : "text-gray-400")} />
+      <ArrowUpDown className={cn("w-3 h-3", activeField === field ? "text-purple-600" : "text-gray-500")} />
     </button>
   )
 }
@@ -296,7 +296,7 @@ export function EntityScoresPage() {
                 <TableCell colSpan={7} className="text-center py-12">
                   <Target className="w-10 h-10 text-gray-300 mx-auto mb-3" />
                   <p className="text-sm text-gray-500 mb-1">No entity scores found</p>
-                  <p className="text-xs text-gray-400">Run a waste analysis to generate entity risk scores.</p>
+                  <p className="text-xs text-gray-500">Run a waste analysis to generate entity risk scores.</p>
                 </TableCell>
               </TableRow>
             ) : (
@@ -329,7 +329,7 @@ export function EntityScoresPage() {
                   >
                     {formatDetectorLabel(entity.top_detector)}
                   </TableCell>
-                  <TableCell className="text-gray-400 text-xs">
+                  <TableCell className="text-gray-500 text-xs">
                     {entity.last_scored_at
                       ? new Date(entity.last_scored_at).toLocaleDateString()
                       : "—"}

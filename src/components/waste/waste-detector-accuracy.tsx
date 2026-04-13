@@ -99,22 +99,22 @@ export function WasteDetectorAccuracy({ cityId }: { cityId: number | null }) {
                 <th className="text-left px-3 py-2 text-xs font-medium">Detector</th>
                 <th className="text-right px-3 py-2 text-xs font-medium">
                   <button type="button" onClick={() => toggleSort("resolved")} className={cn("inline-flex items-center gap-1 hover:text-gray-900", sortField === "resolved" && "text-purple-700 font-semibold")}>
-                    Resolved <ArrowUpDown className={cn("w-3 h-3", sortField === "resolved" ? "text-purple-600" : "text-gray-400")} />
+                    Resolved <ArrowUpDown className={cn("w-3 h-3", sortField === "resolved" ? "text-purple-600" : "text-gray-500")} />
                   </button>
                 </th>
                 <th className="text-right px-3 py-2 text-xs font-medium">
                   <button type="button" onClick={() => toggleSort("confirmed")} className={cn("inline-flex items-center gap-1 hover:text-gray-900", sortField === "confirmed" && "text-purple-700 font-semibold")}>
-                    Confirmed <ArrowUpDown className={cn("w-3 h-3", sortField === "confirmed" ? "text-purple-600" : "text-gray-400")} />
+                    Confirmed <ArrowUpDown className={cn("w-3 h-3", sortField === "confirmed" ? "text-purple-600" : "text-gray-500")} />
                   </button>
                 </th>
                 <th className="text-right px-3 py-2 text-xs font-medium">
                   <button type="button" onClick={() => toggleSort("false_positive")} className={cn("inline-flex items-center gap-1 hover:text-gray-900", sortField === "false_positive" && "text-purple-700 font-semibold")}>
-                    False + Data <ArrowUpDown className={cn("w-3 h-3", sortField === "false_positive" ? "text-purple-600" : "text-gray-400")} />
+                    False + Data <ArrowUpDown className={cn("w-3 h-3", sortField === "false_positive" ? "text-purple-600" : "text-gray-500")} />
                   </button>
                 </th>
                 <th className="text-right px-3 py-2 text-xs font-medium">
                   <button type="button" onClick={() => toggleSort("precision")} className={cn("inline-flex items-center gap-1 hover:text-gray-900", sortField === "precision" && "text-purple-700 font-semibold")}>
-                    Precision <ArrowUpDown className={cn("w-3 h-3", sortField === "precision" ? "text-purple-600" : "text-gray-400")} />
+                    Precision <ArrowUpDown className={cn("w-3 h-3", sortField === "precision" ? "text-purple-600" : "text-gray-500")} />
                   </button>
                 </th>
                 <th className="text-left px-3 py-2 text-xs font-medium">Updated</th>
@@ -155,7 +155,7 @@ export function WasteDetectorAccuracy({ cityId }: { cityId: number | null }) {
         <div className="rounded-lg border border-gray-200 bg-white p-6 text-center">
           <ClipboardCheck className="w-10 h-10 text-gray-300 mx-auto mb-3" />
           <p className="text-sm text-gray-500 mb-1">No detector accuracy data yet for this city.</p>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-500">
             Start classifying findings in the Review Queue to generate precision metrics.
           </p>
         </div>

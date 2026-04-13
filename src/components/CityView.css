@@ -2031,7 +2031,7 @@ button.metrics-table-row {
 
 .metric-metadata {
   font-size: 10px;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
   line-height: 1.2;
   margin-top: 1px; /* Tight spacing - closer to metric name above */
   margin-bottom: 6px; /* Space below to set off from next row */
@@ -2039,7 +2039,7 @@ button.metrics-table-row {
 
 /* Subtle accent when metric has no current-year data (stale); Through date is last available */
 .metric-through-stale {
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
   font-style: italic;
   opacity: 0.85;
 }
@@ -2058,7 +2058,7 @@ button.metrics-table-row {
 .metric-date-cutoff {
   color: var(--text-tertiary, #6b7280);
   font-weight: 500;
-  border-bottom: 1px dashed var(--text-tertiary, #9ca3af);
+  border-bottom: 1px dashed var(--text-tertiary, #6b7280);
 }
 
 .metric-value {
@@ -2303,7 +2303,7 @@ button.metrics-table-row {
 .metrics-subcategory-title {
   font-size: 10px;
   font-weight: 400;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
   text-transform: capitalize;
   letter-spacing: 0.2px;
   padding-left: 0;

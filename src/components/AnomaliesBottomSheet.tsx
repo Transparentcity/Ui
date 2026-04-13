@@ -494,7 +494,7 @@ export default function AnomaliesBottomSheet({
         </button>
 
         {/* Close button */}
-        <button className={styles.closeBtn} onClick={handleClose} title="Close">
+        <button className={styles.closeBtn} onClick={handleClose} title="Close" aria-label="Close">
           <i className="fas fa-times" />
         </button>
       </div>,
@@ -521,7 +521,7 @@ export default function AnomaliesBottomSheet({
             <div className={styles.headerSubtitle}>{periodTitle}</div>
           )}
         </div>
-        <button className={styles.closeBtn} onClick={handleClose} title="Close">
+        <button className={styles.closeBtn} onClick={handleClose} title="Close" aria-label="Close">
           <i className="fas fa-times" />
         </button>
       </div>

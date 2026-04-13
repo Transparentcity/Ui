@@ -197,7 +197,7 @@ function WasteShellInner({
                 onChange={setSelectedCityId}
               />
               {lastPullLabel ? (
-                <span className="text-[11px] text-gray-400 whitespace-nowrap" title="Most recent data pull">
+                <span className="text-[11px] text-gray-500 whitespace-nowrap" title="Most recent data pull">
                   Data: {lastPullLabel}
                 </span>
               ) : latestRun === null && !latestRunLoading ? (
@@ -239,7 +239,7 @@ function WasteShellInner({
 
             <Link
               href="/home"
-              className="flex items-center gap-1.5 text-xs text-gray-400 no-underline hover:text-purple-600 transition-colors"
+              className="flex items-center gap-1.5 text-xs text-gray-500 no-underline hover:text-purple-600 transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Main App</span>
@@ -295,7 +295,7 @@ function WasteShellInner({
 
       {/* Footer */}
       <footer className="px-4 lg:px-6 py-3 border-t border-gray-200 bg-white">
-        <p className="text-xs text-gray-400 text-center">
+        <p className="text-xs text-gray-500 text-center">
           Analyzing: {selectedCityName} &middot; Anomalies &ne; confirmed fraud
         </p>
       </footer>

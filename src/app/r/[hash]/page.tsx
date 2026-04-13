@@ -7,6 +7,7 @@ import { getPublicFeedStoryByHash } from "@/lib/publicApiClient";
 import ReportContent from "@/components/ReportContent";
 import PublicFooter from "@/components/PublicFooter";
 import "../../research/brand-styles.css";
+import "../../landing.css";
 import "./styles.css";
 
 export default function PublicResearchPage() {

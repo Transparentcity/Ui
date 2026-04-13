@@ -82,7 +82,7 @@ function DatasetCard({
                 <XCircle className="w-3.5 h-3.5 text-gray-300 shrink-0" />
               )}
             </div>
-            <p className="text-xs text-gray-400 mt-0.5 font-mono">
+            <p className="text-xs text-gray-500 mt-0.5 font-mono">
               {ds.logical_name}
             </p>
           </div>
@@ -112,7 +112,7 @@ function DatasetCard({
                     "inline-flex items-center px-2 py-0.5 rounded text-xs",
                     ds.available
                       ? "bg-emerald-50 text-emerald-700"
-                      : "bg-gray-100 text-gray-400 line-through"
+                      : "bg-gray-100 text-gray-500 line-through"
                   )}
                 >
                   {d}
@@ -144,7 +144,7 @@ function DatasetCard({
             <div className="px-4 pb-3 pt-1">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="text-gray-400">
+                  <tr className="text-gray-500">
                     <th className="text-left font-medium pb-1 pr-4">
                       Source column
                     </th>
@@ -199,7 +199,7 @@ function BudgetYearsSection({
               <span className="text-sm font-semibold text-gray-900">
                 FY {yr.fiscal_year}
               </span>
-              <span className="block text-xs font-mono text-gray-400 mt-0.5">
+              <span className="block text-xs font-mono text-gray-500 mt-0.5">
                 {yr.socrata_id}
               </span>
             </div>
@@ -253,7 +253,7 @@ function MethodologyNotes({
           <Card key={key}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
-                {noteIcons[key] ?? <Info className="w-4 h-4 text-gray-400" />}
+                {noteIcons[key] ?? <Info className="w-4 h-4 text-gray-500" />}
                 {noteLabels[key] ?? key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
               </CardTitle>
             </CardHeader>
@@ -313,7 +313,7 @@ function DataGapCard({ gap }: { gap: DataGapInfo }) {
                 {gap.priority}
               </span>
             </div>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="text-xs text-gray-500 mt-0.5">
               {GAP_TYPE_LABELS[gap.gap_type] ?? gap.gap_type}
             </p>
           </div>
@@ -385,7 +385,7 @@ function DataGapCard({ gap }: { gap: DataGapInfo }) {
                 className="absolute top-2 right-2 p-1.5 rounded-md hover:bg-gray-200 transition-colors"
                 title="Copy to clipboard"
               >
-                <Copy className="w-3.5 h-3.5 text-gray-400" />
+                <Copy className="w-3.5 h-3.5 text-gray-500" />
               </button>
               {copied && (
                 <span className="absolute top-2 right-10 text-[10px] font-medium text-emerald-600">
@@ -444,7 +444,7 @@ function MethodologyContent({
       {/* Header summary */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
             Data Portal
           </p>
           <a
@@ -458,7 +458,7 @@ function MethodologyContent({
           </a>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
             Fiscal Year
           </p>
           <p className="mt-1 text-sm font-medium text-gray-900">
@@ -466,24 +466,24 @@ function MethodologyContent({
           </p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
             Datasets Active
           </p>
           <p className="mt-1 text-sm font-medium text-gray-900">
             {data.datasets.length}{" "}
-            <span className="text-gray-400 font-normal">
+            <span className="text-gray-500 font-normal">
               of {data.datasets.length + data.missing_datasets.length}
             </span>
           </p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
             Detector Families
           </p>
           <p className="mt-1 text-sm font-medium text-gray-900">
             {data.total_detectors_available} active
             {data.total_detectors_skipped > 0 && (
-              <span className="text-gray-400 font-normal">
+              <span className="text-gray-500 font-normal">
                 {" "}· {data.total_detectors_skipped} skipped
               </span>
             )}
@@ -565,7 +565,7 @@ export function CityMethodologyPage() {
           <p className="text-sm font-medium text-gray-700">
             Could not load methodology
           </p>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-gray-500 mt-1">
             {error instanceof Error ? error.message : String(error)}
           </p>
         </div>

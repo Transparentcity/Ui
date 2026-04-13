@@ -79,9 +79,9 @@ export function WasteBenchmarkPanel({ cityId }: WasteBenchmarkPanelProps) {
           )}
         </div>
         {open ? (
-          <ChevronUp className="w-4 h-4 text-gray-400" />
+          <ChevronUp className="w-4 h-4 text-gray-500" />
         ) : (
-          <ChevronDown className="w-4 h-4 text-gray-400" />
+          <ChevronDown className="w-4 h-4 text-gray-500" />
         )}
       </button>
 
@@ -165,7 +165,7 @@ export function WasteBenchmarkPanel({ cityId }: WasteBenchmarkPanelProps) {
                       >
                         <div>
                           <span className="text-gray-900 font-medium">{e.entity_name}</span>
-                          <span className="ml-1.5 text-xs text-gray-400">
+                          <span className="ml-1.5 text-xs text-gray-500">
                             {e.city_name} &middot; {e.entity_type}
                           </span>
                         </div>

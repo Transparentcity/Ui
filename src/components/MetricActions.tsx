@@ -35,8 +35,9 @@ export default function MetricActions({
           onEdit();
         }}
         title="Edit metric"
+        aria-label="Edit metric"
       >
-        <i className="fas fa-edit" />
+        <i className="fas fa-edit" aria-hidden="true" />
       </button>
       <button
         className={styles.iconBtn}
@@ -45,8 +46,9 @@ export default function MetricActions({
           onViewCharts();
         }}
         title="Time series charts"
+        aria-label="Time series charts"
       >
-        <i className="fas fa-chart-line" />
+        <i className="fas fa-chart-line" aria-hidden="true" />
       </button>
       {onViewAnomalies && (
         <button
@@ -56,8 +58,9 @@ export default function MetricActions({
             onViewAnomalies();
           }}
           title="View anomalies"
+          aria-label="View anomalies"
         >
-          <i className="fas fa-exclamation-triangle" />
+          <i className="fas fa-exclamation-triangle" aria-hidden="true" />
         </button>
       )}
       {onViewMaps && (
@@ -68,8 +71,9 @@ export default function MetricActions({
             onViewMaps();
           }}
           title="View maps"
+          aria-label="View maps"
         >
-          <i className="fas fa-map-marked-alt" />
+          <i className="fas fa-map-marked-alt" aria-hidden="true" />
         </button>
       )}
       <button
@@ -79,8 +83,9 @@ export default function MetricActions({
           onExecute();
         }}
         title="Execute"
+        aria-label="Execute"
       >
-        <i className="fas fa-play" />
+        <i className="fas fa-play" aria-hidden="true" />
       </button>
       {onPurgeData && (
         <button
@@ -90,8 +95,9 @@ export default function MetricActions({
             onPurgeData();
           }}
           title="Clear metric data (keep definition)"
+          aria-label="Clear metric data"
         >
-          <i className="fas fa-eraser" />
+          <i className="fas fa-eraser" aria-hidden="true" />
         </button>
       )}
       <button
@@ -101,10 +107,10 @@ export default function MetricActions({
           onDelete();
         }}
         title="Delete"
+        aria-label="Delete"
       >
-        <i className="fas fa-trash" />
+        <i className="fas fa-trash" aria-hidden="true" />
       </button>
     </div>
   );
 }
-

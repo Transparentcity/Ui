@@ -192,7 +192,7 @@ function QueueItemCard({
                   </span>
                 )}
                 {ageInDays != null && (
-                  <span className="text-[10px] text-gray-400">
+                  <span className="text-[10px] text-gray-500">
                     {ageInDays === 0
                       ? "today"
                       : `${ageInDays}d in queue`}
@@ -218,7 +218,7 @@ function QueueItemCard({
               <button
                 type="button"
                 onClick={() => setExpanded(!expanded)}
-                className="shrink-0 p-1 rounded-md text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                className="shrink-0 p-1 rounded-md text-gray-500 hover:text-purple-600 hover:bg-purple-50 transition-colors"
                 aria-label={expanded ? "Collapse details" : "Expand details"}
               >
                 <ChevronDown
@@ -234,7 +234,7 @@ function QueueItemCard({
           {/* Top signals — always visible, full text when expanded */}
           {topSignals.length > 0 && (
             <div className="mt-2.5 space-y-1">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
                 Top Signals
               </p>
               {topSignals.map((signal, i) => (
@@ -252,7 +252,7 @@ function QueueItemCard({
           {/* Expanded detail panel */}
           {expanded && item.finding_description && (
             <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
                 Full Description
               </p>
               <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-line">
@@ -656,7 +656,7 @@ export function ReviewQueuePage() {
                   <p className="text-sm text-gray-500 mb-1">
                     No items in the review queue
                   </p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-gray-500">
                     Run an analysis or adjust filters to see findings here.
                   </p>
                 </div>

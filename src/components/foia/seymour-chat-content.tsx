@@ -242,7 +242,7 @@ export function SeymourChatContent() {
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <Bot className="h-10 w-10 text-gray-300 mb-3" />
-            <p className="text-sm text-gray-400">Send a message to start working with Seymour</p>
+            <p className="text-sm text-gray-500">Send a message to start working with Seymour</p>
           </div>
         )}
         {messages.map((msg, i) => (

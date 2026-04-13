@@ -205,7 +205,7 @@ export function RequestsListContent() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[240px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
           <input
             type="text"
             placeholder="Search by city, dataset, or request number..."
@@ -215,7 +215,7 @@ export function RequestsListContent() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-gray-400" />
+          <Filter className="h-4 w-4 text-gray-500" />
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value as RequestStatus | "all"); setPage(1) }}
@@ -291,12 +291,12 @@ export function RequestsListContent() {
                         </p>
                         <p className="text-xs text-gray-500">{datasetLabel(req.dataset_type_id)}</p>
                         {req.department?.name && (
-                          <p className="mt-0.5 text-xs text-gray-400">
+                          <p className="mt-0.5 text-xs text-gray-500">
                             Dept: {req.department.name}
                           </p>
                         )}
                         {req.agency_request_number && (
-                          <p className="mt-0.5 text-xs text-gray-400">
+                          <p className="mt-0.5 text-xs text-gray-500">
                             #{req.agency_request_number}
                           </p>
                         )}
@@ -337,7 +337,7 @@ export function RequestsListContent() {
               })}
               {sortedRequests.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-400">
+                  <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500">
                     {apiError ? "Requests could not be loaded. Check the message above." : "No requests match your filters."}
                   </td>
                 </tr>
@@ -419,7 +419,7 @@ function SubmitToCell({ request }: { request: FoiaRequest }) {
     <div className="flex flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
       {url && (
         <div className="flex items-center gap-1.5">
-          <ExternalLink className="h-3 w-3 shrink-0 text-gray-400" />
+          <ExternalLink className="h-3 w-3 shrink-0 text-gray-500" />
           <a
             href={url}
             target="_blank"
@@ -432,7 +432,7 @@ function SubmitToCell({ request }: { request: FoiaRequest }) {
           <button
             type="button"
             onClick={() => handleCopy("url", url)}
-            className="shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="shrink-0 rounded p-0.5 text-gray-500 hover:bg-gray-100 hover:text-gray-600"
             title="Copy URL"
           >
             <Copy className="h-3 w-3" />
@@ -442,14 +442,14 @@ function SubmitToCell({ request }: { request: FoiaRequest }) {
       )}
       {email && (
         <div className="flex items-center gap-1.5">
-          <Mail className="h-3 w-3 shrink-0 text-gray-400" />
+          <Mail className="h-3 w-3 shrink-0 text-gray-500" />
           <span className="truncate text-xs text-gray-600" title={email}>
             {email}
           </span>
           <button
             type="button"
             onClick={() => handleCopy("email", email)}
-            className="shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="shrink-0 rounded p-0.5 text-gray-500 hover:bg-gray-100 hover:text-gray-600"
             title="Copy email"
           >
             <Copy className="h-3 w-3" />
@@ -459,14 +459,14 @@ function SubmitToCell({ request }: { request: FoiaRequest }) {
       )}
       {deptEmail && deptEmail !== email && (
         <div className="flex items-center gap-1.5">
-          <Mail className="h-3 w-3 shrink-0 text-gray-400" />
+          <Mail className="h-3 w-3 shrink-0 text-gray-500" />
           <span className="truncate text-xs text-gray-500" title={`Dept: ${deptEmail}`}>
             {deptEmail}
           </span>
           <button
             type="button"
             onClick={() => handleCopy("deptEmail", deptEmail)}
-            className="shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="shrink-0 rounded p-0.5 text-gray-500 hover:bg-gray-100 hover:text-gray-600"
             title="Copy department email"
           >
             <Copy className="h-3 w-3" />

@@ -77,13 +77,13 @@ export function CostMetricCard({ metric, cityAName, cityBName, useAdjusted, onCl
       <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-md" style={{ backgroundColor: accent }} />
 
       <div className="flex items-center gap-1.5 mb-1">
-        <Icon className="h-3 w-3 text-gray-400 shrink-0" />
+        <Icon className="h-3 w-3 text-gray-500 shrink-0" />
         <span className="text-[11px] font-semibold text-gray-800 truncate">{metric.short_label}</span>
       </div>
 
       <div className="grid grid-cols-2 gap-2 mb-1.5">
         <div>
-          <p className="text-[9px] text-gray-400 leading-none mb-0.5">{cityAName}</p>
+          <p className="text-[9px] text-gray-500 leading-none mb-0.5">{cityAName}</p>
           <p className="text-base font-bold tabular-nums leading-tight">{formatCost(costA)}</p>
           <span
             className={`mt-1 inline-block rounded-full px-1.5 py-px text-[8px] font-medium leading-tight ${costBasisColor(metric.city_a.cost_basis_label)}`}
@@ -93,7 +93,7 @@ export function CostMetricCard({ metric, cityAName, cityBName, useAdjusted, onCl
           </span>
         </div>
         <div>
-          <p className="text-[9px] text-gray-400 leading-none mb-0.5">{cityBName}</p>
+          <p className="text-[9px] text-gray-500 leading-none mb-0.5">{cityBName}</p>
           <p className="text-base font-bold tabular-nums leading-tight">{formatCost(costB)}</p>
           <span
             className={`mt-1 inline-block rounded-full px-1.5 py-px text-[8px] font-medium leading-tight ${costBasisColor(metric.city_b.cost_basis_label)}`}

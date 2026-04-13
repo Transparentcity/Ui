@@ -214,7 +214,7 @@ export default function TemplateOrderEditor({ templates }: TemplateOrderEditorPr
         </button>
         {isExpanded && (
           <div className={styles.headerActions}>
-            <button className={styles.resetButton} onClick={handleReset} title="Reset to default order">
+            <button className={styles.resetButton} onClick={handleReset} title="Reset to default order" aria-label="Reset to default order">
               <i className="fas fa-undo" /> Reset
             </button>
           </div>

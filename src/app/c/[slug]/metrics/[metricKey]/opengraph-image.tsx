@@ -107,7 +107,7 @@ export default async function MetricOgImage({ params }: Props) {
           <div
             style={{
               fontSize: 30,
-              color: "#9ca3af",
+              color: "#6b7280",
               fontWeight: 400,
             }}
           >

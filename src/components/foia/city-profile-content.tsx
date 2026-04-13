@@ -361,7 +361,7 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
                   placeholder="https://cityname.nextrequest.com or https://cityname.justfoia.com"
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                 />
-                <p className="mt-1 text-[11px] text-gray-400">
+                <p className="mt-1 text-[11px] text-gray-500">
                   The system auto-detects NextRequest, JustFOIA, and OpenRecords portals from this URL.
                 </p>
               </div>
@@ -512,7 +512,7 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
                   placeholder='e.g. "too broad", "fee required", "request clarification"'
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                 />
-                <p className="mt-1 text-[11px] text-gray-400">Comma-separated list of common agency deflection tactics.</p>
+                <p className="mt-1 text-[11px] text-gray-500">Comma-separated list of common agency deflection tactics.</p>
               </div>
 
               <div>
@@ -540,7 +540,7 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
             <h3 className="text-sm font-semibold text-gray-900">Submission Details</h3>
             <dl className="mt-4 flex flex-col gap-3">
               <div className="flex items-center gap-3">
-                <FileText className="h-4 w-4 text-gray-400" />
+                <FileText className="h-4 w-4 text-gray-500" />
                 <div>
                   <dt className="text-xs text-gray-500">Method</dt>
                   <dd className="text-sm font-medium text-gray-900 capitalize">{profile.submission_method}</dd>
@@ -548,7 +548,7 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
               </div>
               {profile.contact_name && (
                 <div className="flex items-center gap-3">
-                  <Building2 className="h-4 w-4 text-gray-400" />
+                  <Building2 className="h-4 w-4 text-gray-500" />
                   <div>
                     <dt className="text-xs text-gray-500">Contact</dt>
                     <dd className="text-sm text-gray-900">{profile.contact_name}</dd>
@@ -557,7 +557,7 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
               )}
               {profile.contact_email && (
                 <div className="flex items-center gap-3">
-                  <Mail className="h-4 w-4 text-gray-400" />
+                  <Mail className="h-4 w-4 text-gray-500" />
                   <div>
                     <dt className="text-xs text-gray-500">Email</dt>
                     <dd className="text-sm text-gray-900">{profile.contact_email}</dd>
@@ -566,7 +566,7 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
               )}
               {profile.contact_phone && (
                 <div className="flex items-center gap-3">
-                  <Phone className="h-4 w-4 text-gray-400" />
+                  <Phone className="h-4 w-4 text-gray-500" />
                   <div>
                     <dt className="text-xs text-gray-500">Phone</dt>
                     <dd className="text-sm text-gray-900">{profile.contact_phone}</dd>
@@ -575,7 +575,7 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
               )}
               {profile.portal_url && (
                 <div className="flex items-center gap-3">
-                  <Globe className="h-4 w-4 text-gray-400" />
+                  <Globe className="h-4 w-4 text-gray-500" />
                   <div>
                     <dt className="text-xs text-gray-500">Portal URL</dt>
                     <dd className="text-sm text-purple-600 hover:underline">
@@ -586,7 +586,7 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
               )}
               {profile.civic_platform_url && (
                 <div className="flex items-center gap-3">
-                  <Globe className="h-4 w-4 text-gray-400" />
+                  <Globe className="h-4 w-4 text-gray-500" />
                   <div>
                     <dt className="text-xs text-gray-500">Civic Platform URL</dt>
                     <dd className="text-sm text-purple-600 hover:underline">
@@ -599,7 +599,7 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
               )}
               {profile.civic_platform_username && (
                 <div className="flex items-center gap-3">
-                  <Building2 className="h-4 w-4 text-gray-400" />
+                  <Building2 className="h-4 w-4 text-gray-500" />
                   <div>
                     <dt className="text-xs text-gray-500">Civic Platform Username</dt>
                     <dd className="text-sm text-gray-900">{profile.civic_platform_username}</dd>
@@ -608,7 +608,7 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
               )}
               {profile.civic_platform_email && (
                 <div className="flex items-center gap-3">
-                  <Mail className="h-4 w-4 text-gray-400" />
+                  <Mail className="h-4 w-4 text-gray-500" />
                   <div>
                     <dt className="text-xs text-gray-500">Civic Platform Email</dt>
                     <dd className="text-sm text-gray-900">{profile.civic_platform_email}</dd>
@@ -617,7 +617,7 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
               )}
               {profile.civic_platform_password && (
                 <div className="flex items-center gap-3">
-                  <FileText className="h-4 w-4 text-gray-400" />
+                  <FileText className="h-4 w-4 text-gray-500" />
                   <div>
                     <dt className="text-xs text-gray-500">Civic Platform Password</dt>
                     <dd className="text-sm text-gray-900">{"*".repeat(12)}</dd>
@@ -626,7 +626,7 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
               )}
               {profile.portal_url && (
                 <div className="flex items-center gap-3">
-                  <Globe className="h-4 w-4 text-gray-400" />
+                  <Globe className="h-4 w-4 text-gray-500" />
                   <div>
                     <dt className="text-xs text-gray-500">Portal Technology</dt>
                     <dd className="text-sm text-gray-900">
@@ -649,7 +649,7 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
                 </div>
               )}
               <div className="flex items-center gap-3">
-                <Clock className="h-4 w-4 text-gray-400" />
+                <Clock className="h-4 w-4 text-gray-500" />
                 <div>
                   <dt className="text-xs text-gray-500">Default Response Days</dt>
                   <dd className="text-sm text-gray-900">{profile.default_response_days ?? "N/A"}</dd>
@@ -785,19 +785,19 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
                   {dept.contact_email && <span>{dept.contact_email}</span>}
                   {dept.contact_phone && <span>{dept.contact_phone}</span>}
                 </div>
-                {dept.notes && <p className="mt-1 text-xs text-gray-400">{dept.notes}</p>}
+                {dept.notes && <p className="mt-1 text-xs text-gray-500">{dept.notes}</p>}
               </div>
               <div className="flex items-center gap-1.5 ml-4">
                 <button
                   onClick={() => startEditDept(dept)}
-                  className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                  className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-600"
                   title="Edit"
                 >
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
                 <button
                   onClick={() => setDeleteDeptConfirmId(dept.id)}
-                  className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                  className="rounded-lg p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"
                   aria-label="Delete department"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -806,7 +806,7 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
             </div>
           ))}
           {departments.length === 0 && editingDept === null && (
-            <div className="px-6 py-8 text-center text-sm text-gray-400">
+            <div className="px-6 py-8 text-center text-sm text-gray-500">
               No departments configured. Add departments to route requests to the right agency.
             </div>
           )}
@@ -839,7 +839,7 @@ export function CityProfileContent({ cityId }: { cityId: string }) {
             )
           })}
           {targets.length === 0 && (
-            <div className="px-6 py-8 text-center text-sm text-gray-400">
+            <div className="px-6 py-8 text-center text-sm text-gray-500">
               No dataset targets configured for this city.
             </div>
           )}

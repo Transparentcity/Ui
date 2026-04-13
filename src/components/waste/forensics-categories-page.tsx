@@ -143,7 +143,7 @@ export function ForensicsCategoriesPage() {
                     <span className="text-lg font-bold text-gray-900 tabular-nums">
                       {counts.total}
                     </span>
-                    <span className="text-xs text-gray-400">findings</span>
+                    <span className="text-xs text-gray-500">findings</span>
                     {counts.critical > 0 && (
                       <span className="text-xs font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded">
                         {counts.critical} high+

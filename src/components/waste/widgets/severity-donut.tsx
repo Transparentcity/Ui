@@ -47,7 +47,7 @@ export function SeverityDonut({ cityId }: SeverityDonutProps) {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-5">
         <h3 className="text-sm font-semibold text-gray-700 mb-2">Risk Score Distribution</h3>
-        <p className="text-xs text-gray-400 py-8 text-center">No scored entities yet</p>
+        <p className="text-xs text-gray-500 py-8 text-center">No scored entities yet</p>
       </div>
     )
   }

@@ -37,14 +37,14 @@ function MethodologySection({
             type="button"
             className="w-full flex items-start gap-3 p-4 text-left hover:bg-gray-50/50 transition-colors"
           >
-            <Icon className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
+            <Icon className="w-5 h-5 text-gray-500 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-800">{title}</p>
               <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
             </div>
             <ChevronDown
               className={cn(
-                "w-4 h-4 text-gray-400 shrink-0 mt-1 transition-transform",
+                "w-4 h-4 text-gray-500 shrink-0 mt-1 transition-transform",
                 open && "rotate-180"
               )}
             />

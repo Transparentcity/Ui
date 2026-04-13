@@ -287,7 +287,7 @@ function cityLabel(c: CityReadinessResult) {
                     )}
                     
                     {/* NEW: Show match timestamp if available (or fallback to 'Last updated' from dataset metadata if needed, but the user asked for MATCH time) */}
-                    <div className="mt-1 flex items-center gap-2 text-[10px] text-gray-400">
+                    <div className="mt-1 flex items-center gap-2 text-[10px] text-gray-500">
                          <span>Matched: {row.match_timestamp ? fmtDateTime(row.match_timestamp) : "—"}</span>
                     </div>
 
@@ -345,7 +345,7 @@ function cityLabel(c: CityReadinessResult) {
                                     )}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-gray-400 text-[10px]">Score: {cand.score}</span>
+                                    <span className="text-gray-500 text-[10px]">Score: {cand.score}</span>
                                     {/* Action to manually ADD (Force Match) this candidate */}
                                     <button
                                         onClick={() => cand.dataset_id && onForceMatch(cityId, row.key, cand.dataset_id)}
@@ -427,7 +427,7 @@ function cityLabel(c: CityReadinessResult) {
               {pr.sample ? JSON.stringify(pr.sample, null, 2) : "No record returned."}
             </div>
              {pr.fetchedFrom && (
-                <div className="mt-1 text-[10px] text-gray-400 truncate">
+                <div className="mt-1 text-[10px] text-gray-500 truncate">
                   Source: {pr.fetchedFrom}
                 </div>
               )}
@@ -784,7 +784,7 @@ export function SchemaMatchContent() {
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all shadow-sm
                         ${selectedCount > 0 
                             ? "bg-purple-600 text-white hover:bg-purple-700 shadow-purple-200" 
-                            : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
+                            : "bg-gray-100 text-gray-500 cursor-not-allowed"}`}
                 >
                      {refining ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                      {selectedCount > 0 ? `Refine ${selectedCount} Matches` : "Select Matches to Refine"}
@@ -816,7 +816,7 @@ export function SchemaMatchContent() {
             </div>
             
             <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
                 <input
                     type="text"
                     value={q}
@@ -861,7 +861,7 @@ export function SchemaMatchContent() {
                                     <span className={`${score >= 80 ? 'text-emerald-600' : score >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
                                         Readiness: {score}/100
                                     </span>
-                                    <span className="text-gray-400">•</span>
+                                    <span className="text-gray-500">•</span>
                                     <span className="text-gray-500">{foundCount}/{totalCount} datasets found</span>
                                 </div>
                             </div>
@@ -882,7 +882,7 @@ export function SchemaMatchContent() {
                                 </div>
                             </div>
                             
-                            {isExpanded ? <ChevronUp className="h-5 w-5 text-gray-400" /> : <ChevronDown className="h-5 w-5 text-gray-400" />}
+                            {isExpanded ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
                         </div>
                     </div>
 
@@ -931,7 +931,7 @@ export function SchemaMatchContent() {
       </div>
       
       {!report && !loadingReports && (
-         <div className="text-center py-20 text-gray-400">
+         <div className="text-center py-20 text-gray-500">
              No report loaded. Select one from the dropdown above.
          </div>
       )}

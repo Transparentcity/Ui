@@ -145,12 +145,12 @@ export function InvestigationsListPage() {
                       {notesCount}
                     </TableCell>
                     <TableCell className="text-gray-600">{inv.lead_auditor_id ?? "—"}</TableCell>
-                    <TableCell className="text-xs text-gray-400">
+                    <TableCell className="text-xs text-gray-500">
                       {inv.opened_at ? new Date(inv.opened_at).toLocaleDateString() : "—"}
                     </TableCell>
                     <TableCell>
                       <Link href={`/waste/investigations/${inv.id}`}>
-                        <ExternalLink className="w-4 h-4 text-gray-400 hover:text-purple-600" />
+                        <ExternalLink className="w-4 h-4 text-gray-500 hover:text-purple-600" />
                       </Link>
                     </TableCell>
                   </TableRow>

@@ -18,7 +18,7 @@
 }
 
 .bannerFailed {
-  border-left-color: var(--text-tertiary, #9ca3af);
+  border-left-color: var(--text-tertiary, #6b7280);
 }
 
 .bannerDismissing {
@@ -65,7 +65,7 @@
   padding: 8px;
   border: none;
   background: transparent;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;

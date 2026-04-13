@@ -90,7 +90,7 @@ function RiskFeed({ findings }: { findings: WasteFinding[] }) {
         Risk Feed
       </h3>
       {feedItems.length === 0 ? (
-        <p className="text-xs text-gray-400 py-4 text-center">
+        <p className="text-xs text-gray-500 py-4 text-center">
           No high-risk items in latest analysis
         </p>
       ) : (
@@ -112,7 +112,7 @@ function RiskFeed({ findings }: { findings: WasteFinding[] }) {
                 <p className="text-sm text-gray-800 truncate">
                   <span className="font-medium">{f.entity}</span>
                   {f.department && (
-                    <span className="text-gray-400"> &middot; {f.department}</span>
+                    <span className="text-gray-500"> &middot; {f.department}</span>
                   )}
                 </p>
                 <p className="text-xs text-gray-500 truncate">{f.metric}</p>
@@ -125,7 +125,7 @@ function RiskFeed({ findings }: { findings: WasteFinding[] }) {
                   >
                     {f.severity}
                   </span>
-                  <span className="text-[10px] text-gray-400">
+                  <span className="text-[10px] text-gray-500">
                     {getWasteCategoryLabel(f.category)}
                   </span>
                   {f.amount != null && f.amount > 0 && (
@@ -193,7 +193,7 @@ function QueueSummary({ cityId }: { cityId: number }) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-5">
       <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-        <Inbox className="w-4 h-4 text-gray-400" />
+        <Inbox className="w-4 h-4 text-gray-500" />
         Review Queue
       </h3>
       <div className="grid grid-cols-3 gap-3 mb-4">
@@ -230,7 +230,7 @@ function QueueSummary({ cityId }: { cityId: number }) {
       {/* By category breakdown */}
       {categoryBreakdown.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">
+          <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wider">
             Pending by Category
           </p>
           {categoryBreakdown.map(([cat, count]) => (
@@ -283,7 +283,7 @@ function DepartmentRiskTable({ cityId }: { cityId: number }) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-5">
       <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-        <Building2 className="w-4 h-4 text-gray-400" />
+        <Building2 className="w-4 h-4 text-gray-500" />
         Department Risk
       </h3>
       {isLoading ? (
@@ -293,7 +293,7 @@ function DepartmentRiskTable({ cityId }: { cityId: number }) {
           ))}
         </div>
       ) : depts.length === 0 ? (
-        <p className="text-xs text-gray-400 py-4 text-center">
+        <p className="text-xs text-gray-500 py-4 text-center">
           No department scores yet
         </p>
       ) : (
@@ -301,16 +301,16 @@ function DepartmentRiskTable({ cityId }: { cityId: number }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="text-left py-2 pr-3 text-xs font-medium text-gray-400">
+                <th className="text-left py-2 pr-3 text-xs font-medium text-gray-500">
                   Department
                 </th>
-                <th className="text-right py-2 px-2 text-xs font-medium text-gray-400">
+                <th className="text-right py-2 px-2 text-xs font-medium text-gray-500">
                   Score
                 </th>
-                <th className="text-right py-2 px-2 text-xs font-medium text-gray-400">
+                <th className="text-right py-2 px-2 text-xs font-medium text-gray-500">
                   Signals
                 </th>
-                <th className="text-center py-2 pl-2 text-xs font-medium text-gray-400">
+                <th className="text-center py-2 pl-2 text-xs font-medium text-gray-500">
                   Trend
                 </th>
               </tr>
@@ -344,7 +344,7 @@ function DepartmentRiskTable({ cityId }: { cityId: number }) {
                           {delta.toFixed(0)}
                         </span>
                       ) : (
-                        <span className="inline-flex items-center text-xs text-gray-400">
+                        <span className="inline-flex items-center text-xs text-gray-500">
                           <Minus className="w-3 h-3" />
                         </span>
                       )}
@@ -390,7 +390,7 @@ function DetectorPerformance({ cityId }: { cityId: number }) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-5">
       <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-        <Gauge className="w-4 h-4 text-gray-400" />
+        <Gauge className="w-4 h-4 text-gray-500" />
         Detector Performance
       </h3>
       {isLoading ? (
@@ -400,7 +400,7 @@ function DetectorPerformance({ cityId }: { cityId: number }) {
           ))}
         </div>
       ) : sorted.length === 0 ? (
-        <p className="text-xs text-gray-400 py-4 text-center">
+        <p className="text-xs text-gray-500 py-4 text-center">
           No accuracy data yet
         </p>
       ) : (
@@ -418,7 +418,7 @@ function DetectorPerformance({ cityId }: { cityId: number }) {
           {/* Top overrides */}
           {topOverrides.length > 0 && (
             <div className="mb-3">
-              <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider mb-1.5">
+              <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wider mb-1.5">
                 Most Overridden Detectors
               </p>
               <div className="space-y-1">
@@ -440,7 +440,7 @@ function DetectorPerformance({ cityId }: { cityId: number }) {
           )}
 
           {/* Precision by detector */}
-          <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider mb-1.5">
+          <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wider mb-1.5">
             Precision by Detector
           </p>
           <div className="space-y-1 max-h-[200px] overflow-y-auto">
@@ -502,7 +502,7 @@ function RecentInvestigations({ cityId }: { cityId: number }) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-5">
       <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-        <Search className="w-4 h-4 text-gray-400" />
+        <Search className="w-4 h-4 text-gray-500" />
         Recent Investigations
       </h3>
       {isLoading ? (
@@ -512,7 +512,7 @@ function RecentInvestigations({ cityId }: { cityId: number }) {
           ))}
         </div>
       ) : !data?.items?.length ? (
-        <p className="text-xs text-gray-400 py-4 text-center">
+        <p className="text-xs text-gray-500 py-4 text-center">
           No investigations yet
         </p>
       ) : (
@@ -537,7 +537,7 @@ function RecentInvestigations({ cityId }: { cityId: number }) {
                     {inv.status.replace(/_/g, " ")}
                   </span>
                   {inv.opened_at && (
-                    <span className="text-[10px] text-gray-400">
+                    <span className="text-[10px] text-gray-500">
                       {formatAge(inv.opened_at)}
                     </span>
                   )}
@@ -607,7 +607,7 @@ export function DashboardPage() {
       description="Risk overview and audit triage"
       actions={
         lastRunDate ? (
-          <span className="text-xs text-gray-400 flex items-center gap-1.5">
+          <span className="text-xs text-gray-500 flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5" />
             Last analysis: {lastRunDate}
           </span>
@@ -665,7 +665,7 @@ export function DashboardPage() {
       {viewMode === "admin" && (
         <>
           <div className="border-t border-gray-200 mt-4 mb-5 pt-4">
-            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
               Admin Analytics
             </h2>
           </div>
@@ -676,7 +676,7 @@ export function DashboardPage() {
           </div>
 
           {/* Charts & breakdowns */}
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
             Charts &amp; Breakdowns
           </h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">

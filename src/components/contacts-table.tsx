@@ -529,7 +529,7 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
                   >
                     <span className="font-medium">{city.name}</span>
                     {city.state && <span className="text-gray-500 ml-1">{city.state}</span>}
-                    <span className="text-xs text-gray-400 ml-2">#{city.id}</span>
+                    <span className="text-xs text-gray-500 ml-2">#{city.id}</span>
                   </button>
                 ))}
                 {citySearch.length >= 2 && !citySearching && cityResults.length === 0 && (
@@ -732,7 +732,7 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
                       <TableCell>
                         {contact.city_name ? (
                           <div className="flex items-center gap-1.5">
-                            <MapPin className="w-3 h-3 text-gray-400" />
+                            <MapPin className="w-3 h-3 text-gray-500" />
                             <span className="text-sm">{contact.city_name}</span>
                           </div>
                         ) : (

@@ -44,7 +44,7 @@ export function QueueStatus({ cityId }: QueueStatusProps) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-5">
       <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-        <ClipboardCheck className="w-4 h-4 text-gray-400" />
+        <ClipboardCheck className="w-4 h-4 text-gray-500" />
         Queue Status
       </h3>
       <div className="grid grid-cols-3 gap-3">

@@ -72,7 +72,7 @@ function FilterBar({
   return (
     <div className="mb-5">
       <div className="flex items-center gap-2 flex-wrap mb-2">
-      <Filter className="w-4 h-4 text-gray-400 shrink-0" />
+      <Filter className="w-4 h-4 text-gray-500 shrink-0" />
       <select
         value={filters.severity}
         onChange={(e) => onChange({ ...filters, severity: e.target.value })}
@@ -116,7 +116,7 @@ function FilterBar({
           placeholder="Search entity..."
           className="text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white text-gray-700 w-36 pl-7"
         />
-        <Search className="w-3 h-3 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2" />
+        <Search className="w-3 h-3 text-gray-500 absolute left-2 top-1/2 -translate-y-1/2" />
       </div>
       {hasFilters && (
         <button
@@ -317,7 +317,7 @@ function ConvergenceSection({ findings }: { findings: WasteFinding[] }) {
       <h3 className="text-sm font-semibold text-gray-700 mb-1">
         Cross-Domain Convergence
       </h3>
-      <p className="text-xs text-gray-400 mb-3">
+      <p className="text-xs text-gray-500 mb-3">
         Entities flagged by 2+ independent detector categories, indicating
         systemic risk
       </p>
@@ -473,7 +473,7 @@ export function ForensicsOverviewPage() {
               ))}
             </div>
           ) : topFindings.length === 0 ? (
-            <p className="text-xs text-gray-400 py-4 text-center">
+            <p className="text-xs text-gray-500 py-4 text-center">
               No findings match the current filters
             </p>
           ) : (
@@ -481,19 +481,19 @@ export function ForensicsOverviewPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="text-left py-2 pr-3 text-xs font-medium text-gray-400">
+                    <th className="text-left py-2 pr-3 text-xs font-medium text-gray-500">
                       Finding
                     </th>
-                    <th className="text-left py-2 px-2 text-xs font-medium text-gray-400">
+                    <th className="text-left py-2 px-2 text-xs font-medium text-gray-500">
                       Entity
                     </th>
-                    <th className="text-center py-2 px-2 text-xs font-medium text-gray-400">
+                    <th className="text-center py-2 px-2 text-xs font-medium text-gray-500">
                       Severity
                     </th>
-                    <th className="text-left py-2 px-2 text-xs font-medium text-gray-400">
+                    <th className="text-left py-2 px-2 text-xs font-medium text-gray-500">
                       Category
                     </th>
-                    <th className="text-right py-2 pl-2 text-xs font-medium text-gray-400">
+                    <th className="text-right py-2 pl-2 text-xs font-medium text-gray-500">
                       Impact
                     </th>
                   </tr>

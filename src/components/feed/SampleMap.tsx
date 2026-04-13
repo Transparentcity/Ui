@@ -41,8 +41,8 @@ export default function SampleMap() {
         </linearGradient>
       </defs>
       <rect x="310" y="115" width="70" height="6" rx="3" fill="url(#mapLegend)" />
-      <text x="310" y="112" fontSize="8" fill="var(--text-tertiary, #9ca3af)" fontFamily="inherit">Low</text>
-      <text x="370" y="112" fontSize="8" fill="var(--text-tertiary, #9ca3af)" fontFamily="inherit" textAnchor="end">High</text>
+      <text x="310" y="112" fontSize="8" fill="var(--text-tertiary, #6b7280)" fontFamily="inherit">Low</text>
+      <text x="370" y="112" fontSize="8" fill="var(--text-tertiary, #6b7280)" fontFamily="inherit" textAnchor="end">High</text>
     </svg>
   );
 }

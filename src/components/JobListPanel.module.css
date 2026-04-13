@@ -215,7 +215,7 @@
   display: flex;
   justify-content: space-between;
   font-size: 0.75rem;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
 }
 
 .progress {
@@ -312,7 +312,7 @@
 
 .detailLabel {
   font-size: 0.7rem;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -385,7 +385,7 @@
 }
 
 .lastUpdated {
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
   font-weight: 500;
 }
 

@@ -106,7 +106,7 @@ export function CitiesContent() {
           </Link>
         ))}
         {filtered.length === 0 && (
-          <div className="col-span-full rounded-xl border border-gray-200 bg-white px-6 py-12 text-center text-sm text-gray-400">
+          <div className="col-span-full rounded-xl border border-gray-200 bg-white px-6 py-12 text-center text-sm text-gray-500">
             No city profiles available.
           </div>
         )}

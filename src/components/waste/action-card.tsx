@@ -59,10 +59,10 @@ export function ActionCard({ action, className }: ActionCardProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             {timestamp && (
-              <span className="text-[11px] text-gray-400">{timestamp}</span>
+              <span className="text-[11px] text-gray-500">{timestamp}</span>
             )}
             {action.action_type !== "note" && (
-              <span className="text-[10px] text-gray-400 uppercase tracking-wide bg-gray-50 px-1.5 py-0.5 rounded">
+              <span className="text-[10px] text-gray-500 uppercase tracking-wide bg-gray-50 px-1.5 py-0.5 rounded">
                 {meta.label}
               </span>
             )}

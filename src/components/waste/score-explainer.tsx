@@ -98,7 +98,7 @@ export function ScoreExplainer({
           Detector Contributions
         </h4>
         {sortedSignals.length === 0 ? (
-          <p className="text-xs text-gray-400">No signal breakdown available</p>
+          <p className="text-xs text-gray-500">No signal breakdown available</p>
         ) : (
           <div className="space-y-1.5">
             {sortedSignals.map((sig, i) => {
@@ -119,7 +119,7 @@ export function ScoreExplainer({
                   <span className="text-xs text-gray-500 tabular-nums w-10 text-right">
                     {sig.contribution.toFixed(1)}
                   </span>
-                  <span className="text-[10px] text-gray-400 tabular-nums w-8 text-right">
+                  <span className="text-[10px] text-gray-500 tabular-nums w-8 text-right">
                     {pct}%
                   </span>
                 </div>
@@ -194,7 +194,7 @@ export function ScoreExplainer({
       )}
 
       {/* Explanation */}
-      <div className="flex items-start gap-2 text-[11px] text-gray-400">
+      <div className="flex items-start gap-2 text-[11px] text-gray-500">
         <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
         <p>
           The TC Score is a weighted composite of all detector signals for this entity.

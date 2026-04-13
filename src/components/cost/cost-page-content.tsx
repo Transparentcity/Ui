@@ -102,7 +102,7 @@ export function CostPageContent() {
             <span className="rounded-full bg-purple-50 border border-purple-200 px-2 py-px text-[10px] font-medium text-purple-700">
               {cityAName}
             </span>
-            <span className="text-gray-400 text-[10px]">vs</span>
+            <span className="text-gray-500 text-[10px]">vs</span>
             <span className="rounded-full bg-indigo-50 border border-indigo-200 px-2 py-px text-[10px] font-medium text-indigo-700">
               {cityBName}
             </span>
@@ -313,7 +313,7 @@ export function CostPageContent() {
         </details>
 
         {/* Footer */}
-        <p className="mt-2 text-center text-[9px] text-gray-400">
+        <p className="mt-2 text-center text-[9px] text-gray-500">
           Federal databases + city open data &middot; Unit cost &ne; marginal cost &middot; {data?.data_freshness ?? ""}
         </p>
       </div>

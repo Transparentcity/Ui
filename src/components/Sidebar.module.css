@@ -118,7 +118,7 @@
 
 /* Government mode: small "g" in center of braces – light grey when not yet approved */
 .logoGovG {
-  fill: var(--text-tertiary, #9ca3af);
+  fill: var(--text-tertiary, #6b7280);
   transition: fill 0.2s ease;
 }
 

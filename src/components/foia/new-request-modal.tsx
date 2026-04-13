@@ -574,7 +574,7 @@ export function NewRequestModal({
       <div className="relative z-10 w-full max-w-lg rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">New FOIA Request</h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+          <button onClick={onClose} className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-600">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -657,7 +657,7 @@ export function NewRequestModal({
                   {showCityDropdown && cities.length > 0 && (
                     <div role="listbox" className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                       {citySearch.length < 2 && bookmarkedCities.length > 0 && (
-                        <div className="border-b border-gray-100 px-3 py-1.5 text-[11px] font-medium text-gray-400">
+                        <div className="border-b border-gray-100 px-3 py-1.5 text-[11px] font-medium text-gray-500">
                           Starred cities
                         </div>
                       )}
@@ -703,7 +703,7 @@ export function NewRequestModal({
                       className={`h-4 w-4 ${
                         isCityBookmarked(form.city_id)
                           ? "fill-purple-500 text-purple-500"
-                          : "text-gray-400"
+                          : "text-gray-500"
                       }`}
                     />
                   </button>
@@ -730,7 +730,7 @@ export function NewRequestModal({
                 placeholder='e.g. "Looking for a list of all flights by day, time, location (lat/long) and purpose, plus who dispatched it."'
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm leading-relaxed focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
               />
-              <p className="mt-1 text-xs text-gray-400">
+              <p className="mt-1 text-xs text-gray-500">
                 Tip: avoid private info—many portals publish request descriptions publicly.
               </p>
             </div>
@@ -883,7 +883,7 @@ export function NewRequestModal({
                       placeholder="e.g. New York City Police Department"
                       className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                     />
-                    <p className="mt-1 text-xs text-gray-400">
+                    <p className="mt-1 text-xs text-gray-500">
                       OpenRecords requires selecting both Category and Agency in the portal UI.
                     </p>
                   </div>
@@ -945,7 +945,7 @@ export function NewRequestModal({
                         </select>
                         {deptSuggestionInfo && <p className="mt-1 text-xs text-gray-500">{deptSuggestionInfo}</p>}
                         {departments.find((d) => d.id === form.department_id)?.notes && (
-                          <p className="mt-1 text-xs text-gray-400">
+                          <p className="mt-1 text-xs text-gray-500">
                             {departments.find((d) => d.id === form.department_id)?.notes}
                           </p>
                         )}
@@ -1279,7 +1279,7 @@ function SubmissionStepsModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-600"
           >
             <X className="h-5 w-5" />
           </button>

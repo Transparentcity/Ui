@@ -66,7 +66,7 @@ export default function SampleChart() {
           y={134}
           textAnchor="middle"
           fontSize="9"
-          fill="var(--text-tertiary, #9ca3af)"
+          fill="var(--text-tertiary, #6b7280)"
           fontFamily="inherit"
         >
           {label}

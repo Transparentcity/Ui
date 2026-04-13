@@ -61,7 +61,7 @@ function MetricCard({
                   "inline-flex items-center gap-0.5 text-xs font-semibold tabular-nums",
                   trend.direction === "up" && "text-red-500",
                   trend.direction === "down" && "text-emerald-500",
-                  trend.direction === "flat" && "text-gray-400"
+                  trend.direction === "flat" && "text-gray-500"
                 )}
               >
                 {trend.direction === "up" && <ArrowUpRight className="w-3.5 h-3.5" />}
@@ -73,7 +73,7 @@ function MetricCard({
         )}
         <div className="text-sm text-gray-500">{label}</div>
         {trend && trendHint && (
-          <div className="text-[11px] text-gray-400 mt-1">{trendHint}</div>
+          <div className="text-[11px] text-gray-500 mt-1">{trendHint}</div>
         )}
       </div>
     </div>
@@ -259,7 +259,7 @@ export function CommandCenterPage() {
       </div>
 
       {/* Key metrics row */}
-      <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+      <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
         Key Metrics
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

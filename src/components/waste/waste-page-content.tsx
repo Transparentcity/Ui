@@ -114,7 +114,7 @@ function DataSourceDetails({ freshness }: { freshness: WasteDataFreshness[] }) {
     <div className="space-y-1">
       {freshness.map((ds, i) => (
         <div key={i} className="flex items-center gap-2 text-xs">
-          <Database className="w-3 h-3 text-gray-400" />
+          <Database className="w-3 h-3 text-gray-500" />
           <span className="font-medium text-gray-700">
             {ds.dataset_name}
           </span>
@@ -122,7 +122,7 @@ function DataSourceDetails({ freshness }: { freshness: WasteDataFreshness[] }) {
             {ds.rows_fetched.toLocaleString()} rows
           </span>
           {ds.data_as_of && (
-            <span className="text-gray-400">
+            <span className="text-gray-500">
               updated {formatAge(ds.data_as_of)}
             </span>
           )}
@@ -437,7 +437,7 @@ export function WastePageContent() {
               </div>
             )}
             {!isManualRefreshing && displayData?.analysis_timestamp && (
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-gray-500">
                 Last run{" "}
                 {new Date(displayData.analysis_timestamp).toLocaleDateString(undefined, {
                   month: "short",
@@ -500,7 +500,7 @@ export function WastePageContent() {
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Run Waste Analysis
               </Button>
-              <p className="text-xs text-gray-400 mt-3">Takes about 2 minutes</p>
+              <p className="text-xs text-gray-500 mt-3">Takes about 2 minutes</p>
             </div>
           )}
 
@@ -560,11 +560,11 @@ export function WastePageContent() {
               {hasDataQualityInfo && (
                 <details className={consolidatedStatus ? "border-t border-gray-200" : ""}>
                   <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-xs text-gray-600 hover:text-gray-800">
-                    <Database className="w-3.5 h-3.5 text-gray-400" />
+                    <Database className="w-3.5 h-3.5 text-gray-500" />
                     <span className="font-medium">
                       {dataQualitySummaryLabel}
                     </span>
-                    <span className="ml-auto text-gray-400">Details</span>
+                    <span className="ml-auto text-gray-500">Details</span>
                   </summary>
                   <div className="px-3 pb-3 space-y-2">
                     {displayData?.data_freshness && displayData.data_freshness.length > 0 && (
@@ -897,7 +897,7 @@ export function WastePageContent() {
             <p className="text-xs text-gray-500 text-center mb-1">
               Seymour tokens used today in Waste: {todaySeymourTokens.toLocaleString()}
             </p>
-            <p className="text-xs text-gray-400 text-center">
+            <p className="text-xs text-gray-500 text-center">
               Data: City Open Data Portal &middot; Anomalies &ne; confirmed fraud &middot; Sorted by confidence &amp; priority
             </p>
           </div>

@@ -655,7 +655,7 @@ function WorkflowProgress({ status }: { status: RequestStatus }) {
                     ? "bg-purple-600 text-white ring-2 ring-purple-300"
                     : isComplete
                     ? "bg-purple-100 text-purple-600"
-                    : "bg-gray-100 text-gray-400"
+                    : "bg-gray-100 text-gray-500"
                 }`}
               >
                 {isTerminated ? "✕" : i + 1}
@@ -668,7 +668,7 @@ function WorkflowProgress({ status }: { status: RequestStatus }) {
                     ? "text-purple-600"
                     : isComplete
                     ? "text-purple-500"
-                    : "text-gray-400"
+                    : "text-gray-500"
                 }`}
               >
                 {ws.label}
@@ -694,7 +694,7 @@ function InfoCard({
 }) {
   return (
     <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3">
-      <Icon className={`h-4 w-4 ${warn ? "text-red-500" : "text-gray-400"}`} />
+      <Icon className={`h-4 w-4 ${warn ? "text-red-500" : "text-gray-500"}`} />
       <div>
         <p className="text-xs text-gray-500">{label}</p>
         <p className={`text-sm font-medium ${warn ? "text-red-600" : "text-gray-900"}`}>{value}</p>
@@ -901,7 +901,7 @@ function OverviewTab({
           <div className="flex items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-semibold text-gray-900">Request Letter</h3>
-              <p className="mt-0.5 text-xs text-gray-400">{letterSource}</p>
+              <p className="mt-0.5 text-xs text-gray-500">{letterSource}</p>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -975,7 +975,7 @@ function OverviewTab({
             {request.department?.contact_email && request.department.contact_email !== request.submission_email_address && (
               <div className="mt-1 flex items-center gap-2">
                 <span className="truncate text-sm text-gray-500" title="Department contact email">
-                  {request.department.contact_email} <span className="text-xs text-gray-400">(Dept)</span>
+                  {request.department.contact_email} <span className="text-xs text-gray-500">(Dept)</span>
                 </span>
                 <button
                   type="button"
@@ -1252,7 +1252,7 @@ function ExternalFiledModal({
       <div className="relative z-10 w-full max-w-md rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">Mark externally filed</h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+          <button onClick={onClose} className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-600">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -1287,7 +1287,7 @@ function ExternalFiledModal({
                 placeholder="https://..."
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
               />
-              <p className="mt-1 text-xs text-gray-400">
+              <p className="mt-1 text-xs text-gray-500">
                 Optional: paste a link to a stored screenshot/receipt. We’ll attach it to the request.
               </p>
             </div>
@@ -1338,7 +1338,7 @@ function SubmitRequestModal({
       <div className="relative z-10 w-full max-w-md rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">Mark submitted</h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+          <button onClick={onClose} className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-600">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -1418,7 +1418,7 @@ function EditRequestModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-600"
           >
             <X className="h-5 w-5" />
           </button>
@@ -2019,7 +2019,7 @@ function MessagesTab({
       )}
 
       {messages.length === 0 && !showCompose && (
-        <div className="py-12 text-center text-sm text-gray-400">
+        <div className="py-12 text-center text-sm text-gray-500">
           No interactions logged yet. Click Log Interaction to record a follow-up.
         </div>
       )}
@@ -2065,7 +2065,7 @@ function MessagesTab({
                 </span>
               )}
             </div>
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-gray-500">
               {msg.sent_at ? format(new Date(msg.sent_at), "MMM d, yyyy 'at' h:mm a") : msg.created_at ? format(new Date(msg.created_at), "MMM d, yyyy 'at' h:mm a") : ""}
             </span>
           </div>
@@ -2108,7 +2108,7 @@ function MessagesTab({
 
           {/* Legacy from/to display */}
           {!msg.sender_name && msg.sender && (
-            <p className="mt-2 text-xs text-gray-400">
+            <p className="mt-2 text-xs text-gray-500">
               From: {msg.sender} {msg.recipient ? `To: ${msg.recipient}` : ""}
             </p>
           )}
@@ -2211,7 +2211,7 @@ function AttachmentsTab({
           </>
         ) : (
           <>
-            <Upload className="h-8 w-8 text-gray-400" />
+            <Upload className="h-8 w-8 text-gray-500" />
             <p className="mt-2 text-sm font-medium text-gray-700">
               Drag & drop files here, or{" "}
               <button
@@ -2239,7 +2239,7 @@ function AttachmentsTab({
 
       {/* Attachment list */}
       {attachments.length === 0 ? (
-        <div className="py-6 text-center text-sm text-gray-400">
+        <div className="py-6 text-center text-sm text-gray-500">
           No attachments for this request yet. Upload a file above.
         </div>
       ) : (
@@ -2281,7 +2281,7 @@ function AttachmentsTab({
 function EventsTab({ events }: { events: FoiaRequestEvent[] }) {
   if (events.length === 0) {
     return (
-      <div className="py-12 text-center text-sm text-gray-400">
+      <div className="py-12 text-center text-sm text-gray-500">
         No events recorded yet.
       </div>
     )
@@ -2302,7 +2302,7 @@ function EventsTab({ events }: { events: FoiaRequestEvent[] }) {
                 {evt.from_status && (
                   <>
                     <RequestStatusBadge status={evt.from_status} />
-                    <span className="text-xs text-gray-400">&rarr;</span>
+                    <span className="text-xs text-gray-500">&rarr;</span>
                   </>
                 )}
                 <RequestStatusBadge status={evt.to_status} />
@@ -2310,7 +2310,7 @@ function EventsTab({ events }: { events: FoiaRequestEvent[] }) {
               <p className="mt-1 text-xs text-gray-500">
                 {evt.actor} - {format(new Date(evt.created_at), "MMM d, yyyy 'at' h:mm a")}
               </p>
-              {evt.notes && <p className="mt-0.5 text-xs text-gray-400">{evt.notes}</p>}
+              {evt.notes && <p className="mt-0.5 text-xs text-gray-500">{evt.notes}</p>}
             </div>
           </div>
         ))}

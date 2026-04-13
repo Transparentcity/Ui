@@ -92,7 +92,7 @@ export function TemplateModal({ open, onClose, onSaved, template }: Props) {
           <h2 className="text-lg font-semibold text-gray-900">
             {isEdit ? "Edit Template" : "New Template"}
           </h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+          <button onClick={onClose} className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-600">
             <X className="h-5 w-5" />
           </button>
         </div>

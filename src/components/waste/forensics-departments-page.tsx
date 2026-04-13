@@ -39,7 +39,7 @@ export function ForensicsDepartmentsPage() {
             ))}
           </div>
         ) : depts.length === 0 ? (
-          <p className="text-sm text-gray-400 py-8 text-center">
+          <p className="text-sm text-gray-500 py-8 text-center">
             No department risk scores yet. Run a waste analysis first.
           </p>
         ) : (
@@ -99,7 +99,7 @@ export function ForensicsDepartmentsPage() {
                             {delta.toFixed(0)}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center text-xs text-gray-400">
+                          <span className="inline-flex items-center text-xs text-gray-500">
                             <Minus className="w-3.5 h-3.5" />
                           </span>
                         )}

@@ -94,7 +94,7 @@ export function ForensicsCasesPage() {
                       <td className="py-2.5 px-3 text-right text-gray-600 tabular-nums">
                         {inv.actions?.length ?? 0}
                       </td>
-                      <td className="py-2.5 px-3 text-right text-xs text-gray-400">
+                      <td className="py-2.5 px-3 text-right text-xs text-gray-500">
                         {inv.opened_at
                           ? new Date(inv.opened_at).toLocaleDateString(
                               undefined,
@@ -134,7 +134,7 @@ export function ForensicsCasesPage() {
               ))}
             </div>
           ) : closedCases.length === 0 ? (
-            <p className="text-sm text-gray-400 py-8 text-center">
+            <p className="text-sm text-gray-500 py-8 text-center">
               No closed cases yet.
             </p>
           ) : (
@@ -177,7 +177,7 @@ export function ForensicsCasesPage() {
                       <td className="py-2.5 px-3 text-right text-gray-600 tabular-nums">
                         {inv.actions?.length ?? 0}
                       </td>
-                      <td className="py-2.5 px-3 text-right text-xs text-gray-400">
+                      <td className="py-2.5 px-3 text-right text-xs text-gray-500">
                         {inv.closed_at
                           ? new Date(inv.closed_at).toLocaleDateString(
                               undefined,

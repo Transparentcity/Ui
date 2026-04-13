@@ -200,7 +200,7 @@ export default function MetricChartsModal({
           <div className={styles.modalTitle}>
             Time Series — {chartsData.metric_name} ({chartsData.count})
           </div>
-          <button className={styles.iconBtn} onClick={onClose} title="Close">
+          <button className={styles.iconBtn} onClick={onClose} title="Close" aria-label="Close">
             <i className="fas fa-times" />
           </button>
         </div>

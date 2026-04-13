@@ -86,7 +86,7 @@ export function ModelHealth({ cityId, className }: ModelHealthProps) {
         <Brain className="w-4 h-4 text-purple-500" />
         Model Health
       </h3>
-      <p className="text-[11px] text-gray-400 mb-4">
+      <p className="text-[11px] text-gray-500 mb-4">
         How auditor dispositions improve detection accuracy
       </p>
 
@@ -97,7 +97,7 @@ export function ModelHealth({ cityId, className }: ModelHealthProps) {
           ))}
         </div>
       ) : !stats ? (
-        <p className="text-xs text-gray-400 py-4 text-center">
+        <p className="text-xs text-gray-500 py-4 text-center">
           No disposition data yet. Review queue items to begin calibration.
         </p>
       ) : (
@@ -149,7 +149,7 @@ export function ModelHealth({ cityId, className }: ModelHealthProps) {
                 </>
               ) : (
                 <>
-                  <Minus className="w-4 h-4 text-gray-400" />
+                  <Minus className="w-4 h-4 text-gray-500" />
                   <span className="text-gray-500">0pp</span>
                 </>
               )}
@@ -158,7 +158,7 @@ export function ModelHealth({ cityId, className }: ModelHealthProps) {
 
           {/* Disposition breakdown */}
           <div>
-            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-1.5">
+            <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1.5">
               Disposition Breakdown
             </p>
             <div className="flex items-center gap-2">
@@ -193,7 +193,7 @@ export function ModelHealth({ cityId, className }: ModelHealthProps) {
           </div>
 
           {/* Coverage */}
-          <div className="flex items-center gap-2 text-[11px] text-gray-400">
+          <div className="flex items-center gap-2 text-[11px] text-gray-500">
             <BarChart3 className="w-3.5 h-3.5" />
             <span>
               Tracking {stats.detectorCount} detectors across {stats.totalFindings} findings

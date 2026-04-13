@@ -67,7 +67,7 @@ export default function MetricMapsModal({
           <div className={styles.modalTitle}>
             Maps — {metricName || `Metric ${metricId}`} ({mapsData?.total ?? 0})
           </div>
-          <button className={styles.iconBtn} onClick={onClose} title="Close">
+          <button className={styles.iconBtn} onClick={onClose} title="Close" aria-label="Close">
             <i className="fas fa-times" />
           </button>
         </div>
@@ -184,7 +184,7 @@ export default function MetricMapsModal({
           >
             <div className={styles.modalHeader}>
               <div className={styles.modalTitle}>Map Preview</div>
-              <button className={styles.iconBtn} onClick={() => setPreviewMap(null)} title="Close">
+              <button className={styles.iconBtn} onClick={() => setPreviewMap(null)} title="Close" aria-label="Close">
                 <i className="fas fa-times" />
               </button>
             </div>

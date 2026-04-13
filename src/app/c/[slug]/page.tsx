@@ -238,6 +238,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         <NavEmailSignup citySlug={slug} cityName={city?.name} cityId={city?.id} isHome />
       </PublicNavBar>
 
+      <main id="main-content">
       {/* Section 1: City Hero */}
       <section className="city-hero-v2">
         <div className="container city-hero-v2-inner">
@@ -307,6 +308,9 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                       cityId={city.id}
                       slug={slug}
                       cityDisplayName={cityDisplayName}
+                      cityEmoji={city.emoji ?? undefined}
+                      metrics={cityDetail?.metrics}
+                      comparisonsMap={comparisonsMap}
                     />
                   </Suspense>
                 }
@@ -370,6 +374,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       </LoggedOutOnly>
 
       <MobileCitySignupBar cityName={city?.name ?? slug} citySlug={slug} cityId={city?.id} />
+      </main>
       <PublicFooter citySlug={slug} feedbackPageUrl={`/c/${slug}`} feedbackPageType="city" />
     </CityPageClient>
   );

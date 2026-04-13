@@ -623,7 +623,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                 <div className="w-4 h-4 rounded-full border-2 border-gray-200 shrink-0" />
                 <span className="text-gray-300">Generating personalized drafts...</span>
               </div>
-              <p className="text-xs text-gray-400 pl-7">This may take a moment depending on how many contacts match.</p>
+              <p className="text-xs text-gray-500 pl-7">This may take a moment depending on how many contacts match.</p>
             </div>
           </CardContent>
         </Card>
@@ -657,7 +657,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
       {generateResult && !isGenerating && (
         <div className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-700">
           <span>{generateResult}</span>
-          <button onClick={() => setGenerateResult(null)} className="text-gray-400 hover:text-gray-600">
+          <button onClick={() => setGenerateResult(null)} className="text-gray-500 hover:text-gray-600">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -683,7 +683,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
           </button>
           {somePendingSelected && (
             <>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-gray-500">
                 {selectedIds.size} selected
               </span>
               <Button
@@ -781,7 +781,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                         </button>
                       )}
                       <div className="flex items-center gap-1.5">
-                        <User className="w-4 h-4 text-gray-400" />
+                        <User className="w-4 h-4 text-gray-500" />
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span className="font-medium text-gray-900 cursor-default">
@@ -821,7 +821,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                     </div>
                     <div className="flex items-center gap-2">
                       {isSent && item.sent_at && (
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-gray-500">
                           Sent {new Date(item.sent_at).toLocaleDateString()}
                         </span>
                       )}
@@ -840,7 +840,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
 
                   {/* Subject line */}
                   <div className="flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-gray-400 shrink-0" />
+                    <Mail className="w-4 h-4 text-gray-500 shrink-0" />
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <p className="font-medium text-gray-900 truncate">
@@ -901,7 +901,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                           <p className="text-sm font-medium text-gray-700">
                             Choose a different anomaly
                           </p>
-                          {loadingAnomalies && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+                          {loadingAnomalies && <Loader2 className="w-4 h-4 animate-spin text-gray-500" />}
                         </div>
                         {!loadingAnomalies && applicableAnomalies.length === 0 && (
                           <p className="text-sm text-gray-500">No anomalies found for this city in the last 14 days. Newer anomalies will appear here automatically.</p>
@@ -925,7 +925,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                               ) : a.current ? (
                                 <Check className="w-3 h-3 shrink-0 text-purple-600" />
                               ) : (
-                                <ArrowRightLeft className="w-3 h-3 shrink-0 text-gray-400" />
+                                <ArrowRightLeft className="w-3 h-3 shrink-0 text-gray-500" />
                               )}
                               <span className="flex-1 truncate">{a.snippet}</span>
                               {a.current && (
@@ -1011,7 +1011,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                             size="sm"
                             onClick={() => discardItem(item.id)}
                             disabled={isPending || discardingId === item.id}
-                            className="gap-1.5 text-xs text-gray-400 hover:text-red-600"
+                            className="gap-1.5 text-xs text-gray-500 hover:text-red-600"
                           >
                             {discardingId === item.id ? (
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1153,7 +1153,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
             {/* Chart link in edit dialog */}
             {editingItem?.chart_url && (
               <div className="flex items-center gap-2 text-sm">
-                <BarChart3 className="w-4 h-4 text-gray-400" />
+                <BarChart3 className="w-4 h-4 text-gray-500" />
                 <a
                   href={editingItem.chart_url}
                   target="_blank"

@@ -146,7 +146,7 @@
 }
 
 .titleSeparator {
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
 }
 
 .externalCityName {
@@ -208,7 +208,7 @@
   cursor: pointer;
   font-family: "IBM Plex Sans", sans-serif;
   font-size: 10px;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
   border-radius: 3px;
   transition: background-color 0.15s, color 0.15s;
 }
@@ -261,7 +261,7 @@
 }
 
 .partialPeriodBullet {
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
   flex-shrink: 0;
 }
 

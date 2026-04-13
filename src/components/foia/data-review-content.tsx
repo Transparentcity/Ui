@@ -205,7 +205,7 @@ export function DataReviewContent() {
             <div className="flex flex-col items-center justify-center px-6 py-8 text-center">
               <FileSearch className="h-10 w-10 text-gray-300" />
               <p className="mt-3 text-sm font-medium text-gray-500">No data to review</p>
-              <p className="mt-1 text-xs text-gray-400">Data review items will appear when responses are received.</p>
+              <p className="mt-1 text-xs text-gray-500">Data review items will appear when responses are received.</p>
             </div>
           )}
         </div>
@@ -373,7 +373,7 @@ function UploadSection({
           </>
         ) : (
           <>
-            <Upload className="h-8 w-8 text-gray-400" />
+            <Upload className="h-8 w-8 text-gray-500" />
             <p className="mt-2 text-sm font-medium text-gray-700">
               Drag & drop files here, or{" "}
               <button
@@ -427,7 +427,7 @@ function IncompleteModal({
           <h2 className="text-lg font-semibold text-gray-900">Mark Incomplete</h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-600"
           >
             <X className="h-5 w-5" />
           </button>

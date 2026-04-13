@@ -351,7 +351,7 @@ export default function MetricEditModal({
       <div className={styles.modal} onMouseDown={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
           <div className={styles.modalTitle}>Edit Metric: {metric.metric_name}</div>
-          <button className={styles.iconBtn} onClick={onClose} title="Close">
+          <button className={styles.iconBtn} onClick={onClose} title="Close" aria-label="Close">
             <i className="fas fa-times" />
           </button>
         </div>

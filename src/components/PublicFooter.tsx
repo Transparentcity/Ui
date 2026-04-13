@@ -24,7 +24,7 @@ export default function PublicFooter({ citySlug, feedbackPageUrl, feedbackPageTy
             </p>
           </div>
           <div className="footer-column">
-            <h4 className="footer-title">Explore</h4>
+            <h3 className="footer-title">Explore</h3>
             {citySlug && (
               <Link
                 href={`/c/${citySlug}/methodology`}
@@ -38,13 +38,13 @@ export default function PublicFooter({ citySlug, feedbackPageUrl, feedbackPageTy
             </Link>
           </div>
           <div className="footer-column">
-            <h4 className="footer-title">Get involved</h4>
+            <h3 className="footer-title">Get involved</h3>
             <Link href="/add-your-city" className="footer-link">
               Add your city
             </Link>
           </div>
           <div className="footer-column">
-            <h4 className="footer-title">Contact</h4>
+            <h3 className="footer-title">Contact</h3>
             <a href="mailto:seymour@parse.transparent.city" className="footer-link">
               seymour@parse.transparent.city
             </a>

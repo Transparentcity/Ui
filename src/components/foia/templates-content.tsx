@@ -145,7 +145,7 @@ export function TemplatesContent() {
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => handleEdit(tmpl)}
-                  className="rounded-lg border border-gray-200 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                  className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-50"
                   aria-label="Edit template"
                 >
                   <Edit3 className="h-4 w-4" />
@@ -153,7 +153,7 @@ export function TemplatesContent() {
                 <button
                   onClick={() => setDeleteConfirmId(tmpl.id)}
                   disabled={deletingId === tmpl.id}
-                  className="rounded-lg border border-gray-200 p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 disabled:opacity-50"
                   aria-label="Delete template"
                 >
                   {deletingId === tmpl.id ? (
@@ -175,12 +175,12 @@ export function TemplatesContent() {
               </p>
             </div>
             {tmpl.notes && (
-              <p className="mt-2 text-xs text-gray-400 italic">{tmpl.notes}</p>
+              <p className="mt-2 text-xs text-gray-500 italic">{tmpl.notes}</p>
             )}
           </div>
         ))}
         {templates.length === 0 && !loading && (
-          <div className="rounded-xl border border-gray-200 bg-white px-6 py-12 text-center text-sm text-gray-400">
+          <div className="rounded-xl border border-gray-200 bg-white px-6 py-12 text-center text-sm text-gray-500">
             {apiError ? "Templates could not be loaded. Check the message above." : "No templates created yet."}
           </div>
         )}

@@ -212,7 +212,7 @@ function DepartmentBriefing({
       <div className="p-5 space-y-4">
         <div>
           <div className="flex items-center gap-1.5 mb-1.5">
-            <FileText className="w-3.5 h-3.5 text-gray-400" />
+            <FileText className="w-3.5 h-3.5 text-gray-500" />
             <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
               Risk Assessment
             </span>
@@ -226,7 +226,7 @@ function DepartmentBriefing({
         {domainsFlagged.length > 0 && (
           <div>
             <div className="flex items-center gap-1.5 mb-1.5">
-              <Layers className="w-3.5 h-3.5 text-gray-400" />
+              <Layers className="w-3.5 h-3.5 text-gray-500" />
               <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
                 Domains Flagged
               </span>
@@ -248,7 +248,7 @@ function DepartmentBriefing({
         {triangleLegs.length > 0 && (
           <div>
             <div className="flex items-center gap-1.5 mb-1.5">
-              <Triangle className="w-3.5 h-3.5 text-gray-400" />
+              <Triangle className="w-3.5 h-3.5 text-gray-500" />
               <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
                 Fraud Triangle ({triangleLegs.length}/3)
               </span>
@@ -270,12 +270,12 @@ function DepartmentBriefing({
                     <p
                       className={cn(
                         "text-xs font-semibold",
-                        active ? "text-red-700" : "text-gray-400"
+                        active ? "text-red-700" : "text-gray-500"
                       )}
                     >
                       {info.label}
                     </p>
-                    <p className="text-[9px] text-gray-400 mt-0.5 line-clamp-2">
+                    <p className="text-[9px] text-gray-500 mt-0.5 line-clamp-2">
                       {info.description}
                     </p>
                   </div>
@@ -289,7 +289,7 @@ function DepartmentBriefing({
         {topDrivers.length > 0 && (
           <div>
             <div className="flex items-center gap-1.5 mb-1.5">
-              <AlertTriangle className="w-3.5 h-3.5 text-gray-400" />
+              <AlertTriangle className="w-3.5 h-3.5 text-gray-500" />
               <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
                 Top Risk Drivers
               </span>
@@ -308,7 +308,7 @@ function DepartmentBriefing({
         {/* Recommended Actions */}
         <div>
           <div className="flex items-center gap-1.5 mb-1.5">
-            <Shield className="w-3.5 h-3.5 text-gray-400" />
+            <Shield className="w-3.5 h-3.5 text-gray-500" />
             <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
               Recommended Actions
             </span>
@@ -372,7 +372,7 @@ export function ExecutiveSummaryPage() {
       {/* Summary bar */}
       <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
         <div className="flex items-center gap-3 mb-3">
-          <Building2 className="w-5 h-5 text-gray-400" />
+          <Building2 className="w-5 h-5 text-gray-500" />
           <h2 className="text-sm font-semibold text-gray-700">
             Citywide Risk Overview
           </h2>
@@ -403,7 +403,7 @@ export function ExecutiveSummaryPage() {
             </p>
           </div>
         </div>
-        <p className="text-[11px] text-gray-400 mt-3">
+        <p className="text-[11px] text-gray-500 mt-3">
           This briefing is generated from the latest waste analysis and reflects
           composite risk scores weighted by auditor-validated detector precision.
           Scores are calibrated continuously as auditors review queue items.
@@ -423,7 +423,7 @@ export function ExecutiveSummaryPage() {
           <p className="text-sm text-gray-500 mb-1">
             No department risk profiles available
           </p>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-500">
             Run a waste analysis to generate department-level risk assessments.
           </p>
         </div>

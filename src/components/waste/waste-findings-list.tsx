@@ -165,7 +165,7 @@ export function WasteFindingsList({
 
   if (findings.length === 0) {
     return (
-      <div className="text-center py-12 text-gray-400">
+      <div className="text-center py-12 text-gray-500">
         <p className="text-lg font-medium">No findings</p>
         <p className="text-sm mt-1">
           No anomalies detected in this category with the current filters.

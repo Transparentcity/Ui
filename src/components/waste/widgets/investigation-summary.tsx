@@ -65,7 +65,7 @@ export function InvestigationSummary({ cityId }: InvestigationSummaryProps) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-5">
       <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-        <Search className="w-4 h-4 text-gray-400" />
+        <Search className="w-4 h-4 text-gray-500" />
         Active Investigations
       </h3>
       <div className="grid grid-cols-2 gap-3">

@@ -982,7 +982,7 @@ export default function MetricsAdmin() {
               onBlur={() => scheduleHideDropdown()}
             />
             {(selectedCityId || citySearchQuery) && (
-              <button className={styles.clearCityBtn} onMouseDown={(e) => e.preventDefault()} onClick={clearCity} title="Clear city filter">
+              <button className={styles.clearCityBtn} onMouseDown={(e) => e.preventDefault()} onClick={clearCity} title="Clear city filter" aria-label="Clear city filter">
                 <i className="fas fa-times" />
               </button>
             )}
@@ -1304,7 +1304,7 @@ export default function MetricsAdmin() {
               <div className={styles.modalTitle}>
                 {editMode === "create" ? "Create New Metric" : `Edit Metric ${editMetricId}`}
               </div>
-              <button className={styles.iconBtn} onClick={closeEdit} title="Close">
+              <button className={styles.iconBtn} onClick={closeEdit} title="Close" aria-label="Close">
                 <i className="fas fa-times" />
               </button>
             </div>

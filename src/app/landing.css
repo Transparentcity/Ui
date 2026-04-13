@@ -14,7 +14,7 @@
   --spruce-green: #4A7463;
   --text-primary: #111827;
   --text-secondary: #6b7280;
-  --text-muted: #9ca3af;
+  --text-muted: #6b7280;
   --bg-primary: #ffffff;
   --bg-secondary: #f8f9fa;
   --bg-tertiary: #f3f4f6;
@@ -1333,7 +1333,7 @@
 }
 
 .footer-feedback-dot {
-  color: var(--text-secondary, #9ca3af);
+  color: var(--text-secondary, #6b7280);
   user-select: none;
 }
 
@@ -2018,7 +2018,7 @@
 
 .key-number-card--good .key-number-change { color: #16a34a; }
 .key-number-card--bad .key-number-change { color: #dc2626; }
-.key-number-card--neutral .key-number-change { color: #9ca3af; }
+.key-number-card--neutral .key-number-change { color: #6b7280; }
 
 /* Dashboard Card Grid */
 .dcg-section {
@@ -2114,7 +2114,7 @@
 
 .dcg-change--good { color: #16a34a; }
 .dcg-change--bad { color: #dc2626; }
-.dcg-change--neutral { color: #9ca3af; }
+.dcg-change--neutral { color: #6b7280; }
 
 .dcg-sparkline {
   display: block;

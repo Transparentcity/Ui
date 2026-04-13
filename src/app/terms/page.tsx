@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Header from "@/components/Header";
 import PublicFooter from "@/components/PublicFooter";
+import "../landing.css";
 import "../legal.css";
 
 export const metadata: Metadata = {

@@ -90,6 +90,9 @@ export default function RootLayout({
         />
       </head>
       <body className={inter.className}>
+        <a href="#main-content" className="skip-nav">
+          Skip to main content
+        </a>
         <SiteStructuredData />
         <ToasterProvider />
         <AuthErrorToast />

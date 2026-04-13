@@ -467,7 +467,7 @@ export function FollowUpsContent() {
             <p className="mt-3 text-sm font-medium text-gray-500">
               {apiError ? "Follow-ups could not be loaded. Check the message above." : "No follow-ups in this category"}
             </p>
-            <p className="mt-1 text-xs text-gray-400">
+            <p className="mt-1 text-xs text-gray-500">
               {apiError
                 ? "Fix the API connection and refresh the page."
                 : activeFilter === "all"
@@ -622,9 +622,9 @@ function FollowUpCard({
         <div className="flex items-center gap-3 shrink-0">
           <TaskStatusBadge status={task.status} />
           {expanded ? (
-            <ChevronUp className="h-4 w-4 text-gray-400" />
+            <ChevronUp className="h-4 w-4 text-gray-500" />
           ) : (
-            <ChevronDown className="h-4 w-4 text-gray-400" />
+            <ChevronDown className="h-4 w-4 text-gray-500" />
           )}
         </div>
       </button>
@@ -652,11 +652,11 @@ function FollowUpCard({
                     </span>
                   )}
                   {triggerMessage.channel && (
-                    <span className="text-[10px] text-gray-400">
+                    <span className="text-[10px] text-gray-500">
                       via {triggerMessage.channel.replace("_", " ")}
                     </span>
                   )}
-                  <span className="text-[10px] text-gray-400">
+                  <span className="text-[10px] text-gray-500">
                     {triggerMessage.sent_at
                       ? format(new Date(triggerMessage.sent_at), "MMM d, yyyy")
                       : format(new Date(triggerMessage.created_at), "MMM d, yyyy")}
@@ -668,10 +668,10 @@ function FollowUpCard({
                   <p className="text-xs text-gray-600 mb-1.5">
                     <span className="font-medium">{triggerMessage.sender_name}</span>
                     {triggerMessage.sender_title && (
-                      <span className="text-gray-400"> &middot; {triggerMessage.sender_title}</span>
+                      <span className="text-gray-500"> &middot; {triggerMessage.sender_title}</span>
                     )}
                     {triggerMessage.sender_email && (
-                      <span className="text-gray-400"> &middot; {triggerMessage.sender_email}</span>
+                      <span className="text-gray-500"> &middot; {triggerMessage.sender_email}</span>
                     )}
                   </p>
                 )}
@@ -794,7 +794,7 @@ function FollowUpCard({
                     </button>
                     <button
                       onClick={() => setDraftText("")}
-                      className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-400 hover:bg-gray-50 hover:text-gray-600"
+                      className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-600"
                     >
                       <X className="h-3.5 w-3.5" />
                       Discard
@@ -817,7 +817,7 @@ function FollowUpCard({
             ) : (
               <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/50 px-6 py-8 text-center">
                 <Sparkles className="mx-auto h-6 w-6 text-gray-300" />
-                <p className="mt-2 text-xs text-gray-400">
+                <p className="mt-2 text-xs text-gray-500">
                   Click &quot;AI Draft&quot; to generate a response based on the inbound message and request context,
                   or type your own response below.
                 </p>
@@ -836,7 +836,7 @@ function FollowUpCard({
           <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4">
             <div className="flex items-center gap-2">
               {task.assigned_to && (
-                <span className="text-xs text-gray-400">Assigned to {task.assigned_to}</span>
+                <span className="text-xs text-gray-500">Assigned to {task.assigned_to}</span>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -1104,7 +1104,7 @@ function NewFollowUpForm({
                     setSelectedRequestId(null)
                     setSearchQuery("")
                   }}
-                  className="ml-2 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                  className="ml-2 rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-600"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -1112,7 +1112,7 @@ function NewFollowUpForm({
             ) : (
               <div>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
                   <input
                     type="text"
                     value={searchQuery}
@@ -1130,14 +1130,14 @@ function NewFollowUpForm({
                     className="w-full rounded-lg border border-gray-200 pl-9 pr-3 py-2.5 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-50 disabled:text-gray-400"
                   />
                   {loadingRequests && (
-                    <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-gray-400" />
+                    <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-gray-500" />
                   )}
                 </div>
 
                 {showRequestDropdown && !loadingRequests && (
                   <div role="listbox" className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
                     {filteredRequests.length === 0 ? (
-                      <p className="px-4 py-3 text-xs text-gray-400">
+                      <p className="px-4 py-3 text-xs text-gray-500">
                         {searchQuery ? "No matching requests" : "No open requests"}
                       </p>
                     ) : (

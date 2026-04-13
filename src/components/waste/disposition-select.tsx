@@ -122,7 +122,7 @@ export function QuickDisposition({
               e.stopPropagation()
               onSkip()
             }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-gray-400 hover:text-gray-600 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-gray-500 hover:text-gray-600 transition-colors"
           >
             <SkipForward className="w-3.5 h-3.5" />
             Skip

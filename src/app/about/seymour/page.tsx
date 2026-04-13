@@ -1,6 +1,7 @@
 import Header from "@/components/Header";
 import PublicFooter from "@/components/PublicFooter";
 import Link from "next/link";
+import "../../landing.css";
 
 export const metadata = {
   title: "About Seymour",

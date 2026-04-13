@@ -23,7 +23,7 @@ export function WasteCityPicker({
       <label htmlFor="waste-city-select-global" className="text-xs text-gray-500">
         City
       </label>
-      {isFetching ? <Loader2 className="w-3 h-3 text-gray-400 animate-spin" /> : null}
+      {isFetching ? <Loader2 className="w-3 h-3 text-gray-500 animate-spin" /> : null}
       <select
         id="waste-city-select-global"
         className="h-8 min-w-[220px] rounded border border-gray-300 bg-white px-2 text-xs"

@@ -333,7 +333,7 @@ export function DashboardContent() {
               </Link>
             ))}
             {recentRequests.length === 0 && (
-              <p className="px-6 py-8 text-center text-sm text-gray-400">No requests yet</p>
+              <p className="px-6 py-8 text-center text-sm text-gray-500">No requests yet</p>
             )}
           </div>
         </div>
@@ -364,7 +364,7 @@ export function DashboardContent() {
               </div>
             ))}
             {pendingTasks.length === 0 && (
-              <p className="px-6 py-8 text-center text-sm text-gray-400">No pending tasks</p>
+              <p className="px-6 py-8 text-center text-sm text-gray-500">No pending tasks</p>
             )}
           </div>
         </div>

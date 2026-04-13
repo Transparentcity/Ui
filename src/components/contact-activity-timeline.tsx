@@ -69,7 +69,7 @@ export function ContactActivityTimeline({
 
         {loading ? (
           <div className="flex items-center justify-center py-8" data-testid="activity-loading">
-            <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+            <Loader2 className="w-5 h-5 animate-spin text-gray-500" />
           </div>
         ) : events.length === 0 ? (
           <div className="py-8 text-center text-sm text-gray-500" data-testid="activity-empty">
@@ -95,7 +95,7 @@ export function ContactActivityTimeline({
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0">
                         {config.label}
                       </Badge>
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-gray-500">
                         {new Date(event.date).toLocaleDateString("en-US", {
                           month: "short",
                           day: "numeric",

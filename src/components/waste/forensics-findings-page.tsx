@@ -98,10 +98,10 @@ export function ForensicsFindingsPage() {
                 placeholder="Search entity..."
                 className="text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white text-gray-700 w-36 pl-7"
               />
-              <Search className="w-3 h-3 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2" />
+              <Search className="w-3 h-3 text-gray-500 absolute left-2 top-1/2 -translate-y-1/2" />
             </div>
           </div>
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-gray-500">
             Showing {filtered.length.toLocaleString()} of {allFindings.length.toLocaleString()}
           </span>
         </div>

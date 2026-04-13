@@ -68,7 +68,7 @@ function CityCalcBlock({ city, cityName, unit }: { city: CostCityResult; cityNam
       {hasMath ? (
         <p className="text-xs text-gray-600">
           {formatDollar(city.budget!)} budget ÷ {formatVolume(city.volume!)} = {formatDollar(city.cost)} {" "}
-          <span className="text-gray-400">{unit}</span>
+          <span className="text-gray-500">{unit}</span>
         </p>
       ) : (
         <p className="text-xs text-gray-600">
@@ -135,7 +135,7 @@ export function CostDetailDrawer({ metric, cityAName, cityBName, open, onClose }
                 <p className="font-medium">{metric.city_b.quality_value ?? "N/A"}</p>
               </div>
             </div>
-            <p className="text-[10px] text-gray-400 mt-1">{metric.city_a.quality_label}</p>
+            <p className="text-[10px] text-gray-500 mt-1">{metric.city_a.quality_label}</p>
           </div>
         )}
 
@@ -165,7 +165,7 @@ export function CostDetailDrawer({ metric, cityAName, cityBName, open, onClose }
         {/* Methodology */}
         <div className="mt-4">
           <div className="flex items-center gap-1.5 mb-2">
-            <Info className="h-3.5 w-3.5 text-gray-400" />
+            <Info className="h-3.5 w-3.5 text-gray-500" />
             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Methodology</p>
           </div>
           <p className="text-sm text-gray-600 leading-relaxed">{metric.methodology_note}</p>

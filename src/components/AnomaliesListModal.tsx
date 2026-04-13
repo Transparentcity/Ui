@@ -280,7 +280,7 @@ export default function AnomaliesListModal({
               <div className={styles.modalSubtitle}>{periodTitle}</div>
             )}
           </div>
-          <button className={styles.closeBtn} onClick={onClose} title="Close">
+          <button className={styles.closeBtn} onClick={onClose} title="Close" aria-label="Close">
             <i className="fas fa-times" />
           </button>
         </div>

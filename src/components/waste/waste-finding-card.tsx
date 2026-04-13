@@ -490,7 +490,7 @@ function ConvergenceDetail({ finding }: { finding: WasteFinding }) {
                     "inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border",
                     active
                       ? cfg?.color
-                      : "text-gray-400 bg-gray-50 border-gray-200"
+                      : "text-gray-500 bg-gray-50 border-gray-200"
                   )}
                 >
                   {cfg?.label ?? leg}
@@ -734,7 +734,7 @@ export function WasteFindingCard({
                   <td className="px-3 py-2 text-gray-600">
                     {isFirstInGroup ? (row.year || "—") : ""}
                   </td>
-                  <td className={cn("px-3 py-2", isFirstInGroup ? "text-gray-800" : "text-gray-400")}>
+                  <td className={cn("px-3 py-2", isFirstInGroup ? "text-gray-800" : "text-gray-500")}>
                     {isFirstInGroup ? (row.employee_identifier || "Unknown") : ""}
                   </td>
                   <td className="px-3 py-2 text-gray-600">{row.job || "—"}</td>
@@ -840,7 +840,7 @@ export function WasteFindingCard({
 
         {/* Fiscal year */}
         {finding.fiscal_year && (
-          <span className="text-[10px] text-gray-400 whitespace-nowrap hidden sm:inline">
+          <span className="text-[10px] text-gray-500 whitespace-nowrap hidden sm:inline">
             FY{finding.fiscal_year}
           </span>
         )}
@@ -855,7 +855,7 @@ export function WasteFindingCard({
         {/* Chevron */}
         <ChevronDown
           className={cn(
-            "w-4 h-4 text-gray-400 shrink-0 transition-transform",
+            "w-4 h-4 text-gray-500 shrink-0 transition-transform",
             isExpanded && "rotate-180"
           )}
         />
@@ -969,7 +969,7 @@ export function WasteFindingCard({
 
           {/* Tool tag + Ask Seymour */}
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 text-xs text-gray-400">
+            <div className="flex items-center gap-3 text-xs text-gray-500">
               <span className="bg-gray-50 px-2 py-0.5 rounded">
                 {stripRoadmapLabel(finding.tool)}
               </span>
@@ -981,7 +981,7 @@ export function WasteFindingCard({
               )}
               <span>{finding.id}</span>
               {finding.fiscal_year && (
-                <span className="text-gray-400">
+                <span className="text-gray-500">
                   FY{finding.fiscal_year}
                 </span>
               )}

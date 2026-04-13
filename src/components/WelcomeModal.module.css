@@ -45,7 +45,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
   padding: 6px;
   min-width: 44px;
   min-height: 44px;
@@ -135,7 +135,7 @@
 
 .subtitle {
   font-size: 14px;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
   margin: 0 0 12px 0;
   line-height: 1.4;
 }
@@ -242,7 +242,7 @@
 
 .locationDividerText {
   font-size: 12px;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
   white-space: nowrap;
 }
 
@@ -281,7 +281,7 @@
 }
 
 .inputWithGPS .input::placeholder {
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
 }
 
 .gpsButton {
@@ -475,7 +475,7 @@
 .skipButton {
   padding: 10px 16px;
   font-size: 13px;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
   background: none;
   border: none;
   border-radius: var(--radius-md, 8px);
@@ -491,7 +491,7 @@
 /* Disclaimer */
 .disclaimer {
   font-size: 11px;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
   margin-top: 12px;
   line-height: 1.5;
 }
@@ -739,7 +739,7 @@
 }
 
 .modal::-webkit-scrollbar-thumb:hover {
-  background: var(--text-tertiary, #9ca3af);
+  background: var(--text-tertiary, #6b7280);
 }
 
 /* Dark mode */
@@ -924,7 +924,7 @@
 }
 
 .learningFocusInput::placeholder {
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
 }
 
 .learningFocusInput:focus {
@@ -967,7 +967,7 @@
 }
 
 .newsletterDescriptionInput::placeholder {
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
 }
 
 .newsletterDescriptionInput:focus {
@@ -1053,7 +1053,7 @@
   flex-shrink: 0;
   background: none;
   border: none;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
   cursor: pointer;
   font-size: 13px;
   padding: 0 2px;
@@ -1327,7 +1327,7 @@
   display: block;
   text-align: center;
   font-size: 12px;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary, #6b7280);
   text-decoration: none;
   margin-top: 8px;
   padding: 0 24px 8px;

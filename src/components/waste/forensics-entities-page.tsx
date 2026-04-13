@@ -90,7 +90,7 @@ export function ForensicsEntitiesPage() {
             </SelectContent>
           </Select>
 
-          <span className="text-xs text-gray-400 ml-auto">
+          <span className="text-xs text-gray-500 ml-auto">
             {total.toLocaleString()} entities
           </span>
         </div>
@@ -106,7 +106,7 @@ export function ForensicsEntitiesPage() {
             ))}
           </div>
         ) : items.length === 0 ? (
-          <p className="text-sm text-gray-400 py-8 text-center">
+          <p className="text-sm text-gray-500 py-8 text-center">
             No scored entities match the current filters
           </p>
         ) : (
@@ -174,7 +174,7 @@ export function ForensicsEntitiesPage() {
         {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex items-center justify-between mt-4">
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-gray-500">
               Page {page} of {totalPages}
             </span>
             <div className="flex items-center gap-2">
