@@ -2524,27 +2524,28 @@
     grid-template-columns: 1fr;
   }
   .city-hero-v2 {
-    padding: 72px 0 12px;
+    padding: 56px 0 8px;
   }
   .city-dashboard-wrapper {
-    padding-top: 16px;
+    padding-top: 8px;
     padding-bottom: 16px;
   }
   .city-hero-v2-inner {
     flex-direction: column;
-    gap: 8px;
+    gap: 4px;
     align-items: flex-start;
   }
   .city-hero-v2-left {
     border-right: none;
     border-bottom: 1px solid var(--border-primary);
     padding-right: 0;
-    padding-bottom: 12px;
+    padding-bottom: 6px;
     width: 100%;
   }
   .city-hero-v2-title {
-    font-size: 26px;
+    font-size: 22px;
     white-space: normal;
+    margin-bottom: 2px;
   }
   .city-hero-v2-subtitle {
     font-size: 13px;
