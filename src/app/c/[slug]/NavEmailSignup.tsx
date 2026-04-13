@@ -8,11 +8,12 @@ import { useSignupEmail } from "./SignupEmailContext";
 type Props = {
   citySlug: string;
   cityName?: string;
+  cityId?: number | null;
   /** When true, hides the authenticated home link (used on the feed page itself). */
   isHome?: boolean;
 };
 
-export default function NavEmailSignup({ citySlug, cityName, isHome }: Props) {
+export default function NavEmailSignup({ citySlug, cityName, cityId, isHome }: Props) {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const { setEmail: setSharedEmail } = useSignupEmail();
   const [email, setEmail] = useState("");
@@ -59,6 +60,17 @@ export default function NavEmailSignup({ citySlug, cityName, isHome }: Props) {
   const handleLogin = async () => {
     setStatus("sending");
     storeReturnPath();
+    if (typeof window !== "undefined" && citySlug) {
+      window.localStorage.setItem("transparentcity.follow_city_slug", citySlug);
+      if (cityName) window.localStorage.setItem("transparentcity.follow_city_name", cityName);
+      if (typeof cityId === "number") window.localStorage.setItem("transparentcity.follow_city_id", String(cityId));
+    }
+    let returnTo = "/home";
+    if (citySlug) {
+      returnTo += `?follow_city_slug=${encodeURIComponent(citySlug)}`;
+      if (cityName) returnTo += `&follow_city_name=${encodeURIComponent(cityName)}`;
+      if (typeof cityId === "number") returnTo += `&follow_city_id=${cityId}`;
+    }
     try {
       await loginWithRedirect({
         authorizationParams: {
@@ -66,7 +78,7 @@ export default function NavEmailSignup({ citySlug, cityName, isHome }: Props) {
           prompt: "login",
           ...(email && email.includes("@") ? { login_hint: email } : {}),
         },
-        appState: { returnTo: "/home" },
+        appState: { returnTo },
       });
     } catch (err) {
       console.error("[NavEmailSignup] Auth0 login redirect failed:", err);
@@ -97,7 +109,7 @@ export default function NavEmailSignup({ citySlug, cityName, isHome }: Props) {
           onBlur={() => setFocused(false)}
           placeholder={
             cityName
-              ? `Get ${cityName}'s newsletter this week`
+              ? `Get ${cityName}'s Free Weekly`
               : "Enter your email"
           }
           className="nav-email-input"
