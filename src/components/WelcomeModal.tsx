@@ -20,10 +20,12 @@ import {
   createPlace,
   getCityMetrics,
   saveUserMetricOrdering,
+  runPlaceMetricsAndAnomaliesAsJob,
   type CityDetail,
   type CityLeader,
   type MetricOrderingItem,
 } from "@/lib/apiClient";
+import { usePlaceOnboarding } from "@/contexts/PlaceOnboardingContext";
 import { findDistrictFromCoordinates } from "@/lib/findDistrictFromCoordinates";
 import { DEFAULT_PLACE_RADIUS_M } from "@/lib/mapUtils";
 import {
@@ -65,6 +67,7 @@ export default function WelcomeModal({
   onComplete,
 }: WelcomeModalProps) {
   const { getAccessTokenSilently, user } = useAuth0();
+  const { startJob } = usePlaceOnboarding();
   const [step, setStep] = useState<Step>("welcome");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -882,6 +885,7 @@ export default function WelcomeModal({
   };
 
   // Save from email-personalization: city + comm prefs + user metric ordering (from selected pills).
+  // Saves the city and navigates immediately; remaining preferences are saved in the background.
   const handleSaveFromEmailPersonalization = async () => {
     setLoading(true);
     setError(null);
@@ -898,88 +902,103 @@ export default function WelcomeModal({
       await saveCity(cityId, token);
       emitSavedCitiesChanged();
 
-      // District rep follow is deferred to post-onboarding for speed
+      // Navigate to the feed immediately; save remaining preferences in the background
+      handleFinalNavigation();
 
-      if (hasPreciseLocation && homeCoordinates) {
+      // Background: save place, metric ordering, communication prefs, and welcome email
+      void (async () => {
         try {
-          await createPlace(token, {
-            city_id: cityId,
-            label: placeLabel?.trim() || "My Block",
-            lat: homeCoordinates.lat,
-            lng: homeCoordinates.lng,
-            radius_m: placeRadius ?? DEFAULT_PLACE_RADIUS_M,
-          });
-        } catch {
-          // ignore
-        }
-      }
+          // District rep follow is deferred to post-onboarding for speed
 
-      // Personalized metric order: selected pills (in preset order) → preferred categories first for dashboard and map
-      if (selectedCategoryIds.length > 0) {
-        try {
-          const metrics = (await getCityMetrics(cityId, token)) || [];
-          const preferredOrder: string[] = [];
-          for (const preset of EMAIL_PRESETS) {
-            if (!selectedCategoryIds.includes(preset.id) || !preset.metricCategories) continue;
-            for (const c of preset.metricCategories) {
-              if (!preferredOrder.includes(c)) preferredOrder.push(c);
+          if (hasPreciseLocation && homeCoordinates) {
+            try {
+              const place = await createPlace(token, {
+                city_id: cityId,
+                label: placeLabel?.trim() || "My Block",
+                lat: homeCoordinates.lat,
+                lng: homeCoordinates.lng,
+                radius_m: placeRadius ?? DEFAULT_PLACE_RADIUS_M,
+              });
+              // Start the place metrics job now that the place exists
+              if (place?.id) {
+                try {
+                  const { job_id } = await runPlaceMetricsAndAnomaliesAsJob(place.id, token);
+                  startJob(place.id, job_id);
+                } catch {
+                  // Non-blocking
+                }
+              }
+            } catch {
+              // ignore
             }
           }
-          const orderings = buildUserMetricOrdering(metrics, preferredOrder);
-          if (orderings.length > 0) {
-            await saveUserMetricOrdering(cityId, orderings, token);
+
+          // Personalized metric order: selected pills (in preset order)
+          if (selectedCategoryIds.length > 0) {
+            try {
+              const metrics = (await getCityMetrics(cityId, token)) || [];
+              const preferredOrder: string[] = [];
+              for (const preset of EMAIL_PRESETS) {
+                if (!selectedCategoryIds.includes(preset.id) || !preset.metricCategories) continue;
+                for (const c of preset.metricCategories) {
+                  if (!preferredOrder.includes(c)) preferredOrder.push(c);
+                }
+              }
+              const orderings = buildUserMetricOrdering(metrics, preferredOrder);
+              if (orderings.length > 0) {
+                await saveUserMetricOrdering(cityId, orderings, token);
+              }
+            } catch (err) {
+              console.error("Error saving metric ordering:", err);
+            }
           }
+
+          const latest = await getUserPreferences(token);
+          const currentExtra = latest.extra || {};
+          const communicationPreferences = mergeNewsletterPreferenceFields(
+            currentExtra,
+            {
+              newsletterDescription,
+              newsletterFrequency,
+            }
+          );
+          const preferencesData: any = {
+            has_completed_onboarding: true,
+            extra: {
+              ...currentExtra,
+              selected_category_ids: selectedCategoryIds,
+              communication_preferences: {
+                ...communicationPreferences,
+                anomaly_alerts: alertsOptIn,
+                personalized_email: weeklyNewsletterOptIn,
+                weekly_digest: weeklyNewsletterOptIn,
+              },
+            },
+          };
+
+          if (hasPreciseLocation && homeCoordinates) {
+            preferencesData.extra.home_location = {
+              city_id: cityId,
+              coordinates: homeCoordinates,
+            };
+          }
+
+          await updateUserPreferences(preferencesData, token);
+
+          // Send welcome email with stories from their city
+          const welcomeCityName = locationResult?.matchedCity?.name ?? locationResult?.cityName ?? "";
+          sendWelcomeEmail({
+            cityId,
+            citySlug: slugify(welcomeCityName),
+            cityName: welcomeCityName,
+          });
         } catch (err) {
-          console.error("Error saving metric ordering:", err);
-          // Don't block onboarding; user can customize later in Settings
+          console.error("Error saving preferences in background:", err);
         }
-      }
-
-      const latest = await getUserPreferences(token);
-      const currentExtra = latest.extra || {};
-      const communicationPreferences = mergeNewsletterPreferenceFields(
-        currentExtra,
-        {
-          newsletterDescription,
-          newsletterFrequency,
-        }
-      );
-      const preferencesData: any = {
-        has_completed_onboarding: true,
-        extra: {
-          ...currentExtra,
-          selected_category_ids: selectedCategoryIds,
-          communication_preferences: {
-            ...communicationPreferences,
-            anomaly_alerts: alertsOptIn,
-            personalized_email: weeklyNewsletterOptIn,
-            weekly_digest: weeklyNewsletterOptIn,
-          },
-        },
-      };
-
-      if (hasPreciseLocation && homeCoordinates) {
-        preferencesData.extra.home_location = {
-          city_id: cityId,
-          coordinates: homeCoordinates,
-        };
-      }
-
-      await updateUserPreferences(preferencesData, token);
-
-      // Send welcome email with stories from their city (fire-and-forget)
-      const welcomeCityName = locationResult.matchedCity.name ?? locationResult.cityName;
-      sendWelcomeEmail({
-        cityId,
-        citySlug: slugify(welcomeCityName),
-        cityName: welcomeCityName,
-      });
-
-      // Skip the all-set screen — go straight to the feed
-      handleFinalNavigation();
+      })();
     } catch (err) {
-      console.error("Error saving preferences:", err);
-      setError("Failed to save preferences. Please try again.");
+      console.error("Error saving city:", err);
+      setError("Failed to save your city. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -1051,7 +1070,7 @@ export default function WelcomeModal({
   return (
     <div className={styles.overlay}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <button className={styles.closeButton} onClick={handleSkip} title="Close">
+        <button className={styles.closeButton} onClick={handleSkip} title="Close" aria-label="Close">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />

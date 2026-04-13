@@ -415,6 +415,16 @@ export default function DashboardPage() {
       setCurrentView((prev) => (currentActiveCityId != null && prev === "city" ? "city" : "feed"));
       const newUrl = window.location.pathname;
       window.history.replaceState({}, "", newUrl);
+
+      // Show the onboarding modal immediately for new signups instead of
+      // waiting for the admin permissions check to finish (which can take 15s+).
+      // A brand-new user has no saved cities and is not an admin.
+      hasCheckedOnboarding.current = true;
+      if (signupIntent === "public-servant") {
+        setShowGovernmentOnboardingModal(true);
+      } else {
+        setShowWelcomeModal(true);
+      }
     } else {
       // Regular login: default to feed for all users
       trackLogin(user.sub);
@@ -1100,44 +1110,30 @@ export default function DashboardPage() {
       trackUserActivation("onboarding_complete");
     }
 
-    // Deferred background work: rep discovery + place metrics job (parallel)
+    // Deferred background work: rep discovery
+    // Place metrics job is now started from WelcomeModal after place creation to avoid race conditions.
     void (async () => {
       try {
         const token = await getAccessTokenSilently();
+        const prefs = await getUserPreferences(token);
+        const homeLoc = prefs?.extra?.home_location;
+        if (!homeLoc?.coordinates || !homeLoc?.city_id) return;
 
-        // Run rep discovery and place metrics kick-off in parallel
-        const repDiscovery = (async () => {
-          const prefs = await getUserPreferences(token);
-          const homeLoc = prefs?.extra?.home_location;
-          if (!homeLoc?.coordinates || !homeLoc?.city_id) return;
+        const { lat, lng } = homeLoc.coordinates as { lat: number; lng: number };
+        const cId = homeLoc.city_id as number;
 
-          const { lat, lng } = homeLoc.coordinates as { lat: number; lng: number };
-          const cId = homeLoc.city_id as number;
+        const district = await findDistrictFromCoordinates(lat, lng, cId, token);
+        if (!district) return;
 
-          const district = await findDistrictFromCoordinates(lat, lng, cId, token);
-          if (!district) return;
+        await followRepresentative(cId, String(district), token);
 
-          await followRepresentative(cId, String(district), token);
-
-          const leaders = await getCityLeaders(cId, token);
-          const rep = leaders.find((l) => l.district === district);
-          if (rep) {
-            // Show in onboarding banner (no toast, to avoid duplicate messaging)
-            onboardingRepNotifyRef.current?.(rep.name);
-          }
-        })();
-
-        const placeMetrics = (async () => {
-          const { places } = await listMyPlaces(token);
-          if (!places || places.length === 0) return;
-          const newest = places.reduce((a, b) => (a.id > b.id ? a : b));
-          const { job_id } = await runPlaceMetricsAndAnomaliesAsJob(newest.id, token);
-          setOnboardingJob({ placeId: newest.id, jobId: job_id });
-        })();
-
-        await Promise.allSettled([repDiscovery, placeMetrics]);
+        const leaders = await getCityLeaders(cId, token);
+        const rep = leaders.find((l) => l.district === district);
+        if (rep) {
+          onboardingRepNotifyRef.current?.(rep.name);
+        }
       } catch {
-        // Non-blocking — token fetch failed, user still gets the general feed
+        // Non-blocking
       }
     })();
   };

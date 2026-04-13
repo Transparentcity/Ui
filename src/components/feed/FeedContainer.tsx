@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useFeedStories,
@@ -17,7 +17,15 @@ import {
 import { useSavedCities, useSaveCity, useUnsaveCity } from "@/lib/hooks/useCities";
 import { enrichStories, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { fetchNarratives } from "@/lib/feed/fetchReportNarratives";
-import { getPublicCityDetail } from "@/lib/publicApiClient";
+import {
+  getPublicCityDetail,
+  getPublicMetricComparisonsBatch,
+  type PublicCityMetricItem,
+  type PublicMetricComparisons,
+} from "@/lib/publicApiClient";
+import MetricSummaryCard, {
+  type MetricCardData,
+} from "./templates/MetricSummaryCard";
 import { MetricKeyProvider } from "./MetricKeyContext";
 import FeedCard from "./FeedCard";
 import FeedStoryModal from "./FeedStoryModal";
@@ -350,11 +358,15 @@ export default function FeedContainer({
   // Pass story_type to the API for server-side filtering (only if single topic)
   const apiStoryType = selectedTopics.size === 1 ? [...selectedTopics][0] : undefined;
 
+  // During onboarding, skip the saved-places filter so city-level stories
+  // appear immediately while neighborhood stories are still being generated.
+  const isOnboardingScanning = onboarding.status === "scanning" || onboarding.status === "found_rep";
   const apiOnlyMySavedPlaces =
     isAuthenticated &&
     onlyMySavedPlacesFeed &&
     selectedPlaceId == null &&
     !personalNewsletterOnly &&
+    !isOnboardingScanning &&
     userPlaces.length > 0;
 
   // For single-city + single-district, use server-side filtering
@@ -463,6 +475,83 @@ export default function FeedContainer({
       const newItems = results.flat();
       if (newItems.length > 0) {
         setMetricLookupItems((prev) => [...prev, ...newItems]);
+      }
+    });
+
+    return () => { stale = true; };
+  }, [stories]);
+
+  // ── Metric summary cards: fetch city metrics + comparisons for interleaving ──
+  const [metricCardPool, setMetricCardPool] = useState<MetricCardData[]>([]);
+  const fetchedMetricCityIdsRef = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    const cityIds = new Set(stories.map((s) => s.city_id).filter(Boolean));
+    const toFetch: number[] = [];
+    for (const cid of cityIds) {
+      if (!fetchedMetricCityIdsRef.current.has(cid)) toFetch.push(cid);
+    }
+    if (toFetch.length === 0) return;
+
+    let stale = false;
+    Promise.all(
+      toFetch.map(async (cid) => {
+        try {
+          const detail = await getPublicCityDetail(cid);
+          const metrics = detail.metrics ?? [];
+          if (metrics.length === 0) return [];
+          const comps = await getPublicMetricComparisonsBatch({
+            metric_ids: metrics.map((m) => m.id),
+            district: 0,
+            comparison_types: ["ytd"],
+          });
+          const slug = detail.slug ?? detail.name.toLowerCase().replace(/\s+/g, "-");
+          const cityName = detail.name;
+          const cityEmoji = detail.emoji ?? undefined;
+          return { metrics, comps, slug, cityName, cityEmoji };
+        } catch {
+          return [];
+        }
+      }),
+    ).then((results) => {
+      if (stale) return;
+      for (const cid of toFetch) fetchedMetricCityIdsRef.current.add(cid);
+      const cards: MetricCardData[] = [];
+      for (const res of results) {
+        if (Array.isArray(res)) continue; // error case
+        const { metrics, comps, slug, cityName, cityEmoji } = res;
+        // Build cards ranked by abs(pct_change) descending
+        const candidates: Array<{ card: MetricCardData; absPct: number }> = [];
+        for (const m of metrics) {
+          const comp = comps[m.id]?.comparisons?.ytd;
+          if (!comp) continue;
+          const curr = comp.current_period_value;
+          const prior = comp.comparison_period_value;
+          if (curr == null || prior == null || prior === 0) continue;
+          const pct = ((curr - prior) / prior) * 100;
+          // Spread pseudo-published timestamps across recent days
+          // so cards don't all cluster at the same time
+          const idx = candidates.length;
+          const hoursAgo = idx * 12 + 2; // space 12h apart, starting 2h ago
+          const publishedAt = new Date(Date.now() - hoursAgo * 3600000).toISOString();
+          candidates.push({
+            card: {
+              metric: m,
+              comparison: comp,
+              slug,
+              cityName,
+              cityEmoji,
+              publishedAt,
+            },
+            absPct: Math.abs(pct),
+          });
+        }
+        // Sort by interestingness and cap at 10
+        candidates.sort((a, b) => b.absPct - a.absPct);
+        cards.push(...candidates.slice(0, 10).map((c) => c.card));
+      }
+      if (cards.length > 0) {
+        setMetricCardPool(cards);
       }
     });
 
@@ -1190,14 +1279,6 @@ export default function FeedContainer({
 
       {/* Empty */}
       {!isLoading && !error && stories.length === 0 && (
-        (onboarding.status === "scanning" || onboarding.status === "found_rep") ? (
-          /* Onboarding job still running: show skeleton cards, banner handles messaging */
-          <div className={styles.storiesList}>
-            <SkeletonCard variant="default" />
-            <SkeletonCard variant="alert" />
-            <SkeletonCard variant="photo" />
-          </div>
-        ) : (
         <div className={styles.emptyState}>
           <p>
             {personalNewsletterOnly
@@ -1240,7 +1321,6 @@ export default function FeedContainer({
             </button>
           )}
         </div>
-        )
       )}
 
       {/* My Places empty state (client-side filter returned nothing) */}
@@ -1288,7 +1368,7 @@ export default function FeedContainer({
         </div>
       )}
 
-      {/* Stories */}
+      {/* Stories + interleaved metric summary cards */}
       <MetricKeyProvider metrics={metricLookupItems}>
       {visibleStories.length > 0 && (
         <div className={styles.storiesList}>
@@ -1313,16 +1393,33 @@ export default function FeedContainer({
               !headlineHasKeyword && // stories with notable change keywords stay full
               !hasMetricData && // stories with numeric metadata stay full
               !hasDescription; // stories with real descriptions stay full
+
+            // Interleave a metric summary card every 5th position (after indices 3, 8, 13, ...)
+            const metricCardIdx = storyIdx >= 4 && (storyIdx - 4) % 5 === 0
+              ? Math.floor((storyIdx - 4) / 5)
+              : -1;
+            const metricCard =
+              metricCardIdx >= 0 && metricCardIdx < metricCardPool.length
+                ? metricCardPool[metricCardIdx]
+                : null;
+
             return (
-              <FeedCard
-                key={story.id}
-                story={story}
-                isAdmin={isAdmin}
-                onHide={handleHide}
-                onDelete={isAdmin ? handleDelete : undefined}
-                compact={isCompact}
-                onOpenFeedDetail={openFeedDetail}
-              />
+              <React.Fragment key={story.id}>
+                {metricCard && (
+                  <MetricSummaryCard
+                    key={`metric-${metricCard.metric.id}`}
+                    data={metricCard}
+                  />
+                )}
+                <FeedCard
+                  story={story}
+                  isAdmin={isAdmin}
+                  onHide={handleHide}
+                  onDelete={isAdmin ? handleDelete : undefined}
+                  compact={isCompact}
+                  onOpenFeedDetail={openFeedDetail}
+                />
+              </React.Fragment>
             );
           })}
         </div>

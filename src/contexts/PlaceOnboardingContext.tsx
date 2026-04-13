@@ -76,6 +76,7 @@ export function usePlaceOnboarding() {
 const SESSION_KEY = "tc:onboarding-banner-dismissed";
 const POLL_INTERVAL_MS = 2000;
 const AUTO_DISMISS_MS = 5000;
+const MAX_POLL_DURATION_MS = 30_000; // Give up after 30 seconds and show the feed
 
 interface PlaceOnboardingProviderProps {
   children: ReactNode;
@@ -197,6 +198,15 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
       // Check status via ref so we don't need status in deps
       const s = statusRef.current;
       if (s === "completed" || s === "failed" || s === "idle") return;
+
+      // Timeout: if the job has been running too long, treat it as failed
+      // so users aren't stuck staring at skeleton cards forever
+      if (Date.now() - jobStartRef.current > MAX_POLL_DURATION_MS) {
+        setStatus("failed");
+        clearPollTimers();
+        autoDismissRef.current = setTimeout(doDismiss, AUTO_DISMISS_MS);
+        return;
+      }
 
       try {
         const token = await getAccessTokenSilently();
