@@ -136,11 +136,11 @@ export default function NewResearchPage() {
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="E.g., Is the Mission District safe? What are the crime trends?"
               rows={4}
-              maxLength={2000}
+              maxLength={20000}
               required
               className="research-textarea"
             />
-            <div className="char-count">{prompt.length} / 2000 characters</div>
+            <div className="char-count">{prompt.length} / 20000 characters</div>
           </div>
           
           <div className="form-group">
