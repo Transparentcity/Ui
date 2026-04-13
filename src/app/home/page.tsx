@@ -38,6 +38,7 @@ import { findDistrictFromCoordinates } from "@/lib/findDistrictFromCoordinates";
 import { PENDING_ORDER_STORAGE_KEY_PREFIX } from "@/components/MetricOrderEditor";
 import Loader from "@/components/Loader";
 import WelcomeModal from "@/components/WelcomeModal";
+import CityNotFoundModal from "@/components/CityNotFoundModal";
 import GovernmentOnboardingModal from "@/components/GovernmentOnboardingModal";
 import EditHomeLocationModal from "@/components/EditHomeLocationModal";
 import RedisStatusIndicator from "@/components/RedisStatusIndicator";
@@ -169,6 +170,7 @@ export default function DashboardPage() {
   const [onboardingJob, setOnboardingJob] = useState<{ placeId: number; jobId: string } | null>(null);
   const onboardingRepNotifyRef = useRef<((name: string) => void) | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [cityNotFound, setCityNotFound] = useState<{ cityName: string; state: string | null; country: string | null } | null>(null);
   const [showGovernmentOnboardingModal, setShowGovernmentOnboardingModal] = useState(false);
   const [governmentClaimContext, setGovernmentClaimContext] = useState<ClaimContext | null>(null);
   const hasAutoSelectedCity = useRef(false);
@@ -1896,6 +1898,22 @@ export default function DashboardPage() {
         onClose={() => setShowWelcomeModal(false)}
         onCitySelected={handleWelcomeCitySelected}
         onComplete={handleWelcomeComplete}
+        onCityNotFound={(cityName, state, country) => {
+          setShowWelcomeModal(false);
+          setCurrentView("feed");
+          setCityNotFound({ cityName, state, country });
+        }}
+      />
+      <CityNotFoundModal
+        isOpen={!!cityNotFound}
+        cityName={cityNotFound?.cityName ?? ""}
+        state={cityNotFound?.state ?? null}
+        country={cityNotFound?.country ?? null}
+        onClose={() => setCityNotFound(null)}
+        onComplete={() => {
+          setCityNotFound(null);
+          toast.success("We'll notify you when your city launches!");
+        }}
       />
 
       {/* Mobile bottom navigation (hidden on desktop via CSS) */}

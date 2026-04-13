@@ -15,7 +15,6 @@ import {
   saveCity,
   updateUserPreferences,
   getUserPreferences,
-  submitCityLeadInterest,
   getCity,
   createPlace,
   getCityMetrics,
@@ -43,9 +42,11 @@ interface WelcomeModalProps {
   /** Called when user finishes onboarding with a city (and optional place). Pass placeId to open block-level view. */
   onCitySelected: (cityId: number, district?: number | null, placeId?: number | null) => void;
   onComplete: () => void;
+  /** Called when the user's city is not found or not yet active. */
+  onCityNotFound?: (cityName: string, state: string | null, country: string | null) => void;
 }
 
-type Step = "welcome" | "confirm" | "preferences" | "coming-soon";
+type Step = "welcome" | "confirm" | "preferences";
 
 interface LocationResult {
   cityName: string;
@@ -65,6 +66,7 @@ export default function WelcomeModal({
   onClose,
   onCitySelected,
   onComplete,
+  onCityNotFound,
 }: WelcomeModalProps) {
   const { getAccessTokenSilently, user } = useAuth0();
   const { startJob } = usePlaceOnboarding();
@@ -248,7 +250,11 @@ export default function WelcomeModal({
       );
     } catch (err) {
       console.error("Error processing address suggestion:", err);
-      setError("We don’t have that city yet. Try another address or use the GPS button.");
+      if (onCityNotFound) {
+        onCityNotFound(cityName, suggestion.stateName, suggestion.countryName);
+        onClose();
+        return;
+      }
     } finally {
       setLoading(false);
     }
@@ -326,19 +332,10 @@ export default function WelcomeModal({
     
     if (!matchedCity) {
       // City not found in our database
-      setLocationResult({
-        cityName,
-        state: stateName,
-        country: countryName,
-        matchedCity: null,
-        cityDetail: null,
-        leaders: [],
-        mayor: null,
-        councilMember: null,
-        district,
-        isActive: false,
-      });
-      setStep("coming-soon");
+      if (onCityNotFound) {
+        onCityNotFound(cityName, stateName, countryName);
+        onClose();
+      }
       return;
     }
     
@@ -359,7 +356,15 @@ export default function WelcomeModal({
 
     if (districtResult != null) finalDistrict = districtResult;
 
-    const isActive = cityDetail?.is_active ?? false;
+    // If the city detail fetch failed entirely, show a retry error
+    // instead of incorrectly telling the user we don't have their city
+    if (!cityDetail) {
+      setError("Something went wrong loading city data. Please try again.");
+      setLoading(false);
+      return;
+    }
+
+    const isActive = cityDetail.is_active ?? false;
 
     const result: LocationResult = {
       cityName: matchedCity.name,
@@ -377,8 +382,13 @@ export default function WelcomeModal({
     
     if (result.isActive) {
       setStep("preferences");
-    } else {
-      setStep("coming-soon");
+    } else if (onCityNotFound) {
+      onCityNotFound(
+        matchedCity.name,
+        matchedCity.state || null,
+        matchedCity.country || null
+      );
+      onClose();
     }
   };
 
@@ -515,38 +525,6 @@ export default function WelcomeModal({
     }
   };
 
-  const handleNotifyMe = async () => {
-    if (!locationResult) return;
-
-    setLoading(true);
-    try {
-      const token = await getAccessTokenSilently();
-      
-      await submitCityLeadInterest(
-        {
-          city_name: locationResult.cityName,
-          state: locationResult.state,
-          country: locationResult.country,
-        },
-        token
-      );
-      
-      // Mark onboarding complete
-      await updateUserPreferences({ has_completed_onboarding: true }, token);
-
-      // Send welcome email with diverse stories (no city selected)
-      sendWelcomeEmail();
-
-      onComplete();
-      onClose();
-    } catch (err) {
-      console.error("Error submitting interest:", err);
-      setError("Failed to submit interest. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleFinish = async () => {
     try {
       const token = await getAccessTokenSilently();
@@ -561,11 +539,7 @@ export default function WelcomeModal({
 
   // Render step indicator
   const renderStepIndicator = () => {
-    let steps: string[] = [];
-    if (step === "coming-soon") {
-      steps = ["welcome", "coming-soon"];
-    } else {
-      steps = ["welcome", "preferences"];
+    const steps = ["welcome", "preferences"];
     }
 
     const currentIndex = steps.indexOf(step);
@@ -1014,59 +988,6 @@ export default function WelcomeModal({
     onClose();
   };
 
-  // Render coming soon step
-  const renderComingSoonStep = () => {
-    if (!locationResult) return null;
-
-    const cityDisplayName = locationResult.state
-      ? `${locationResult.cityName}, ${locationResult.state}`
-      : locationResult.cityName;
-
-    return (
-      <div className={styles.stepContent}>
-        <div className={styles.comingSoonIcon}>
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
-        </div>
-        <h2 className={styles.stepTitle}>We don&apos;t have {cityDisplayName} yet</h2>
-        <p className={styles.stepDescription}>
-          We&apos;re growing fast. Request your city and we&apos;ll let you know when it launches.
-        </p>
-
-        {error && <div className={styles.error}>{error}</div>}
-
-        <div className={styles.actions}>
-          <button
-            className={styles.primaryButton}
-            onClick={handleNotifyMe}
-            disabled={loading}
-          >
-            {loading ? (
-              <span className={styles.buttonLoader}>
-                <Loader size="sm" color="white" />
-              </span>
-            ) : (
-              "Notify me when available"
-            )}
-          </button>
-          <button className={styles.backButton} onClick={() => setStep("welcome")}>
-            Try a different city
-          </button>
-        </div>
-        <a
-          href="https://transparent.city/add-your-city"
-          target="_blank"
-          rel="noopener noreferrer"
-          className={styles.comingSoonLink}
-        >
-          Learn about bringing your city to the platform
-        </a>
-      </div>
-    );
-  };
-
   return (
     <div className={styles.overlay}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
@@ -1082,7 +1003,6 @@ export default function WelcomeModal({
         {step === "welcome" && renderWelcomeStep()}
         {step === "confirm" && renderConfirmStep()}
         {step === "preferences" && renderPreferencesStep()}
-        {step === "coming-soon" && renderComingSoonStep()}
       </div>
     </div>
   );

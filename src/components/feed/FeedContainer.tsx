@@ -13,6 +13,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import {
   deleteFeedStory,
   deleteFeedStoriesByCity,
+  listPublicFeedStories,
 } from "@/lib/apiClient";
 import { useSavedCities, useSaveCity, useUnsaveCity } from "@/lib/hooks/useCities";
 import { enrichStories, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
@@ -403,6 +404,9 @@ export default function FeedContainer({
   const stories = feedData?.stories ?? [];
   const enriched = useMemo(() => enrichStories(stories), [stories]);
 
+  // ── Public preview stories fallback (shown when feed is empty during onboarding) ──
+  const [previewStories, setPreviewStories] = useState<EnrichedFeedStory[]>([]);
+
   // When a city has no stories, capture its name (for the banner) then auto-switch to All Cities
   useEffect(() => {
     if (selectedCityWithNoStories) {
@@ -746,6 +750,25 @@ export default function FeedContainer({
     onlyMySavedPlacesFeed,
     savedCityIds,
   ]);
+
+  // Fetch public preview stories when the feed would otherwise be empty
+  const feedShowsNothing = !isLoading && !error && visibleStories.length === 0;
+
+  useEffect(() => {
+    if (!feedShowsNothing) {
+      if (previewStories.length > 0) setPreviewStories([]);
+      return;
+    }
+    let cancelled = false;
+    listPublicFeedStories({ limit: 10, order_by: "published_at" })
+      .then((res) => {
+        if (!cancelled) {
+          setPreviewStories(enrichStories(res.stories ?? []).slice(0, 10));
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [feedShowsNothing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Restore scroll position once stories have loaded (only on initial mount)
   const scrollRestored = useRef(false);
@@ -1279,50 +1302,65 @@ export default function FeedContainer({
         </div>
       )}
 
-      {/* Empty */}
+      {/* Empty: show preview stories when available, otherwise text fallback */}
       {!isLoading && !error && stories.length === 0 && (
-        <div className={styles.emptyState}>
-          <p>
-            {personalNewsletterOnly
-              ? "No newsletter stories yet. Check back soon as new data comes in."
-              : onlyMySavedPlacesFeed
-                ? "No stories yet for your saved places. New stories appear as city data updates."
-              : hasActiveFilters
-                ? "No stories match your current filters. Try adjusting or clearing them."
-                : isAdmin
-                  ? "No feed stories yet. New stories appear as city data updates. Check back soon!"
-                  : hasMyPlaces
-                    ? "No stories yet for your cities. New stories appear as city data updates. Check back soon!"
-                    : "Follow a city to see stories in your feed."}
-          </p>
-          {hasActiveFilters && !personalNewsletterOnly && (
-            <button
-              type="button"
-              className={styles.compactClear}
-              style={{ marginTop: 8 }}
-              onClick={() => {
-                setSelectedCityIds(new Set());
-                setSelectedTopics(new Set());
-                setSelectedDistricts(new Map());
-                setSelectedPlaceId(null);
-                setOnlyMySavedPlacesFeed(userPlaces.length > 0);
-                setFeedOrder("for_you");
-              }}
-            >
-              Clear all filters
-            </button>
-          )}
-          {!hasActiveFilters && !hasMyPlaces && !isAdmin && !personalNewsletterOnly && (
-            <button
-              type="button"
-              className={styles.browseBtn}
-              style={{ marginTop: 8 }}
-              onClick={() => setShowFilterPanel(true)}
-            >
-              Browse cities
-            </button>
-          )}
-        </div>
+        previewStories.length > 0 ? (
+          <>
+            <p className={styles.previewHeader}>Trending stories</p>
+            <div className={styles.storiesList}>
+              {previewStories.map((story) => (
+                <FeedCard
+                  key={story.id}
+                  story={story}
+                  onOpen={() => openFeedDetail(story)}
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className={styles.emptyState}>
+            <p>
+              {personalNewsletterOnly
+                ? "No newsletter stories yet. Check back soon as new data comes in."
+                : onlyMySavedPlacesFeed
+                  ? "No stories yet for your saved places. New stories appear as city data updates."
+                : hasActiveFilters
+                  ? "No stories match your current filters. Try adjusting or clearing them."
+                  : isAdmin
+                    ? "No feed stories yet. New stories appear as city data updates. Check back soon!"
+                    : hasMyPlaces
+                      ? "No stories yet for your cities. New stories appear as city data updates. Check back soon!"
+                      : "Follow a city to see stories in your feed."}
+            </p>
+            {hasActiveFilters && !personalNewsletterOnly && (
+              <button
+                type="button"
+                className={styles.compactClear}
+                style={{ marginTop: 8 }}
+                onClick={() => {
+                  setSelectedCityIds(new Set());
+                  setSelectedTopics(new Set());
+                  setSelectedDistricts(new Map());
+                  setSelectedPlaceId(null);
+                  setOnlyMySavedPlacesFeed(userPlaces.length > 0);
+                  setFeedOrder("for_you");
+                }}
+              >
+                Clear all filters
+              </button>
+            )}
+            {!hasActiveFilters && !hasMyPlaces && !isAdmin && !personalNewsletterOnly && (
+              <button
+                type="button"
+                className={styles.browseBtn}
+                style={{ marginTop: 8 }}
+                onClick={() => setShowFilterPanel(true)}
+              >
+                Browse cities
+              </button>
+            )}
+          </div>
+        )
       )}
 
       {/* My Places empty state (client-side filter returned nothing) */}
@@ -1331,22 +1369,38 @@ export default function FeedContainer({
         visibleStories.length === 0 &&
         stories.length > 0 &&
         (selectedPlaceId !== null || onlyMySavedPlacesFeed) && (
-        <div className={styles.emptyState}>
-          <p className={styles.myBlockEmptyTitle}>
-            {onboarding.status === "scanning" || onboarding.status === "found_rep"
-              ? "Building your neighborhood feed"
-              : onboarding.status === "completed"
-                ? "Your neighborhood feed is ready!"
-                : "No stories for this place yet"}
-          </p>
-          <p className={styles.myBlockEmptyText}>
-            {onboarding.status === "scanning" || onboarding.status === "found_rep"
-              ? onboarding.message
-              : onboarding.status === "completed"
-                ? "Try refreshing to see your new stories."
-                : "We\u2019re working on generating stories for your saved places. Check back soon."}
-          </p>
-        </div>
+        <>
+          <div className={styles.emptyState}>
+            <p className={styles.myBlockEmptyTitle}>
+              {onboarding.status === "scanning" || onboarding.status === "found_rep"
+                ? "Building your neighborhood feed"
+                : onboarding.status === "completed"
+                  ? "Your neighborhood feed is ready!"
+                  : "No stories for this place yet"}
+            </p>
+            <p className={styles.myBlockEmptyText}>
+              {onboarding.status === "scanning" || onboarding.status === "found_rep"
+                ? onboarding.message
+                : onboarding.status === "completed"
+                  ? "Try refreshing to see your new stories."
+                  : "We\u2019re working on generating stories for your saved places. Check back soon."}
+            </p>
+          </div>
+          {previewStories.length > 0 && (isOnboardingScanning || onboarding.status === "completed") && (
+            <>
+              <p className={styles.previewHeader}>Trending stories</p>
+              <div className={styles.storiesList}>
+                {previewStories.map((story) => (
+                  <FeedCard
+                    key={story.id}
+                    story={story}
+                    onOpenFeedDetail={openFeedDetail}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </>
       )}
 
       {/* Generic client-side filter empty state */}
