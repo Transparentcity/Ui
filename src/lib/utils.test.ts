@@ -5,6 +5,11 @@ describe("utils", () => {
     expect(slugify("  Hello, Transparent City!!  ")).toBe("hello-transparent-city");
   });
 
+  it("slugify returns an empty slug for nullish values", () => {
+    expect(slugify(undefined)).toBe("");
+    expect(slugify(null)).toBe("");
+  });
+
   it("cn merges classes and keeps the latest conflicting utility", () => {
     expect(cn("p-2 text-sm", "p-4")).toContain("p-4");
     expect(cn("p-2 text-sm", "p-4")).not.toContain("p-2");

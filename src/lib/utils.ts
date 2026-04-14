@@ -14,10 +14,10 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Convert a string to a URL-friendly slug.
+ * Convert text to a URL-friendly slug.
  */
-export function slugify(text: string): string {
-  const slug = text.trim().toLowerCase();
+export function slugify(text: string | null | undefined): string {
+  const slug = String(text ?? "").trim().toLowerCase();
   return slug
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/[\s_-]+/g, "-")

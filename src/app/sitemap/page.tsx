@@ -57,6 +57,10 @@ function groupCitiesByCountryAndState(
   const byCountryState = new Map<string, Map<string, CityGroup["cities"]>>();
 
   for (const city of cities) {
+    const name = typeof city.name === "string" ? city.name.trim() : "";
+    const slug = slugify(city.name);
+    if (!name || !slug) continue;
+
     const country = normalizeCountryLabel(city.country);
     const state = city.state || (country === "United States" ? "Other" : "—");
 
@@ -64,8 +68,8 @@ function groupCitiesByCountryAndState(
     const list = byState.get(state) || [];
     list.push({
       id: city.id,
-      name: city.name,
-      slug: slugify(city.name),
+      name,
+      slug,
       emoji: city.emoji || "🏙️",
       state: city.state,
       country: city.country,

@@ -18,6 +18,10 @@ type SitemapEntry = {
   priority?: number;
 };
 
+function hasText(value: string | null | undefined): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 function escapeXml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -70,36 +74,69 @@ export async function GET(): Promise<Response> {
     // Non-critical, continue without newsletter entries
   }
 
-  const cityEntries: SitemapEntry[] = cities.map((city) => ({
-    // Clean slug URL — no ?id= query param.
-    loc: `${origin}/c/${slugify(city.name)}`,
-    changefreq: "weekly",
-    priority: 0.7,
-  }));
+  const cityEntries: SitemapEntry[] = cities.flatMap((city) => {
+    const citySlug = slugify(city.name);
+    if (!citySlug) return [];
 
-  const metricEntries: SitemapEntry[] = metrics.map((m) => ({
-    loc: `${origin}/c/${slugify(m.city_name)}/metrics/${m.metric_key}`,
-    changefreq: "daily",
-    priority: 0.8,
-  }));
+    return [
+      {
+        // Clean slug URL — no ?id= query param.
+        loc: `${origin}/c/${citySlug}`,
+        changefreq: "weekly",
+        priority: 0.7,
+      },
+    ];
+  });
 
-  const districtEntries: SitemapEntry[] = districts.map((d) => ({
-    loc: `${origin}/c/${slugify(d.city_name)}/district/${d.district}`,
-    changefreq: "weekly",
-    priority: 0.7,
-  }));
+  const metricEntries: SitemapEntry[] = metrics.flatMap((metric) => {
+    const citySlug = slugify(metric.city_name);
+    if (!citySlug || !hasText(metric.metric_key)) return [];
 
-  const mapEntries: SitemapEntry[] = maps.map((map) => ({
-    loc: `${origin}/m/${map.short_hash}`,
-    changefreq: "monthly",
-    priority: 0.5,
-  }));
+    return [
+      {
+        loc: `${origin}/c/${citySlug}/metrics/${metric.metric_key}`,
+        changefreq: "daily",
+        priority: 0.8,
+      },
+    ];
+  });
 
-  const newsletterEntries: SitemapEntry[] = newsletterEditions.map((e) => ({
-    loc: `${origin}/c/${e.city_slug}/newsletter/${e.short_hash}`,
-    changefreq: "never",
-    priority: 0.5,
-  }));
+  const districtEntries: SitemapEntry[] = districts.flatMap((district) => {
+    const citySlug = slugify(district.city_name);
+    if (!citySlug) return [];
+
+    return [
+      {
+        loc: `${origin}/c/${citySlug}/district/${district.district}`,
+        changefreq: "weekly",
+        priority: 0.7,
+      },
+    ];
+  });
+
+  const mapEntries: SitemapEntry[] = maps.flatMap((map) => {
+    if (!hasText(map.short_hash)) return [];
+
+    return [
+      {
+        loc: `${origin}/m/${map.short_hash}`,
+        changefreq: "monthly",
+        priority: 0.5,
+      },
+    ];
+  });
+
+  const newsletterEntries: SitemapEntry[] = newsletterEditions.flatMap((edition) => {
+    if (!hasText(edition.city_slug) || !hasText(edition.short_hash)) return [];
+
+    return [
+      {
+        loc: `${origin}/c/${edition.city_slug}/newsletter/${edition.short_hash}`,
+        changefreq: "never",
+        priority: 0.5,
+      },
+    ];
+  });
 
   // NOTE: Avoid per-city detail fetches here. During `next build`, this route
   // can be invoked for static generation and backend calls can easily exceed
