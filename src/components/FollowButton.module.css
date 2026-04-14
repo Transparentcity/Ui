@@ -1,0 +1,88 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  text-align: center;
+  white-space: normal;
+  border: 1px solid var(--brand-primary, #ad35fa);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+/* --- Size: default --- */
+.default {
+  padding: 6px 14px;
+  font-size: 13px;
+  border-radius: 6px;
+  min-height: 32px;
+}
+
+/* --- Size: compact (district list rows, inline usage) --- */
+.compact {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  min-height: 28px;
+}
+
+/* --- Size: small (hero inline, tight spaces) --- */
+.small {
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: 5px;
+  min-height: 24px;
+}
+
+/* --- State: not following (filled) --- */
+.idle {
+  background: var(--brand-primary, #ad35fa);
+  color: var(--text-on-brand, #ffffff);
+}
+
+.idle:hover {
+  background: var(--brand-primary-hover, #9333ea);
+  color: var(--text-on-brand, #ffffff);
+}
+
+/* --- State: following (outline) --- */
+.following {
+  background: transparent;
+  color: var(--brand-primary, #ad35fa);
+}
+
+.following:hover {
+  background: var(--brand-primary, #ad35fa);
+  color: white;
+}
+
+/* --- Disabled --- */
+.btn:disabled {
+  opacity: 0.8;
+  cursor: not-allowed;
+}
+
+/* --- Follower count chip --- */
+.count {
+  font-size: 0.85em;
+  opacity: 0.85;
+}
+
+/* --- Mobile touch targets --- */
+@media (max-width: 768px) {
+  .default {
+    min-height: 36px;
+    padding: 6px 12px;
+  }
+  .compact {
+    min-height: 32px;
+    padding: 5px 12px;
+  }
+  .small {
+    min-height: 32px;
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+}

@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth0 } from "@auth0/auth0-react";
+import { toast } from "sonner";
 import {
   getPublicRepresentativeFollowerCounts,
   type PublicLeader,
 } from "@/lib/publicApiClient";
 import { formatLeaderName } from "@/lib/utils";
+import FollowButton from "@/components/FollowButton";
 import {
   useRepresentativeFollowerCounts,
   useRepresentativeFollows,
@@ -80,9 +82,16 @@ export default function DistrictListWithFollow({
       return;
     }
     if (isFollowing(district)) {
-      unfollowMutation.mutate(d);
+      unfollowMutation.mutate(d, {
+        onSuccess: () => toast.success("Unfollowed District " + district),
+      });
     } else {
-      followMutation.mutate(d);
+      followMutation.mutate(d, {
+        onSuccess: () =>
+          toast.success("Following District " + district, {
+            description: "You'll get weekly updates",
+          }),
+      });
     }
   };
 
@@ -150,28 +159,12 @@ export default function DistrictListWithFollow({
                   </span>
                 )}
               </div>
-              <button
-                type="button"
+              <FollowButton
+                following={following}
+                loading={loading}
+                size="compact"
                 onClick={() => handleFollowClick(d)}
-                disabled={loading}
-                style={{
-                  padding: "4px 10px",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  flexShrink: 0,
-                  color: following
-                    ? "var(--brand-primary, #ad35fa)"
-                    : "var(--text-on-brand, #ffffff)",
-                  background: following
-                    ? "transparent"
-                    : "var(--brand-primary, #ad35fa)",
-                  border: "1px solid var(--brand-primary, #ad35fa)",
-                  borderRadius: 6,
-                  cursor: loading ? "not-allowed" : "pointer",
-                }}
-              >
-                {following ? "Unfollow" : "Follow"}
-              </button>
+              />
             </div>
           );
         })}

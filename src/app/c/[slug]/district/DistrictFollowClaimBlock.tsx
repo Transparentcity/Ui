@@ -2,7 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useAuth0 } from "@auth0/auth0-react";
+import { toast } from "sonner";
 import { getPublicRepresentativeFollowerCounts } from "@/lib/publicApiClient";
+import FollowButton from "@/components/FollowButton";
 import {
   useRepresentativeFollowerCounts,
   useRepresentativeFollows,
@@ -62,27 +64,27 @@ export default function DistrictFollowClaimBlock({
       return;
     }
     if (following) {
-      unfollowMutation.mutate(districtKey);
+      unfollowMutation.mutate(districtKey, {
+        onSuccess: () => toast.success("Unfollowed District " + district),
+      });
     } else {
-      followMutation.mutate(districtKey);
+      followMutation.mutate(districtKey, {
+        onSuccess: () =>
+          toast.success("Following District " + district, {
+            description: "You'll get weekly updates",
+          }),
+      });
     }
   };
 
   return (
     <div className="hero-official-buttons">
-      <button
-        type="button"
+      <FollowButton
+        following={following}
+        loading={loading}
+        count={count}
         onClick={handleFollowClick}
-        disabled={loading}
-        className="hero-official-btn hero-official-btn-follow"
-        style={{
-          color: following ? "var(--brand-primary, #ad35fa)" : "var(--text-on-brand, #ffffff)",
-          background: following ? "transparent" : "var(--brand-primary, #ad35fa)",
-        }}
-      >
-        {following ? "Unfollow" : "Follow"}
-        {count > 0 && ` · ${count}`}
-      </button>
+      />
     </div>
   );
 }
