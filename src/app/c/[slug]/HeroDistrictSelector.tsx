@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { formatLeaderName } from "@/lib/utils";
 
 interface Leader {
@@ -25,7 +25,13 @@ export default function HeroDistrictSelector({
 }: HeroDistrictSelectorProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
   const ref = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Total options: citywide + districts
+  const optionCount = districts.length + 1;
 
   useEffect(() => {
     if (!open) return;
@@ -34,16 +40,79 @@ export default function HeroDistrictSelector({
         setOpen(false);
       }
     }
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
     document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
     return () => {
       document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleKey);
     };
   }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      setFocusedIndex(0);
+    } else {
+      setFocusedIndex(-1);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || focusedIndex < 0) return;
+    const options = listRef.current?.querySelectorAll<HTMLButtonElement>(
+      '[role="option"]'
+    );
+    options?.[focusedIndex]?.focus();
+  }, [open, focusedIndex]);
+
+  const selectOption = useCallback(
+    (index: number) => {
+      setOpen(false);
+      buttonRef.current?.focus();
+      if (index === 0) {
+        router.push(`/c/${slug}`);
+      } else {
+        router.push(`/c/${slug}/district/${districts[index - 1]}`);
+      }
+    },
+    [router, slug, districts]
+  );
+
+  const handleListKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          setFocusedIndex((i) => (i + 1) % optionCount);
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          setFocusedIndex((i) => (i - 1 + optionCount) % optionCount);
+          break;
+        case "Home":
+          e.preventDefault();
+          setFocusedIndex(0);
+          break;
+        case "End":
+          e.preventDefault();
+          setFocusedIndex(optionCount - 1);
+          break;
+        case "Enter":
+        case " ":
+          e.preventDefault();
+          if (focusedIndex >= 0 && focusedIndex < optionCount) {
+            selectOption(focusedIndex);
+          }
+          break;
+        case "Escape":
+          e.preventDefault();
+          setOpen(false);
+          buttonRef.current?.focus();
+          break;
+        case "Tab":
+          setOpen(false);
+          break;
+      }
+    },
+    [optionCount, focusedIndex, selectOption]
+  );
 
   const mayorLabel = mayorName ? `Mayor: ${formatLeaderName(mayorName)}` : "Citywide";
 
@@ -58,9 +127,16 @@ export default function HeroDistrictSelector({
   return (
     <div className="hero-district-selector" ref={ref}>
       <button
+        ref={buttonRef}
         type="button"
         className="hero-district-selector-btn"
         onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+            e.preventDefault();
+            setOpen(true);
+          }
+        }}
         aria-expanded={open}
         aria-haspopup="listbox"
       >
@@ -82,20 +158,36 @@ export default function HeroDistrictSelector({
         </svg>
       </button>
       {open && districts.length > 0 && (
-        <ul className="hero-district-selector-menu" role="listbox">
-          {districts.map((d) => {
+        <ul
+          ref={listRef}
+          className="hero-district-selector-menu"
+          role="listbox"
+          onKeyDown={handleListKeyDown}
+        >
+          <li>
+            <button
+              type="button"
+              role="option"
+              aria-selected={focusedIndex === 0}
+              tabIndex={focusedIndex === 0 ? 0 : -1}
+              className="hero-district-selector-option"
+              onClick={() => selectOption(0)}
+            >
+              <span className="hero-district-selector-district">{mayorLabel}</span>
+            </button>
+          </li>
+          {districts.map((d, i) => {
             const leaderName = leaderByDistrict.get(d);
+            const optIndex = i + 1;
             return (
               <li key={d}>
                 <button
                   type="button"
                   role="option"
-                  aria-selected={false}
+                  aria-selected={focusedIndex === optIndex}
+                  tabIndex={focusedIndex === optIndex ? 0 : -1}
                   className="hero-district-selector-option"
-                  onClick={() => {
-                    setOpen(false);
-                    router.push(`/c/${slug}/district/${d}`);
-                  }}
+                  onClick={() => selectOption(optIndex)}
                 >
                   <span className="hero-district-selector-district">District {d}</span>
                   {leaderName && (
