@@ -35,6 +35,8 @@ type CityDashboardSectionProps = {
   leaders?: PublicLeader[] | null;
   /** Optional: slot rendered between dashboard metrics and district list (e.g. featured stories). */
   storiesSlot?: React.ReactNode;
+  /** Number of public datasets for this city */
+  datasetsCount?: number | null;
 };
 
 export default function CityDashboardSection({
@@ -49,6 +51,7 @@ export default function CityDashboardSection({
   cityId,
   leaders,
   storiesSlot,
+  datasetsCount,
 }: CityDashboardSectionProps) {
   const base = `/c/${slug}`;
   const isDistrictView = districtFilter != null && districtFilter >= 1;
@@ -142,10 +145,10 @@ export default function CityDashboardSection({
   if (sortedCategories.length === 0) {
     return (
       <section className="dashboard-section" style={{ marginTop: 0 }}>
-        <div className="dashboard-header">
-          <h2 className="dashboard-title">
-            {isDistrictView ? `District ${districtFilter} Dashboard` : "Citywide Dashboard"}
-          </h2>
+        <div className="dashboard-comparison-selector">
+          <div className="comparison-selector-scope">
+            {isDistrictView ? `District ${districtFilter}` : "Citywide"} Dashboard
+          </div>
         </div>
         <div className="ytd-placeholder">
           <p>No metrics with comparison data for {cityDisplayName} yet.</p>
@@ -197,32 +200,22 @@ export default function CityDashboardSection({
 
   return (
     <section className="dashboard-section" style={{ marginTop: 0 }}>
-      <div
-        className="dashboard-header"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 8,
-        }}
-      >
-        <h2 className="dashboard-title">
-          {isDistrictView ? `District ${districtFilter} Dashboard` : "Citywide Dashboard"}
-        </h2>
-      </div>
-
-      {/* Comparison bar: YTD only (matches dashboard selector style) */}
+      {/* Comparison bar: scope label + YTD date */}
       <div className="dashboard-comparison-selector">
+        <div className="comparison-selector-scope">
+          {isDistrictView ? `District ${districtFilter}` : "Citywide"} Dashboard
+        </div>
         <div className="comparison-selector-label">
           Year to Date
         </div>
-        {lastComputedAt && (
-          <div className="comparison-selector-meta">
-            {lastComputedAt}
-          </div>
-        )}
       </div>
+      {(datasetsCount != null && datasetsCount > 0 || lastComputedAt) && (
+        <div className="dashboard-datasets-count">
+          {lastComputedAt && `As of ${lastComputedAt}`}
+          {lastComputedAt && datasetsCount != null && datasetsCount > 0 && ", "}
+          {datasetsCount != null && datasetsCount > 0 && `${datasetsCount.toLocaleString()} public datasets`}
+        </div>
+      )}
 
       <div className="metrics-table-container">
         {sortedCategories.map((category) => {

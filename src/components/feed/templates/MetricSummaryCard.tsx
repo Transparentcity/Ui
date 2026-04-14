@@ -108,6 +108,79 @@ function deriveActorFromCategory(category: string | null | undefined): string {
   return category;
 }
 
+/**
+ * Build the most informative source/context line we can from available data.
+ *
+ * Priority (highest to lowest):
+ *  1. Portal domain  → "Source: data.sfgov.org"
+ *  2. Date-range context from the comparison period → "Jan–Mar 2026 data"
+ *  3. Subcategory (when it adds info beyond the category already in the header)
+ *  4. null — show nothing rather than a generic "{category} data" that's
+ *     redundant with the card header.
+ */
+function buildSourceText(
+  metric: PublicCityMetricItem,
+  comparison: PublicMetricComparison,
+  portalDomain?: string
+): string | null {
+  // Best: name the actual data source
+  if (portalDomain) {
+    return `Source: ${portalDomain}`;
+  }
+
+  // Next: show the data period so readers know how current it is
+  const periodLabel = formatPeriodRange(
+    comparison.current_period_start,
+    comparison.current_period_end
+  );
+  if (periodLabel) {
+    return periodLabel;
+  }
+
+  // Nothing useful to show — better to leave blank than show "safety data"
+  return null;
+}
+
+/** Format a period range into a human-readable label like "Jan–Mar 2026" */
+function formatPeriodRange(
+  start: string | null | undefined,
+  end: string | null | undefined
+): string | null {
+  if (!start) return null;
+  const s = new Date(start);
+  if (isNaN(s.getTime())) return null;
+
+  const monthFmt = (d: Date) =>
+    d.toLocaleDateString("en-US", { month: "short" });
+  const year = s.getFullYear();
+
+  if (!end) {
+    return `${monthFmt(s)} ${year} data`;
+  }
+
+  const e = new Date(end);
+  if (isNaN(e.getTime())) {
+    return `${monthFmt(s)} ${year} data`;
+  }
+
+  const sMonth = s.getMonth();
+  const eMonth = e.getMonth();
+  const eYear = e.getFullYear();
+
+  // Same month
+  if (sMonth === eMonth && year === eYear) {
+    return `${monthFmt(s)} ${year} data`;
+  }
+
+  // Same year
+  if (year === eYear) {
+    return `${monthFmt(s)}–${monthFmt(e)} ${year} data`;
+  }
+
+  // Different years
+  return `${monthFmt(s)} ${year}–${monthFmt(e)} ${eYear} data`;
+}
+
 export default function MetricSummaryCard({ data, children }: { data: MetricCardData; children?: React.ReactNode }) {
   const { metric, comparison, cityName, cityEmoji, greendirection, portalDomain } = data;
 
@@ -149,12 +222,9 @@ export default function MetricSummaryCard({ data, children }: { data: MetricCard
     ? `${cityEmoji} ${cityName}`
     : cityName;
 
-  // Source attribution line
-  const sourceText = portalDomain
-    ? `${metric.category || "City"} data from ${portalDomain}`
-    : metric.category
-      ? `${metric.category} data`
-      : null;
+  // Source attribution line — build the most informative description we can
+  // from the data available, avoiding generic/redundant text like "safety data"
+  const sourceText = buildSourceText(metric, comparison, portalDomain);
 
   return (
     <>
@@ -169,8 +239,11 @@ export default function MetricSummaryCard({ data, children }: { data: MetricCard
 
       <h2 className={feedStyles.cardHeadline}>{headline}</h2>
 
-      {/* Metric hero */}
-      <div className={styles.metricHero}>
+      {/* Metric hero — tighten bottom margin when no source text follows */}
+      <div
+        className={styles.metricHero}
+        style={sourceText ? undefined : { marginBottom: 0 }}
+      >
         <div className={styles.metricValueGroup}>
           {curr != null && (
             <span className={styles.metricValue}>

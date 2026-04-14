@@ -242,25 +242,16 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       <main id="main-content">
       {/* Section 1: City Hero */}
       <section className="city-hero-v2">
-        <div className="container city-hero-v2-inner">
-          <div className="city-hero-v2-left">
-            <h1 className="city-hero-v2-title">
-              {city ? `${city.emoji || ""} ${city.display}` : slug}
-            </h1>
-            {city?.datasets_count && (
-              <p className="city-hero-v2-datasets">{city.datasets_count} public datasets</p>
-            )}
-          </div>
+        <div className="container city-hero-v2-row">
+          <h1 className="city-hero-v2-title">
+            {city ? `${city.emoji || ""} ${city.name}` : slug}
+          </h1>
           <div className="city-hero-v2-right">
             {cityDetail?.mayor?.name && (
-              <div className="city-hero-v2-mayor-row">
-                <p className="city-hero-v2-mayor" style={{ margin: 0 }}>
-                  Mayor {cityDetail.mayor.name}
-                </p>
-                {city?.id && (
-                  <DistrictFollowClaimBlock cityId={city.id} district={0} slug={slug} />
-                )}
-              </div>
+              <span className="city-hero-v2-mayor-inline">Mayor {cityDetail.mayor.name}</span>
+            )}
+            {city?.id && (
+              <DistrictFollowClaimBlock cityId={city.id} district={0} slug={slug} />
             )}
           </div>
         </div>
@@ -294,6 +285,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                 comparisonsMap={comparisonsMap}
                 districts={districts}
                 maps={maps}
+                datasetsCount={city.datasets_count}
                 orderings={cityOrdering?.orderings?.filter((o) => o.metric_id != null).map((o) => ({
                   metric_id: o.metric_id!,
                   category_order: o.category_order,

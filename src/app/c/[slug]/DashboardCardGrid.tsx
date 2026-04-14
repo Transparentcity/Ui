@@ -20,6 +20,7 @@ type Props = {
   orderings?: MetricOrderingEntry[];
   cityId?: number;
   leaders?: PublicLeader[] | null;
+  datasetsCount?: number | null;
 };
 
 // Deterministic category color palette
@@ -77,6 +78,7 @@ export default function DashboardCardGrid({
   orderings,
   cityId,
   leaders,
+  datasetsCount,
 }: Props) {
   const base = `/c/${slug}`;
 

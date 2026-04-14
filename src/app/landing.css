@@ -2390,6 +2390,13 @@
   border-bottom: 1px solid var(--border-primary);
 }
 
+.city-hero-v2-row {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .city-hero-v2-inner {
   display: flex;
   align-items: center;
@@ -2397,18 +2404,17 @@
 }
 
 .city-hero-v2-left {
-  flex: 0 0 auto;
-  border-right: 1px solid var(--border-primary);
-  padding-right: 32px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .city-hero-v2-title {
   font-family: var(--font-heading);
-  font-size: 42px;
+  font-size: 28px;
   font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--text-primary);
-  margin: 0 0 4px;
+  margin: 0;
   line-height: 1.1;
   white-space: nowrap;
 }
@@ -2422,8 +2428,21 @@
 }
 
 .city-hero-v2-right {
-  flex: 1;
-  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.city-hero-v2-right .hero-official-buttons {
+  margin-top: 0;
+}
+
+.city-hero-v2-right .hero-official-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 5px;
 }
 
 .city-hero-v2-subtitle {
@@ -2440,6 +2459,45 @@
   font-weight: 700;
   color: var(--text-primary);
   margin: 0;
+}
+
+.city-hero-v2-mayor-block {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.2;
+}
+
+.city-hero-v2-mayor-label {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.city-hero-v2-mayor-name {
+  font-family: var(--font-body);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Inline mayor name for compact hero layout */
+.city-hero-v2-mayor-inline {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* Smaller follow button in hero */
+.city-hero-v2-right .hero-official-btn-follow {
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: 5px;
 }
 
 .city-hero-v2-mayor-row {
@@ -2520,8 +2578,21 @@
     white-space: nowrap;
     font-size: 11px;
   }
-  .featured-stories-grid {
+  .featured-stories-grid,
+  .featured-stories-grid--2x2 {
     grid-template-columns: 1fr;
+  }
+  .featured-story-card--secondary {
+    padding: 12px 16px;
+  }
+  .featured-story-headline-sm {
+    font-size: 17px;
+    font-weight: 700;
+    margin: 0 0 6px;
+  }
+  .featured-story-desc-sm {
+    font-size: 14px;
+    -webkit-line-clamp: 3;
   }
   .city-hero-v2 {
     padding: 56px 0 8px;
@@ -2529,6 +2600,9 @@
   .city-dashboard-wrapper {
     padding-top: 8px;
     padding-bottom: 16px;
+  }
+  .city-hero-v2-row {
+    gap: 8px;
   }
   .city-hero-v2-inner {
     flex-direction: column;
@@ -2545,7 +2619,7 @@
   .city-hero-v2-title {
     font-size: 22px;
     white-space: normal;
-    margin-bottom: 2px;
+    margin-bottom: 0;
   }
   .city-hero-v2-subtitle {
     font-size: 13px;
