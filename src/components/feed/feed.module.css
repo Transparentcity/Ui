@@ -1874,7 +1874,7 @@
 
 @media (max-width: 767px) {
   .feedContainer {
-    padding: 10px 8px 12px;
+    padding: 10px 12px 12px;
   }
 
   .feedHeader {
@@ -2838,6 +2838,10 @@
 
   .photoHero {
     height: 180px;
+  }
+
+  .otcEmoji {
+    font-size: 36px;
   }
 }
 

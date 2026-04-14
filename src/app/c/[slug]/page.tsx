@@ -260,17 +260,12 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       {/* Section 2: Dashboard */}
       <div className="container city-dashboard-wrapper">
         {!hasContent ? (
-          <div style={{
-            textAlign: "center",
-            padding: "64px 24px",
-            maxWidth: 540,
-            margin: "0 auto",
-          }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🚧</div>
-            <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: 12 }}>
+          <div className="city-coming-soon">
+            <div className="city-coming-soon-emoji">🚧</div>
+            <h2 className="city-coming-soon-title">
               {cityDisplayName} is coming soon
             </h2>
-            <p style={{ color: "var(--text-secondary)", lineHeight: 1.6 }}>
+            <p className="city-coming-soon-desc">
               We&rsquo;re setting up the civic data dashboard for {cityDisplayName}.
               Sign up below to be notified when it launches.
             </p>

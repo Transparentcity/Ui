@@ -37,3 +37,12 @@
     font-size: 1.25rem;
   }
 }
+
+@media (max-width: 400px) {
+  .metricValue {
+    font-size: 1.1rem;
+  }
+  .metricPrior {
+    font-size: 0.75rem;
+  }
+}
