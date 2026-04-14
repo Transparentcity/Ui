@@ -2546,6 +2546,7 @@
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
+  min-height: 32px;
   font-family: var(--font-body);
   font-size: 13px;
   font-weight: 500;
@@ -2564,6 +2565,7 @@
 }
 
 .hero-district-chevron {
+  flex-shrink: 0;
   transition: transform 0.15s;
 }
 .hero-district-chevron.open {
@@ -2573,10 +2575,12 @@
 .hero-district-selector-menu {
   position: absolute;
   top: calc(100% + 4px);
-  right: 0;
-  min-width: 140px;
-  max-height: 260px;
+  left: 0;
+  min-width: 200px;
+  max-width: calc(100vw - 32px);
+  max-height: 300px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: var(--bg-primary, #fff);
   border: 1px solid var(--border-primary, #e0e0e0);
   border-radius: 8px;
@@ -2588,9 +2592,10 @@
 }
 
 .hero-district-selector-option {
-  display: block;
+  display: flex;
+  align-items: baseline;
   width: 100%;
-  padding: 6px 10px;
+  padding: 8px 10px;
   font-family: var(--font-body);
   font-size: 13px;
   font-weight: 400;
@@ -2607,14 +2612,21 @@
   background: var(--bg-secondary, #f5f5f5);
 }
 
+.hero-district-selector-option:active {
+  background: var(--bg-tertiary, #eee);
+}
+
 .hero-district-selector-district {
   font-weight: 500;
+  flex-shrink: 0;
 }
 
 .hero-district-selector-leader {
   color: var(--text-secondary);
   font-weight: 400;
   margin-left: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Smaller follow button in hero */
@@ -2742,6 +2754,20 @@
   .city-hero-v2-mayor-inline {
     white-space: normal;
   }
+  .hero-district-selector-btn {
+    min-height: 36px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .hero-district-selector-menu {
+    left: 0;
+    right: auto;
+    max-width: calc(100vw - 32px);
+  }
+  .hero-district-selector-option {
+    padding: 10px 10px;
+    min-height: 36px;
+  }
   .city-hero-v2-signup {
     max-width: 100%;
   }
@@ -2778,7 +2804,7 @@
 
 .hero-category-link {
   padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-secondary, #f8f9fa);
   border-radius: 20px;
   color: var(--text-secondary, #6b7280);
   text-decoration: none;
@@ -2787,12 +2813,12 @@
 }
 
 .hero-category-link:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--bg-tertiary, #f3f4f6);
   color: var(--text-primary, #1f2937);
 }
 
 .hero-category-link-active {
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--bg-tertiary, #e5e7eb);
   color: var(--text-primary, #1f2937);
   font-weight: 600;
 }

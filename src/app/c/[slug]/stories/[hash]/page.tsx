@@ -329,7 +329,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
              show detail_url (stripping #story-{hash} fragments to avoid
              redirect loops back to this canonical story page). */}
         {story.story_type === "context" ? (
-          <div style={{ marginTop: 40, paddingTop: 24, borderTop: "1px solid var(--border-subtle, #e5e7eb)" }}>
+          <div style={{ marginTop: 40, paddingTop: 24, borderTop: "1px solid var(--border-primary, #e5e7eb)" }}>
             <Link
               href={districtHref ?? backHref}
               className="btn btn-primary"
@@ -340,7 +340,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         ) : story.detail_url && !isSelfReferentialUrl(story.detail_url, slug, hash) && (() => {
           const ctaUrl = story.detail_url!.replace(/#story-[A-Za-z0-9_-]+$/, "");
           return ctaUrl ? (
-            <div style={{ marginTop: 40, paddingTop: 24, borderTop: "1px solid var(--border-subtle, #e5e7eb)" }}>
+            <div style={{ marginTop: 40, paddingTop: 24, borderTop: "1px solid var(--border-primary, #e5e7eb)" }}>
               <a
                 href={ctaUrl}
                 target="_blank"
@@ -474,7 +474,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           margin: 2rem 0;
           border-radius: 10px;
           overflow: hidden;
-          border: 1px solid var(--border-subtle, #e5e7eb);
+          border: 1px solid var(--border-primary, #e5e7eb);
           background: var(--bg-subtle, #f9f9f9);
         }
         .story-article-body .visualization-embed iframe {
@@ -495,7 +495,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         .story-article-body .sources {
           margin-top: 2rem;
           padding-top: 1rem;
-          border-top: 1px solid var(--border-subtle, #e5e7eb);
+          border-top: 1px solid var(--border-primary, #e5e7eb);
           font-size: 0.85rem;
           color: var(--text-secondary);
         }
