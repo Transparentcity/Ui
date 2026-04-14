@@ -182,6 +182,16 @@ export default function Sidebar({
     [onWidthChange]
   );
 
+  // Lock body scroll when sidebar is open on mobile
+  useEffect(() => {
+    if (!isOpen || !isNarrowScreen()) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
+
   // Research and New Research Report: government-verified users only
   const canAccessResearch = governmentVerified;
 
@@ -677,6 +687,7 @@ export default function Sidebar({
               onClose();
             }
           }}
+          onTouchMove={(e) => e.preventDefault()}
         />
       )}
     </>
