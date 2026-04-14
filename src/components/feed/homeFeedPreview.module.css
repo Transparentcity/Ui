@@ -14,21 +14,20 @@
   flex-direction: column;
   text-decoration: none;
   color: inherit;
-  background: var(--bg-primary, rgba(255, 255, 255, 0.90));
+  background: var(--bg-primary, #fff);
   border: 1px solid var(--border-primary, rgba(17, 24, 39, 0.10));
-  border-radius: 14px;
-  padding: 16px 18px;
+  border-radius: var(--radius-lg, 12px);
+  padding: 12px 16px;
   cursor: pointer;
-  overflow: hidden;
+  position: relative;
   transition: background 0.15s ease, border-color 0.15s ease,
-    transform 0.15s ease, box-shadow 0.15s ease;
+    box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .previewCard:hover {
-  background: var(--bg-secondary, rgba(17, 24, 39, 0.03));
-  border-color: var(--brand-primary, rgba(173, 53, 250, 0.25));
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07);
-  transform: translateY(-2px);
+  background: var(--bg-secondary);
+  border-color: var(--border-secondary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .previewCta {
@@ -90,5 +89,9 @@
 @media (max-width: 640px) {
   .previewGrid {
     grid-template-columns: 1fr;
+  }
+
+  .previewCard {
+    padding: 12px 14px;
   }
 }

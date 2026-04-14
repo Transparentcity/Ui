@@ -85,7 +85,7 @@ export default function HomeFeedPreview({ initialStories, metricCards = [] }: Ho
             return (
               <Fragment key={story.id}>
                 {metricCard && (
-                  <MetricFeedCard data={metricCard} onHide={() => {}} />
+                  <MetricFeedCard data={metricCard} onHide={() => {}} hideActions />
                 )}
                 <Link
                   href={resolveCanonicalUrl(story)}

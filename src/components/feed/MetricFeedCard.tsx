@@ -13,11 +13,13 @@ import styles from "./feed.module.css";
 interface MetricFeedCardProps {
   data: MetricCardData;
   onHide?: (metricId: number) => void;
+  /** Hide share button and overflow menu (used on public landing page) */
+  hideActions?: boolean;
 }
 
 const noop = () => {};
 
-export default function MetricFeedCard({ data, onHide = noop }: MetricFeedCardProps) {
+export default function MetricFeedCard({ data, onHide = noop, hideActions = false }: MetricFeedCardProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
   const [overflowOpen, setOverflowOpen] = useState(false);
@@ -72,7 +74,7 @@ export default function MetricFeedCard({ data, onHide = noop }: MetricFeedCardPr
     .filter(Boolean)
     .join(" ");
 
-  const actionBar = (
+  const actionBar = hideActions ? null : (
     <CardActionBar
       onShare={handleShare}
       onOverflow={() => setOverflowOpen((o) => !o)}
@@ -96,15 +98,17 @@ export default function MetricFeedCard({ data, onHide = noop }: MetricFeedCardPr
     >
       <MetricSummaryCard data={data}>{actionBar}</MetricSummaryCard>
 
-      <div className={styles.overflowAnchor} style={{ position: "absolute", right: 16, bottom: 16 }}>
-        <OverflowMenu
-          open={overflowOpen}
-          onClose={() => setOverflowOpen(false)}
-          onShare={handleShare}
-          onHide={handleHide}
-          mobile={isMobile}
-        />
-      </div>
+      {!hideActions && (
+        <div className={styles.overflowAnchor} style={{ position: "absolute", right: 16, bottom: 16 }}>
+          <OverflowMenu
+            open={overflowOpen}
+            onClose={() => setOverflowOpen(false)}
+            onShare={handleShare}
+            onHide={handleHide}
+            mobile={isMobile}
+          />
+        </div>
+      )}
     </article>
   );
 }

@@ -53,6 +53,8 @@ function buildMetricCards(
     const curr = comp.current_period_value;
     const prior = comp.comparison_period_value;
     if (curr == null || prior == null || prior === 0) continue;
+    // Skip incomplete data (e.g. curr=0 showing "down 100%") and very small numbers
+    if (curr === 0 || Math.abs(curr) < 5) continue;
     const pct = ((curr - prior) / prior) * 100;
     const idx = candidates.length;
     const hoursAgo = idx * 12 + 2;
@@ -96,7 +98,7 @@ export default function FeaturedStories({
           </header>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {metricCards.map((mc) => (
-              <MetricFeedCard key={mc.metric.id} data={mc} />
+              <MetricFeedCard key={mc.metric.id} data={mc} hideActions />
             ))}
           </div>
         </div>
@@ -155,7 +157,7 @@ export default function FeaturedStories({
         {metricCards.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
             {metricCards.map((mc) => (
-              <MetricFeedCard key={mc.metric.id} data={mc} />
+              <MetricFeedCard key={mc.metric.id} data={mc} hideActions />
             ))}
           </div>
         )}
