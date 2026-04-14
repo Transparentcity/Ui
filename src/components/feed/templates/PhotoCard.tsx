@@ -23,6 +23,7 @@ export default function PhotoCard({ story, children, variant }: PhotoCardProps) 
           actor={story.actor}
           subline={story.subline}
           neighborhoodLabel={story.neighborhood_label}
+          categoryColor={story.category_color}
         />
         <h2 className={styles.cardHeadline}>{story.headline}</h2>
         {story.cleaned_description && (
@@ -121,6 +122,7 @@ export default function PhotoCard({ story, children, variant }: PhotoCardProps) 
         actor={story.actor}
         subline={story.subline}
         neighborhoodLabel={story.neighborhood_label}
+        categoryColor={story.category_color}
       />
 
       <div className={styles.photoBody}>

@@ -157,11 +157,12 @@ export default function MetricSummaryCard({ data, children }: { data: MetricCard
   return (
     <>
       <CardHeader
-        typeIcon="📊"
+        typeIcon="Landmark"
         typeLabel="Data"
         actor={actor}
         subline={subline}
         neighborhoodLabel={neighborhoodLabel}
+        categoryColor="#6b7280"
       />
 
       <h2 className={feedStyles.cardHeadline}>{headline}</h2>

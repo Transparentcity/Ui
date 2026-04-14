@@ -25,6 +25,7 @@ export default function TextOnlyCard({ story, children }: TextOnlyCardProps) {
         actor={story.actor}
         subline={story.subline}
         neighborhoodLabel={story.neighborhood_label}
+        categoryColor={story.category_color}
       />
       <h2 className={styles.cardHeadline}>{story.headline}</h2>
 

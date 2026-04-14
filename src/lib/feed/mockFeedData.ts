@@ -47,6 +47,10 @@ export interface EnrichedFeedStory extends FeedStory {
   type_icon: string;
   type_label: string;
   actor: string;
+  /** Lucide icon name for the category (e.g. "Shield", "Flame"). */
+  category_icon: string;
+  /** CSS color for the category icon. */
+  category_color: string;
   neighborhood_label: string;
   subline: string;
   image_url_resolved: string | null;
@@ -55,24 +59,43 @@ export interface EnrichedFeedStory extends FeedStory {
   canonical_url: string;
 }
 
-// ── Type metadata maps ──────────────────────────────────────────────────────
+// ── Category metadata maps ──────────────────────────────────────────────────
 
-const TYPE_ICONS: Record<CardType, string> = {
-  alert: "\u{1F534}",          // 🔴
-  trend: "\u{1F4CA}",          // 📊
-  business: "\u{1F3EA}",       // 🏪
-  spending: "\u{1F4B0}",       // 💰
-  justice: "\u2696\uFE0F",     // ⚖️
-  safety: "\u{1F6A8}",         // 🚨
-  "311_images": "\u{1F4F8}",   // 📸
-  my_block: "\u{1F3E0}",       // 🏠
-  context: "\u{1F9ED}",        // 🧭
-  multi_metric: "\u{1F4CB}",   // 📋
-  off_the_charts: "\u{1F92F}", // 🤯
-  comparison: "\u{1F504}",     // 🔄
-  milestone: "\u{1F3AF}",      // 🎯
-  traction: "\u{1F31F}",       // 🌟
+/** Category definition: Lucide icon name + color for the card header. */
+export interface CategoryMeta {
+  icon: string;   // Lucide icon name (e.g. "Shield", "Flame")
+  color: string;  // CSS color for the icon
+  label: string;  // Display label (e.g. "Police", "Fire Dept")
+}
+
+/**
+ * Topic categories derived from headline keywords. These replace the old
+ * "actor" concept. Each maps to a Lucide icon + accent color.
+ */
+const CATEGORY_MAP: Record<string, CategoryMeta> = {
+  "Police":           { icon: "Shield",      color: "#dc2626", label: "Police" },
+  "Fire Dept":        { icon: "Flame",       color: "#ea580c", label: "Fire Dept" },
+  "Public Works":     { icon: "Wrench",      color: "#6b7280", label: "Public Works" },
+  "311":              { icon: "Wrench",      color: "#6b7280", label: "311" },
+  "Building Dept":    { icon: "Building2",   color: "#2563eb", label: "Building Dept" },
+  "Parks & Rec":      { icon: "Trees",       color: "#16a34a", label: "Parks & Rec" },
+  "Transit":          { icon: "Bus",         color: "#0d9488", label: "Transit" },
+  "Spending":         { icon: "DollarSign",  color: "#d97706", label: "Spending" },
+  "Business":         { icon: "Store",       color: "#7c3aed", label: "Business" },
+  "Public Health":    { icon: "Heart",       color: "#db2777", label: "Public Health" },
+  "Education":        { icon: "GraduationCap", color: "#4f46e5", label: "Education" },
+  "District Attorney":{ icon: "Scale",       color: "#7c3aed", label: "Justice" },
+  "Utilities":        { icon: "Droplets",    color: "#0284c7", label: "Utilities" },
+  "City Hall":        { icon: "Landmark",    color: "#6b7280", label: "City Hall" },
 };
+
+/** Fallback category for unknown topics. */
+const DEFAULT_CATEGORY: CategoryMeta = { icon: "Landmark", color: "#6b7280", label: "City Hall" };
+
+/** Look up category metadata by category key. */
+export function getCategoryMeta(categoryKey: string): CategoryMeta {
+  return CATEGORY_MAP[categoryKey] ?? DEFAULT_CATEGORY;
+}
 
 const TYPE_LABELS: Record<CardType, string> = {
   alert: "Alert",
@@ -389,6 +412,9 @@ export function enrichStory(story: FeedStory, placeMap?: PlaceMap): EnrichedFeed
     meta.business_name = normalizeBusinessName(meta.business_name);
   }
 
+  const categoryKey = deriveActor(cardType, normalizedHeadline);
+  const catMeta = getCategoryMeta(categoryKey);
+
   const enriched: EnrichedFeedStory = {
     ...story,
     headline: normalizedHeadline,
@@ -398,9 +424,11 @@ export function enrichStory(story: FeedStory, placeMap?: PlaceMap): EnrichedFeed
     applaud_count: story.applaud_count ?? story.like_count ?? 0,
     escalate_count: story.escalate_count ?? story.comment_count ?? 0,
     investigate_count: story.investigate_count ?? 0,
-    type_icon: TYPE_ICONS[cardType],
+    type_icon: catMeta.icon,
     type_label: TYPE_LABELS[cardType],
-    actor: deriveActor(cardType, normalizedHeadline),
+    actor: catMeta.label,
+    category_icon: catMeta.icon,
+    category_color: catMeta.color,
     neighborhood_label: neighborhoodLabel,
     subline: formatSubline(story),
     image_url_resolved: resolveImageUrl(story),

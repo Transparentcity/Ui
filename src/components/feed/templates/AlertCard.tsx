@@ -70,6 +70,7 @@ export default function AlertCard({ story, children }: AlertCardProps) {
         actor={story.actor}
         subline={story.subline}
         neighborhoodLabel={story.neighborhood_label}
+        categoryColor={story.category_color}
       />
       <h2 className={styles.cardHeadline}>{story.headline}</h2>
 

@@ -126,6 +126,7 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
           actor={story.actor}
           subline={story.subline}
           neighborhoodLabel={story.neighborhood_label}
+          categoryColor={story.category_color}
         />
         <h2 className={styles.cardHeadline}>{displayHeadline}</h2>
         {periodLabel && <div className={styles.metricPeriodLabel}>{periodLabel}</div>}
@@ -178,6 +179,7 @@ export default function MultiMetricCard({ story, children }: MultiMetricCardProp
         actor={story.actor}
         subline={story.subline}
         neighborhoodLabel={story.neighborhood_label}
+        categoryColor={story.category_color}
       />
       <h2 className={styles.cardHeadline}>{displayHeadline}</h2>
       {periodLabel && <div className={styles.metricPeriodLabel}>{periodLabel}</div>}
