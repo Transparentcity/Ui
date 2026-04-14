@@ -17,7 +17,7 @@ import {
   listPublicMapsForCity,
   getPublicCityMetricOrdering,
 } from "@/lib/publicApiClient";
-import { slugify } from "@/lib/utils";
+import { slugify, formatLeaderName } from "@/lib/utils";
 import type { MetricOrderingEntry } from "../../../CityDashboardSection";
 import DistrictPageContent from "../DistrictPageContent";
 import { supervisorToSlug } from "../page";
@@ -54,7 +54,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     try {
       const leaders = await getPublicLeadersForCity(cityId);
       const districtLeader = leaders.find((l) => l.district === d);
-      if (districtLeader) supervisorName = districtLeader.name.trim();
+      if (districtLeader) supervisorName = formatLeaderName(districtLeader.name.trim());
     } catch {
       // no leader data
     }
@@ -192,7 +192,9 @@ export default async function DistrictSlugPage({ params }: PageProps) {
   if (!districtValid && (cityDetail?.metrics?.length ?? 0) > 0) notFound();
 
   const primaryLeader = leaders.find((l) => l.district === d);
-  const supervisorName = primaryLeader?.name?.trim() ?? null;
+  const supervisorName = primaryLeader?.name?.trim()
+    ? formatLeaderName(primaryLeader.name.trim())
+    : null;
 
   // If the slug in the URL is stale/wrong, redirect to the current canonical
   if (supervisorName) {

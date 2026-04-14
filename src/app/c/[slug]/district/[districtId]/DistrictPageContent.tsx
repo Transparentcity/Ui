@@ -14,6 +14,7 @@ import EmailSignInLink from "../../EmailSignInLink";
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
+import { formatLeaderName } from "@/lib/utils";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 import { type MetricCardData } from "@/components/feed/templates/MetricSummaryCard";
 import MetricFeedCard from "@/components/feed/MetricFeedCard";
@@ -209,7 +210,7 @@ export default function DistrictPageContent({
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
             {districts.map((dn) => {
               const rep = leaders.find((l) => l.district === dn);
-              const repName = rep ? ` \u2013 ${(rep.title || "")} ${rep.name}`.trim() : "";
+              const repName = rep ? ` \u2013 ${(rep.title || "")} ${formatLeaderName(rep.name)}`.trim() : "";
               return (
                 <Link
                   key={dn}

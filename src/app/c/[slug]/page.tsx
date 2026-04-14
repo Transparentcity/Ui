@@ -30,7 +30,7 @@ import FeaturedStoriesAsync from "./FeaturedStoriesAsync";
 import CityHeroNewsletter from "./CityHeroNewsletter";
 import LoggedOutOnly from "./LoggedOutOnly";
 import MobileCitySignupBar from "./MobileCitySignupBar";
-import { slugify } from "@/lib/utils";
+import { slugify, formatLeaderName } from "@/lib/utils";
 
 export const revalidate = 3600;
 
@@ -256,7 +256,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                 leaders={leaders}
               />
             ) : cityDetail?.mayor?.name ? (
-              <span className="city-hero-v2-mayor-inline">Mayor: {cityDetail.mayor.name}</span>
+              <span className="city-hero-v2-mayor-inline">Mayor: {formatLeaderName(cityDetail.mayor.name)}</span>
             ) : null}
             {city?.id && (
               <DistrictFollowClaimBlock cityId={city.id} district={0} slug={slug} />

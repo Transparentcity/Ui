@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
+import { formatLeaderName } from "@/lib/utils";
 
 interface Leader {
   name: string;
@@ -44,13 +45,13 @@ export default function HeroDistrictSelector({
     };
   }, [open]);
 
-  const mayorLabel = mayorName ? `Mayor: ${mayorName}` : "Citywide";
+  const mayorLabel = mayorName ? `Mayor: ${formatLeaderName(mayorName)}` : "Citywide";
 
   // Build a map from district number to leader name
   const leaderByDistrict = new Map<number, string>();
   for (const l of leaders) {
     if (l.district != null && l.district > 0) {
-      leaderByDistrict.set(l.district, l.name);
+      leaderByDistrict.set(l.district, formatLeaderName(l.name));
     }
   }
 

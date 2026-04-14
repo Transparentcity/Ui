@@ -26,6 +26,17 @@ export function slugify(text: string | null | undefined): string {
 }
 
 /**
+ * Convert a leader name from "Last, First" to "First Last".
+ * If the name doesn't contain a comma, returns it unchanged.
+ */
+export function formatLeaderName(name: string): string {
+  if (!name.includes(",")) return name.trim();
+  const [last, ...rest] = name.split(",");
+  const first = rest.join(",").trim();
+  return first ? `${first} ${last.trim()}` : last.trim();
+}
+
+/**
  * Check if a template has variations enabled.
  */
 export function hasVariations(template: any): boolean {

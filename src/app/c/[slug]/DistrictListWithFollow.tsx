@@ -7,6 +7,7 @@ import {
   getPublicRepresentativeFollowerCounts,
   type PublicLeader,
 } from "@/lib/publicApiClient";
+import { formatLeaderName } from "@/lib/utils";
 import {
   useRepresentativeFollowerCounts,
   useRepresentativeFollows,
@@ -119,7 +120,7 @@ export default function DistrictListWithFollow({
           const primaryRep = repList[0];
           const repLabel =
             primaryRep != null
-              ? primaryRep.name || null
+              ? (primaryRep.name ? formatLeaderName(primaryRep.name) : null)
               : null;
           const count = getCount(d);
           const following = isFollowing(d);
