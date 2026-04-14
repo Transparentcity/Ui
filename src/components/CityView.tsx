@@ -111,7 +111,6 @@ interface DashboardMetricsSectionProps {
   onMetricClick?: (metricId: number, district?: number | null) => void; // Callback when metric is clicked (for modal)
   leaderFollowerCounts?: Record<string, number>; // Follower counts per district ("0"=mayor) for Official Selector
   newsletterQueriesEnabled?: boolean; // When false, defers newsletter/follow API calls (slow-connection UX)
-  onCustomizeMetricsClick?: () => void; // Opens user metric order dialog
   /** User's saved places for "My block" selector */
   userPlaces?: UserPlaceForSelector[];
   selectedPlaceId?: number | null;
@@ -123,6 +122,8 @@ interface DashboardMetricsSectionProps {
   /** When set and equals selectedPlaceId, run metrics job before first fetch (smooth new-place experience). */
   bootstrapPlaceMetricsForPlaceId?: number | null;
   onConsumePlaceMetricsBootstrap?: () => void;
+  /** ISO timestamp of the last place-level data refresh, shown as "Last updated" next to Metrics heading */
+  lastRefreshAt?: string | null;
 }
 
 // Time series data point for sparkline
@@ -531,7 +532,7 @@ const YTDSparkline = React.memo(function YTDSparkline({
   );
 });
 
-function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts, newsletterQueriesEnabled, onCustomizeMetricsClick, userPlaces = [], selectedPlaceId = null, onPlaceSelect, onPlaceSaved, openDistrictTrigger, bootstrapPlaceMetricsForPlaceId = null, onConsumePlaceMetricsBootstrap }: DashboardMetricsSectionProps) {
+function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts, newsletterQueriesEnabled, userPlaces = [], selectedPlaceId = null, onPlaceSelect, onPlaceSaved, openDistrictTrigger, bootstrapPlaceMetricsForPlaceId = null, onConsumePlaceMetricsBootstrap, lastRefreshAt = null }: DashboardMetricsSectionProps) {
   const { getAccessTokenSilently } = useAuth0();
 
   // Block (place) scope: metrics and anomalies for selected place
@@ -1462,7 +1463,14 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
   if (!metrics || metrics.length === 0) {
     return (
       <div className="dashboard-section">
-        <h2>Metrics</h2>
+        <h2 className="city-view-section-title">
+          Metrics
+          {lastRefreshAt && (
+            <span className="city-view-dashboard-last-refresh">
+              {" "}Last updated {new Date(lastRefreshAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
+            </span>
+          )}
+        </h2>
         <div className="ytd-placeholder">
           <p>No metrics defined for this city.</p>
         </div>
@@ -1527,15 +1535,6 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                 ))}
               </select>
             </div>
-            {onCustomizeMetricsClick && (
-              <button
-                type="button"
-                className="dashboard-header-customize-btn"
-                onClick={onCustomizeMetricsClick}
-              >
-                Customize metrics
-              </button>
-            )}
           </>
         )}
         {selectedPlaceId && selectedPlace && (
@@ -1649,16 +1648,6 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
             }}
           >
             Showing your customized dashboard metrics ({metricsToShow.length} of {metrics.length}).
-            {onCustomizeMetricsClick && (
-              <button
-                type="button"
-                className="dashboard-header-customize-btn"
-                style={{ marginLeft: 8, padding: "4px 8px", fontSize: 12 }}
-                onClick={onCustomizeMetricsClick}
-              >
-                Edit selection
-              </button>
-            )}
           </div>
         )}
         {groupedMetrics.sortedCategories.map((category) => {
@@ -2258,7 +2247,11 @@ export default function CityView({
 
         {/* Pinned bar: Official / Location selector – becomes sticky as content scrolls up under it */}
         <header className="city-view-sticky-header">
-          {isCityDataReady && effectiveLeaders.length > 0 ? (
+          {/* Show DistrictNavigation only when there are multiple districts or a place is selected */}
+          {isCityDataReady && effectiveLeaders.length > 0 && (effectiveLeaders.some(l => {
+            const d = l.district === null || l.district === undefined ? 0 : Number(l.district);
+            return d !== 0;
+          }) || selectedPlaceId != null) ? (
             <div className="city-view-place-selector-row">
               <DistrictNavigation
                 selectedDistrict={selectedDistrict}
@@ -2290,20 +2283,7 @@ export default function CityView({
                 placeRefreshLastRunAt={lastPlaceRefreshAt}
               />
             </div>
-          ) : (
-            <div className="city-view-place-selector-row city-view-place-selector-fallback">
-              <span className="city-view-place-selector-label">
-                {selectedPlaceId != null
-                  ? (userPlaces.find((p) => p.id === selectedPlaceId)?.label ?? "My Block")
-                  : "Citywide"}
-                {selectedPlaceId != null && lastPlaceRefreshAt && (
-                  <span className="city-view-place-selector-refresh">
-                    {" "}(refreshed {new Date(lastPlaceRefreshAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })})
-                  </span>
-                )}
-              </span>
-            </div>
-          )}
+          ) : null}
           {/* Tab nav: Dashboard | Map */}
           <nav className="city-view-tab-nav" aria-label="City view tabs" role="tablist">
             {(["dashboard", "map"] as CityViewSection[]).map((s) => (
@@ -2385,14 +2365,7 @@ export default function CityView({
           role="tabpanel"
           aria-hidden={activeSection !== "dashboard"}
         >
-          <h2 className="city-view-section-title">
-            Dashboard
-            {lastPlaceRefreshAt ? (
-              <span className="city-view-dashboard-last-refresh">
-                {" "}Last updated {new Date(lastPlaceRefreshAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
-              </span>
-            ) : null}
-          </h2>
+          {/* "Dashboard" heading removed – the tab already says Dashboard */}
           <DashboardMetricsSection
             metrics={cityData.metrics || []}
             cityId={cityId}
@@ -2411,7 +2384,6 @@ export default function CityView({
             }}
             leaderFollowerCounts={leaderFollowerCounts}
             newsletterQueriesEnabled={cityLoaded}
-            onCustomizeMetricsClick={() => setUserOrderDialogOpen(true)}
             userPlaces={userPlaces}
             selectedPlaceId={selectedPlaceId}
             onPlaceSelect={(id) => {
@@ -2424,6 +2396,7 @@ export default function CityView({
             openDistrictTrigger={openDistrictTrigger}
             bootstrapPlaceMetricsForPlaceId={bootstrapPlaceMetricsForPlaceId}
             onConsumePlaceMetricsBootstrap={onConsumePlaceMetricsBootstrap}
+            lastRefreshAt={lastPlaceRefreshAt}
           />
         </section>
             </>
