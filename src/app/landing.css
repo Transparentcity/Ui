@@ -1757,9 +1757,19 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
+[data-theme="dark"] .hero-district-selector-btn,
+.dark .hero-district-selector-btn {
+  border-color: var(--border-primary);
+}
+
 [data-theme="dark"] .hero-district-selector-option:hover,
 .dark .hero-district-selector-option:hover {
   background: var(--bg-secondary);
+}
+
+[data-theme="dark"] .hero-district-selector-option:active,
+.dark .hero-district-selector-option:active {
+  background: var(--bg-tertiary);
 }
 
 /* Dark mode: explainer section */

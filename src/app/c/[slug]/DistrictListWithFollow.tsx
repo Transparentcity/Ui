@@ -143,9 +143,11 @@ export default function DistrictListWithFollow({
                   District {d}
                   {repLabel ? ` – ${repLabel}` : ""}
                 </Link>
-                <span style={{ fontSize: 14, color: "var(--text-muted)", marginLeft: 6 }}>
-                  ({count} {count === 1 ? "follower" : "followers"})
-                </span>
+                {count > 0 && (
+                  <span style={{ fontSize: 14, color: "var(--text-muted)", marginLeft: 6 }}>
+                    ({count})
+                  </span>
+                )}
               </div>
               <button
                 type="button"

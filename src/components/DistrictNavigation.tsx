@@ -904,7 +904,7 @@ export default function DistrictNavigation({
                         </div>
                         {leaderFollowerCounts != null && (
                             <div className="district-navigation-result-subscribers">
-                              {(leaderFollowerCounts[String(option.district)] ?? 0)} followers
+                              {(leaderFollowerCounts[String(option.district)] ?? 0)}
                             </div>
                           )}
                       </button>
@@ -968,7 +968,7 @@ export default function DistrictNavigation({
                           </div>
                           {leaderFollowerCounts != null && (
                               <div className="district-navigation-result-subscribers">
-                                {(leaderFollowerCounts[String(option.district)] ?? 0)} followers
+                                {(leaderFollowerCounts[String(option.district)] ?? 0)}
                               </div>
                             )}
                         </button>
