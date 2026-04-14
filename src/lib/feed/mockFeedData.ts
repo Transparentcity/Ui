@@ -14,7 +14,7 @@ import type { FeedStory } from "@/lib/hooks/useFeed";
 import { getApiBaseUrlForAssets } from "@/lib/apiBase";
 import { cleanDescription } from "./textCleanup";
 import { resolveCanonicalUrl } from "./canonicalUrl";
-import { normalizeHeadlineCaps, normalizeBusinessName, improveMultiMetricHeadline, stripLeadingEmoji, improveContextHeadline, improveGenericHeadline, truncateHeadline } from "./headlineCleanup";
+import { normalizeHeadlineCaps, normalizeBusinessName, improveMultiMetricHeadline, stripLeadingEmoji, improveContextHeadline, improveGenericHeadline, truncateHeadline, truncateOtcHeadline } from "./headlineCleanup";
 
 // ── Card types ──────────────────────────────────────────────────────────────
 
@@ -125,11 +125,11 @@ function deriveActor(cardType: CardType, headline: string): string {
   const hl = headline.toLowerCase();
 
   // Explicit keyword matches first
-  if (/graffiti|pothole|street\s*light|sidewalk|trash|litter|dumping|street\s*clean/.test(hl)) return "Public Works";
+  if (/graffiti|pothole|street\s*light|traffic\s*(?:light|signal)|sidewalk|trash|litter|dumping|street\s*clean/.test(hl)) return "Public Works";
   if (/fire\s*(?:dep|dept|department)|fire\s*call|fire\s*response|arson/.test(hl)) return "Fire Dept";
   if (/911|police|crime|theft|robbery|assault|homicide|shooting|burglary|arrest|patrol/.test(hl)) return "Police";
   if (/permit|building|inspection|housing|code\s*(?:enforce|violation)/.test(hl)) return "Building Dept";
-  if (/park|recreation|playground|tree/.test(hl)) return "Parks & Rec";
+  if (/\bparks?\b(?!\s+(?:traffic|light|signal|ave|avenue|blvd|boulevard|street|st|rd|road|dr|drive|place|pl|way|lane|ln|ct|court))|recreation|playground|\btree(?:s|\b)(?!\s*light)/.test(hl)) return "Parks & Rec";
   if (/transit|bus|muni|subway|metro|rail|bike\s*lane/.test(hl)) return "Transit";
   if (/school|education|student|enrollment/.test(hl)) return "Education";
   if (/health|hospital|overdose|mental\s*health/.test(hl)) return "Public Health";
@@ -405,8 +405,11 @@ export function enrichStory(story: FeedStory, placeMap?: PlaceMap): EnrichedFeed
     normalizedHeadline = improveContextHeadline(normalizedHeadline, story.city_name ?? undefined);
   }
 
-  // 5. Enforce max headline length
-  normalizedHeadline = truncateHeadline(normalizedHeadline);
+  // 5. Enforce max headline length (shorter limit for OTC / milestone cards)
+  normalizedHeadline =
+    cardType === "off_the_charts" || cardType === "milestone"
+      ? truncateOtcHeadline(normalizedHeadline)
+      : truncateHeadline(normalizedHeadline);
 
   // Also normalize business_name in metadata for display
   if (meta.business_name && typeof meta.business_name === "string") {

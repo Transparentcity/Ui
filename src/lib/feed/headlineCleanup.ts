@@ -276,13 +276,27 @@ function extractFirstSentence(text?: string | null): string | null {
 const MAX_HEADLINE_LENGTH = 70;
 
 /**
- * Truncate a headline to MAX_HEADLINE_LENGTH at a word boundary.
+ * Shorter limit for Off The Charts / milestone cards so their headlines
+ * stay punchy and match other card types in visual weight.
+ */
+const MAX_OTC_HEADLINE_LENGTH = 65;
+
+/**
+ * Truncate a headline at a word boundary with an ellipsis.
+ * Pass `maxLength` to override the default limit (e.g. for OTC cards).
  * Returns the original headline if it's already within the limit.
  */
-export function truncateHeadline(headline: string): string {
-  if (!headline || headline.length <= MAX_HEADLINE_LENGTH) return headline;
-  const truncated = headline.slice(0, MAX_HEADLINE_LENGTH).replace(/\s+\S*$/, "");
-  return (truncated || headline.slice(0, MAX_HEADLINE_LENGTH)) + "\u2026";
+export function truncateHeadline(headline: string, maxLength = MAX_HEADLINE_LENGTH): string {
+  if (!headline || headline.length <= maxLength) return headline;
+  const truncated = headline.slice(0, maxLength).replace(/\s+\S*$/, "");
+  return (truncated || headline.slice(0, maxLength)) + "\u2026";
+}
+
+/**
+ * Shorter truncation for Off The Charts and milestone headlines.
+ */
+export function truncateOtcHeadline(headline: string): string {
+  return truncateHeadline(headline, MAX_OTC_HEADLINE_LENGTH);
 }
 
 /**
