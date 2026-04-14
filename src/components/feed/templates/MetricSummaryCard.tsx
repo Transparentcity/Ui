@@ -5,6 +5,7 @@ import type {
   PublicMetricComparison,
 } from "@/lib/publicApiClient";
 import { formatMetricValue } from "@/lib/formatters";
+import { getCategoryMeta } from "@/lib/feed/mockFeedData";
 import CardHeader from "../CardHeader";
 import feedStyles from "../feed.module.css";
 import styles from "./MetricSummaryCard.module.css";
@@ -143,6 +144,7 @@ export default function MetricSummaryCard({ data, children }: { data: MetricCard
     : "var(--error, #ef4444)";
 
   const actor = deriveActorFromCategory(metric.category);
+  const catMeta = getCategoryMeta(actor);
   const neighborhoodLabel = cityEmoji
     ? `${cityEmoji} ${cityName}`
     : cityName;
@@ -157,12 +159,12 @@ export default function MetricSummaryCard({ data, children }: { data: MetricCard
   return (
     <>
       <CardHeader
-        typeIcon="Landmark"
+        typeIcon={catMeta.icon}
         typeLabel="Data"
-        actor={actor}
+        actor={catMeta.label}
         subline={subline}
         neighborhoodLabel={neighborhoodLabel}
-        categoryColor="#6b7280"
+        categoryColor={catMeta.color}
       />
 
       <h2 className={feedStyles.cardHeadline}>{headline}</h2>

@@ -81,6 +81,7 @@ const CATEGORY_MAP: Record<string, CategoryMeta> = {
   "Parks & Rec":      { icon: "Trees",       color: "#16a34a", label: "Parks & Rec" },
   "Transit":          { icon: "Bus",         color: "#0d9488", label: "Transit" },
   "Spending":         { icon: "DollarSign",  color: "#d97706", label: "Spending" },
+  "Controller":       { icon: "DollarSign",  color: "#d97706", label: "Spending" },
   "Business":         { icon: "Store",       color: "#7c3aed", label: "Business" },
   "Public Health":    { icon: "Heart",       color: "#db2777", label: "Public Health" },
   "Education":        { icon: "GraduationCap", color: "#4f46e5", label: "Education" },
