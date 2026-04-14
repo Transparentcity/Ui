@@ -29,6 +29,20 @@ describe("NavEmailSignup", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockLoginWithRedirect.mockResolvedValue(undefined);
+    // Mock window.matchMedia (used for mobile detection)
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
     // Provide a working localStorage mock for the test environment
     const store: Record<string, string> = {};
     vi.stubGlobal("localStorage", {

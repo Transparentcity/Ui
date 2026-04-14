@@ -210,8 +210,8 @@ describe("deriveActor", () => {
     ["building permit → Building Dept", "New building permit filed for condo", undefined, "Building Dept"],
     ["transit → Transit", "Muni delays double on weekday mornings", undefined, "Transit"],
     ["health → Public Health", "Hospital admissions spike after overdose wave", undefined, "Public Health"],
-    ["budget → Controller", "City budget shortfall reaches $100M", undefined, "Controller"],
-    ["court → District Attorney", "DA files new charges in corruption probe", undefined, "District Attorney"],
+    ["budget → Spending", "City budget shortfall reaches $100M", undefined, "Spending"],
+    ["court → Justice", "DA files new charges in corruption probe", undefined, "Justice"],
     ["311 keyword → 311", "311 complaints surge in the Tenderloin", undefined, "311"],
   ])("%s", (_label, headline, _cardType, expectedActor) => {
     const enriched = enrichStory(makeStory({ headline }));

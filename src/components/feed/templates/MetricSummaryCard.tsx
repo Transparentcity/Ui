@@ -118,7 +118,7 @@ function deriveActorFromCategory(category: string | null | undefined): string {
  *  4. null — show nothing rather than a generic "{category} data" that's
  *     redundant with the card header.
  */
-function buildSourceText(
+export function buildSourceText(
   metric: PublicCityMetricItem,
   comparison: PublicMetricComparison,
   portalDomain?: string
@@ -142,30 +142,30 @@ function buildSourceText(
 }
 
 /** Format a period range into a human-readable label like "Jan–Mar 2026" */
-function formatPeriodRange(
+export function formatPeriodRange(
   start: string | null | undefined,
   end: string | null | undefined
 ): string | null {
   if (!start) return null;
-  const s = new Date(start);
-  if (isNaN(s.getTime())) return null;
+  const s = parseDateUTC(start);
+  if (!s) return null;
 
   const monthFmt = (d: Date) =>
-    d.toLocaleDateString("en-US", { month: "short" });
-  const year = s.getFullYear();
+    d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+  const year = s.getUTCFullYear();
 
   if (!end) {
     return `${monthFmt(s)} ${year} data`;
   }
 
-  const e = new Date(end);
-  if (isNaN(e.getTime())) {
+  const e = parseDateUTC(end);
+  if (!e) {
     return `${monthFmt(s)} ${year} data`;
   }
 
-  const sMonth = s.getMonth();
-  const eMonth = e.getMonth();
-  const eYear = e.getFullYear();
+  const sMonth = s.getUTCMonth();
+  const eMonth = e.getUTCMonth();
+  const eYear = e.getUTCFullYear();
 
   // Same month
   if (sMonth === eMonth && year === eYear) {
@@ -179,6 +179,17 @@ function formatPeriodRange(
 
   // Different years
   return `${monthFmt(s)} ${year}–${monthFmt(e)} ${eYear} data`;
+}
+
+/**
+ * Parse a date string treating date-only strings (YYYY-MM-DD) as UTC.
+ * Avoids the common pitfall where `new Date("2026-01-01")` is UTC midnight
+ * but local-timezone methods show the previous day in western timezones.
+ */
+function parseDateUTC(dateStr: string): Date | null {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  return d;
 }
 
 export default function MetricSummaryCard({ data, children }: { data: MetricCardData; children?: React.ReactNode }) {
