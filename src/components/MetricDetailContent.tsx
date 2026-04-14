@@ -194,7 +194,12 @@ export default function MetricDetailContent({
         })
       : null;
 
-  const trend = comparison && comparison.current_period_value !== null && comparison.comparison_period_value !== null
+  // When the metric is stale and the current period value is 0, that means no data has
+  // been reported yet (not that the count is literally zero). Suppress the trend in that
+  // case so we don't show a misleading "down 100%".
+  const currentPeriodIsEmpty = isStale && comparison?.current_period_value === 0;
+
+  const trend = comparison && comparison.current_period_value !== null && comparison.comparison_period_value !== null && !currentPeriodIsEmpty
     ? (() => {
         const current = comparison.current_period_value ?? 0;
         const previous = comparison.comparison_period_value ?? 0;
@@ -323,8 +328,8 @@ export default function MetricDetailContent({
             <div className="comparison-dates">
               {formatDateRange(comparison?.current_period_start, comparison?.current_period_end, isComparisonsLoading)}
             </div>
-            <div className="comparison-value">{formatValue(comparison?.current_period_value, isComparisonsLoading)}</div>
-            {comparison?.calculation_breakdown && !isComparisonsLoading && (
+            <div className="comparison-value">{currentPeriodIsEmpty ? "No data" : formatValue(comparison?.current_period_value, isComparisonsLoading)}</div>
+            {comparison?.calculation_breakdown && !isComparisonsLoading && !currentPeriodIsEmpty && (
               <div className="comparison-card-breakdown">
                 {comparison.calculation_breakdown.numerator_name} ÷ {comparison.calculation_breakdown.denominator_name}
                 <br />
@@ -334,7 +339,7 @@ export default function MetricDetailContent({
                 </span>
               </div>
             )}
-            <div className="comparison-unit">{metric.item_noun}</div>
+            {!currentPeriodIsEmpty && <div className="comparison-unit">{metric.item_noun}</div>}
           </div>
         </div>
         {comparison?.calculation_breakdown && !isComparisonsLoading && (

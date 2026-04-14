@@ -96,7 +96,7 @@ export default function FeaturedStories({
           </header>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {metricCards.map((mc) => (
-              <MetricFeedCard key={mc.metric.id} data={mc} onHide={() => {}} />
+              <MetricFeedCard key={mc.metric.id} data={mc} />
             ))}
           </div>
         </div>
@@ -155,7 +155,7 @@ export default function FeaturedStories({
         {metricCards.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
             {metricCards.map((mc) => (
-              <MetricFeedCard key={mc.metric.id} data={mc} onHide={() => {}} />
+              <MetricFeedCard key={mc.metric.id} data={mc} />
             ))}
           </div>
         )}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Share2 } from "lucide-react";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
+import { ICON_COMPONENTS } from "./categoryIcons";
 import type { DetailNarrative } from "@/lib/feed/fetchReportNarratives";
 import { processVisualizationShortcodes } from "@/lib/visualizationShortcodes";
 import { slugify } from "@/lib/utils";
@@ -140,7 +141,9 @@ export function FeedStoryDetailView({
   return (
     <>
       <div className={styles.detailHeaderRow}>
-        <span className={styles.detailIcon}>{story.type_icon}</span>
+        <span className={styles.detailIcon} style={{ color: story.category_color }}>
+          {ICON_COMPONENTS[story.type_icon] ? (() => { const Icon = ICON_COMPONENTS[story.type_icon]; return <Icon size={14} strokeWidth={2.5} />; })() : story.type_icon}
+        </span>
         <span className={styles.detailActor}>{story.actor}</span>
         {story.subline && <span className={styles.detailTimestamp}>{story.subline}</span>}
       </div>
@@ -279,7 +282,9 @@ export function FeedStoryDetailView({
                   className={`${styles.relatedCard} ${styles.relatedCardAsButton}`}
                   onClick={() => onSelectRelatedStoryId(rs.id)}
                 >
-                  <span className={styles.relatedIcon}>{rs.type_icon}</span>
+                  <span className={styles.relatedIcon} style={{ color: rs.category_color }}>
+                    {ICON_COMPONENTS[rs.type_icon] ? (() => { const Icon = ICON_COMPONENTS[rs.type_icon]; return <Icon size={12} strokeWidth={2.5} />; })() : rs.type_icon}
+                  </span>
                   <div className={styles.relatedContent}>
                     <span className={styles.relatedHeadline}>{rs.headline}</span>
                     <span className={styles.relatedMeta}>{rs.subline}</span>
@@ -287,7 +292,9 @@ export function FeedStoryDetailView({
                 </button>
               ) : (
                 <Link key={rs.id} href={rs.canonical_url} className={styles.relatedCard}>
-                  <span className={styles.relatedIcon}>{rs.type_icon}</span>
+                  <span className={styles.relatedIcon} style={{ color: rs.category_color }}>
+                    {ICON_COMPONENTS[rs.type_icon] ? (() => { const Icon = ICON_COMPONENTS[rs.type_icon]; return <Icon size={12} strokeWidth={2.5} />; })() : rs.type_icon}
+                  </span>
                   <div className={styles.relatedContent}>
                     <span className={styles.relatedHeadline}>{rs.headline}</span>
                     <span className={styles.relatedMeta}>{rs.subline}</span>

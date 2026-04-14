@@ -12,10 +12,12 @@ import styles from "./feed.module.css";
 
 interface MetricFeedCardProps {
   data: MetricCardData;
-  onHide: (metricId: number) => void;
+  onHide?: (metricId: number) => void;
 }
 
-export default function MetricFeedCard({ data, onHide }: MetricFeedCardProps) {
+const noop = () => {};
+
+export default function MetricFeedCard({ data, onHide = noop }: MetricFeedCardProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
   const [overflowOpen, setOverflowOpen] = useState(false);

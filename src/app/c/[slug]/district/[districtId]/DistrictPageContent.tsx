@@ -192,7 +192,7 @@ export default function DistrictPageContent({
             {districtMetricCards.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
                 {districtMetricCards.map((mc) => (
-                  <MetricFeedCard key={mc.metric.id} data={mc} onHide={() => {}} />
+                  <MetricFeedCard key={mc.metric.id} data={mc} />
                 ))}
               </div>
             )}
