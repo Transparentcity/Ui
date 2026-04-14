@@ -558,46 +558,6 @@
 }
 
 /* Header Follow button (replaces save; matches district selector follow style) */
-.city-header-follow-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--brand-primary, #ad35fa);
-  background: transparent;
-  border: 1px solid var(--brand-primary, #ad35fa);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
-}
-.city-header-follow-btn:hover {
-  background: var(--brand-primary, #ad35fa);
-  color: white;
-}
-.city-header-follow-btn.following {
-  background: var(--brand-primary, #ad35fa);
-  color: white;
-}
-.city-header-follow-btn.following:hover {
-  background: var(--brand-primary-hover, #9333ea);
-  color: white;
-}
-.city-header-follow-btn:disabled {
-  opacity: 0.8;
-  cursor: not-allowed;
-}
-.city-header-follow-count {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-.city-header-follow-btn.following .city-header-follow-count {
-  color: rgba(255, 255, 255, 0.9);
-}
-
 .save-city-btn {
   background: transparent;
   border: none;

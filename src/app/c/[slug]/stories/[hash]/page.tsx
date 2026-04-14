@@ -19,6 +19,7 @@ import CityHeroNewsletter from "../../CityHeroNewsletter";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
 import { slugify } from "@/lib/utils";
+import Breadcrumb from "@/components/Breadcrumb";
 
 export const revalidate = 3600;
 
@@ -171,40 +172,16 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         className="story-article-container"
       >
         {/* Breadcrumb */}
-        <nav aria-label="breadcrumb" style={{ marginBottom: 24, fontSize: 13 }}>
-          <Link href={backHref} style={{ color: "var(--text-secondary)", textDecoration: "none" }}>
-            {cityDisplay}
-          </Link>
-          {districtHref && (
-            <>
-              {" / "}
-              <Link href={districtHref} style={{ color: "var(--text-secondary)", textDecoration: "none" }}>
-                District {story.district}
-              </Link>
-            </>
-          )}
-          {" / "}
-          <span style={{ color: "var(--text-secondary)" }}>Story</span>
-        </nav>
+        <Breadcrumb items={[
+          { label: cityDisplay, href: backHref },
+          ...(districtHref ? [{ label: `District ${story.district}`, href: districtHref }] : []),
+          { label: "Story" },
+        ]} />
 
         {/* Story type badge */}
         <div style={{ marginBottom: 16 }}>
           <span
-            style={{
-              display: "inline-block",
-              padding: "3px 10px",
-              borderRadius: 12,
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              background: story.story_type === "traction"
-                ? "rgba(16, 185, 129, 0.1)"
-                : "var(--accent-muted, rgba(173,53,250,0.1))",
-              color: story.story_type === "traction"
-                ? "#10b981"
-                : "var(--brand-primary, #ad35fa)",
-            }}
+            className={`story-badge ${story.story_type === "traction" ? "story-badge-traction" : "story-badge-default"}`}
           >
             {(story.story_type ?? "story").replace(/_/g, " ")}
           </span>
@@ -223,16 +200,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         </h1>
 
         {/* Meta */}
-        <div
-          style={{
-            display: "flex",
-            gap: 16,
-            flexWrap: "wrap",
-            marginBottom: 24,
-            fontSize: 13,
-            color: "var(--text-secondary)",
-          }}
-        >
+        <div className="story-meta">
           {storyDate && <span>{storyDate}</span>}
           <span>
             {story.city_emoji} {cityDisplay}
@@ -327,34 +295,52 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
 
         {/* CTA — context stories link to the city dashboard; other types
              show detail_url (stripping #story-{hash} fragments to avoid
-             redirect loops back to this canonical story page). */}
-        {story.story_type === "context" ? (
-          <div style={{ marginTop: 40, paddingTop: 24, borderTop: "1px solid var(--border-primary, #e5e7eb)" }}>
-            <Link
-              href={districtHref ?? backHref}
-              className="btn btn-primary"
-            >
-              {story.cta_label ?? `Explore ${story.city_name ?? "city"} dashboard`} {"\u2192"}
-            </Link>
-          </div>
-        ) : story.detail_url && !isSelfReferentialUrl(story.detail_url, slug, hash) && (() => {
-          const ctaUrl = story.detail_url!.replace(/#story-[A-Za-z0-9_-]+$/, "");
-          return ctaUrl ? (
-            <div style={{ marginTop: 40, paddingTop: 24, borderTop: "1px solid var(--border-primary, #e5e7eb)" }}>
-              <a
-                href={ctaUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-primary"
-              >
-                {story.cta_label ?? "View source data"}
-              </a>
+             redirect loops back to this canonical story page).
+             Fallback: always link to the dashboard so no story is a dead end. */}
+        {(() => {
+          const dashboardHref = districtHref ?? backHref;
+          const dashboardLabel = story.cta_label ?? `Explore more ${story.city_name ?? "city"} data`;
+
+          if (story.story_type === "context") {
+            return (
+              <div className="story-cta-divider">
+                <Link href={dashboardHref} className="btn btn-primary">
+                  {dashboardLabel} {"\u2192"}
+                </Link>
+              </div>
+            );
+          }
+
+          if (story.detail_url && !isSelfReferentialUrl(story.detail_url, slug, hash)) {
+            const ctaUrl = story.detail_url.replace(/#story-[A-Za-z0-9_-]+$/, "");
+            if (ctaUrl) {
+              return (
+                <div className="story-cta-divider">
+                  <a
+                    href={ctaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-primary"
+                  >
+                    {story.cta_label ?? "View source data"}
+                  </a>
+                </div>
+              );
+            }
+          }
+
+          // Fallback: link to dashboard so every story has a forward path
+          return (
+            <div className="story-cta-divider">
+              <Link href={dashboardHref} className="btn btn-primary">
+                {dashboardLabel} {"\u2192"}
+              </Link>
             </div>
-          ) : null;
+          );
         })()}
 
         {/* Divider + Share */}
-        <hr style={{ border: "none", borderTop: "1px solid var(--border-primary, #e5e7eb)", margin: "24px 0" }} />
+        <hr className="story-hr" />
 
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <ShareButton
@@ -366,44 +352,25 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         {/* Related stories from the same city */}
         {relatedStories.length > 0 && (
           <>
-            <hr style={{ border: "none", borderTop: "1px solid var(--border-primary, #e5e7eb)", margin: "24px 0" }} />
-            <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", margin: "0 0 12px" }}>
+            <hr className="story-hr" />
+            <h2 className="story-related-heading">
               More from {story.city_name || "this city"}
             </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div className="story-related-list">
               {relatedStories.filter(rs => rs.short_hash).map((rs) => (
                 <Link
                   key={rs.id}
                   href={`/c/${slug}/stories/${rs.short_hash}`}
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 10,
-                    padding: 12,
-                    borderRadius: 10,
-                    background: "var(--bg-secondary, #f5f5f5)",
-                    textDecoration: "none",
-                    color: "inherit",
-                    transition: "background 0.15s ease",
-                  }}
+                  className="story-related-card"
                 >
-                  <span style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>
+                  <span className="story-related-emoji">
                     {rs.story_type === "off_the_charts" ? "\u{1F92F}" : rs.story_type === "alert" ? "\u{1F6A8}" : rs.story_type === "trend" ? "\u{1F4C8}" : rs.story_type === "milestone" ? "\u{1F3C6}" : "\u{1F4CB}"}
                   </span>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                    <span style={{
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: "var(--text-primary)",
-                      lineHeight: 1.3,
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                    }}>
+                  <div className="story-related-text">
+                    <span className="story-related-headline">
                       {improveGenericHeadline(rs.headline, { summary: rs.summary, description: rs.description, cityName: rs.city_name })}
                     </span>
-                    <span style={{ fontSize: 12, color: "var(--text-tertiary, #999)" }}>
+                    <span className="story-related-date">
                       {rs.published_at
                         ? new Date(rs.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
                         : rs.story_date
@@ -435,6 +402,122 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
             padding: 80px 16px 48px;
           }
         }
+
+        /* ── Breadcrumb ─────────────────────────────────────────────── */
+        .story-breadcrumb {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin-bottom: 24px;
+          font-size: 13px;
+          color: var(--text-secondary);
+        }
+        .story-breadcrumb-link {
+          color: var(--text-secondary);
+          text-decoration: none;
+          transition: color 0.15s;
+        }
+        .story-breadcrumb-link:hover {
+          color: var(--brand-primary);
+        }
+        .story-breadcrumb-sep {
+          opacity: 0.4;
+        }
+
+        /* ── Story type badge ───────────────────────────────────────── */
+        .story-badge {
+          display: inline-block;
+          padding: 3px 10px;
+          border-radius: 12px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .story-badge-default {
+          background: var(--accent-muted);
+          color: var(--brand-primary);
+        }
+        .story-badge-traction {
+          background: var(--success-muted);
+          color: var(--success);
+        }
+
+        /* ── Meta line ──────────────────────────────────────────────── */
+        .story-meta {
+          display: flex;
+          gap: 16px;
+          flex-wrap: wrap;
+          margin-bottom: 24px;
+          font-size: 13px;
+          color: var(--text-secondary);
+        }
+
+        /* ── CTA divider + horizontal rules ─────────────────────────── */
+        .story-cta-divider {
+          margin-top: 40px;
+          padding-top: 24px;
+          border-top: 1px solid var(--border-primary);
+        }
+        .story-hr {
+          border: none;
+          border-top: 1px solid var(--border-primary);
+          margin: 24px 0;
+        }
+
+        /* ── Related stories ────────────────────────────────────────── */
+        .story-related-heading {
+          font-size: 16px;
+          font-weight: 600;
+          color: var(--text-primary);
+          margin: 0 0 12px;
+        }
+        .story-related-list {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .story-related-card {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          padding: 12px;
+          border-radius: 10px;
+          background: var(--bg-secondary);
+          text-decoration: none;
+          color: inherit;
+          transition: background 0.15s ease;
+        }
+        .story-related-card:hover {
+          background: var(--bg-tertiary);
+        }
+        .story-related-emoji {
+          font-size: 20px;
+          flex-shrink: 0;
+          margin-top: 1px;
+        }
+        .story-related-text {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          min-width: 0;
+        }
+        .story-related-headline {
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--text-primary);
+          line-height: 1.3;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .story-related-date {
+          font-size: 12px;
+          color: var(--text-tertiary);
+        }
+
+        /* ── Article body ───────────────────────────────────────────── */
         .story-article-body h2 {
           font-size: 1.25rem;
           font-weight: 700;
@@ -442,10 +525,10 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         }
         .story-article-body p {
           margin-bottom: 1.25rem;
-          color: var(--text-primary, #111);
+          color: var(--text-primary);
         }
         .story-article-body a {
-          color: var(--brand-primary, #ad35fa);
+          color: var(--brand-primary);
           text-decoration: underline;
           text-underline-offset: 2px;
         }
@@ -455,7 +538,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         .story-article-body figure {
           margin: 2rem 0;
           padding: 24px;
-          background: var(--bg-subtle, #f9f9f9);
+          background: var(--bg-subtle);
           border-radius: 8px;
           text-align: center;
           color: var(--text-secondary);
@@ -474,8 +557,8 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           margin: 2rem 0;
           border-radius: 10px;
           overflow: hidden;
-          border: 1px solid var(--border-primary, #e5e7eb);
-          background: var(--bg-subtle, #f9f9f9);
+          border: 1px solid var(--border-primary);
+          background: var(--bg-subtle);
         }
         .story-article-body .visualization-embed iframe {
           display: block;
@@ -495,7 +578,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         .story-article-body .sources {
           margin-top: 2rem;
           padding-top: 1rem;
-          border-top: 1px solid var(--border-primary, #e5e7eb);
+          border-top: 1px solid var(--border-primary);
           font-size: 0.85rem;
           color: var(--text-secondary);
         }

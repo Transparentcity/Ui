@@ -25,6 +25,29 @@
   margin: 0 auto;
 }
 
+.dismissButton {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease;
+}
+
+.dismissButton:hover {
+  color: #374151;
+  background: rgba(0, 0, 0, 0.06);
+}
+
 .barText {
   flex: 1;
   min-width: 0;

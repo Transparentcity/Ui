@@ -275,8 +275,19 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
             </h2>
             <p className="city-coming-soon-desc">
               We&rsquo;re setting up the civic data dashboard for {cityDisplayName}.
-              Sign up below to be notified when it launches.
+              Sign up to be notified when it launches.
             </p>
+            <div className="city-coming-soon-signup">
+              <CityHeroNewsletter
+                cityName={cityDisplayName}
+                cityDisplay={cityDisplayName}
+                label={`Get notified when ${cityDisplayName} launches`}
+              />
+            </div>
+            <a href="/add-your-city" className="city-coming-soon-add-cta">
+              Know where to find {cityDisplayName}&rsquo;s public data?
+              <span>Help us launch faster &rarr;</span>
+            </a>
           </div>
         ) : city?.id ? (
           <DashboardSwitch

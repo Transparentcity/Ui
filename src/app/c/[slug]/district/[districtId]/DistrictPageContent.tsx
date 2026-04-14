@@ -10,6 +10,7 @@ import type { MetricOrderingEntry } from "../../CityDashboardSection";
 import NavEmailSignup from "../../NavEmailSignup";
 import CityDashboardSection from "../../CityDashboardSection";
 import DistrictFollowClaimBlock from "../DistrictFollowClaimBlock";
+import DistrictListWithFollow from "../../DistrictListWithFollow";
 import EmailSignInLink from "../../EmailSignInLink";
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
@@ -18,6 +19,7 @@ import { formatLeaderName } from "@/lib/utils";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 import { type MetricCardData } from "@/components/feed/templates/MetricSummaryCard";
 import MetricFeedCard from "@/components/feed/MetricFeedCard";
+import Breadcrumb from "@/components/Breadcrumb";
 
 export type DistrictPageContentProps = {
   slug: string;
@@ -103,14 +105,10 @@ export default function DistrictPageContent({
       <section className="district-hero">
         <div className="container">
 
-          {/* Breadcrumb context */}
-          <div className="district-breadcrumb">
-            <Link href={base} className="district-breadcrumb-link">
-              {city.shortDisplay}
-            </Link>
-            <span className="district-breadcrumb-sep">/</span>
-            <span>District {d}</span>
-          </div>
+          <Breadcrumb items={[
+            { label: city.shortDisplay, href: base },
+            { label: `District ${d}` },
+          ]} />
 
           <div className="district-hero-inner">
             <div className="district-hero-left">
@@ -136,16 +134,21 @@ export default function DistrictPageContent({
               {districts.length > 1 && (
                 <nav className="district-nav-pills" aria-label="Other districts">
                   <span className="district-nav-label">Districts:</span>
-                  {districts.map((dn) => (
-                    <Link
-                      key={dn}
-                      href={`${base}/district/${dn}`}
-                      className={`district-pill${dn === d ? " district-pill-active" : ""}`}
-                      aria-current={dn === d ? "page" : undefined}
-                    >
-                      {dn}
-                    </Link>
-                  ))}
+                  {districts.map((dn) => {
+                    const rep = leaders.find((l) => l.district === dn);
+                    const repName = rep ? formatLeaderName(rep.name) : undefined;
+                    return (
+                      <Link
+                        key={dn}
+                        href={`${base}/district/${dn}`}
+                        className={`district-pill${dn === d ? " district-pill-active" : ""}`}
+                        aria-current={dn === d ? "page" : undefined}
+                        title={repName ? `District ${dn} — ${repName}` : `District ${dn}`}
+                      >
+                        {dn}
+                      </Link>
+                    );
+                  })}
                 </nav>
               )}
             </div>
@@ -171,35 +174,41 @@ export default function DistrictPageContent({
       </div>
 
       {/* ── STORY ACCENT STRIP ───────────────────────────────────────────── */}
-      {(accentStories.length > 0 || districtMetricCards.length > 0) && (
-        <section className="district-stories-strip">
-          <div className="container">
-            <span className="district-stories-label">Latest from District {d}</span>
-            <div className="district-stories-row">
-              {accentStories.map((story) => {
-                const href = story.short_hash
-                  ? `/c/${slug}/stories/${story.short_hash}`
-                  : story.detail_url;
-                return (
-                  <a key={story.id} href={href ?? "#"} className="district-story-card">
-                    <span className="district-story-headline">{improveGenericHeadline(story.headline, { description: story.description })}</span>
-                    {story.description && (
-                      <span className="district-story-desc">{story.description}</span>
-                    )}
-                  </a>
-                );
-              })}
-            </div>
-            {districtMetricCards.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
-                {districtMetricCards.map((mc) => (
-                  <MetricFeedCard key={mc.metric.id} data={mc} />
-                ))}
+      <section className="district-stories-strip">
+        <div className="container">
+          <span className="district-stories-label">Latest from District {d}</span>
+          {accentStories.length > 0 || districtMetricCards.length > 0 ? (
+            <>
+              <div className="district-stories-row">
+                {accentStories.map((story) => {
+                  const href = story.short_hash
+                    ? `/c/${slug}/stories/${story.short_hash}`
+                    : story.detail_url;
+                  return (
+                    <a key={story.id} href={href ?? "#"} className="district-story-card">
+                      <span className="district-story-headline">{improveGenericHeadline(story.headline, { description: story.description })}</span>
+                      {story.description && (
+                        <span className="district-story-desc">{story.description}</span>
+                      )}
+                    </a>
+                  );
+                })}
               </div>
-            )}
-          </div>
-        </section>
-      )}
+              {districtMetricCards.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+                  {districtMetricCards.map((mc) => (
+                    <MetricFeedCard key={mc.metric.id} data={mc} />
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="district-stories-empty">
+              No recent stories for District {d} yet. Follow to get notified when new stories are published.
+            </p>
+          )}
+        </div>
+      </section>
 
       {/* ── OTHER DISTRICTS ─────────────────────────────────────────────── */}
       {districts.length > 1 && (
@@ -207,26 +216,13 @@ export default function DistrictPageContent({
           <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 12 }}>
             All {city.shortDisplay} districts
           </h3>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-            {districts.map((dn) => {
-              const rep = leaders.find((l) => l.district === dn);
-              const repName = rep ? ` \u2013 ${(rep.title || "")} ${formatLeaderName(rep.name)}`.trim() : "";
-              return (
-                <Link
-                  key={dn}
-                  href={`${base}/district/${dn}`}
-                  className="nav-link"
-                  style={{
-                    fontSize: 14,
-                    fontWeight: dn === d ? 700 : 400,
-                    textDecoration: "none",
-                  }}
-                >
-                  District {dn}{repName}
-                </Link>
-              );
-            })}
-          </div>
+          <DistrictListWithFollow
+            cityId={city.id}
+            slug={slug}
+            cityDisplayName={city.shortDisplay}
+            districts={districts}
+            leaders={leaders}
+          />
         </section>
       )}
 

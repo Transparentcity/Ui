@@ -12,6 +12,7 @@ import PublicFooter from "@/components/PublicFooter";
 import NavEmailSignup from "../../NavEmailSignup";
 import CityHeroNewsletter from "../../CityHeroNewsletter";
 import { SignupEmailProvider } from "../../SignupEmailContext";
+import Breadcrumb from "@/components/Breadcrumb";
 
 // Render on each request so newly generated editions are immediately viewable.
 // The underlying fetch uses `revalidate: 3600` so responses are still cached.
@@ -122,21 +123,11 @@ export default async function NewsletterEditionPage({ params }: PageProps) {
         className="newsletter-article-container"
       >
         {/* Breadcrumb */}
-        <nav aria-label="breadcrumb" style={{ marginBottom: 24, fontSize: 13 }}>
-          <Link href={backHref} style={{ color: "var(--text-secondary)", textDecoration: "none" }}>
-            {cityDisplay}
-          </Link>
-          {districtHref && (
-            <>
-              {" / "}
-              <Link href={districtHref} style={{ color: "var(--text-secondary)", textDecoration: "none" }}>
-                District {edition.district}
-              </Link>
-            </>
-          )}
-          {" / "}
-          <span style={{ color: "var(--text-secondary)" }}>Newsletter</span>
-        </nav>
+        <Breadcrumb items={[
+          { label: cityDisplay, href: backHref },
+          ...(districtHref ? [{ label: `District ${edition.district}`, href: districtHref }] : []),
+          { label: "Newsletter" },
+        ]} />
 
         {/* Edition label */}
         <div style={{ marginBottom: 16 }}>

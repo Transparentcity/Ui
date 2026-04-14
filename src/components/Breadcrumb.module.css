@@ -1,0 +1,54 @@
+.nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--text-secondary, #6b7280);
+  font-family: var(--font-body);
+  margin-bottom: 0.75rem;
+}
+
+.link {
+  color: var(--text-muted, #6b7280);
+  text-decoration: none;
+  transition: color 0.15s;
+  white-space: nowrap;
+}
+
+.link:hover {
+  color: var(--brand-primary, #8b5cf6);
+}
+
+.sep {
+  opacity: 0.4;
+  user-select: none;
+}
+
+.current {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+/* On mobile, keep the breadcrumb compact and scrollable if needed */
+@media (max-width: 640px) {
+  .nav {
+    font-size: 0.75rem;
+    gap: 4px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .current {
+    max-width: 140px;
+  }
+}

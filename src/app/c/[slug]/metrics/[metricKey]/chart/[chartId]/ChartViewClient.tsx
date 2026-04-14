@@ -14,6 +14,7 @@ import {
   type PublicTimeSeriesChartResponse,
 } from "@/lib/publicApiClient";
 import type { PublicMetricDetail } from "@/lib/publicApiClient";
+import Breadcrumb from "@/components/Breadcrumb";
 import "@/app/landing.css";
 
 function aggregateTimeSeriesPoints(
@@ -164,20 +165,11 @@ export default function ChartViewClient({
       </PublicNavBar>
 
       <div className="chart-view-content-wrapper">
-        <nav className="metric-detail-breadcrumb" aria-label="Breadcrumb">
-          <Link href={`/c/${citySlug}`} className="metric-detail-breadcrumb-link">
-            {cityName}
-          </Link>
-          <span className="metric-detail-breadcrumb-sep">/</span>
-          <Link
-            href={`/c/${citySlug}/metrics/${metric.metric_key}`}
-            className="metric-detail-breadcrumb-link"
-          >
-            {metric.metric_name}
-          </Link>
-          <span className="metric-detail-breadcrumb-sep">/</span>
-          <span className="metric-detail-breadcrumb-current">Time series</span>
-        </nav>
+        <Breadcrumb items={[
+          { label: cityName, href: `/c/${citySlug}` },
+          { label: metric.metric_name, href: `/c/${citySlug}/metrics/${metric.metric_key}` },
+          { label: "Time series" },
+        ]} />
 
         <main className="chart-view-main">
           <div className="chart-view-inner">

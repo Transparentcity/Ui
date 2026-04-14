@@ -38,11 +38,18 @@
   --border-primary: #e5e7eb;
   --border-secondary: #d1d5db;
 
+  /* Subtle background (pullquotes, figures, etc.) */
+  --bg-subtle: #f9f9f9;
+
   /* Status Colors */
   --success: #10b981;
+  --success-muted: rgba(16, 185, 129, 0.1);
   --warning: #f59e0b;
   --error: #ef4444;
   --danger: var(--error);
+
+  /* Accent muted (story badges, tags) */
+  --accent-muted: rgba(173, 53, 250, 0.1);
 
   /* Shadows */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -107,6 +114,15 @@
   --border: #334155;
   --border-primary: #334155;
   --border-secondary: #475569;
+
+  /* Subtle background */
+  --bg-subtle: #1e293b;
+
+  /* Status colors (dark mode adjustments) */
+  --success-muted: rgba(16, 185, 129, 0.15);
+
+  /* Accent muted */
+  --accent-muted: rgba(173, 53, 250, 0.15);
 
   /* Shadows (heavier in dark mode) */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);

@@ -1,6 +1,7 @@
 "use client";
 
 import MetricDateRangeSelector from "@/components/MetricDateRangeSelector";
+import FollowButton from "@/components/FollowButton";
 import type { MetricDateRange } from "@/lib/dateRange";
 
 interface CityHeaderProps {
@@ -91,29 +92,14 @@ export default function CityHeader({
       </div>
       <div className="city-header-right">
         {cityId != null && onFollowToggle != null && (
-          <button
-            type="button"
-            className={`city-header-follow-btn ${isFollowed ? "following" : ""}`}
+          <FollowButton
+            following={isFollowed}
+            loading={followPending}
+            count={followerCount}
+            size="compact"
             onClick={onFollowToggle}
-            disabled={followPending}
-            title={
-              isFollowed
-                ? `Unfollow ${districtLabel}`
-                : `Follow ${districtLabel}`
-            }
-            aria-label={
-              isFollowed
-                ? `Unfollow ${districtLabel}`
-                : `Follow ${districtLabel}`
-            }
-          >
-            {followPending ? "…" : isFollowed ? "Following" : "Follow"}
-            {followerCount != null && followerCount > 0 && (
-              <span className="city-header-follow-count">
-                {followerCount}
-              </span>
-            )}
-          </button>
+            label={isFollowed ? "Following" : undefined}
+          />
         )}
       </div>
     </div>

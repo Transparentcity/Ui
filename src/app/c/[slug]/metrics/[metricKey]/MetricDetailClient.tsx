@@ -11,6 +11,7 @@ import CityHeroNewsletter from "../../CityHeroNewsletter";
 import LoggedOutOnly from "../../LoggedOutOnly";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 import { trackMetricView } from "@/lib/analytics";
+import Breadcrumb from "@/components/Breadcrumb";
 import "@/app/landing.css";
 import "@/components/MetricDetailModal.css";
 import "./styles.css";
@@ -51,15 +52,10 @@ export default function MetricDetailClient({
         <NavEmailSignup citySlug={citySlug} cityName={cityName} />
       </PublicNavBar>
       <div className="metric-detail-content-wrapper">
-        <nav className="metric-detail-breadcrumb" aria-label="Breadcrumb">
-          <Link href={`/c/${citySlug}`} className="metric-detail-breadcrumb-link">
-            {cityName}
-          </Link>
-          <span className="metric-detail-breadcrumb-sep">/</span>
-          <Link href={`/c/${citySlug}/category/${encodeURIComponent(metric.category || "Metrics")}`} className="metric-detail-breadcrumb-link">
-            {metric.category || "Metrics"}
-          </Link>
-        </nav>
+        <Breadcrumb items={[
+          { label: cityName, href: `/c/${citySlug}` },
+          { label: metric.category || "Metrics", href: `/c/${citySlug}/category/${encodeURIComponent(metric.category || "Metrics")}` },
+        ]} />
         <h1 className="metric-detail-page-title">
           <span className="metric-detail-title-text">{metric.metric_name} in {year}</span>
           <a

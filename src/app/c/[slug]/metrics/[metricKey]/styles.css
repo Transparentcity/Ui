@@ -113,28 +113,6 @@
   padding: 5rem 1rem 2rem;
 }
 
-.metric-detail-breadcrumb {
-  font-size: 0.9375rem;
-  color: var(--text-secondary);
-  margin-bottom: 0.75rem;
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-}
-
-.metric-detail-breadcrumb-link {
-  color: var(--text-secondary);
-  text-decoration: none;
-}
-
-.metric-detail-breadcrumb-link:hover {
-  color: var(--brand-primary, #8b5cf6);
-  text-decoration: underline;
-}
-
-.metric-detail-breadcrumb-sep {
-  color: var(--text-tertiary, #6b7280);
-}
 
 .metric-load-error {
   text-align: center;

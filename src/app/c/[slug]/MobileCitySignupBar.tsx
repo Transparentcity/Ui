@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import styles from "./MobileCitySignupBar.module.css";
+
+const DISMISS_KEY = "transparentcity.signup_bar_dismissed";
 
 interface MobileCitySignupBarProps {
   cityName: string;
@@ -15,8 +18,12 @@ export default function MobileCitySignupBar({
   cityId,
 }: MobileCitySignupBarProps) {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem(DISMISS_KEY) === "1";
+  });
 
-  if (isLoading || isAuthenticated) return null;
+  if (isLoading || isAuthenticated || dismissed) return null;
 
   const handleClick = async () => {
     if (typeof window !== "undefined") {
@@ -42,11 +49,24 @@ export default function MobileCitySignupBar({
     });
   };
 
+  const handleDismiss = () => {
+    sessionStorage.setItem(DISMISS_KEY, "1");
+    setDismissed(true);
+  };
+
   return (
     <>
       <div className={styles.spacer} />
       <div className={styles.bar}>
         <div className={styles.barInner}>
+          <button
+            type="button"
+            className={styles.dismissButton}
+            onClick={handleDismiss}
+            aria-label="Dismiss signup bar"
+          >
+            ✕
+          </button>
           <div className={styles.barText}>
             <div className={styles.barTitle}>Get the Free Weekly</div>
             <div className={styles.barSubtitle}>
