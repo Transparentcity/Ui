@@ -450,6 +450,13 @@
   font-size: 14px;
 }
 
+/* Lift above mobile bottom nav */
+@media (max-width: 768px) {
+  .bottomSheet {
+    bottom: calc(var(--bottom-nav-height, 56px) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 /* Mobile Responsive */
 @media (max-width: 540px) {
   .bottomSheet {

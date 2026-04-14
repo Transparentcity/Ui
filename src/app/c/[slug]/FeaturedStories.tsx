@@ -3,12 +3,14 @@ import type {
   PublicCityMetricItem,
   PublicMetricComparisons,
 } from "@/lib/publicApiClient";
-import type { ReactNode } from "react";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
 import {
   type MetricCardData,
 } from "@/components/feed/templates/MetricSummaryCard";
 import MetricFeedCard from "@/components/feed/MetricFeedCard";
+import { getCategoryMeta } from "@/lib/feed/mockFeedData";
+import CardHeader from "@/components/feed/CardHeader";
+import feedStyles from "@/components/feed/feed.module.css";
 
 type Props = {
   slug: string;
@@ -19,18 +21,43 @@ type Props = {
   comparisonsMap?: Record<number, PublicMetricComparisons>;
 };
 
-function StoryCard({ href, className, children }: { href: string | null; className: string; children: ReactNode }) {
-  if (href) {
-    return <a href={href} className={className}>{children}</a>;
-  }
-  return <div className={className}>{children}</div>;
-}
-
 function storyHeadline(story: PublicFeedStory): string {
   return improveGenericHeadline(story.headline, {
     summary: story.summary,
     description: story.description,
     cityName: story.city_name,
+  });
+}
+
+/** Derive a department / actor from the story headline (keyword matching). */
+function deriveActor(headline: string): string {
+  const hl = headline.toLowerCase();
+  if (/graffiti|pothole|street\s*light|sidewalk|trash|litter|dumping|street\s*clean/.test(hl)) return "Public Works";
+  if (/fire\s*(?:dep|dept|department)|fire\s*call|arson/.test(hl)) return "Fire Dept";
+  if (/911|police|crime|theft|robbery|assault|homicide|shooting|burglary|arrest/.test(hl)) return "Police";
+  if (/permit|building|inspection|housing|code\s*(?:enforce|violation)/.test(hl)) return "Building Dept";
+  if (/\bparks?\b(?!\s+(?:traffic|light|ave|blvd|street|st|rd|dr|way|lane|ct))|recreation|playground|\btree(?:s|\b)(?!\s*light)/.test(hl)) return "Parks & Rec";
+  if (/transit|bus|muni|subway|metro|rail|bike\s*lane/.test(hl)) return "Transit";
+  if (/school|education|student|enrollment/.test(hl)) return "Education";
+  if (/health|hospital|overdose|mental\s*health/.test(hl)) return "Public Health";
+  if (/budget|contract|spending|procurement/.test(hl)) return "Controller";
+  if (/restaurant|food|business\s*license|retail|storefront/.test(hl)) return "Business";
+  if (/311|service\s*request|complaint/.test(hl)) return "311";
+  if (/court|da\b|prosecutor|charges|sentenc/.test(hl)) return "District Attorney";
+  if (/water|sewer|utility/.test(hl)) return "Utilities";
+
+  // Fall back by story_type
+  const st = (headline ?? "").toLowerCase();
+  if (st.includes("safety") || st.includes("crime")) return "Police";
+  return "City Hall";
+}
+
+function formatDate(dateStr?: string | null) {
+  if (!dateStr) return null;
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
 }
 
@@ -53,7 +80,6 @@ function buildMetricCards(
     const curr = comp.current_period_value;
     const prior = comp.comparison_period_value;
     if (curr == null || prior == null || prior === 0) continue;
-    // Skip incomplete data (e.g. curr=0 showing "down 100%") and very small numbers
     if (curr === 0 || Math.abs(curr) < 5) continue;
     const pct = ((curr - prior) / prior) * 100;
     const idx = candidates.length;
@@ -74,6 +100,58 @@ function buildMetricCards(
   return candidates.slice(0, 2).map((c) => c.card);
 }
 
+function StoryFeedCard({
+  story,
+  slug,
+  cityDisplayName,
+  cityEmoji,
+}: {
+  story: PublicFeedStory;
+  slug: string;
+  cityDisplayName: string;
+  cityEmoji?: string;
+}) {
+  const headline = storyHeadline(story);
+  const actor = deriveActor(headline);
+  const catMeta = getCategoryMeta(actor);
+  const neighborhoodLabel = cityEmoji
+    ? `${cityEmoji} ${cityDisplayName}`
+    : cityDisplayName;
+  const dateLabel = formatDate(story.published_at);
+
+  const href = story.short_hash
+    ? `/c/${slug}/stories/${story.short_hash}`
+    : story.detail_url?.startsWith("/c/") || story.detail_url?.startsWith("/s/")
+      ? story.detail_url
+      : null;
+
+  const inner = (
+    <>
+      <CardHeader
+        typeIcon={catMeta.icon}
+        typeLabel="Story"
+        actor={catMeta.label}
+        subline={dateLabel ?? ""}
+        neighborhoodLabel={neighborhoodLabel}
+        categoryColor={catMeta.color}
+      />
+      <h2 className={feedStyles.cardHeadline}>{headline}</h2>
+      {story.description && (
+        <p className={feedStyles.cardDescription}>{story.description}</p>
+      )}
+    </>
+  );
+
+  if (href) {
+    return (
+      <a href={href} className={feedStyles.card} style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+        {inner}
+      </a>
+    );
+  }
+  return <div className={feedStyles.card}>{inner}</div>;
+}
+
 export default function FeaturedStories({
   slug,
   cityDisplayName,
@@ -84,46 +162,10 @@ export default function FeaturedStories({
 }: Props) {
   const metricCards = buildMetricCards(slug, cityDisplayName, cityEmoji, metrics, comparisonsMap);
 
-  // If no stories and no metric cards, render nothing
   if (stories.length === 0 && metricCards.length === 0) return null;
-
-  // If no stories but we have metric cards, render just the metric cards
-  if (stories.length === 0) {
-    return (
-      <section className="featured-stories-section">
-        <div className="container">
-          <header className="section-header" style={{ marginBottom: "1.25rem" }}>
-            <span className="section-badge">What&rsquo;s happening</span>
-            <h2 className="section-heading">Latest from {cityDisplayName}</h2>
-          </header>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {metricCards.map((mc) => (
-              <MetricFeedCard key={mc.metric.id} data={mc} hideActions />
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
 
   // Show up to 10 most recent stories
   const visible = stories.slice(0, 10);
-
-  const storyHref = (story: PublicFeedStory): string | null =>
-    story.short_hash
-      ? `/c/${slug}/stories/${story.short_hash}`
-      : story.detail_url?.startsWith("/c/") || story.detail_url?.startsWith("/s/")
-        ? story.detail_url
-        : null;
-
-  const formatDate = (dateStr?: string | null) => {
-    if (!dateStr) return null;
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
 
   return (
     <section className="featured-stories-section">
@@ -133,34 +175,23 @@ export default function FeaturedStories({
           <h2 className="section-heading">Latest from {cityDisplayName}</h2>
         </header>
 
-        <div className="featured-stories-grid featured-stories-grid--2x2">
+        <div className="featured-stories-grid">
+          {/* Metric summary cards */}
+          {metricCards.map((mc) => (
+            <MetricFeedCard key={mc.metric.id} data={mc} hideActions />
+          ))}
+
+          {/* Story cards */}
           {visible.map((story) => (
-            <StoryCard
+            <StoryFeedCard
               key={story.id}
-              href={storyHref(story)}
-              className="featured-story-card featured-story-card--secondary"
-            >
-              <h4 className="featured-story-headline-sm">{storyHeadline(story)}</h4>
-              {story.description && (
-                <p className="featured-story-desc-sm">{story.description}</p>
-              )}
-              {story.published_at && (
-                <span className="featured-story-date">
-                  {formatDate(story.published_at)}
-                </span>
-              )}
-            </StoryCard>
+              story={story}
+              slug={slug}
+              cityDisplayName={cityDisplayName}
+              cityEmoji={cityEmoji}
+            />
           ))}
         </div>
-
-        {/* Metric summary cards */}
-        {metricCards.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
-            {metricCards.map((mc) => (
-              <MetricFeedCard key={mc.metric.id} data={mc} hideActions />
-            ))}
-          </div>
-        )}
       </div>
     </section>
   );

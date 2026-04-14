@@ -81,7 +81,7 @@ export default function DistrictFollowClaimBlock({
         }}
       >
         {following ? "Unfollow" : "Follow"}
-        {count >= 0 && ` · ${count}`}
+        {count > 0 && ` · ${count}`}
       </button>
     </div>
   );

@@ -24,6 +24,7 @@ import CityPageClient from "./CityPageClient";
 import PublicNavBar from "@/components/PublicNavBar";
 import DashboardSwitch from "./DashboardSwitch";
 import DistrictFollowClaimBlock from "./district/DistrictFollowClaimBlock";
+import HeroDistrictSelector from "./HeroDistrictSelector";
 import CityMapPreview from "./CityMapPreview";
 import FeaturedStoriesAsync from "./FeaturedStoriesAsync";
 import CityHeroNewsletter from "./CityHeroNewsletter";
@@ -247,9 +248,16 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
             {city ? `${city.emoji || ""} ${city.name}` : slug}
           </h1>
           <div className="city-hero-v2-right">
-            {cityDetail?.mayor?.name && (
-              <span className="city-hero-v2-mayor-inline">Mayor {cityDetail.mayor.name}</span>
-            )}
+            {districts.length > 0 ? (
+              <HeroDistrictSelector
+                slug={slug}
+                districts={districts}
+                mayorName={cityDetail?.mayor?.name}
+                leaders={leaders}
+              />
+            ) : cityDetail?.mayor?.name ? (
+              <span className="city-hero-v2-mayor-inline">Mayor: {cityDetail.mayor.name}</span>
+            ) : null}
             {city?.id && (
               <DistrictFollowClaimBlock cityId={city.id} district={0} slug={slug} />
             )}

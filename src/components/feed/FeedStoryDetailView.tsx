@@ -252,11 +252,18 @@ export function FeedStoryDetailView({
         </div>
       )}
 
-      {story.detail_url && !isStoryPageUrl(story.detail_url, story.canonical_url) && (
+      {story.card_type === "context" ? (
+        <Link
+          href={district ? `/c/${citySlug}/district/${district}` : citySlug ? `/c/${citySlug}` : "/"}
+          className={styles.detailReportLink}
+        >
+          {story.cta_label || `Explore ${story.city_name ?? "city"} dashboard`} {"\u2192"}
+        </Link>
+      ) : story.detail_url && !isStoryPageUrl(story.detail_url, story.canonical_url) ? (
         <a href={story.detail_url} className={styles.detailReportLink}>
           {story.cta_label || "Read full report"} {"\u2192"}
         </a>
-      )}
+      ) : null}
 
       <hr className={styles.detailDivider} />
 

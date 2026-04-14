@@ -108,9 +108,9 @@ export default function CityHeader({
             }
           >
             {followPending ? "…" : isFollowed ? "Following" : "Follow"}
-            {followerCount != null && (
+            {followerCount != null && followerCount > 0 && (
               <span className="city-header-follow-count">
-                {followerCount} followers
+                {followerCount}
               </span>
             )}
           </button>

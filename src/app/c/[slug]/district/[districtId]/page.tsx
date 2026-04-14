@@ -52,7 +52,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     const match = cities.find((c) => slugify(c.name) === slug);
     if (match) {
       cityId = match.id;
-      cityName = match.state ? `${match.name}, ${match.state}` : match.name;
+      cityName = match.name;
     }
   } catch {
     // use slug
@@ -117,11 +117,11 @@ export default async function DistrictPage({ params }: PageProps) {
     const cities = await listPublicCitiesForSitemap();
     const match = cities.find((c) => slugify(c.name) === slug);
     if (match) {
-      const shortDisplay = match.state ? `${match.name}, ${match.state}` : match.name;
+      const shortDisplay = match.name;
       const display =
         match.state && match.country && match.country !== "United States"
           ? `${match.name}, ${match.state}, ${match.country}`
-          : shortDisplay;
+          : match.state ? `${match.name}, ${match.state}` : match.name;
       city = { ...match, display, shortDisplay };
     }
   } catch {

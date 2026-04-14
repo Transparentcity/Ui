@@ -81,6 +81,13 @@
   color: var(--text-primary);
 }
 
+/* On mobile, lift point details above the bottom nav */
+@media (max-width: 768px) {
+  .city-metrics-map-point-details {
+    bottom: calc(var(--bottom-nav-height, 56px) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 .city-metrics-map-point-details-header {
   display: flex;
   align-items: center;
@@ -758,6 +765,13 @@
   .city-view.map-view-active .city-metrics-map-panel,
   .city-view.tab-view-active .city-metrics-map-panel {
     width: 240px;
+  }
+}
+
+/* Lift legend above mobile bottom nav */
+@media (max-width: 768px) {
+  .city-metrics-map-legend-top {
+    bottom: calc(var(--bottom-nav-height, 56px) + env(safe-area-inset-bottom, 0px) + 12px);
   }
 }
 

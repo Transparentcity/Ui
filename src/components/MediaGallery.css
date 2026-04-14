@@ -631,6 +631,11 @@
 
 /* Mobile Responsive */
 @media (max-width: 768px) {
+  .media-gallery {
+    /* Lift above the mobile bottom nav */
+    bottom: calc(var(--bottom-nav-height, 56px) + env(safe-area-inset-bottom, 0px));
+  }
+
   .media-gallery.split {
     height: 60vh;
     max-height: 60vh;

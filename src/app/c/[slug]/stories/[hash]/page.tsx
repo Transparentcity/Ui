@@ -325,9 +325,19 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           </>
         )}
 
-        {/* CTA — strip #story-{hash} fragments so the report page doesn't
-             redirect right back to this canonical story page. */}
-        {story.detail_url && !isSelfReferentialUrl(story.detail_url, slug, hash) && (() => {
+        {/* CTA — context stories link to the city dashboard; other types
+             show detail_url (stripping #story-{hash} fragments to avoid
+             redirect loops back to this canonical story page). */}
+        {story.story_type === "context" ? (
+          <div style={{ marginTop: 40, paddingTop: 24, borderTop: "1px solid var(--border-subtle, #e5e7eb)" }}>
+            <Link
+              href={districtHref ?? backHref}
+              className="btn btn-primary"
+            >
+              {story.cta_label ?? `Explore ${story.city_name ?? "city"} dashboard`} {"\u2192"}
+            </Link>
+          </div>
+        ) : story.detail_url && !isSelfReferentialUrl(story.detail_url, slug, hash) && (() => {
           const ctaUrl = story.detail_url!.replace(/#story-[A-Za-z0-9_-]+$/, "");
           return ctaUrl ? (
             <div style={{ marginTop: 40, paddingTop: 24, borderTop: "1px solid var(--border-subtle, #e5e7eb)" }}>
