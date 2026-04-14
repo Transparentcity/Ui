@@ -69,7 +69,7 @@ export default function WelcomeModal({
   onCityNotFound,
 }: WelcomeModalProps) {
   const { getAccessTokenSilently, user } = useAuth0();
-  const { startJob } = usePlaceOnboarding();
+  const { startJob, startCityLoading } = usePlaceOnboarding();
   const [step, setStep] = useState<Step>("welcome");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -458,6 +458,12 @@ export default function WelcomeModal({
         setHomeCoordinates(coordinates);
       }
 
+      // Only mark as precise if the geocode result is an actual address (not just a city name)
+      const placeTypes: string[] = geocodeData.place_type || [];
+      if (coordinates && (placeTypes.includes("address") || placeTypes.includes("poi"))) {
+        setHasPreciseLocation(true);
+      }
+
       await processLocationAndFindCity(cityName, stateName, countryName, null, coordinates);
     } catch (err) {
       console.error("Location lookup error:", err);
@@ -816,6 +822,14 @@ export default function WelcomeModal({
       const cityId = locationResult.matchedCity.id;
       await saveCity(cityId, token);
       emitSavedCitiesChanged();
+
+      // Start city-level loading banner before navigating to the feed.
+      // If the user has a precise address, startJob() will override this
+      // with detailed place-level phases once the place is created.
+      const cityDisplayName = locationResult.matchedCity.display_name
+        || locationResult.matchedCity.name
+        || "your city";
+      startCityLoading(cityDisplayName);
 
       // Navigate to the feed immediately; save remaining preferences in the background
       handleFinalNavigation();

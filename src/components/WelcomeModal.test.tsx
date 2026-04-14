@@ -26,14 +26,20 @@ vi.mock("next/navigation", () => ({
 }));
 
 const mockStartJob = vi.fn();
+const mockStartCityLoading = vi.fn();
+const mockCompleteCityLoading = vi.fn();
 vi.mock("@/contexts/PlaceOnboardingContext", () => ({
   usePlaceOnboarding: () => ({
     status: "idle",
+    mode: "idle",
     message: "",
+    cityName: null,
     repName: null,
     dismissed: false,
     dismiss: vi.fn(),
     startJob: mockStartJob,
+    startCityLoading: mockStartCityLoading,
+    completeCityLoading: mockCompleteCityLoading,
     notifyRepFound: vi.fn(),
   }),
 }));

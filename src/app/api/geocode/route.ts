@@ -154,6 +154,7 @@ export async function GET(req: Request): Promise<Response> {
       lat: latitude.toString(),
       lon: longitude.toString(),
       display_name: top.place_name,
+      place_type: top.place_type,
       address: {
         city: cityName,
         state: stateName,

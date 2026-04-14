@@ -11,11 +11,15 @@ import userEvent from "@testing-library/user-event";
 
 let mockOnboardingState = {
   status: "idle" as string,
+  mode: "idle" as string,
   message: "",
+  cityName: null as string | null,
   repName: null as string | null,
   dismissed: false,
   dismiss: vi.fn(),
   startJob: vi.fn(),
+  startCityLoading: vi.fn(),
+  completeCityLoading: vi.fn(),
   notifyRepFound: vi.fn(),
 };
 
@@ -39,11 +43,15 @@ describe("OnboardingBanner", () => {
     vi.clearAllMocks();
     mockOnboardingState = {
       status: "idle",
+      mode: "idle",
       message: "",
+      cityName: null,
       repName: null,
       dismissed: false,
       dismiss: vi.fn(),
       startJob: vi.fn(),
+      startCityLoading: vi.fn(),
+      completeCityLoading: vi.fn(),
       notifyRepFound: vi.fn(),
     };
   });
@@ -135,5 +143,48 @@ describe("OnboardingBanner", () => {
 
     const banner = screen.getByRole("status");
     expect(banner).toHaveAttribute("aria-live", "polite");
+  });
+
+  // ── City-level onboarding banner tests ──────────────────────────────
+
+  it("shows city-level scanning message", () => {
+    mockOnboardingState.status = "scanning";
+    mockOnboardingState.mode = "city";
+    mockOnboardingState.cityName = "Sacramento";
+    mockOnboardingState.message = "Looking for stories in Sacramento...";
+
+    render(<OnboardingBanner />);
+    expect(screen.getByText(/looking for stories in sacramento/i)).toBeInTheDocument();
+    expect(screen.getByTestId("branded-loader")).toBeInTheDocument();
+  });
+
+  it("shows city-level completed message", () => {
+    mockOnboardingState.status = "completed";
+    mockOnboardingState.mode = "city";
+    mockOnboardingState.cityName = "Chicago";
+    mockOnboardingState.message = "Your Chicago feed is ready!";
+
+    render(<OnboardingBanner />);
+    expect(screen.getByText(/your chicago feed is ready/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("branded-loader")).not.toBeInTheDocument();
+  });
+
+  it("shows city-level failed message for empty city", () => {
+    mockOnboardingState.status = "failed";
+    mockOnboardingState.mode = "city";
+    mockOnboardingState.cityName = "Sacramento";
+    mockOnboardingState.message = "No stories in Sacramento yet. Here\u2019s what\u2019s trending:";
+
+    render(<OnboardingBanner />);
+    expect(screen.getByText(/no stories in sacramento yet/i)).toBeInTheDocument();
+  });
+
+  it("shows place-level detailed phases (not city message) when mode is place", () => {
+    mockOnboardingState.status = "scanning";
+    mockOnboardingState.mode = "place";
+    mockOnboardingState.message = "Pulling public data near your address...";
+
+    render(<OnboardingBanner />);
+    expect(screen.getByText(/pulling public data near your address/i)).toBeInTheDocument();
   });
 });

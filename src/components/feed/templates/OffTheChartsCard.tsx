@@ -80,7 +80,11 @@ export default function OffTheChartsCard({ story, children }: OffTheChartsCardPr
   const context = (meta.otc_context as string | undefined) ?? story.cleaned_description;
   const multiplier = (meta.otc_multiplier as string | undefined) ?? derived?.multiplier;
 
-  const hasStat = stat != null;
+  // Suppress the stat block when the headline already contains the same number,
+  // which causes a redundant "139 ... / 139 ..." visual stutter.
+  const headlineContainsStat =
+    stat != null && story.headline?.includes(String(stat));
+  const hasStat = stat != null && !headlineContainsStat;
   const badge = isMilestone && milestoneType
     ? MILESTONE_BADGES[milestoneType] ?? { emoji: "\u{1F3AF}", label: "Milestone" }
     : { emoji: "\u{1F92F}", label: "Off the Charts" };

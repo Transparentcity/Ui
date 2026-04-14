@@ -434,17 +434,27 @@ export default function FeedContainer({
     }
   }, [selectedCityWithNoStories]);
 
+  // Suppress auto-switch while onboarding is actively scanning (city or place level).
+  // Once onboarding resolves (or if it's idle), allow the switch to All Cities.
   useEffect(() => {
     if (
       selectedCityWithNoStories &&
       !isLoading &&
       stories.length === 0 &&
+      !isOnboardingScanning &&
       autoSwitchedCityRef.current !== selectedCityWithNoStories.id
     ) {
       autoSwitchedCityRef.current = selectedCityWithNoStories.id;
       setSelectedCityIds(new Set());
     }
-  }, [selectedCityWithNoStories, isLoading, stories.length]);
+  }, [selectedCityWithNoStories, isLoading, stories.length, isOnboardingScanning]);
+
+  // Complete city-level loading when the feed query resolves
+  useEffect(() => {
+    if (onboarding.mode !== "city" || onboarding.status !== "scanning" || isLoading) return;
+    // Feed finished loading: complete city onboarding with success/failure
+    onboarding.completeCityLoading(stories.length > 0);
+  }, [onboarding.mode, onboarding.status, isLoading, stories.length, onboarding.completeCityLoading]);
 
   // Fetch narrative text from research reports for stories with thin descriptions.
   // Incremental: only fetch for stories we haven't processed yet.
@@ -1295,9 +1305,10 @@ export default function FeedContainer({
         </div>
       )}
 
-      {/* Onboarding progress banner (shows while neighborhood data is building).
-          Hidden during initial feed load to avoid two loaders at once. */}
-      {!(isLoading && visibleStories.length === 0) && <OnboardingBanner />}
+      {/* Onboarding progress banner (shows while neighborhood/city data is building).
+          Hidden during initial feed load to avoid two loaders at once,
+          UNLESS city-level onboarding is active (we want to show "Looking for stories in X..."). */}
+      {(!(isLoading && visibleStories.length === 0) || onboarding.mode === "city") && <OnboardingBanner />}
 
       {/* Loading: branded loader + skeleton cards on initial load */}
       {isLoading && visibleStories.length === 0 && (

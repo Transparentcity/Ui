@@ -19,18 +19,25 @@ import { getJob } from "@/lib/apiClient";
 
 export type OnboardingStatus = "idle" | "scanning" | "found_rep" | "completed" | "failed";
 
+/** Distinguishes city-level loading (no job) from place-level loading (with job). */
+export type OnboardingMode = "idle" | "city" | "place";
+
 interface PlaceOnboardingContextValue {
   status: OnboardingStatus;
+  mode: OnboardingMode;
   message: string;
+  cityName: string | null;
   repName: string | null;
   dismissed: boolean;
   dismiss: () => void;
   startJob: (placeId: number, jobId: string) => void;
+  startCityLoading: (cityName: string) => void;
+  completeCityLoading: (success: boolean) => void;
   notifyRepFound: (name: string) => void;
 }
 
 // ---------------------------------------------------------------------------
-// Progressive messages based on elapsed seconds
+// Progressive messages based on elapsed seconds (place-level)
 // ---------------------------------------------------------------------------
 
 const PHASES: { after: number; message: string }[] = [
@@ -57,11 +64,15 @@ function getPhaseMessage(elapsedMs: number): string {
 
 const PlaceOnboardingContext = createContext<PlaceOnboardingContextValue>({
   status: "idle",
+  mode: "idle",
   message: "",
+  cityName: null,
   repName: null,
   dismissed: false,
   dismiss: () => {},
   startJob: () => {},
+  startCityLoading: () => {},
+  completeCityLoading: () => {},
   notifyRepFound: () => {},
 });
 
@@ -91,7 +102,9 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
   const queryClient = useQueryClient();
 
   const [status, setStatus] = useState<OnboardingStatus>("idle");
+  const [mode, setMode] = useState<OnboardingMode>("idle");
   const [jobId, setJobId] = useState<string | null>(null);
+  const [cityName, setCityName] = useState<string | null>(null);
   const [repName, setRepName] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -102,9 +115,11 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
   const jobStartRef = useRef<number>(0);
   const [elapsed, setElapsed] = useState(0);
 
-  // Use refs for status so polling callback doesn't need status in its deps
+  // Use refs for status/mode so polling callback doesn't need them in deps
   const statusRef = useRef<OnboardingStatus>("idle");
   statusRef.current = status;
+  const modeRef = useRef<OnboardingMode>("idle");
+  modeRef.current = mode;
 
   // Timer refs
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -124,11 +139,38 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
     if (foundRepTimeoutRef.current) { clearTimeout(foundRepTimeoutRef.current); foundRepTimeoutRef.current = null; }
   }, [clearPollTimers]);
 
-  // Start tracking a new job
-  // placeId param kept in signature for future use (e.g. refetching place data)
+  // Start city-level loading (no job, no polling; completed by FeedContainer)
+  const startCityLoading = useCallback((name: string) => {
+    // Don't override an active place-level job
+    if (modeRef.current === "place") return;
+    clearAllTimers();
+    setCityName(name);
+    setMode("city");
+    setStatus("scanning");
+    setRepName(null);
+    setElapsed(0);
+    setJobId(null);
+
+    // Remove any prior dismissal
+    setDismissed(false);
+    if (typeof window !== "undefined") sessionStorage.removeItem(SESSION_KEY);
+  }, [clearAllTimers]);
+
+  // Complete city-level loading (called by FeedContainer when feed resolves)
+  const completeCityLoading = useCallback((success: boolean) => {
+    if (modeRef.current !== "city") return;
+    setStatus(success ? "completed" : "failed");
+    autoDismissRef.current = setTimeout(() => {
+      setDismissed(true);
+      if (typeof window !== "undefined") sessionStorage.setItem(SESSION_KEY, "1");
+    }, AUTO_DISMISS_MS);
+  }, []);
+
+  // Start tracking a place-level job (overrides city-level if active)
   const startJob = useCallback((_placeId: number, jId: string) => {
     clearAllTimers();
     setJobId(jId);
+    setMode("place");
     setStatus("scanning");
     setRepName(null);
     setElapsed(0);
@@ -184,7 +226,7 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
     }
   }, [initialJob, startJob]);
 
-  // Polling effect: only depends on jobId (not status) to avoid re-run churn
+  // Polling effect: only runs for place-level jobs (has jobId)
   useEffect(() => {
     if (!jobId) return;
 
@@ -245,22 +287,32 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
   // Compute current message
   let message = "";
   if (status === "completed") {
-    message = "Your neighborhood feed is ready!";
+    message = mode === "city"
+      ? `Your ${cityName || "city"} feed is ready!`
+      : "Your neighborhood feed is ready!";
   } else if (status === "failed") {
-    message = "Your city feed is ready. We\u2019ll add neighborhood stories as more data becomes available.";
+    message = mode === "city"
+      ? `No stories in ${cityName || "your city"} yet. Here\u2019s what\u2019s trending:`
+      : "Your city feed is ready. We\u2019ll add neighborhood stories as more data becomes available.";
   } else if (status === "found_rep" && repName) {
     message = `Found your representative: ${repName}`;
   } else if (status === "scanning") {
-    message = getPhaseMessage(elapsed);
+    message = mode === "city"
+      ? `Looking for stories in ${cityName || "your city"}...`
+      : getPhaseMessage(elapsed);
   }
 
   const value: PlaceOnboardingContextValue = {
     status,
+    mode,
     message,
+    cityName,
     repName,
     dismissed,
     dismiss,
     startJob,
+    startCityLoading,
+    completeCityLoading,
     notifyRepFound,
   };
 

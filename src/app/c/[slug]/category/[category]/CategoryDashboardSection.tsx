@@ -140,7 +140,7 @@ export default function CategoryDashboardSection({
       <div className="dashboard-comparison-selector">
         <div className="comparison-selector-label">Year to Date</div>
         {lastComputedAt && (
-          <div className="comparison-selector-meta">{lastComputedAt}</div>
+          <div className="comparison-selector-meta">As of {lastComputedAt}</div>
         )}
       </div>
 

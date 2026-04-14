@@ -33,6 +33,7 @@ function TestConsumer({ onRender }: { onRender?: (value: ReturnType<typeof usePl
   return (
     <div>
       <div data-testid="status">{value.status}</div>
+      <div data-testid="mode">{value.mode}</div>
       <div data-testid="message">{value.message}</div>
       <div data-testid="dismissed">{String(value.dismissed)}</div>
     </div>
@@ -211,6 +212,162 @@ describe("PlaceOnboardingContext", () => {
 
     expect(screen.getByTestId("status").textContent).toBe("scanning");
   });
+
+  // ── City-level loading tests ─────────────────────────────────────────
+
+  it("startCityLoading sets scanning state with city message", () => {
+    let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+    renderWithProvider({}, (v) => { latestValue = v; });
+
+    act(() => {
+      latestValue!.startCityLoading("Sacramento");
+    });
+
+    expect(screen.getByTestId("status").textContent).toBe("scanning");
+    expect(screen.getByTestId("message").textContent).toBe(
+      "Looking for stories in Sacramento..."
+    );
+  });
+
+  it("city-level loading reports mode as city", () => {
+    let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+    renderWithProvider({}, (v) => { latestValue = v; });
+
+    expect(latestValue!.mode).toBe("idle");
+
+    act(() => {
+      latestValue!.startCityLoading("Sacramento");
+    });
+
+    expect(latestValue!.mode).toBe("city");
+  });
+
+  it("completeCityLoading(true) transitions to completed with city message", () => {
+    let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+    renderWithProvider({}, (v) => { latestValue = v; });
+
+    act(() => {
+      latestValue!.startCityLoading("Chicago");
+    });
+
+    act(() => {
+      latestValue!.completeCityLoading(true);
+    });
+
+    expect(screen.getByTestId("status").textContent).toBe("completed");
+    expect(screen.getByTestId("message").textContent).toBe(
+      "Your Chicago feed is ready!"
+    );
+  });
+
+  it("completeCityLoading(false) transitions to failed with no-stories message", () => {
+    let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+    renderWithProvider({}, (v) => { latestValue = v; });
+
+    act(() => {
+      latestValue!.startCityLoading("Sacramento");
+    });
+
+    act(() => {
+      latestValue!.completeCityLoading(false);
+    });
+
+    expect(screen.getByTestId("status").textContent).toBe("failed");
+    expect(screen.getByTestId("message").textContent).toContain(
+      "No stories in Sacramento yet"
+    );
+  });
+
+  it("startJob overrides active city-level loading with place-level", () => {
+    mockGetJob.mockResolvedValue({ status: "running" });
+
+    let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+    renderWithProvider({}, (v) => { latestValue = v; });
+
+    // Start city-level first
+    act(() => {
+      latestValue!.startCityLoading("Sacramento");
+    });
+    expect(latestValue!.mode).toBe("city");
+    expect(screen.getByTestId("message").textContent).toBe(
+      "Looking for stories in Sacramento..."
+    );
+
+    // Now start a place-level job (overrides city-level)
+    act(() => {
+      latestValue!.startJob(42, "job-456");
+    });
+    expect(latestValue!.mode).toBe("place");
+    expect(screen.getByTestId("message").textContent).toBe(
+      "Pulling public data near your address..."
+    );
+  });
+
+  it("completeCityLoading is a no-op when mode is place", () => {
+    mockGetJob.mockResolvedValue({ status: "running" });
+
+    let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+    renderWithProvider({}, (v) => { latestValue = v; });
+
+    // Start place-level job
+    act(() => {
+      latestValue!.startJob(42, "job-456");
+    });
+    expect(screen.getByTestId("status").textContent).toBe("scanning");
+
+    // Try to complete city loading (should be ignored)
+    act(() => {
+      latestValue!.completeCityLoading(true);
+    });
+    expect(screen.getByTestId("status").textContent).toBe("scanning");
+    expect(latestValue!.mode).toBe("place");
+  });
+
+  it("city-level loading auto-dismisses after completion", async () => {
+    let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+    renderWithProvider({}, (v) => { latestValue = v; });
+
+    act(() => {
+      latestValue!.startCityLoading("Sacramento");
+    });
+
+    act(() => {
+      latestValue!.completeCityLoading(false);
+    });
+
+    expect(screen.getByTestId("dismissed").textContent).toBe("false");
+
+    // Auto-dismiss after 5s
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6000);
+    });
+
+    expect(screen.getByTestId("dismissed").textContent).toBe("true");
+  });
+
+  it("startCityLoading does not override active place-level job", () => {
+    mockGetJob.mockResolvedValue({ status: "running" });
+
+    let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+    renderWithProvider(
+      { initialJob: { placeId: 1, jobId: "job-123" } },
+      (v) => { latestValue = v; }
+    );
+
+    expect(latestValue!.mode).toBe("place");
+
+    // Try to start city-level loading (should be ignored since place job is active)
+    act(() => {
+      latestValue!.startCityLoading("Sacramento");
+    });
+
+    expect(latestValue!.mode).toBe("place");
+    expect(screen.getByTestId("message").textContent).toBe(
+      "Pulling public data near your address..."
+    );
+  });
+
+  // ── Session storage and error tests ─────────────────────────────────
 
   it("respects session dismissal from sessionStorage", () => {
     (sessionStorage.getItem as ReturnType<typeof vi.fn>).mockReturnValue("1");
