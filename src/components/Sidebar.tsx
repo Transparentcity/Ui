@@ -9,7 +9,6 @@ import JobSessionList from "./JobSessionList";
 import MyCities from "./MyCities";
 import ResearchList from "./ResearchList";
 import SidebarCitySearch from "./SidebarCitySearch";
-import SidebarRecentQuestions from "./SidebarRecentQuestions";
 import styles from "./Sidebar.module.css";
 import type { UserPlace } from "@/lib/apiClient";
 
@@ -623,15 +622,6 @@ export default function Sidebar({
             </>
           )}
 
-          {/* Recent Questions - shown for normal users (non-chat mode), pushed to bottom */}
-          {!chatEnabled && (
-            <div style={{ marginTop: "auto" }}>
-              <SidebarRecentQuestions
-                activeCityName={activeCityName}
-                onQuestionClick={onQuestionClick}
-              />
-            </div>
-          )}
         </div>
 
         {/* Sidebar Footer */}
