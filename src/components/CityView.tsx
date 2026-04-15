@@ -25,6 +25,7 @@ import { getPresetMetricDateRange, getDefaultDateRangeFromMetrics, type MetricDa
 import { useAuth0 } from "@auth0/auth0-react";
 import { getAdminMetricTimeSeries, getAdminMetricTimeSeriesDetail, type BatchComparisonsResponse, type ComparisonType, type ComparisonResponse } from "@/lib/apiClient";
 import { useMetricComparisons, useBatchComparisons, usePlaceBatchComparisons } from "@/lib/hooks/useMetrics";
+import { toast } from "sonner";
 import Loader from "@/components/Loader";
 import { MetricLink } from "@/components/MetricLink";
 import MetricDetailModal from "@/components/MetricDetailModal";
@@ -2079,12 +2080,22 @@ export default function CityView({
   const headerFollowerCount = leaderFollowerCounts?.[headerDistrictStr];
   const handleHeaderFollowToggle = useCallback(() => {
     if (followPending) return;
+    const label = headerDistrictStr === "0"
+      ? (cityData?.name || "this city")
+      : `District ${headerDistrictStr}`;
     if (isFollowed) {
-      unfollowMutation.mutate(headerDistrictStr);
+      unfollowMutation.mutate(headerDistrictStr, {
+        onSuccess: () => toast.success(`Unfollowed ${label}`),
+      });
     } else {
-      followMutation.mutate(headerDistrictStr);
+      followMutation.mutate(headerDistrictStr, {
+        onSuccess: () =>
+          toast.success(`Following ${label}`, {
+            description: "You'll get weekly updates",
+          }),
+      });
     }
-  }, [followPending, isFollowed, unfollowMutation, followMutation, headerDistrictStr]);
+  }, [followPending, isFollowed, unfollowMutation, followMutation, headerDistrictStr, cityData?.name]);
 
   // Default map date range to YTD so it aligns with dashboard YTD comparisons
   useEffect(() => {

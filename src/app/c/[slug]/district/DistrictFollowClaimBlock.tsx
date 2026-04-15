@@ -16,14 +16,20 @@ type Props = {
   cityId: number;
   district: number;
   slug: string;
+  cityDisplayName?: string;
 };
 
 export default function DistrictFollowClaimBlock({
   cityId,
   district,
   slug,
+  cityDisplayName,
 }: Props) {
   const districtKey = String(district);
+  const isCitywide = district === 0;
+  const entityLabel = isCitywide
+    ? (cityDisplayName || "this city")
+    : `District ${district}`;
   const { isAuthenticated, loginWithRedirect } = useAuth0();
 
   const { data: publicCounts = [] } = useQuery({
@@ -52,6 +58,7 @@ export default function DistrictFollowClaimBlock({
   const loading = followMutation.isPending || unfollowMutation.isPending;
 
   const handleFollowClick = () => {
+    if (loading) return; // guard against double-clicks
     if (!isAuthenticated) {
       const returnTo =
         typeof window !== "undefined"
@@ -65,12 +72,12 @@ export default function DistrictFollowClaimBlock({
     }
     if (following) {
       unfollowMutation.mutate(districtKey, {
-        onSuccess: () => toast.success("Unfollowed District " + district),
+        onSuccess: () => toast.success(`Unfollowed ${entityLabel}`),
       });
     } else {
       followMutation.mutate(districtKey, {
         onSuccess: () =>
-          toast.success("Following District " + district, {
+          toast.success(`Following ${entityLabel}`, {
             description: "You'll get weekly updates",
           }),
       });
@@ -84,7 +91,7 @@ export default function DistrictFollowClaimBlock({
         loading={loading}
         count={count}
         onClick={handleFollowClick}
-        entityLabel={`District ${district}`}
+        entityLabel={entityLabel}
       />
     </div>
   );

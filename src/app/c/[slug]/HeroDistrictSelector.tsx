@@ -176,11 +176,16 @@ export default function HeroDistrictSelector({
           {districts.map((d, i) => {
             const leaderName = leaderByDistrict.get(d);
             const optIndex = i + 1;
+            const tooltip = leaderName
+              ? `District ${d} — ${leaderName}`
+              : `District ${d}`;
             return (
               <li
                 key={d}
                 role="option"
                 aria-selected={focusedIndex === optIndex}
+                aria-label={tooltip}
+                title={tooltip}
                 tabIndex={focusedIndex === optIndex ? 0 : -1}
                 className="hero-district-selector-option"
                 onClick={() => selectOption(optIndex)}

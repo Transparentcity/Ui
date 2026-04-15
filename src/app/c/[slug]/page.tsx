@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { CityStructuredData } from "@/components/StructuredData";
 import PublicFooter from "@/components/PublicFooter";
 
@@ -126,6 +126,8 @@ export async function generateMetadata({
       : []),
   ];
 
+  const ogImage = "https://transparent.city/images/app-screenshot-dashboard.png";
+
   return {
     title: `${display} | Public Data Dashboard | Transparent City`,
     description,
@@ -137,6 +139,13 @@ export async function generateMetadata({
       title: display,
       description,
       url: `/c/${slug}`,
+      images: [{ url: ogImage, width: 1200, height: 630, alt: `${display} public data dashboard` }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: display,
+      description,
+      images: [ogImage],
     },
   };
 }
@@ -153,8 +162,10 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       })
     | null = null;
 
+  let citiesFetched = false;
   try {
     const cities = await listPublicCitiesForSitemap();
+    citiesFetched = true;
     const match =
       typeof id === "number" && Number.isFinite(id)
         ? cities.find((c) => c.id === id)
@@ -178,7 +189,14 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       city = { ...match, display };
     }
   } catch {
-    // noop
+    // If we can't reach the API, fall through rather than 404-ing
+    // (crawlers will retry on the next revalidation).
+  }
+
+  // If we successfully fetched cities but found no match, this is an
+  // invalid slug. Return a real 404 so search engines don't index it.
+  if (citiesFetched && !city) {
+    notFound();
   }
 
   const cityDisplayName = city?.display ?? slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
@@ -274,7 +292,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
               <span className="city-hero-v2-mayor-inline">Mayor: {formatLeaderName(cityDetail.mayor.name)}</span>
             ) : null}
             {city?.id && (
-              <DistrictFollowClaimBlock cityId={city.id} district={0} slug={slug} />
+              <DistrictFollowClaimBlock cityId={city.id} district={0} slug={slug} cityDisplayName={city.name} />
             )}
           </div>
         </div>

@@ -51,7 +51,7 @@
   background: var(--bg-secondary);
   max-width: 100%;
   min-width: 0;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .leadingIcon {

@@ -76,7 +76,9 @@ export async function GET(): Promise<Response> {
 
   const cityEntries: SitemapEntry[] = cities.flatMap((city) => {
     const citySlug = slugify(city.name);
-    if (!citySlug) return [];
+    // Only include launched cities so unlaunched ones don't get indexed
+    // with raw-slug metadata (e.g. "memphis" instead of "Memphis, Tennessee").
+    if (!citySlug || !city.is_launched) return [];
 
     return [
       {

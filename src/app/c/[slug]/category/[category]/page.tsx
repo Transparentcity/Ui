@@ -226,7 +226,7 @@ export default async function CityCategoryPage({
                   <span className="hero-mayor-name">
                     Mayor {cityDetail?.mayor?.name ?? "Citywide"}
                   </span>
-                  <DistrictFollowClaimBlock cityId={city.id} district={0} slug={slug} />
+                  <DistrictFollowClaimBlock cityId={city.id} district={0} slug={slug} cityDisplayName={city.name} />
                 </div>
               )}
 

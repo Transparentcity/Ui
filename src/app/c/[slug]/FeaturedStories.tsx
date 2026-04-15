@@ -166,7 +166,48 @@ export default function FeaturedStories({
 }: Props) {
   const metricCards = buildMetricCards(slug, cityDisplayName, cityEmoji, metrics, comparisonsMap);
 
-  if (stories.length === 0 && metricCards.length === 0) return null;
+  if (stories.length === 0 && metricCards.length === 0) {
+    return (
+      <section className="featured-stories-section">
+        <div className="container">
+          <header className="section-header" style={{ marginBottom: "1.25rem" }}>
+            <span className="section-badge">What&rsquo;s happening</span>
+            <h2 className="section-heading">Latest from {cityDisplayName}</h2>
+          </header>
+          <div
+            style={{
+              background: "var(--bg-secondary, #f8f9fa)",
+              border: "1px solid var(--border-primary, #e5e7eb)",
+              borderRadius: "12px",
+              padding: "24px 20px",
+              textAlign: "center",
+              color: "var(--text-secondary, #6b7280)",
+              fontSize: "15px",
+              lineHeight: "1.6",
+            }}
+          >
+            <p style={{ margin: "0 0 8px" }}>
+              We don&rsquo;t have stories for {cityDisplayName} just yet. We&rsquo;re
+              working on it.
+            </p>
+            <p style={{ margin: 0 }}>
+              In the meantime, check out{" "}
+              <a
+                href="/"
+                style={{
+                  color: "var(--brand-primary, #6366f1)",
+                  textDecoration: "underline",
+                  fontWeight: 500,
+                }}
+              >
+                what&rsquo;s happening across all cities
+              </a>.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   // Show up to 10 most recent stories
   const visible = stories.slice(0, 10);

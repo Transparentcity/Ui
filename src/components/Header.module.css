@@ -142,6 +142,9 @@
 }
 
 .buttonSignIn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: 1px solid var(--border-primary, rgba(17, 24, 39, 0.14));
   background: var(--bg-primary, #ffffff);
   color: var(--text-primary, rgba(17, 24, 39, 0.92));
@@ -152,6 +155,10 @@
   cursor: pointer;
   transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease,
     border-color 120ms ease, color 120ms ease;
+}
+
+.homeIcon {
+  flex-shrink: 0;
 }
 
 .buttonSignIn:disabled {

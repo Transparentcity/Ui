@@ -474,7 +474,7 @@ export default function AddYourCityPage() {
 
           {/* Back to home link */}
           <div className="add-city-back">
-            <Link href="/" className="back-link">
+            <Link href="/home" className="back-link">
               <svg
                 width="20"
                 height="20"

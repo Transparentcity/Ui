@@ -127,7 +127,7 @@ export default function DistrictPageContent({
                 Public accountability dashboard &middot; {year}
               </p>
 
-              <DistrictFollowClaimBlock cityId={city.id} district={d} slug={slug} />
+              <DistrictFollowClaimBlock cityId={city.id} district={d} slug={slug} cityDisplayName={city.shortDisplay} />
 
               <EmailSignInLink label={`Get District ${d} updates for ${city.shortDisplay}.`} />
 

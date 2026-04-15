@@ -70,6 +70,7 @@ export default function DistrictListWithFollow({
 
   const handleFollowClick = (district: number) => {
     const d = String(district);
+    if (followMutation.isPending || unfollowMutation.isPending) return; // guard against double-clicks
     if (!isAuthenticated) {
       const returnTo =
         typeof window !== "undefined"
@@ -81,14 +82,15 @@ export default function DistrictListWithFollow({
       });
       return;
     }
+    const label = district === 0 ? cityDisplayName : `District ${district}`;
     if (isFollowing(district)) {
       unfollowMutation.mutate(d, {
-        onSuccess: () => toast.success("Unfollowed District " + district),
+        onSuccess: () => toast.success(`Unfollowed ${label}`),
       });
     } else {
       followMutation.mutate(d, {
         onSuccess: () =>
-          toast.success("Following District " + district, {
+          toast.success(`Following ${label}`, {
             description: "You'll get weekly updates",
           }),
       });

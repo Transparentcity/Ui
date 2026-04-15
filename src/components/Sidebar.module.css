@@ -162,7 +162,7 @@
   right: 0;
   bottom: 0;
   background: var(--bg-overlay);
-  z-index: 999;
+  z-index: 10000;
   transition: opacity 0.3s ease;
   touch-action: none;
   -webkit-overflow-scrolling: none;
@@ -344,7 +344,7 @@
 
 @media (max-width: 768px) {
   .sidebar {
-    z-index: 10001;
+    z-index: 10003;
   }
   
   .sidebarHeader {

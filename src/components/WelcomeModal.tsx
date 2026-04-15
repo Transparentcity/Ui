@@ -912,7 +912,18 @@ export default function WelcomeModal({
             };
           }
 
-          await updateUserPreferences(preferencesData, token);
+          // Save preferences with one retry on failure
+          try {
+            await updateUserPreferences(preferencesData, token);
+          } catch (prefErr) {
+            console.warn("Preferences save failed, retrying once:", prefErr);
+            try {
+              await new Promise((r) => setTimeout(r, 1500));
+              await updateUserPreferences(preferencesData, token);
+            } catch (retryErr) {
+              console.error("Preferences save failed after retry:", retryErr);
+            }
+          }
 
           // Send welcome email with stories from their city
           const welcomeCityName = locationResult?.matchedCity?.name ?? locationResult?.cityName ?? "";

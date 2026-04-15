@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { toast } from "sonner";
+import DOMPurify from "dompurify";
 import styles from "./applause.module.css";
 
 interface ApplauseItem {
@@ -168,7 +169,7 @@ export default function ApplauseDashboard() {
               {expandedId === item.id && item.email_body_html && (
                 <div
                   className={styles.emailBody}
-                  dangerouslySetInnerHTML={{ __html: item.email_body_html }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(item.email_body_html) }}
                 />
               )}
 

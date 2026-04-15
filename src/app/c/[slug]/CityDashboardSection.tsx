@@ -294,12 +294,12 @@ export default function CityDashboardSection({
                                   (prior as number)) *
                                 100
                               : null;
-                          // Cap at ±999% — larger values almost always
+                          // Cap at ±500% — larger values almost always
                           // indicate a near-zero prior period, not a
-                          // real change.
+                          // real, meaningful change.
                           const pct =
                             rawPct != null
-                              ? Math.max(-999, Math.min(999, rawPct))
+                              ? Math.max(-500, Math.min(500, rawPct))
                               : null;
 
                           const isIncrease = absDiff != null && absDiff > 0;

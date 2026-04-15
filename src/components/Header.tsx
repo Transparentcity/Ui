@@ -188,23 +188,28 @@ export default function Header() {
           </Link>
 
           <nav className={styles.navRight} aria-label="Top navigation">
-            <button
-              className={styles.buttonSignIn}
-              onClick={handleLogin}
-              disabled={isLoading}
-            >
-              {isAuthenticated ? "Dashboard" : "Sign in"}
-            </button>
-
             {isAuthenticated ? (
               <button
-                className={styles.buttonSignUp}
+                className={styles.buttonSignIn}
                 onClick={() => router.push("/home")}
                 disabled={isLoading}
               >
-                Go to dashboard
+                <svg className={styles.homeIcon} width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M16 10H4M4 10L8 6M4 10L8 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Home
               </button>
             ) : (
+              <button
+                className={styles.buttonSignIn}
+                onClick={handleLogin}
+                disabled={isLoading}
+              >
+                Sign in
+              </button>
+            )}
+
+            {!isAuthenticated && (
               <div className={styles.menuWrap} ref={signupMenuRef}>
                 <button
                   className={styles.buttonSignUp}

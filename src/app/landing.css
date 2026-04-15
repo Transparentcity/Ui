@@ -113,7 +113,9 @@
 }
 
 [data-theme="dark"] .navbar,
-.dark .navbar {
+.dark .navbar,
+[data-theme="dark"] .navbar.public-nav,
+.dark .navbar.public-nav {
   background: rgba(15, 23, 42, 0.85);
 }
 
