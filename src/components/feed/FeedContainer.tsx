@@ -810,13 +810,23 @@ export default function FeedContainer({
   // Fetch public preview stories when the feed would otherwise be empty
   const feedShowsNothing = !isLoading && !error && visibleStories.length === 0;
 
+  // When the user has a saved city, fetch stories from that city as fallback
+  // instead of random trending stories from other cities.
+  const previewCityId = feedShowsNothing && savedCityIds.size === 1
+    ? [...savedCityIds][0]
+    : undefined;
+
   useEffect(() => {
     if (!feedShowsNothing) {
       if (previewStories.length > 0) setPreviewStories([]);
       return;
     }
     let cancelled = false;
-    listPublicFeedStories({ limit: 10, order_by: "published_at" })
+    listPublicFeedStories({
+      limit: 10,
+      order_by: "published_at",
+      city_id: previewCityId,
+    })
       .then((res) => {
         if (!cancelled) {
           setPreviewStories(enrichStories(res.stories ?? []).slice(0, 10));
@@ -824,7 +834,7 @@ export default function FeedContainer({
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [feedShowsNothing]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [feedShowsNothing, previewCityId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Restore scroll position once stories have loaded (only on initial mount)
   const scrollRestored = useRef(false);
@@ -1355,7 +1365,11 @@ export default function FeedContainer({
       {!isLoading && !error && stories.length === 0 && (
         previewStories.length > 0 ? (
           <>
-            <p className={styles.previewHeader}>Trending stories</p>
+            <p className={styles.previewHeader}>
+              {previewCityId
+                ? `Stories from ${savedCities[0]?.display_name || savedCities[0]?.city_name || "your city"}`
+                : "Trending stories"}
+            </p>
             <div className={styles.storiesList}>
               {previewStories.map((story) => (
                 <FeedCard
@@ -1438,7 +1452,11 @@ export default function FeedContainer({
           </div>
           {previewStories.length > 0 && (isOnboardingScanning || onboarding.status === "completed") && (
             <>
-              <p className={styles.previewHeader}>Trending stories</p>
+              <p className={styles.previewHeader}>
+                {previewCityId
+                  ? `Stories from ${savedCities[0]?.display_name || savedCities[0]?.city_name || "your city"}`
+                  : "Trending stories"}
+              </p>
               <div className={styles.storiesList}>
                 {previewStories.map((story) => (
                   <FeedCard

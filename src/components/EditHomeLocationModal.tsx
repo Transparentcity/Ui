@@ -18,10 +18,12 @@ import {
   listMyPlaces,
   createPlace,
   followRepresentative,
+  runPlaceMetricsAndAnomaliesAsJob,
   type UserPlace,
 } from "@/lib/apiClient";
 import { findDistrictFromCoordinates } from "@/lib/findDistrictFromCoordinates";
 import { emitSavedCitiesChanged } from "@/lib/uiEvents";
+import { usePlaceOnboarding } from "@/contexts/PlaceOnboardingContext";
 import LocationMapSave from "@/components/LocationMapSave";
 import { DEFAULT_PLACE_RADIUS_M } from "@/lib/mapUtils";
 import Loader from "@/components/Loader";
@@ -41,6 +43,7 @@ export default function EditHomeLocationModal({
 }: EditHomeLocationModalProps) {
   const { getAccessTokenSilently } = useAuth0();
   const queryClient = useQueryClient();
+  const { startJob } = usePlaceOnboarding();
   const [step, setStep] = useState<"search" | "map">("search");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PublicCitySearchResult[]>([]);
@@ -288,6 +291,17 @@ export default function EditHomeLocationModal({
         lng,
         radius_m: opts.radius_m,
       });
+
+      // Kick off neighborhood story generation and show the loading banner
+      if (createdPlace?.id) {
+        try {
+          const { job_id } = await runPlaceMetricsAndAnomaliesAsJob(createdPlace.id, token);
+          startJob(createdPlace.id, job_id);
+        } catch {
+          // Non-blocking: feed still works without place-specific stories
+        }
+      }
+
       await persistHomeLocation({
         token,
         cityId,
