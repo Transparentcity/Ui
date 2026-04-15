@@ -125,9 +125,7 @@ function StoryFeedCard({
 
   const href = story.short_hash
     ? `/c/${slug}/stories/${story.short_hash}`
-    : story.detail_url?.startsWith("/c/") || story.detail_url?.startsWith("/s/")
-      ? story.detail_url
-      : null;
+    : story.detail_url || null;
 
   const inner = (
     <>
