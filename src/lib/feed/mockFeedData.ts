@@ -54,6 +54,18 @@ export interface EnrichedFeedStory extends FeedStory {
   neighborhood_label: string;
   subline: string;
   image_url_resolved: string | null;
+  /**
+   * Resolved alt text for the story image. Prefers `story.image_alt`, then
+   * `metadata.image_alt`, then falls back to the story headline so images
+   * are never bare for screen readers.
+   */
+  image_alt_resolved: string;
+  /**
+   * Caption text to display below the static image (or as fallback text when
+   * the image cannot be loaded). Prefers `story.image_caption`, then
+   * `metadata.image_caption`.
+   */
+  image_caption_resolved: string | null;
   embed_url_resolved: string | null;
   cleaned_description: string;
   canonical_url: string;
@@ -315,6 +327,7 @@ function formatSubline(story: FeedStory): string {
 // ── Place labels map (populated from /api/feed/public/places) ────────────────
 
 type PlaceMap = Map<string, string>; // "cityId:district" -> label
+type UserPlaceLabelMap = Map<number, string>;
 
 function placesKey(cityId: number, district: number): string {
   return `${cityId}:${district}`;
@@ -364,12 +377,67 @@ function deriveNeighborhoodLabel(story: FeedStory, placeMap?: PlaceMap): string 
   return city;
 }
 
+function deriveSavedPlaceLabel(
+  story: FeedStory,
+  userPlaceLabelMap?: UserPlaceLabelMap,
+): string | null {
+  const meta = story.metadata ?? {};
+  const metaPlaceLabels = [
+    meta.place_label,
+    meta.user_place_label,
+    meta.saved_place_label,
+  ];
+
+  for (const value of metaPlaceLabels) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  if (!userPlaceLabelMap || userPlaceLabelMap.size === 0) {
+    return null;
+  }
+
+  if (story.user_place_id != null) {
+    const label = userPlaceLabelMap.get(story.user_place_id);
+    if (label?.trim()) {
+      return label.trim();
+    }
+  }
+
+  const rawPlaceIds = meta.user_place_ids;
+  if (!Array.isArray(rawPlaceIds)) {
+    return null;
+  }
+
+  const uniquePlaceIds = Array.from(
+    new Set(
+      rawPlaceIds
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value)),
+    ),
+  );
+
+  if (uniquePlaceIds.length !== 1) {
+    return null;
+  }
+
+  const label = userPlaceLabelMap.get(uniquePlaceIds[0]);
+  return label?.trim() || null;
+}
+
 // ── Main enrichment function ────────────────────────────────────────────────
 
-export function enrichStory(story: FeedStory, placeMap?: PlaceMap): EnrichedFeedStory {
+export function enrichStory(
+  story: FeedStory,
+  placeMap?: PlaceMap,
+  userPlaceLabelMap?: UserPlaceLabelMap,
+): EnrichedFeedStory {
   const cardType = deriveCardType(story);
   const template = deriveTemplate(story, cardType);
-  const neighborhoodLabel = deriveNeighborhoodLabel(story, placeMap);
+  const neighborhoodLabel =
+    deriveSavedPlaceLabel(story, userPlaceLabelMap) ??
+    deriveNeighborhoodLabel(story, placeMap);
 
   // Prefer summary field (when backend populates it), fall back to description
   // If description is just metadata breadcrumbs, try summary first
@@ -418,6 +486,15 @@ export function enrichStory(story: FeedStory, placeMap?: PlaceMap): EnrichedFeed
 
   const categoryKey = deriveActor(cardType, normalizedHeadline);
   const catMeta = getCategoryMeta(categoryKey);
+  // Resolve alt and caption: prefer top-level fields, then metadata, then fallbacks.
+  const imageAltResolved: string =
+    story.image_alt ||
+    (typeof meta.image_alt === "string" ? meta.image_alt : null) ||
+    normalizedHeadline;
+  const imageCaptionResolved: string | null =
+    story.image_caption ||
+    (typeof meta.image_caption === "string" ? meta.image_caption : null) ||
+    null;
 
   const enriched: EnrichedFeedStory = {
     ...story,
@@ -436,6 +513,8 @@ export function enrichStory(story: FeedStory, placeMap?: PlaceMap): EnrichedFeed
     neighborhood_label: neighborhoodLabel,
     subline: formatSubline(story),
     image_url_resolved: resolveImageUrl(story),
+    image_alt_resolved: imageAltResolved,
+    image_caption_resolved: imageCaptionResolved,
     embed_url_resolved: resolveEmbedUrl(story),
     cleaned_description: cleanDescription(descriptionSource, normalizedHeadline, story.city_name ?? undefined, neighborhoodLabel)
       || story.summary?.trim()
@@ -487,9 +566,13 @@ export function isCoherentMultiMetric(story: EnrichedFeedStory): boolean {
 }
 
 /** Enrich an array of stories and interleave viz stories among text-only. */
-export function enrichStories(stories: FeedStory[], placeMap?: PlaceMap): EnrichedFeedStory[] {
+export function enrichStories(
+  stories: FeedStory[],
+  placeMap?: PlaceMap,
+  userPlaceLabelMap?: UserPlaceLabelMap,
+): EnrichedFeedStory[] {
   const enriched = stories
-    .map((s) => enrichStory(s, placeMap))
+    .map((s) => enrichStory(s, placeMap, userPlaceLabelMap))
     .filter(isCoherentMultiMetric);
 
   // Separate visual stories (embeds OR photos) from text-only

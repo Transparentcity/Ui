@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ── Auth mock ────────────────────────────────────────────────
@@ -54,6 +54,15 @@ const fakeMap = {
   short_hash: "testHash123",
   title: "Test Map",
   description: "A test map",
+  query_source: "SELECT incident_date, latitude, longitude LIMIT 200",
+  source_info: {
+    dataset_id: "wg3w-h783",
+    dataset_name: "Police Department Incident Reports: 2018 to Present",
+    dataset_url: "https://data.sfgov.org/d/wg3w-h783",
+    query_url:
+      "https://data.sfgov.org/resource/wg3w-h783.json?$query=SELECT%20incident_date%2C%20latitude%2C%20longitude%20LIMIT%20200",
+    query_text: "SELECT incident_date, latitude, longitude LIMIT 200",
+  },
   city_slug: "san-francisco",
   location_data: [
     { lat: 37.78, lng: -122.42, label: "Test Location" },
@@ -94,9 +103,10 @@ describe("PublicMapPage signup CTA", () => {
     render(<PublicMapPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Sign up now")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Sign up now" })
+      ).toBeInTheDocument();
     });
-    expect(screen.getByRole("button", { name: "Sign up" })).toBeInTheDocument();
   });
 
   it("hides signup CTA when user is authenticated", async () => {
@@ -113,7 +123,58 @@ describe("PublicMapPage signup CTA", () => {
       expect(screen.queryByTestId("loader")).not.toBeInTheDocument();
     });
 
-    expect(screen.queryByText("Sign up now")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Sign up" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Sign up now" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps source information collapsed by default and expands on click", async () => {
+    render(<PublicMapPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Source information" })
+      ).toBeInTheDocument();
+    });
+
+    expect(
+      screen.queryByText(
+        /Transparent\.city turns official public records into clear, source-linked maps/i
+      )
+    ).not.toBeInTheDocument();
+
+    const sourceToggle = screen.getByRole("button", {
+      name: "Source information",
+    });
+    expect(sourceToggle).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(sourceToggle);
+
+    expect(sourceToggle).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByText(
+        /Transparent\.city turns official public records into clear, source-linked maps/i
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Police Department Incident Reports: 2018 to Present")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", {
+        name: "Police Department Incident Reports: 2018 to Present",
+      })
+    ).toHaveAttribute("href", "https://data.sfgov.org/d/wg3w-h783");
+    expect(
+      screen.getByRole("link", {
+        name:
+          "https://data.sfgov.org/resource/wg3w-h783.json?$query=SELECT%20incident_date%2C%20latitude%2C%20longitude%20LIMIT%20200",
+      })
+    ).toHaveAttribute(
+      "href",
+      "https://data.sfgov.org/resource/wg3w-h783.json?$query=SELECT%20incident_date%2C%20latitude%2C%20longitude%20LIMIT%20200"
+    );
+    expect(
+      screen.getByText("SELECT incident_date, latitude, longitude LIMIT 200")
+    ).toBeInTheDocument();
   });
 });

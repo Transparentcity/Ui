@@ -59,6 +59,8 @@ function makeStory(
     neighborhood_label: "San Francisco · City-wide",
     subline: "Today",
     image_url_resolved: null,
+    image_alt_resolved: "Test story headline",
+    image_caption_resolved: null,
     embed_url_resolved: null,
     cleaned_description: "A shorter feed summary.",
     canonical_url: "/feed/42",

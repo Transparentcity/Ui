@@ -115,6 +115,8 @@ function makeEnrichedStory(overrides: Partial<EnrichedFeedStory> = {}): Enriched
     neighborhood_label: "San Francisco · District 6",
     subline: "2 hours ago",
     image_url_resolved: null,
+    image_alt_resolved: "Theft in District 6",
+    image_caption_resolved: null,
     embed_url_resolved: null,
     cleaned_description: "Thefts have increased 25% this month in the district.",
     canonical_url: "/feed/42",
@@ -145,6 +147,11 @@ describe("FeedCard", () => {
   it("renders headline", () => {
     renderCard();
     expect(screen.getByText("Motor vehicle thefts spike in D6")).toBeInTheDocument();
+  });
+
+  it("renders a saved place label when the story is place-scoped", () => {
+    renderCard({ neighborhood_label: "Noe Valley Home" });
+    expect(screen.getByText("Noe Valley Home")).toBeInTheDocument();
   });
 
   it("renders Share button in action bar", () => {

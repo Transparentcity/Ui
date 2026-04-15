@@ -421,7 +421,14 @@ export default function FeedContainer({
   });
 
   const stories = feedData?.stories ?? [];
-  const enriched = useMemo(() => enrichStories(stories), [stories]);
+  const userPlaceLabelMap = useMemo(
+    () => new Map(userPlaces.map((place) => [place.id, place.label])),
+    [userPlaces],
+  );
+  const enriched = useMemo(
+    () => enrichStories(stories, undefined, userPlaceLabelMap),
+    [stories, userPlaceLabelMap],
+  );
 
   // ── Public preview stories fallback (shown when feed is empty during onboarding) ──
   const [previewStories, setPreviewStories] = useState<EnrichedFeedStory[]>([]);
@@ -1554,6 +1561,8 @@ export default function FeedContainer({
         onClose={() => setShowLocationModal(false)}
         onSaved={() => {
           setShowLocationModal(false);
+          setOnlyMySavedPlacesFeed(true);
+          setSelectedPlaceId(null);
           onPlaceSaved?.();
         }}
       />

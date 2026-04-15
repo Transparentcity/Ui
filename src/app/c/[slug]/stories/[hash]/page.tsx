@@ -203,13 +203,48 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
 
         {/* Hero image */}
         {story.image_url && (
-          <div className="story-hero-image">
+          <figure className="story-hero-image">
             <SafeImage
               src={story.image_url}
-              alt={headline}
+              alt={story.image_alt || headline}
               className="story-hero-img"
             />
-          </div>
+            {story.image_caption && (
+              <figcaption>
+                <details
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "#6b7280",
+                    borderTop: "1px solid #f3f4f6",
+                    padding: "4px 8px",
+                  }}
+                >
+                  <summary
+                    style={{
+                      cursor: "pointer",
+                      listStyle: "none",
+                      userSelect: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <span style={{ fontSize: "0.6875rem", opacity: 0.6 }}>▶</span>
+                    Source information
+                  </summary>
+                  <p
+                    style={{
+                      margin: "4px 0 0 14px",
+                      fontStyle: "italic",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {story.image_caption}
+                  </p>
+                </details>
+              </figcaption>
+            )}
+          </figure>
         )}
 
         {/* Short description / lede */}

@@ -67,6 +67,14 @@ interface MapDataPoint {
   [key: string]: any;
 }
 
+interface SavedMapSourceInfo {
+  dataset_id?: string | null;
+  dataset_name?: string | null;
+  dataset_url?: string | null;
+  query_url?: string | null;
+  query_text?: string | null;
+}
+
 interface SavedMap {
   id: number;
   short_hash: string;
@@ -80,6 +88,8 @@ interface SavedMap {
   city_id: number | null;
   city_name?: string | null;
   metric_id: number | null;
+  query_source?: string | null;
+  source_info?: SavedMapSourceInfo | null;
   is_public: boolean;
   view_count: number;
   created_at: string;
@@ -109,6 +119,26 @@ async function getPublicMap(hash: string): Promise<SavedMap> {
   }
 
   return response.json();
+}
+
+function getSavedMapSourceInfo(map: SavedMap | null): SavedMapSourceInfo | null {
+  if (!map) return null;
+
+  const topLevel = map.source_info;
+  if (topLevel && typeof topLevel === "object") {
+    return topLevel;
+  }
+
+  const nested = map.map_config?.source_info;
+  if (nested && typeof nested === "object") {
+    return nested as SavedMapSourceInfo;
+  }
+
+  if (map.query_source) {
+    return { query_text: map.query_source };
+  }
+
+  return null;
 }
 
 /**
@@ -264,6 +294,96 @@ function fitMapToGeoJsonFeatures(
       err
     );
   }
+}
+
+type ChoroplethPolygon = [number, number][][];
+
+type PreparedChoroplethFeature = {
+  feature: any;
+  districtId: string;
+  districtLabel: string | null;
+  bbox: [number, number, number, number] | null;
+  polygons: ChoroplethPolygon[];
+};
+
+function extractChoroplethPolygons(
+  geometry: { type?: string; coordinates?: any } | null | undefined
+): ChoroplethPolygon[] {
+  if (!geometry?.type || !Array.isArray(geometry.coordinates)) return [];
+  if (geometry.type === "Polygon") {
+    return [geometry.coordinates as ChoroplethPolygon];
+  }
+  if (geometry.type === "MultiPolygon") {
+    return geometry.coordinates as ChoroplethPolygon[];
+  }
+  return [];
+}
+
+function getGeometryBounds(
+  geometry: { type?: string; coordinates?: any } | null | undefined
+): [number, number, number, number] | null {
+  const raw: Array<[number, number]> = [];
+  collectGeometryLngLats(geometry, raw);
+  const points = raw
+    .map(([x, y]) => normalizeGeoJsonLngLatPair(x, y))
+    .filter((p): p is [number, number] => Array.isArray(p));
+  if (!points.length) return null;
+  let minLng = points[0][0];
+  let minLat = points[0][1];
+  let maxLng = points[0][0];
+  let maxLat = points[0][1];
+  for (const [lng, lat] of points.slice(1)) {
+    minLng = Math.min(minLng, lng);
+    minLat = Math.min(minLat, lat);
+    maxLng = Math.max(maxLng, lng);
+    maxLat = Math.max(maxLat, lat);
+  }
+  return [minLng, minLat, maxLng, maxLat];
+}
+
+function pointInRing(
+  point: [number, number],
+  ring: [number, number][]
+): boolean {
+  const [x, y] = point;
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function pointInPolygonRings(
+  point: [number, number],
+  polygon: ChoroplethPolygon
+): boolean {
+  if (!polygon.length || !pointInRing(point, polygon[0] as [number, number][])) {
+    return false;
+  }
+  for (const hole of polygon.slice(1)) {
+    if (pointInRing(point, hole as [number, number][])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function pointInPreparedFeature(
+  point: [number, number],
+  feature: PreparedChoroplethFeature
+): boolean {
+  const [lng, lat] = point;
+  if (feature.bbox) {
+    const [minLng, minLat, maxLng, maxLat] = feature.bbox;
+    if (lng < minLng || lng > maxLng || lat < minLat || lat > maxLat) {
+      return false;
+    }
+  }
+  return feature.polygons.some((polygon) => pointInPolygonRings(point, polygon));
 }
 
 /** Aggregation block stored under map_config.aggregations[shapeLayerInstanceId]. */
@@ -560,6 +680,7 @@ export default function PublicMapPage() {
   const [error, setError] = useState<string | null>(null);
   const [mapboxLoaded, setMapboxLoaded] = useState(false);
   const [showShareSheet, setShowShareSheet] = useState(false);
+  const [isSourceInfoExpanded, setIsSourceInfoExpanded] = useState(false);
   const [dotsDistrictId, setDotsDistrictId] = useState<string | null>(null);
   const [legend, setLegend] = useState<{
     title: string;
@@ -784,6 +905,7 @@ export default function PublicMapPage() {
   };
 
   const closeDistrictPanel = () => setDistrictPanel(null);
+  const sourceInfo = getSavedMapSourceInfo(map);
 
   const addDotsForDistrict = (mapInstance: any, mapData: SavedMap, districtId: string) => {
     const dotPoints = mapData.map_config?.dot_location_data;
@@ -1279,7 +1401,7 @@ export default function PublicMapPage() {
       if (String(aggregationKey) !== String(targetShapeLayerId)) {
       }
       // Build district -> value map
-      const districtDataMap = new Map<string, Record<string, number>>();
+      const districtDataMap = new Map<string, Record<string, any>>();
       
       if (aggregation && aggregation.rows) {
         // Use pre-computed aggregation
@@ -1363,10 +1485,124 @@ export default function PublicMapPage() {
       const greenDirection: "up" | "down" =
         (mapData.map_config?.greendirection as "up" | "down") ?? "down";
 
+      console.log(`[PublicMapPage] Processing ${geometryData.features.length} shape features`);
+      console.log(`[PublicMapPage] Sample feature properties:`, geometryData.features[0]?.properties);
+
+      const preparedFeatures: PreparedChoroplethFeature[] = geometryData.features.map((feature: any) => {
+        const props = feature.properties || {};
+        const propsRec = props as Record<string, unknown>;
+        const districtIdRaw =
+          (shapeGeoPropertyField &&
+            getCaseInsensitiveProp(propsRec, String(shapeGeoPropertyField))) ??
+          (dataDistrictField && getCaseInsensitiveProp(propsRec, dataDistrictField)) ??
+          props.supervisor_district ??
+          props.sup_dist_num ??
+          props.district_id ??
+          props.district ??
+          props.name ??
+          props.label ??
+          "";
+
+        const districtId = normalizeChoroplethDistrictKey(districtIdRaw);
+        const districtLabel =
+          String(
+            props.DIST_REP ??
+              props.dist_rep ??
+              props.council_rep ??
+              props.council_member ??
+              props.district_name ??
+              props.name ??
+              props.label ??
+              props.neighborhood ??
+              props.area_name ??
+              ""
+          ).trim() || null;
+
+        return {
+          feature,
+          districtId,
+          districtLabel,
+          bbox: getGeometryBounds(feature.geometry),
+          polygons: extractChoroplethPolygons(feature.geometry),
+        };
+      });
+
+      const getDistrictDataForFeature = (
+        prepared: PreparedChoroplethFeature,
+        sourceMap: Map<string, Record<string, any>>
+      ): Record<string, any> | null => {
+        if (!prepared.districtId) return null;
+        let districtData = sourceMap.get(prepared.districtId);
+        if (!districtData) {
+          const districtIdNum = Number(prepared.districtId);
+          if (!isNaN(districtIdNum) && isFinite(districtIdNum)) {
+            districtData =
+              sourceMap.get(String(districtIdNum)) ||
+              sourceMap.get(String(Math.floor(districtIdNum)));
+          }
+        }
+        return districtData || null;
+      };
+
+      let finalDistrictDataMap = districtDataMap;
+      let usedSpatialAggregation = false;
+      const identifiableFeatureCount = preparedFeatures.filter((f) => !!f.districtId).length;
+      const matchedFeatureCount = preparedFeatures.filter((f) =>
+        !!getDistrictDataForFeature(f, districtDataMap)
+      ).length;
+
+      if (
+        !isDeltaMap &&
+        identifiableFeatureCount > 0 &&
+        matchedFeatureCount / identifiableFeatureCount < 0.75 &&
+        Array.isArray(mapData.location_data) &&
+        mapData.location_data.length > 0
+      ) {
+        const valueField = mapData.map_config.value_field || "count";
+        const isCountAgg = valueField === "count";
+        const spatialDataMap = new Map<string, Record<string, any>>();
+
+        for (const item of mapData.location_data) {
+          const lat = Number(item.lat ?? item.latitude);
+          const lon = Number(item.lon ?? item.lng ?? item.longitude);
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+          const point: [number, number] = [lon, lat];
+
+          const matchingFeature = preparedFeatures.find(
+            (prepared) =>
+              prepared.districtId &&
+              prepared.polygons.length > 0 &&
+              pointInPreparedFeature(point, prepared)
+          );
+          if (!matchingFeature) continue;
+
+          const prev = spatialDataMap.get(matchingFeature.districtId) || {
+            count: 0,
+            value: 0,
+          };
+          if (isCountAgg) {
+            prev.count = (prev.count || 0) + 1;
+            prev.value = prev.count;
+          } else {
+            prev.value = (prev.value || 0) + (Number(item[valueField]) || 0);
+            prev.count = prev.value;
+          }
+          spatialDataMap.set(matchingFeature.districtId, prev);
+        }
+
+        if (spatialDataMap.size > 0) {
+          usedSpatialAggregation = true;
+          finalDistrictDataMap = spatialDataMap;
+          console.warn(
+            `[PublicMapPage] Falling back to spatial choropleth aggregation for shape layer ${targetShapeLayerId} (${matchedFeatureCount}/${identifiableFeatureCount} identifier matches)`
+          );
+        }
+      }
+
       // ── Extract per-district color value ──────────────────────────────────────
       // For delta maps the colour is driven by delta_pct (same field as DeltaMapView).
       // For regular choropleths it's the raw count/value.
-      const colorValues = Array.from(districtDataMap.entries()).map(
+      const colorValues = Array.from(finalDistrictDataMap.entries()).map(
         ([, item]: [string, any]) =>
           isDeltaMap
             ? Number(item.delta_pct ?? item.delta ?? item.value ?? 0)
@@ -1398,47 +1634,13 @@ export default function PublicMapPage() {
 
       const CHORO_LOW = choroRamp.low;
       const CHORO_HIGH = choroRamp.high;
-
-      console.log(`[PublicMapPage] Processing ${geometryData.features.length} shape features`);
-      console.log(`[PublicMapPage] Sample feature properties:`, geometryData.features[0]?.properties);
       // ── Merge district data with shape features ───────────────────────────────
-      const features = geometryData.features.map((feature: any) => {
-        const props = feature.properties || {};
-        const propsRec = props as Record<string, unknown>;
-        // Join polygons using the shape layer's identifier_field first (e.g. district_number).
-        // Data rows use map_config / aggregation keys (e.g. council_district). GeoJSON often
-        // repeats the metric field name with wrong/empty values; prefer the canonical shape key.
-        const districtIdRaw =
-          (shapeGeoPropertyField &&
-            getCaseInsensitiveProp(propsRec, String(shapeGeoPropertyField))) ??
-          (dataDistrictField && getCaseInsensitiveProp(propsRec, dataDistrictField)) ??
-          props.supervisor_district ??
-          props.sup_dist_num ??
-          props.district_id ??
-          props.district ??
-          props.name ??
-          props.label ??
-          "";
-
-        const districtId = normalizeChoroplethDistrictKey(districtIdRaw);
-        const districtIdNum = Number(districtId);
-
-        // Try multiple lookup strategies
-        let districtData = districtDataMap.get(districtId);
-        if (!districtData && districtIdRaw != null && districtIdRaw !== "") {
-          districtData = districtDataMap.get(String(districtIdRaw).trim());
-        }
-        if (!districtData && !isNaN(districtIdNum) && isFinite(districtIdNum)) {
-          districtData =
-            districtDataMap.get(String(districtIdNum)) ||
-            districtDataMap.get(String(Math.floor(districtIdNum)));
-        }
-
+      const features = preparedFeatures.map((prepared) => {
+        const districtId = prepared.districtId;
+        const districtData = getDistrictDataForFeature(prepared, finalDistrictDataMap);
         const value = districtData
           ? Number(districtData.value || districtData.count || 0)
           : null;
-
-        if (!districtData && districtId) {}
 
         // ── Compute fill colour ────────────────────────────────────────────────
         let color = choroRamp.noDataFill;
@@ -1458,12 +1660,15 @@ export default function PublicMapPage() {
         }
 
         return {
-          ...feature,
+          ...prepared.feature,
           properties: {
-            ...feature.properties,
+            ...prepared.feature.properties,
             district_id: districtId,
+            district_label: prepared.districtLabel,
             value,
             color,
+            join_method: usedSpatialAggregation ? "spatial" : "identifier",
+            dot_toggle_supported: !usedSpatialAggregation,
             ...(districtData ?? {}),
           },
         };
@@ -1587,7 +1792,9 @@ export default function PublicMapPage() {
           const feature = e.features[0];
           const props = feature.properties;
           const districtId = String(props.district_id || "");
-          const canToggleDots = !!(mapData.map_config?.dot_location_data && districtId);
+          const canToggleDots =
+            props.dot_toggle_supported !== false &&
+            !!(mapData.map_config?.dot_location_data && districtId);
 
           if (isDeltaMap) {
             // Delta map: show a styled popup directly (no side-panel)
@@ -1613,7 +1820,13 @@ export default function PublicMapPage() {
 
             const districtLabel = districtId
               ? `District ${districtId}`
-              : String(props.name || props.label || "District");
+              : String(
+                  props.district_label ||
+                    props.DIST_REP ||
+                    props.name ||
+                    props.label ||
+                    "District"
+                );
 
             new (window as any).mapboxgl.Popup({ closeButton: true, closeOnClick: true })
               .setLngLat(e.lngLat)
@@ -1634,7 +1847,9 @@ export default function PublicMapPage() {
               districtId: districtId || "District",
               districtName:
                 String(
-                  props.name ||
+                  props.district_label ||
+                    props.DIST_REP ||
+                    props.name ||
                     props.district_name ||
                     props.label ||
                     props.neighborhood ||
@@ -3099,13 +3314,98 @@ export default function PublicMapPage() {
                 </div>
               </div>
             )}
-          
+
+          {sourceInfo && (
+            <section className="map-source-section" aria-label="Source information">
+              <button
+                type="button"
+                className="map-source-toggle"
+                aria-expanded={isSourceInfoExpanded}
+                aria-controls="map-source-details"
+                onClick={() => setIsSourceInfoExpanded((expanded) => !expanded)}
+              >
+                <span>Source information</span>
+                <span className="map-source-toggle-icon" aria-hidden="true">
+                  {isSourceInfoExpanded ? "−" : "+"}
+                </span>
+              </button>
+
+              {isSourceInfoExpanded && (
+                <div id="map-source-details" className="map-source-details">
+                  <div className="map-source-intro">
+                    <p>
+                      Transparent.city turns official public records into clear,
+                      source-linked maps so residents, advocates, and local
+                      leaders can work from the same facts.
+                    </p>
+                    <p>
+                      This map is built from the government dataset linked below.
+                      We keep the underlying source visible, document the fetch
+                      URL and query when available, and link back to the original
+                      record so you can verify everything yourself.
+                    </p>
+                  </div>
+
+                  <div className="map-source-grid">
+                    {(sourceInfo.dataset_name || sourceInfo.dataset_id) && (
+                      <div className="map-source-row">
+                        <span className="map-source-label">Dataset</span>
+                        <span className="map-source-value">
+                          {sourceInfo.dataset_url ? (
+                            <a
+                              href={sourceInfo.dataset_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="map-source-link"
+                            >
+                              {sourceInfo.dataset_name || sourceInfo.dataset_id}
+                            </a>
+                          ) : (
+                            sourceInfo.dataset_name || sourceInfo.dataset_id
+                          )}
+                        </span>
+                      </div>
+                    )}
+
+                    {sourceInfo.dataset_id && sourceInfo.dataset_name && (
+                      <div className="map-source-row">
+                        <span className="map-source-label">Dataset ID</span>
+                        <span className="map-source-value">
+                          <code>{sourceInfo.dataset_id}</code>
+                        </span>
+                      </div>
+                    )}
+
+                    {sourceInfo.query_url && (
+                      <div className="map-source-row">
+                        <span className="map-source-label">Fetch URL</span>
+                        <span className="map-source-value">
+                          <a
+                            href={sourceInfo.query_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="map-source-link"
+                          >
+                            {sourceInfo.query_url}
+                          </a>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {sourceInfo.query_text && (
+                    <>
+                      <div className="map-source-query-label">Query</div>
+                      <pre className="map-source-query">{sourceInfo.query_text}</pre>
+                    </>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+
           {!isAuthenticated && (
-            <div className="cta-section">
-              <h3>Sign up now</h3>
-              <p>
-                Get updates, maps, and block-level context about your city and neighborhood.
-              </p>
+            <div className="map-signup-row">
               <button
                 type="button"
                 className="cta-button"
@@ -3119,7 +3419,7 @@ export default function PublicMapPage() {
                   });
                 }}
               >
-                Sign up
+                Sign up now
               </button>
             </div>
           )}

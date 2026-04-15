@@ -245,7 +245,10 @@ export function normalizeChoroplethDistrictKey(raw: unknown): string {
   if (raw == null) return "";
   const s = String(raw).trim();
   if (!s) return "";
-  if (/^\d+$/.test(s)) return String(Number(s));
+  const numeric = Number(s);
+  if (Number.isFinite(numeric)) {
+    return Number.isInteger(numeric) ? String(numeric) : String(numeric);
+  }
   return s.toLowerCase();
 }
 

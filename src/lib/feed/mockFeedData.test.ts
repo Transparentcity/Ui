@@ -346,6 +346,20 @@ describe("enrichStory", () => {
 // ── Neighborhood label derivation ──────────────────────────────────────────
 
 describe("neighborhood label", () => {
+  it("uses the saved place label for place-scoped stories", () => {
+    const userPlaceLabels = new Map([[77, "Noe Valley Home"]]);
+    const enriched = enrichStory(
+      makeStory({
+        city_name: "San Francisco",
+        district: 8,
+        user_place_id: 77,
+      }),
+      undefined,
+      userPlaceLabels,
+    );
+    expect(enriched.neighborhood_label).toBe("Noe Valley Home");
+  });
+
   it("shows district when present", () => {
     const enriched = enrichStory(makeStory({ city_name: "Chicago", district: 5 }));
     expect(enriched.neighborhood_label).toBe("Chicago · District 5");

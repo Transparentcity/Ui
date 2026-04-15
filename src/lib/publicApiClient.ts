@@ -165,6 +165,7 @@ async function requestPublicPost<T>(
 export type PublicCitySitemapItem = {
   id: number;
   name: string;
+  slug?: string;
   state?: string | null;
   country?: string | null;
   emoji?: string | null;
@@ -301,6 +302,17 @@ export type PublicFeedStory = {
   /** Long-form HTML for the canonical public story page (feed-producer stories). */
   article_html?: string | null;
   image_url?: string | null;
+  /**
+   * Short alt text for the story image (screenreader-friendly).
+   * Falls back to story headline when not explicitly set.
+   */
+  image_alt?: string | null;
+  /**
+   * Longer caption displayed below the story image.
+   * Sourced from chart/map/anomaly metadata. Shown as visible fallback text
+   * when the image cannot be rendered.
+   */
+  image_caption?: string | null;
   primary_visualization?: Record<string, unknown> | null;
   visualization_type?: string | null;
 };

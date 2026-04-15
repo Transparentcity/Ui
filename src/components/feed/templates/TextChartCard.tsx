@@ -39,17 +39,22 @@ export default function TextChartCard({ story, children }: TextChartCardProps) {
 
       <div className={`${styles.vizArea} ${isMapFocus ? styles.vizAreaMapFocus : ""}`}>
         {hasImage ? (
-          <img
-            src={story.image_url_resolved!}
-            alt={story.headline}
-            className={`${styles.vizImage} ${isMapFocus ? styles.vizImageMapFocus : ""}`}
-            loading="lazy"
-            onError={() => setImgFailed(true)}
-          />
+          <>
+            <img
+              src={story.image_url_resolved!}
+              alt={story.image_alt_resolved}
+              className={`${styles.vizImage} ${isMapFocus ? styles.vizImageMapFocus : ""}`}
+              loading="lazy"
+              onError={() => setImgFailed(true)}
+            />
+            {story.image_caption_resolved && (
+              <p className={styles.vizCaption}>{story.image_caption_resolved}</p>
+            )}
+          </>
         ) : hasEmbed ? (
           <LazyVizEmbed
             src={story.embed_url_resolved!}
-            title={story.headline}
+            title={story.image_alt_resolved}
             className={isMapFocus ? styles.vizIframeMapFocus : undefined}
           />
         ) : (

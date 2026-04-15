@@ -3943,8 +3943,18 @@ export interface FeedStory {
   visualization_type?: string | null;
   visualization_ref_id?: number | null;
   detail_url: string;
-  /** Optional path to static image for feed card (e.g. /api/time-series/public/123/image). Prefer over embed for fast display. */
+  /** Optional path to static image for feed card (e.g. /api/feed/public/story-image/{hash}). */
   image_url?: string | null;
+  /**
+   * Short alt text for the story image (screenreader-friendly).
+   * Falls back to story headline when not set.
+   */
+  image_alt?: string | null;
+  /**
+   * Longer caption for the story image. Sourced from chart/anomaly/map metadata.
+   * Rendered as visible fallback text when the image cannot be loaded.
+   */
+  image_caption?: string | null;
   /** Call-to-action label, e.g. "Read full report", "View metric", "View anomaly details". Defaults to "Read full report". */
   cta_label?: string | null;
   related_urls?: Array<Record<string, any>>;

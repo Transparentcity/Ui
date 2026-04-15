@@ -40,6 +40,8 @@ type MapBoundsBox = {
   ne: [number, number];
 };
 
+const WEB_MERCATOR_MAX = 20037508.342789244;
+
 function parseShapeGeometryData(rawGeometryData: any): any | null {
   if (!rawGeometryData) return null;
   if (typeof rawGeometryData === "string") {
@@ -50,6 +52,62 @@ function parseShapeGeometryData(rawGeometryData: any): any | null {
     }
   }
   return rawGeometryData;
+}
+
+function mercatorToLngLat(x: number, y: number): [number, number] {
+  const lng = (x / WEB_MERCATOR_MAX) * 180;
+  let lat = (y / WEB_MERCATOR_MAX) * 180;
+  lat =
+    (180 / Math.PI) *
+    (2 * Math.atan(Math.exp((lat * Math.PI) / 180)) - Math.PI / 2);
+  return [lng, lat];
+}
+
+function normalizeCoordinatePair(
+  rawLng: unknown,
+  rawLat: unknown,
+): [number, number] | null {
+  const lng =
+    typeof rawLng === "number" ? rawLng : parseFloat(String(rawLng));
+  const lat =
+    typeof rawLat === "number" ? rawLat : parseFloat(String(rawLat));
+
+  if (
+    Number.isNaN(lng) ||
+    Number.isNaN(lat) ||
+    !Number.isFinite(lng) ||
+    !Number.isFinite(lat)
+  ) {
+    return null;
+  }
+
+  if (Math.abs(lng) <= 180 && Math.abs(lat) <= 90) {
+    return [lng, lat];
+  }
+
+  if (Math.abs(lng) <= WEB_MERCATOR_MAX && Math.abs(lat) <= WEB_MERCATOR_MAX) {
+    const [normalizedLng, normalizedLat] = mercatorToLngLat(lng, lat);
+    if (Math.abs(normalizedLng) <= 180 && Math.abs(normalizedLat) <= 90) {
+      return [normalizedLng, normalizedLat];
+    }
+  }
+
+  return null;
+}
+
+function isValidBoundsBox(bounds: MapBoundsBox | null | undefined): bounds is MapBoundsBox {
+  if (!bounds) return false;
+  const { sw, ne } = bounds;
+  const pairs = [sw, ne];
+  return pairs.every(
+    (pair) =>
+      Array.isArray(pair) &&
+      pair.length >= 2 &&
+      Number.isFinite(pair[0]) &&
+      Number.isFinite(pair[1]) &&
+      Math.abs(pair[0]) <= 180 &&
+      Math.abs(pair[1]) <= 90,
+  );
 }
 
 function extendBoundsWithFeatureGeometry(
@@ -113,26 +171,20 @@ function mapPointHasCoordinates(item: unknown): boolean {
   if (!item || typeof item !== "object") return false;
   const row = item as Record<string, unknown>;
   if (row.lon !== undefined && row.lat !== undefined) {
-    const lon = typeof row.lon === "number" ? row.lon : parseFloat(String(row.lon));
-    const lat = typeof row.lat === "number" ? row.lat : parseFloat(String(row.lat));
-    if (!Number.isNaN(lat) && !Number.isNaN(lon) && Number.isFinite(lat) && Number.isFinite(lon)) {
+    if (normalizeCoordinatePair(row.lon, row.lat)) {
       return true;
     }
   }
   const loc = row.location as { coordinates?: unknown } | undefined;
   if (loc?.coordinates && Array.isArray(loc.coordinates) && loc.coordinates.length >= 2) {
     const coords = loc.coordinates as unknown[];
-    const lon = typeof coords[0] === "number" ? coords[0] : parseFloat(String(coords[0]));
-    const lat = typeof coords[1] === "number" ? coords[1] : parseFloat(String(coords[1]));
-    if (!Number.isNaN(lat) && !Number.isNaN(lon) && Number.isFinite(lat) && Number.isFinite(lon)) {
+    if (normalizeCoordinatePair(coords[0], coords[1])) {
       return true;
     }
   }
   if (row.coordinates && Array.isArray(row.coordinates) && row.coordinates.length >= 2) {
     const coords = row.coordinates as unknown[];
-    const lon = typeof coords[0] === "number" ? coords[0] : parseFloat(String(coords[0]));
-    const lat = typeof coords[1] === "number" ? coords[1] : parseFloat(String(coords[1]));
-    if (!Number.isNaN(lat) && !Number.isNaN(lon) && Number.isFinite(lat) && Number.isFinite(lon)) {
+    if (normalizeCoordinatePair(coords[0], coords[1])) {
       return true;
     }
   }
@@ -1026,28 +1078,16 @@ export default function CityMetricsMap({
           let coordinates: [number, number] | null = null;
           
           if (item.lon !== undefined && item.lat !== undefined) {
-            const lon = typeof item.lon === "number" ? item.lon : parseFloat(String(item.lon));
-            const lat = typeof item.lat === "number" ? item.lat : parseFloat(String(item.lat));
-            if (!isNaN(lat) && !isNaN(lon) && isFinite(lat) && isFinite(lon)) {
-              coordinates = [lon, lat];
-            }
+            coordinates = normalizeCoordinatePair(item.lon, item.lat);
           } else if (item.location?.coordinates) {
             const coords = item.location.coordinates;
             if (Array.isArray(coords) && coords.length >= 2) {
-              const lon = typeof coords[0] === "number" ? coords[0] : parseFloat(String(coords[0]));
-              const lat = typeof coords[1] === "number" ? coords[1] : parseFloat(String(coords[1]));
-              if (!isNaN(lat) && !isNaN(lon) && isFinite(lat) && isFinite(lon)) {
-                coordinates = [lon, lat];
-              }
+              coordinates = normalizeCoordinatePair(coords[0], coords[1]);
             }
           } else if (item.coordinates && Array.isArray(item.coordinates)) {
             const coords = item.coordinates;
             if (coords.length >= 2) {
-              const lon = typeof coords[0] === "number" ? coords[0] : parseFloat(String(coords[0]));
-              const lat = typeof coords[1] === "number" ? coords[1] : parseFloat(String(coords[1]));
-              if (!isNaN(lat) && !isNaN(lon) && isFinite(lat) && isFinite(lon)) {
-                coordinates = [lon, lat];
-              }
+              coordinates = normalizeCoordinatePair(coords[0], coords[1]);
             }
           }
 
@@ -1323,28 +1363,16 @@ export default function CityMetricsMap({
           let coordinates: [number, number] | null = null;
           
           if (item.lon !== undefined && item.lat !== undefined) {
-            const lon = typeof item.lon === "number" ? item.lon : parseFloat(String(item.lon));
-            const lat = typeof item.lat === "number" ? item.lat : parseFloat(String(item.lat));
-            if (!isNaN(lat) && !isNaN(lon) && isFinite(lat) && isFinite(lon)) {
-              coordinates = [lon, lat];
-            }
+            coordinates = normalizeCoordinatePair(item.lon, item.lat);
           } else if (item.location?.coordinates) {
             const coords = item.location.coordinates;
             if (Array.isArray(coords) && coords.length >= 2) {
-              const lon = typeof coords[0] === "number" ? coords[0] : parseFloat(String(coords[0]));
-              const lat = typeof coords[1] === "number" ? coords[1] : parseFloat(String(coords[1]));
-              if (!isNaN(lat) && !isNaN(lon) && isFinite(lat) && isFinite(lon)) {
-                coordinates = [lon, lat];
-              }
+              coordinates = normalizeCoordinatePair(coords[0], coords[1]);
             }
           } else if (item.coordinates && Array.isArray(item.coordinates)) {
             const coords = item.coordinates;
             if (coords.length >= 2) {
-              const lon = typeof coords[0] === "number" ? coords[0] : parseFloat(String(coords[0]));
-              const lat = typeof coords[1] === "number" ? coords[1] : parseFloat(String(coords[1]));
-              if (!isNaN(lat) && !isNaN(lon) && isFinite(lat) && isFinite(lon)) {
-                coordinates = [lon, lat];
-              }
+              coordinates = normalizeCoordinatePair(coords[0], coords[1]);
             }
           }
 
@@ -2189,9 +2217,22 @@ export default function CityMetricsMap({
           const sw = Array.isArray(layerBoundsData.sw) ? layerBoundsData.sw : [layerBoundsData.sw.lng, layerBoundsData.sw.lat];
           const ne = Array.isArray(layerBoundsData.ne) ? layerBoundsData.ne : [layerBoundsData.ne.lng, layerBoundsData.ne.lat];
           
-          if (sw.length >= 2 && ne.length >= 2 &&
-              !isNaN(sw[0]) && !isNaN(sw[1]) && !isNaN(ne[0]) && !isNaN(ne[1]) &&
-              isFinite(sw[0]) && isFinite(sw[1]) && isFinite(ne[0]) && isFinite(ne[1])) {
+          if (
+            sw.length >= 2 &&
+            ne.length >= 2 &&
+            !isNaN(sw[0]) &&
+            !isNaN(sw[1]) &&
+            !isNaN(ne[0]) &&
+            !isNaN(ne[1]) &&
+            isFinite(sw[0]) &&
+            isFinite(sw[1]) &&
+            isFinite(ne[0]) &&
+            isFinite(ne[1]) &&
+            Math.abs(sw[0]) <= 180 &&
+            Math.abs(sw[1]) <= 90 &&
+            Math.abs(ne[0]) <= 180 &&
+            Math.abs(ne[1]) <= 90
+          ) {
             bounds.extend(sw);
             bounds.extend(ne);
             hasValidBounds = true;
@@ -2453,7 +2494,7 @@ export default function CityMetricsMap({
               { sw: [sw[0], sw[1]], ne: [ne[0], ne[1]] },
               scopeBoundaryBounds,
             );
-            if (fittedBounds) {
+            if (isValidBoundsBox(fittedBounds)) {
               const boundsToFit = new (window as any).mapboxgl.LngLatBounds();
               boundsToFit.extend(fittedBounds.sw);
               boundsToFit.extend(fittedBounds.ne);

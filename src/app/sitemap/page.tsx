@@ -58,7 +58,7 @@ function groupCitiesByCountryAndState(
 
   for (const city of cities) {
     const name = typeof city.name === "string" ? city.name.trim() : "";
-    const slug = slugify(city.name);
+    const slug = city.slug || slugify(city.name);
     if (!name || !slug) continue;
 
     const country = normalizeCountryLabel(city.country);
@@ -175,7 +175,7 @@ export default async function SiteMapPage() {
                             return (
                               <Link
                                 key={city.id}
-                                href={`/c/${city.slug}?id=${city.id}`}
+                                href={`/c/${city.slug}`}
                                 className={styles.cityCard}
                               >
                                 <span className={styles.cityEmoji}>

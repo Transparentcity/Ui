@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { unstable_noStore as noStore } from "next/cache";
 
 import "../../../../landing.css";
@@ -27,6 +27,12 @@ import LoggedOutOnly from "../../LoggedOutOnly";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 
 export const revalidate = 3600;
+
+function getCanonicalCitySlug(city: Awaited<
+  ReturnType<typeof listPublicCitiesForSitemap>
+>[number]): string {
+  return city.slug || slugify(city.name);
+}
 
 type PageProps = {
   params: Promise<{ slug: string; category: string }>;
@@ -60,7 +66,7 @@ export async function generateMetadata({
     const match =
       typeof id === "number" && Number.isFinite(id)
         ? cities.find((c) => c.id === id)
-        : cities.find((c) => slugify(c.name) === slug);
+        : cities.find((c) => getCanonicalCitySlug(c) === slug);
     if (match) {
       name = match.name;
       state = match.state;
@@ -86,10 +92,7 @@ export async function generateMetadata({
     title,
     description,
     alternates: {
-      canonical:
-        typeof id === "number" && Number.isFinite(id)
-          ? `/c/${slug}/category/${encodeURIComponent(categoryName)}?id=${id}`
-          : `/c/${slug}/category/${encodeURIComponent(categoryName)}`,
+      canonical: `/c/${slug}/category/${encodeURIComponent(categoryName)}`,
     },
   };
 }
@@ -116,8 +119,15 @@ export default async function CityCategoryPage({
     const match =
       typeof id === "number" && Number.isFinite(id)
         ? cities.find((c) => c.id === id)
-        : cities.find((c) => slugify(c.name) === slug);
+        : cities.find((c) => getCanonicalCitySlug(c) === slug);
     if (match) {
+      const canonicalSlug = getCanonicalCitySlug(match);
+      if (
+        canonicalSlug &&
+        ((typeof id === "number" && Number.isFinite(id)) || slug !== canonicalSlug)
+      ) {
+        redirect(`/c/${canonicalSlug}/category/${encodeURIComponent(categoryName)}`);
+      }
       const display =
         match.state && match.country && match.country !== "United States"
           ? `${match.name}, ${match.state}, ${match.country}`
@@ -137,8 +147,6 @@ export default async function CityCategoryPage({
   }
 
   const cityDisplayName = city.display;
-  const idQuery =
-    typeof id === "number" && Number.isFinite(id) ? `?id=${id}` : "";
   let cityDetail: Awaited<ReturnType<typeof getPublicCityDetail>> | null = null;
   let comparisonsMap: Awaited<
     ReturnType<typeof getPublicMetricComparisonsBatch>
@@ -241,7 +249,7 @@ export default async function CityCategoryPage({
                       {uniqueCategories.map((cat) => (
                         <Link
                           key={cat}
-                          href={`/c/${slug}/category/${encodeURIComponent(cat)}${idQuery}`}
+                          href={`/c/${slug}/category/${encodeURIComponent(cat)}`}
                           className={`hero-category-link ${cat === categoryName ? "hero-category-link-active" : ""}`}
                         >
                           {cat}

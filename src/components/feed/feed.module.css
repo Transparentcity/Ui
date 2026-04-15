@@ -792,6 +792,15 @@
   100% { background-position: -200% 0; }
 }
 
+.vizCaption {
+  margin: 6px 0 0;
+  padding: 0 4px;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-secondary, #6b7280);
+  font-style: italic;
+}
+
 .vizPlaceholder {
   padding: 32px;
   text-align: center;

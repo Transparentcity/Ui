@@ -93,6 +93,8 @@ function makeStory(
     neighborhood_label: "San Francisco · District 6",
     subline: "Today",
     image_url_resolved: null,
+    image_alt_resolved: "Multi-metric story",
+    image_caption_resolved: null,
     embed_url_resolved: null,
     cleaned_description: "",
     canonical_url: "/feed/1",

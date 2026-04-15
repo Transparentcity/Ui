@@ -110,17 +110,20 @@ export default function AlertCard({ story, children }: AlertCardProps) {
         <div className={styles.vizArea}>
           <img
             src={story.image_url_resolved}
-            alt={story.headline}
+            alt={story.image_alt_resolved}
             className={styles.vizImage}
             loading="lazy"
             onError={() => setImgFailed(true)}
           />
+          {story.image_caption_resolved && (
+            <p className={styles.vizCaption}>{story.image_caption_resolved}</p>
+          )}
         </div>
       ) : story.embed_url_resolved ? (
         <div className={styles.vizArea}>
           <LazyVizEmbed
             src={story.embed_url_resolved}
-            title={story.headline}
+            title={story.image_alt_resolved}
           />
         </div>
       ) : null}

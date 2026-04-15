@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { CityStructuredData } from "@/components/StructuredData";
 import PublicFooter from "@/components/PublicFooter";
 
@@ -35,12 +36,18 @@ import { slugify, formatLeaderName } from "@/lib/utils";
 
 export const revalidate = 3600;
 
+function getCanonicalCitySlug(city: Awaited<
+  ReturnType<typeof listPublicCitiesForSitemap>
+>[number]): string {
+  return city.slug || slugify(city.name);
+}
+
 /** Pre-render launched city pages at build time for instant CDN delivery. */
 export async function generateStaticParams() {
   const cities = await listPublicCitiesForSitemap();
   return cities
     .filter((c) => c.is_launched)
-    .map((c) => ({ slug: slugify(c.name) }));
+    .map((c) => ({ slug: getCanonicalCitySlug(c) }));
 }
 
 type PageProps = {
@@ -68,7 +75,7 @@ export async function generateMetadata({
     const match =
       typeof id === "number" && Number.isFinite(id)
         ? cities.find((c) => c.id === id)
-        : cities.find((c) => slugify(c.name) === slug);
+        : cities.find((c) => getCanonicalCitySlug(c) === slug);
     if (match) {
       cityId = match.id;
       name = match.name;
@@ -151,8 +158,15 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
     const match =
       typeof id === "number" && Number.isFinite(id)
         ? cities.find((c) => c.id === id)
-        : cities.find((c) => slugify(c.name) === slug);
+        : cities.find((c) => getCanonicalCitySlug(c) === slug);
     if (match) {
+      const canonicalSlug = getCanonicalCitySlug(match);
+      if (
+        canonicalSlug &&
+        ((typeof id === "number" && Number.isFinite(id)) || slug !== canonicalSlug)
+      ) {
+        redirect(`/c/${canonicalSlug}`);
+      }
       const display =
         match.state && match.country && match.country !== "United States"
           ? `${match.name}, ${match.state}, ${match.country}`

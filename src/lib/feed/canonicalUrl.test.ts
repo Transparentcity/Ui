@@ -34,6 +34,8 @@ function makeStory(overrides: Partial<EnrichedFeedStory> = {}): EnrichedFeedStor
     neighborhood_label: "San Francisco · City-wide",
     subline: "",
     image_url_resolved: null,
+    image_alt_resolved: "Test headline",
+    image_caption_resolved: null,
     embed_url_resolved: null,
     cleaned_description: "Test description",
     canonical_url: "",
