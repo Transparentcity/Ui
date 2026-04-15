@@ -372,9 +372,16 @@ export default function DashboardPage() {
     // Read current selection from ref so we don't reset to feed when user has already opened a city
     const currentActiveCityId = activeCityIdRef.current;
 
-    // Check if this is a signup completion (from URL params)
+    // Check if this is a signup completion (from URL params, or localStorage fallback
+    // if Auth0 lost the appState during the redirect)
     const urlParams = new URLSearchParams(window.location.search);
-    const signupIntent = urlParams.get("signup") as "resident" | "public-servant" | null;
+    const signupIntentParam = urlParams.get("signup") as "resident" | "public-servant" | null;
+    const signupIntentLS = window.localStorage.getItem("transparentcity.signup_intent") as "resident" | "public-servant" | null;
+    const signupIntent = signupIntentParam || signupIntentLS;
+    // Clean up signup intent from localStorage (consumed; prevents repeat triggers on next login)
+    if (signupIntentLS) {
+      window.localStorage.removeItem("transparentcity.signup_intent");
+    }
 
     // Check for follow-city intent (from URL params or localStorage, set by FollowCityButton)
     const followCityIdParam = urlParams.get("follow_city_id");
