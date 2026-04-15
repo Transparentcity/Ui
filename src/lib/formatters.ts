@@ -3,6 +3,18 @@
  */
 
 /**
+ * Format a raw backend category key for display.
+ * "SERVICE_REQUESTS" → "Service Requests"
+ * "Emergency_response" → "Emergency Response"
+ */
+export function formatCategoryName(raw: string): string {
+  return raw
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
  * Format a metric value based on its display unit.
  * - percentage: "49%"
  * - currency: "$1.2M"

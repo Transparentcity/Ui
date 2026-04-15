@@ -7,7 +7,7 @@ import type {
   PublicMapListItem,
 } from "@/lib/publicApiClient";
 import "@/components/CityView.css";
-import { formatMetricValue, formatPeriodDate } from "@/lib/formatters";
+import { formatMetricValue, formatPeriodDate, formatCategoryName } from "@/lib/formatters";
 import DistrictListWithFollow from "./DistrictListWithFollow";
 
 /** Optional ordering: when provided, categories and metrics are sorted by it. */
@@ -245,7 +245,7 @@ export default function CityDashboardSection({
           return (
             <div key={category} className="metrics-category-section">
               <div className="metrics-table-header">
-                <div className="metric-col metric-col-name">{category}</div>
+                <div className="metric-col metric-col-name">{formatCategoryName(category)}</div>
                 <div className="metric-col metric-col-value">
                   {getColumnHeaders.comparison}
                 </div>
@@ -274,7 +274,7 @@ export default function CityDashboardSection({
                       {showSubHeaders && subcategory && (
                         <div className="metrics-subcategory-header">
                           <span className="metrics-subcategory-title">
-                            {subcategory}
+                            {formatCategoryName(subcategory)}
                           </span>
                         </div>
                       )}
@@ -390,7 +390,7 @@ export default function CityDashboardSection({
                                       <span className="change-absolute">
                                         {absDiff != null
                                           ? (absDiff > 0 ? "+" : "") +
-                                            Math.round(absDiff).toLocaleString()
+                                            formatMetricValue(Math.round(absDiff), displayUnit)
                                           : "—"}
                                       </span>
                                     </div>

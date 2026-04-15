@@ -7,7 +7,7 @@ import type {
   PublicMapListItem,
 } from "@/lib/publicApiClient";
 import type { MetricOrderingEntry } from "./CityDashboardSection";
-import { formatMetricValue } from "@/lib/formatters";
+import { formatMetricValue, formatCategoryName } from "@/lib/formatters";
 import DistrictListWithFollow from "./DistrictListWithFollow";
 
 type Props = {
@@ -218,7 +218,7 @@ export default function DashboardCardGrid({
                 borderColor: colors.border,
               }}
             >
-              <div className="dcg-card-title">{category}</div>
+              <div className="dcg-card-title">{formatCategoryName(category)}</div>
               <div className="dcg-card-metrics">
                 {items.map(({ m, curr, pct }) => {
                   const isIncrease = pct != null && pct > 0;

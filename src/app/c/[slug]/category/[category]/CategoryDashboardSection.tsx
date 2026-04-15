@@ -5,7 +5,7 @@ import type {
   PublicMapListItem,
 } from "@/lib/publicApiClient";
 import "@/components/CityView.css";
-import { formatMetricValue, formatPeriodDate } from "@/lib/formatters";
+import { formatMetricValue, formatPeriodDate, formatCategoryName } from "@/lib/formatters";
 
 type CategoryDashboardSectionProps = {
   cityDisplayName: string;
@@ -27,6 +27,7 @@ export default function CategoryDashboardSection({
   maps,
 }: CategoryDashboardSectionProps) {
   const base = `/c/${slug}`;
+  const displayCategoryName = formatCategoryName(categoryName);
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -92,10 +93,10 @@ export default function CategoryDashboardSection({
     return (
       <section className="dashboard-section" style={{ marginTop: 0 }}>
         <div className="dashboard-header">
-          <h2 className="dashboard-title">{categoryName}</h2>
+          <h2 className="dashboard-title">{displayCategoryName}</h2>
         </div>
         <div className="ytd-placeholder">
-          <p>No metrics with comparison data for {categoryName} in {cityDisplayName} yet.</p>
+          <p>No metrics with comparison data for {displayCategoryName} in {cityDisplayName} yet.</p>
         </div>
         {districts.length > 0 && (
           <div className="metrics-category-section" style={{ marginTop: 24 }}>
@@ -134,7 +135,7 @@ export default function CategoryDashboardSection({
   return (
     <section className="dashboard-section" style={{ marginTop: 0 }}>
       <div className="dashboard-header">
-        <h2 className="dashboard-title">{categoryName}</h2>
+        <h2 className="dashboard-title">{displayCategoryName}</h2>
       </div>
 
       <div className="dashboard-comparison-selector">
@@ -173,7 +174,7 @@ export default function CategoryDashboardSection({
                   {showSubHeaders && subcategory && (
                     <div className="metrics-subcategory-header">
                       <span className="metrics-subcategory-title">
-                        {subcategory}
+                        {formatCategoryName(subcategory)}
                       </span>
                     </div>
                   )}

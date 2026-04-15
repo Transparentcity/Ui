@@ -117,9 +117,10 @@ function StoryFeedCard({
   const headline = storyHeadline(story);
   const actor = deriveActor(headline);
   const catMeta = getCategoryMeta(actor);
+  const cityNameOnly = cityDisplayName.split(",")[0].trim();
   const neighborhoodLabel = cityEmoji
-    ? `${cityEmoji} ${cityDisplayName}`
-    : cityDisplayName;
+    ? `${cityEmoji} ${cityNameOnly}`
+    : cityNameOnly;
   const dateLabel = formatDate(story.published_at);
 
   const href = story.short_hash
