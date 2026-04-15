@@ -166,7 +166,7 @@ export default function FeedContainer({
   );
   const [displayLimit, setDisplayLimit] = useState(saved.current?.displayLimit ?? 10);
   const [onlyMySavedPlacesFeed, setOnlyMySavedPlacesFeed] = useState(
-    saved.current?.onlyMySavedPlaces ?? (userPlaces.length > 0),
+    saved.current?.onlyMySavedPlaces ?? false,
   );
   const [feedOrder, setFeedOrder] = useState<"for_you" | "published_at">(() => {
     try {
@@ -211,13 +211,17 @@ export default function FeedContainer({
     }
   }, [savedCities, cityId]);
 
-  // When userPlaces arrive asynchronously, default "my places" to ON
+  // When userPlaces arrive asynchronously, only restore the "my places"
+  // filter if the user had it enabled in a prior session.  For first-time
+  // feed visits (no sessionStorage) we leave it OFF so new subscribers see
+  // the maximum number of stories.
   const appliedMyPlacesRef = useRef(false);
   useEffect(() => {
     if (
       userPlaces.length > 0 &&
       !appliedMyPlacesRef.current &&
-      saved.current == null
+      saved.current != null &&
+      saved.current.onlyMySavedPlaces
     ) {
       appliedMyPlacesRef.current = true;
       setOnlyMySavedPlacesFeed(true);

@@ -449,6 +449,304 @@ describe("Bad data suppression", () => {
   });
 });
 
+// ── First-visit filter defaults (maximize stories for new subscribers) ───
+
+/**
+ * Replicate the filter-initialization logic from FeedContainer.
+ * `savedFilters` is null on a first-ever visit (nothing in sessionStorage).
+ */
+function computeInitialFilters(opts: {
+  savedFilters: { onlyMySavedPlaces: boolean } | null;
+  userPlacesCount: number;
+  homeCityId: number | null;
+  explicitCityId: number | null;
+}) {
+  const { savedFilters, homeCityId, explicitCityId } = opts;
+
+  const onlyMySavedPlacesFeed = savedFilters?.onlyMySavedPlaces ?? false;
+
+  const selectedCityIds =
+    explicitCityId != null
+      ? new Set([explicitCityId])
+      : homeCityId != null
+        ? new Set([homeCityId])
+        : new Set<number>();
+
+  const selectedTopics = new Set<string>(); // always empty on init
+  const selectedDistricts = new Map<number, Set<number>>();
+  const personalNewsletterOnly = false;
+  const selectedPlaceId: number | null = null;
+
+  return {
+    onlyMySavedPlacesFeed,
+    selectedCityIds,
+    selectedTopics,
+    selectedDistricts,
+    personalNewsletterOnly,
+    selectedPlaceId,
+  };
+}
+
+/**
+ * Replicate apiOnlyMySavedPlaces derivation from FeedContainer.
+ * This is the flag that actually restricts the API call.
+ */
+function computeApiOnlyMySavedPlaces(opts: {
+  isAuthenticated: boolean;
+  onlyMySavedPlacesFeed: boolean;
+  selectedPlaceId: number | null;
+  selectedCityIds: Set<number>;
+  personalNewsletterOnly: boolean;
+  isOnboardingScanning: boolean;
+  userPlacesCount: number;
+}) {
+  return (
+    opts.isAuthenticated &&
+    opts.onlyMySavedPlacesFeed &&
+    opts.selectedPlaceId == null &&
+    opts.selectedCityIds.size === 0 &&
+    !opts.personalNewsletterOnly &&
+    !opts.isOnboardingScanning &&
+    opts.userPlacesCount > 0
+  );
+}
+
+describe("First-visit filter defaults (new subscriber)", () => {
+  it("does NOT enable onlyMySavedPlaces on first visit, even with saved places", () => {
+    const filters = computeInitialFilters({
+      savedFilters: null, // first visit: no sessionStorage
+      userPlacesCount: 3,
+      homeCityId: 100,
+      explicitCityId: null,
+    });
+    expect(filters.onlyMySavedPlacesFeed).toBe(false);
+  });
+
+  it("restores onlyMySavedPlaces=true from a previous session", () => {
+    const filters = computeInitialFilters({
+      savedFilters: { onlyMySavedPlaces: true },
+      userPlacesCount: 3,
+      homeCityId: 100,
+      explicitCityId: null,
+    });
+    expect(filters.onlyMySavedPlacesFeed).toBe(true);
+  });
+
+  it("restores onlyMySavedPlaces=false from a previous session", () => {
+    const filters = computeInitialFilters({
+      savedFilters: { onlyMySavedPlaces: false },
+      userPlacesCount: 3,
+      homeCityId: 100,
+      explicitCityId: null,
+    });
+    expect(filters.onlyMySavedPlacesFeed).toBe(false);
+  });
+
+  it("defaults topics to empty set (all topics shown)", () => {
+    const filters = computeInitialFilters({
+      savedFilters: null,
+      userPlacesCount: 0,
+      homeCityId: 100,
+      explicitCityId: null,
+    });
+    expect(filters.selectedTopics.size).toBe(0);
+  });
+
+  it("defaults districts to empty map (all districts shown)", () => {
+    const filters = computeInitialFilters({
+      savedFilters: null,
+      userPlacesCount: 0,
+      homeCityId: 100,
+      explicitCityId: null,
+    });
+    expect(filters.selectedDistricts.size).toBe(0);
+  });
+
+  it("selects home city when no explicit city is passed", () => {
+    const filters = computeInitialFilters({
+      savedFilters: null,
+      userPlacesCount: 0,
+      homeCityId: 42,
+      explicitCityId: null,
+    });
+    expect(filters.selectedCityIds).toEqual(new Set([42]));
+  });
+
+  it("selects explicit city over home city", () => {
+    const filters = computeInitialFilters({
+      savedFilters: null,
+      userPlacesCount: 0,
+      homeCityId: 42,
+      explicitCityId: 99,
+    });
+    expect(filters.selectedCityIds).toEqual(new Set([99]));
+  });
+
+  it("leaves city selection empty when neither home nor explicit city exists", () => {
+    const filters = computeInitialFilters({
+      savedFilters: null,
+      userPlacesCount: 0,
+      homeCityId: null,
+      explicitCityId: null,
+    });
+    expect(filters.selectedCityIds.size).toBe(0);
+  });
+});
+
+describe("apiOnlyMySavedPlaces derivation", () => {
+  it("is false when onlyMySavedPlacesFeed is false (first visit default)", () => {
+    const result = computeApiOnlyMySavedPlaces({
+      isAuthenticated: true,
+      onlyMySavedPlacesFeed: false,
+      selectedPlaceId: null,
+      selectedCityIds: new Set(),
+      personalNewsletterOnly: false,
+      isOnboardingScanning: false,
+      userPlacesCount: 3,
+    });
+    expect(result).toBe(false);
+  });
+
+  it("is false when a specific city is selected (even if toggle is on)", () => {
+    const result = computeApiOnlyMySavedPlaces({
+      isAuthenticated: true,
+      onlyMySavedPlacesFeed: true,
+      selectedPlaceId: null,
+      selectedCityIds: new Set([100]),
+      personalNewsletterOnly: false,
+      isOnboardingScanning: false,
+      userPlacesCount: 3,
+    });
+    expect(result).toBe(false);
+  });
+
+  it("is false during onboarding scanning (even if toggle is on)", () => {
+    const result = computeApiOnlyMySavedPlaces({
+      isAuthenticated: true,
+      onlyMySavedPlacesFeed: true,
+      selectedPlaceId: null,
+      selectedCityIds: new Set(),
+      personalNewsletterOnly: false,
+      isOnboardingScanning: true,
+      userPlacesCount: 3,
+    });
+    expect(result).toBe(false);
+  });
+
+  it("is false when user has no saved places (even if toggle is on)", () => {
+    const result = computeApiOnlyMySavedPlaces({
+      isAuthenticated: true,
+      onlyMySavedPlacesFeed: true,
+      selectedPlaceId: null,
+      selectedCityIds: new Set(),
+      personalNewsletterOnly: false,
+      isOnboardingScanning: false,
+      userPlacesCount: 0,
+    });
+    expect(result).toBe(false);
+  });
+
+  it("is true only when all conditions are met (returning user with toggle on)", () => {
+    const result = computeApiOnlyMySavedPlaces({
+      isAuthenticated: true,
+      onlyMySavedPlacesFeed: true,
+      selectedPlaceId: null,
+      selectedCityIds: new Set(),
+      personalNewsletterOnly: false,
+      isOnboardingScanning: false,
+      userPlacesCount: 3,
+    });
+    expect(result).toBe(true);
+  });
+
+  it("is false when not authenticated", () => {
+    const result = computeApiOnlyMySavedPlaces({
+      isAuthenticated: false,
+      onlyMySavedPlacesFeed: true,
+      selectedPlaceId: null,
+      selectedCityIds: new Set(),
+      personalNewsletterOnly: false,
+      isOnboardingScanning: false,
+      userPlacesCount: 3,
+    });
+    expect(result).toBe(false);
+  });
+});
+
+describe("New subscriber sees maximum stories (end-to-end filter scenarios)", () => {
+  it("Scenario 1: home city has stories, first visit", () => {
+    const filters = computeInitialFilters({
+      savedFilters: null,
+      userPlacesCount: 2,
+      homeCityId: 100,
+      explicitCityId: null,
+    });
+
+    // API sends city_id=100, no saved-places restriction
+    const apiFlag = computeApiOnlyMySavedPlaces({
+      isAuthenticated: true,
+      onlyMySavedPlacesFeed: filters.onlyMySavedPlacesFeed,
+      selectedPlaceId: filters.selectedPlaceId,
+      selectedCityIds: filters.selectedCityIds,
+      personalNewsletterOnly: filters.personalNewsletterOnly,
+      isOnboardingScanning: false,
+      userPlacesCount: 2,
+    });
+
+    expect(filters.selectedCityIds).toEqual(new Set([100]));
+    expect(filters.selectedTopics.size).toBe(0); // all topics
+    expect(apiFlag).toBe(false); // no saved-places restriction
+  });
+
+  it("Scenario 2: city not launched, auto-switch to All Cities", () => {
+    const filters = computeInitialFilters({
+      savedFilters: null,
+      userPlacesCount: 1,
+      homeCityId: 999,
+      explicitCityId: null,
+    });
+
+    // Simulate auto-switch: city had no stories, so selectedCityIds becomes empty
+    const afterAutoSwitch = new Set<number>();
+
+    const apiFlag = computeApiOnlyMySavedPlaces({
+      isAuthenticated: true,
+      onlyMySavedPlacesFeed: filters.onlyMySavedPlacesFeed,
+      selectedPlaceId: filters.selectedPlaceId,
+      selectedCityIds: afterAutoSwitch,
+      personalNewsletterOnly: filters.personalNewsletterOnly,
+      isOnboardingScanning: false,
+      userPlacesCount: 1,
+    });
+
+    expect(afterAutoSwitch.size).toBe(0); // all cities mode
+    expect(filters.selectedTopics.size).toBe(0); // all topics
+    expect(apiFlag).toBe(false); // no saved-places restriction
+  });
+
+  it("Scenario 3: no home city and no explicit city, first visit", () => {
+    const filters = computeInitialFilters({
+      savedFilters: null,
+      userPlacesCount: 0,
+      homeCityId: null,
+      explicitCityId: null,
+    });
+
+    const apiFlag = computeApiOnlyMySavedPlaces({
+      isAuthenticated: true,
+      onlyMySavedPlacesFeed: filters.onlyMySavedPlacesFeed,
+      selectedPlaceId: filters.selectedPlaceId,
+      selectedCityIds: filters.selectedCityIds,
+      personalNewsletterOnly: filters.personalNewsletterOnly,
+      isOnboardingScanning: false,
+      userPlacesCount: 0,
+    });
+
+    expect(filters.selectedCityIds.size).toBe(0); // all cities
+    expect(apiFlag).toBe(false); // no restriction
+  });
+});
+
 // ── feedOrder removal ─────────────────────────────────────────────────────
 
 describe("Feed order", () => {
