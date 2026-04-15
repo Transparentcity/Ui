@@ -163,7 +163,7 @@ describe("WelcomeModal", () => {
       render(<WelcomeModal {...defaultProps} />);
       const elapsed = performance.now() - start;
 
-      expect(screen.getByText(/where do you live/i)).toBeInTheDocument();
+      expect(screen.getByText(/find out what's happening near you/i)).toBeInTheDocument();
       expect(screen.getByPlaceholderText(/enter your address/i)).toBeInTheDocument();
       expect(screen.getByText(/find my city/i)).toBeInTheDocument();
       expect(elapsed).toBeLessThan(100);
@@ -374,7 +374,7 @@ describe("WelcomeModal", () => {
   describe("Modal behavior", () => {
     it("does not render when isOpen is false", () => {
       render(<WelcomeModal {...defaultProps} isOpen={false} />);
-      expect(screen.queryByText(/where do you live/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/find out what's happening near you/i)).not.toBeInTheDocument();
     });
 
     it("resets state when re-opened", async () => {
@@ -382,7 +382,7 @@ describe("WelcomeModal", () => {
       rerender(<WelcomeModal {...defaultProps} isOpen={true} />);
 
       // Should start at welcome step
-      expect(screen.getByText(/where do you live/i)).toBeInTheDocument();
+      expect(screen.getByText(/find out what's happening near you/i)).toBeInTheDocument();
     });
   });
 });

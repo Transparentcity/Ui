@@ -178,12 +178,6 @@ export default function WelcomeModal({
 
   if (!isOpen) return null;
 
-  const handleSkip = () => {
-    // Dismiss for this session only — don't mark onboarding complete
-    // so the modal re-appears on future sign-ins until a city is selected.
-    onClose();
-  };
-
   const fetchSuggestions = async (query: string) => {
     if (query.trim().length < 2) {
       setAddressSuggestions([]);
@@ -556,9 +550,9 @@ export default function WelcomeModal({
         <Loader size="lg" color="purple" className="loaderStatic" />
       </div>
 
-      <h1 className={styles.title}>Where do you live?</h1>
+      <h1 className={styles.title}>Find out what&apos;s happening near you</h1>
       <p className={styles.subtitle}>
-        Find out what&apos;s happening in your neighborhood.
+        Enter your city, zip, address or location.
       </p>
 
       {error && <div className={styles.error}>{error}</div>}
@@ -957,13 +951,6 @@ export default function WelcomeModal({
   return (
     <div className={styles.overlay}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <button className={styles.closeButton} onClick={handleSkip} title="Close" aria-label="Close">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </button>
-
         {renderStepIndicator()}
 
         {step === "welcome" && renderWelcomeStep()}
