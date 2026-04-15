@@ -185,6 +185,29 @@
   line-height: 1.5;
 }
 
+/* ── METRIC CARDS (in story strip) ────────────────────────────────────── */
+
+.district-metric-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+/* ── ALL DISTRICTS SECTION ───────────────────────────────────────────── */
+
+.district-all-section {
+  padding-top: 32px;
+  padding-bottom: 16px;
+}
+
+.district-all-heading {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+}
+
 /* ── DASHBOARD CONTENT AREA ───────────────────────────────────────────── */
 
 /*

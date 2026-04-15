@@ -84,6 +84,7 @@ export default function DistrictFollowClaimBlock({
         loading={loading}
         count={count}
         onClick={handleFollowClick}
+        entityLabel={`District ${district}`}
       />
     </div>
   );

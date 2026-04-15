@@ -30,8 +30,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
+  margin: -8px;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -88,6 +89,30 @@
 
 .barButton:active {
   transform: scale(0.98);
+}
+
+/* Dark mode */
+:global([data-theme="dark"]) .bar {
+  background: #1f2937;
+  border-top-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+}
+
+:global([data-theme="dark"]) .barTitle {
+  color: #f3f4f6;
+}
+
+:global([data-theme="dark"]) .barSubtitle {
+  color: #9ca3af;
+}
+
+:global([data-theme="dark"]) .dismissButton {
+  color: #6b7280;
+}
+
+:global([data-theme="dark"]) .dismissButton:hover {
+  color: #d1d5db;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 /* Spacer to prevent content from being hidden behind the fixed bar */

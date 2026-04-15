@@ -183,19 +183,28 @@ export default function DistrictPageContent({
                 {accentStories.map((story) => {
                   const href = story.short_hash
                     ? `/c/${slug}/stories/${story.short_hash}`
-                    : story.detail_url;
-                  return (
-                    <a key={story.id} href={href ?? "#"} className="district-story-card">
+                    : story.detail_url || null;
+                  const content = (
+                    <>
                       <span className="district-story-headline">{improveGenericHeadline(story.headline, { description: story.description })}</span>
                       {story.description && (
                         <span className="district-story-desc">{story.description}</span>
                       )}
+                    </>
+                  );
+                  return href ? (
+                    <a key={story.id} href={href} className="district-story-card">
+                      {content}
                     </a>
+                  ) : (
+                    <div key={story.id} className="district-story-card">
+                      {content}
+                    </div>
                   );
                 })}
               </div>
               {districtMetricCards.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+                <div className="district-metric-cards">
                   {districtMetricCards.map((mc) => (
                     <MetricFeedCard key={mc.metric.id} data={mc} />
                   ))}
@@ -212,8 +221,8 @@ export default function DistrictPageContent({
 
       {/* ── OTHER DISTRICTS ─────────────────────────────────────────────── */}
       {districts.length > 1 && (
-        <section className="container" style={{ paddingTop: 32, paddingBottom: 16 }}>
-          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 12 }}>
+        <section className="container district-all-section">
+          <h3 className="district-all-heading">
             All {city.shortDisplay} districts
           </h3>
           <DistrictListWithFollow

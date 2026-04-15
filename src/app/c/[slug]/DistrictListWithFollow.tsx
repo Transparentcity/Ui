@@ -134,7 +134,10 @@ export default function DistrictListWithFollow({
           const count = getCount(d);
           const following = isFollowing(d);
           const loading =
-            followMutation.isPending || unfollowMutation.isPending;
+            (followMutation.isPending &&
+              followMutation.variables === String(d)) ||
+            (unfollowMutation.isPending &&
+              unfollowMutation.variables === String(d));
           return (
             <div
               key={d}
@@ -164,6 +167,7 @@ export default function DistrictListWithFollow({
                 loading={loading}
                 size="compact"
                 onClick={() => handleFollowClick(d)}
+                entityLabel={`District ${d}`}
               />
             </div>
           );

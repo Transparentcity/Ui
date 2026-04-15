@@ -9,6 +9,7 @@ type FollowButtonProps = {
   size?: "default" | "compact" | "small";
   onClick: () => void;
   label?: string;
+  entityLabel?: string;
   className?: string;
 };
 
@@ -19,6 +20,7 @@ export default function FollowButton({
   size = "default",
   onClick,
   label,
+  entityLabel,
   className,
 }: FollowButtonProps) {
   const stateClass = following ? styles.following : styles.idle;
@@ -30,11 +32,17 @@ export default function FollowButton({
       ? "Unfollow"
       : "Follow";
 
+  const ariaLabel = entityLabel
+    ? `${following ? "Unfollow" : "Follow"} ${entityLabel}`
+    : undefined;
+
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={loading}
+      aria-pressed={following}
+      aria-label={ariaLabel}
       className={`${styles.btn} ${sizeClass} ${stateClass}${className ? ` ${className}` : ""}`}
     >
       {loading ? "…" : text}

@@ -56,7 +56,7 @@ export default function HeroDistrictSelector({
 
   useEffect(() => {
     if (!open || focusedIndex < 0) return;
-    const options = listRef.current?.querySelectorAll<HTMLButtonElement>(
+    const options = listRef.current?.querySelectorAll<HTMLLIElement>(
       '[role="option"]'
     );
     options?.[focusedIndex]?.focus();
@@ -164,36 +164,31 @@ export default function HeroDistrictSelector({
           role="listbox"
           onKeyDown={handleListKeyDown}
         >
-          <li>
-            <button
-              type="button"
-              role="option"
-              aria-selected={focusedIndex === 0}
-              tabIndex={focusedIndex === 0 ? 0 : -1}
-              className="hero-district-selector-option"
-              onClick={() => selectOption(0)}
-            >
-              <span className="hero-district-selector-district">{mayorLabel}</span>
-            </button>
+          <li
+            role="option"
+            aria-selected={focusedIndex === 0}
+            tabIndex={focusedIndex === 0 ? 0 : -1}
+            className="hero-district-selector-option"
+            onClick={() => selectOption(0)}
+          >
+            <span className="hero-district-selector-district">{mayorLabel}</span>
           </li>
           {districts.map((d, i) => {
             const leaderName = leaderByDistrict.get(d);
             const optIndex = i + 1;
             return (
-              <li key={d}>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={focusedIndex === optIndex}
-                  tabIndex={focusedIndex === optIndex ? 0 : -1}
-                  className="hero-district-selector-option"
-                  onClick={() => selectOption(optIndex)}
-                >
-                  <span className="hero-district-selector-district">District {d}</span>
-                  {leaderName && (
-                    <span className="hero-district-selector-leader">{leaderName}</span>
-                  )}
-                </button>
+              <li
+                key={d}
+                role="option"
+                aria-selected={focusedIndex === optIndex}
+                tabIndex={focusedIndex === optIndex ? 0 : -1}
+                className="hero-district-selector-option"
+                onClick={() => selectOption(optIndex)}
+              >
+                <span className="hero-district-selector-district">District {d}</span>
+                {leaderName && (
+                  <span className="hero-district-selector-leader">{leaderName}</span>
+                )}
               </li>
             );
           })}

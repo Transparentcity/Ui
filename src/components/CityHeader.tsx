@@ -99,6 +99,7 @@ export default function CityHeader({
             size="compact"
             onClick={onFollowToggle}
             label={isFollowed ? "Following" : undefined}
+            entityLabel={districtLabel}
           />
         )}
       </div>

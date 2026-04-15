@@ -179,7 +179,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         ]} />
 
         {/* Story type badge */}
-        <div style={{ marginBottom: 16 }}>
+        <div className="story-badge-wrapper">
           <span
             className={`story-badge ${story.story_type === "traction" ? "story-badge-traction" : "story-badge-default"}`}
           >
@@ -188,14 +188,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         </div>
 
         {/* Headline */}
-        <h1
-          style={{
-            fontSize: "clamp(1.6rem, 4vw, 2.2rem)",
-            fontWeight: 700,
-            lineHeight: 1.2,
-            marginBottom: 16,
-          }}
-        >
+        <h1 className="story-headline">
           {headline.trim() || "Story"}
         </h1>
 
@@ -210,25 +203,18 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
 
         {/* Hero image */}
         {story.image_url && (
-          <div style={{ marginBottom: 32, borderRadius: 8, overflow: "hidden" }}>
+          <div className="story-hero-image">
             <SafeImage
               src={story.image_url}
               alt={headline}
-              style={{ width: "100%", height: "auto", display: "block" }}
+              className="story-hero-img"
             />
           </div>
         )}
 
         {/* Short description / lede */}
         {(story.description ?? "").trim().length > 0 && (
-          <p
-            style={{
-              fontSize: "1.125rem",
-              lineHeight: 1.7,
-              marginBottom: 32,
-              fontWeight: 500,
-            }}
-          >
+          <p className="story-lede">
             {story.description}
           </p>
         )}
@@ -237,10 +223,6 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         {story.article_html ? (
           <div
             className="story-article-body"
-            style={{
-              lineHeight: 1.75,
-              fontSize: "1rem",
-            }}
             dangerouslySetInnerHTML={{
               __html: processVisualizationShortcodes(story.article_html, {
                 showDebug: false,
@@ -253,7 +235,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         ) : (
           <>
             {story.summary && (
-              <p style={{ lineHeight: 1.7, color: "var(--text-secondary)" }}>
+              <p className="story-summary">
                 {story.summary}
               </p>
             )}
@@ -274,16 +256,12 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
                 iframeSrc = `/m/${vizId}?embedded=true`;
               }
               return iframeSrc ? (
-                <div
-                  className="story-article-body"
-                  style={{ marginTop: 8 }}
-                >
+                <div className="story-article-body story-fallback-viz">
                   <div className="visualization-embed">
                     <iframe
                       src={iframeSrc}
                       title="Visualization"
                       className="story-viz-iframe"
-                      style={{ width: "100%", border: "none", display: "block" }}
                       loading="lazy"
                     />
                   </div>
@@ -342,7 +320,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         {/* Divider + Share */}
         <hr className="story-hr" />
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div className="story-share-row">
           <ShareButton
             title={headline.trim() || "Story"}
             url={`/c/${slug}/stories/${hash}`}
@@ -425,6 +403,9 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         }
 
         /* ── Story type badge ───────────────────────────────────────── */
+        .story-badge-wrapper {
+          margin-bottom: 16px;
+        }
         .story-badge {
           display: inline-block;
           padding: 3px 10px;
@@ -443,6 +424,15 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           color: var(--success);
         }
 
+        /* ── Headline ──────────────────────────────────────────────── */
+        .story-headline {
+          font-size: clamp(1.6rem, 4vw, 2.2rem);
+          font-weight: 700;
+          line-height: 1.2;
+          margin-bottom: 16px;
+          color: var(--text-primary);
+        }
+
         /* ── Meta line ──────────────────────────────────────────────── */
         .story-meta {
           display: flex;
@@ -451,6 +441,41 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           margin-bottom: 24px;
           font-size: 13px;
           color: var(--text-secondary);
+        }
+
+        /* ── Hero image ─────────────────────────────────────────────── */
+        .story-hero-image {
+          margin-bottom: 32px;
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        .story-hero-img {
+          width: 100%;
+          height: auto;
+          display: block;
+        }
+
+        /* ── Lede / summary ────────────────────────────────────────── */
+        .story-lede {
+          font-size: 1.125rem;
+          line-height: 1.7;
+          margin-bottom: 32px;
+          font-weight: 500;
+          color: var(--text-primary);
+        }
+        .story-summary {
+          line-height: 1.7;
+          color: var(--text-secondary);
+        }
+        .story-fallback-viz {
+          margin-top: 8px;
+        }
+
+        /* ── Share row ─────────────────────────────────────────────── */
+        .story-share-row {
+          display: flex;
+          align-items: center;
+          gap: 12px;
         }
 
         /* ── CTA divider + horizontal rules ─────────────────────────── */
@@ -491,6 +516,10 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         .story-related-card:hover {
           background: var(--bg-tertiary);
         }
+        .story-related-card:focus-visible {
+          outline: 2px solid var(--brand-primary);
+          outline-offset: 2px;
+        }
         .story-related-emoji {
           font-size: 20px;
           flex-shrink: 0;
@@ -518,6 +547,11 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         }
 
         /* ── Article body ───────────────────────────────────────────── */
+        .story-article-body {
+          line-height: 1.75;
+          font-size: 1rem;
+          color: var(--text-primary);
+        }
         .story-article-body h2 {
           font-size: 1.25rem;
           font-weight: 700;

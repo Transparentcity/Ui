@@ -27,6 +27,7 @@ import DistrictFollowClaimBlock from "./district/DistrictFollowClaimBlock";
 import HeroDistrictSelector from "./HeroDistrictSelector";
 import CityMapPreview from "./CityMapPreview";
 import FeaturedStoriesAsync from "./FeaturedStoriesAsync";
+import FeaturedStoriesSkeleton from "./FeaturedStoriesSkeleton";
 import CityHeroNewsletter from "./CityHeroNewsletter";
 import LoggedOutOnly from "./LoggedOutOnly";
 import MobileCitySignupBar from "./MobileCitySignupBar";
@@ -310,7 +311,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                 cityId={city.id}
                 leaders={leaders}
                 storiesSlot={
-                  <Suspense fallback={null}>
+                  <Suspense fallback={<FeaturedStoriesSkeleton />}>
                     <FeaturedStoriesAsync
                       cityId={city.id}
                       slug={slug}
@@ -335,7 +336,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                 leaders={leaders}
                 cityOrdering={cityOrdering?.orderings ?? []}
                 storiesSlot={
-                  <Suspense fallback={null}>
+                  <Suspense fallback={<FeaturedStoriesSkeleton />}>
                     <FeaturedStoriesAsync
                       cityId={city.id}
                       slug={slug}
