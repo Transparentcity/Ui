@@ -22,6 +22,7 @@ export default function FollowCityButton({
   const persistFollowIntent = () => {
     if (typeof window === "undefined") return;
 
+    window.localStorage.setItem("transparentcity.signup_intent", "resident");
     window.localStorage.setItem("transparentcity.follow_city_slug", citySlug);
     if (cityDisplayName) {
       window.localStorage.setItem(

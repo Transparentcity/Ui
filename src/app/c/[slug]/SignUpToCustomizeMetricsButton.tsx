@@ -2,16 +2,29 @@
 
 import { useAuth0 } from "@auth0/auth0-react";
 
-export default function SignUpToCustomizeMetricsButton() {
+type Props = {
+  cityId?: number;
+  cityName?: string;
+  citySlug?: string;
+};
+
+export default function SignUpToCustomizeMetricsButton({ cityId, cityName, citySlug }: Props) {
   const { loginWithRedirect } = useAuth0();
 
   const handleClick = () => {
     if (typeof window !== "undefined") {
       window.localStorage.setItem("transparentcity.signup_intent", "resident");
+      if (cityId != null) window.localStorage.setItem("transparentcity.follow_city_id", String(cityId));
+      if (cityName) window.localStorage.setItem("transparentcity.follow_city_name", cityName);
+      if (citySlug) window.localStorage.setItem("transparentcity.follow_city_slug", citySlug);
     }
+    const params = new URLSearchParams({ signup: "resident" });
+    if (cityId != null) params.set("follow_city_id", String(cityId));
+    if (cityName) params.set("follow_city_name", cityName);
+    if (citySlug) params.set("follow_city_slug", citySlug);
     loginWithRedirect({
       authorizationParams: { screen_hint: "signup" },
-      appState: { returnTo: "/home?signup=resident" },
+      appState: { returnTo: `/home?${params.toString()}` },
     });
   };
 

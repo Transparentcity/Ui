@@ -389,7 +389,9 @@ export default function DashboardPage() {
     const followCityId = followCityIdParam ? parseInt(followCityIdParam, 10) : (followCityIdLS ? parseInt(followCityIdLS, 10) : NaN);
 
     if (Number.isFinite(followCityId)) {
-      // User arrived via "Follow this city" - jump straight to that city
+      // User arrived via "Follow this city" - save the city AND show onboarding.
+      // The followed city goes into My Places regardless of what address the
+      // user enters during onboarding (e.g. Boston page → lives in Somerville).
       if (signupIntent) {
         trackSignupComplete(signupIntent, user.sub);
         trackUserActivation("signup_complete");
@@ -407,7 +409,7 @@ export default function DashboardPage() {
       window.localStorage.removeItem("transparentcity.follow_city_slug");
       window.localStorage.removeItem("transparentcity.follow_city_id");
       window.localStorage.removeItem("transparentcity.follow_city_name");
-      // Save city in the background (for already-onboarded users)
+      // Save city in the background
       void (async () => {
         try {
           const token = await getAccessTokenSilently();
@@ -417,6 +419,17 @@ export default function DashboardPage() {
           // Non-blocking
         }
       })();
+      // For new signups, show onboarding immediately so the user can enter
+      // their address. Returning users (who already completed onboarding)
+      // will be caught by the hasCheckedOnboarding guard in effect 2.
+      if (signupIntent) {
+        hasCheckedOnboarding.current = true;
+        if (signupIntent === "public-servant") {
+          setShowGovernmentOnboardingModal(true);
+        } else {
+          setShowWelcomeModal(true);
+        }
+      }
     } else if (signupIntent) {
       // User just completed signup without a follow intent
       trackSignupComplete(signupIntent, user.sub);
@@ -651,30 +664,11 @@ export default function DashboardPage() {
                 preferredType === "government" && !signup ? null : claimContext
               );
               setShowGovernmentOnboardingModal(true);
-            } else if (hasAutoSelectedCity.current) {
-              // Follow intent already handled by the signup/login effect; just mark onboarding complete
-              updateUserPreferences({ has_completed_onboarding: true }, token).then(() => {
-                if (user?.sub) {
-                  trackOnboardingComplete(user.sub);
-                }
-                toast.success("You\u2019re all set! Welcome to your city feed.");
-                // Send welcome email (fire-and-forget)
-                const city = autoSelectedCityRef.current;
-                if (user?.email) {
-                  fetch("/api/welcome-email", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      email: user.email,
-                      cityId: city?.id,
-                      cityName: city?.name || null,
-                    }),
-                  }).catch(() => {});
-                }
-              }).catch(() => {
-                // Non-blocking
-              });
             } else {
+              // Show onboarding even when the user arrived via a follow-city
+              // intent. The followed city is already saved to My Places by
+              // the saveCity() call in effect 1, but we still need the user
+              // to enter their address so place metrics and rep discovery run.
               setShowWelcomeModal(true);
             }
           }

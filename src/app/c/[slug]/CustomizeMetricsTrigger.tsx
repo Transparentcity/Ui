@@ -9,12 +9,14 @@ import UserMetricOrderDialog, {
 type Props = {
   cityId: number;
   cityName: string;
+  citySlug?: string;
   metrics: UserMetricOrderDialogMetric[];
 };
 
 export default function CustomizeMetricsTrigger({
   cityId,
   cityName,
+  citySlug,
   metrics,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -23,10 +25,15 @@ export default function CustomizeMetricsTrigger({
   const handleSignUpToCustomize = () => {
     if (typeof window !== "undefined") {
       window.localStorage.setItem("transparentcity.signup_intent", "resident");
+      window.localStorage.setItem("transparentcity.follow_city_id", String(cityId));
+      window.localStorage.setItem("transparentcity.follow_city_name", cityName);
+      if (citySlug) window.localStorage.setItem("transparentcity.follow_city_slug", citySlug);
     }
+    const params = new URLSearchParams({ signup: "resident", follow_city_id: String(cityId), follow_city_name: cityName });
+    if (citySlug) params.set("follow_city_slug", citySlug);
     loginWithRedirect({
       authorizationParams: { screen_hint: "signup", prompt: "login" },
-      appState: { returnTo: "/home?signup=resident" },
+      appState: { returnTo: `/home?${params.toString()}` },
     });
   };
 

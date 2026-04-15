@@ -258,6 +258,7 @@ export default async function CityCategoryPage({
                         <CustomizeMetricsTrigger
                           cityId={city.id}
                           cityName={cityDisplayName}
+                          citySlug={slug}
                           metrics={cityDetail.metrics.map((m) => ({
                             id: m.id,
                             metric_name: m.metric_name,
