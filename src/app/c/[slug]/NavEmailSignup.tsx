@@ -117,7 +117,7 @@ export default function NavEmailSignup({ citySlug, cityName, cityId, isHome }: P
           onBlur={() => setFocused(false)}
           placeholder={
             cityName
-              ? isMobile ? "Free Weekly" : `${cityName}'s Free Weekly`
+              ? "Free Weekly"
               : "Enter your email"
           }
           className="nav-email-input"
