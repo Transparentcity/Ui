@@ -13,30 +13,17 @@ interface AdminGuardProps {
 }
 
 /**
- * Check if we should bypass admin auth for CRM development.
- * Set NEXT_PUBLIC_CRM_DEV_MODE=true in .env.local to bypass auth.
- */
-const CRM_DEV_MODE = process.env.NEXT_PUBLIC_CRM_DEV_MODE === 'true';
-
-/**
  * Protects CRM routes by checking if the user is an admin.
  * Redirects non-admins to the fallback URL (default: /home).
- * 
- * In development mode (NEXT_PUBLIC_CRM_DEV_MODE=true), auth is bypassed.
  */
 export function AdminGuard({ children, fallbackUrl = "/home" }: AdminGuardProps) {
   const { isAuthenticated, isLoading: authLoading, getAccessTokenSilently, loginWithRedirect } = useAuth0();
   const router = useRouter();
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(CRM_DEV_MODE ? true : null);
-  const [isCheckingAdmin, setIsCheckingAdmin] = useState(!CRM_DEV_MODE);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // In dev mode, skip all auth checks
-    if (CRM_DEV_MODE) {
-      return;
-    }
-
     async function checkAdminStatus() {
       // Wait for auth to finish loading
       if (authLoading) return;
