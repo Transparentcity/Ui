@@ -82,6 +82,9 @@ function buildMetricCards(
     if (curr == null || prior == null || prior === 0) continue;
     if (curr === 0 || Math.abs(curr) < 5) continue;
     const pct = ((curr - prior) / prior) * 100;
+    // Suppress bad data: value dropped to 0 (data gap) or change > 500%
+    if (curr === 0 && pct === -100) continue;
+    if (Math.abs(pct) > 500) continue;
     const idx = candidates.length;
     const hoursAgo = idx * 12 + 2;
     candidates.push({
