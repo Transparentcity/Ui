@@ -697,7 +697,6 @@
 .vizImage {
   width: 100%;
   height: auto;
-  max-height: 240px;
   object-fit: contain;
   display: block;
 }
@@ -715,7 +714,6 @@
 }
 
 .vizImageMapFocus {
-  max-height: 280px;
   object-fit: cover;
 }
 
@@ -1608,6 +1606,17 @@
   display: block;
   width: 100%;
   border: none;
+}
+.detailArticleBody .visualization-static-image {
+  width: 100%;
+  display: block;
+}
+.detailArticleBody .visualization-static-caption {
+  padding: 10px 12px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border-primary);
 }
 .detailVizArea { background: var(--bg-secondary); border-radius: 12px; overflow: hidden; margin-bottom: 24px; min-height: 250px; display: flex; align-items: center; justify-content: center; position: relative; }
 .detailVizPlaceholder { text-align: center; padding: 40px; color: var(--text-secondary); }

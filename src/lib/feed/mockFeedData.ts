@@ -243,29 +243,52 @@ function deriveTemplate(story: FeedStory, cardType: CardType): TemplateType {
 
 // ── Build image URL (mirrors FeedView.getImageUrl logic) ────────────────────
 
-function resolveImageUrl(story: FeedStory): string | null {
-  const base = getApiBaseUrlForAssets();
-  const storyAny = story as unknown as Record<string, unknown>;
-  if (storyAny.image_url) {
-    const url = storyAny.image_url as string;
-    // External URLs (e.g. Cloudinary 311 photos) are already absolute
-    return url.startsWith("http") ? url : `${base}${url}`;
-  }
-  // 311 photos: backend stores the Socrata photo URL in metadata.311_image_url
-  const meta311Url = story.metadata?.["311_image_url"];
-  if (typeof meta311Url === "string" && meta311Url) return meta311Url;
+function isPrivateScopedStory(story: FeedStory): boolean {
+  const meta = story.metadata ?? {};
+  if (story.user_place_id != null) return true;
+  if (meta.category === "personal_newsletter") return true;
+  const rawPlaceIds = meta.user_place_ids;
+  return Array.isArray(rawPlaceIds) && rawPlaceIds.length > 0;
+}
+
+function deriveVisualizationImageUrl(story: FeedStory, base: string): string | null {
   const pv = story.primary_visualization;
   if (!pv) return null;
   const type = (story.visualization_type || pv.type || "").toLowerCase();
   const id = pv.id;
   const hash = pv.short_hash;
   if (type === "chart" && id != null) return `${base}/api/time-series/public/${id}/image`;
-  if ((type === "anomaly" || type === "anomaly_chart") && id != null) return `${base}/api/anomalies/public/result/${id}/image`;
+  if ((type === "anomaly" || type === "anomaly_chart") && id != null) {
+    return `${base}/api/anomalies/public/result/${id}/image`;
+  }
   if (type === "map" && hash) return `${base}/api/maps/public/${hash}/image`;
   if (type === "map" && id != null) return `${base}/api/maps/public/${id}/image`;
+  return null;
+}
+
+function resolveImageUrl(story: FeedStory): string | null {
+  const base = getApiBaseUrlForAssets();
+  const storyAny = story as unknown as Record<string, unknown>;
+  if (storyAny.image_url) {
+    const url = storyAny.image_url as string;
+    const isPublicStoryImageProxy = url.startsWith("/api/feed/public/story-image/");
+    if (isPublicStoryImageProxy && isPrivateScopedStory(story)) {
+      const visualizationImageUrl = deriveVisualizationImageUrl(story, base);
+      if (visualizationImageUrl) return visualizationImageUrl;
+    }
+    // External URLs (e.g. Cloudinary 311 photos) are already absolute
+    return url.startsWith("http") ? url : `${base}${url}`;
+  }
+  // 311 photos: backend stores the Socrata photo URL in metadata.311_image_url
+  const meta311Url = story.metadata?.["311_image_url"];
+  if (typeof meta311Url === "string" && meta311Url) return meta311Url;
+  const visualizationImageUrl = deriveVisualizationImageUrl(story, base);
+  if (visualizationImageUrl) return visualizationImageUrl;
 
   // Fallback: derive image URL from the embed URL when the visualization type
   // doesn't match known patterns (e.g. backend set pv.embed_url directly).
+  const pv = story.primary_visualization;
+  if (!pv) return null;
   const embedUrl = pv.embed_url as string | undefined;
   if (embedUrl) {
     // /t/{id}... -> time-series image

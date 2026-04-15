@@ -24,6 +24,31 @@ export interface EmbedConfig {
   showDebug?: boolean;
 }
 
+export interface StaticVisualizationAsset {
+  src: string;
+  alt?: string | null;
+  caption?: string | null;
+}
+
+export interface StaticVisualizationConfig {
+  charts?: Record<string, StaticVisualizationAsset>;
+  maps?: Record<string, StaticVisualizationAsset>;
+  anomalies?: Record<string, StaticVisualizationAsset>;
+}
+
+export interface VisualizationShortcodeStoryLike {
+  article_html?: string | null;
+  image_url?: string | null;
+  image_alt?: string | null;
+  image_caption?: string | null;
+  visualization_type?: string | null;
+  primary_visualization?: Record<string, unknown> | null;
+}
+
+export interface VisualizationShortcodeConfig extends EmbedConfig {
+  staticVisualizations?: StaticVisualizationConfig;
+}
+
 const DEFAULT_CONFIG: Required<EmbedConfig> = {
   width: "100%",
   height: "450px",
@@ -54,6 +79,72 @@ function escapeHtml(s: string): string {
 }
 
 const VALID_CHART_PERIODS = new Set(["day", "week", "month", "year", "ytd"]);
+
+function getStaticVisualizationAsset(
+  visType: "chart" | "map" | "anomaly",
+  ref: string,
+  config: VisualizationShortcodeConfig,
+): StaticVisualizationAsset | null {
+  const sources =
+    visType === "chart"
+      ? config.staticVisualizations?.charts
+      : visType === "map"
+        ? config.staticVisualizations?.maps
+        : config.staticVisualizations?.anomalies;
+  return sources?.[ref] ?? null;
+}
+
+function getStaticVisualizationEmbed(
+  visType: "chart" | "map" | "anomaly",
+  ref: string,
+  asset: StaticVisualizationAsset,
+  config: VisualizationShortcodeConfig = {},
+): string {
+  const cfg = { ...DEFAULT_CONFIG, ...config };
+  const height =
+    visType === "chart"
+      ? cfg.chartHeight || cfg.height
+      : visType === "map"
+        ? cfg.mapHeight || cfg.height
+        : cfg.anomalyHeight || cfg.height;
+  const attrName =
+    visType === "chart"
+      ? "data-chart-id"
+      : visType === "map"
+        ? "data-map-hash"
+        : "data-anomaly-id";
+  const shortcode =
+    visType === "chart"
+      ? `[chart:${ref}]`
+      : visType === "map"
+        ? `[map:${ref}]`
+        : `[anomaly:${ref}]`;
+  const shortcodeEscaped = escapeHtml(shortcode);
+  const srcEscaped = escapeHtml(asset.src);
+  const altEscaped = escapeHtml(asset.alt?.trim() || `Visualization ${ref}`);
+  const captionEscaped = asset.caption?.trim() ? escapeHtml(asset.caption.trim()) : "";
+  const debugHtml = cfg.showDebug
+    ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
+    : "";
+
+  return `
+    <div class="${cfg.className} ${visType}-embed visualization-static-embed" ${attrName}="${escapeHtml(ref)}" data-shortcode="${shortcodeEscaped}">
+      <img
+        src="${srcEscaped}"
+        alt="${altEscaped}"
+        loading="lazy"
+        class="visualization-static-image"
+        style="width: 100%; height: ${height}; object-fit: cover; display: block; background: #f8f9fa;"
+      />
+      ${
+        captionEscaped
+          ? `<div class="visualization-static-caption">${captionEscaped}</div>`
+          : ""
+      }
+      ${debugHtml}
+    </div>
+  `.trim();
+}
 
 /**
  * Generate an iframe embed HTML for a chart.
@@ -171,7 +262,10 @@ export function getAnomalyEmbed(resultId: string | number, config: EmbedConfig =
 /** Pipeline-only image prompt shortcodes; not rendered as embeds (strip for readers). */
 const FEED_IMAGE_SHORTCODE_RE = /\[feed-image:[^\]]+\]/gi;
 
-export function processVisualizationShortcodes(html: string, config: EmbedConfig = {}): string {
+export function processVisualizationShortcodes(
+  html: string,
+  config: VisualizationShortcodeConfig = {},
+): string {
   if (!html) return html;
   
   let processed = html;
@@ -180,18 +274,30 @@ export function processVisualizationShortcodes(html: string, config: EmbedConfig
   // Process chart shortcodes: [chart:123] or [chart:123:ytd] (period-aware)
   const chartRegex = /\[chart:(\d+)(?::([a-z]+))?\]/g;
   processed = processed.replace(chartRegex, (match, chartId, period) => {
+    const staticAsset = getStaticVisualizationAsset("chart", chartId, config);
+    if (staticAsset && !period) {
+      return getStaticVisualizationEmbed("chart", chartId, staticAsset, config);
+    }
     return getChartEmbed(chartId, config, period);
   });
   
   // Process map shortcodes: [map:abc123] or [map:AzOP6s-N] - alphanumeric + hyphens + underscores
   const mapRegex = /\[map:([a-zA-Z0-9_-]+)\]/g;
   processed = processed.replace(mapRegex, (match, shortHash) => {
+    const staticAsset = getStaticVisualizationAsset("map", shortHash, config);
+    if (staticAsset) {
+      return getStaticVisualizationEmbed("map", shortHash, staticAsset, config);
+    }
     return getMapEmbed(shortHash, config);
   });
   
   // Process anomaly shortcodes: [anomaly:456]
   const anomalyRegex = /\[anomaly:(\d+)\]/g;
   processed = processed.replace(anomalyRegex, (match, resultId) => {
+    const staticAsset = getStaticVisualizationAsset("anomaly", resultId, config);
+    if (staticAsset) {
+      return getStaticVisualizationEmbed("anomaly", resultId, staticAsset, config);
+    }
     return getAnomalyEmbed(resultId, config);
   });
   
@@ -241,4 +347,72 @@ export function hasVisualizationShortcodes(html: string): boolean {
   if (!html) return false;
   // Match [chart:123], [chart:123:ytd], [map:abc-123], [anomaly:456] patterns
   return /\[(chart|map|anomaly):[a-zA-Z0-9_-]+(?::[a-z]+)?\]/.test(html);
+}
+
+export function buildPrimaryVisualizationShortcodeConfig(
+  story: VisualizationShortcodeStoryLike,
+): VisualizationShortcodeConfig {
+  const imageUrl = story.image_url?.trim();
+  const visType = (story.visualization_type ?? "").toLowerCase();
+  const pv = story.primary_visualization ?? null;
+
+  if (!imageUrl || !pv || !visType) {
+    return {};
+  }
+
+  const asset: StaticVisualizationAsset = {
+    src: imageUrl,
+    alt: story.image_alt,
+    caption: story.image_caption,
+  };
+
+  if (visType === "chart" && pv.id != null) {
+    return { staticVisualizations: { charts: { [String(pv.id)]: asset } } };
+  }
+
+  if ((visType === "anomaly" || visType === "anomaly_chart") && pv.id != null) {
+    return {
+      staticVisualizations: { anomalies: { [String(pv.id)]: asset } },
+    };
+  }
+
+  if (visType === "map" && typeof pv.short_hash === "string" && pv.short_hash) {
+    return { staticVisualizations: { maps: { [pv.short_hash]: asset } } };
+  }
+
+  if (visType === "map" && pv.id != null) {
+    return { staticVisualizations: { maps: { [String(pv.id)]: asset } } };
+  }
+
+  return {};
+}
+
+export function articleUsesPrimaryVisualizationShortcode(
+  html: string | null | undefined,
+  story: VisualizationShortcodeStoryLike,
+): boolean {
+  if (!html) return false;
+
+  const visType = (story.visualization_type ?? "").toLowerCase();
+  const pv = story.primary_visualization ?? null;
+  if (!pv || !visType) return false;
+
+  if (visType === "chart" && pv.id != null) {
+    return new RegExp(`\\[chart:${String(pv.id)}(?:[:\\]])`).test(html);
+  }
+
+  if ((visType === "anomaly" || visType === "anomaly_chart") && pv.id != null) {
+    return new RegExp(`\\[anomaly:${String(pv.id)}\\]`).test(html);
+  }
+
+  if (visType === "map") {
+    if (typeof pv.short_hash === "string" && pv.short_hash) {
+      return html.includes(`[map:${pv.short_hash}]`);
+    }
+    if (pv.id != null) {
+      return html.includes(`[map:${String(pv.id)}]`);
+    }
+  }
+
+  return false;
 }

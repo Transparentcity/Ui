@@ -13,7 +13,11 @@ import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
 import SafeImage from "@/components/SafeImage";
 import NavEmailSignup from "../../NavEmailSignup";
-import { processVisualizationShortcodes } from "@/lib/visualizationShortcodes";
+import {
+  articleUsesPrimaryVisualizationShortcode,
+  buildPrimaryVisualizationShortcodeConfig,
+  processVisualizationShortcodes,
+} from "@/lib/visualizationShortcodes";
 import ShareButton from "./ShareButton";
 import CityHeroNewsletter from "../../CityHeroNewsletter";
 import { SignupEmailProvider } from "../../SignupEmailContext";
@@ -161,6 +165,10 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           day: "numeric",
         })
       : null;
+  const renderPrimaryInline =
+    !!story.article_html &&
+    articleUsesPrimaryVisualizationShortcode(story.article_html, story);
+  const shortcodeConfig = buildPrimaryVisualizationShortcodeConfig(story);
 
   return (
     <SignupEmailProvider>
@@ -202,7 +210,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         </div>
 
         {/* Hero image */}
-        {story.image_url && (
+        {story.image_url && !renderPrimaryInline && (
           <figure className="story-hero-image">
             <SafeImage
               src={story.image_url}
@@ -260,6 +268,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
             className="story-article-body"
             dangerouslySetInnerHTML={{
               __html: processVisualizationShortcodes(story.article_html, {
+                ...shortcodeConfig,
                 showDebug: false,
                 chartHeight: "420px",
                 mapHeight: "480px",
@@ -633,6 +642,18 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           display: block;
           border: none;
           width: 100%;
+        }
+        .story-article-body .visualization-static-image {
+          width: 100%;
+          display: block;
+        }
+        .story-article-body .visualization-static-caption {
+          padding: 10px 12px 12px;
+          font-size: 0.8125rem;
+          line-height: 1.5;
+          color: var(--text-secondary);
+          border-top: 1px solid var(--border-primary);
+          background: var(--bg-secondary);
         }
         @media (max-width: 640px) {
           .story-article-body .visualization-embed {

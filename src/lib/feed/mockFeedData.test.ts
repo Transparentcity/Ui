@@ -295,6 +295,45 @@ describe("enrichStory", () => {
     expect(enriched.image_url_resolved).toContain("/api/time-series/public/42/image");
   });
 
+  it("keeps the persisted public story image for public stories", () => {
+    const enriched = enrichStory(
+      makeStory({
+        image_url: "/api/feed/public/story-image/public123",
+        visualization_type: "map",
+        primary_visualization: { id: null, type: "map", short_hash: "map123" },
+      }),
+    );
+    expect(enriched.image_url_resolved).toContain(
+      "/api/feed/public/story-image/public123",
+    );
+  });
+
+  it("bypasses the public story image proxy for saved-place stories", () => {
+    const enriched = enrichStory(
+      makeStory({
+        image_url: "/api/feed/public/story-image/private123",
+        user_place_id: 77,
+        visualization_type: "map",
+        primary_visualization: { id: null, type: "map", short_hash: "map123" },
+      }),
+    );
+    expect(enriched.image_url_resolved).toContain("/api/maps/public/map123/image");
+  });
+
+  it("bypasses the public story image proxy for personal newsletter stories", () => {
+    const enriched = enrichStory(
+      makeStory({
+        image_url: "/api/feed/public/story-image/private456",
+        metadata: { category: "personal_newsletter" },
+        visualization_type: "chart",
+        primary_visualization: { id: 42, type: "chart", short_hash: null },
+      }),
+    );
+    expect(enriched.image_url_resolved).toContain(
+      "/api/time-series/public/42/image",
+    );
+  });
+
   it("resolves embed_url for anomaly visualization", () => {
     const enriched = enrichStory(
       makeStory({

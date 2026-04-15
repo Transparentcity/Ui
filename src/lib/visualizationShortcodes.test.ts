@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  articleUsesPrimaryVisualizationShortcode,
+  buildPrimaryVisualizationShortcodeConfig,
   processVisualizationShortcodes,
   getChartEmbed,
   getMapEmbed,
@@ -39,6 +41,25 @@ describe("processVisualizationShortcodes", () => {
       showDebug: false,
     });
     expect(out).toContain('data-map-hash="915Xp_iU"');
+  });
+
+  it("renders a static image when a matching map asset is provided", () => {
+    const out = processVisualizationShortcodes("[map:AzOP6s-N]", {
+      showDebug: false,
+      staticVisualizations: {
+        maps: {
+          "AzOP6s-N": {
+            src: "/api/feed/public/story-image/abc123",
+            alt: "Austin service map",
+            caption: "Calls are concentrated downtown.",
+          },
+        },
+      },
+    });
+    expect(out).toContain('src="/api/feed/public/story-image/abc123"');
+    expect(out).toContain('alt="Austin service map"');
+    expect(out).toContain("visualization-static-caption");
+    expect(out).not.toContain('src="/m/AzOP6s-N?embedded=true"');
   });
 
   it("replaces anomaly shortcodes with iframe embeds", () => {
@@ -177,5 +198,32 @@ describe("hasVisualizationShortcodes", () => {
 
   it("returns false for feed-image shortcodes (not visualization)", () => {
     expect(hasVisualizationShortcodes("[feed-image:photo]")).toBe(false);
+  });
+});
+
+describe("primary visualization helpers", () => {
+  it("builds static map config from story image fields", () => {
+    const config = buildPrimaryVisualizationShortcodeConfig({
+      image_url: "/api/feed/public/story-image/hash123",
+      image_alt: "Austin map",
+      image_caption: "Caption",
+      visualization_type: "map",
+      primary_visualization: { short_hash: "AzOP6s-N", type: "map" },
+    });
+
+    expect(config.staticVisualizations?.maps?.["AzOP6s-N"]).toEqual({
+      src: "/api/feed/public/story-image/hash123",
+      alt: "Austin map",
+      caption: "Caption",
+    });
+  });
+
+  it("detects when article_html references the primary visualization shortcode", () => {
+    expect(
+      articleUsesPrimaryVisualizationShortcode("<p>[map:AzOP6s-N]</p>", {
+        visualization_type: "map",
+        primary_visualization: { short_hash: "AzOP6s-N", type: "map" },
+      }),
+    ).toBe(true);
   });
 });

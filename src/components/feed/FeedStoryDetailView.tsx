@@ -6,7 +6,10 @@ import { Share2 } from "lucide-react";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { ICON_COMPONENTS } from "./categoryIcons";
 import type { DetailNarrative } from "@/lib/feed/fetchReportNarratives";
-import { processVisualizationShortcodes } from "@/lib/visualizationShortcodes";
+import {
+  buildPrimaryVisualizationShortcodeConfig,
+  processVisualizationShortcodes,
+} from "@/lib/visualizationShortcodes";
 import { slugify } from "@/lib/utils";
 import { useMetricKey } from "./MetricKeyContext";
 import MetricLink from "./MetricLink";
@@ -110,6 +113,8 @@ export type FeedStoryDetailViewProps = {
   detailNarrative: DetailNarrative | null;
   relatedStories: EnrichedFeedStory[];
   onShare: () => void;
+  /** When true, replace the primary article shortcode with the story's saved static asset. */
+  preferStaticPrimaryVisualizationInArticle?: boolean;
   /** When set, related stories open in-app (e.g. feed modal) instead of navigating. */
   onSelectRelatedStoryId?: (id: number) => void;
 };
@@ -123,6 +128,7 @@ export function FeedStoryDetailView({
   detailNarrative,
   relatedStories,
   onShare,
+  preferStaticPrimaryVisualizationInArticle = false,
   onSelectRelatedStoryId,
 }: FeedStoryDetailViewProps) {
   const publishedDate = formatFullDate(story.published_at);
@@ -132,6 +138,16 @@ export function FeedStoryDetailView({
   const district = story.district > 0 ? story.district : null;
   /** Long-form HTML from create_feed_story — use this as the modal body, not summary + HTML. */
   const hasFullArticleHtml = Boolean(articleHtml);
+  const inlinePrimaryVisualizationConfig = preferStaticPrimaryVisualizationInArticle
+    ? buildPrimaryVisualizationShortcodeConfig({
+        image_url: story.image_url_resolved ?? story.image_url ?? null,
+        image_alt: story.image_alt_resolved,
+        image_caption: story.image_caption_resolved,
+        visualization_type: story.visualization_type,
+        primary_visualization:
+          story.primary_visualization as Record<string, unknown> | null,
+      })
+    : {};
 
   const pv = story.primary_visualization;
   const vizType = (story.visualization_type ?? pv?.type ?? "").toLowerCase();
@@ -173,6 +189,7 @@ export function FeedStoryDetailView({
               className={styles.detailArticleBody}
               dangerouslySetInnerHTML={{
                 __html: processVisualizationShortcodes(articleHtml!, {
+                  ...inlinePrimaryVisualizationConfig,
                   showDebug: false,
                   chartHeight: "420px",
                   mapHeight: "480px",

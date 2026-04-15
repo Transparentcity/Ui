@@ -2,23 +2,44 @@
  * Resolves the canonical page URL for a feed story.
  *
  * Routing priority:
- * 1. canonical_path (server override) when available.
- * 2. multi_metric / comparison → city or district dashboard page (never story detail).
- * 3. short_hash present → /c/{slug}/stories/{hash} (canonical); /s/{hash} fallback when slug unknown.
- * 4. Legacy no-hash: fall back to /feed/{id} for all other story types.
+ * 1. Saved-place / personal stories → authenticated `/feed/{id}` detail page.
+ * 2. canonical_path (server override) when available.
+ * 3. multi_metric / comparison → city or district dashboard page (never story detail).
+ * 4. short_hash present → /c/{slug}/stories/{hash} (canonical); /s/{hash} fallback when slug unknown.
+ * 5. Legacy no-hash: fall back to city dashboard when possible.
  *
  * Multi-metric and comparison cards always route to the dashboard because
  * their story detail pages may render as unrelated content (e.g. Off the
  * Charts) which is confusing when clicking a summary card.
  *
- * NOTE: personal/saved-place stories are excluded server-side before they
- * reach the UI, so no client-side privacy gate is needed here.
+ * Saved-place stories are visible in authenticated feed surfaces but must not
+ * resolve to public canonical story pages, which intentionally 404 for anyone
+ * who does not own the saved place.
  */
 
 import { slugify } from "@/lib/utils";
 import type { EnrichedFeedStory } from "./mockFeedData";
 
+function isPrivateFeedStory(story: EnrichedFeedStory): boolean {
+  if (story.user_place_id != null) return true;
+
+  const meta = story.metadata;
+  if (!meta || typeof meta !== "object") return false;
+
+  if (meta.category === "personal_newsletter") return true;
+
+  const rawPlaceIds = meta.user_place_ids;
+  return (
+    Array.isArray(rawPlaceIds) &&
+    rawPlaceIds.some((value) => Number.isFinite(Number(value)))
+  );
+}
+
 export function resolveCanonicalUrl(story: EnrichedFeedStory): string {
+  if (isPrivateFeedStory(story)) {
+    return `/feed/${story.id}`;
+  }
+
   // Prefer server-computed canonical_path when available — it is always in sync
   // with the backend routing logic and avoids any client-side slugify drift.
   if (story.canonical_path) {

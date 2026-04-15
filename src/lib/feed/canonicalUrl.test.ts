@@ -128,6 +128,25 @@ describe("resolveCanonicalUrl", () => {
     expect(resolveCanonicalUrl(story)).toBe("/c/san-francisco/stories/rsh12345");
   });
 
+  it("routes saved-place stories to authenticated feed detail", () => {
+    const story = makeStory({
+      id: 42,
+      user_place_id: 3,
+      short_hash: "abc12345",
+      canonical_path: "/c/san-francisco/stories/abc12345",
+    });
+    expect(resolveCanonicalUrl(story)).toBe("/feed/42");
+  });
+
+  it("routes legacy place-scoped stories to authenticated feed detail", () => {
+    const story = makeStory({
+      id: 77,
+      short_hash: "legacy123",
+      metadata: { user_place_ids: [8, "9"] },
+    });
+    expect(resolveCanonicalUrl(story)).toBe("/feed/77");
+  });
+
   // ── Legacy no-hash: multi_metric / comparison also route to dashboard ──
 
   it("routes legacy multi_metric (no hash) citywide to city dashboard", () => {
@@ -191,6 +210,7 @@ describe("resolveOutboundCanonicalPath", () => {
     const stories = [
       makeStory({ short_hash: "abc123", city_name: "San Francisco" }),
       makeStory({ short_hash: "abc123", city_name: null }),
+      makeStory({ id: 11, user_place_id: 5, short_hash: "private11" }),
       makeStory({ card_type: "spending", story_type: "spending", detail_url: "" }),
       makeStory({ card_type: "multi_metric", district: 0 }),
     ];

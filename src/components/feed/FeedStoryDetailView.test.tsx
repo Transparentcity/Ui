@@ -91,6 +91,52 @@ describe("FeedStoryDetailView", () => {
     expect(screen.getByTitle("Chart 123")).toBeInTheDocument();
   });
 
+  it("renders the interactive map in detail views by default", () => {
+    render(
+      <FeedStoryDetailView
+        story={makeStory({
+          article_html: "<p>Context</p>[map:AzOP6s-N]",
+          visualization_type: "map",
+          primary_visualization: { type: "map", short_hash: "AzOP6s-N" },
+          image_url_resolved: "/api/feed/public/story-image/hash123",
+          image_alt_resolved: "Austin service map",
+          image_caption_resolved: "Calls are concentrated downtown.",
+        })}
+        detailNarrative={null}
+        relatedStories={[]}
+        onShare={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTitle("Map AzOP6s-N")).toBeInTheDocument();
+    expect(screen.queryByAltText("Austin service map")).toBeNull();
+  });
+
+  it("renders the saved static image when explicitly configured", () => {
+    render(
+      <FeedStoryDetailView
+        story={makeStory({
+          article_html: "<p>Context</p>[map:AzOP6s-N]",
+          visualization_type: "map",
+          primary_visualization: { type: "map", short_hash: "AzOP6s-N" },
+          image_url_resolved: "/api/feed/public/story-image/hash123",
+          image_alt_resolved: "Austin service map",
+          image_caption_resolved: "Calls are concentrated downtown.",
+        })}
+        detailNarrative={null}
+        relatedStories={[]}
+        onShare={vi.fn()}
+        preferStaticPrimaryVisualizationInArticle
+      />,
+    );
+
+    expect(screen.getByAltText("Austin service map")).toBeInTheDocument();
+    expect(screen.queryByTitle("Map AzOP6s-N")).toBeNull();
+    expect(
+      screen.getByText("Calls are concentrated downtown."),
+    ).toBeInTheDocument();
+  });
+
   it("renders metric detail view with MetricLink hotlinks when metadata.metrics present", () => {
     render(
       <FeedStoryDetailView
