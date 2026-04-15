@@ -572,9 +572,11 @@ export default function FeedContainer({
           const prior = comp.comparison_period_value;
           if (curr == null || prior == null || prior === 0) continue;
           const pct = ((curr - prior) / prior) * 100;
-          // Suppress bad data: value dropped to 0 (data gap) or change > 500%
+          // Suppress bad data: value dropped to 0 (data gap), change > 500%,
+          // or extreme drops (>= 90%) that indicate partial reporting periods
           if (curr === 0 && pct === -100) continue;
           if (Math.abs(pct) > 500) continue;
+          if (pct <= -90) continue;
           // Spread pseudo-published timestamps across recent days
           // so cards don't all cluster at the same time
           const idx = candidates.length;
@@ -705,13 +707,15 @@ export default function FeedContainer({
       // Temporarily hide 311 cards (not rendering correctly)
       if (s.card_type === "311_images") return false;
       if (hiddenIds.has(s.id)) return false;
-      // Suppress stories with bad data (value 0 + down 100%, or >500% change)
+      // Suppress stories with bad data: value 0 + down 100%, >500% change,
+      // or extreme drops (>= 90%) that indicate partial reporting periods
       const meta = s.metadata ?? {};
       const storyPct = (meta.pct_change ?? meta.anomaly_change_pct ?? meta.trend_pct_change ?? meta.percent_change) as number | undefined;
       const storyVal = (meta.current_period_value ?? meta.anomaly_value) as number | undefined;
       if (storyPct != null) {
         if (storyVal === 0 && storyPct === -100) return false;
         if (Math.abs(storyPct) > 500) return false;
+        if (storyPct <= -90) return false;
       }
       // Multi-topic filter: if topics selected, story must match one
       if (selectedTopics.size > 0 && !selectedTopics.has(s.card_type)) return false;

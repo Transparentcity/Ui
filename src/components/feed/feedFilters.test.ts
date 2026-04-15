@@ -393,6 +393,62 @@ describe("District drawer toggle logic", () => {
   });
 });
 
+// ── Bad data suppression ─────────────────────────────────────────────────
+
+/**
+ * Replicate the bad-data filter from FeedContainer.visibleStories.
+ * Stories are suppressed when:
+ *  - value is 0 and pct is exactly -100 (stale data gap)
+ *  - abs(pct) > 500 (implausible spike)
+ *  - pct <= -90 (extreme drop, likely partial reporting period)
+ */
+function shouldSuppressStory(storyPct: number | undefined, storyVal: number | undefined): boolean {
+  if (storyPct != null) {
+    if (storyVal === 0 && storyPct === -100) return true;
+    if (Math.abs(storyPct) > 500) return true;
+    if (storyPct <= -90) return true;
+  }
+  return false;
+}
+
+describe("Bad data suppression", () => {
+  it("suppresses value=0, pct=-100 (stale data gap)", () => {
+    expect(shouldSuppressStory(-100, 0)).toBe(true);
+  });
+
+  it("suppresses >500% increase", () => {
+    expect(shouldSuppressStory(600, 1200)).toBe(true);
+  });
+
+  it("suppresses >500% decrease (should not happen, but covered)", () => {
+    expect(shouldSuppressStory(-600, 10)).toBe(true);
+  });
+
+  it("suppresses -95% drop (partial reporting period)", () => {
+    expect(shouldSuppressStory(-95, 269)).toBe(true);
+  });
+
+  it("suppresses -90% drop", () => {
+    expect(shouldSuppressStory(-90, 100)).toBe(true);
+  });
+
+  it("allows -89% drop (within plausible range)", () => {
+    expect(shouldSuppressStory(-89, 500)).toBe(false);
+  });
+
+  it("allows moderate changes like -50%", () => {
+    expect(shouldSuppressStory(-50, 3000)).toBe(false);
+  });
+
+  it("allows moderate positive changes like +200%", () => {
+    expect(shouldSuppressStory(200, 600)).toBe(false);
+  });
+
+  it("does not suppress when pct is undefined", () => {
+    expect(shouldSuppressStory(undefined, 0)).toBe(false);
+  });
+});
+
 // ── feedOrder removal ─────────────────────────────────────────────────────
 
 describe("Feed order", () => {
