@@ -1,12 +1,15 @@
 /**
- * Signup intent detection tests.
+ * Onboarding guard tests.
  *
- * Verifies that the post-auth redirect on /home correctly detects signup
- * intent from URL params AND from localStorage (fallback when Auth0
- * loses the appState during redirect).
+ * 1. Signup intent detection: verifies that post-auth redirect on /home
+ *    correctly detects signup intent from URL params AND from localStorage
+ *    (fallback when Auth0 loses the appState during the redirect).
  *
- * The extracted helper mirrors the logic in home/page.tsx's signup/login
- * useEffect so we can unit-test it without mounting the full dashboard.
+ * 2. Onboarding check resilience: verifies that a transient API failure
+ *    does not permanently skip onboarding for the session.
+ *
+ * Extracted helpers mirror the logic in home/page.tsx so we can unit-test
+ * without mounting the full dashboard.
  */
 import { describe, it, expect, beforeEach } from "vitest";
 
@@ -115,5 +118,103 @@ describe("Signup intent detection", () => {
       storage,
     );
     expect(signupIntent).toBe("resident");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Extracted logic from home/page.tsx onboarding check effect
+// ---------------------------------------------------------------------------
+
+/**
+ * Simulates the hasCheckedOnboarding guard + API call pattern.
+ * Returns whether the onboarding check ran and whether the flag allows retry.
+ */
+async function simulateOnboardingCheck(opts: {
+  apiThrows: boolean;
+  hasCompletedOnboarding: boolean;
+  savedCitiesCount: number;
+}): Promise<{ modalShown: boolean; flagAllowsRetry: boolean }> {
+  const flag = { current: false };
+  let modalShown = false;
+
+  // Mirrors the try/catch structure in home/page.tsx onboarding check effect
+  try {
+    flag.current = true;
+
+    // Simulate getUserPreferences
+    if (opts.apiThrows) {
+      throw new Error("Network error");
+    }
+
+    if (!opts.hasCompletedOnboarding) {
+      // Simulate getSavedCities
+      if (opts.savedCitiesCount === 0) {
+        modalShown = true;
+      }
+    }
+  } catch {
+    // Reset flag so the check retries on next effect trigger
+    flag.current = false;
+  }
+
+  return { modalShown, flagAllowsRetry: !flag.current };
+}
+
+describe("Onboarding check resilience", () => {
+  it("shows modal for new user with no saved cities", async () => {
+    const result = await simulateOnboardingCheck({
+      apiThrows: false,
+      hasCompletedOnboarding: false,
+      savedCitiesCount: 0,
+    });
+    expect(result.modalShown).toBe(true);
+    expect(result.flagAllowsRetry).toBe(false); // flag stays set after success
+  });
+
+  it("skips modal for user who completed onboarding", async () => {
+    const result = await simulateOnboardingCheck({
+      apiThrows: false,
+      hasCompletedOnboarding: true,
+      savedCitiesCount: 0,
+    });
+    expect(result.modalShown).toBe(false);
+  });
+
+  it("skips modal for user with saved cities", async () => {
+    const result = await simulateOnboardingCheck({
+      apiThrows: false,
+      hasCompletedOnboarding: false,
+      savedCitiesCount: 3,
+    });
+    expect(result.modalShown).toBe(false);
+  });
+
+  it("resets flag on API failure so onboarding check can retry", async () => {
+    const result = await simulateOnboardingCheck({
+      apiThrows: true,
+      hasCompletedOnboarding: false,
+      savedCitiesCount: 0,
+    });
+    expect(result.modalShown).toBe(false); // API failed, modal not shown yet
+    expect(result.flagAllowsRetry).toBe(true); // flag reset, retry allowed
+  });
+
+  it("retry after API failure shows modal on success", async () => {
+    // First attempt fails
+    const attempt1 = await simulateOnboardingCheck({
+      apiThrows: true,
+      hasCompletedOnboarding: false,
+      savedCitiesCount: 0,
+    });
+    expect(attempt1.modalShown).toBe(false);
+    expect(attempt1.flagAllowsRetry).toBe(true);
+
+    // Second attempt succeeds
+    const attempt2 = await simulateOnboardingCheck({
+      apiThrows: false,
+      hasCompletedOnboarding: false,
+      savedCitiesCount: 0,
+    });
+    expect(attempt2.modalShown).toBe(true);
   });
 });

@@ -593,9 +593,9 @@ export default function DashboardPage() {
         return;
       }
 
-      hasCheckedOnboarding.current = true;
-
       try {
+        hasCheckedOnboarding.current = true;
+
         const token = await getAccessTokenSilently();
         const prefs = await getUserPreferences(token);
         if (!prefs.has_completed_onboarding) {
@@ -680,6 +680,9 @@ export default function DashboardPage() {
           }
         }
       } catch (error) {
+        // Reset so the check retries on next effect trigger (e.g. after
+        // a transient API failure) instead of permanently skipping onboarding.
+        hasCheckedOnboarding.current = false;
         console.error("Error checking onboarding status:", error);
       }
     };
