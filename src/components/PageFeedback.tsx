@@ -31,7 +31,8 @@ export default function PageFeedback({
     } catch {
       // localStorage unavailable
     }
-    requestAnimationFrame(() => setVisible(true));
+    const raf = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(raf);
   }, [storageKey]);
 
   useEffect(() => {

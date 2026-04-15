@@ -17,7 +17,7 @@ import {
   getPublicCityMetricOrdering,
   type PublicMetricOrderingResponse,
 } from "@/lib/publicApiClient";
-import NavEmailSignup from "./NavEmailSignup";
+import CitySignupButton from "./CitySignupButton";
 import CityDashboardSection from "./CityDashboardSection";
 import CityDashboardSectionWithOrdering from "./CityDashboardSectionWithOrdering";
 import CityViewTracker from "./CityViewTracker";
@@ -29,7 +29,7 @@ import HeroDistrictSelector from "./HeroDistrictSelector";
 import CityMapPreview from "./CityMapPreview";
 import FeaturedStoriesAsync from "./FeaturedStoriesAsync";
 import FeaturedStoriesSkeleton from "./FeaturedStoriesSkeleton";
-import CityHeroNewsletter from "./CityHeroNewsletter";
+import CitySignupCTA from "./CitySignupCTA";
 import LoggedOutOnly from "./LoggedOutOnly";
 import MobileCitySignupBar from "./MobileCitySignupBar";
 import { slugify, formatLeaderName } from "@/lib/utils";
@@ -270,7 +270,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       />
       <CityViewTracker citySlug={slug} cityId={city?.id} />
       <PublicNavBar>
-        <NavEmailSignup citySlug={slug} cityName={city?.name} cityId={city?.id} isHome />
+        <CitySignupButton citySlug={slug} cityName={city?.name} cityId={city?.id} />
       </PublicNavBar>
 
       <main id="main-content">
@@ -311,9 +311,9 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
               Sign up to be notified when it launches.
             </p>
             <div className="city-coming-soon-signup">
-              <CityHeroNewsletter
+              <CitySignupCTA
+                citySlug={slug}
                 cityName={cityDisplayName}
-                cityDisplay={cityDisplayName}
                 label={`Get notified when ${cityDisplayName} launches`}
               />
             </div>
@@ -415,9 +415,10 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                 every number.
               </p>
               <div className="city-explainer-cta">
-                <CityHeroNewsletter
-                  cityName={city?.name ?? slug}
+                <CitySignupCTA
                   citySlug={slug}
+                  cityName={city?.name ?? slug}
+                  cityId={city?.id}
                 />
               </div>
             </div>

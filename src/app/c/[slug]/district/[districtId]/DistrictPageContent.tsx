@@ -7,11 +7,11 @@ import type {
   PublicMapListItem,
 } from "@/lib/publicApiClient";
 import type { MetricOrderingEntry } from "../../CityDashboardSection";
-import NavEmailSignup from "../../NavEmailSignup";
+import CitySignupButton from "../../CitySignupButton";
 import CityDashboardSection from "../../CityDashboardSection";
 import DistrictFollowClaimBlock from "../DistrictFollowClaimBlock";
 import DistrictListWithFollow from "../../DistrictListWithFollow";
-import EmailSignInLink from "../../EmailSignInLink";
+import CitySignupCTA from "../../CitySignupCTA";
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
@@ -97,7 +97,7 @@ export default function DistrictPageContent({
   return (
     <SignupEmailProvider>
       <PublicNavBar>
-        <NavEmailSignup citySlug={slug} cityName={city.shortDisplay} />
+        <CitySignupButton citySlug={slug} cityName={city.shortDisplay} />
       </PublicNavBar>
 
       <main id="main-content">
@@ -129,7 +129,7 @@ export default function DistrictPageContent({
 
               <DistrictFollowClaimBlock cityId={city.id} district={d} slug={slug} cityDisplayName={city.shortDisplay} />
 
-              <EmailSignInLink label={`Get District ${d} updates for ${city.shortDisplay}.`} />
+              <CitySignupCTA citySlug={slug} cityName={city.shortDisplay} label={`Sign up for District ${d} updates`} />
 
               {districts.length > 1 && (
                 <nav className="district-nav-pills" aria-label="Other districts">

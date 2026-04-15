@@ -160,7 +160,7 @@ export default function PublicChatPage() {
               Ask questions about your city&apos;s data using AI-powered analysis
               of public datasets.
             </p>
-            <Link href="/home" className="cta-button">
+            <Link href="/" className="cta-button">
               Start Chatting
             </Link>
           </div>

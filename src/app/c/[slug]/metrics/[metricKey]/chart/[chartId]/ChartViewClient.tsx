@@ -6,7 +6,7 @@ import TimeSeriesChart, { type PeriodType } from "@/components/TimeSeriesChart";
 import Loader from "@/components/Loader";
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
-import NavEmailSignup from "../../../../NavEmailSignup";
+import CitySignupButton from "../../../../CitySignupButton";
 import { SignupEmailProvider } from "../../../../SignupEmailContext";
 import {
   getPublicTimeSeriesChart,
@@ -161,7 +161,7 @@ export default function ChartViewClient({
     <SignupEmailProvider>
     <div className="chart-view-page">
       <PublicNavBar>
-        <NavEmailSignup citySlug={citySlug} cityName={cityName} />
+        <CitySignupButton citySlug={citySlug} cityName={cityName} />
       </PublicNavBar>
 
       <div className="chart-view-content-wrapper">

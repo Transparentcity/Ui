@@ -9,8 +9,8 @@ import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
 import { slugify } from "@/lib/utils";
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
-import NavEmailSignup from "../../NavEmailSignup";
-import CityHeroNewsletter from "../../CityHeroNewsletter";
+import CitySignupButton from "../../CitySignupButton";
+import CitySignupCTA from "../../CitySignupCTA";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 import Breadcrumb from "@/components/Breadcrumb";
 
@@ -116,7 +116,7 @@ export default async function NewsletterEditionPage({ params }: PageProps) {
   return (
     <SignupEmailProvider>
       <PublicNavBar>
-        <NavEmailSignup citySlug={slug} cityName={edition.city_name ?? slug} />
+        <CitySignupButton citySlug={slug} cityName={edition.city_name ?? slug} />
       </PublicNavBar>
 
       <article
@@ -186,13 +186,20 @@ export default async function NewsletterEditionPage({ params }: PageProps) {
         />
 
         {/* Newsletter signup CTA — only shown to logged-out users */}
-        <CityHeroNewsletter
-          cityName={cityDisplay}
-          citySlug={slug}
-          withContainer
-          containerHeading="Get this in your inbox every week"
-          containerSubtitle={`Sign up to receive ${cityDisplay}\u2019s weekly briefing${districtLabel ? ` for District ${edition.district}` : ""}.`}
-        />
+        <div style={{
+          margin: "32px 0",
+          padding: "24px",
+          borderRadius: 12,
+          background: "var(--bg-secondary, #f5f5f5)",
+        }}>
+          <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 4px", color: "var(--text-primary)" }}>
+            Get this in your inbox every week
+          </p>
+          <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: "0 0 12px" }}>
+            Sign up to receive {cityDisplay}&rsquo;s weekly briefing{districtLabel ? ` for District ${edition.district}` : ""}.
+          </p>
+          <CitySignupCTA citySlug={slug} cityName={cityDisplay} />
+        </div>
 
         <hr style={{ border: "none", borderTop: "1px solid var(--border-primary, #e5e7eb)", margin: "32px 0" }} />
 

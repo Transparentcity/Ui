@@ -12,14 +12,14 @@ import {
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
 import SafeImage from "@/components/SafeImage";
-import NavEmailSignup from "../../NavEmailSignup";
+import CitySignupButton from "../../CitySignupButton";
 import {
   articleUsesPrimaryVisualizationShortcode,
   buildPrimaryVisualizationShortcodeConfig,
   processVisualizationShortcodes,
 } from "@/lib/visualizationShortcodes";
 import ShareButton from "./ShareButton";
-import CityHeroNewsletter from "../../CityHeroNewsletter";
+import CitySignupCTA from "../../CitySignupCTA";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
 import { slugify } from "@/lib/utils";
@@ -173,7 +173,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
   return (
     <SignupEmailProvider>
       <PublicNavBar>
-        <NavEmailSignup citySlug={slug} cityName={story.city_name ?? slug} />
+        <CitySignupButton citySlug={slug} cityName={story.city_name ?? slug} />
       </PublicNavBar>
 
       <article
@@ -407,7 +407,20 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         )}
 
         {/* Newsletter signup CTA — only shown to logged-out users */}
-        <CityHeroNewsletter cityName={cityDisplay} citySlug={slug} cityDisplay={cityDisplay} withContainer />
+        <div style={{
+          margin: "32px 0",
+          padding: "24px",
+          borderRadius: 12,
+          background: "var(--bg-secondary, #f5f5f5)",
+        }}>
+          <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 4px", color: "var(--text-primary)" }}>
+            Sign up now, get your first newsletter this week
+          </p>
+          <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: "0 0 12px" }}>
+            {cityDisplay}&rsquo;s public data, explained. Crime trends, housing, city services, and more.
+          </p>
+          <CitySignupCTA citySlug={slug} cityName={cityDisplay} />
+        </div>
       </article>
 
       <PublicFooter citySlug={slug} feedbackPageUrl={`/c/${slug}/stories/${hash}`} feedbackPageType="story" />

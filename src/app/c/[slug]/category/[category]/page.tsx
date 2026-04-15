@@ -14,15 +14,14 @@ import {
   listPublicMapsForCity,
 } from "@/lib/publicApiClient";
 import { slugify } from "@/lib/utils";
-import EmailSignInLink from "../../EmailSignInLink";
+import CitySignupCTA from "../../CitySignupCTA";
 import CityViewTracker from "../../CityViewTracker";
 import CustomizeMetricsTrigger from "../../CustomizeMetricsTrigger";
 import DistrictFollowClaimBlock from "../../district/DistrictFollowClaimBlock";
 import CategoryDashboardSection from "./CategoryDashboardSection";
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
-import NavEmailSignup from "../../NavEmailSignup";
-import CityHeroNewsletter from "../../CityHeroNewsletter";
+import CitySignupButton from "../../CitySignupButton";
 import LoggedOutOnly from "../../LoggedOutOnly";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 
@@ -203,7 +202,7 @@ export default async function CityCategoryPage({
     <SignupEmailProvider>
       <CityViewTracker citySlug={slug} cityId={city?.id} />
       <PublicNavBar>
-        <NavEmailSignup citySlug={slug} cityName={cityDisplayName} />
+        <CitySignupButton citySlug={slug} cityName={cityDisplayName} />
       </PublicNavBar>
 
       <section className="hero" style={{ paddingTop: 96 }}>
@@ -231,7 +230,7 @@ export default async function CityCategoryPage({
               )}
 
               <div className="hero-newsletter">
-                <EmailSignInLink label={`To get updates for ${cityDisplayName}`} />
+                <CitySignupCTA citySlug={slug} cityName={cityDisplayName} label={`Sign up for ${cityDisplayName} updates`} />
               </div>
 
               {(() => {
@@ -303,7 +302,7 @@ export default async function CityCategoryPage({
                 every number.
               </p>
               <div className="city-explainer-cta">
-                <CityHeroNewsletter cityName={city.name} citySlug={slug} />
+                <CitySignupCTA citySlug={slug} cityName={city.name} />
               </div>
             </div>
           </div>

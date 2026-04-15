@@ -6,8 +6,8 @@ import type { PublicMetricDetail, PublicMetricComparisons, PublicTimeSeriesSumma
 import MetricDetailContent from "@/components/MetricDetailContent";
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
-import NavEmailSignup from "../../NavEmailSignup";
-import CityHeroNewsletter from "../../CityHeroNewsletter";
+import CitySignupButton from "../../CitySignupButton";
+import CitySignupCTA from "../../CitySignupCTA";
 import LoggedOutOnly from "../../LoggedOutOnly";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 import { trackMetricView } from "@/lib/analytics";
@@ -49,7 +49,7 @@ export default function MetricDetailClient({
     <SignupEmailProvider>
     <div className="metric-detail-page">
       <PublicNavBar>
-        <NavEmailSignup citySlug={citySlug} cityName={cityName} />
+        <CitySignupButton citySlug={citySlug} cityName={cityName} />
       </PublicNavBar>
       <div className="metric-detail-content-wrapper">
         <Breadcrumb items={[
@@ -88,7 +88,7 @@ export default function MetricDetailClient({
                 every number.
               </p>
               <div className="city-explainer-cta">
-                <CityHeroNewsletter cityName={cityName} citySlug={citySlug} />
+                <CitySignupCTA citySlug={citySlug} cityName={cityName} />
               </div>
             </div>
           </div>

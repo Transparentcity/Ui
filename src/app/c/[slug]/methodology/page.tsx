@@ -6,8 +6,8 @@ import PublicNavBar from "@/components/PublicNavBar";
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
 import { slugify } from "@/lib/utils";
 import { getDataPortalForCity } from "@/lib/dataPortals";
-import NavEmailSignup from "../NavEmailSignup";
-import CityHeroNewsletter from "../CityHeroNewsletter";
+import CitySignupButton from "../CitySignupButton";
+import CitySignupCTA from "../CitySignupCTA";
 import LoggedOutOnly from "../LoggedOutOnly";
 import { SignupEmailProvider } from "../SignupEmailContext";
 
@@ -78,7 +78,7 @@ export default async function MethodologyPage({ params }: PageProps) {
   return (
     <SignupEmailProvider>
       <PublicNavBar>
-        <NavEmailSignup citySlug={slug} cityName={cityName} />
+        <CitySignupButton citySlug={slug} cityName={cityName} />
       </PublicNavBar>
 
       <main className="methodology-main">
@@ -216,10 +216,7 @@ export default async function MethodologyPage({ params }: PageProps) {
                 every number.
               </p>
               <div className="city-explainer-cta">
-                <CityHeroNewsletter
-                  cityName={cityName}
-                  citySlug={slug}
-                />
+                <CitySignupCTA citySlug={slug} cityName={cityName} />
               </div>
             </div>
           </div>

@@ -38,45 +38,53 @@ export async function createDynamicTemplate(formData: FormData) {
   
   // Add subject variations
   if (subjectVariationsJson) {
-    const subjectVariations = JSON.parse(subjectVariationsJson) as { subject: string; weight: number }[]
-    if (subjectVariations.length > 0) {
-      const { error: subjectError } = await db
-        .from("subject_variations")
-        .insert(
-          subjectVariations
-            .filter(v => v.subject.trim())
-            .map(v => ({
-              template_id: template.id,
-              subject: v.subject,
-              weight: v.weight,
-            }))
-        )
-      
-      if (subjectError) {
-        console.error("[v0] Error adding subject variations:", subjectError)
+    try {
+      const subjectVariations = JSON.parse(subjectVariationsJson) as { subject: string; weight: number }[]
+      if (subjectVariations.length > 0) {
+        const { error: subjectError } = await db
+          .from("subject_variations")
+          .insert(
+            subjectVariations
+              .filter(v => v.subject.trim())
+              .map(v => ({
+                template_id: template.id,
+                subject: v.subject,
+                weight: v.weight,
+              }))
+          )
+
+        if (subjectError) {
+          console.error("[v0] Error adding subject variations:", subjectError)
+        }
       }
+    } catch (e) {
+      console.error("[v0] Invalid subject variations JSON:", e)
     }
   }
-  
+
   // Add custom slot variations
   if (customVariationsJson) {
-    const customVariations = JSON.parse(customVariationsJson) as Record<string, string[]>
-    const variationInserts = Object.entries(customVariations)
-      .filter(([_, variations]) => variations.length > 0 && variations.some(v => v.trim()))
-      .map(([key, variations]) => ({
-        template_id: template.id,
-        variation_key: key,
-        variations: variations.filter(v => v.trim()),
-      }))
-    
-    if (variationInserts.length > 0) {
-      const { error: variationError } = await db
-        .from("template_variations")
-        .insert(variationInserts)
-      
-      if (variationError) {
-        console.error("[v0] Error adding custom variations:", variationError)
+    try {
+      const customVariations = JSON.parse(customVariationsJson) as Record<string, string[]>
+      const variationInserts = Object.entries(customVariations)
+        .filter(([_, variations]) => variations.length > 0 && variations.some(v => v.trim()))
+        .map(([key, variations]) => ({
+          template_id: template.id,
+          variation_key: key,
+          variations: variations.filter(v => v.trim()),
+        }))
+
+      if (variationInserts.length > 0) {
+        const { error: variationError } = await db
+          .from("template_variations")
+          .insert(variationInserts)
+
+        if (variationError) {
+          console.error("[v0] Error adding custom variations:", variationError)
+        }
       }
+    } catch (e) {
+      console.error("[v0] Invalid custom variations JSON:", e)
     }
   }
   
@@ -118,39 +126,47 @@ export async function updateDynamicTemplate(id: string, formData: FormData) {
   
   // Replace subject variations
   await db.from("subject_variations").delete().eq("template_id", id)
-  
+
   if (subjectVariationsJson) {
-    const subjectVariations = JSON.parse(subjectVariationsJson) as { subject: string; weight: number }[]
-    if (subjectVariations.length > 0) {
-      await db
-        .from("subject_variations")
-        .insert(
-          subjectVariations
-            .filter(v => v.subject.trim())
-            .map(v => ({
-              template_id: id,
-              subject: v.subject,
-              weight: v.weight,
-            }))
-        )
+    try {
+      const subjectVariations = JSON.parse(subjectVariationsJson) as { subject: string; weight: number }[]
+      if (subjectVariations.length > 0) {
+        await db
+          .from("subject_variations")
+          .insert(
+            subjectVariations
+              .filter(v => v.subject.trim())
+              .map(v => ({
+                template_id: id,
+                subject: v.subject,
+                weight: v.weight,
+              }))
+          )
+      }
+    } catch (e) {
+      console.error("[v0] Invalid subject variations JSON:", e)
     }
   }
-  
+
   // Replace custom slot variations
   await db.from("template_variations").delete().eq("template_id", id)
-  
+
   if (customVariationsJson) {
-    const customVariations = JSON.parse(customVariationsJson) as Record<string, string[]>
-    const variationInserts = Object.entries(customVariations)
-      .filter(([_, variations]) => variations.length > 0 && variations.some(v => v.trim()))
-      .map(([key, variations]) => ({
-        template_id: id,
-        variation_key: key,
-        variations: variations.filter(v => v.trim()),
-      }))
-    
-    if (variationInserts.length > 0) {
-      await db.from("template_variations").insert(variationInserts)
+    try {
+      const customVariations = JSON.parse(customVariationsJson) as Record<string, string[]>
+      const variationInserts = Object.entries(customVariations)
+        .filter(([_, variations]) => variations.length > 0 && variations.some(v => v.trim()))
+        .map(([key, variations]) => ({
+          template_id: id,
+          variation_key: key,
+          variations: variations.filter(v => v.trim()),
+        }))
+
+      if (variationInserts.length > 0) {
+        await db.from("template_variations").insert(variationInserts)
+      }
+    } catch (e) {
+      console.error("[v0] Invalid custom variations JSON:", e)
     }
   }
   
