@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server"
 import { promises as fs } from "fs"
 import path from "path"
-import { exec } from "child_process"
+import { execFile } from "child_process"
 import { promisify } from "util"
+import { requireAdmin } from "../auth"
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 // Configure paths
 const PLATFORM_DIR = path.resolve(process.cwd(), "../TranparentCityPlatform")
@@ -18,9 +19,12 @@ const REPORTS_DIR = process.env.CITYREADINESS_REPORT_DIR || "/private/tmp"
 const TARGET_CITY_IDS = "57035,56838,57201,57260,56692,56743,57110,56768,57259,56729,57261,56718,56735,56577,56593,56656,57414,56493,56883,56919,57323,56711,56690,57345,57378,57337,56709,56608,56620,57330,57223"
 
 export async function POST(req: Request) {
+  const authError = await requireAdmin(req)
+  if (authError) return authError
+
   try {
     const body = await req.json()
-    const newExclusions = body.exclusions as Array<{ 
+    const newExclusions = body.exclusions as Array<{
         city_id: number | string; 
         metric_key: string; 
         dataset_id: string;
@@ -51,21 +55,23 @@ export async function POST(req: Request) {
 
     if (!Array.isArray(existing)) existing = []
 
-    const SMART_REFINE_SCRIPT = path.join(PLATFORM_DIR, "scripts", "smart_refine_match.py")
-
     const PYTHON_EXEC = path.join(PLATFORM_DIR, "venv", "bin", "python3")
-    
+
     for (const item of newExclusions) {
-      if (!item.city_name) continue; 
-      
-      const refineCmd = `"${PYTHON_EXEC}" scripts/smart_refine_match.py --city-id "${item.city_id}" --city-name "${item.city_name}" --metric-key "${item.metric_key}" --rejected-dataset-id "${item.dataset_id}"`
+      if (!item.city_name) continue;
+
       try {
-        await execAsync(refineCmd, { cwd: PLATFORM_DIR })
+        await execFileAsync(PYTHON_EXEC, [
+          "scripts/smart_refine_match.py",
+          "--city-id", String(item.city_id),
+          "--city-name", String(item.city_name),
+          "--metric-key", String(item.metric_key),
+          "--rejected-dataset-id", String(item.dataset_id),
+        ], { cwd: PLATFORM_DIR })
       } catch (e) {
-        const details = e instanceof Error ? e.message : String(e)
         console.error(
           `[Refine] Smart refine failed for ${item.city_id}/${item.metric_key}:`,
-          details
+          e instanceof Error ? e.message : String(e)
         )
       }
     }
@@ -128,23 +134,22 @@ export async function POST(req: Request) {
     // Build command
     // We assume python3 is in the path and has dependencies installed.
     // We execute in the platform directory.
-    const cmd = `"${PYTHON_EXEC}" scripts/city_readiness_report.py --city-ids "${TARGET_CITY_IDS}" --output-json "${reportPath}" --baseline-mode all_templates --exclusions-file "${EXCLUSIONS_FILE}" --match-timestamps-file "${MATCH_TIMESTAMPS_FILE}"`
-
-    
     // We'll await execution so the UI knows when it's ready.
     // This might take 10-20 seconds.
     try {
-      const { stdout, stderr } = await execAsync(cmd, { cwd: PLATFORM_DIR })
+      const { stderr } = await execFileAsync(PYTHON_EXEC, [
+        "scripts/city_readiness_report.py",
+        "--city-ids", TARGET_CITY_IDS,
+        "--output-json", reportPath,
+        "--baseline-mode", "all_templates",
+        "--exclusions-file", EXCLUSIONS_FILE,
+        "--match-timestamps-file", MATCH_TIMESTAMPS_FILE,
+      ], { cwd: PLATFORM_DIR })
       if (stderr) console.error("[Refine] Stderr:", stderr)
     } catch (e) {
-      const details = e instanceof Error ? e.message : String(e)
-      console.error("[Refine] Script execution failed:", details)
+      console.error("[Refine] Script execution failed:", e instanceof Error ? e.message : String(e))
       return NextResponse.json(
-        {
-          error: "Failed to regenerate report",
-          details,
-          command: cmd,
-        },
+        { error: "Failed to regenerate report" },
         { status: 500 }
       )
     }
@@ -156,10 +161,9 @@ export async function POST(req: Request) {
     })
 
   } catch (e) {
-    const details = e instanceof Error ? e.message : String(e)
-    console.error("[Refine] Error:", details)
+    console.error("[Refine] Error:", e instanceof Error ? e.message : String(e))
     return NextResponse.json(
-      { error: "Internal server error", details },
+      { error: "Internal server error" },
       { status: 500 }
     )
   }

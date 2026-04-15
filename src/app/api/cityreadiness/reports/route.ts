@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import fs from "node:fs/promises"
 import path from "node:path"
+import { requireAdmin } from "../auth"
 
 type ReportListItem = {
   name: string
@@ -31,6 +32,9 @@ async function safeReadGeneratedAt(filePath: string): Promise<string | null> {
 }
 
 export async function GET(req: Request): Promise<Response> {
+  const authError = await requireAdmin(req)
+  if (authError) return authError
+
   const { searchParams } = new URL(req.url)
   const name = searchParams.get("name")
 
@@ -60,8 +64,8 @@ export async function GET(req: Request): Promise<Response> {
       const parsed = JSON.parse(raw) as unknown
       return NextResponse.json(parsed, { status: 200 })
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Unknown error"
-      return NextResponse.json({ error: `Failed to load report: ${msg}` }, { status: 404 })
+      console.error("[Reports] Failed to load report:", e instanceof Error ? e.message : String(e))
+      return NextResponse.json({ error: "Report not found" }, { status: 404 })
     }
   }
 
@@ -102,8 +106,8 @@ export async function GET(req: Request): Promise<Response> {
 
     return NextResponse.json({ dir, reports: items }, { status: 200 })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Unknown error"
-    return NextResponse.json({ error: `Failed to list reports: ${msg}`, dir }, { status: 500 })
+    console.error("[Reports] Failed to list reports:", e instanceof Error ? e.message : String(e))
+    return NextResponse.json({ error: "Failed to list reports" }, { status: 500 })
   }
 }
 

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server"
 import { promises as fs } from "fs"
 import path from "path"
-import { exec } from "child_process"
+import { execFile } from "child_process"
 import { promisify } from "util"
+import { requireAdmin } from "../auth"
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 // Configure paths
 const PLATFORM_DIR = path.resolve(process.cwd(), "../TranparentCityPlatform")
@@ -15,6 +16,9 @@ const REPORTS_DIR = process.env.CITYREADINESS_REPORT_DIR || "/private/tmp"
 const TARGET_CITY_IDS = "57035,56838,57201,57260,56692,56743,57110,56768,57259,56729,57261,56718,56735,56577,56593,56656,57414,56493,56883,56919,57323,56711,56690,57345,57378,57337,56709,56608,56620,57330,57223"
 
 export async function POST(req: Request) {
+  const authError = await requireAdmin(req)
+  if (authError) return authError
+
   try {
     const body = await req.json()
     const { cityId, metricKey, datasetId } = body
@@ -83,21 +87,21 @@ export async function POST(req: Request) {
     const reportFilename = `city_readiness_report_${timestamp}.json`
     const reportPath = path.join(REPORTS_DIR, reportFilename)
 
-    // Note: We pass --overrides-file to the script
-    const cmd = `"${PYTHON_EXEC}" scripts/city_readiness_report.py --city-ids "${TARGET_CITY_IDS}" --output-json "${reportPath}" --baseline-mode all_templates --exclusions-file "${path.join(DATA_DIR, "dataset_match_exclusions.json")}" --overrides-file "${OVERRIDES_FILE}" --match-timestamps-file "${MATCH_TIMESTAMPS_FILE}"`
-
-    
     try {
-      const { stdout, stderr } = await execAsync(cmd, { cwd: PLATFORM_DIR })
+      const { stderr } = await execFileAsync(PYTHON_EXEC, [
+        "scripts/city_readiness_report.py",
+        "--city-ids", TARGET_CITY_IDS,
+        "--output-json", reportPath,
+        "--baseline-mode", "all_templates",
+        "--exclusions-file", path.join(DATA_DIR, "dataset_match_exclusions.json"),
+        "--overrides-file", OVERRIDES_FILE,
+        "--match-timestamps-file", MATCH_TIMESTAMPS_FILE,
+      ], { cwd: PLATFORM_DIR })
       if (stderr) console.error("[ForceMatch] Stderr:", stderr)
     } catch (e) {
-      const details = e instanceof Error ? e.message : String(e)
-      console.error("[ForceMatch] Script execution failed:", details)
+      console.error("[ForceMatch] Script execution failed:", e instanceof Error ? e.message : String(e))
       return NextResponse.json(
-        {
-          error: "Failed to regenerate report",
-          details,
-        },
+        { error: "Failed to regenerate report" },
         { status: 500 }
       )
     }
@@ -109,10 +113,9 @@ export async function POST(req: Request) {
     })
 
   } catch (e) {
-    const details = e instanceof Error ? e.message : String(e)
-    console.error("[ForceMatch] Error:", details)
+    console.error("[ForceMatch] Error:", e instanceof Error ? e.message : String(e))
     return NextResponse.json(
-      { error: "Internal server error", details },
+      { error: "Internal server error" },
       { status: 500 }
     )
   }

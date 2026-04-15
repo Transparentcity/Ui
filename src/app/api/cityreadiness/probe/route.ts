@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { requireAdmin } from "../auth"
 
 type ProbeRequest = {
   metricKey: string
@@ -230,6 +231,9 @@ async function probeArcgisItem(itemUrl: string, layer: number): Promise<Omit<Pro
 }
 
 export async function POST(req: Request): Promise<Response> {
+  const authError = await requireAdmin(req)
+  if (authError) return authError
+
   try {
     const body = (await req.json()) as ProbeRequest
     const datasetId = body?.dataset?.dataset_id

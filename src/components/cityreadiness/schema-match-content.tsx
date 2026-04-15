@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState, useEffect } from "react"
+import { useMemo, useState, useEffect, useCallback } from "react"
+import { useAuth0 } from "@auth0/auth0-react"
 import { FileJson2, Upload, Play, Loader2, ExternalLink, Download, AlertTriangle, RefreshCw, ChevronDown, ChevronUp, Search, CheckCircle2, XCircle, Info } from "lucide-react"
 import type { CityReadinessReport, CityReadinessResult, ReadinessDatasetCandidate } from "@/types/cityReadiness"
 import { assessConceptCoverage, getExpectedConcepts } from "@/lib/cityReadinessSchema"
@@ -439,6 +440,16 @@ function cityLabel(c: CityReadinessResult) {
 }
 
 export function SchemaMatchContent() {
+  const { getAccessTokenSilently } = useAuth0()
+
+  /** Fetch wrapper that attaches the Bearer token. */
+  const authFetch = useCallback(async (url: string, init?: RequestInit): Promise<Response> => {
+    const token = await getAccessTokenSilently()
+    const headers = new Headers(init?.headers)
+    headers.set("Authorization", `Bearer ${token}`)
+    return fetch(url, { ...init, headers })
+  }, [getAccessTokenSilently])
+
   const [report, setReport] = useState<CityReadinessReport | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [mode, setMode] = useState<Mode>("core7")
@@ -462,7 +473,7 @@ export function SchemaMatchContent() {
       
       setForcing(true)
       try {
-          const res = await fetch("/api/cityreadiness/force-match", {
+          const res = await authFetch("/api/cityreadiness/force-match", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ cityId, metricKey, datasetId }),
@@ -540,7 +551,7 @@ export function SchemaMatchContent() {
     if (!name) return
     setLoadingReports(true)
     try {
-      const res = await fetch(`/api/cityreadiness/reports?name=${encodeURIComponent(name)}`, {
+      const res = await authFetch(`/api/cityreadiness/reports?name=${encodeURIComponent(name)}`, {
         cache: "no-store",
       })
       const data: unknown = await res.json()
@@ -567,7 +578,7 @@ export function SchemaMatchContent() {
   async function refreshAvailableReports() {
     setLoadingReports(true)
     try {
-      const res = await fetch("/api/cityreadiness/reports", { cache: "no-store" })
+      const res = await authFetch("/api/cityreadiness/reports", { cache: "no-store" })
       const data: unknown = await res.json()
       const reports = parseReportList(data)
       setAvailableReports(reports)
@@ -588,7 +599,7 @@ export function SchemaMatchContent() {
     ;(async () => {
       setLoadingReports(true)
       try {
-        const res = await fetch("/api/cityreadiness/reports", { cache: "no-store" })
+        const res = await authFetch("/api/cityreadiness/reports", { cache: "no-store" })
         const data: unknown = await res.json()
         if (!mounted) return
         const list = parseReportList(data)
@@ -626,7 +637,7 @@ export function SchemaMatchContent() {
     const k = probeKey(cityId, metricKey)
     setProbe((p) => ({ ...p, [k]: { status: "loading" } }))
     try {
-      const res = await fetch("/api/cityreadiness/probe", {
+      const res = await authFetch("/api/cityreadiness/probe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -707,7 +718,7 @@ export function SchemaMatchContent() {
       }
       setRefiningKeys(nextRefiningKeys)
 
-      const res = await fetch("/api/cityreadiness/refine", {
+      const res = await authFetch("/api/cityreadiness/refine", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ exclusions }),
