@@ -192,6 +192,7 @@ export default function DashboardPage() {
   const [editableMonthlyReport, setEditableMonthlyReport] = useState(false);
   const [editableReportScope, setEditableReportScope] = useState<"district" | "city">("district");
   const [editableNewsletterDescription, setEditableNewsletterDescription] = useState("");
+  const savedNewsletterDescriptionRef = useRef("");
   const [editableNewsletterFrequency, setEditableNewsletterFrequency] = useState<"weekly" | "monthly">("weekly");
   const [generatingSampleNewsletter, setGeneratingSampleNewsletter] = useState(false);
   const [sampleNewsletterSubject, setSampleNewsletterSubject] = useState<string | null>(null);
@@ -934,8 +935,9 @@ export default function DashboardPage() {
       setEditableMonthlyReport(commPrefs.monthly_report ?? false);
       setEditableReportScope(commPrefs.report_scope || "district");
       setEditableNewsletterDescription(newsletterDescription);
+      savedNewsletterDescriptionRef.current = newsletterDescription;
       setEditableNewsletterFrequency(newsletterFrequency);
-      
+
       // Fetch government verification status (for Settings government mode section)
       try {
         const govStatus = await getGovernmentVerificationStatus(token);
@@ -1031,9 +1033,12 @@ export default function DashboardPage() {
       setEditableWeeklyDigest(commPrefs.weekly_digest ?? false);
       setEditableMonthlyReport(commPrefs.monthly_report ?? false);
       setEditableReportScope(commPrefs.report_scope || "district");
+      const newsletterDescriptionChanged =
+        newsletterDescription !== savedNewsletterDescriptionRef.current;
       setEditableNewsletterDescription(newsletterDescription);
+      savedNewsletterDescriptionRef.current = newsletterDescription;
       setEditableNewsletterFrequency(newsletterFrequency);
-      
+
       // Update home city if it exists
       if (refreshed.extra?.home_location?.city_id) {
         try {
@@ -1043,12 +1048,18 @@ export default function DashboardPage() {
           console.error("Error fetching home city after save:", err);
         }
       }
-      
-      // Show success message (you could add a toast notification here)
-      alert("Preferences saved successfully!");
+
+      if (newsletterDescriptionChanged) {
+        toast.success(
+          "Thank you! Behind the scenes we are working to make these prompts increasingly valuable to you, so please keep it updated based on your interests.",
+          { duration: 6000 }
+        );
+      } else {
+        toast.success("Preferences saved!");
+      }
     } catch (error) {
       console.error("Error saving preferences:", error);
-      alert("Failed to save preferences. Please try again.");
+      toast.error("Failed to save preferences. Please try again.");
     } finally {
       setSavingPreferences(false);
     }
@@ -1698,25 +1709,28 @@ export default function DashboardPage() {
                       </div>
                       )}
                     </div>
-                  </section>
-
-                  {/* Personalized newsletter - admin only */}
-                  {isAdmin && <section className={styles.settingsSection}>
-                    <h3 className={styles.settingsSectionTitle}>Personalized newsletter</h3>
-                    <div className={styles.settingsNewsletterBlock}>
-                      <p className={styles.settingsNewsletterIntro}>
-                        Your newsletter preferences from onboarding. Edit below and save to update. Send a test: choose <strong>Feed stories</strong> to match the weekly job (no LLM), or <strong>Seymour (LLM)</strong> to run the full personalized prompt with tools. The test is logged in Seymour&apos;s outbox and emailed when sending is configured.
-                      </p>
-                      <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "var(--text-primary)", marginBottom: "8px" }}>
-                        Newsletter description (what you want each edition to focus on)
+                    {/* Customize your newsletter - all users */}
+                    <div className={styles.settingsNewsletterBlock} style={{ marginTop: "16px" }}>
+                      <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "var(--text-primary)", marginBottom: "4px" }}>
+                        Customize your newsletter
                       </label>
+                      <p className={styles.settingsNewsletterIntro} style={{ marginBottom: "10px" }}>
+                        Tell us what you care about and we&apos;ll tailor each edition to you.
+                      </p>
                       <textarea
                         className={styles.settingsTextarea}
                         value={editableNewsletterDescription}
                         onChange={(e) => setEditableNewsletterDescription(e.target.value)}
-                        placeholder="Create a weekly newsletter report for this city and district. Focus on recent changes and trends in key metrics (crime, housing, permits, 311 calls), notable anomalies, comparative analysis..."
-                        rows={4}
+                        placeholder="e.g. Focus on crime trends near me, the timing of new building permits, and how the city budget is being spent."
+                        rows={3}
                       />
+                    </div>
+                  </section>
+
+                  {/* Admin-only: test newsletter generation */}
+                  {isAdmin && <section className={styles.settingsSection}>
+                    <h3 className={styles.settingsSectionTitle}>Newsletter testing</h3>
+                    <div className={styles.settingsNewsletterBlock}>
                       <div className={styles.settingsRadioGroup}>
                         <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--text-primary)" }}>Frequency:</span>
                         <label className={styles.settingsRadioLabel}>
