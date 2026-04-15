@@ -72,13 +72,16 @@ export default function DistrictListWithFollow({
     const d = String(district);
     if (followMutation.isPending || unfollowMutation.isPending) return; // guard against double-clicks
     if (!isAuthenticated) {
-      const returnTo =
-        typeof window !== "undefined"
-          ? window.location.pathname + window.location.search
-          : base;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("transparentcity.signup_intent", "resident");
+        window.localStorage.setItem("transparentcity.follow_city_id", String(cityId));
+        window.localStorage.setItem("transparentcity.follow_city_name", cityDisplayName);
+        window.localStorage.setItem("transparentcity.follow_city_slug", slug);
+      }
+      const params = new URLSearchParams({ signup: "resident", follow_city_id: String(cityId), follow_city_name: cityDisplayName, follow_city_slug: slug });
       loginWithRedirect({
         authorizationParams: { screen_hint: "signup", prompt: "login" },
-        appState: { returnTo },
+        appState: { returnTo: `/home?${params.toString()}` },
       });
       return;
     }

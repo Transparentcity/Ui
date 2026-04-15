@@ -1,17 +1,17 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
-import { usePathname } from "next/navigation";
 
 export default function SignUpToCustomizeMetricsButton() {
   const { loginWithRedirect } = useAuth0();
-  const pathname = usePathname();
-  const returnTo = pathname ?? "/home";
 
   const handleClick = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("transparentcity.signup_intent", "resident");
+    }
     loginWithRedirect({
       authorizationParams: { screen_hint: "signup" },
-      appState: { returnTo },
+      appState: { returnTo: "/home?signup=resident" },
     });
   };
 

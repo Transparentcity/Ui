@@ -21,11 +21,12 @@ export default function CustomizeMetricsTrigger({
   const { isAuthenticated, loginWithRedirect } = useAuth0();
 
   const handleSignUpToCustomize = () => {
-    const returnTo =
-      typeof window !== "undefined" ? window.location.pathname : "/home";
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("transparentcity.signup_intent", "resident");
+    }
     loginWithRedirect({
       authorizationParams: { screen_hint: "signup", prompt: "login" },
-      appState: { returnTo },
+      appState: { returnTo: "/home?signup=resident" },
     });
   };
 
