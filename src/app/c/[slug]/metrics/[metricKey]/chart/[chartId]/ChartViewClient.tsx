@@ -195,7 +195,7 @@ export default function ChartViewClient({
           { label: "Time series" },
         ]} />
 
-        <main className="chart-view-main">
+        <main id="main-content" className="chart-view-main">
           <div className="chart-view-inner">
             <h1 className="chart-view-title">{chartTitle}</h1>
             {displayChart.metadata?.caption && (

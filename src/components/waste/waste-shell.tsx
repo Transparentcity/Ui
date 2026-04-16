@@ -291,7 +291,7 @@ function WasteShellInner({
       </div>
 
       {/* Content */}
-      <main className="flex-1 p-3 lg:p-5 overflow-y-auto">{children}</main>
+      <main id="main-content" className="flex-1 p-3 lg:p-5 overflow-y-auto">{children}</main>
 
       {/* Footer */}
       <footer className="px-4 lg:px-6 py-3 border-t border-gray-200 bg-white">

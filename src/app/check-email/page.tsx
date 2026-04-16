@@ -59,7 +59,7 @@ export default function CheckEmailPage() {
   return (
     <>
       <Header />
-      <main style={{ padding: "2rem 1.5rem", maxWidth: 480, margin: "0 auto", textAlign: "center" }}>
+      <main id="main-content" style={{ padding: "2rem 1.5rem", maxWidth: 480, margin: "0 auto", textAlign: "center" }}>
         <h1 style={{ fontSize: "1.75rem", fontWeight: 700, marginBottom: "1rem" }}>
           Check your email
         </h1>

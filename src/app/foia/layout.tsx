@@ -12,7 +12,7 @@ export default function FoiaLayout({ children }: { children: React.ReactNode }) 
     <AdminGuard fallbackUrl="/home">
       <div className="flex h-screen overflow-hidden bg-background">
         <FoiaSidebar />
-        <main className="flex-1 overflow-y-auto">
+        <main id="main-content" className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-[1400px] px-8 py-8">
             {children}
           </div>
