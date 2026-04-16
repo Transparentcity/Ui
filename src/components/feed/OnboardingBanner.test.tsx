@@ -100,20 +100,20 @@ describe("OnboardingBanner", () => {
 
   it("shows completed state with checkmark instead of loader", () => {
     mockOnboardingState.status = "completed";
-    mockOnboardingState.message = "Your neighborhood feed is ready!";
+    mockOnboardingState.message = "Neighborhood stories will appear in your feed as they\u2019re generated.";
 
     render(<OnboardingBanner />);
-    expect(screen.getByText(/your neighborhood feed is ready/i)).toBeInTheDocument();
+    expect(screen.getByText(/neighborhood stories will appear/i)).toBeInTheDocument();
     // Should show checkmark SVG, not the spinner
     expect(screen.queryByTestId("branded-loader")).not.toBeInTheDocument();
   });
 
   it("shows failed state with appropriate message", () => {
     mockOnboardingState.status = "failed";
-    mockOnboardingState.message = "Your city feed is ready. We\u2019ll add neighborhood stories as more data becomes available.";
+    mockOnboardingState.message = "Neighborhood stories will appear in your feed as they\u2019re generated.";
 
     render(<OnboardingBanner />);
-    expect(screen.getByText(/your city feed is ready/i)).toBeInTheDocument();
+    expect(screen.getByText(/neighborhood stories will appear/i)).toBeInTheDocument();
   });
 
   it("dismiss button calls dismiss callback", async () => {

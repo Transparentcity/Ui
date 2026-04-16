@@ -92,7 +92,7 @@ export function usePlaceOnboarding() {
 
 const SESSION_KEY = "tc:onboarding-banner-dismissed";
 const POLL_INTERVAL_MS = 2000;
-const AUTO_DISMISS_MS = 5000;
+const AUTO_DISMISS_MS = 2000;
 const MAX_POLL_DURATION_MS = 30_000; // Give up after 30 seconds and show the feed
 
 interface PlaceOnboardingProviderProps {
@@ -190,21 +190,30 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
     applyCityCompletion(success);
   }, [applyCityCompletion]);
 
-  // Start tracking a place-level job (overrides city-level if active)
+  // Start tracking a place-level job (overrides city-level if active).
+  // Preserves any active found_rep notification (mayor/rep) so it finishes
+  // displaying before place-level messages take over.
   const startJob = useCallback((_placeId: number, jId: string) => {
-    clearAllTimers();
+    const preservingFoundRep = statusRef.current === "found_rep";
+    // Clear poll/dismiss timers but keep foundRepTimeout if preserving the notification
+    clearPollTimers();
+    if (autoDismissRef.current) { clearTimeout(autoDismissRef.current); autoDismissRef.current = null; }
+    if (!preservingFoundRep && foundRepTimeoutRef.current) {
+      clearTimeout(foundRepTimeoutRef.current); foundRepTimeoutRef.current = null;
+    }
     setJobId(jId);
     setMode("place");
-    setStatus("scanning");
-    setRepName(null);
-    setRepTitle(null);
+    // Don't wipe an active mayor/rep notification; the 4s timeout handles revert
+    if (!preservingFoundRep) {
+      setStatus("scanning");
+    }
     setElapsed(0);
     jobStartRef.current = Date.now();
 
     // Remove any prior dismissal
     setDismissed(false);
     if (typeof window !== "undefined") sessionStorage.removeItem(SESSION_KEY);
-  }, [clearAllTimers]);
+  }, [clearPollTimers]);
 
   // Notify that rep/mayor was found (called externally from rep discovery)
   const notifyRepFound = useCallback((name: string, title?: string) => {
@@ -340,11 +349,11 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
   if (status === "completed") {
     message = mode === "city"
       ? `Your ${cityName || "city"} feed is ready!`
-      : "Your neighborhood feed is ready!";
+      : "Neighborhood stories will appear in your feed as they\u2019re generated.";
   } else if (status === "failed") {
     message = mode === "city"
       ? `No stories in ${cityName || "your city"} yet. Here\u2019s what\u2019s trending:`
-      : "Your city feed is ready. We\u2019ll add neighborhood stories as more data becomes available.";
+      : "Neighborhood stories will appear in your feed as they\u2019re generated.";
   } else if (status === "found_rep" && repName) {
     message = repTitle
       ? `Found ${repTitle}: ${repName}`

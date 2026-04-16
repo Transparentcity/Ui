@@ -128,7 +128,7 @@ describe("PlaceOnboardingContext", () => {
 
     expect(screen.getByTestId("status").textContent).toBe("completed");
     expect(screen.getByTestId("message").textContent).toBe(
-      "Your neighborhood feed is ready!"
+      "Neighborhood stories will appear in your feed as they\u2019re generated."
     );
   });
 
@@ -177,9 +177,9 @@ describe("PlaceOnboardingContext", () => {
 
     expect(screen.getByTestId("status").textContent).toBe("completed");
 
-    // Auto-dismiss after 5s
+    // Auto-dismiss after 2s
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(6000);
+      await vi.advanceTimersByTimeAsync(3000);
     });
 
     expect(screen.getByTestId("dismissed").textContent).toBe("true");
@@ -355,6 +355,35 @@ describe("PlaceOnboardingContext", () => {
     );
   });
 
+  it("startJob preserves found_rep status so mayor notification finishes displaying", async () => {
+    mockGetJob.mockResolvedValue({ status: "running" });
+
+    let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+    renderWithProvider({}, (v) => { latestValue = v; });
+
+    act(() => { latestValue!.startCityLoading("Sacramento"); });
+
+    // Mayor notification is showing
+    act(() => { latestValue!.notifyRepFound("Darrell Steinberg", "Mayor"); });
+    expect(screen.getByTestId("status").textContent).toBe("found_rep");
+    expect(screen.getByTestId("message").textContent).toBe("Found Mayor: Darrell Steinberg");
+
+    // Place job starts while mayor is still showing
+    act(() => { latestValue!.startJob(42, "job-456"); });
+
+    // Mode switches to place, but found_rep status is preserved
+    expect(latestValue!.mode).toBe("place");
+    expect(screen.getByTestId("status").textContent).toBe("found_rep");
+    expect(screen.getByTestId("message").textContent).toBe("Found Mayor: Darrell Steinberg");
+
+    // After the 4s timeout, reverts to scanning with place-level message
+    await act(async () => { await vi.advanceTimersByTimeAsync(4500); });
+    expect(screen.getByTestId("status").textContent).toBe("scanning");
+    expect(screen.getByTestId("message").textContent).toBe(
+      "Pulling public data near your address..."
+    );
+  });
+
   it("completeCityLoading is a no-op when mode is place", () => {
     mockGetJob.mockResolvedValue({ status: "running" });
 
@@ -389,9 +418,9 @@ describe("PlaceOnboardingContext", () => {
 
     expect(screen.getByTestId("dismissed").textContent).toBe("false");
 
-    // Auto-dismiss after 5s
+    // Auto-dismiss after 2s
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(6000);
+      await vi.advanceTimersByTimeAsync(3000);
     });
 
     expect(screen.getByTestId("dismissed").textContent).toBe("true");
@@ -709,8 +738,8 @@ describe("PlaceOnboardingContext", () => {
         "Your Sacramento feed is ready!"
       );
 
-      // T=~15s: Auto-dismiss
-      await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
+      // T=~12s: Auto-dismiss
+      await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
       expect(screen.getByTestId("dismissed").textContent).toBe("true");
     });
 

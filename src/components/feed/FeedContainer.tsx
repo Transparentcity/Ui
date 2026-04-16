@@ -476,6 +476,18 @@ export default function FeedContainer({
     }
   }, [onboarding.status, onboarding.mode, queryClient]);
 
+  // Dismiss the place-level banner as soon as new stories appear in the feed
+  useEffect(() => {
+    if (
+      onboarding.mode === "place" &&
+      onboarding.status === "completed" &&
+      !isLoading &&
+      stories.length > 0
+    ) {
+      onboarding.dismiss();
+    }
+  }, [onboarding.mode, onboarding.status, isLoading, stories.length, onboarding.dismiss]);
+
   // Fetch narrative text from research reports for stories with thin descriptions.
   // Incremental: only fetch for stories we haven't processed yet.
   const [narratives, setNarratives] = useState<Map<number, string>>(new Map());
@@ -1463,7 +1475,7 @@ export default function FeedContainer({
               {onboarding.status === "scanning" || onboarding.status === "found_rep"
                 ? "Building your neighborhood feed"
                 : onboarding.status === "completed"
-                  ? "Your neighborhood feed is ready!"
+                  ? "Neighborhood stories will appear soon"
                   : "No stories for this place yet"}
             </p>
             <p className={styles.myBlockEmptyText}>
