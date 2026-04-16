@@ -166,14 +166,8 @@ export default function SidebarCitySearch({
       if (coordinates) {
         setStoredGPSLocation(coordinates);
         if (onGPSLocation) onGPSLocation(coordinates);
-        if (isAuthenticated) {
-          showMapSaveStep(city, coordinates);
-        } else {
-          selectCity(city, true);
-        }
-      } else {
-        selectCity(city, true);
       }
+      selectCity(city, true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not find city for this address.");
     } finally {
@@ -268,14 +262,8 @@ export default function SidebarCitySearch({
       if (coordinates) {
         setStoredGPSLocation(coordinates);
         if (onGPSLocation) onGPSLocation(coordinates);
-        if (isAuthenticated) {
-          showMapSaveStep(city, coordinates);
-        } else {
-          selectCity(city, true);
-        }
-      } else {
-        selectCity(city, true);
       }
+      selectCity(city, true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Geocoding failed");
     } finally {
@@ -346,11 +334,7 @@ export default function SidebarCitySearch({
       
       const geo = await reverseGeocode(location.lat, location.lng);
       const { city } = await resolveCityFromGeocode(geo, searchPublicCities);
-      if (isAuthenticated) {
-        showMapSaveStep(city, location);
-      } else {
-        selectCity(city, true);
-      }
+      selectCity(city, true);
       setGeoLoading(false);
       setGpsActive(false);
       
