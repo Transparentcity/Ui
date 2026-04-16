@@ -318,14 +318,12 @@ export default function FeedContainer({
     const id = [...selectedCityIds][0];
     // City exists in feed places → it has stories, nothing to do
     if (uniqueCities.some((c) => c.city_id === id)) return null;
-    // Feed query returned stories for this city (places cache may be stale)
-    if (!isLoading && stories.length > 0) return null;
     // Find city name from savedCities for display
     const saved = savedCities.find((c) => c.id === id);
     return saved
       ? { id, name: saved.display_name || saved.city_name || "your city" }
       : null;
-  }, [selectedCityIds, uniqueCities, savedCities, isLoading, stories.length]);
+  }, [selectedCityIds, uniqueCities, savedCities]);
 
   // When a city has no stories, auto-switch to All Cities so user sees content
   const [noStoriesCity, setNoStoriesCity] = useState<{ id: number; name: string } | null>(null);
