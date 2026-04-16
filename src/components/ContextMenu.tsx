@@ -83,6 +83,7 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
             strokeLinecap="round"
             strokeLinejoin="round"
             style={{ filter: "grayscale(100%)" }}
+            aria-hidden="true"
           >
             <path d="M3 3v18h18" />
             <path d="M18 9l-5 5-4-4-3 3" />
@@ -103,6 +104,7 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
             strokeLinecap="round"
             strokeLinejoin="round"
             style={{ filter: "grayscale(100%)" }}
+            aria-hidden="true"
           >
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
             <polyline points="22,6 12,13 2,6"></polyline>
@@ -123,6 +125,7 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
             strokeLinecap="round"
             strokeLinejoin="round"
             style={{ filter: "grayscale(100%)" }}
+            aria-hidden="true"
           >
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
             <polyline points="9 22 9 12 15 12 15 22"></polyline>
@@ -143,6 +146,7 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
             strokeLinecap="round"
             strokeLinejoin="round"
             style={{ filter: "grayscale(100%)" }}
+            aria-hidden="true"
           >
             <line x1="18" y1="20" x2="18" y2="10"></line>
             <line x1="12" y1="20" x2="12" y2="4"></line>
@@ -164,6 +168,7 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
             strokeLinecap="round"
             strokeLinejoin="round"
             style={{ filter: "grayscale(100%)" }}
+            aria-hidden="true"
           >
             <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
             <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
@@ -185,6 +190,7 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
             strokeLinecap="round"
             strokeLinejoin="round"
             style={{ filter: "grayscale(100%)" }}
+            aria-hidden="true"
           >
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
             <circle cx="9" cy="7" r="4"></circle>
@@ -207,6 +213,7 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
             strokeLinecap="round"
             strokeLinejoin="round"
             style={{ filter: "grayscale(100%)" }}
+            aria-hidden="true"
           >
             <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
             <circle cx="9" cy="7" r="4"></circle>
@@ -229,6 +236,7 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
             strokeLinecap="round"
             strokeLinejoin="round"
             style={{ filter: "grayscale(100%)" }}
+            aria-hidden="true"
           >
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
             <polyline points="14 2 14 8 20 8"></polyline>
@@ -252,6 +260,7 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
             strokeLinecap="round"
             strokeLinejoin="round"
             style={{ filter: "grayscale(100%)" }}
+            aria-hidden="true"
           >
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
             <polyline points="22,6 12,13 2,6" />
@@ -274,6 +283,7 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
             strokeLinecap="round"
             strokeLinejoin="round"
             style={{ filter: "grayscale(100%)" }}
+            aria-hidden="true"
           >
             <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2" />
             <path d="M18 14h-8" />
@@ -291,9 +301,11 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
         ref={ref}
         className={`${styles.menu} ${isOpen ? styles.open : ""}` }
         id="context-menu"
+        role="menu"
+        aria-label="User menu"
       >
         {/* Sitemap - at top for easy access */}
-        <Link href="/sitemap" className={styles.item} id="sitemap-menu-item">
+        <Link href="/sitemap" className={styles.item} id="sitemap-menu-item" role="menuitem">
           <span
             style={{
               display: "inline-flex",
@@ -313,6 +325,7 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
               strokeLinecap="round"
               strokeLinejoin="round"
               style={{ filter: "grayscale(100%)" }}
+              aria-hidden="true"
             >
               <circle cx="12" cy="12" r="10"></circle>
               <line x1="2" y1="12" x2="22" y2="12"></line>
@@ -328,6 +341,7 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
             href={`${API_BASE}/admin/docs`}
             className={styles.item}
             id="api-docs-menu-item"
+            role="menuitem"
             onClick={handleApiDocsClick}
           >
             <span
@@ -349,6 +363,7 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 style={{ filter: "grayscale(100%)" }}
+                aria-hidden="true"
               >
                 <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
                 <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
@@ -365,10 +380,12 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
           <>
             <div className={styles.divider}>Administration</div>
             {adminMenuItems.map((item) => (
-              <div
+              <button
                 key={item.view}
+                type="button"
                 className={styles.item}
                 data-view={item.view}
+                role="menuitem"
                 onClick={() => handleAdminView(item.view)}
               >
                 <span
@@ -383,12 +400,12 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
                   {item.icon}
                 </span>
                 <span>{item.label}</span>
-              </div>
+              </button>
             ))}
           </>
         )}
 
-        <div className={styles.item} id="logout-btn" onClick={handleLogout}>
+        <button type="button" className={styles.item} id="logout-btn" role="menuitem" onClick={handleLogout}>
           <span
             style={{
               display: "inline-flex",
@@ -408,6 +425,7 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
               strokeLinecap="round"
               strokeLinejoin="round"
               style={{ filter: "grayscale(100%)" }}
+              aria-hidden="true"
             >
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
               <polyline points="16 17 21 12 16 7"></polyline>
@@ -415,7 +433,7 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
             </svg>
           </span>
           <span>Logout</span>
-        </div>
+        </button>
       </div>
     );
   }

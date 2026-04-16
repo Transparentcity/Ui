@@ -1633,7 +1633,7 @@
 
 .metric-delta-badge.positive {
   background: rgba(46, 125, 50, 0.12);
-  color: #2e7d32;
+  color: #1b6e22;
 }
 
 .metric-delta-badge.negative {
@@ -1746,7 +1746,7 @@
 }
 
 .metric-delta-value.positive {
-  color: #2e7d32;
+  color: #1b6e22;
 }
 
 .metric-delta-value.negative {
@@ -1772,7 +1772,7 @@
 }
 
 .metric-percent-value.good {
-  color: #2e7d32;
+  color: #1b6e22;
 }
 
 .metric-percent-value.bad {
@@ -1791,7 +1791,7 @@
 
 /* Legacy support for positive/negative classes */
 .metric-percent-value.positive {
-  color: #2e7d32;
+  color: #1b6e22;
 }
 
 .metric-percent-value.negative {
@@ -2087,7 +2087,7 @@ button.metrics-table-row {
 
 /* Good/Bad Color Indicators */
 .change-indicator.good {
-  color: #2e7d32;
+  color: #1b6e22;
 }
 
 .change-indicator.bad {

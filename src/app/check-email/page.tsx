@@ -42,7 +42,7 @@ export default function CheckEmailPage() {
     return (
       <>
         <Header />
-        <main style={{ padding: "2rem", textAlign: "center" }}>Loading…</main>
+        <main id="main-content" style={{ padding: "2rem", textAlign: "center" }}>Loading…</main>
       </>
     );
   }
@@ -51,7 +51,7 @@ export default function CheckEmailPage() {
     return (
       <>
         <Header />
-        <main style={{ padding: "2rem", textAlign: "center" }}>Taking you back…</main>
+        <main id="main-content" style={{ padding: "2rem", textAlign: "center" }}>Taking you back…</main>
       </>
     );
   }

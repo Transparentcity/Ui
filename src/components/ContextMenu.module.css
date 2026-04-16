@@ -26,6 +26,13 @@
   transition: background 0.2s ease;
   cursor: pointer;
   font-size: 14px;
+  /* Reset button defaults for <button> menu items */
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  line-height: inherit;
 }
 
 .item:first-child {

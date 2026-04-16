@@ -1596,7 +1596,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
         )}
       </div>
 
-      <div className="metrics-table-container">
+      <div className="metrics-table-container" role="table" aria-label="City metrics year-to-date comparison">
         {orderingQuery.isLoading ? (
           <div className="dashboard-metrics-loading tc-loading-state" style={{ padding: "48px 24px" }}>
             <Loader size="sm" color="dark" />
@@ -1694,11 +1694,11 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
           return (
             <div key={category} className="metrics-category-section">
               {/* Table header row */}
-              <div className="metrics-table-header">
-                <div className="metric-col metric-col-name">{category}</div>
-                <div className="metric-col metric-col-value">{getColumnHeaders.comparison}</div>
-                <div className="metric-col metric-col-value">{getColumnHeaders.current}</div>
-                <div className="metric-col metric-col-change">Change</div>
+              <div className="metrics-table-header" role="row">
+                <div className="metric-col metric-col-name" role="columnheader">{category}</div>
+                <div className="metric-col metric-col-value" role="columnheader">{getColumnHeaders.comparison}</div>
+                <div className="metric-col metric-col-value" role="columnheader">{getColumnHeaders.current}</div>
+                <div className="metric-col metric-col-change" role="columnheader">Change</div>
               </div>
               
               {/* Metric rows grouped by subcategory */}
@@ -1765,6 +1765,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                           metricKey={metric.metric_key}
                           citySlug={citySlug}
                           className="metrics-table-row metrics-table-row-clickable"
+                          role="row"
                           prefetch={false}
                           mode="modal"
                           district={district}

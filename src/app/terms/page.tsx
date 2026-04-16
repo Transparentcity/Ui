@@ -13,7 +13,7 @@ export default function TermsPage() {
   return (
     <>
       <Header />
-      <main className="legal-page">
+      <main id="main-content" className="legal-page">
         <h1>Terms of Service</h1>
         <p className="legal-updated">Last updated: April 1, 2026</p>
 

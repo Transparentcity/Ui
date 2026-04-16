@@ -81,7 +81,7 @@ export default async function MethodologyPage({ params }: PageProps) {
         <CitySignupButton citySlug={slug} cityName={cityName} />
       </PublicNavBar>
 
-      <main className="methodology-main">
+      <main id="main-content" className="methodology-main">
         <div className="container">
           <header className="methodology-header">
             <span className="badge">Methodology</span>

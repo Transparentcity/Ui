@@ -147,6 +147,7 @@ export default function HeroDistrictSelector({
           viewBox="0 0 12 12"
           fill="none"
           className={`hero-district-chevron ${open ? "open" : ""}`}
+          aria-hidden="true"
         >
           <path
             d="M3 4.5L6 7.5L9 4.5"

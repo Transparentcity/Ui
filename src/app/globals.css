@@ -51,10 +51,11 @@ a {
   height: auto;
 }
 
-/* Focus ring color for accessibility */
+/* Focus ring for accessibility — !important ensures component-level
+   outline:none on :focus cannot suppress the keyboard focus indicator. */
 :focus-visible {
-  outline: 2px solid #9333ea;
-  outline-offset: 2px;
+  outline: 2px solid #9333ea !important;
+  outline-offset: 2px !important;
 }
 
 /* ============================================================================
@@ -161,7 +162,7 @@ a {
 
 /* Muted foreground color utility for Tailwind v4 */
 .text-muted-foreground {
-  color: #6b7280;
+  color: #4b5563;
 }
 
 /* Shared default loading treatment across dashboard/map/anomaly surfaces */
@@ -170,7 +171,7 @@ a {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, #4b5563);
   font-family: var(
     --font-body,
     "Inter",

@@ -3,6 +3,7 @@
 import { useAuth0 } from "@auth0/auth0-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import {
   trackSignupStart,
   trackSignupClick,
@@ -24,6 +25,7 @@ export default function AuthModal({ isOpen, onClose, title }: AuthModalProps) {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const router = useRouter();
   const [step, setStep] = useState<"choice" | "gov-message">("choice");
+  const focusTrapRef = useFocusTrap(isOpen);
 
   // Redirect authenticated users
   useEffect(() => {
@@ -93,6 +95,7 @@ export default function AuthModal({ isOpen, onClose, title }: AuthModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="auth-modal-title"
+        ref={focusTrapRef}
       >
         <div
           className={styles.modal}
@@ -127,6 +130,7 @@ export default function AuthModal({ isOpen, onClose, title }: AuthModalProps) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="auth-modal-title"
+      ref={focusTrapRef}
     >
       <div
         className={styles.modal}

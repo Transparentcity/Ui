@@ -149,7 +149,7 @@ export default function FeedCard({
   );
 
   return (
-    <article className={cardClassName} onClick={handleCardClick} role="link" tabIndex={0} onKeyDown={(e) => { const tag = (e.target as HTMLElement).tagName; if (tag === "TEXTAREA" || tag === "INPUT") return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCardClick(); } }}>
+    <article className={cardClassName} onClick={handleCardClick} tabIndex={0} onKeyDown={(e) => { const tag = (e.target as HTMLElement).tagName; if (tag === "TEXTAREA" || tag === "INPUT") return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCardClick(); } }}>
       {Template === PhotoCard ? (
         <PhotoCard story={story} variant={photoVariant}>{actionBar}</PhotoCard>
       ) : (

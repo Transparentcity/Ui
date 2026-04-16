@@ -13,7 +13,7 @@ export default async function HealthPage() {
   }
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center p-6">
+    <main id="main-content" className="min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center p-6">
       <div className="w-full max-w-xl rounded-xl border border-neutral-800 bg-neutral-900/70 p-6 shadow-lg shadow-black/40">
         <h1 className="text-xl font-semibold tracking-tight mb-4">
           TransparentCity API Health

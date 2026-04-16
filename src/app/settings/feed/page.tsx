@@ -183,7 +183,7 @@ export default function FeedSettingsPage() {
         <TitleBar onMenuToggle={() => setSidebarOpen((p) => !p)} sidebarOpen={sidebarOpen} />
         <div className="dashboard-body">
           <Sidebar isOpen={sidebarOpen} onNewChat={() => router.push("/home")} />
-          <main className="dashboard-main">
+          <main className="dashboard-main" id="main-content">
             <div className={styles.container}>
               <p>Loading...</p>
             </div>
@@ -199,7 +199,7 @@ export default function FeedSettingsPage() {
         <TitleBar onMenuToggle={() => setSidebarOpen((p) => !p)} sidebarOpen={sidebarOpen} />
         <div className="dashboard-body">
           <Sidebar isOpen={sidebarOpen} onNewChat={() => router.push("/home")} />
-          <main className="dashboard-main">
+          <main className="dashboard-main" id="main-content">
             <div className={styles.container}>
               <h1 className={styles.pageTitle}>Feed Settings</h1>
               <p>Please sign in to manage your feed preferences.</p>

@@ -26,11 +26,11 @@ export default function CardHeader({
     <div className={styles.cardHeader}>
       <div className={styles.cardHeaderLeft}>
         {IconComponent ? (
-          <span className={styles.cardTypeIcon} style={{ color: categoryColor }}>
+          <span className={styles.cardTypeIcon} style={{ color: categoryColor }} aria-hidden="true">
             <IconComponent size={14} strokeWidth={2.5} />
           </span>
         ) : (
-          <span className={styles.cardTypeIcon}>{typeIcon}</span>
+          <span className={styles.cardTypeIcon} aria-hidden="true">{typeIcon}</span>
         )}
         <span className={styles.cardActor}>{actor}</span>
         {subline && <span className={styles.cardTimestamp}>{subline}</span>}

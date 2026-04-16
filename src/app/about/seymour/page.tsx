@@ -14,6 +14,7 @@ export default function AboutSeymourPage() {
     <>
       <Header />
       <main
+        id="main-content"
         className="about-seymour"
         style={{
           maxWidth: 720,

@@ -72,7 +72,7 @@ export default function AddYourCityPage() {
   return (
     <div className="add-city-wrapper">
       <Header />
-      <main className="add-city-page">
+      <main id="main-content" className="add-city-page">
         <div className="add-city-container">
           {/* Hero Section */}
           <section className="add-city-hero">

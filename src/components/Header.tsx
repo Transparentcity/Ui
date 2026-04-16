@@ -78,7 +78,7 @@ export default function Header() {
             className={styles.brand}
             aria-label="Transparent.city home"
           >
-            <div className={styles.logoCorners}>
+            <div className={styles.logoCorners} aria-hidden="true">
               <svg
                 viewBox="0 0 100 100"
                 xmlns="http://www.w3.org/2000/svg"
