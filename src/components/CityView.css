@@ -2794,8 +2794,10 @@ button.metrics-table-row {
 
   .city-name {
     font-size: 18px;
-    white-space: normal;
-    word-break: break-word;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
   }
 
   .city-header-right {
