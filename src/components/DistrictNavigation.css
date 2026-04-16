@@ -549,7 +549,7 @@
   background: rgba(31, 41, 55, 0.5); /* More transparent in dark mode */
   backdrop-filter: blur(8px);
   border-color: rgba(255, 255, 255, 0.2);
-  color: var(--text-primary-dark, #ffffff);
+  color: var(--text-primary, #f1f5f9);
 }
 
 [data-theme="dark"] .district-navigation-header:hover,
@@ -560,8 +560,8 @@
 
 [data-theme="dark"] .district-navigation-modal,
 .dark .district-navigation-modal {
-  background: var(--bg-primary-dark, #1a1a1a);
-  color: var(--text-primary-dark, #ffffff);
+  background: var(--bg-primary, #0f172a);
+  color: var(--text-primary, #f1f5f9);
 }
 
 [data-theme="dark"] .district-navigation-modal-header,
@@ -571,32 +571,32 @@
 
 [data-theme="dark"] .district-navigation-input,
 .dark .district-navigation-input {
-  background: var(--bg-secondary-dark, #2a2a2a);
+  background: var(--bg-secondary, #1e293b);
   border-color: rgba(255, 255, 255, 0.2);
-  color: var(--text-primary-dark, #ffffff);
+  color: var(--text-primary, #f1f5f9);
 }
 
 [data-theme="dark"] .district-navigation-gps-button,
 .dark .district-navigation-gps-button {
-  background: var(--bg-secondary-dark, #2a2a2a);
+  background: var(--bg-secondary, #1e293b);
   border-color: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary-dark, #ffffff);
+  color: var(--text-primary, #f1f5f9);
 }
 
 [data-theme="dark"] .district-navigation-gps-button:hover:not(:disabled),
 .dark .district-navigation-gps-button:hover:not(:disabled) {
-  background: var(--bg-tertiary-dark, #3a3a3a);
+  background: var(--bg-tertiary, #334155);
 }
 
 [data-theme="dark"] .district-navigation-result-item,
 .dark .district-navigation-result-item {
-  background: var(--bg-secondary-dark, #2a2a2a);
+  background: var(--bg-secondary, #1e293b);
   border-color: rgba(255, 255, 255, 0.1);
 }
 
 [data-theme="dark"] .district-navigation-result-item:hover,
 .dark .district-navigation-result-item:hover {
-  background: var(--bg-tertiary-dark, #3a3a3a);
+  background: var(--bg-tertiary, #334155);
   border-color: var(--brand-primary, #ad35fa);
 }
 

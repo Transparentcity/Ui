@@ -10,7 +10,7 @@ import CardHeader from "../CardHeader";
 import feedStyles from "../feed.module.css";
 import styles from "./MetricSummaryCard.module.css";
 
-const MAX_HEADLINE_LENGTH = 80;
+const MAX_HEADLINE_LENGTH = 70;
 
 export interface MetricCardData {
   metric: PublicCityMetricItem;

@@ -333,6 +333,11 @@
   border-color: rgba(55, 65, 81, 0.5); /* Semi-transparent border */
 }
 
+[data-theme="dark"] .gps-marker-dot,
+.dark .gps-marker-dot {
+  border-color: var(--bg-primary, #0f172a);
+}
+
 [data-theme="dark"] .map-container,
 .dark .map-container {
   background: var(--bg-secondary, #1e293b);

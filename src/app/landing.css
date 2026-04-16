@@ -1684,7 +1684,19 @@
 [data-theme="dark"] .btn-outline,
 .dark .btn-outline {
   color: var(--button-secondary-text, #a8b8cc);
-  border-color: var(--border-primary);
+  border-color: var(--border-secondary, #475569);
+}
+
+[data-theme="dark"] .cta-city-chip,
+.dark .cta-city-chip {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-secondary, #475569);
+}
+
+[data-theme="dark"] .cta-city-chip:hover,
+.dark .cta-city-chip:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: var(--border-secondary, #475569);
 }
 
 [data-theme="dark"] .mobile-menu-toggle span,

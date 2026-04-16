@@ -596,6 +596,7 @@ export default function FeedContainer({
           const curr = comp.current_period_value;
           const prior = comp.comparison_period_value;
           if (curr == null || prior == null || prior === 0) continue;
+          if (curr === 0 || Math.abs(curr) < 5) continue;
           const pct = ((curr - prior) / prior) * 100;
           // Suppress bad data: value dropped to 0 (data gap), change > 500%,
           // or extreme drops (>= 90%) that indicate partial reporting periods
