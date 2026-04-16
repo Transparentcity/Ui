@@ -50,6 +50,17 @@ function fmt(n: number | null | undefined): string {
   return n.toLocaleString();
 }
 
+/** Dynamic column access for sortable tables (plain API row types are not `Record<string, unknown>`). */
+function sortKeyValue(
+  row: object,
+  key: string
+): string | number | null | undefined {
+  const v = (row as Record<string, unknown>)[key];
+  if (v === null || v === undefined) return null;
+  if (typeof v === "string" || typeof v === "number") return v;
+  return undefined;
+}
+
 function shortDate(iso: string): string {
   // "2025-01-15" → "Jan 15"
   const d = new Date(iso + "T00:00:00");
@@ -118,7 +129,7 @@ function StatCard({
   );
 }
 
-function SortableTable<T extends Record<string, unknown>>({
+function SortableTable<T>({
   columns,
   rows,
   onRowClick,
@@ -133,8 +144,8 @@ function SortableTable<T extends Record<string, unknown>>({
   const [asc, setAsc] = useState(false);
 
   const sorted = [...rows].sort((a, b) => {
-    const av = a[sortKey] as number | string | null;
-    const bv = b[sortKey] as number | string | null;
+    const av = sortKeyValue(a as object, sortKey) as number | string | null;
+    const bv = sortKeyValue(b as object, sortKey) as number | string | null;
     if (av == null) return 1;
     if (bv == null) return -1;
     const cmp = av < bv ? -1 : av > bv ? 1 : 0;
@@ -193,7 +204,8 @@ function SortableTable<T extends Record<string, unknown>>({
           {sorted.map((row, i) => {
             const isActive =
               activeKey != null &&
-              (row["city_id"] === activeKey || row["district"] === activeKey);
+              (sortKeyValue(row as object, "city_id") === activeKey ||
+                sortKeyValue(row as object, "district") === activeKey);
             return (
               <tr
                 key={i}
@@ -207,22 +219,25 @@ function SortableTable<T extends Record<string, unknown>>({
                 }}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
               >
-                {columns.map((col) => (
-                  <td
-                    key={col.key}
-                    style={{
-                      ...cell,
-                      textAlign: col.numeric ? "right" : "left",
-                      fontWeight: col.key.includes("name") ? 500 : 400,
-                    }}
-                  >
-                    {row[col.key] == null
-                      ? "—"
-                      : col.numeric
-                      ? fmt(row[col.key] as number)
-                      : String(row[col.key])}
-                  </td>
-                ))}
+                {columns.map((col) => {
+                  const cellVal = sortKeyValue(row as object, col.key);
+                  return (
+                    <td
+                      key={col.key}
+                      style={{
+                        ...cell,
+                        textAlign: col.numeric ? "right" : "left",
+                        fontWeight: col.key.includes("name") ? 500 : 400,
+                      }}
+                    >
+                      {cellVal == null
+                        ? "—"
+                        : col.numeric
+                        ? fmt(cellVal as number)
+                        : String(cellVal)}
+                    </td>
+                  );
+                })}
               </tr>
             );
           })}
