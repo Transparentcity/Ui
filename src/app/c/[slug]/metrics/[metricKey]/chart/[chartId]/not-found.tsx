@@ -17,7 +17,7 @@ export default function ChartNotFound() {
           </Link>
         </div>
       </nav>
-      <main className="chart-view-main">
+      <main id="main-content" className="chart-view-main">
         <div className="chart-view-inner">
           <h1 className="chart-view-title">Chart not found</h1>
           <p className="chart-view-caption">

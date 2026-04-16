@@ -183,7 +183,7 @@ function buildEmailHtml(
           <tr>
             <td style="padding:12px 24px 24px;text-align:center;color:#999;font-size:12px;line-height:1.5;">
               You signed up at <a href="${siteOrigin}" style="color:#999;">Transparent.city</a><br/>
-              <a href="${siteOrigin}/settings" style="color:#999;">Manage preferences</a>
+              <a href="${siteOrigin}/settings/feed" style="color:#999;">Manage preferences</a>
             </td>
           </tr>
         </table>

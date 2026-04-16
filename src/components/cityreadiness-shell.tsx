@@ -19,7 +19,7 @@ export function CityReadinessShell({
     <AdminGuard fallbackUrl="/home">
       <div className="flex min-h-screen bg-gray-50">
         <CityReadinessSidebar />
-        <main className="flex-1 flex flex-col min-w-0">
+        <main id="main-content" className="flex-1 flex flex-col min-w-0">
           <header className="flex items-center justify-between px-8 py-5 bg-white border-b border-gray-200 min-h-16 gap-4 flex-wrap">
             <div>
               <h1 className="text-xl font-semibold text-gray-900 tracking-tight">{title}</h1>

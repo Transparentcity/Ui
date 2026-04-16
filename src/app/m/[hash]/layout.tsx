@@ -45,7 +45,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   
   const title = `${mapData.title} | TransparentCity Maps`;
   const description = mapData.description;
-  const url = `https://www.transparentcity.co/m/${hash}`;
+  const url = `https://transparent.city/m/${hash}`;
   
   return {
     title,

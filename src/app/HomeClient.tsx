@@ -90,7 +90,7 @@ export default function HomeClient({ stories, metricCards, launchedCities = [] }
     <div className={styles.page}>
       <Header />
 
-      <main>
+      <main id="main-content">
         {/* ── Hero ──────────────────────────────────────────────────────── */}
         <section className={styles.hero}>
           <div className={styles.container}>

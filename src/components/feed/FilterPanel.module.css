@@ -52,7 +52,9 @@
     left: auto;
     right: 0;
     top: calc(100% + 8px);
-    max-height: 80vh;
+    /* --panel-max-h is set at runtime in FilterPanel.tsx to fit the visible
+       viewport below the filter trigger; falls back to 80vh if unset. */
+    max-height: var(--panel-max-h, 80vh);
     width: 380px;
     max-width: calc(100vw - 32px);
     border-radius: 12px;

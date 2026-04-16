@@ -2374,7 +2374,7 @@ export default function CityView({
   return (
     <div className="city-view city-view-single-page">
       {/* Scrollable body: hero header scrolls away, then Official/Location selector sticks; map and content scroll under it */}
-      <main className="city-view-scroll-body">
+      <main id="main-content" className="city-view-scroll-body">
         {/* Hero header (city name, icon, follow, admin) – scrolls up and off */}
         <div className="city-view-hero-header">
           <CityHeader

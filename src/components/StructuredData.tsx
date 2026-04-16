@@ -23,7 +23,7 @@ export function SiteStructuredData() {
           "@type": "ImageObject",
           url: `${origin}/favicon.svg`,
         },
-        sameAs: ["https://transparentcity.com"],
+        sameAs: ["https://transparent.city"],
       },
       {
         "@type": "WebSite",

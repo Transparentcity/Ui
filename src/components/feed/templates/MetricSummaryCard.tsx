@@ -230,9 +230,7 @@ export default function MetricSummaryCard({ data, children }: { data: MetricCard
   const actor = deriveActorFromCategory(metric.category);
   const catMeta = getCategoryMeta(actor);
   const cityNameOnly = cityName.split(",")[0].trim();
-  const neighborhoodLabel = cityEmoji
-    ? `${cityEmoji} ${cityNameOnly}`
-    : cityNameOnly;
+  const neighborhoodLabel = `${cityNameOnly} · City-wide`;
 
   // Source attribution line — build the most informative description we can
   // from the data available, avoiding generic/redundant text like "safety data"
