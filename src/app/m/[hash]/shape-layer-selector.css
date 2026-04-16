@@ -47,26 +47,28 @@
 }
 
 /* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .shape-layer-icon-button {
-    background: #1f2937;
-    border-color: rgba(255, 255, 255, 0.2);
-    color: #f9fafb;
-  }
+[data-theme="dark"] .shape-layer-icon-button,
+.dark .shape-layer-icon-button {
+  background: #1f2937;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #f9fafb;
+}
 
-  .shape-layer-icon-button:hover {
-    background: #374151;
-    border-color: rgba(255, 255, 255, 0.3);
-  }
+[data-theme="dark"] .shape-layer-icon-button:hover,
+.dark .shape-layer-icon-button:hover {
+  background: #374151;
+  border-color: rgba(255, 255, 255, 0.3);
+}
 
-  .shape-layer-icon-button.selected {
-    background: #ad35fa;
-    border-color: #ad35fa;
-    color: white;
-  }
+[data-theme="dark"] .shape-layer-icon-button.selected,
+.dark .shape-layer-icon-button.selected {
+  background: #ad35fa;
+  border-color: #ad35fa;
+  color: white;
+}
 
-  .shape-layer-icon-button.selected:hover {
-    background: #9d25ea;
-    border-color: #9d25ea;
-  }
+[data-theme="dark"] .shape-layer-icon-button.selected:hover,
+.dark .shape-layer-icon-button.selected:hover {
+  background: #9d25ea;
+  border-color: #9d25ea;
 }

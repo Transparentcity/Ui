@@ -151,6 +151,11 @@
   background: #fee2e2;
 }
 
+:global([data-theme="dark"]) .menuItemDelete:hover,
+:global(.dark) .menuItemDelete:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
 /* My Places extras */
 .myCitiesItemWrapper {
   display: flex;

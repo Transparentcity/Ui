@@ -103,11 +103,7 @@
   --logo-fill: #ffffff;
 }
 
-@media (prefers-color-scheme: dark) {
-  .brandMark {
-    --logo-fill: #ffffff;
-  }
-}
+/* Removed @media (prefers-color-scheme: dark) — use [data-theme] / .dark above */
 
 .brandText {
   font-weight: 700;

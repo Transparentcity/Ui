@@ -109,28 +109,32 @@
 }
 
 /* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .anomaly-map-wrapper {
-    background: var(--bg-secondary, #1a1a1a);
-    border-color: var(--border-color, #333333);
-  }
+[data-theme="dark"] .anomaly-map-wrapper,
+.dark .anomaly-map-wrapper {
+  background: var(--bg-secondary, #1a1a1a);
+  border-color: var(--border-color, #333333);
+}
 
-  .anomaly-map-header {
-    background: var(--bg-primary, #222222);
-    border-color: var(--border-color, #333333);
-  }
+[data-theme="dark"] .anomaly-map-header,
+.dark .anomaly-map-header {
+  background: var(--bg-primary, #222222);
+  border-color: var(--border-color, #333333);
+}
 
-  .anomaly-map-title {
-    color: var(--text-primary, #f0f0f0);
-  }
+[data-theme="dark"] .anomaly-map-title,
+.dark .anomaly-map-title {
+  color: var(--text-primary, #f0f0f0);
+}
 
-  .anomaly-map-count {
-    color: var(--text-secondary, #999999);
-  }
+[data-theme="dark"] .anomaly-map-count,
+.dark .anomaly-map-count {
+  color: var(--text-secondary, #999999);
+}
 
-  .anomaly-map-loading,
-  .anomaly-map-error {
-    background: var(--bg-secondary, #1a1a1a);
-    color: var(--text-secondary, #999999);
-  }
+[data-theme="dark"] .anomaly-map-loading,
+.dark .anomaly-map-loading,
+[data-theme="dark"] .anomaly-map-error,
+.dark .anomaly-map-error {
+  background: var(--bg-secondary, #1a1a1a);
+  color: var(--text-secondary, #999999);
 }

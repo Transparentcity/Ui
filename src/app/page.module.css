@@ -133,20 +133,16 @@ a.secondary {
   fill: #ffffff;
 }
 
-@media (prefers-color-scheme: dark) {
-  .logoBrace {
-    fill: #ffffff;
-  }
+/* Dark mode page overrides: use [data-theme] / .dark instead of prefers-color-scheme */
+:global([data-theme="dark"]) .page,
+:global(.dark) .page {
+  --background: #000;
+  --foreground: #000;
 
-  .page {
-    --background: #000;
-    --foreground: #000;
+  --text-primary: #ededed;
+  --text-secondary: #999;
 
-    --text-primary: #ededed;
-    --text-secondary: #999;
-
-    --button-primary-hover: #ccc;
-    --button-secondary-hover: #1a1a1a;
-    --button-secondary-border: #1a1a1a;
-  }
+  --button-primary-hover: #ccc;
+  --button-secondary-hover: #1a1a1a;
+  --button-secondary-border: #1a1a1a;
 }

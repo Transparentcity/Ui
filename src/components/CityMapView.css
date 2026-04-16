@@ -305,40 +305,7 @@
   border-top: 1px solid var(--border-primary, #e5e7eb);
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .city-map-header {
-    background: var(--background-primary, #1f2937);
-    border-bottom-color: var(--border-primary, #374151);
-  }
-
-  .city-map-title h2 {
-    color: var(--text-primary, #f9fafb);
-  }
-
-  .geographic-structure-select {
-    background: var(--background-primary, #1f2937);
-    border-color: var(--border-primary, #374151);
-    color: var(--text-primary, #f9fafb);
-  }
-
-  .shapefile-list {
-    background: var(--background-primary, #1f2937);
-    border-color: var(--border-primary, #374151);
-  }
-
-  .shapefile-list h3 {
-    color: var(--text-primary, #f9fafb);
-  }
-
-  .shapefile-list label {
-    color: var(--text-primary, #f9fafb);
-  }
-
-  .shapefile-list li {
-    border-bottom-color: var(--border-primary, #374151);
-  }
-}
+/* Removed @media (prefers-color-scheme: dark) — duplicated by [data-theme] / .dark rules below */
 
 /* Dark mode support using data-theme attribute */
 [data-theme="dark"] .city-map-header,

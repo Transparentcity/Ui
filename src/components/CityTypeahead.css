@@ -118,16 +118,16 @@
 }
 
 /* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .city-typeahead-dropdown {
-    background: var(--bg-primary);
-    border-color: var(--border-primary);
-  }
-  
-  .city-typeahead-input {
-    background: var(--bg-primary);
-    border-color: var(--border-primary);
-    color: var(--text-primary);
-  }
+[data-theme="dark"] .city-typeahead-dropdown,
+.dark .city-typeahead-dropdown {
+  background: var(--bg-primary);
+  border-color: var(--border-primary);
+}
+
+[data-theme="dark"] .city-typeahead-input,
+.dark .city-typeahead-input {
+  background: var(--bg-primary);
+  border-color: var(--border-primary);
+  color: var(--text-primary);
 }
 

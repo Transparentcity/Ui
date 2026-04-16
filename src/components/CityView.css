@@ -2932,8 +2932,22 @@ button.metrics-table-row {
   border-bottom-color: var(--brand-primary, #ad35fa);
 }
 
+/* Dark mode: give inactive tabs a visible baseline so the tab bar is discoverable */
+[data-theme="dark"] .city-view-tab-btn,
+.dark .city-view-tab-btn {
+  color: var(--text-secondary, #cbd5e1);
+  border-bottom-color: var(--border-primary, #334155);
+}
+
+[data-theme="dark"] .city-view-tab-btn:hover,
+.dark .city-view-tab-btn:hover {
+  color: var(--text-primary, #f1f5f9);
+  border-bottom-color: var(--text-tertiary, #94a3b8);
+}
+
 [data-theme="dark"] .city-view-tab-btn-active,
 .dark .city-view-tab-btn-active {
+  color: var(--text-primary, #f1f5f9);
   border-bottom-color: var(--brand-primary, #ad35fa);
 }
 
