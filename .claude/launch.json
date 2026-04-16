@@ -7,6 +7,12 @@
       "runtimeArgs": ["-c", "cd /Users/adamwerbach/Documents/Coding/TransparentCITY/Ui && source ~/.nvm/nvm.sh && npm run dev"],
       "port": 3001,
       "autoPort": false
+    },
+    {
+      "name": "wireframe",
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": ["-c", "cd /Users/adamwerbach/Documents/Coding/TransparentCITY/Ui/.claude/wireframes && npx http-server -p 3099 -c-1"],
+      "port": 3099
     }
   ]
 }
