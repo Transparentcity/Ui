@@ -28,12 +28,15 @@ interface PlaceOnboardingContextValue {
   message: string;
   cityName: string | null;
   repName: string | null;
+  repTitle: string | null;
   dismissed: boolean;
   dismiss: () => void;
   startJob: (placeId: number, jobId: string) => void;
   startCityLoading: (cityName: string) => void;
   completeCityLoading: (success: boolean) => void;
-  notifyRepFound: (name: string) => void;
+  notifyRepFound: (name: string, title?: string) => void;
+  startBackgroundWork: () => void;
+  completeBackgroundWork: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -68,12 +71,15 @@ const PlaceOnboardingContext = createContext<PlaceOnboardingContextValue>({
   message: "",
   cityName: null,
   repName: null,
+  repTitle: null,
   dismissed: false,
   dismiss: () => {},
   startJob: () => {},
   startCityLoading: () => {},
   completeCityLoading: () => {},
   notifyRepFound: () => {},
+  startBackgroundWork: () => {},
+  completeBackgroundWork: () => {},
 });
 
 export function usePlaceOnboarding() {
@@ -94,10 +100,12 @@ interface PlaceOnboardingProviderProps {
   /** When set externally (e.g. after onboarding), auto-starts the job tracking */
   initialJob?: { placeId: number; jobId: string } | null;
   /** Ref that gets populated with notifyRepFound so parent can call it */
-  notifyRepFoundRef?: React.MutableRefObject<((name: string) => void) | null>;
+  notifyRepFoundRef?: React.MutableRefObject<((name: string, title?: string) => void) | null>;
+  /** Ref that gets populated with start/complete so parent can defer banner completion during background work */
+  backgroundWorkRef?: React.MutableRefObject<{ start: () => void; complete: () => void } | null>;
 }
 
-export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRef }: PlaceOnboardingProviderProps) {
+export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRef, backgroundWorkRef }: PlaceOnboardingProviderProps) {
   const { getAccessTokenSilently } = useAuth0();
   const queryClient = useQueryClient();
 
@@ -106,6 +114,7 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
   const [jobId, setJobId] = useState<string | null>(null);
   const [cityName, setCityName] = useState<string | null>(null);
   const [repName, setRepName] = useState<string | null>(null);
+  const [repTitle, setRepTitle] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(() => {
     if (typeof window === "undefined") return false;
     return sessionStorage.getItem(SESSION_KEY) === "1";
@@ -120,6 +129,10 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
   statusRef.current = status;
   const modeRef = useRef<OnboardingMode>("idle");
   modeRef.current = mode;
+
+  // Background work tracking: defers completeCityLoading until external work finishes
+  const backgroundWorkActiveRef = useRef(false);
+  const pendingCityCompletionRef = useRef<boolean | null>(null);
 
   // Timer refs
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -148,6 +161,7 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
     setMode("city");
     setStatus("scanning");
     setRepName(null);
+    setRepTitle(null);
     setElapsed(0);
     setJobId(null);
 
@@ -156,15 +170,25 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
     if (typeof window !== "undefined") sessionStorage.removeItem(SESSION_KEY);
   }, [clearAllTimers]);
 
-  // Complete city-level loading (called by FeedContainer when feed resolves)
-  const completeCityLoading = useCallback((success: boolean) => {
-    if (modeRef.current !== "city") return;
+  // Apply city-level completion (shared by completeCityLoading and completeBackgroundWork)
+  const applyCityCompletion = useCallback((success: boolean) => {
     setStatus(success ? "completed" : "failed");
     autoDismissRef.current = setTimeout(() => {
       setDismissed(true);
       if (typeof window !== "undefined") sessionStorage.setItem(SESSION_KEY, "1");
     }, AUTO_DISMISS_MS);
   }, []);
+
+  // Complete city-level loading (called by FeedContainer when feed resolves)
+  // If background work is active (rep/mayor discovery), defers until it finishes.
+  const completeCityLoading = useCallback((success: boolean) => {
+    if (modeRef.current !== "city") return;
+    if (backgroundWorkActiveRef.current) {
+      pendingCityCompletionRef.current = success;
+      return;
+    }
+    applyCityCompletion(success);
+  }, [applyCityCompletion]);
 
   // Start tracking a place-level job (overrides city-level if active)
   const startJob = useCallback((_placeId: number, jId: string) => {
@@ -173,6 +197,7 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
     setMode("place");
     setStatus("scanning");
     setRepName(null);
+    setRepTitle(null);
     setElapsed(0);
     jobStartRef.current = Date.now();
 
@@ -181,11 +206,12 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
     if (typeof window !== "undefined") sessionStorage.removeItem(SESSION_KEY);
   }, [clearAllTimers]);
 
-  // Notify that rep was found (called externally from rep discovery)
-  const notifyRepFound = useCallback((name: string) => {
+  // Notify that rep/mayor was found (called externally from rep discovery)
+  const notifyRepFound = useCallback((name: string, title?: string) => {
     // Only show if still actively scanning
     if (statusRef.current !== "scanning" && statusRef.current !== "found_rep") return;
     setRepName(name);
+    setRepTitle(title ?? null);
     setStatus("found_rep");
     // Clear any prior found_rep timeout
     if (foundRepTimeoutRef.current) clearTimeout(foundRepTimeoutRef.current);
@@ -204,6 +230,31 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
       if (notifyRepFoundRef) notifyRepFoundRef.current = null;
     };
   }, [notifyRepFound, notifyRepFoundRef]);
+
+  // Background work: signal that external async work (mayor/rep discovery) is in progress
+  const startBackgroundWork = useCallback(() => {
+    backgroundWorkActiveRef.current = true;
+    pendingCityCompletionRef.current = null;
+  }, []);
+
+  const completeBackgroundWork = useCallback(() => {
+    backgroundWorkActiveRef.current = false;
+    if (pendingCityCompletionRef.current !== null) {
+      const success = pendingCityCompletionRef.current;
+      pendingCityCompletionRef.current = null;
+      applyCityCompletion(success);
+    }
+  }, [applyCityCompletion]);
+
+  // Expose background work controls to parent via ref
+  useEffect(() => {
+    if (backgroundWorkRef) {
+      backgroundWorkRef.current = { start: startBackgroundWork, complete: completeBackgroundWork };
+    }
+    return () => {
+      if (backgroundWorkRef) backgroundWorkRef.current = null;
+    };
+  }, [startBackgroundWork, completeBackgroundWork, backgroundWorkRef]);
 
   // Dismiss helper
   const doDismiss = useCallback(() => {
@@ -295,7 +346,9 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
       ? `No stories in ${cityName || "your city"} yet. Here\u2019s what\u2019s trending:`
       : "Your city feed is ready. We\u2019ll add neighborhood stories as more data becomes available.";
   } else if (status === "found_rep" && repName) {
-    message = `Found your representative: ${repName}`;
+    message = repTitle
+      ? `Found ${repTitle}: ${repName}`
+      : `Found your representative: ${repName}`;
   } else if (status === "scanning") {
     message = mode === "city"
       ? `Looking for stories in ${cityName || "your city"}...`
@@ -308,12 +361,15 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
     message,
     cityName,
     repName,
+    repTitle,
     dismissed,
     dismiss,
     startJob,
     startCityLoading,
     completeCityLoading,
     notifyRepFound,
+    startBackgroundWork,
+    completeBackgroundWork,
   };
 
   return (

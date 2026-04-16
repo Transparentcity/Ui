@@ -27,7 +27,6 @@ import {
   runPlaceMetricsAndAnomaliesAsJob,
   getCityLeaders,
   followRepresentative,
-  type ClaimContext,
   type GovernmentVerificationStatus,
   type UserPreferences,
   type UserPreferencesUpdateRequest,
@@ -39,7 +38,6 @@ import { PENDING_ORDER_STORAGE_KEY_PREFIX } from "@/components/MetricOrderEditor
 import Loader from "@/components/Loader";
 import WelcomeModal from "@/components/WelcomeModal";
 import CityNotFoundModal from "@/components/CityNotFoundModal";
-import GovernmentOnboardingModal from "@/components/GovernmentOnboardingModal";
 import EditHomeLocationModal from "@/components/EditHomeLocationModal";
 import RedisStatusIndicator from "@/components/RedisStatusIndicator";
 import {
@@ -173,11 +171,10 @@ export default function DashboardPage() {
   const [allUserPlaces, setAllUserPlaces] = useState<UserPlace[]>([]);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [onboardingJob, setOnboardingJob] = useState<{ placeId: number; jobId: string } | null>(null);
-  const onboardingRepNotifyRef = useRef<((name: string) => void) | null>(null);
+  const onboardingRepNotifyRef = useRef<((name: string, title?: string) => void) | null>(null);
+  const onboardingBackgroundWorkRef = useRef<{ start: () => void; complete: () => void } | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [cityNotFound, setCityNotFound] = useState<{ cityName: string; state: string | null; country: string | null } | null>(null);
-  const [showGovernmentOnboardingModal, setShowGovernmentOnboardingModal] = useState(false);
-  const [governmentClaimContext, setGovernmentClaimContext] = useState<ClaimContext | null>(null);
   const hasAutoSelectedCity = useRef(false);
   const autoSelectedCityRef = useRef<{ id: number; name: string; slug: string } | null>(null);
   const hasCheckedOnboarding = useRef(false);
@@ -260,8 +257,6 @@ export default function DashboardPage() {
     setPlaceIdPendingPlaceMetricsBootstrap(null);
     setAllUserPlaces([]);
     setShowWelcomeModal(false);
-    setShowGovernmentOnboardingModal(false);
-    setGovernmentClaimContext(null);
     setSettingsOpen(false);
     setUserPreferences(null);
     setGovVerificationStatus(null);
@@ -451,11 +446,7 @@ export default function DashboardPage() {
       // will be caught by the hasCheckedOnboarding guard in effect 2.
       if (signupIntent) {
         hasCheckedOnboarding.current = true;
-        if (signupIntent === "public-servant") {
-          setShowGovernmentOnboardingModal(true);
-        } else {
-          setShowWelcomeModal(true);
-        }
+        setShowWelcomeModal(true);
       }
     } else if (signupIntent) {
       // User just completed signup without a follow intent
@@ -486,11 +477,7 @@ export default function DashboardPage() {
       // waiting for the admin permissions check to finish (which can take 15s+).
       // A brand-new user has no saved cities and is not an admin.
       hasCheckedOnboarding.current = true;
-      if (signupIntent === "public-servant") {
-        setShowGovernmentOnboardingModal(true);
-      } else {
-        setShowWelcomeModal(true);
-      }
+      setShowWelcomeModal(true);
     } else {
       // Regular login: default to feed for all users
       trackLogin(user.sub);
@@ -660,61 +647,27 @@ export default function DashboardPage() {
           if (savedCities.length === 0) {
             const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
             const signup = urlParams?.get("signup");
-            const cityIdParam = urlParams?.get("city_id");
-            const districtParam = urlParams?.get("district");
             const preferredType = prefs.extra?.preferred_onboarding_type as string | undefined;
             const isGovernmentFlow =
               signup === "government" ||
               signup === "public-servant" ||
               preferredType === "government";
 
+            // Record government signup intent for analytics (non-blocking)
             if (isGovernmentFlow) {
-              // Persist signup intent and claim context for this user
-              const claimContextPayload =
-                cityIdParam != null &&
-                districtParam != null &&
-                Number.isFinite(Number(cityIdParam)) &&
-                Number.isFinite(Number(districtParam))
-                  ? {
-                      city_id: parseInt(cityIdParam, 10),
-                      district: parseInt(districtParam, 10),
-                    }
-                  : undefined;
               try {
                 await recordSignupIntent(
-                  {
-                    source: signup === "government" ? "claim_profile" : "public-servant",
-                    claim_context: claimContextPayload,
-                  },
+                  { source: signup === "government" ? "claim_profile" : "public-servant" },
                   token
                 );
               } catch {
                 // Non-blocking
               }
-              // Prefer claim context from server if already stored, else from URL
-              let claimContext: ClaimContext | null = claimContextPayload ?? null;
-              try {
-                const govStatus = await getGovernmentVerificationStatus(token);
-                if (govStatus.claim_context && (govStatus.claim_context.city_id != null || govStatus.claim_context.leader_id != null)) {
-                  claimContext = govStatus.claim_context;
-                }
-              } catch {
-                // Use URL-derived context
-              }
-              if (!claimContext && claimContextPayload) {
-                claimContext = claimContextPayload;
-              }
-              setGovernmentClaimContext(
-                preferredType === "government" && !signup ? null : claimContext
-              );
-              setShowGovernmentOnboardingModal(true);
-            } else {
-              // Show onboarding even when the user arrived via a follow-city
-              // intent. The followed city is already saved to My Places by
-              // the saveCity() call in effect 1, but we still need the user
-              // to enter their address so place metrics and rep discovery run.
-              setShowWelcomeModal(true);
             }
+
+            // All signup types (resident and government) use the same
+            // WelcomeModal: address/city/zip -> preferences.
+            setShowWelcomeModal(true);
           }
         }
       } catch (error) {
@@ -1160,60 +1113,67 @@ export default function DashboardPage() {
     }
   };
 
-  const handleWelcomeComplete = () => {
+  const handleWelcomeComplete = (ctx: {
+    cityId: number;
+    cityName: string;
+    homeCoordinates: { lat: number; lng: number } | null;
+    hasPreciseLocation: boolean;
+  }) => {
     setShowWelcomeModal(false);
     setCurrentView("feed");
-    toast.success("Welcome! We\u2019re building your neighborhood feed now.");
+    toast.success("Welcome! We’re building your feed now.");
+
+    // Eagerly set home_location so FeedContainer gets the correct homeCityId
+    setUserPreferences((prev) => ({
+      ...prev!,
+      extra: {
+        ...prev?.extra,
+        home_location: {
+          city_id: ctx.cityId,
+          coordinates: ctx.homeCoordinates,
+        },
+      },
+    }));
+
     if (user?.sub) {
       trackOnboardingComplete(user.sub);
       trackUserActivation("onboarding_complete");
     }
 
-    // Deferred background work: rep discovery
-    // Place metrics job is now started from WelcomeModal after place creation to avoid race conditions.
+    // Mayor + rep discovery using context from WelcomeModal (no race condition)
+    onboardingBackgroundWorkRef.current?.start();
     void (async () => {
       try {
         const token = await getAccessTokenSilently();
-        const prefs = await getUserPreferences(token);
-        const homeLoc = prefs?.extra?.home_location;
-        if (!homeLoc?.coordinates || !homeLoc?.city_id) return;
 
-        const { lat, lng } = homeLoc.coordinates as { lat: number; lng: number };
-        const cId = homeLoc.city_id as number;
+        // Always fetch leaders and show the mayor (no coordinates needed)
+        const leaders = await getCityLeaders(ctx.cityId, token);
+        const mayor = leaders.find((l) => !l.district || l.district === 0);
+        if (mayor) {
+          onboardingRepNotifyRef.current?.(mayor.name, mayor.title || "Mayor");
+        }
 
-        const district = await findDistrictFromCoordinates(lat, lng, cId, token);
-        if (!district) return;
-
-        await followRepresentative(cId, String(district), token);
-
-        const leaders = await getCityLeaders(cId, token);
-        const rep = leaders.find((l) => l.district === district);
-        if (rep) {
-          onboardingRepNotifyRef.current?.(rep.name);
+        // If precise location, find district rep
+        if (ctx.hasPreciseLocation && ctx.homeCoordinates) {
+          const district = await findDistrictFromCoordinates(
+            ctx.homeCoordinates.lat, ctx.homeCoordinates.lng, ctx.cityId, token,
+          );
+          if (district) {
+            await followRepresentative(ctx.cityId, String(district), token);
+            const rep = leaders.find((l) => l.district === district);
+            if (rep) {
+              // Wait for mayor notification to clear before showing rep
+              if (mayor) await new Promise((r) => setTimeout(r, 4500));
+              onboardingRepNotifyRef.current?.(rep.name);
+            }
+          }
         }
       } catch {
         // Non-blocking
+      } finally {
+        onboardingBackgroundWorkRef.current?.complete();
       }
     })();
-  };
-
-  const handleGovernmentOnboardingComplete = () => {
-    setShowGovernmentOnboardingModal(false);
-    setGovernmentClaimContext(null);
-    toast.success("Verification submitted! We\u2019ll notify you once approved.");
-    if (user?.sub) {
-      trackOnboardingComplete(user.sub);
-      trackUserActivation("onboarding_complete");
-    }
-    const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
-    if (urlParams?.get("signup")) {
-      const p = new URLSearchParams(window.location.search);
-      p.delete("signup");
-      p.delete("city_id");
-      p.delete("district");
-      const next = p.toString() ? `${window.location.pathname}?${p}` : window.location.pathname;
-      window.history.replaceState({}, "", next);
-    }
   };
 
   const handleResetOnboarding = async () => {
@@ -1227,30 +1187,10 @@ export default function DashboardPage() {
       await updateUserPreferences({ has_completed_onboarding: false, extra }, token);
       hasCheckedOnboarding.current = false;
       await getSavedCities(token);
-      setShowGovernmentOnboardingModal(false);
       setShowWelcomeModal(true);
     } catch (error) {
       console.error("Error resetting onboarding:", error);
       alert("Failed to reset onboarding. Please try again.");
-    }
-  };
-
-  const handleResetOnboardingGovernment = async () => {
-    if (!confirm("This will reset onboarding and show the government flow (verify email, etc.) immediately. Continue?")) {
-      return;
-    }
-
-    try {
-      const token = await getAccessTokenSilently();
-      const extra = { ...(userPreferences?.extra || {}), preferred_onboarding_type: "government" };
-      await updateUserPreferences({ has_completed_onboarding: false, extra }, token);
-      hasCheckedOnboarding.current = false;
-      setShowWelcomeModal(false);
-      setGovernmentClaimContext(null);
-      setShowGovernmentOnboardingModal(true);
-    } catch (error) {
-      console.error("Error resetting to government onboarding:", error);
-      alert("Failed to reset. Please try again.");
     }
   };
 
@@ -1409,6 +1349,7 @@ export default function DashboardPage() {
       <PlaceOnboardingProvider
         initialJob={onboardingJob}
         notifyRepFoundRef={onboardingRepNotifyRef}
+        backgroundWorkRef={onboardingBackgroundWorkRef}
       >
       <main className={`${styles.mainContent} ${sidebarOpen ? "" : styles.mainContentCollapsed}`} id="main-content">
         {impersonationState && (
@@ -1920,15 +1861,6 @@ export default function DashboardPage() {
                           <button type="button" className={styles.settingsSecondaryBtn} onClick={handleResetOnboarding}>Reset</button>
                         </div>
                       </div>
-                      <div className={styles.settingsRow}>
-                        <div className={styles.settingsRowLabel}>
-                          <div className={styles.settingsRowTitle}>Reset and show government onboarding</div>
-                          <div className={styles.settingsRowDescription}>Run the government flow (verify email, confirm profile) again</div>
-                        </div>
-                        <div className={styles.settingsRowControl}>
-                          <button type="button" className={styles.settingsSecondaryBtn} onClick={handleResetOnboardingGovernment}>Reset (government)</button>
-                        </div>
-                      </div>
                     </div>
                   </section>
                   )}
@@ -1968,13 +1900,7 @@ export default function DashboardPage() {
         </>
       )}
 
-      {/* Welcome Modal for first-time users */}
-      <GovernmentOnboardingModal
-        isOpen={showGovernmentOnboardingModal}
-        onClose={() => setShowGovernmentOnboardingModal(false)}
-        onComplete={handleGovernmentOnboardingComplete}
-        claimContext={governmentClaimContext}
-      />
+      {/* Welcome Modal for first-time users (residents and government alike) */}
       <WelcomeModal
         isOpen={showWelcomeModal}
         onClose={() => setShowWelcomeModal(false)}

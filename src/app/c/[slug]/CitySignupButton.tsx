@@ -12,6 +12,8 @@ import {
   type SignupEventContext,
 } from "@/lib/analytics";
 import { useSignupEmail } from "./SignupEmailContext";
+import GovernmentSignupMessage from "@/components/GovernmentSignupMessage";
+import authStyles from "@/components/AuthModal.module.css";
 
 type Props = {
   citySlug?: string;
@@ -22,8 +24,19 @@ type Props = {
 export default function CitySignupButton({ citySlug, cityName, cityId }: Props = {}) {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const [signupMenuOpen, setSignupMenuOpen] = useState(false);
+  const [showGovMessage, setShowGovMessage] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { email: prefillEmail } = useSignupEmail();
+
+  // Close gov message modal on Escape
+  useEffect(() => {
+    if (!showGovMessage) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowGovMessage(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [showGovMessage]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -140,7 +153,10 @@ export default function CitySignupButton({ citySlug, cityName, cityId }: Props =
             <button
               className="nav-signup-item"
               role="menuitem"
-              onClick={() => handleSignup("public-servant")}
+              onClick={() => {
+                setSignupMenuOpen(false);
+                setShowGovMessage(true);
+              }}
               disabled={isLoading}
             >
               <div className="nav-signup-item-title">I&apos;m city staff</div>
@@ -151,6 +167,40 @@ export default function CitySignupButton({ citySlug, cityName, cityId }: Props =
           </div>
         )}
       </div>
+
+      {showGovMessage && (
+        <div
+          className={authStyles.overlay}
+          onClick={() => setShowGovMessage(false)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className={authStyles.modal}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={authStyles.header}>
+              <span />
+              <button
+                type="button"
+                className={authStyles.closeBtn}
+                onClick={() => setShowGovMessage(false)}
+                aria-label="Close"
+              >
+                &times;
+              </button>
+            </div>
+            <GovernmentSignupMessage
+              onContinue={() => {
+                setShowGovMessage(false);
+                handleSignup("public-servant");
+              }}
+              onBack={() => setShowGovMessage(false)}
+              disabled={isLoading}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

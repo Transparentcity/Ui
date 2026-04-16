@@ -2,7 +2,7 @@
 
 import { useAuth0 } from "@auth0/auth0-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   trackSignupStart,
   trackSignupClick,
@@ -11,6 +11,7 @@ import {
   recordFunnelEventBackend,
   type SignupEventContext,
 } from "@/lib/analytics";
+import GovernmentSignupMessage from "./GovernmentSignupMessage";
 import styles from "./AuthModal.module.css";
 
 interface AuthModalProps {
@@ -22,6 +23,7 @@ interface AuthModalProps {
 export default function AuthModal({ isOpen, onClose, title }: AuthModalProps) {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const router = useRouter();
+  const [step, setStep] = useState<"choice" | "gov-message">("choice");
 
   // Redirect authenticated users
   useEffect(() => {
@@ -30,6 +32,11 @@ export default function AuthModal({ isOpen, onClose, title }: AuthModalProps) {
       router.push("/home");
     }
   }, [isAuthenticated, isLoading, onClose, router]);
+
+  // Reset step when modal opens
+  useEffect(() => {
+    if (isOpen) setStep("choice");
+  }, [isOpen]);
 
   // Close on Escape key
   useEffect(() => {
@@ -77,6 +84,41 @@ export default function AuthModal({ isOpen, onClose, title }: AuthModalProps) {
   };
 
   if (!isOpen) return null;
+
+  if (step === "gov-message") {
+    return (
+      <div
+        className={styles.overlay}
+        onClick={onClose}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="auth-modal-title"
+      >
+        <div
+          className={styles.modal}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <div className={styles.header}>
+            <span />
+            <button
+              type="button"
+              className={styles.closeBtn}
+              onClick={onClose}
+              aria-label="Close"
+            >
+              &times;
+            </button>
+          </div>
+          <GovernmentSignupMessage
+            onContinue={() => handleSignup("public-servant")}
+            onBack={() => setStep("choice")}
+            disabled={isLoading}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -144,7 +186,7 @@ export default function AuthModal({ isOpen, onClose, title }: AuthModalProps) {
           <button
             type="button"
             className={styles.signupItem}
-            onClick={() => handleSignup("public-servant")}
+            onClick={() => setStep("gov-message")}
             disabled={isLoading}
           >
             <div className={styles.signupItemTitle}>Public servant</div>

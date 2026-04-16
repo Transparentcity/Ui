@@ -15,12 +15,15 @@ let mockOnboardingState = {
   message: "",
   cityName: null as string | null,
   repName: null as string | null,
+  repTitle: null as string | null,
   dismissed: false,
   dismiss: vi.fn(),
   startJob: vi.fn(),
   startCityLoading: vi.fn(),
   completeCityLoading: vi.fn(),
   notifyRepFound: vi.fn(),
+  startBackgroundWork: vi.fn(),
+  completeBackgroundWork: vi.fn(),
 };
 
 vi.mock("@/contexts/PlaceOnboardingContext", () => ({
@@ -47,12 +50,15 @@ describe("OnboardingBanner", () => {
       message: "",
       cityName: null,
       repName: null,
+      repTitle: null,
       dismissed: false,
       dismiss: vi.fn(),
       startJob: vi.fn(),
       startCityLoading: vi.fn(),
       completeCityLoading: vi.fn(),
       notifyRepFound: vi.fn(),
+      startBackgroundWork: vi.fn(),
+      completeBackgroundWork: vi.fn(),
     };
   });
 

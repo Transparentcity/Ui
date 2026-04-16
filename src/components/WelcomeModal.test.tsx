@@ -35,12 +35,15 @@ vi.mock("@/contexts/PlaceOnboardingContext", () => ({
     message: "",
     cityName: null,
     repName: null,
+    repTitle: null,
     dismissed: false,
     dismiss: vi.fn(),
     startJob: mockStartJob,
     startCityLoading: mockStartCityLoading,
     completeCityLoading: mockCompleteCityLoading,
     notifyRepFound: vi.fn(),
+    startBackgroundWork: vi.fn(),
+    completeBackgroundWork: vi.fn(),
   }),
 }));
 

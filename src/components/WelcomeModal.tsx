@@ -41,7 +41,12 @@ interface WelcomeModalProps {
   onClose: () => void;
   /** Called when user finishes onboarding with a city (and optional place). Pass placeId to open block-level view. */
   onCitySelected: (cityId: number, district?: number | null, placeId?: number | null) => void;
-  onComplete: () => void;
+  onComplete: (context: {
+    cityId: number;
+    cityName: string;
+    homeCoordinates: { lat: number; lng: number } | null;
+    hasPreciseLocation: boolean;
+  }) => void;
   /** Called when the user's city is not found or not yet active. */
   onCityNotFound?: (cityName: string, state: string | null, country: string | null) => void;
 }
@@ -944,7 +949,14 @@ export default function WelcomeModal({
 
     const districtToLoad = locationResult.district ?? null;
     onCitySelected(locationResult.matchedCity.id, districtToLoad);
-    onComplete();
+    onComplete({
+      cityId: locationResult.matchedCity.id,
+      cityName: locationResult.matchedCity.display_name
+        || locationResult.matchedCity.name
+        || "your city",
+      homeCoordinates,
+      hasPreciseLocation,
+    });
     onClose();
   };
 

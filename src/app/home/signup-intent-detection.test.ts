@@ -25,7 +25,6 @@ type EffectResult = {
   signupIntent: SignupIntent;
   followCityId: number | null;
   showWelcomeModal: boolean;
-  showGovernmentOnboardingModal: boolean;
   hasCheckedOnboarding: boolean;
   saveCityCalled: boolean;
   currentView: "city" | "feed";
@@ -78,7 +77,6 @@ function simulateSignupLoginEffect(opts: {
     signupIntent,
     followCityId: null,
     showWelcomeModal: false,
-    showGovernmentOnboardingModal: false,
     hasCheckedOnboarding: false,
     saveCityCalled: false,
     currentView: "feed",
@@ -94,21 +92,13 @@ function simulateSignupLoginEffect(opts: {
     // New signups with follow intent also get onboarding
     if (signupIntent) {
       result.hasCheckedOnboarding = true;
-      if (signupIntent === "public-servant") {
-        result.showGovernmentOnboardingModal = true;
-      } else {
-        result.showWelcomeModal = true;
-      }
+      result.showWelcomeModal = true;
     }
   } else if (signupIntent) {
     // Signup-only branch (no follow city)
     result.branch = "signup-only";
     result.hasCheckedOnboarding = true;
-    if (signupIntent === "public-servant") {
-      result.showGovernmentOnboardingModal = true;
-    } else {
-      result.showWelcomeModal = true;
-    }
+    result.showWelcomeModal = true;
   } else {
     // Regular login
     result.branch = "regular-login";
@@ -251,14 +241,13 @@ describe("Signup/login effect: onboarding triggers on every new signup", () => {
       expect(r.hasCheckedOnboarding).toBe(true);
     });
 
-    it("shows GovernmentOnboardingModal for public-servant signup", () => {
+    it("shows WelcomeModal for public-servant signup (same flow as residents)", () => {
       const r = simulateSignupLoginEffect({
         urlSearch: "?signup=public-servant",
         storage: {},
       });
       expect(r.branch).toBe("signup-only");
-      expect(r.showGovernmentOnboardingModal).toBe(true);
-      expect(r.showWelcomeModal).toBe(false);
+      expect(r.showWelcomeModal).toBe(true);
     });
 
     it("shows WelcomeModal from localStorage fallback (Auth0 lost appState)", () => {
@@ -284,13 +273,13 @@ describe("Signup/login effect: onboarding triggers on every new signup", () => {
       expect(r.hasCheckedOnboarding).toBe(true);
     });
 
-    it("shows GovernmentOnboardingModal AND saves city for public-servant from city page", () => {
+    it("shows WelcomeModal AND saves city for public-servant from city page", () => {
       const r = simulateSignupLoginEffect({
         urlSearch: "?signup=public-servant&follow_city_id=42",
         storage: {},
       });
       expect(r.branch).toBe("follow-city");
-      expect(r.showGovernmentOnboardingModal).toBe(true);
+      expect(r.showWelcomeModal).toBe(true);
       expect(r.saveCityCalled).toBe(true);
     });
 
@@ -326,7 +315,6 @@ describe("Signup/login effect: onboarding triggers on every new signup", () => {
       });
       expect(r.branch).toBe("follow-city");
       expect(r.showWelcomeModal).toBe(false);
-      expect(r.showGovernmentOnboardingModal).toBe(false);
       expect(r.hasCheckedOnboarding).toBe(false);
       expect(r.saveCityCalled).toBe(true);
     });
@@ -340,7 +328,6 @@ describe("Signup/login effect: onboarding triggers on every new signup", () => {
       });
       expect(r.branch).toBe("regular-login");
       expect(r.showWelcomeModal).toBe(false);
-      expect(r.showGovernmentOnboardingModal).toBe(false);
       expect(r.hasCheckedOnboarding).toBe(false);
     });
 

@@ -318,12 +318,14 @@ export default function FeedContainer({
     const id = [...selectedCityIds][0];
     // City exists in feed places → it has stories, nothing to do
     if (uniqueCities.some((c) => c.city_id === id)) return null;
+    // Feed query returned stories for this city (places cache may be stale)
+    if (!isLoading && stories.length > 0) return null;
     // Find city name from savedCities for display
     const saved = savedCities.find((c) => c.id === id);
     return saved
       ? { id, name: saved.display_name || saved.city_name || "your city" }
       : null;
-  }, [selectedCityIds, uniqueCities, savedCities]);
+  }, [selectedCityIds, uniqueCities, savedCities, isLoading, stories.length]);
 
   // When a city has no stories, auto-switch to All Cities so user sees content
   const [noStoriesCity, setNoStoriesCity] = useState<{ id: number; name: string } | null>(null);
@@ -445,20 +447,22 @@ export default function FeedContainer({
     }
   }, [selectedCityWithNoStories]);
 
-  // Suppress auto-switch while onboarding is actively scanning (city or place level).
-  // Once onboarding resolves (or if it's idle), allow the switch to All Cities.
+  // Suppress auto-switch while onboarding is actively scanning (city or place level)
+  // or has just completed successfully. Once onboarding resolves as failed (or idle),
+  // allow the switch to All Cities.
   useEffect(() => {
     if (
       selectedCityWithNoStories &&
       !isLoading &&
       stories.length === 0 &&
       !isOnboardingScanning &&
+      onboarding.status !== "completed" &&
       autoSwitchedCityRef.current !== selectedCityWithNoStories.id
     ) {
       autoSwitchedCityRef.current = selectedCityWithNoStories.id;
       setSelectedCityIds(new Set());
     }
-  }, [selectedCityWithNoStories, isLoading, stories.length, isOnboardingScanning]);
+  }, [selectedCityWithNoStories, isLoading, stories.length, isOnboardingScanning, onboarding.status]);
 
   // Complete city-level loading when the feed query resolves
   useEffect(() => {
@@ -466,6 +470,13 @@ export default function FeedContainer({
     // Feed finished loading: complete city onboarding with success/failure
     onboarding.completeCityLoading(stories.length > 0);
   }, [onboarding.mode, onboarding.status, isLoading, stories.length, onboarding.completeCityLoading]);
+
+  // Refresh the places cache when city onboarding completes so uniqueCities stays accurate
+  useEffect(() => {
+    if (onboarding.status === "completed" && onboarding.mode === "city") {
+      queryClient.invalidateQueries({ queryKey: feedKeys.places() });
+    }
+  }, [onboarding.status, onboarding.mode, queryClient]);
 
   // Fetch narrative text from research reports for stories with thin descriptions.
   // Incremental: only fetch for stories we haven't processed yet.

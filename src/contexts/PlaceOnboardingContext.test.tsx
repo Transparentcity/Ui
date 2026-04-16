@@ -213,6 +213,58 @@ describe("PlaceOnboardingContext", () => {
     expect(screen.getByTestId("status").textContent).toBe("scanning");
   });
 
+  it("notifyRepFound with title shows custom message", () => {
+    mockGetJob.mockResolvedValue({ status: "running" });
+
+    let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+    renderWithProvider(
+      { initialJob: { placeId: 1, jobId: "job-123" } },
+      (v) => { latestValue = v; }
+    );
+
+    act(() => {
+      latestValue!.notifyRepFound("Darrell Steinberg", "Mayor");
+    });
+
+    expect(screen.getByTestId("status").textContent).toBe("found_rep");
+    expect(screen.getByTestId("message").textContent).toBe(
+      "Found Mayor: Darrell Steinberg"
+    );
+  });
+
+  it("completeCityLoading defers when background work is active", () => {
+    let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+    renderWithProvider({}, (v) => { latestValue = v; });
+
+    act(() => {
+      latestValue!.startCityLoading("Sacramento");
+    });
+
+    // Start background work (mayor/rep discovery)
+    act(() => {
+      latestValue!.startBackgroundWork();
+    });
+
+    // FeedContainer tries to complete city loading while background work is active
+    act(() => {
+      latestValue!.completeCityLoading(true);
+    });
+
+    // Should still be scanning (deferred)
+    expect(screen.getByTestId("status").textContent).toBe("scanning");
+
+    // Complete background work
+    act(() => {
+      latestValue!.completeBackgroundWork();
+    });
+
+    // Now it should complete
+    expect(screen.getByTestId("status").textContent).toBe("completed");
+    expect(screen.getByTestId("message").textContent).toBe(
+      "Your Sacramento feed is ready!"
+    );
+  });
+
   // ── City-level loading tests ─────────────────────────────────────────
 
   it("startCityLoading sets scanning state with city message", () => {
