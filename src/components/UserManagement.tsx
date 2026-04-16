@@ -51,6 +51,7 @@ export default function UserManagement({
   const [selectedRole, setSelectedRole] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<boolean | null>(null);
   const [selectedCityLead, setSelectedCityLead] = useState<boolean | null>(null);
+  const [selectedGovStatus, setSelectedGovStatus] = useState<string>("");
 
   // Edit modal state
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -146,6 +147,19 @@ export default function UserManagement({
         );
       }
 
+      // Apply government status filter client-side
+      if (selectedGovStatus === "pending") {
+        filteredUsers = filteredUsers.filter(
+          (user) => user.government_pending_verification && !user.government_verified
+        );
+      } else if (selectedGovStatus === "verified") {
+        filteredUsers = filteredUsers.filter((user) => !!user.government_verified);
+      } else if (selectedGovStatus === "not_gov") {
+        filteredUsers = filteredUsers.filter(
+          (user) => !user.government_verified && !user.government_pending_verification
+        );
+      }
+
       setUsers(filteredUsers);
     } catch (err) {
       console.error("Error loading users:", err);
@@ -153,7 +167,7 @@ export default function UserManagement({
     } finally {
       setLoading(false);
     }
-  }, [getAccessTokenSilently, selectedRole, selectedStatus, selectedCityLead, searchQuery]);
+  }, [getAccessTokenSilently, selectedRole, selectedStatus, selectedCityLead, selectedGovStatus, searchQuery]);
 
   useEffect(() => {
     loadData();
@@ -161,7 +175,7 @@ export default function UserManagement({
 
   useEffect(() => {
     loadUsers();
-  }, [selectedRole, selectedStatus, selectedCityLead, loadUsers]);
+  }, [selectedRole, selectedStatus, selectedCityLead, selectedGovStatus, loadUsers]);
 
   // Debounced search
   useEffect(() => {
@@ -771,6 +785,16 @@ export default function UserManagement({
             <option value="true">Active</option>
             <option value="false">Inactive</option>
           </select>
+          <select
+            value={selectedGovStatus}
+            onChange={(e) => setSelectedGovStatus(e.target.value)}
+            className={styles.select}
+          >
+            <option value="">Gov (Any)</option>
+            <option value="pending">Pending Verification</option>
+            <option value="verified">Verified</option>
+            <option value="not_gov">Not Government</option>
+          </select>
           <button onClick={() => loadData()} className={styles.refreshBtn}>
             <i className="fas fa-sync-alt"></i> Refresh
           </button>
@@ -843,7 +867,11 @@ export default function UserManagement({
                       </div>
                     </td>
                     <td className={styles.tableCell}>
-                      {!user.government_verified ? (
+                      {!user.government_verified && user.government_pending_verification ? (
+                        <span className={styles.roleBadge} style={{ background: "var(--warning-bg, #fef3c7)", color: "var(--warning, #d97706)" }}>
+                          Pending
+                        </span>
+                      ) : !user.government_verified ? (
                         <span style={{ color: "var(--text-tertiary)" }}>—</span>
                       ) : user.government_user_type === "elected_official" && user.government_leader_name ? (
                         <span className={styles.roleBadge} style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }} title={`Elected: ${user.government_leader_name}${user.government_district != null ? ` District ${user.government_district}` : ""}`}>

@@ -3506,6 +3506,7 @@ export interface User {
   city_lead_city_ids?: number[];
   is_city_lead?: boolean;
   government_verified?: boolean;
+  government_pending_verification?: boolean;
   government_email?: string | null;
   government_user_type?: string | null;
   government_leader_id?: number | null;
