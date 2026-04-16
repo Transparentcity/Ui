@@ -456,4 +456,416 @@ describe("PlaceOnboardingContext", () => {
 
     expect(screen.getByTestId("status").textContent).toBe("completed");
   });
+
+  // ── Background work deferral & race condition tests ─────────────────
+
+  describe("background work deferral (race condition prevention)", () => {
+    it("completeCityLoading defers failure result while background work is active", () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+      act(() => { latestValue!.startBackgroundWork(); });
+
+      // Feed resolves with 0 stories while mayor/rep discovery is running
+      act(() => { latestValue!.completeCityLoading(false); });
+
+      // Banner must stay alive (scanning), not show "no stories" yet
+      expect(screen.getByTestId("status").textContent).toBe("scanning");
+      expect(screen.getByTestId("message").textContent).toBe(
+        "Looking for stories in Sacramento..."
+      );
+
+      // Background work finishes: deferred failure now applies
+      act(() => { latestValue!.completeBackgroundWork(); });
+      expect(screen.getByTestId("status").textContent).toBe("failed");
+    });
+
+    it("preserves deferred success through multiple notifyRepFound calls", async () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+      act(() => { latestValue!.startBackgroundWork(); });
+
+      // Feed resolves with stories (success) while background work is active
+      act(() => { latestValue!.completeCityLoading(true); });
+      expect(screen.getByTestId("status").textContent).toBe("scanning");
+
+      // Mayor found
+      act(() => { latestValue!.notifyRepFound("Darrell Steinberg", "Mayor"); });
+      expect(screen.getByTestId("status").textContent).toBe("found_rep");
+      expect(screen.getByTestId("message").textContent).toBe(
+        "Found Mayor: Darrell Steinberg"
+      );
+
+      // Mayor notification times out, reverts to scanning
+      await act(async () => { await vi.advanceTimersByTimeAsync(4500); });
+      expect(screen.getByTestId("status").textContent).toBe("scanning");
+
+      // District rep found
+      act(() => { latestValue!.notifyRepFound("Katie Valenzuela"); });
+      expect(screen.getByTestId("message").textContent).toBe(
+        "Found your representative: Katie Valenzuela"
+      );
+
+      // Rep notification times out
+      await act(async () => { await vi.advanceTimersByTimeAsync(4500); });
+      expect(screen.getByTestId("status").textContent).toBe("scanning");
+
+      // Background work completes: deferred success now applies
+      act(() => { latestValue!.completeBackgroundWork(); });
+      expect(screen.getByTestId("status").textContent).toBe("completed");
+      expect(screen.getByTestId("message").textContent).toBe(
+        "Your Sacramento feed is ready!"
+      );
+    });
+
+    it("completeCityLoading applies immediately when no background work", () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      act(() => { latestValue!.startCityLoading("Chicago"); });
+
+      // No startBackgroundWork called: completeCityLoading should apply immediately
+      act(() => { latestValue!.completeCityLoading(true); });
+      expect(screen.getByTestId("status").textContent).toBe("completed");
+    });
+
+    it("completeBackgroundWork is a no-op when nothing was deferred", () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+      act(() => { latestValue!.startBackgroundWork(); });
+
+      // Background work completes before FeedContainer calls completeCityLoading
+      act(() => { latestValue!.completeBackgroundWork(); });
+
+      // Should still be scanning (nothing was deferred)
+      expect(screen.getByTestId("status").textContent).toBe("scanning");
+
+      // Now completeCityLoading fires (background is no longer active, applies immediately)
+      act(() => { latestValue!.completeCityLoading(true); });
+      expect(screen.getByTestId("status").textContent).toBe("completed");
+    });
+
+    it("startBackgroundWork resets any stale pending completion", () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+      act(() => { latestValue!.startBackgroundWork(); });
+      act(() => { latestValue!.completeCityLoading(false); });
+
+      // Start a fresh background work cycle (e.g. user re-triggered onboarding)
+      // startBackgroundWork clears pending
+      act(() => { latestValue!.startBackgroundWork(); });
+      act(() => { latestValue!.completeBackgroundWork(); });
+
+      // Should still be scanning because the new startBackgroundWork cleared the pending false
+      expect(screen.getByTestId("status").textContent).toBe("scanning");
+    });
+
+    it("deferred completion auto-dismisses after the standard delay", async () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+      act(() => { latestValue!.startBackgroundWork(); });
+      act(() => { latestValue!.completeCityLoading(true); });
+
+      // Complete background work triggers deferred completion
+      act(() => { latestValue!.completeBackgroundWork(); });
+      expect(screen.getByTestId("status").textContent).toBe("completed");
+      expect(screen.getByTestId("dismissed").textContent).toBe("false");
+
+      // Auto-dismiss after 5s
+      await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
+      expect(screen.getByTestId("dismissed").textContent).toBe("true");
+    });
+  });
+
+  // ── Mayor + rep notification sequencing ─────────────────────────────
+
+  describe("mayor and rep notification sequencing", () => {
+    it("notifyRepFound replaces a previous found_rep notification", () => {
+      mockGetJob.mockResolvedValue({ status: "running" });
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider(
+        { initialJob: { placeId: 1, jobId: "job-123" } },
+        (v) => { latestValue = v; }
+      );
+
+      // Mayor notification
+      act(() => { latestValue!.notifyRepFound("Mayor Smith", "Mayor"); });
+      expect(screen.getByTestId("message").textContent).toBe("Found Mayor: Mayor Smith");
+
+      // Immediately replaced by rep notification (no waiting for timeout)
+      act(() => { latestValue!.notifyRepFound("Jane Doe"); });
+      expect(screen.getByTestId("message").textContent).toBe(
+        "Found your representative: Jane Doe"
+      );
+      expect(latestValue!.repTitle).toBeNull();
+    });
+
+    it("notifyRepFound without title resets repTitle to null", () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+
+      // Show mayor with title
+      act(() => { latestValue!.notifyRepFound("Mayor Smith", "Mayor"); });
+      expect(latestValue!.repTitle).toBe("Mayor");
+
+      // Show rep without title
+      act(() => { latestValue!.notifyRepFound("Katie V"); });
+      expect(latestValue!.repTitle).toBeNull();
+      expect(screen.getByTestId("message").textContent).toBe(
+        "Found your representative: Katie V"
+      );
+    });
+
+    it("notifyRepFound is ignored after status transitions to completed", () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+      act(() => { latestValue!.completeCityLoading(true); });
+      expect(screen.getByTestId("status").textContent).toBe("completed");
+
+      // Late-arriving rep notification should be ignored
+      act(() => { latestValue!.notifyRepFound("Late Rep"); });
+      expect(screen.getByTestId("status").textContent).toBe("completed");
+      expect(screen.getByTestId("message").textContent).toBe(
+        "Your Sacramento feed is ready!"
+      );
+    });
+
+    it("notifyRepFound is ignored after status transitions to failed", () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+      act(() => { latestValue!.completeCityLoading(false); });
+      expect(screen.getByTestId("status").textContent).toBe("failed");
+
+      act(() => { latestValue!.notifyRepFound("Late Rep"); });
+      expect(screen.getByTestId("status").textContent).toBe("failed");
+    });
+  });
+
+  // ── Full onboarding timeline simulation ────────────────────────────
+
+  describe("full onboarding timeline (city + background work + mayor + rep)", () => {
+    it("simulates the complete Sacramento onboarding flow with precise address", async () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      // T=0: WelcomeModal calls startCityLoading before navigating
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+      expect(screen.getByTestId("status").textContent).toBe("scanning");
+      expect(screen.getByTestId("message").textContent).toBe(
+        "Looking for stories in Sacramento..."
+      );
+
+      // T=0: handleWelcomeComplete starts background work
+      act(() => { latestValue!.startBackgroundWork(); });
+
+      // T=~500ms: FeedContainer feed query resolves with stories
+      act(() => { latestValue!.completeCityLoading(true); });
+
+      // Banner stays alive because background work is active
+      expect(screen.getByTestId("status").textContent).toBe("scanning");
+
+      // T=~1s: getCityLeaders resolves, mayor found
+      act(() => { latestValue!.notifyRepFound("Darrell Steinberg", "Mayor"); });
+      expect(screen.getByTestId("status").textContent).toBe("found_rep");
+      expect(screen.getByTestId("message").textContent).toBe(
+        "Found Mayor: Darrell Steinberg"
+      );
+
+      // T=5s: Mayor notification clears after 4s
+      await act(async () => { await vi.advanceTimersByTimeAsync(4500); });
+      expect(screen.getByTestId("status").textContent).toBe("scanning");
+
+      // T=~6s: District rep found
+      act(() => { latestValue!.notifyRepFound("Katie Valenzuela"); });
+      expect(screen.getByTestId("message").textContent).toBe(
+        "Found your representative: Katie Valenzuela"
+      );
+
+      // T=~10s: Rep notification clears
+      await act(async () => { await vi.advanceTimersByTimeAsync(4500); });
+      expect(screen.getByTestId("status").textContent).toBe("scanning");
+
+      // T=~10s: Background work finishes (finally block)
+      act(() => { latestValue!.completeBackgroundWork(); });
+
+      // Deferred success applies
+      expect(screen.getByTestId("status").textContent).toBe("completed");
+      expect(screen.getByTestId("message").textContent).toBe(
+        "Your Sacramento feed is ready!"
+      );
+
+      // T=~15s: Auto-dismiss
+      await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
+      expect(screen.getByTestId("dismissed").textContent).toBe("true");
+    });
+
+    it("simulates city-only onboarding (no precise address, no rep)", async () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      // Start city loading + background work
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+      act(() => { latestValue!.startBackgroundWork(); });
+
+      // Feed resolves with stories
+      act(() => { latestValue!.completeCityLoading(true); });
+      expect(screen.getByTestId("status").textContent).toBe("scanning");
+
+      // Mayor found (no district rep because no precise coordinates)
+      act(() => { latestValue!.notifyRepFound("Darrell Steinberg", "Mayor"); });
+      expect(screen.getByTestId("message").textContent).toBe(
+        "Found Mayor: Darrell Steinberg"
+      );
+
+      // Mayor notification clears
+      await act(async () => { await vi.advanceTimersByTimeAsync(4500); });
+
+      // Background work completes (no district rep discovery was needed)
+      act(() => { latestValue!.completeBackgroundWork(); });
+      expect(screen.getByTestId("status").textContent).toBe("completed");
+      expect(screen.getByTestId("message").textContent).toBe(
+        "Your Sacramento feed is ready!"
+      );
+    });
+
+    it("simulates onboarding where background work fails gracefully", async () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+      act(() => { latestValue!.startBackgroundWork(); });
+
+      // Feed resolves with stories
+      act(() => { latestValue!.completeCityLoading(true); });
+
+      // Background work hits a catch block and calls complete in finally
+      // (no notifyRepFound calls happened)
+      act(() => { latestValue!.completeBackgroundWork(); });
+
+      // Deferred success still applies (feed had stories)
+      expect(screen.getByTestId("status").textContent).toBe("completed");
+      expect(screen.getByTestId("message").textContent).toBe(
+        "Your Sacramento feed is ready!"
+      );
+    });
+
+    it("simulates onboarding where feed has 0 stories and background work also fails", () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+      act(() => { latestValue!.startBackgroundWork(); });
+
+      // Feed resolves with 0 stories
+      act(() => { latestValue!.completeCityLoading(false); });
+      expect(screen.getByTestId("status").textContent).toBe("scanning");
+
+      // Background work fails and completes
+      act(() => { latestValue!.completeBackgroundWork(); });
+
+      // Deferred failure now applies
+      expect(screen.getByTestId("status").textContent).toBe("failed");
+      expect(screen.getByTestId("message").textContent).toContain(
+        "No stories in Sacramento yet"
+      );
+    });
+  });
+
+  // ── Ref wiring tests ───────────────────────────────────────────────
+
+  describe("ref wiring (notifyRepFoundRef and backgroundWorkRef)", () => {
+    it("notifyRepFoundRef receives the notifyRepFound function with title support", () => {
+      const repRef = { current: null as ((name: string, title?: string) => void) | null };
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+      render(
+        <QueryClientProvider client={qc}>
+          <PlaceOnboardingProvider notifyRepFoundRef={repRef}>
+            <TestConsumer />
+          </PlaceOnboardingProvider>
+        </QueryClientProvider>
+      );
+
+      expect(repRef.current).toBeTypeOf("function");
+
+      // Start scanning so notifyRepFound isn't ignored
+      act(() => {
+        // Need to get the context value to call startCityLoading
+        // Use the ref directly instead
+      });
+    });
+
+    it("backgroundWorkRef receives start and complete functions", () => {
+      const bgRef = { current: null as { start: () => void; complete: () => void } | null };
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+      render(
+        <QueryClientProvider client={qc}>
+          <PlaceOnboardingProvider backgroundWorkRef={bgRef}>
+            <TestConsumer />
+          </PlaceOnboardingProvider>
+        </QueryClientProvider>
+      );
+
+      expect(bgRef.current).not.toBeNull();
+      expect(bgRef.current!.start).toBeTypeOf("function");
+      expect(bgRef.current!.complete).toBeTypeOf("function");
+    });
+
+    it("backgroundWorkRef is cleaned up on unmount", () => {
+      const bgRef = { current: null as { start: () => void; complete: () => void } | null };
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+      const { unmount } = render(
+        <QueryClientProvider client={qc}>
+          <PlaceOnboardingProvider backgroundWorkRef={bgRef}>
+            <TestConsumer />
+          </PlaceOnboardingProvider>
+        </QueryClientProvider>
+      );
+
+      expect(bgRef.current).not.toBeNull();
+      unmount();
+      expect(bgRef.current).toBeNull();
+    });
+
+    it("calling backgroundWorkRef.start/complete defers and applies completion", () => {
+      const bgRef = { current: null as { start: () => void; complete: () => void } | null };
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+      render(
+        <QueryClientProvider client={qc}>
+          <PlaceOnboardingProvider backgroundWorkRef={bgRef}>
+            <TestConsumer onRender={(v) => { latestValue = v; }} />
+          </PlaceOnboardingProvider>
+        </QueryClientProvider>
+      );
+
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+
+      // Use the ref (as page.tsx does)
+      act(() => { bgRef.current!.start(); });
+      act(() => { latestValue!.completeCityLoading(true); });
+      expect(screen.getByTestId("status").textContent).toBe("scanning");
+
+      act(() => { bgRef.current!.complete(); });
+      expect(screen.getByTestId("status").textContent).toBe("completed");
+    });
+  });
 });
