@@ -102,6 +102,12 @@
   color: var(--text-primary);
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .clearFiltersBtn {
   padding: 4px 12px;
   font-size: 13px;
@@ -116,6 +122,26 @@
 
 .clearFiltersBtn:hover {
   background: var(--bg-secondary);
+}
+
+.doneBtn {
+  padding: 4px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  background: var(--brand-primary, #ad35fa);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.doneBtn:hover {
+  background: var(--brand-primary-dark, #9125d6);
+}
+
+@media (min-width: 768px) {
+  .doneBtn { display: none; }
 }
 
 /* ── Scrollable content ──────────────────────────────────────────────────── */

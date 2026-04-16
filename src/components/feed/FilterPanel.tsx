@@ -128,8 +128,8 @@ export default function FilterPanel({
 
   return (
     <>
-      {/* Backdrop */}
-      <div className={styles.backdrop} onClick={onClose} />
+      {/* Backdrop — on mobile, apply draft before closing so selections aren't lost */}
+      <div className={styles.backdrop} onClick={() => { if (!isDesktop) onApply(draft); onClose(); }} />
 
       {/* Panel */}
       <div
@@ -144,26 +144,35 @@ export default function FilterPanel({
           <div className={styles.dragHandleBar} />
         </div>
 
-        {/* Panel header with clear button */}
+        {/* Panel header with clear + done buttons */}
         <div className={styles.panelHeader}>
           <span className={styles.panelTitle}>Filters</span>
-          <button
-            type="button"
-            className={styles.clearFiltersBtn}
-            onClick={() => {
-              const cleared: FilterState = {
-                selectedCityIds: new Set(),
-                selectedTopics: new Set(),
-                selectedDistricts: new Map(),
-                selectedPlaceId: null,
-                onlyMySavedPlaces: userPlaces.length > 0,
-                feedOrder: "for_you",
-              };
-              applyIfDesktop(cleared);
-            }}
-          >
-            Clear filters
-          </button>
+          <div className={styles.headerActions}>
+            <button
+              type="button"
+              className={styles.clearFiltersBtn}
+              onClick={() => {
+                const cleared: FilterState = {
+                  selectedCityIds: new Set(),
+                  selectedTopics: new Set(),
+                  selectedDistricts: new Map(),
+                  selectedPlaceId: null,
+                  onlyMySavedPlaces: userPlaces.length > 0,
+                  feedOrder: "published_at",
+                };
+                applyIfDesktop(cleared);
+              }}
+            >
+              Clear filters
+            </button>
+            <button
+              type="button"
+              className={styles.doneBtn}
+              onClick={handleApply}
+            >
+              Done
+            </button>
+          </div>
         </div>
 
         {/* Scrollable content */}

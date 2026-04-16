@@ -171,8 +171,8 @@ export default function FeedContainer({
   const [feedOrder, setFeedOrder] = useState<"for_you" | "published_at">(() => {
     try {
       const saved = sessionStorage.getItem("feed-order");
-      return saved === "published_at" ? "published_at" : "for_you";
-    } catch { return "for_you"; }
+      return saved === "for_you" ? "for_you" : "published_at";
+    } catch { return "published_at"; }
   });
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [selectedPlaceId, setSelectedPlaceId] = useState<number | null>(
