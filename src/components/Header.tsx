@@ -7,6 +7,13 @@ import { useEffect, useId, useRef, useState } from "react";
 import GovernmentSignupMessage from "@/components/GovernmentSignupMessage";
 import authStyles from "@/components/AuthModal.module.css";
 import styles from "./Header.module.css";
+import {
+  trackSignupStart,
+  trackSignupClick,
+  getFunnelSessionId,
+  recordFunnelEventBackend,
+  type SignupEventContext,
+} from "@/lib/analytics";
 
 export default function Header() {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
@@ -53,9 +60,22 @@ export default function Header() {
 
   const handleSignup = async (intent: "resident" | "public-servant") => {
     setSignupMenuOpen(false);
+
+    const ctx: SignupEventContext = {
+      source_surface: "nav_header",
+      signup_intent: intent,
+      landing_path: typeof window !== "undefined" ? window.location.pathname : null,
+      funnel_session_id: getFunnelSessionId(),
+    };
+    trackSignupStart(intent, ctx);
+    trackSignupClick(intent, ctx);
+    recordFunnelEventBackend("signup_start", ctx);
+
     if (typeof window !== "undefined") {
       window.localStorage.setItem("transparentcity.signup_intent", intent);
+      window.localStorage.setItem("transparentcity.signup_surface", "nav_header");
     }
+
     await loginWithRedirect({
       authorizationParams: {
         screen_hint: "signup",

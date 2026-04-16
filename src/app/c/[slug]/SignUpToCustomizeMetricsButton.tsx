@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
+import { startSignup } from "@/lib/signup";
 
 type Props = {
   cityId?: number;
@@ -12,19 +13,16 @@ export default function SignUpToCustomizeMetricsButton({ cityId, cityName, cityS
   const { loginWithRedirect } = useAuth0();
 
   const handleClick = () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("transparentcity.signup_intent", "resident");
-      if (cityId != null) window.localStorage.setItem("transparentcity.follow_city_id", String(cityId));
-      if (cityName) window.localStorage.setItem("transparentcity.follow_city_name", cityName);
-      if (citySlug) window.localStorage.setItem("transparentcity.follow_city_slug", citySlug);
-    }
-    const params = new URLSearchParams({ signup: "resident" });
-    if (cityId != null) params.set("follow_city_id", String(cityId));
-    if (cityName) params.set("follow_city_name", cityName);
-    if (citySlug) params.set("follow_city_slug", citySlug);
-    loginWithRedirect({
-      authorizationParams: { screen_hint: "signup" },
-      appState: { returnTo: `/home?${params.toString()}` },
+    const returnToParams: Record<string, string> = {};
+    if (cityId != null) returnToParams.follow_city_id = String(cityId);
+    if (cityName) returnToParams.follow_city_name = cityName;
+    if (citySlug) returnToParams.follow_city_slug = citySlug;
+    void startSignup(loginWithRedirect, "resident", {
+      source_surface: "customize_metrics_button",
+      city_id: cityId ?? null,
+      city_name: cityName ?? null,
+      city_slug: citySlug ?? null,
+      returnToParams,
     });
   };
 

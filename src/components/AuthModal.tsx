@@ -68,7 +68,6 @@ export default function AuthModal({ isOpen, onClose, title }: AuthModalProps) {
     await loginWithRedirect({
       authorizationParams: {
         screen_hint: "signup",
-        prompt: "login",
       },
       appState: { returnTo: `/home?signup=${intent}` },
     });

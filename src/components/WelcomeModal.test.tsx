@@ -63,9 +63,6 @@ const mockUpdateUserPreferences = vi.fn().mockResolvedValue(undefined);
 const mockGetCity = vi.fn().mockResolvedValue({ id: 1, is_active: true, name: "San Francisco" });
 const mockCreatePlace = vi.fn().mockResolvedValue({ id: 42 });
 const mockRunPlaceMetricsAndAnomaliesAsJob = vi.fn().mockResolvedValue({ job_id: "job-123" });
-const mockGetCityMetrics = vi.fn().mockResolvedValue([]);
-const mockSaveUserMetricOrdering = vi.fn().mockResolvedValue(undefined);
-const mockSubmitCityLeadInterest = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@/lib/apiClient", () => ({
   getUserPreferences: (...args: unknown[]) => mockGetUserPreferences(...args),
@@ -74,9 +71,6 @@ vi.mock("@/lib/apiClient", () => ({
   getCity: (...args: unknown[]) => mockGetCity(...args),
   createPlace: (...args: unknown[]) => mockCreatePlace(...args),
   runPlaceMetricsAndAnomaliesAsJob: (...args: unknown[]) => mockRunPlaceMetricsAndAnomaliesAsJob(...args),
-  getCityMetrics: (...args: unknown[]) => mockGetCityMetrics(...args),
-  saveUserMetricOrdering: (...args: unknown[]) => mockSaveUserMetricOrdering(...args),
-  submitCityLeadInterest: (...args: unknown[]) => mockSubmitCityLeadInterest(...args),
 }));
 
 vi.mock("@/lib/findDistrictFromCoordinates", () => ({
@@ -97,14 +91,6 @@ vi.mock("@/lib/newsletterPreferences", () => ({
     newsletterDescription: "",
     newsletterFrequency: "weekly",
   })),
-}));
-
-vi.mock("@/lib/feed/categoryPresets", () => ({
-  CATEGORY_PRESETS: [
-    { id: "crime-safety", label: "Crime & Safety", metricCategories: ["Crime"] },
-    { id: "government-budget", label: "Government Budget", metricCategories: ["Budget"] },
-    { id: "housing", label: "Housing", metricCategories: ["Housing"] },
-  ],
 }));
 
 vi.mock("@/lib/utils", () => ({
@@ -212,8 +198,7 @@ describe("WelcomeModal", () => {
   // ── Step 2: City found -> Preferences ────────────────────────────────
 
   describe("Preferences step", () => {
-    it("renders category pills without blocking API calls", async () => {
-      // Simulate: city search returns a match, getCity confirms it's active
+    it("renders digest step without category pills", async () => {
       mockSearchPublicCities.mockResolvedValue([
         { id: 1, name: "San Francisco", state: "CA", country: "US", display_name: "San Francisco, CA" },
       ]);
@@ -221,23 +206,21 @@ describe("WelcomeModal", () => {
       const user = userEvent.setup();
       render(<WelcomeModal {...defaultProps} />);
 
-      // Type address and submit
       const input = screen.getByPlaceholderText(/enter city, zip or address/i);
       await user.type(input, "San Francisco");
       await user.click(screen.getByText(/^Continue$/i));
 
-      // Should transition to preferences step
       await waitFor(() => {
-        expect(screen.getByText(/what matters on your block/i)).toBeInTheDocument();
+        expect(screen.getByText(/almost there/i)).toBeInTheDocument();
       });
 
-      // Category pills render instantly
-      expect(screen.getByText("Crime & Safety")).toBeInTheDocument();
-      expect(screen.getByText("Government Budget")).toBeInTheDocument();
-      expect(screen.getByText("Housing")).toBeInTheDocument();
+      expect(screen.queryByText("Crime & Safety")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /advanced newsletter options \(optional\)/i })
+      ).toBeInTheDocument();
     });
 
-    it("pre-selects default categories immediately", async () => {
+    it("reveals optional personalization textarea under advanced options", async () => {
       mockSearchPublicCities.mockResolvedValue([
         { id: 1, name: "San Francisco", state: "CA", country: "US", display_name: "San Francisco, CA" },
       ]);
@@ -249,39 +232,18 @@ describe("WelcomeModal", () => {
       await user.click(screen.getByText(/^Continue$/i));
 
       await waitFor(() => {
-        expect(screen.getByText(/what matters on your block/i)).toBeInTheDocument();
+        expect(screen.getByText(/almost there/i)).toBeInTheDocument();
       });
 
-      // Crime & Safety and Government Budget should be pre-selected
-      const crimeBtn = screen.getByText("Crime & Safety").closest("button")!;
-      expect(crimeBtn.getAttribute("aria-pressed")).toBe("true");
-    });
+      expect(screen.queryByLabelText(/in your own words \(optional\)/i)).not.toBeInTheDocument();
 
-    it("toggles category pills without API calls", async () => {
-      mockSearchPublicCities.mockResolvedValue([
-        { id: 1, name: "San Francisco", state: "CA", country: "US", display_name: "San Francisco, CA" },
-      ]);
+      await user.click(
+        screen.getByRole("button", { name: /advanced newsletter options \(optional\)/i })
+      );
 
-      const user = userEvent.setup();
-      render(<WelcomeModal {...defaultProps} />);
-
-      await user.type(screen.getByPlaceholderText(/enter city, zip or address/i), "San Francisco");
-      await user.click(screen.getByText(/^Continue$/i));
-
-      await waitFor(() => {
-        expect(screen.getByText("Housing")).toBeInTheDocument();
-      });
-
-      // Toggle housing on
-      const housingBtn = screen.getByText("Housing").closest("button")!;
-      expect(housingBtn.getAttribute("aria-pressed")).toBe("false");
-      await user.click(housingBtn);
-      expect(housingBtn.getAttribute("aria-pressed")).toBe("true");
-
-      // No additional API calls for toggling
-      const callsAfterRender = mockGetCity.mock.calls.length;
-      await user.click(housingBtn);
-      expect(mockGetCity.mock.calls.length).toBe(callsAfterRender);
+      expect(
+        screen.getByLabelText(/in your own words \(optional\)/i)
+      ).toBeInTheDocument();
     });
 
     it("weekly digest checkbox is pre-checked", async () => {
@@ -296,6 +258,7 @@ describe("WelcomeModal", () => {
       await user.click(screen.getByText(/^Continue$/i));
 
       await waitFor(() => {
+        expect(screen.getByText(/almost there/i)).toBeInTheDocument();
         expect(screen.getByText(/weekly digest/i)).toBeInTheDocument();
       });
 
@@ -325,8 +288,8 @@ describe("WelcomeModal", () => {
         expect(mockSaveCity).toHaveBeenCalledWith(1, "test-token");
       });
 
-      // Navigation callback fires immediately (district from findDistrictFromCoordinates mock)
-      expect(defaultProps.onCitySelected).toHaveBeenCalledWith(1, 5);
+      // City-level geocode: no district inference (findDistrictFromCoordinates not used)
+      expect(defaultProps.onCitySelected).toHaveBeenCalledWith(1, null, null);
       expect(defaultProps.onComplete).toHaveBeenCalled();
       expect(defaultProps.onClose).toHaveBeenCalled();
     });

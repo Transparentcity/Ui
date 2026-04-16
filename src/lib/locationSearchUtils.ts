@@ -91,6 +91,8 @@ export type AddressSuggestion = {
   cityName: string | null;
   stateName: string | null;
   countryName: string | null;
+  /** From Mapbox suggest API — when missing, treated as non-precise (city-level). */
+  place_types?: string[];
 };
 
 /**

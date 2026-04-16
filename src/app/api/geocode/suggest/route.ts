@@ -53,6 +53,8 @@ export type GeocodeSuggestion = {
   cityName: string | null;
   stateName: string | null;
   countryName: string | null;
+  /** Mapbox feature place_type (e.g. ["place"], ["address"]). Used to avoid block creation for city picks. */
+  place_types: string[];
 };
 
 /**
@@ -119,6 +121,7 @@ export async function GET(req: Request): Promise<Response> {
         cityName,
         stateName,
         countryName,
+        place_types: f.place_type ?? [],
       };
     });
 

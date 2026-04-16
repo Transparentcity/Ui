@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
+import { startSignup } from "@/lib/signup";
 import UserMetricOrderDialog, {
   type UserMetricOrderDialogMetric,
 } from "@/components/UserMetricOrderDialog";
@@ -23,17 +24,17 @@ export default function CustomizeMetricsTrigger({
   const { isAuthenticated, loginWithRedirect } = useAuth0();
 
   const handleSignUpToCustomize = () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("transparentcity.signup_intent", "resident");
-      window.localStorage.setItem("transparentcity.follow_city_id", String(cityId));
-      window.localStorage.setItem("transparentcity.follow_city_name", cityName);
-      if (citySlug) window.localStorage.setItem("transparentcity.follow_city_slug", citySlug);
-    }
-    const params = new URLSearchParams({ signup: "resident", follow_city_id: String(cityId), follow_city_name: cityName });
-    if (citySlug) params.set("follow_city_slug", citySlug);
-    loginWithRedirect({
-      authorizationParams: { screen_hint: "signup", prompt: "login" },
-      appState: { returnTo: `/home?${params.toString()}` },
+    const returnToParams: Record<string, string> = {
+      follow_city_id: String(cityId),
+      follow_city_name: cityName,
+    };
+    if (citySlug) returnToParams.follow_city_slug = citySlug;
+    void startSignup(loginWithRedirect, "resident", {
+      source_surface: "customize_metrics",
+      city_id: cityId,
+      city_name: cityName,
+      city_slug: citySlug ?? null,
+      returnToParams,
     });
   };
 

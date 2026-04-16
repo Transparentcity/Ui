@@ -12,7 +12,14 @@ import { slugify } from "@/lib/utils";
 import Loader from "@/components/Loader";
 import Header from "@/components/Header";
 import HomeFeedPreview from "@/components/feed/HomeFeedPreview";
-import { trackSearchReferrer } from "@/lib/analytics";
+import {
+  trackSearchReferrer,
+  trackSignupStart,
+  trackSignupClick,
+  getFunnelSessionId,
+  recordFunnelEventBackend,
+  type SignupEventContext,
+} from "@/lib/analytics";
 import { useProductEvent } from "@/lib/productAnalytics";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import type { MetricCardData } from "@/components/feed/templates/MetricSummaryCard";
@@ -30,13 +37,27 @@ export default function HomeClient({ stories, metricCards, launchedCities = [] }
   // First-party landing event for the home page
   useProductEvent("home_page_view");
 
-  const handleSignup = async () => {
+  const handleSignup = async (intent: "resident" | "public-servant" = "resident") => {
+    const ctx: SignupEventContext = {
+      source_surface: "home_page",
+      signup_intent: intent,
+      landing_path: typeof window !== "undefined" ? window.location.pathname : null,
+      funnel_session_id: getFunnelSessionId(),
+    };
+
+    trackSignupStart(intent, ctx);
+    trackSignupClick(intent, ctx);
+    recordFunnelEventBackend("signup_start", ctx);
+
     if (typeof window !== "undefined") {
-      window.localStorage.setItem("transparentcity.signup_intent", "resident");
+      window.localStorage.setItem("transparentcity.signup_intent", intent);
+      // Persist surface so home/page.tsx can read it on return from Auth0
+      window.localStorage.setItem("transparentcity.signup_surface", "home_page");
     }
+
     await loginWithRedirect({
       authorizationParams: { screen_hint: "signup" },
-      appState: { returnTo: "/home?signup=resident" },
+      appState: { returnTo: `/home?signup=${intent}` },
     });
   };
 
@@ -84,7 +105,7 @@ export default function HomeClient({ stories, metricCards, launchedCities = [] }
               <div className={styles.heroCtas}>
                 <button
                   type="button"
-                  onClick={handleSignup}
+                  onClick={() => void handleSignup()}
                   className={`${styles.button} ${styles.buttonPrimary} ${styles.heroBtn}`}
                 >
                   Get the Free Weekly
@@ -166,7 +187,7 @@ export default function HomeClient({ stories, metricCards, launchedCities = [] }
               <div className={styles.ctaButtons}>
                 <button
                   type="button"
-                  onClick={handleSignup}
+                  onClick={() => void handleSignup()}
                   className={styles.ctaBtnPrimary}
                 >
                   Get started

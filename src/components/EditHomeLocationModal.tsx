@@ -29,6 +29,18 @@ import { DEFAULT_PLACE_RADIUS_M } from "@/lib/mapUtils";
 import Loader from "@/components/Loader";
 import searchStyles from "./SidebarCitySearch.module.css";
 
+/** Same target icon as WelcomeModal onboarding location step */
+const LOCATION_GPS_HERO_ICON = (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="12" cy="12" r="3" />
+    <line x1="12" y1="2" x2="12" y2="4" />
+    <line x1="12" y1="20" x2="12" y2="22" />
+    <line x1="2" y1="12" x2="4" y2="12" />
+    <line x1="20" y1="12" x2="22" y2="12" />
+  </svg>
+);
+
 export interface EditHomeLocationModalProps {
   open: boolean;
   onClose: () => void;
@@ -291,12 +303,14 @@ export default function EditHomeLocationModal({
       const district = pending.district;
 
       await saveCity(cityId, token);
-      if (district !== null && district !== undefined) {
-        try {
+      try {
+        if (district !== null && district !== undefined) {
           await followRepresentative(cityId, String(district), token);
-        } catch {
-          // ignore if follow fails (e.g. already following)
+        } else {
+          await followRepresentative(cityId, "0", token);
         }
+      } catch {
+        // ignore if follow fails (e.g. already following)
       }
       const createdPlace = await createPlace(token, {
         city_id: cityId,
@@ -348,12 +362,14 @@ export default function EditHomeLocationModal({
       );
 
       await saveCity(place.city_id, token);
-      if (district !== null && district !== undefined) {
-        try {
+      try {
+        if (district !== null && district !== undefined) {
           await followRepresentative(place.city_id, String(district), token);
-        } catch {
-          // ignore if follow fails (e.g. already following)
+        } else {
+          await followRepresentative(place.city_id, "0", token);
         }
+      } catch {
+        // ignore if follow fails (e.g. already following)
       }
 
       await persistHomeLocation({
@@ -431,22 +447,18 @@ export default function EditHomeLocationModal({
               </div>
               <button
                 type="button"
-                className={searchStyles.modalGpsBtn}
+                className={searchStyles.modalGpsHeroBtn}
                 onClick={() => void handleUseCurrentLocation()}
                 disabled={geoLoading}
+                aria-busy={geoLoading}
+                aria-label="Use my current location"
               >
                 {geoLoading ? (
-                  <Loader size="sm" color="dark" />
+                  <Loader size="sm" color="white" />
                 ) : (
                   <>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="3" />
-                      <path d="M12 2v3" />
-                      <path d="M12 19v3" />
-                      <path d="M2 12h3" />
-                      <path d="M19 12h3" />
-                    </svg>
-                    <span>Use my location</span>
+                    {LOCATION_GPS_HERO_ICON}
+                    Use my current location
                   </>
                 )}
               </button>
@@ -550,11 +562,20 @@ export default function EditHomeLocationModal({
                 </p>
                 <button
                   type="button"
-                  className={searchStyles.modalGpsBtn}
+                  className={searchStyles.modalGpsHeroBtn}
                   onClick={() => void handleUseCurrentLocation()}
                   disabled={geoLoading}
+                  aria-busy={geoLoading}
+                  aria-label="Use my current location"
                 >
-                  {geoLoading ? <Loader size="sm" color="dark" /> : "Use my location"}
+                  {geoLoading ? (
+                    <Loader size="sm" color="white" />
+                  ) : (
+                    <>
+                      {LOCATION_GPS_HERO_ICON}
+                      Use my current location
+                    </>
+                  )}
                 </button>
                 <div className={searchStyles.inputWrap}>
                   <input

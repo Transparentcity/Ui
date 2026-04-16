@@ -772,15 +772,6 @@
     0 4px 24px rgba(0, 0, 0, 0.06),
     0 1px 3px rgba(0, 0, 0, 0.04);
   overflow: visible;
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
-}
-
-.welcomeComposer:focus-within {
-  border-color: var(--brand-primary);
-  box-shadow: 
-    0 4px 24px rgba(173, 53, 250, 0.1),
-    0 1px 3px rgba(0, 0, 0, 0.04),
-    0 0 0 3px rgba(173, 53, 250, 0.08);
 }
 
 .welcomeTextarea {

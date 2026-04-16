@@ -1138,7 +1138,65 @@
 }
 
 .emailPersonalizationStep .emailOptIns {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
+}
+
+.advancedNewsletterSection {
+  width: 100%;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.advancedNewsletterToggle {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary, #6b7280);
+  background: var(--bg-secondary, #f8f9fa);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.advancedNewsletterToggle:hover {
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary, #ad35fa);
+  background: rgba(173, 53, 250, 0.04);
+}
+
+.advancedNewsletterPanel {
+  margin-top: 12px;
+  padding: 14px;
+  background: var(--bg-tertiary, #f3f4f6);
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  text-align: left;
+}
+
+.personalizationIntro {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary, #6b7280);
+}
+
+.personalizationHints {
+  margin: 0 0 14px 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary, #6b7280);
+}
+
+.personalizationHints li {
+  margin-bottom: 6px;
+}
+
+.advancedNewsletterPanel .textInputLabel {
+  margin-top: 0;
 }
 
 .generateExampleButton {
@@ -1325,4 +1383,66 @@
 
 [data-theme="dark"] .cityPickerCard:hover:not(:disabled) {
   background: rgba(173, 53, 250, 0.1);
+}
+
+/* Prior unsupported city search — choice on supported match */
+.unsupportedHomeNotice {
+  width: 100%;
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-secondary, #555);
+  background: var(--bg-secondary, #f4f4f5);
+  border: 1px solid var(--border-primary, #e4e4e7);
+  border-radius: var(--radius-md, 10px);
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+
+.unsupportedHomeNotice strong {
+  color: var(--text-primary, #1a1a1a);
+}
+
+.unsupportedHomeChoices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.unsupportedHomeChoice {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  border: 1.5px solid var(--border-primary, #e4e4e7);
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #1a1a1a);
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.unsupportedHomeChoice:hover {
+  border-color: var(--brand-primary, #ad35fa);
+  background: rgba(173, 53, 250, 0.04);
+}
+
+.unsupportedHomeChoiceActive {
+  border-color: var(--brand-primary, #ad35fa);
+  box-shadow: 0 0 0 2px rgba(173, 53, 250, 0.12);
+}
+
+.unsupportedHomeVisitLink {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-primary, #ad35fa);
+  text-decoration: none;
+}
+
+.unsupportedHomeVisitLink:hover {
+  text-decoration: underline;
 }

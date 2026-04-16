@@ -2,6 +2,7 @@
 
 import { useAuth0 } from "@auth0/auth0-react";
 import { useRouter } from "next/navigation";
+import { startSignup } from "@/lib/signup";
 
 type FollowCityButtonProps = {
   cityId?: number | null;
@@ -19,47 +20,25 @@ export default function FollowCityButton({
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const router = useRouter();
 
-  const persistFollowIntent = () => {
-    if (typeof window === "undefined") return;
-
-    window.localStorage.setItem("transparentcity.signup_intent", "resident");
-    window.localStorage.setItem("transparentcity.follow_city_slug", citySlug);
-    if (cityDisplayName) {
-      window.localStorage.setItem(
-        "transparentcity.follow_city_name",
-        cityDisplayName,
-      );
-    }
-    if (typeof cityId === "number") {
-      window.localStorage.setItem(
-        "transparentcity.follow_city_id",
-        String(cityId),
-      );
-    }
-  };
-
   const handleFollow = async () => {
-    persistFollowIntent();
-
-    const returnTo = `/home?follow_city_slug=${encodeURIComponent(citySlug)}${
-      typeof cityId === "number" ? `&follow_city_id=${cityId}` : ""
-    }${
-      cityDisplayName
-        ? `&follow_city_name=${encodeURIComponent(cityDisplayName)}`
-        : ""
-    }`;
+    const returnToParams: Record<string, string> = {
+      follow_city_slug: citySlug,
+    };
+    if (typeof cityId === "number") returnToParams.follow_city_id = String(cityId);
+    if (cityDisplayName) returnToParams.follow_city_name = cityDisplayName;
 
     if (isAuthenticated) {
-      router.push(returnTo);
+      const params = new URLSearchParams({ signup: "resident", ...returnToParams });
+      router.push(`/home?${params.toString()}`);
       return;
     }
 
-    await loginWithRedirect({
-      authorizationParams: {
-        screen_hint: "signup",
-        prompt: "login",
-      },
-      appState: { returnTo },
+    await startSignup(loginWithRedirect, "resident", {
+      source_surface: "follow_city_button",
+      city_slug: citySlug,
+      city_name: cityDisplayName ?? null,
+      city_id: typeof cityId === "number" ? cityId : null,
+      returnToParams,
     });
   };
 

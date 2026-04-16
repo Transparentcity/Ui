@@ -95,6 +95,31 @@
   margin: 0 0 28px;
 }
 
+.linkButton {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--brand-primary, #ad35fa);
+  background: none;
+  border: none;
+  border-radius: var(--radius-md, 10px);
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.linkButton:hover:not(:disabled) {
+  background: rgba(173, 53, 250, 0.06);
+}
+
+.linkButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .actions {
   width: 100%;
   display: flex;
@@ -124,27 +149,6 @@
 .primaryButton:disabled {
   opacity: 0.7;
   cursor: not-allowed;
-}
-
-.secondaryButton {
-  display: block;
-  width: 100%;
-  padding: 12px 24px;
-  background: none;
-  color: var(--brand-primary, #ad35fa);
-  border: 1.5px solid var(--brand-primary, #ad35fa);
-  border-radius: var(--radius-md, 10px);
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease;
-  text-decoration: none;
-  text-align: center;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.secondaryButton:hover {
-  background: rgba(173, 53, 250, 0.04);
 }
 
 .error {

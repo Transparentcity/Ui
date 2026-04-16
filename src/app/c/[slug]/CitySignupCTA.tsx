@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
+import { startSignup } from "@/lib/signup";
 
 interface CitySignupCTAProps {
   citySlug?: string;
@@ -25,27 +26,17 @@ export default function CitySignupCTA({
   if (isAuthenticated) return null;
 
   const handleSignup = async () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("transparentcity.signup_intent", "resident");
-      if (citySlug) {
-        window.localStorage.setItem("transparentcity.follow_city_slug", citySlug);
-      }
-      if (cityName) {
-        window.localStorage.setItem("transparentcity.follow_city_name", cityName);
-      }
-      if (typeof cityId === "number") {
-        window.localStorage.setItem("transparentcity.follow_city_id", String(cityId));
-      }
-    }
-    const params = new URLSearchParams({ signup: "resident" });
-    if (citySlug) params.set("follow_city_slug", citySlug);
-    if (cityName) params.set("follow_city_name", cityName);
-    if (typeof cityId === "number") params.set("follow_city_id", String(cityId));
-    const returnTo = `/home?${params.toString()}`;
+    const returnToParams: Record<string, string> = {};
+    if (citySlug) returnToParams.follow_city_slug = citySlug;
+    if (cityName) returnToParams.follow_city_name = cityName;
+    if (typeof cityId === "number") returnToParams.follow_city_id = String(cityId);
 
-    await loginWithRedirect({
-      authorizationParams: { screen_hint: "signup" },
-      appState: { returnTo },
+    await startSignup(loginWithRedirect, "resident", {
+      source_surface: "city_signup_cta",
+      city_slug: citySlug ?? null,
+      city_name: cityName ?? null,
+      city_id: typeof cityId === "number" ? cityId : null,
+      returnToParams,
     });
   };
 

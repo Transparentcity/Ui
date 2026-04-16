@@ -1,43 +1,47 @@
 /* Container for nav item and GPS button */
 .navItemContainer {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 0;
-  margin: 0 0 2px 0;
+  margin: 0;
   position: relative;
-  border-radius: 8px;
-  transition: all 0.2s ease;
+  border-radius: 0;
+  transition: background 0.15s ease;
 }
 
 .navItemContainer:hover {
   background: var(--bg-tertiary);
 }
 
-.navItemContainer:hover .navItem {
-  color: var(--text-primary);
-}
-
 .navItemContainer:hover .gpsBtn {
   color: var(--text-primary);
 }
 
-/* Nav item - matches New Chat / New Research Report style */
+/* Nav item - matches Feed / other sidebar rows */
 .navItem {
   display: flex;
   align-items: center;
   gap: var(--space-md);
-  padding: var(--space-md) var(--space-md);
+  box-sizing: border-box;
+  padding: 6px var(--space-lg);
+  min-height: 36px;
   margin: 0;
   color: var(--text-secondary);
   text-decoration: none;
-  transition: all 0.2s ease;
+  transition: background 0.15s ease, color 0.15s ease;
   cursor: pointer;
   border: none;
-  background: none;
+  border-radius: 0;
+  background: transparent;
   flex: 1;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   text-align: left;
+}
+
+.navItemContainer:hover .navItem {
+  background: transparent;
+  color: var(--text-primary);
 }
 
 .navIcon {
@@ -59,16 +63,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 36px;
+  min-height: 36px;
+  border-radius: 0;
   border: none;
   background: transparent;
   color: var(--text-tertiary);
   cursor: pointer;
   flex-shrink: 0;
-  transition: all 0.15s ease;
-  margin-right: var(--space-md);
+  transition: background 0.15s ease, color 0.15s ease;
+  margin-right: var(--space-xs);
 }
 
 .gpsBtn:disabled {
@@ -260,6 +264,43 @@
   background: var(--bg-tertiary);
   color: var(--text-primary);
   border-color: var(--border-secondary);
+}
+
+/* Purple GPS hero — matches WelcomeModal `.gpsHeroButton` (onboarding location step) */
+.modalGpsHeroBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--brand-primary, #ad35fa);
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: 0.01em;
+}
+
+.modalGpsHeroBtn:hover:not(:disabled) {
+  background: var(--brand-primary-hover, #9333ea);
+  box-shadow: 0 4px 16px rgba(173, 53, 250, 0.35);
+}
+
+.modalGpsHeroBtn:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.modalGpsHeroBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.modalGpsHeroBtn svg {
+  flex-shrink: 0;
 }
 
 /* Results */

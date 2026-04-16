@@ -6991,6 +6991,13 @@ export interface ProductEventFunnelRow {
   signup_completes: number;
 }
 
+/** Landing attribution row (utm_source, referrer host, or buckets). */
+export interface ProductEventFunnelLandingSource {
+  source: string;
+  count: number;
+  share: number | null;
+}
+
 export interface ProductEventFunnel {
   date_from: string;
   date_to: string;
@@ -6999,6 +7006,8 @@ export interface ProductEventFunnel {
   total_signup_completes: number;
   conversion_rate: number | null;
   daily: ProductEventFunnelRow[];
+  /** Present when platform exposes `/product-analytics/funnel` landing attribution. */
+  landing_sources?: ProductEventFunnelLandingSource[];
 }
 
 export function getProductEventFunnel(
@@ -7068,6 +7077,28 @@ export interface SignupFunnelSummary {
   by_city: CityFunnelRow[];
   by_district: DistrictFunnelRow[];
   ga4_available: boolean;
+  /** Distinct emails with ≥1 active weekly subscription (launched cities). Snapshot, not date-scoped. */
+  newsletter_distinct_active_subscribers?: number;
+  /** Recipients returned by the weekly pipeline (matched user row). Snapshot. */
+  newsletter_weekly_pipeline_recipients?: number;
+  /** Weekly routing: saved place → personalized edition. */
+  newsletter_personalized_saved_place?: number;
+  /** Weekly routing: no saved place → shared city/district edition. */
+  newsletter_shared_city_district_edition?: number;
+  /** Subscribers with a saved place and non-empty newsletter instructions. */
+  newsletter_saved_place_and_instructions?: number;
+  newsletter_metrics_available?: boolean;
+  /** Distinct users (active, non-test) with ≥1 signup_complete in date range; same city filter as funnel. */
+  newsletter_funnel_cohort_completers?: number;
+  /** Cohort users with ≥1 active weekly subscription on a launched city (city_id filter applies to subscription when drilling). */
+  newsletter_funnel_weekly_subscribers?: number;
+  /** Among weekly subscribers in cohort: saved place (personalized send path). */
+  newsletter_funnel_weekly_with_saved_place?: number;
+  /** Among weekly subscribers in cohort: no saved place (shared edition path). */
+  newsletter_funnel_weekly_shared_only?: number;
+  /** Among cohort: weekly + saved place + custom instructions (prompt or description). */
+  newsletter_funnel_weekly_saved_place_and_instructions?: number;
+  newsletter_funnel_cohort_available?: boolean;
 }
 
 export function getSignupFunnelSummary(

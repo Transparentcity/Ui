@@ -9,15 +9,23 @@
 .itemRow {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
+  border-radius: 0;
+}
+
+.itemRow:hover {
+  background: var(--bg-tertiary);
 }
 
 .item {
-  padding: 1px var(--space-lg);
+  box-sizing: border-box;
+  padding: 6px var(--space-lg);
+  min-height: 36px;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: background 0.15s ease;
   border-left: 3px solid transparent;
+  border-radius: 0;
   position: relative;
   display: flex;
   align-items: center;
@@ -41,6 +49,14 @@
 }
 
 .item:hover {
+  background: var(--bg-tertiary);
+}
+
+.itemRow:hover .itemButton {
+  background: transparent;
+}
+
+.itemRow:hover .itemButton.itemActive {
   background: var(--bg-tertiary);
 }
 
@@ -98,13 +114,13 @@
   position: relative;
   z-index: 10;
   flex-shrink: 0;
-  pointer-events: none;
+  align-self: center;
+  pointer-events: auto;
 }
 
 .item:hover .menuBtn,
 .itemRow:hover .menuBtn {
   opacity: 1;
-  pointer-events: auto;
 }
 
 .menuBtn:hover {
@@ -187,16 +203,20 @@
 .districtSubList {
   display: flex;
   flex-direction: column;
+  margin-top: -5px;
 }
 
 .districtSubItem {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 1px var(--space-lg) 1px calc(var(--space-lg) + 28px);
+  padding: 4px var(--space-lg) 4px calc(var(--space-lg) + 24px);
+  min-height: 32px;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: background 0.15s ease;
   border-left: 3px solid transparent;
+  border-radius: 0;
   text-decoration: none;
   color: inherit;
   width: 100%;
@@ -206,7 +226,6 @@
   border-right: none;
   border-bottom: none;
   background: none;
-  border-radius: 0;
 }
 
 .districtSubItem:hover {
@@ -243,16 +262,20 @@
 .placeSubList {
   display: flex;
   flex-direction: column;
+  margin-top: -4px;
 }
 
 .placeSubItem {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 1px var(--space-lg) 1px calc(var(--space-lg) + 28px);
+  padding: 4px var(--space-lg) 4px calc(var(--space-lg) + 24px);
+  min-height: 32px;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: background 0.15s ease;
   border-left: 3px solid transparent;
+  border-radius: 0;
   text-decoration: none;
   color: inherit;
   width: 100%;
@@ -262,7 +285,6 @@
   border-right: none;
   border-bottom: none;
   background: none;
-  border-radius: 0;
 }
 
 .placeSubItem:hover {
@@ -349,13 +371,16 @@
 }
 
 .sectionHeader {
-  padding: 4px var(--space-lg);
+  box-sizing: border-box;
+  padding: 6px var(--space-lg);
+  min-height: 32px;
   font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   flex-shrink: 0;
+  border-radius: 0;
 }
 
 .sectionCollapsible {
@@ -364,10 +389,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  transition: color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .sectionCollapsible:hover {
+  background: var(--bg-tertiary);
   color: var(--text-primary);
 }
 
@@ -380,8 +406,9 @@
 
 /* Compact mode: tighter spacing when many items in My Places */
 .compact .item {
-  padding-top: 0;
-  padding-bottom: 0;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  min-height: 30px;
 }
 
 .compact .myCitiesEmoji {
@@ -392,9 +419,14 @@
   font-size: 12px;
 }
 
+.compact .districtSubList {
+  margin-top: -4px;
+}
+
 .compact .districtSubItem {
-  padding-top: 0;
-  padding-bottom: 0;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  min-height: 28px;
 }
 
 .compact .districtNumber {
@@ -407,8 +439,9 @@
 }
 
 .compact .placeSubItem {
-  padding-top: 0;
-  padding-bottom: 0;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  min-height: 30px;
 }
 
 .compact .placeSubItemIcon {
@@ -430,8 +463,7 @@
   display: flex;
   align-items: center;
   gap: 3px;
-  padding: 0 var(--space-lg) 1px calc(var(--space-lg) + 28px);
-  margin-top: -1px;
+  padding: 2px var(--space-lg) 4px calc(var(--space-lg) + 24px);
 }
 
 .sectionShortcut {
@@ -496,10 +528,15 @@
 }
 
 .listItem {
-  padding: 3px var(--space-lg);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding: 6px var(--space-lg);
+  min-height: 36px;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: background 0.15s ease;
   border-left: 3px solid transparent;
+  border-radius: 0;
 }
 
 .listItem:hover {

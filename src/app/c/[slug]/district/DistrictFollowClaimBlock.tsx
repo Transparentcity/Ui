@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth0 } from "@auth0/auth0-react";
 import { toast } from "sonner";
+import { startSignup } from "@/lib/signup";
 import { getPublicRepresentativeFollowerCounts } from "@/lib/publicApiClient";
 import FollowButton from "@/components/FollowButton";
 import {
@@ -60,17 +61,18 @@ export default function DistrictFollowClaimBlock({
   const handleFollowClick = () => {
     if (loading) return; // guard against double-clicks
     if (!isAuthenticated) {
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("transparentcity.signup_intent", "resident");
-        window.localStorage.setItem("transparentcity.follow_city_id", String(cityId));
-        if (cityDisplayName) window.localStorage.setItem("transparentcity.follow_city_name", cityDisplayName);
-        window.localStorage.setItem("transparentcity.follow_city_slug", slug);
-      }
-      const params = new URLSearchParams({ signup: "resident", follow_city_id: String(cityId), follow_city_slug: slug });
-      if (cityDisplayName) params.set("follow_city_name", cityDisplayName);
-      loginWithRedirect({
-        authorizationParams: { screen_hint: "signup", prompt: "login" },
-        appState: { returnTo: `/home?${params.toString()}` },
+      const returnToParams: Record<string, string> = {
+        follow_city_id: String(cityId),
+        follow_city_slug: slug,
+      };
+      if (cityDisplayName) returnToParams.follow_city_name = cityDisplayName;
+      void startSignup(loginWithRedirect, "resident", {
+        source_surface: "district_follow",
+        city_id: cityId,
+        city_slug: slug,
+        city_name: cityDisplayName ?? null,
+        district,
+        returnToParams,
       });
       return;
     }

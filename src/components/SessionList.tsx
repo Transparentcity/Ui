@@ -392,11 +392,17 @@ export default function SessionList({
           <div
             key={session.session_id}
             className={`${styles.item} ${session.session_id === currentSessionId ? styles.itemActive : ""}` }
+            onClick={(e) => {
+              const t = e.target as HTMLElement;
+              if (t.closest(`.${styles.menuBtn}`) || t.closest(`.${styles.menu}`)) {
+                return;
+              }
+              handleSessionClick(session.session_id);
+            }}
           >
             <div
               className={styles.content}
               data-session-id={session.session_id}
-              onClick={() => handleSessionClick(session.session_id)}
             >
               <div className={styles.title}>
                 {session.title || "New Chat"}

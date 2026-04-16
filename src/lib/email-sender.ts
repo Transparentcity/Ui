@@ -1,10 +1,10 @@
 import sgMail from "@sendgrid/mail"
 
-// Uses the same env vars as the Python backend (see /env.example):
-//   SENDGRID_API_KEY        - API key from SendGrid
-//   SENDGRID_FROM_EMAIL     - verified sender address
-//   SENDGRID_FROM_NAME      - display name (optional)
-//   SENDGRID_REPLY_TO_EMAIL - reply-to address (optional, defaults to from)
+// Same env vars as the Python backend (see transparentcity-platform/env.example):
+//   SENDGRID_API_KEY, SENDGRID_FROM_EMAIL, SENDGRID_FROM_NAME, SENDGRID_REPLY_TO_EMAIL
+// Local: either set those in .env.local here, or set TRANSPARENTCITY_PLATFORM_ENV_DIR
+// in .env.local to the platform repo root so next.config.ts merges SENDGRID_* from
+// that repo's .env (INBOUND_WEBHOOK_SECRET stays backend-only).
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY
 const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || ""
 const SENDGRID_FROM_NAME = process.env.SENDGRID_FROM_NAME || "Transparent City"

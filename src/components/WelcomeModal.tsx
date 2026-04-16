@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { emitSavedCitiesChanged } from "@/lib/uiEvents";
@@ -18,12 +18,9 @@ import {
   getUserPreferences,
   getCity,
   createPlace,
-  getCityMetrics,
-  saveUserMetricOrdering,
   runPlaceMetricsAndAnomaliesAsJob,
   type CityDetail,
   type CityLeader,
-  type MetricOrderingItem,
 } from "@/lib/apiClient";
 import { usePlaceOnboarding } from "@/contexts/PlaceOnboardingContext";
 import { findDistrictFromCoordinates } from "@/lib/findDistrictFromCoordinates";
@@ -32,8 +29,12 @@ import {
   mergeNewsletterPreferenceFields,
   readNewsletterPreferenceFields,
 } from "@/lib/newsletterPreferences";
-import { CATEGORY_PRESETS } from "@/lib/feed/categoryPresets";
 import { slugify } from "@/lib/utils";
+import {
+  parseRequestedUnsupportedHome,
+  stripUnsupportedHomeRequest,
+} from "@/lib/onboardingHomeLocation";
+import { recordProductEvent } from "@/lib/productAnalytics";
 import styles from "./WelcomeModal.module.css";
 import Loader from "./Loader";
 
@@ -47,6 +48,9 @@ interface WelcomeModalProps {
     cityName: string;
     homeCoordinates: { lat: number; lng: number } | null;
     hasPreciseLocation: boolean;
+    district?: number | null;
+    placeId?: number | null;
+    followOnlyKeepUnsupportedHome?: boolean;
   }) => void;
   /** Called when the user's city is not found or not yet active. */
   onCityNotFound?: (cityName: string, state: string | null, country: string | null) => void;
@@ -93,8 +97,16 @@ export default function WelcomeModal({
   const [showDigestNudge, setShowDigestNudge] = useState(false);
   const [newsletterDescription, setNewsletterDescription] = useState("");
   const newsletterFrequency = "weekly" as const;
-  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [showAdvancedNewsletterSettings, setShowAdvancedNewsletterSettings] = useState(false);
 
+  /** Prior onboarding search was an unsupported city; user matched a supported city this session. */
+  const [requestedUnsupportedHome, setRequestedUnsupportedHome] = useState<
+    ReturnType<typeof parseRequestedUnsupportedHome>
+  >(null);
+  /** How "Let's go" writes home vs My Cities when a prior unsupported request exists. */
+  const [onboardingHomeSaveMode, setOnboardingHomeSaveMode] = useState<
+    "primary_city" | "follow_only"
+  >("primary_city");
 
   // Address autocomplete state
   const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
@@ -122,7 +134,9 @@ export default function WelcomeModal({
       // Reset preferences
       setWeeklyNewsletterOptIn(true);
       setNewsletterDescription("");
-      setSelectedCategoryIds(["crime-safety", "government-budget"]);
+      setShowAdvancedNewsletterSettings(false);
+      setRequestedUnsupportedHome(null);
+      setOnboardingHomeSaveMode("primary_city");
 
       const loadSavedNewsletterPreferences = async () => {
         try {
@@ -145,6 +159,23 @@ export default function WelcomeModal({
       cancelled = true;
     };
   }, [getAccessTokenSilently, isOpen]);
+
+  const loadUnsupportedHomeRequest = useCallback(async () => {
+    try {
+      const token = await getAccessTokenSilently();
+      const prefs = await getUserPreferences(token);
+      setRequestedUnsupportedHome(
+        parseRequestedUnsupportedHome(prefs.extra as Record<string, unknown> | undefined)
+      );
+    } catch {
+      setRequestedUnsupportedHome(null);
+    }
+  }, [getAccessTokenSilently]);
+
+  useEffect(() => {
+    if (!isOpen || step !== "preferences") return;
+    void loadUnsupportedHomeRequest();
+  }, [isOpen, step, loadUnsupportedHomeRequest]);
 
   // Close address dropdown when clicking outside
   useEffect(() => {
@@ -239,16 +270,29 @@ export default function WelcomeModal({
       return;
     }
 
-    setHomeCoordinates({ lat: suggestion.lat, lng: suggestion.lon });
-    setHasPreciseLocation(true);
+    // Only street addresses / POIs are "precise" for block-level home.
+    // Postcode suggestions use centroid for district inference only (no My Block).
+    const types = suggestion.place_types ?? [];
+    const isPrecisePick = types.includes("address") || types.includes("poi");
+    const isPostcodePick = types.includes("postcode");
+    if (isPrecisePick) {
+      setHomeCoordinates({ lat: suggestion.lat, lng: suggestion.lon });
+      setHasPreciseLocation(true);
+    } else {
+      setHomeCoordinates(null);
+      setHasPreciseLocation(false);
+    }
+    const coordsForDistrict =
+      isPrecisePick || isPostcodePick ? { lat: suggestion.lat, lng: suggestion.lon } : null;
     try {
       await processLocationAndFindCity(
         cityName,
         suggestion.stateName,
         suggestion.countryName,
         null,
-        { lat: suggestion.lat, lng: suggestion.lon },
-        true, // address autocomplete is always precise
+        coordsForDistrict,
+        isPrecisePick,
+        isPostcodePick && !isPrecisePick,
       );
     } catch (err) {
       console.error("Error processing address suggestion:", err);
@@ -302,6 +346,11 @@ export default function WelcomeModal({
     coordinates: { lat: number; lng: number } | null = null,
     /** Pass explicitly to avoid stale closure reads of hasPreciseLocation state */
     isPrecise: boolean = false,
+    /**
+     * When geocode/suggest is postcode-level (ZIP centroid), infer council district
+     * for nav/follows without treating the home as a street-level block.
+     */
+    allowDistrictFromPostcodeCentroid: boolean = false,
   ) => {
     // Search for the city in our database - try multiple search strategies
     const normalizedCityName = cityName.trim().toLowerCase();
@@ -344,19 +393,23 @@ export default function WelcomeModal({
       return;
     }
     
-    // Run district lookup (only for precise locations) and city detail fetch in parallel
+    // District lookup: street-level (GPS, address, POI), or ZIP centroid when allowed.
+    // Broad city/region picks must not infer district.
     const token = await getAccessTokenSilently();
 
     let finalDistrict = district;
-    // Resolve district whenever we have coordinates (ZIP centroid, address, GPS).
-    // Previously we only did this for "precise" points, which skipped ZIP/postcode geocodes.
-    const districtPromise =
+    const shouldInferDistrict =
+      (isPrecise || allowDistrictFromPostcodeCentroid) &&
       coordinates &&
       matchedCity &&
-      (finalDistrict === null || finalDistrict === undefined)
-        ? findDistrictFromCoordinates(coordinates.lat, coordinates.lng, matchedCity.id, token)
-            .catch((error) => { console.error("Error determining district from coordinates:", error); return null; })
-        : Promise.resolve(null);
+      (finalDistrict === null || finalDistrict === undefined);
+    const districtPromise = shouldInferDistrict
+      ? findDistrictFromCoordinates(coordinates.lat, coordinates.lng, matchedCity.id, token)
+          .catch((error) => {
+            console.error("Error determining district from coordinates:", error);
+            return null;
+          })
+      : Promise.resolve(null);
 
     const cityDetailPromise = getCity(matchedCity.id, token)
       .catch((err) => { console.error("Error fetching city details:", err); return null; });
@@ -456,26 +509,35 @@ export default function WelcomeModal({
         return;
       }
 
-      // Extract coordinates from geocode result to determine district
+      // Extract coordinates from geocode result (used only when result is a precise point)
       const coordinates = geocodeData.lat && geocodeData.lon
         ? { lat: parseFloat(geocodeData.lat), lng: parseFloat(geocodeData.lon) }
         : null;
-      
-      // Store home coordinates if available
-      if (coordinates) {
-        setHomeCoordinates(coordinates);
-      }
 
-      // Only mark as precise if the geocode result is an actual address (not just a city name)
+      // Only mark as precise if the geocode result is an actual address or POI (not city/region/ZIP centroid).
       const placeTypes: string[] = geocodeData.place_type || [];
       const isPrecise = !!(coordinates && (placeTypes.includes("address") || placeTypes.includes("poi")));
+      const allowDistrictFromPostcodeCentroid = !!(
+        coordinates &&
+        placeTypes.includes("postcode")
+      );
       if (isPrecise) {
+        setHomeCoordinates(coordinates);
         setHasPreciseLocation(true);
       } else {
+        setHomeCoordinates(null);
         setHasPreciseLocation(false);
       }
 
-      await processLocationAndFindCity(cityName, stateName, countryName, null, coordinates, isPrecise);
+      await processLocationAndFindCity(
+        cityName,
+        stateName,
+        countryName,
+        null,
+        coordinates,
+        isPrecise,
+        allowDistrictFromPostcodeCentroid,
+      );
     } catch (err) {
       console.error("Location lookup error:", err);
       setError("Failed to look up location. Please try again.");
@@ -685,62 +747,73 @@ export default function WelcomeModal({
     </div>
   );
 
-  // One-click preset prompts for personalized newsletter; shared with settings page
-  const EMAIL_PRESETS = CATEGORY_PRESETS;
-
-  /** Build newsletter prompt from selected preset ids; used to keep prompt and pills in sync. */
-  const buildPromptFromSelection = (ids: string[]): string => {
-    if (ids.length === 0) return "";
-    const labels = ids
-      .map((id) => EMAIL_PRESETS.find((p) => p.id === id)?.label)
-      .filter(Boolean) as string[];
-    if (labels.length === 0) return "";
-    return `Create a ${newsletterFrequency} newsletter for this city and district. Focus on: ${labels.join(", ")}. Include recent changes and trends, notable anomalies, comparative analysis (this period vs. previous, district vs. city-wide), and actionable insights for residents. Be data-driven with specific numbers; highlight both positive and concerning trends.`;
-  };
-
-  /** Toggle a category pill; updates selection only (newsletter_description stays blank). */
-  const handleCategoryPillToggle = (presetId: string) => {
-    const next = selectedCategoryIds.includes(presetId)
-      ? selectedCategoryIds.filter((id) => id !== presetId)
-      : [...selectedCategoryIds, presetId];
-    setSelectedCategoryIds(next);
-    // Newsletter description is intentionally left blank — users set it in Settings
-    // so the weekly newsletter can use it as custom instructions.
-  };
-
-  // Render combined preferences step (topics + notification toggles)
+  // Render combined preferences step (optional email + toggles)
   const renderPreferencesStep = () => {
     if (!locationResult) return null;
     const cityDisplayName = locationResult.state
       ? `${locationResult.cityName}, ${locationResult.state}`
       : locationResult.cityName;
 
+    const priorUnsupportedLabel = requestedUnsupportedHome
+      ? requestedUnsupportedHome.state
+        ? `${requestedUnsupportedHome.city_name}, ${requestedUnsupportedHome.state}`
+        : requestedUnsupportedHome.city_name
+      : null;
+    const matched = locationResult.matchedCity;
+    const matchedLabel = matched?.display_name || matched?.name || cityDisplayName;
+    const matchedSlug = matched?.name ? slugify(matched.name) : "";
+
     return (
       <div className={`${styles.stepContent} ${styles.emailPersonalizationStep}`}>
-        <h2 className={styles.stepTitle}>What matters on your block?</h2>
+        <h2 className={styles.stepTitle}>Almost there</h2>
         <p className={styles.stepDescription}>
-          Choose topics to prioritize in your feed for {cityDisplayName}. The same picks power an optional
-          weekly email—so what you follow on your block can land in your inbox, too.
+          Choose whether you want a weekly email for {cityDisplayName}. You can change this anytime in
+          Settings.
         </p>
 
-        <div className={styles.presetChips}>
-          {EMAIL_PRESETS.map((preset) => {
-            const isActive = selectedCategoryIds.includes(preset.id);
-            return (
+        {requestedUnsupportedHome && matched && priorUnsupportedLabel && (
+          <div className={styles.unsupportedHomeNotice}>
+            <p>
+              You first searched for <strong>{priorUnsupportedLabel}</strong> — we don&apos;t have it yet.
+              You&apos;re finishing setup with <strong>{matchedLabel}</strong>.
+            </p>
+            <div className={styles.unsupportedHomeChoices} role="group" aria-label="Home city choice">
               <button
-                key={preset.id}
                 type="button"
-                className={
-                  isActive ? `${styles.presetChip} ${styles.presetChipActive}` : styles.presetChip
-                }
-                onClick={() => handleCategoryPillToggle(preset.id)}
-                aria-pressed={isActive}
+                className={`${styles.unsupportedHomeChoice} ${
+                  onboardingHomeSaveMode === "primary_city" ? styles.unsupportedHomeChoiceActive : ""
+                }`}
+                onClick={() => setOnboardingHomeSaveMode("primary_city")}
               >
-                {preset.label}
+                Use {matchedLabel} as my TransparentCity home
               </button>
-            );
-          })}
-        </div>
+              <button
+                type="button"
+                className={`${styles.unsupportedHomeChoice} ${
+                  onboardingHomeSaveMode === "follow_only" ? styles.unsupportedHomeChoiceActive : ""
+                }`}
+                onClick={() => {
+                  setOnboardingHomeSaveMode("follow_only");
+                  recordProductEvent("onboarding_follow_only_city_selected", {
+                    matched_city_id: matched.id,
+                  });
+                }}
+              >
+                Add to My Cities only (keep “{requestedUnsupportedHome.city_name}” as the home I asked for)
+              </button>
+            </div>
+            {matchedSlug ? (
+              <a
+                className={styles.unsupportedHomeVisitLink}
+                href={`/c/${matchedSlug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Visit {matchedLabel} on the web
+              </a>
+            ) : null}
+          </div>
+        )}
 
         <div className={styles.emailOptIns}>
           <label className={styles.emailOptInOption}>
@@ -759,15 +832,14 @@ export default function WelcomeModal({
                 Weekly digest <span className={styles.recommendedBadge}>Recommended</span>
               </span>
               <span className={styles.emailOptInDesc}>
-                One weekly email with highlights for your topics and the place you set. Unsubscribe anytime.
+                One weekly email with highlights for your block and city. Unsubscribe anytime.
               </span>
             </div>
           </label>
           {showDigestNudge && (
             <div className={styles.digestNudge}>
               <span>
-                No problem—you can turn the weekly email on later in Settings. Your in-app feed still follows
-                the topics you pick.
+                No problem—you can turn the weekly email on later in Settings.
               </span>
               <button
                 type="button"
@@ -777,6 +849,44 @@ export default function WelcomeModal({
               >
                 ✕
               </button>
+            </div>
+          )}
+        </div>
+
+        <div className={styles.advancedNewsletterSection}>
+          <button
+            type="button"
+            className={styles.advancedNewsletterToggle}
+            onClick={() => setShowAdvancedNewsletterSettings((v) => !v)}
+            aria-expanded={showAdvancedNewsletterSettings}
+          >
+            {showAdvancedNewsletterSettings ? "Hide advanced options" : "Advanced newsletter options (optional)"}
+          </button>
+          {showAdvancedNewsletterSettings && (
+            <div className={styles.advancedNewsletterPanel}>
+              <p className={styles.personalizationIntro}>
+                Skip this if you like—the weekly email still works well on its own. If you want it to match your
+                day-to-day life, jot down what you actually care about in plain language. For example:
+              </p>
+              <ul className={styles.personalizationHints}>
+                <li>
+                  “I commute to downtown and want a heads-up on road closures or construction that might affect my
+                  route.”
+                </li>
+                <li>“I’m interested in new shops and restaurants opening near my block.”</li>
+                <li>Schools, parks, transit, safety—whatever matters most on your block or your usual routes.</li>
+              </ul>
+              <label className={styles.textInputLabel} htmlFor="welcome-newsletter-personalization">
+                In your own words (optional)
+              </label>
+              <textarea
+                id="welcome-newsletter-personalization"
+                className={styles.newsletterDescriptionInput}
+                rows={4}
+                value={newsletterDescription}
+                onChange={(e) => setNewsletterDescription(e.target.value)}
+                placeholder="e.g. I commute downtown—flag road closures. I also like hearing about new shops and restaurants near my block."
+              />
             </div>
           )}
         </div>
@@ -797,7 +907,13 @@ export default function WelcomeModal({
               "Let\u2019s go"
             )}
           </button>
-          <button className={styles.backButton} onClick={() => setStep("welcome")}>
+          <button
+            className={styles.backButton}
+            onClick={() => {
+              setOnboardingHomeSaveMode("primary_city");
+              setStep("welcome");
+            }}
+          >
             Back
           </button>
         </div>
@@ -805,52 +921,7 @@ export default function WelcomeModal({
     );
   };
 
-  /** Build user metric ordering from selected category pills: preferred categories first, then rest. Used for dashboard and map column order. */
-  const buildUserMetricOrdering = (
-    metrics: Array<{ id: number; category?: string | null; subcategory?: string | null; sub_category?: string | null }>,
-    preferredCategoryOrder: string[]
-  ): MetricOrderingItem[] => {
-    const categoryToMetrics = new Map<string, Array<{ id: number; subcategory: string | null }>>();
-    for (const m of metrics) {
-      const cat = (m.category && m.category.trim()) || "Uncategorized";
-      const sub = (m.subcategory ?? m.sub_category ?? null) && String(m.subcategory ?? m.sub_category).trim() ? String(m.subcategory ?? m.sub_category).trim() : null;
-      if (!categoryToMetrics.has(cat)) categoryToMetrics.set(cat, []);
-      categoryToMetrics.get(cat)!.push({ id: m.id, subcategory: sub });
-    }
-    const allCategories = Array.from(categoryToMetrics.keys());
-    const preferredSet = new Set(preferredCategoryOrder);
-    const preferredOrdered = preferredCategoryOrder.filter((c) => categoryToMetrics.has(c));
-    const otherCategories = allCategories.filter((c) => !preferredSet.has(c)).sort((a, b) => a.localeCompare(b));
-    const sortedCategories = [...preferredOrdered, ...otherCategories];
-
-    const orderings: MetricOrderingItem[] = [];
-    sortedCategories.forEach((categoryName, catIndex) => {
-      const categoryOrder = (catIndex + 1) * 100;
-      const items = categoryToMetrics.get(categoryName)!;
-      const bySub = new Map<string | null, number[]>();
-      items.forEach(({ id, subcategory }) => {
-        if (!bySub.has(subcategory)) bySub.set(subcategory, []);
-        bySub.get(subcategory)!.push(id);
-      });
-      const subcats = Array.from(bySub.keys()).sort((a, b) => (a == null ? -1 : b == null ? 1 : a.localeCompare(b)));
-      let metricOrder = 0;
-      subcats.forEach((sub) => {
-        (bySub.get(sub) ?? []).forEach((metricId) => {
-          metricOrder += 10;
-          orderings.push({
-            category_name: categoryName,
-            category_order: categoryOrder,
-            subcategory_name: sub ?? undefined,
-            metric_id: metricId,
-            metric_order: metricOrder,
-          });
-        });
-      });
-    });
-    return orderings;
-  };
-
-  // Save from email-personalization: city + comm prefs + user metric ordering (from selected pills).
+  // Save from email-personalization: city + comm prefs.
   // Saves the city and navigates immediately; remaining preferences are saved in the background.
   const handleSaveFromEmailPersonalization = async () => {
     setLoading(true);
@@ -867,7 +938,34 @@ export default function WelcomeModal({
       const cityId = locationResult.matchedCity.id;
       const homeLocationLabelSnapshot = locationInput.trim();
       const homeDistrictSnapshot = locationResult.district ?? null;
-      const homeCoordsSnapshot = homeCoordinates;
+      const saveFollowOnly =
+        !!requestedUnsupportedHome && onboardingHomeSaveMode === "follow_only";
+
+      // Create the user's block before navigation so My Places can list city → district → block
+      // while the feed is selected (place id is passed to the dashboard shell).
+      let createdPlaceId: number | null = null;
+      if (hasPreciseLocation && homeCoordinates) {
+        try {
+          const place = await createPlace(token, {
+            city_id: cityId,
+            label: placeLabel?.trim() || "My Block",
+            lat: homeCoordinates.lat,
+            lng: homeCoordinates.lng,
+            radius_m: placeRadius ?? DEFAULT_PLACE_RADIUS_M,
+          });
+          createdPlaceId = place?.id ?? null;
+          if (createdPlaceId) {
+            try {
+              const { job_id } = await runPlaceMetricsAndAnomaliesAsJob(createdPlaceId, token);
+              startJob(createdPlaceId, job_id);
+            } catch {
+              // Non-blocking
+            }
+          }
+        } catch {
+          // User can add a block later from the map flow
+        }
+      }
 
       await saveCity(cityId, token);
       emitSavedCitiesChanged();
@@ -881,56 +979,11 @@ export default function WelcomeModal({
       startCityLoading(cityDisplayName);
 
       // Navigate to the feed immediately; save remaining preferences in the background
-      handleFinalNavigation();
+      handleFinalNavigation(createdPlaceId, saveFollowOnly);
 
-      // Background: save place, metric ordering, communication prefs, and welcome email
+      // Background: metric ordering, communication prefs, and welcome email
       void (async () => {
         try {
-          // District rep follow is deferred to post-onboarding for speed
-
-          if (hasPreciseLocation && homeCoordinates) {
-            try {
-              const place = await createPlace(token, {
-                city_id: cityId,
-                label: placeLabel?.trim() || "My Block",
-                lat: homeCoordinates.lat,
-                lng: homeCoordinates.lng,
-                radius_m: placeRadius ?? DEFAULT_PLACE_RADIUS_M,
-              });
-              // Start the place metrics job now that the place exists
-              if (place?.id) {
-                try {
-                  const { job_id } = await runPlaceMetricsAndAnomaliesAsJob(place.id, token);
-                  startJob(place.id, job_id);
-                } catch {
-                  // Non-blocking
-                }
-              }
-            } catch {
-              // ignore
-            }
-          }
-
-          // Personalized metric order: selected pills (in preset order)
-          if (selectedCategoryIds.length > 0) {
-            try {
-              const metrics = (await getCityMetrics(cityId, token)) || [];
-              const preferredOrder: string[] = [];
-              for (const preset of EMAIL_PRESETS) {
-                if (!selectedCategoryIds.includes(preset.id) || !preset.metricCategories) continue;
-                for (const c of preset.metricCategories) {
-                  if (!preferredOrder.includes(c)) preferredOrder.push(c);
-                }
-              }
-              const orderings = buildUserMetricOrdering(metrics, preferredOrder);
-              if (orderings.length > 0) {
-                await saveUserMetricOrdering(cityId, orderings, token);
-              }
-            } catch (err) {
-              console.error("Error saving metric ordering:", err);
-            }
-          }
-
           const latest = await getUserPreferences(token);
           const currentExtra = latest.extra || {};
           const communicationPreferences = mergeNewsletterPreferenceFields(
@@ -940,11 +993,14 @@ export default function WelcomeModal({
               newsletterFrequency,
             }
           );
+          const extraBase = saveFollowOnly
+            ? { ...currentExtra }
+            : { ...stripUnsupportedHomeRequest(currentExtra as Record<string, unknown>) };
+
           const preferencesData: any = {
             has_completed_onboarding: true,
             extra: {
-              ...currentExtra,
-              selected_category_ids: selectedCategoryIds,
+              ...extraBase,
               communication_preferences: {
                 ...communicationPreferences,
                 anomaly_alerts: alertsOptIn,
@@ -954,21 +1010,25 @@ export default function WelcomeModal({
             },
           };
 
-          // Always persist home_location with city_id so the feed knows the
-          // user's home city on subsequent logins. Include coordinates only
-          // when a precise address was provided; include district/label when known.
-          preferencesData.extra.home_location = {
-            city_id: cityId,
-            ...(homeDistrictSnapshot != null
-              ? { district: homeDistrictSnapshot }
-              : {}),
-            ...(hasPreciseLocation && homeCoordinates
-              ? { coordinates: homeCoordinates }
-              : {}),
-            ...(homeLocationLabelSnapshot
-              ? { location_label: homeLocationLabelSnapshot }
-              : {}),
-          };
+          if (saveFollowOnly) {
+            preferencesData.extra.home_location = currentExtra.home_location;
+          } else {
+            // Always persist home_location with city_id so the feed knows the
+            // user's home city on subsequent logins. Include coordinates only
+            // when a precise address was provided; include district/label when known.
+            preferencesData.extra.home_location = {
+              city_id: cityId,
+              ...(homeDistrictSnapshot != null
+                ? { district: homeDistrictSnapshot }
+                : {}),
+              ...(hasPreciseLocation && homeCoordinates
+                ? { coordinates: homeCoordinates }
+                : {}),
+              ...(homeLocationLabelSnapshot
+                ? { location_label: homeLocationLabelSnapshot }
+                : {}),
+            };
+          }
 
           // Save preferences with one retry on failure
           try {
@@ -1003,11 +1063,14 @@ export default function WelcomeModal({
   };
 
   // Handle final navigation to city — skip the all-set screen, land directly in feed
-  const handleFinalNavigation = () => {
+  const handleFinalNavigation = (
+    createdPlaceId: number | null = null,
+    followOnlyKeepUnsupportedHome: boolean = false
+  ) => {
     if (!locationResult?.matchedCity) return;
 
     const districtToLoad = locationResult.district ?? null;
-    onCitySelected(locationResult.matchedCity.id, districtToLoad);
+    onCitySelected(locationResult.matchedCity.id, districtToLoad, createdPlaceId);
     onComplete({
       cityId: locationResult.matchedCity.id,
       cityName: locationResult.matchedCity.display_name
@@ -1015,6 +1078,9 @@ export default function WelcomeModal({
         || "your city",
       homeCoordinates,
       hasPreciseLocation,
+      district: districtToLoad,
+      placeId: createdPlaceId,
+      followOnlyKeepUnsupportedHome,
     });
     onClose();
   };

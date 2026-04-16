@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import styles from "./MobileCitySignupBar.module.css";
+import { startSignup } from "@/lib/signup";
 
 const DISMISS_KEY = "transparentcity.signup_bar_dismissed";
 
@@ -26,26 +27,18 @@ export default function MobileCitySignupBar({
   if (isLoading || isAuthenticated || dismissed) return null;
 
   const handleClick = async () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("transparentcity.signup_intent", "resident");
-      window.localStorage.setItem("transparentcity.follow_city_slug", citySlug);
-      window.localStorage.setItem("transparentcity.follow_city_name", cityName);
-      if (typeof cityId === "number") {
-        window.localStorage.setItem("transparentcity.follow_city_id", String(cityId));
-      }
-    }
-    const params = new URLSearchParams({
-      signup: "resident",
+    const returnToParams: Record<string, string> = {
       follow_city_slug: citySlug,
       follow_city_name: cityName,
-    });
-    if (typeof cityId === "number") {
-      params.set("follow_city_id", String(cityId));
-    }
-    const returnTo = `/home?${params.toString()}`;
-    await loginWithRedirect({
-      authorizationParams: { screen_hint: "signup" },
-      appState: { returnTo },
+    };
+    if (typeof cityId === "number") returnToParams.follow_city_id = String(cityId);
+
+    await startSignup(loginWithRedirect, "resident", {
+      source_surface: "mobile_city_bar",
+      city_slug: citySlug,
+      city_name: cityName,
+      city_id: typeof cityId === "number" ? cityId : null,
+      returnToParams,
     });
   };
 

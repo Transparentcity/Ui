@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth0 } from "@auth0/auth0-react";
 import { toast } from "sonner";
+import { startSignup } from "@/lib/signup";
 import {
   getPublicRepresentativeFollowerCounts,
   type PublicLeader,
@@ -72,16 +73,17 @@ export default function DistrictListWithFollow({
     const d = String(district);
     if (followMutation.isPending || unfollowMutation.isPending) return; // guard against double-clicks
     if (!isAuthenticated) {
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("transparentcity.signup_intent", "resident");
-        window.localStorage.setItem("transparentcity.follow_city_id", String(cityId));
-        window.localStorage.setItem("transparentcity.follow_city_name", cityDisplayName);
-        window.localStorage.setItem("transparentcity.follow_city_slug", slug);
-      }
-      const params = new URLSearchParams({ signup: "resident", follow_city_id: String(cityId), follow_city_name: cityDisplayName, follow_city_slug: slug });
-      loginWithRedirect({
-        authorizationParams: { screen_hint: "signup", prompt: "login" },
-        appState: { returnTo: `/home?${params.toString()}` },
+      void startSignup(loginWithRedirect, "resident", {
+        source_surface: "district_list_follow",
+        city_id: cityId,
+        city_slug: slug,
+        city_name: cityDisplayName,
+        district,
+        returnToParams: {
+          follow_city_id: String(cityId),
+          follow_city_name: cityDisplayName,
+          follow_city_slug: slug,
+        },
       });
       return;
     }

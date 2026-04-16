@@ -13,9 +13,12 @@
  * Data sources:
  *  - First-party signup_funnel_events (signup starts / completes / location counts)
  *  - GA4 Data API overlay for landings + bounce rate (if configured server-side)
+ *
+ * Total landings: click the card to show first-party attribution (utm_source,
+ * referrer host, or direct).
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type KeyboardEvent } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
   BarChart,
@@ -35,6 +38,7 @@ import {
   type CityFunnelRow,
   type DistrictFunnelRow,
   type SignupFunnelSummary,
+  type ProductEventFunnelLandingSource,
   type ProductEventFunnelRow,
 } from "@/lib/apiClient";
 
@@ -50,6 +54,17 @@ function pct(n: number | null | undefined, decimals = 1): string {
 function fmt(n: number | null | undefined): string {
   if (n == null) return "—";
   return n.toLocaleString();
+}
+
+/** "3 / 5 (60.0%)" for funnel subset labels; denominator must be > 0. */
+function ofDen(
+  num: number | null | undefined,
+  den: number | null | undefined,
+  pctDecimals = 1
+): string {
+  if (num == null || den == null) return "—";
+  if (den <= 0) return num === 0 ? "0 / 0" : "—";
+  return `${fmt(num)} / ${fmt(den)} (${((num / den) * 100).toFixed(pctDecimals)}%)`;
 }
 
 /** Dynamic column access for sortable tables (plain API row types are not `Record<string, unknown>`). */
@@ -78,14 +93,29 @@ function StatCard({
   value,
   sub,
   highlight,
+  onClick,
 }: {
   label: string;
   value: string;
   sub?: string;
   highlight?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <div
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (e: KeyboardEvent) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
       style={{
         background: "var(--bg-secondary, #f9f9f9)",
         border: highlight
@@ -97,6 +127,8 @@ function StatCard({
         flexDirection: "column",
         gap: "4px",
         minWidth: 0,
+        cursor: onClick ? "pointer" : undefined,
+        outline: "none",
       }}
     >
       <div
@@ -279,6 +311,10 @@ export default function SignupFunnelDashboard() {
   const [data, setData] = useState<SignupFunnelSummary | null>(null);
   const [funnelData, setFunnelData] = useState<ProductEventFunnelRow[]>([]);
   const [totalLandings, setTotalLandings] = useState<number | null>(null);
+  const [landingSources, setLandingSources] = useState<ProductEventFunnelLandingSource[]>(
+    []
+  );
+  const [showLandingSources, setShowLandingSources] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedCityId, setSelectedCityId] = useState<number | null>(null);
@@ -311,9 +347,11 @@ export default function SignupFunnelDashboard() {
         if (funnelResult) {
           setFunnelData(funnelResult.daily);
           setTotalLandings(funnelResult.total_page_views);
+          setLandingSources(funnelResult.landing_sources ?? []);
         } else {
           setFunnelData([]);
           setTotalLandings(null);
+          setLandingSources([]);
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load data");
@@ -371,11 +409,15 @@ export default function SignupFunnelDashboard() {
       const fp = funnelByDate[d.date];
       return {
         day: shortDate(d.date),
-        "City page views": fp?.page_views ?? 0,
+        "Landings": fp?.page_views ?? 0,
         "Signup starts": d.signup_starts,
         "Signup completes": d.signup_completes,
       };
     }) ?? [];
+
+  const landingSourcesShownSum = landingSources.reduce((acc, r) => acc + r.count, 0);
+  const landingSourcesIncomplete =
+    totalLandings != null && totalLandings > landingSourcesShownSum;
 
   return (
     <div style={{ padding: "0 0 32px" }}>
@@ -493,9 +535,21 @@ export default function SignupFunnelDashboard() {
         }}
       >
         <StatCard
-          label="City page landings"
+          label="Total landings"
           value={fmt(totalLandings)}
-          sub="first-party"
+          sub={
+            totalLandings != null
+              ? showLandingSources
+                ? "Click again to hide source breakdown"
+                : "Click for source breakdown · home + city pages"
+              : "home + city pages"
+          }
+          highlight={showLandingSources}
+          onClick={
+            totalLandings != null
+              ? () => setShowLandingSources((open) => !open)
+              : undefined
+          }
         />
         <StatCard
           label="Signup starts"
@@ -515,7 +569,7 @@ export default function SignupFunnelDashboard() {
               ? pct(data.total_signup_completes / totalLandings)
               : "—"
           }
-          sub="city pages → signups"
+          sub="any page → signup"
           highlight={!!data?.total_signup_completes && !!totalLandings}
         />
         <StatCard
@@ -524,6 +578,269 @@ export default function SignupFunnelDashboard() {
           sub="starts → completes"
         />
       </div>
+
+      {showLandingSources && totalLandings != null && (
+        <div style={{ ...section, marginTop: "4px" }}>
+          <div style={sectionTitle}>Landing sources (first-party)</div>
+          {landingSourcesIncomplete && (
+            <p
+              style={{
+                fontSize: "11px",
+                color: "var(--text-secondary, #666)",
+                margin: "0 0 8px",
+              }}
+            >
+              Rows add up to {fmt(landingSourcesShownSum)} of {fmt(totalLandings)} landings;
+              the rest are spread across smaller source buckets beyond the top 25.
+            </p>
+          )}
+          <p
+            style={{
+              fontSize: "12px",
+              color: "var(--text-secondary, #666)",
+              margin: "0 0 12px",
+              maxWidth: "720px",
+              lineHeight: 1.45,
+            }}
+          >
+            Uses{" "}
+            <code style={{ fontSize: "11px" }}>utm_source</code> from the first hit in the
+            session when present; otherwise the referrer hostname when we can parse it;
+            otherwise the buckets (referrer) or (direct / unknown). Same date range and city
+            filter as the funnel above.
+          </p>
+          <div
+            style={{
+              background: "var(--bg-secondary, #f9f9f9)",
+              border: "1px solid var(--border-primary, #e5e5e5)",
+              borderRadius: "10px",
+              overflow: "hidden",
+            }}
+          >
+            {landingSources.length === 0 ? (
+              <div
+                style={{
+                  padding: "16px 20px",
+                  fontSize: "13px",
+                  color: "var(--text-secondary, #666)",
+                }}
+              >
+                No landing events in this range.
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <th
+                        style={{
+                          padding: "8px 12px",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.04em",
+                          color: "var(--text-secondary, #666)",
+                          textAlign: "left",
+                        }}
+                      >
+                        Source
+                      </th>
+                      <th
+                        style={{
+                          padding: "8px 12px",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.04em",
+                          color: "var(--text-secondary, #666)",
+                          textAlign: "right",
+                        }}
+                      >
+                        Landings
+                      </th>
+                      <th
+                        style={{
+                          padding: "8px 12px",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.04em",
+                          color: "var(--text-secondary, #666)",
+                          textAlign: "right",
+                        }}
+                      >
+                        Share
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {landingSources.map((row) => (
+                      <tr key={row.source}>
+                        <td
+                          style={{
+                            padding: "8px 12px",
+                            fontSize: "13px",
+                            color: "var(--text-primary, #111)",
+                            borderTop: "1px solid var(--border-primary, #e5e5e5)",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {row.source}
+                        </td>
+                        <td
+                          style={{
+                            padding: "8px 12px",
+                            fontSize: "13px",
+                            color: "var(--text-primary, #111)",
+                            borderTop: "1px solid var(--border-primary, #e5e5e5)",
+                            textAlign: "right",
+                            fontVariantNumeric: "tabular-nums",
+                          }}
+                        >
+                          {fmt(row.count)}
+                        </td>
+                        <td
+                          style={{
+                            padding: "8px 12px",
+                            fontSize: "13px",
+                            color: "var(--text-primary, #111)",
+                            borderTop: "1px solid var(--border-primary, #e5e5e5)",
+                            textAlign: "right",
+                            fontVariantNumeric: "tabular-nums",
+                          }}
+                        >
+                          {row.share != null ? pct(row.share, 1) : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Newsletter: funnel cohort (date range) + optional full-list snapshot */}
+      {data && (
+        <div style={{ ...section, marginTop: "8px" }}>
+          <div style={sectionTitle}>Newsletter · signup cohort</div>
+          <p
+            style={{
+              margin: "0 0 12px",
+              fontSize: "12px",
+              lineHeight: 1.45,
+              color: "var(--text-secondary, #666)",
+              maxWidth: "720px",
+            }}
+          >
+            Among <strong>distinct accounts</strong> with{" "}
+            <code style={{ fontSize: "11px" }}>signup_complete</code> in the selected
+            date range (and city filter when drilling). Weekly counts match the live
+            pipeline: active weekly row on a launched city; test-style emails excluded.
+            Sub-rows show <em>X of Y</em> so each step is relative to the previous funnel
+            slice.
+          </p>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(168px, 1fr))",
+              gap: "12px",
+            }}
+          >
+            <StatCard
+              label="Cohort · signup completes"
+              value={
+                data.newsletter_funnel_cohort_available !== true
+                  ? "—"
+                  : fmt(data.newsletter_funnel_cohort_completers)
+              }
+              sub={
+                data.newsletter_funnel_cohort_available !== true
+                  ? "Cohort query unavailable"
+                  : "distinct users (active, non-test)"
+              }
+              highlight
+            />
+            <StatCard
+              label="Weekly newsletter"
+              value={
+                data.newsletter_funnel_cohort_available !== true
+                  ? "—"
+                  : ofDen(
+                      data.newsletter_funnel_weekly_subscribers,
+                      data.newsletter_funnel_cohort_completers
+                    )
+              }
+              sub="of cohort · ≥1 active weekly sub (launched city)"
+            />
+            <StatCard
+              label="Saved place (personalized)"
+              value={
+                data.newsletter_funnel_cohort_available !== true
+                  ? "—"
+                  : ofDen(
+                      data.newsletter_funnel_weekly_with_saved_place,
+                      data.newsletter_funnel_weekly_subscribers ?? 0
+                    )
+              }
+              sub="of weekly subscribers in cohort"
+            />
+            <StatCard
+              label="Shared edition only"
+              value={
+                data.newsletter_funnel_cohort_available !== true
+                  ? "—"
+                  : ofDen(
+                      data.newsletter_funnel_weekly_shared_only,
+                      data.newsletter_funnel_weekly_subscribers ?? 0
+                    )
+              }
+              sub="weekly in cohort, no saved place"
+            />
+            <StatCard
+              label="Saved place + custom focus"
+              value={
+                data.newsletter_funnel_cohort_available !== true
+                  ? "—"
+                  : ofDen(
+                      data.newsletter_funnel_weekly_saved_place_and_instructions,
+                      data.newsletter_funnel_weekly_with_saved_place ?? 0
+                    )
+              }
+              sub="of weekly-in-cohort with a saved place"
+            />
+          </div>
+          {data.newsletter_metrics_available === true && (
+            <div
+              style={{
+                marginTop: "14px",
+                paddingTop: "12px",
+                borderTop: "1px solid var(--border-primary, #e5e5e5)",
+                fontSize: "12px",
+                color: "var(--text-secondary, #666)",
+                lineHeight: 1.5,
+              }}
+            >
+              <strong style={{ color: "var(--text-primary, #111)" }}>
+                All subscribers (snapshot, not date-scoped):
+              </strong>{" "}
+              {fmt(data.newsletter_distinct_active_subscribers)} distinct weekly opt-in
+              emails on launched cities
+              {(data.newsletter_weekly_pipeline_recipients ?? 0) > 0 && (
+                <>
+                  {" "}
+                  · {fmt(data.newsletter_weekly_pipeline_recipients)} matched to active
+                  accounts for send routing
+                </>
+              )}
+              . Personalized (saved place) {fmt(data.newsletter_personalized_saved_place)}
+              · Shared {fmt(data.newsletter_shared_city_district_edition)} · With
+              instructions {fmt(data.newsletter_saved_place_and_instructions)}.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Daily trend */}
       {data && chartData.length > 0 && (
@@ -553,7 +870,7 @@ export default function SignupFunnelDashboard() {
                 <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
                 <Line
                   type="monotone"
-                  dataKey="City page views"
+                  dataKey="Landings"
                   stroke="#888"
                   strokeWidth={1.5}
                   dot={false}

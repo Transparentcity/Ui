@@ -220,6 +220,10 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
 
   if (!isSendGridConfigured()) {
+    // Local dev often skips SendGrid; avoid 503 so clients do not log a false "failure".
+    if (process.env.NODE_ENV === "development") {
+      return NextResponse.json({ sent: false, reason: "email_not_configured" });
+    }
     return NextResponse.json(
       { error: "Email sending not configured" },
       { status: 503 },

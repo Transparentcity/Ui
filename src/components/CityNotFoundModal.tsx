@@ -1,11 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
   submitCityLeadInterest,
   updateUserPreferences,
+  getUserPreferences,
 } from "@/lib/apiClient";
+import {
+  buildUnsupportedHomePreferenceExtra,
+  hasSupportedHomeCityId,
+} from "@/lib/onboardingHomeLocation";
+import { recordProductEvent } from "@/lib/productAnalytics";
 import Loader from "./Loader";
 import styles from "./CityNotFoundModal.module.css";
 
@@ -14,8 +20,12 @@ interface CityNotFoundModalProps {
   cityName: string;
   state: string | null;
   country: string | null;
+  /** First onboarding search hit an unsupported city — record intent + offer retry without exiting onboarding. */
+  fromOnboarding?: boolean;
   onClose: () => void;
   onComplete: () => void;
+  /** Re-open location search without marking onboarding complete (onboarding only). */
+  onBackToSearch?: () => void;
 }
 
 export default function CityNotFoundModal({
@@ -23,18 +33,58 @@ export default function CityNotFoundModal({
   cityName,
   state,
   country,
+  fromOnboarding = false,
   onClose,
   onComplete,
+  onBackToSearch,
 }: CityNotFoundModalProps) {
   const { getAccessTokenSilently, user } = useAuth0();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loggedUnsupportedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isOpen || !fromOnboarding) {
+      loggedUnsupportedRef.current = false;
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getAccessTokenSilently();
+        const latest = await getUserPreferences(token);
+        if (cancelled) return;
+        if (hasSupportedHomeCityId(latest.extra)) {
+          return;
+        }
+        const merged = buildUnsupportedHomePreferenceExtra(
+          latest.extra as Record<string, unknown> | undefined,
+          cityName,
+          state,
+          country
+        );
+        await updateUserPreferences({ extra: merged }, token);
+        if (!loggedUnsupportedRef.current) {
+          loggedUnsupportedRef.current = true;
+          recordProductEvent(
+            "onboarding_unsupported_home_logged",
+            { city_name: cityName, state, country },
+            token
+          );
+        }
+      } catch (err) {
+        console.error("[CityNotFoundModal] persist unsupported home:", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, fromOnboarding, cityName, state, country, getAccessTokenSilently]);
 
   if (!isOpen) return null;
 
   const cityDisplayName = state ? `${cityName}, ${state}` : cityName;
 
-  /** Fire-and-forget: send welcome email with story previews */
   const sendWelcomeEmail = () => {
     const email = user?.email;
     if (!email) return;
@@ -55,14 +105,23 @@ export default function CityNotFoundModal({
     try {
       const token = await getAccessTokenSilently();
 
-      // Register interest so we can notify them later
-      await submitCityLeadInterest(
-        { city_name: cityName, state, country },
-        token
-      );
+      await submitCityLeadInterest({ city_name: cityName, state, country }, token);
 
-      // Mark onboarding complete so WelcomeModal doesn't reappear
-      await updateUserPreferences({ has_completed_onboarding: true }, token);
+      if (fromOnboarding) {
+        const latest = await getUserPreferences(token);
+        const merged = buildUnsupportedHomePreferenceExtra(
+          latest.extra as Record<string, unknown> | undefined,
+          cityName,
+          state,
+          country
+        );
+        await updateUserPreferences(
+          { has_completed_onboarding: true, extra: merged },
+          token
+        );
+      } else {
+        await updateUserPreferences({ has_completed_onboarding: true }, token);
+      }
 
       sendWelcomeEmail();
       onComplete();
@@ -74,20 +133,31 @@ export default function CityNotFoundModal({
     }
   };
 
-  const handleClose = async () => {
-    try {
-      const token = await getAccessTokenSilently();
-      await updateUserPreferences({ has_completed_onboarding: true }, token);
-    } catch (err) {
-      console.error("Error completing onboarding:", err);
+  const handleTryDifferentCity = () => {
+    if (fromOnboarding && onBackToSearch) {
+      onBackToSearch();
+      return;
+    }
+    onClose();
+  };
+
+  const handleDismissOverlay = () => {
+    if (fromOnboarding && onBackToSearch) {
+      onBackToSearch();
+      return;
     }
     onClose();
   };
 
   return (
-    <div className={styles.overlay} onClick={handleClose}>
+    <div className={styles.overlay} onClick={handleDismissOverlay}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <button className={styles.closeButton} onClick={handleClose} title="Close" aria-label="Close">
+        <button
+          className={styles.closeButton}
+          onClick={handleTryDifferentCity}
+          title={fromOnboarding ? "Try a different city" : "Close"}
+          aria-label={fromOnboarding ? "Try a different city" : "Close"}
+        >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
@@ -105,7 +175,7 @@ export default function CityNotFoundModal({
           <h2 className={styles.title}>We don&apos;t have {cityDisplayName} yet</h2>
           <p className={styles.description}>
             We&apos;re adding new cities every week. We&apos;ll email you when we launch yours.
-            In the meantime, browse stories from all our cities, or help us prioritize yours.
+            In the meantime, browse stories from cities we already cover.
           </p>
 
           {error && <div className={styles.error}>{error}</div>}
@@ -124,12 +194,16 @@ export default function CityNotFoundModal({
                 "Browse the feed"
               )}
             </button>
-            <a
-              href="/add-your-city"
-              className={styles.secondaryButton}
-            >
-              Help us add your city&apos;s data
-            </a>
+            {fromOnboarding && onBackToSearch && (
+              <button
+                type="button"
+                className={styles.linkButton}
+                onClick={handleTryDifferentCity}
+                disabled={loading}
+              >
+                Try a different city
+              </button>
+            )}
           </div>
         </div>
       </div>

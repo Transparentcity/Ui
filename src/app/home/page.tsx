@@ -1,7 +1,8 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import TitleBar from "@/components/TitleBar";
 import Sidebar from "@/components/Sidebar";
@@ -64,6 +65,7 @@ import {
   type ImpersonationState,
 } from "@/lib/impersonation";
 import { slugify } from "@/lib/utils";
+import { cityKeys } from "@/lib/hooks/useCities";
 import styles from "./page.module.css";
 import dynamic from "next/dynamic";
 
@@ -126,6 +128,7 @@ const isNarrowScreen = (): boolean => {
 };
 
 export default function DashboardPage() {
+  const queryClient = useQueryClient();
   const { isAuthenticated, isLoading, user, getAccessTokenSilently } =
     useAuth0();
   const router = useRouter();
@@ -174,7 +177,12 @@ export default function DashboardPage() {
   const onboardingRepNotifyRef = useRef<((name: string, title?: string) => void) | null>(null);
   const onboardingBackgroundWorkRef = useRef<{ start: () => void; complete: () => void } | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
-  const [cityNotFound, setCityNotFound] = useState<{ cityName: string; state: string | null; country: string | null } | null>(null);
+  const [cityNotFound, setCityNotFound] = useState<{
+    cityName: string;
+    state: string | null;
+    country: string | null;
+    fromOnboarding: boolean;
+  } | null>(null);
   const hasAutoSelectedCity = useRef(false);
   const autoSelectedCityRef = useRef<{ id: number; name: string; slug: string } | null>(null);
   const hasCheckedOnboarding = useRef(false);
@@ -396,12 +404,16 @@ export default function DashboardPage() {
       const followCityName = urlParams.get("follow_city_name") || window.localStorage.getItem("transparentcity.follow_city_name") || "";
       const followCitySlug = urlParams.get("follow_city_slug") || window.localStorage.getItem("transparentcity.follow_city_slug") || slugify(followCityName);
       if (signupIntent) {
+        const persistedSurfaceFollow =
+          window.localStorage.getItem("transparentcity.signup_surface") || "city_header";
+        window.localStorage.removeItem("transparentcity.signup_surface");
+
         const completionCtx: SignupEventContext = {
           city_id: Number.isFinite(followCityId) ? followCityId : null,
           city_slug: followCitySlug || null,
           city_name: followCityName || null,
           signup_intent: signupIntent,
-          source_surface: "city_header",
+          source_surface: persistedSurfaceFollow,
           funnel_session_id: getFunnelSessionId(),
         };
         trackSignupAuthReturn(completionCtx);
@@ -449,10 +461,16 @@ export default function DashboardPage() {
         setShowWelcomeModal(true);
       }
     } else if (signupIntent) {
-      // User just completed signup without a follow intent
+      // User just completed signup without a follow intent.
+      // Read the surface that was stored before the Auth0 redirect so we
+      // don't misattribute home-page signups as "auth_modal".
+      const persistedSurface =
+        window.localStorage.getItem("transparentcity.signup_surface") || "auth_modal";
+      window.localStorage.removeItem("transparentcity.signup_surface");
+
       const baseCtx: SignupEventContext = {
         signup_intent: signupIntent,
-        source_surface: "auth_modal",
+        source_surface: persistedSurface,
         funnel_session_id: getFunnelSessionId(),
         landing_path: window.location.pathname,
       };
@@ -853,17 +871,20 @@ export default function DashboardPage() {
 
   const refreshAllUserPlaces = useCallback(
     (expectedIdentityScopeKey: string = identityScopeKey) => {
-      getAccessTokenSilently()
+      return getAccessTokenSilently()
         .then((token) => listMyPlaces(token))
         .then((res) => {
           if (identityScopeKeyRef.current === expectedIdentityScopeKey) {
             setAllUserPlaces(res.places);
+            return res.places;
           }
+          return [];
         })
         .catch(() => {
           if (identityScopeKeyRef.current === expectedIdentityScopeKey) {
             setAllUserPlaces([]);
           }
+          return [];
         });
     },
     [getAccessTokenSilently, identityScopeKey]
@@ -966,6 +987,37 @@ export default function DashboardPage() {
       setLoadingPreferences(false);
     }
   };
+
+  /**
+   * Nudge until the user has a street-level home in prefs, a linked block, or a saved
+   * My Block for that city. District alone (e.g. inferred from ZIP) does not dismiss
+   * the banner — we still invite a precise address / My Block.
+   */
+  const showFeedPersonalizeBanner = useMemo(() => {
+    if (!userPreferences?.extra) return false;
+    const extra = userPreferences.extra as Record<string, unknown>;
+    const hl = extra.home_location;
+    if (!hl || typeof hl !== "object") return false;
+    const h = hl as Record<string, unknown>;
+    if (h.city_id == null || h.city_id === "") return false;
+    const cid = Number(h.city_id);
+    if (!Number.isFinite(cid)) return false;
+    const coords = h.coordinates;
+    if (
+      coords &&
+      typeof coords === "object" &&
+      "lat" in coords &&
+      "lng" in coords &&
+      typeof (coords as { lat?: unknown }).lat === "number" &&
+      typeof (coords as { lng?: unknown }).lng === "number"
+    ) {
+      return false;
+    }
+    const placeId = h.place_id;
+    if (placeId != null && placeId !== "") return false;
+    if (allUserPlaces.some((p) => p.city_id === cid)) return false;
+    return true;
+  }, [userPreferences, allUserPlaces]);
 
   const handleSavePreferences = async () => {
     try {
@@ -1101,16 +1153,27 @@ export default function DashboardPage() {
 
   const handleWelcomeCitySelected = (cityId: number, district?: number | null, placeId?: number | null) => {
     setActiveCityId(cityId);
-    setInitialDistrict(district !== undefined && district !== null ? district : null);
-    setInitialPlaceId(placeId ?? null);
+    const d = district !== undefined && district !== null ? district : null;
+    const p = placeId ?? null;
+    setInitialDistrict(d);
+    setInitialPlaceId(p);
+    setCitySelection({ district: d, placeId: p });
+    setInitialPlaceGps(null);
     setCurrentView("city");
     setCurrentSessionId(null);
     setCurrentResearchId(null);
     hasAutoSelectedCity.current = true;
-    // Refresh My Places so the new block appears in the sidebar
-    if (placeId != null) {
-      refreshAllUserPlaces();
-    }
+    void refreshAllUserPlaces().then((places) => {
+      if (p == null || !places?.length) return;
+      const place = places.find((x) => x.id === p);
+      if (place?.lat != null && place?.lng != null) {
+        setInitialPlaceGps({
+          lat: place.lat,
+          lng: place.lng,
+          radius_m: place.radius_m ?? 500,
+        });
+      }
+    });
   };
 
   const handleWelcomeComplete = (ctx: {
@@ -1118,22 +1181,39 @@ export default function DashboardPage() {
     cityName: string;
     homeCoordinates: { lat: number; lng: number } | null;
     hasPreciseLocation: boolean;
+    district?: number | null;
+    placeId?: number | null;
+    /** User chose to follow the matched city but keep unsupported "real home" on file — refresh prefs from API. */
+    followOnlyKeepUnsupportedHome?: boolean;
   }) => {
     setShowWelcomeModal(false);
     setCurrentView("feed");
     toast.success("Welcome! We’re building your feed now.");
 
-    // Eagerly set home_location so FeedContainer gets the correct homeCityId
-    setUserPreferences((prev) => ({
-      ...prev!,
-      extra: {
-        ...prev?.extra,
-        home_location: {
-          city_id: ctx.cityId,
-          coordinates: ctx.homeCoordinates,
+    if (ctx.followOnlyKeepUnsupportedHome) {
+      void (async () => {
+        try {
+          const token = await getAccessTokenSilently();
+          const p = await getUserPreferences(token);
+          setUserPreferences(p);
+        } catch (e) {
+          console.error("Error refreshing preferences after follow-only onboarding:", e);
+        }
+      })();
+    } else {
+      // Eagerly set home_location so FeedContainer gets the correct homeCityId
+      setUserPreferences((prev) => ({
+        ...prev!,
+        extra: {
+          ...prev?.extra,
+          home_location: {
+            city_id: ctx.cityId,
+            coordinates: ctx.homeCoordinates,
+            ...(ctx.district != null ? { district: ctx.district } : {}),
+          },
         },
-      },
-    }));
+      }));
+    }
 
     if (user?.sub) {
       trackOnboardingComplete(user.sub);
@@ -1153,20 +1233,39 @@ export default function DashboardPage() {
           onboardingRepNotifyRef.current?.(mayor.name, mayor.title || "Mayor");
         }
 
-        // If precise location, find district rep
+        // Follow representative for the scope we saved: district when known, otherwise city-wide ("0").
         if (ctx.hasPreciseLocation && ctx.homeCoordinates) {
-          const district = await findDistrictFromCoordinates(
-            ctx.homeCoordinates.lat, ctx.homeCoordinates.lng, ctx.cityId, token,
-          );
-          if (district) {
-            await followRepresentative(ctx.cityId, String(district), token);
-            const rep = leaders.find((l) => l.district === district);
-            if (rep) {
-              // Wait for mayor notification to clear before showing rep
-              if (mayor) await new Promise((r) => setTimeout(r, 4500));
-              onboardingRepNotifyRef.current?.(rep.name);
-            }
+          let district = ctx.district ?? null;
+          if (district == null) {
+            district = await findDistrictFromCoordinates(
+              ctx.homeCoordinates.lat,
+              ctx.homeCoordinates.lng,
+              ctx.cityId,
+              token,
+            );
           }
+          try {
+            if (district) {
+              await followRepresentative(ctx.cityId, String(district), token);
+              const rep = leaders.find((l) => l.district === district);
+              if (rep) {
+                if (mayor) await new Promise((r) => setTimeout(r, 4500));
+                onboardingRepNotifyRef.current?.(rep.name);
+              }
+            } else {
+              await followRepresentative(ctx.cityId, "0", token);
+            }
+          } catch {
+            // Already following or leader missing — still refresh sidebar
+          }
+          queryClient.invalidateQueries({ queryKey: cityKeys.savedDistricts() });
+        } else {
+          try {
+            await followRepresentative(ctx.cityId, "0", token);
+          } catch {
+            // ignore
+          }
+          queryClient.invalidateQueries({ queryKey: cityKeys.savedDistricts() });
         }
       } catch {
         // Non-blocking
@@ -1290,9 +1389,13 @@ export default function DashboardPage() {
           setGpsLocation(null);
         }}
         userPlaces={allUserPlaces}
-        activePlaceId={currentView === "city" ? citySelection.placeId : null}
+        activePlaceId={
+          currentView === "city" || currentView === "feed"
+            ? citySelection.placeId
+            : null
+        }
         activeDistrict={
-          currentView === "city"
+          currentView === "city" || currentView === "feed"
             ? citySelection.placeId != null
               ? undefined
               : citySelection.district
@@ -1556,20 +1659,48 @@ export default function DashboardPage() {
 
           {currentView === "feed" && (
             <div id="feed-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
-              <FeedView
-                key={`feed-${identityScopeKey}`}
-                cityId={null}
-                district={null}
-                isAdmin={isAdmin}
-                isImpersonating={isImpersonating}
-                userPlaces={allUserPlaces}
-                homeCityId={userPreferences?.extra?.home_location?.city_id ?? null}
-              />
+              <div className={styles.feedViewStack}>
+                {showFeedPersonalizeBanner && (
+                  <div className={styles.feedPersonalizeBanner} role="region" aria-label="Personalize your experience">
+                    <p className={styles.feedPersonalizeBannerText}>
+                      For block-level information or personalized insights,{" "}
+                      <button
+                        type="button"
+                        className={styles.feedPersonalizeBannerLink}
+                        onClick={() => setShowEditHomeLocationModal(true)}
+                      >
+                        add your block
+                      </button>
+                      .
+                    </p>
+                  </div>
+                )}
+                <div className={styles.feedViewMain}>
+                  <FeedView
+                    key={`feed-${identityScopeKey}`}
+                    cityId={null}
+                    district={null}
+                    isAdmin={isAdmin}
+                    isImpersonating={isImpersonating}
+                    userPlaces={allUserPlaces}
+                    homeCityId={userPreferences?.extra?.home_location?.city_id ?? null}
+                  />
+                </div>
+              </div>
             </div>
           )}
         </div>
       </main>
       </PlaceOnboardingProvider>
+
+      <EditHomeLocationModal
+        open={showEditHomeLocationModal}
+        onClose={() => setShowEditHomeLocationModal(false)}
+        onSaved={async () => {
+          await loadUserSettings();
+          handlePlaceSaved();
+        }}
+      />
 
       {/* Settings Overlay */}
       {settingsOpen && (
@@ -1642,14 +1773,6 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </section>
-                  <EditHomeLocationModal
-                      open={showEditHomeLocationModal}
-                      onClose={() => setShowEditHomeLocationModal(false)}
-                      onSaved={async () => {
-                        await loadUserSettings();
-                        handlePlaceSaved();
-                      }}
-                    />
 
                   {/* Communication preferences */}
                   <section className={styles.settingsSection}>
@@ -1916,7 +2039,7 @@ export default function DashboardPage() {
         onCityNotFound={(cityName, state, country) => {
           setShowWelcomeModal(false);
           setCurrentView("feed");
-          setCityNotFound({ cityName, state, country });
+          setCityNotFound({ cityName, state, country, fromOnboarding: true });
         }}
       />
       <CityNotFoundModal
@@ -1924,7 +2047,12 @@ export default function DashboardPage() {
         cityName={cityNotFound?.cityName ?? ""}
         state={cityNotFound?.state ?? null}
         country={cityNotFound?.country ?? null}
+        fromOnboarding={cityNotFound?.fromOnboarding ?? false}
         onClose={() => setCityNotFound(null)}
+        onBackToSearch={() => {
+          setCityNotFound(null);
+          setShowWelcomeModal(true);
+        }}
         onComplete={() => {
           setCityNotFound(null);
           toast.success("We'll notify you when your city launches!");
