@@ -271,18 +271,12 @@ function CitiesSection({
   onChange: (ids: Set<number>) => void;
   onToggleFollow: (cityId: number) => void;
 }) {
-  const [search, setSearch] = useState("");
-
   const { followed, other } = useMemo(() => {
-    const lc = search.toLowerCase();
-    const all = allCities.filter(
-      (c) => !search || c.city_name.toLowerCase().includes(lc),
-    );
     return {
-      followed: all.filter((c) => savedCityIds.has(c.city_id)),
-      other: all.filter((c) => !savedCityIds.has(c.city_id)),
+      followed: allCities.filter((c) => savedCityIds.has(c.city_id)),
+      other: allCities.filter((c) => !savedCityIds.has(c.city_id)),
     };
-  }, [allCities, savedCityIds, search]);
+  }, [allCities, savedCityIds]);
 
   const toggle = (cityId: number) => {
     const next = new Set(selected);
@@ -297,14 +291,6 @@ function CitiesSection({
   return (
     <div className={styles.section}>
       <h3 className={styles.sectionTitle}>Cities</h3>
-      <input
-        type="text"
-        className={styles.searchInput}
-        placeholder="Search cities..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-
       {followed.length > 0 && (
         <div className={styles.cityGroup}>
           <p className={styles.cityGroupLabel}>Your cities</p>
@@ -337,9 +323,6 @@ function CitiesSection({
         </div>
       )}
 
-      {followed.length === 0 && other.length === 0 && (
-        <p className={styles.noResults}>No cities match your search.</p>
-      )}
     </div>
   );
 }

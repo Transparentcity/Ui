@@ -181,7 +181,7 @@ describe("FeedCard", () => {
 
   it("navigates to feed detail route on click", () => {
     renderCard({});
-    const article = screen.getByRole("link");
+    const article = screen.getByRole("article");
     fireEvent.click(article);
     expect(mockPush).toHaveBeenCalledWith("/feed/42");
   });
@@ -200,7 +200,7 @@ describe("FeedCard", () => {
         onOpenFeedDetail={onOpenFeedDetail}
       />,
     );
-    fireEvent.click(screen.getByRole("link"));
+    fireEvent.click(screen.getByRole("article"));
     expect(onOpenFeedDetail).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 42,

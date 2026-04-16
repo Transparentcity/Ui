@@ -24,8 +24,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 14px 0;
+  gap: 12px;
+  padding: 10px 0;
 }
 
 .brand {
@@ -144,10 +144,10 @@
   border: 1px solid var(--border-primary, rgba(17, 24, 39, 0.14));
   background: var(--bg-primary, #ffffff);
   color: var(--text-primary, rgba(17, 24, 39, 0.92));
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
   transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease,
     border-color 120ms ease, color 120ms ease;
@@ -176,10 +176,10 @@
   background: var(--brand-primary, #ad35fa);
   border: none;
   color: var(--text-inverse, #ffffff);
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
   transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
 }
@@ -373,22 +373,22 @@
   }
 
   .buttonSignIn {
-    padding: 8px 10px;
+    padding: 5px 8px;
     font-size: 12px;
   }
 
   .buttonSignUp {
-    padding: 8px 10px;
+    padding: 5px 8px;
     font-size: 12px;
   }
 
   .navRight .button {
-    padding: 8px 10px;
+    padding: 5px 8px;
     font-size: 12px;
   }
 
   .menuWrap .buttonPrimary {
-    padding: 8px 10px;
+    padding: 5px 8px;
     font-size: 12px;
   }
 }

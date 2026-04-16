@@ -11,7 +11,6 @@ import CitySignupButton from "../../CitySignupButton";
 import CityDashboardSection from "../../CityDashboardSection";
 import DistrictFollowClaimBlock from "../DistrictFollowClaimBlock";
 import DistrictListWithFollow from "../../DistrictListWithFollow";
-import CitySignupCTA from "../../CitySignupCTA";
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
@@ -116,20 +115,14 @@ export default function DistrictPageContent({
                 <>
                   <h1 className="district-supervisor-name">{supervisorName}</h1>
                   <p className="district-supervisor-role">
-                    District {d} {leaderTitle} &middot; {city.shortDisplay}
+                    {leaderTitle} &middot; District {d} &middot; {city.shortDisplay}
                   </p>
                 </>
               ) : (
                 <h1 className="district-supervisor-name">District {d}</h1>
               )}
 
-              <p className="district-accountability-tag">
-                Public accountability dashboard &middot; {year}
-              </p>
-
               <DistrictFollowClaimBlock cityId={city.id} district={d} slug={slug} cityDisplayName={city.shortDisplay} />
-
-              <CitySignupCTA citySlug={slug} cityName={city.shortDisplay} label={`Sign up for District ${d} updates`} />
 
               {districts.length > 1 && (
                 <nav className="district-nav-pills" aria-label="Other districts">

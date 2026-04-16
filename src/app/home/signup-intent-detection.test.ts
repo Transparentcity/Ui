@@ -18,7 +18,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 // Types
 // ---------------------------------------------------------------------------
 
-type SignupIntent = "resident" | "public-servant" | null;
+type SignupIntent = "resident" | "public-servant" | "subscriber" | null;
 
 type EffectResult = {
   branch: "follow-city" | "signup-only" | "regular-login";

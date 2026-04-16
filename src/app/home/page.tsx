@@ -376,8 +376,8 @@ export default function DashboardPage() {
     // Check if this is a signup completion (from URL params, or localStorage fallback
     // if Auth0 lost the appState during the redirect)
     const urlParams = new URLSearchParams(window.location.search);
-    const signupIntentParam = urlParams.get("signup") as "resident" | "public-servant" | null;
-    const signupIntentLS = window.localStorage.getItem("transparentcity.signup_intent") as "resident" | "public-servant" | null;
+    const signupIntentParam = urlParams.get("signup") as "resident" | "public-servant" | "subscriber" | null;
+    const signupIntentLS = window.localStorage.getItem("transparentcity.signup_intent") as "resident" | "public-servant" | "subscriber" | null;
     const signupIntent = signupIntentParam || signupIntentLS;
     // Clean up signup intent from localStorage (consumed; prevents repeat triggers on next login)
     if (signupIntentLS) {

@@ -64,7 +64,7 @@ describe("NavEmailSignup", () => {
 
   it("shows city name in placeholder", () => {
     render(<NavEmailSignup citySlug="san-francisco" cityName="San Francisco" />);
-    expect(screen.getByPlaceholderText(/San Francisco/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Free Weekly")).toBeInTheDocument();
   });
 
   it("uses default placeholder when no city name given", () => {
@@ -175,6 +175,53 @@ describe("NavEmailSignup", () => {
       // Type again to clear error
       await user.type(input, "x");
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("stores signup_intent in localStorage before redirecting", async () => {
+      const user = userEvent.setup();
+      render(<NavEmailSignup citySlug="san-francisco" cityName="San Francisco" cityId={42} />);
+      const input = screen.getByRole("textbox", { name: /email/i });
+      await user.type(input, "user@example.com");
+      await user.click(screen.getByRole("button", { name: /sign up/i }));
+
+      expect(window.localStorage.setItem).toHaveBeenCalledWith(
+        "transparentcity.signup_intent",
+        "resident"
+      );
+    });
+
+    it("stores follow_city context in localStorage when city props provided", async () => {
+      const user = userEvent.setup();
+      render(<NavEmailSignup citySlug="san-francisco" cityName="San Francisco" cityId={42} />);
+      const input = screen.getByRole("textbox", { name: /email/i });
+      await user.type(input, "user@example.com");
+      await user.click(screen.getByRole("button", { name: /sign up/i }));
+
+      expect(window.localStorage.setItem).toHaveBeenCalledWith(
+        "transparentcity.follow_city_slug",
+        "san-francisco"
+      );
+      expect(window.localStorage.setItem).toHaveBeenCalledWith(
+        "transparentcity.follow_city_name",
+        "San Francisco"
+      );
+      expect(window.localStorage.setItem).toHaveBeenCalledWith(
+        "transparentcity.follow_city_id",
+        "42"
+      );
+    });
+
+    it("stores signup_intent even without city props", async () => {
+      const user = userEvent.setup();
+      render(<NavEmailSignup citySlug="" />);
+      const input = screen.getByRole("textbox", { name: /email/i });
+      await user.type(input, "user@example.com");
+      await user.click(screen.getByRole("button", { name: /sign up/i }));
+
+      expect(window.localStorage.setItem).toHaveBeenCalledWith(
+        "transparentcity.signup_intent",
+        "resident"
+      );
     });
 
     it("stores return path in sessionStorage before redirecting", async () => {

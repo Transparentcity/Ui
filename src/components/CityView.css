@@ -1809,7 +1809,7 @@
 }
 
 .ytd-placeholder {
-  padding: 48px;
+  padding: 20px 24px;
   text-align: center;
   color: var(--text-secondary);
   background: var(--bg-secondary);
@@ -1817,7 +1817,15 @@
 }
 
 .ytd-placeholder p {
-  margin: 8px 0;
+  margin: 4px 0;
+}
+
+.ytd-placeholder a {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 0.85rem;
+  color: var(--brand-primary, #ad35fa);
+  text-decoration: underline;
 }
 
 /* No data message for districts */

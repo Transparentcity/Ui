@@ -30,6 +30,8 @@ vi.mock("@/lib/analytics", () => ({
   trackSignupStart: vi.fn(),
   trackSignupClick: vi.fn(),
   trackLogin: vi.fn(),
+  getFunnelSessionId: vi.fn(() => "test-session-id"),
+  recordFunnelEventBackend: vi.fn(),
 }));
 
 describe("CitySignupButton", () => {
@@ -86,6 +88,9 @@ describe("CitySignupButton", () => {
       render(<CitySignupButton />);
       await user.click(screen.getByRole("button", { name: /sign up/i }));
       await user.click(screen.getByRole("menuitem", { name: /city staff/i }));
+
+      // GovernmentSignupMessage interstitial is shown first
+      await user.click(screen.getByRole("button", { name: /continue to sign up/i }));
 
       expect(mockLoginWithRedirect).toHaveBeenCalledWith(
         expect.objectContaining({

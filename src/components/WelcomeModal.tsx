@@ -247,7 +247,8 @@ export default function WelcomeModal({
         suggestion.stateName,
         suggestion.countryName,
         null,
-        { lat: suggestion.lat, lng: suggestion.lon }
+        { lat: suggestion.lat, lng: suggestion.lon },
+        true, // address autocomplete is always precise
       );
     } catch (err) {
       console.error("Error processing address suggestion:", err);
@@ -298,7 +299,9 @@ export default function WelcomeModal({
     stateName: string | null,
     countryName: string | null,
     district: number | null = null,
-    coordinates: { lat: number; lng: number } | null = null
+    coordinates: { lat: number; lng: number } | null = null,
+    /** Pass explicitly to avoid stale closure reads of hasPreciseLocation state */
+    isPrecise: boolean = false,
   ) => {
     // Search for the city in our database - try multiple search strategies
     const normalizedCityName = cityName.trim().toLowerCase();
@@ -346,7 +349,7 @@ export default function WelcomeModal({
 
     let finalDistrict = district;
     const districtPromise =
-      coordinates && hasPreciseLocation && !finalDistrict && matchedCity
+      coordinates && isPrecise && !finalDistrict && matchedCity
         ? findDistrictFromCoordinates(coordinates.lat, coordinates.lng, matchedCity.id, token)
             .catch((error) => { console.error("Error determining district from coordinates:", error); return null; })
         : Promise.resolve(null);
@@ -461,11 +464,12 @@ export default function WelcomeModal({
 
       // Only mark as precise if the geocode result is an actual address (not just a city name)
       const placeTypes: string[] = geocodeData.place_type || [];
-      if (coordinates && (placeTypes.includes("address") || placeTypes.includes("poi"))) {
+      const isPrecise = !!(coordinates && (placeTypes.includes("address") || placeTypes.includes("poi")));
+      if (isPrecise) {
         setHasPreciseLocation(true);
       }
 
-      await processLocationAndFindCity(cityName, stateName, countryName, null, coordinates);
+      await processLocationAndFindCity(cityName, stateName, countryName, null, coordinates, isPrecise);
     } catch (err) {
       console.error("Location lookup error:", err);
       setError("Failed to look up location. Please try again.");
@@ -516,7 +520,7 @@ export default function WelcomeModal({
       }
 
       // Pass GPS coordinates to determine district
-      await processLocationAndFindCity(cityName, stateName, countryName, null, { lat: latitude, lng: longitude });
+      await processLocationAndFindCity(cityName, stateName, countryName, null, { lat: latitude, lng: longitude }, true);
     } catch (err: any) {
       console.error("GPS error:", err);
       if (err.code === 1) {
@@ -906,12 +910,15 @@ export default function WelcomeModal({
             },
           };
 
-          if (hasPreciseLocation && homeCoordinates) {
-            preferencesData.extra.home_location = {
-              city_id: cityId,
-              coordinates: homeCoordinates,
-            };
-          }
+          // Always persist home_location with city_id so the feed knows the
+          // user's home city on subsequent logins. Include coordinates only
+          // when a precise address was provided.
+          preferencesData.extra.home_location = {
+            city_id: cityId,
+            ...(hasPreciseLocation && homeCoordinates
+              ? { coordinates: homeCoordinates }
+              : {}),
+          };
 
           // Save preferences with one retry on failure
           try {

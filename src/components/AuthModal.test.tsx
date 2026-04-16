@@ -26,6 +26,12 @@ vi.mock("@/lib/analytics", () => ({
   trackSignupStart: vi.fn(),
   trackSignupClick: vi.fn(),
   trackLogin: vi.fn(),
+  getFunnelSessionId: vi.fn(() => "test-session-id"),
+  recordFunnelEventBackend: vi.fn(),
+}));
+
+vi.mock("@/lib/useFocusTrap", () => ({
+  useFocusTrap: () => ({ current: null }),
 }));
 
 describe("AuthModal", () => {
@@ -96,6 +102,9 @@ describe("AuthModal", () => {
 
     const govBtn = screen.getByText(/public servant/i).closest("button")!;
     await user.click(govBtn);
+
+    // GovernmentSignupMessage interstitial is shown first
+    await user.click(screen.getByRole("button", { name: /continue to sign up/i }));
 
     expect(localStorage.setItem).toHaveBeenCalledWith(
       "transparentcity.signup_intent",

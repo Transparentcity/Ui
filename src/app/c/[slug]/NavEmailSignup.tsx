@@ -50,6 +50,15 @@ export default function NavEmailSignup({ citySlug, cityName, cityId, isHome }: P
     if (!email || !email.includes("@")) return;
     setStatus("sending");
     storeReturnPath();
+    // Persist signup intent and city context so the onboarding modal shows
+    // immediately when the user lands on /home after the magic-link flow,
+    // instead of waiting for the permissions API to finish.
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("transparentcity.signup_intent", "resident");
+      if (citySlug) window.localStorage.setItem("transparentcity.follow_city_slug", citySlug);
+      if (cityName) window.localStorage.setItem("transparentcity.follow_city_name", cityName);
+      if (typeof cityId === "number") window.localStorage.setItem("transparentcity.follow_city_id", String(cityId));
+    }
     try {
       await loginWithRedirect({
         authorizationParams: {
