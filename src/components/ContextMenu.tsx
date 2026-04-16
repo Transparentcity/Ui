@@ -84,6 +84,26 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
             strokeLinejoin="round"
             style={{ filter: "grayscale(100%)" }}
           >
+            <path d="M3 3v18h18" />
+            <path d="M18 9l-5 5-4-4-3 3" />
+          </svg>
+        ),
+        label: "Dashboard",
+        view: "system-stats",
+      },
+      {
+        icon: (
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ filter: "grayscale(100%)" }}
+          >
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
             <polyline points="22,6 12,13 2,6"></polyline>
           </svg>

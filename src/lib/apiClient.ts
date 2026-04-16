@@ -6954,3 +6954,98 @@ export function getCostMetricDetail(
     token
   );
 }
+
+// ============================================================================
+// SIGNUP FUNNEL ANALYTICS
+// ============================================================================
+
+export interface SignupFunnelEventPayload {
+  event_name: string;
+  funnel_session_id?: string | null;
+  city_id?: number | null;
+  city_slug?: string | null;
+  city_name?: string | null;
+  district?: number | null;
+  signup_intent?: string | null;
+  source_surface?: string | null;
+  landing_path?: string | null;
+  referrer?: string | null;
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_campaign?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+/** Fire-and-forget: record a signup funnel event (no auth required). */
+export function recordSignupFunnelEvent(
+  payload: SignupFunnelEventPayload,
+  token?: string
+): Promise<void> {
+  return request<void>(
+    "/api/public/signup-funnel-event",
+    "POST",
+    payload,
+    token
+  );
+}
+
+export interface DailyFunnelRow {
+  date: string;
+  landings: number | null;
+  bounce_rate: number | null;
+  signup_starts: number;
+  signup_completes: number;
+}
+
+export interface CityFunnelRow {
+  city_id: number | null;
+  city_slug: string | null;
+  city_name: string | null;
+  signup_starts: number;
+  signup_completes: number;
+}
+
+export interface DistrictFunnelRow {
+  city_id: number | null;
+  city_name: string | null;
+  district: number | null;
+  signup_starts: number;
+  signup_completes: number;
+}
+
+export interface SignupFunnelSummary {
+  date_from: string;
+  date_to: string;
+  total_landings: number | null;
+  avg_bounce_rate: number | null;
+  total_signup_starts: number;
+  total_signup_completes: number;
+  conversion_rate: number | null;
+  daily: DailyFunnelRow[];
+  by_city: CityFunnelRow[];
+  by_district: DistrictFunnelRow[];
+  ga4_available: boolean;
+}
+
+export function getSignupFunnelSummary(
+  token: string,
+  options?: {
+    days?: number;
+    date_from?: string;
+    date_to?: string;
+    city_id?: number;
+  }
+): Promise<SignupFunnelSummary> {
+  const params = new URLSearchParams();
+  if (options?.days != null) params.append("days", String(options.days));
+  if (options?.date_from) params.append("date_from", options.date_from);
+  if (options?.date_to) params.append("date_to", options.date_to);
+  if (options?.city_id != null) params.append("city_id", String(options.city_id));
+  const qs = params.toString();
+  return request<SignupFunnelSummary>(
+    `/api/admin/signup-analytics/summary${qs ? `?${qs}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}

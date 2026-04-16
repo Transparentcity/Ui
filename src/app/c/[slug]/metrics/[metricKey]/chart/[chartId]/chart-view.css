@@ -38,6 +38,22 @@
   background: var(--bg-primary);
 }
 
+.chart-view-completeness-footer {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0 0 1rem 0;
+  line-height: 1.5;
+}
+
+.chart-view-completeness-footer a {
+  color: var(--brand-primary, #8b5cf6);
+  text-decoration: none;
+}
+
+.chart-view-completeness-footer a:hover {
+  text-decoration: underline;
+}
+
 .chart-view-meta {
   font-size: 0.8125rem;
   color: var(--text-secondary);

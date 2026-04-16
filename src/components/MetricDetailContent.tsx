@@ -20,6 +20,7 @@ import { API_BASE } from "@/lib/apiBase";
 import Loader from "./Loader";
 import PublicMetricTimeSeriesChart from "./PublicMetricTimeSeriesChart";
 import { selectPublicMetricCharts } from "@/lib/selectPublicMetricCharts";
+import { computeReportingCompletenessStalenessDays } from "@/lib/computeReportingCompletenessStalenessDays";
 import CompletenessSparkline from "./CompletenessSparkline";
 
 interface MetricDetailContentProps {
@@ -229,25 +230,15 @@ export default function MetricDetailContent({
     ? `District ${selectedDistrict}`
     : resolvedCityName;
 
-  // Compute reporting completeness lag: how many trailing days in the completeness data
-  // are still "unstable" (i.e., their counts are still changing / not yet fully reported).
-  // This reflects how long it typically takes for a day's data to be complete, not just
-  // how far behind the publication date is.
-  const staleness_days = useMemo(() => {
-    if (!completenessDaily?.data || completenessDaily.data.length === 0) return undefined;
-    const sorted = [...completenessDaily.data].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    let lag = 0;
-    for (const entry of sorted) {
-      if (!entry.is_stable) {
-        lag++;
-      } else {
-        break;
-      }
-    }
-    return lag > 0 ? lag : undefined;
-  }, [completenessDaily]);
+  const staleness_days = useMemo(
+    () => computeReportingCompletenessStalenessDays(completenessDaily),
+    [completenessDaily]
+  );
+
+  const reportingCompletenessHref =
+    citySlug != null && citySlug !== ""
+      ? `/c/${citySlug}/metrics/${metric.metric_key}#reporting-completeness`
+      : null;
 
   const { primaryChartId, yearChartId } = useMemo(
     () =>
@@ -432,6 +423,7 @@ export default function MetricDetailContent({
               primaryChartId={primaryChartId}
               yearChartId={yearChartId}
               staleness_days={staleness_days}
+              reportingCompletenessHref={reportingCompletenessHref}
             />
           </div>
         </section>
@@ -681,6 +673,7 @@ export default function MetricDetailContent({
                 </p>
               </div>
             )}
+            <div id="reporting-completeness">
             {completenessLoading ? (
               <div className="provenance-item">
                 <h3 className="provenance-label">Reporting completeness</h3>
@@ -696,6 +689,7 @@ export default function MetricDetailContent({
                 </div>
               </div>
             ) : null}
+            </div>
         </div>
       </section>
     </div>

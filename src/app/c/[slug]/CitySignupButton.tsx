@@ -3,7 +3,14 @@
 import { useAuth0 } from "@auth0/auth0-react";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { trackSignupStart, trackSignupClick, trackLogin } from "@/lib/analytics";
+import {
+  trackSignupStart,
+  trackSignupClick,
+  trackLogin,
+  getFunnelSessionId,
+  recordFunnelEventBackend,
+  type SignupEventContext,
+} from "@/lib/analytics";
 import { useSignupEmail } from "./SignupEmailContext";
 
 type Props = {
@@ -37,7 +44,18 @@ export default function CitySignupButton({ citySlug, cityName, cityId }: Props =
 
   const handleSignup = async (intent: "resident" | "public-servant") => {
     setSignupMenuOpen(false);
-    trackSignupStart(intent);
+    const ctx: SignupEventContext = {
+      city_slug: citySlug ?? null,
+      city_name: cityName ?? null,
+      city_id: typeof cityId === "number" ? cityId : null,
+      source_surface: "city_header",
+      signup_intent: intent,
+      landing_path:
+        typeof window !== "undefined" ? window.location.pathname : null,
+      funnel_session_id: getFunnelSessionId(),
+    };
+    trackSignupStart(intent, ctx);
+    recordFunnelEventBackend("signup_start", ctx);
     if (typeof window !== "undefined") {
       window.localStorage.setItem("transparentcity.signup_intent", intent);
       if (citySlug) {
@@ -50,7 +68,7 @@ export default function CitySignupButton({ citySlug, cityName, cityId }: Props =
         window.localStorage.setItem("transparentcity.follow_city_id", String(cityId));
       }
     }
-    trackSignupClick(intent);
+    trackSignupClick(intent, ctx);
     const params = new URLSearchParams({ signup: intent });
     if (citySlug) params.set("follow_city_slug", citySlug);
     if (cityName) params.set("follow_city_name", cityName);

@@ -20,6 +20,7 @@ import { slugify } from "@/lib/utils";
 import Loader from "./Loader";
 import PublicMetricTimeSeriesChart from "./PublicMetricTimeSeriesChart";
 import { selectPublicMetricCharts } from "@/lib/selectPublicMetricCharts";
+import { computeReportingCompletenessStalenessDays } from "@/lib/computeReportingCompletenessStalenessDays";
 import CompletenessSparkline from "./CompletenessSparkline";
 import styles from "./MetricsAdmin.module.css";
 import "./MetricDetailModal.css";
@@ -226,23 +227,15 @@ export default function MetricDetailModal({
 
   const preferredChartId = primaryChartId;
 
-  // Compute reporting completeness lag: how many trailing days in the completeness data
-  // are still "unstable" (counts still changing / not yet fully reported).
-  const staleness_days = useMemo(() => {
-    if (!completenessDaily?.data || completenessDaily.data.length === 0) return undefined;
-    const sorted = [...completenessDaily.data].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    let lag = 0;
-    for (const entry of sorted) {
-      if (!entry.is_stable) {
-        lag++;
-      } else {
-        break;
-      }
-    }
-    return lag > 0 ? lag : undefined;
-  }, [completenessDaily]);
+  const staleness_days = useMemo(
+    () => computeReportingCompletenessStalenessDays(completenessDaily),
+    [completenessDaily]
+  );
+
+  const reportingCompletenessHref =
+    metric?.metric_key && resolvedCitySlug
+      ? `/c/${resolvedCitySlug}/metrics/${metric.metric_key}#reporting-completeness`
+      : null;
 
   const handleShare = async () => {
     if (navigator.share && publicUrl) {
@@ -502,6 +495,7 @@ export default function MetricDetailModal({
                       primaryChartId={primaryChartId}
                       yearChartId={yearChartId}
                       staleness_days={staleness_days}
+                      reportingCompletenessHref={reportingCompletenessHref}
                     />
                   </div>
                 </section>
@@ -750,6 +744,7 @@ export default function MetricDetailModal({
                         </p>
                       </div>
                     )}
+                    <div id="reporting-completeness">
                     {completenessLoading ? (
                       <div className="provenance-item">
                         <h3 className="provenance-label">Reporting completeness</h3>
@@ -765,6 +760,7 @@ export default function MetricDetailModal({
                         </div>
                       </div>
                     ) : null}
+                    </div>
                 </div>
               </section>
 

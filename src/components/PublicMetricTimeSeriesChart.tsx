@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   getPublicTimeSeriesChart,
@@ -35,10 +36,13 @@ export default function PublicMetricTimeSeriesChart({
   primaryChartId,
   yearChartId,
   staleness_days,
+  reportingCompletenessHref,
 }: {
   primaryChartId: number | null;
   yearChartId: number | null;
   staleness_days?: number;
+  /** When set with a reporting lag, shown under the chart (e.g. deep-link to #reporting-completeness). */
+  reportingCompletenessHref?: string | null;
 }) {
   const [useNativeYearSeries, setUseNativeYearSeries] = useState(false);
 
@@ -110,23 +114,37 @@ export default function PublicMetricTimeSeriesChart({
     useNativeYearSeries && yearChartId != null ? "year" : "ytd";
 
   return (
-    <TimeSeriesChart
-      key={activeChartId}
-      data={aggregated}
-      metadata={data.metadata}
-      height={320}
-      defaultPeriod={defaultPeriod}
-      fullBleed={true}
-      hidePeriodSelector={false}
-      showExternalTitle={true}
-      staleness_days={staleness_days}
-      onPeriodChange={(p) => {
-        if (p === "year" && yearChartId != null) {
-          setUseNativeYearSeries(true);
-        } else {
-          setUseNativeYearSeries(false);
-        }
-      }}
-    />
+    <>
+      <TimeSeriesChart
+        key={activeChartId}
+        data={aggregated}
+        metadata={data.metadata}
+        height={320}
+        defaultPeriod={defaultPeriod}
+        fullBleed={true}
+        hidePeriodSelector={false}
+        showExternalTitle={true}
+        staleness_days={staleness_days}
+        onPeriodChange={(p) => {
+          if (p === "year" && yearChartId != null) {
+            setUseNativeYearSeries(true);
+          } else {
+            setUseNativeYearSeries(false);
+          }
+        }}
+      />
+      {staleness_days != null &&
+        staleness_days > 0 &&
+        reportingCompletenessHref ? (
+        <p style={{ margin: "0.75rem 0 0", fontSize: "0.875rem" }}>
+          <Link
+            href={reportingCompletenessHref}
+            className="metric-chart-full-page-link"
+          >
+            View reporting completeness chart
+          </Link>
+        </p>
+      ) : null}
+    </>
   );
 }

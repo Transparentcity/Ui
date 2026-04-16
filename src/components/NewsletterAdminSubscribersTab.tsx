@@ -12,6 +12,7 @@ import {
   getNewsletterPendingDetail,
   listCities,
   listUsers,
+  updateUser,
   type AdminNewsletterHistoryItem,
   type AdminUserNewsletterOverview,
   type CityListItem,
@@ -32,6 +33,44 @@ function commBool(v: unknown): string {
   return typeof v === "boolean" ? (v ? "On" : "Off") : "\u2014";
 }
 
+function emailUsername(email: string | null | undefined): string {
+  if (!email) return "\u2014";
+  const idx = email.indexOf("@");
+  return idx > 0 ? email.slice(0, idx) : email;
+}
+
+function getLocationLevel(ov: AdminUserNewsletterOverview | undefined): string {
+  if (!ov) return "\u2014";
+  const home = ov.home_location;
+  if (!home) return "\u2014";
+  const dist = home.district;
+  if (dist !== undefined && dist !== null) {
+    const n = Number(dist);
+    if (!Number.isNaN(n) && n !== 0) return "District";
+  }
+  if (home.city_id != null) return "City";
+  return "\u2014";
+}
+
+interface SubCounts {
+  city: number;
+  district: number;
+  hasPrompt: boolean;
+}
+
+function getSubCounts(ov: AdminUserNewsletterOverview | undefined): SubCounts | null {
+  if (!ov) return null;
+  const subs = ov.subscriptions;
+  const city = subs.filter(
+    (s) => !s.district || s.district === "0" || Number(s.district) === 0
+  ).length;
+  const district = subs.filter(
+    (s) => s.district && s.district !== "0" && Number(s.district) !== 0
+  ).length;
+  const hasPrompt = !!(ov.newsletter_description?.trim());
+  return { city, district, hasPrompt };
+}
+
 export default function NewsletterAdminSubscribersTab() {
   const { getAccessTokenSilently } = useAuth0();
   const [users, setUsers] = useState<User[]>([]);
@@ -47,6 +86,11 @@ export default function NewsletterAdminSubscribersTab() {
   const [previewLoading, setPreviewLoading] = useState(false);
   /** Session for the row being previewed (outbox body preview), when the API provides one. */
   const [previewJobSessionId, setPreviewJobSessionId] = useState<string | null>(null);
+  /** Cached overviews keyed by user ID — populated on first expand, retained for list row display. */
+  const [overviewCache, setOverviewCache] = useState<Map<number, AdminUserNewsletterOverview>>(
+    new Map()
+  );
+  const [savePromptBusy, setSavePromptBusy] = useState(false);
 
   const [testCityId, setTestCityId] = useState<number | null>(null);
   const [testDistrict, setTestDistrict] = useState("0");
@@ -88,6 +132,45 @@ export default function NewsletterAdminSubscribersTab() {
     loadBase();
   }, [loadBase]);
 
+  // After the user list loads, background-fetch overview summaries for all users
+  // so Location and Subscription columns populate without requiring a manual expand.
+  useEffect(() => {
+    if (users.length === 0) return;
+    let cancelled = false;
+    const BATCH = 10;
+    const DELAY_MS = 150;
+
+    (async () => {
+      try {
+        const token = await getAccessTokenSilently();
+        for (let i = 0; i < users.length; i += BATCH) {
+          if (cancelled) break;
+          const batch = users.slice(i, i + BATCH);
+          const results = await Promise.allSettled(
+            batch.map((u) => getAdminUserNewsletterOverview(u.id, token))
+          );
+          if (cancelled) break;
+          setOverviewCache((prev) => {
+            const next = new Map(prev);
+            results.forEach((r, idx) => {
+              if (r.status === "fulfilled") next.set(batch[idx].id, r.value);
+            });
+            return next;
+          });
+          if (i + BATCH < users.length) {
+            await new Promise((res) => setTimeout(res, DELAY_MS));
+          }
+        }
+      } catch {
+        // Background load failures are silent — data still appears on expand
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [users, getAccessTokenSilently]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return users;
@@ -115,6 +198,7 @@ export default function NewsletterAdminSubscribersTab() {
         ]);
         setOverview(ov);
         setHistory(hi.items);
+        setOverviewCache((prev) => new Map(prev).set(userId, ov));
         const home = ov.home_location;
         setTestCityId(
           home?.city_id != null && Number.isFinite(Number(home.city_id))
@@ -144,6 +228,22 @@ export default function NewsletterAdminSubscribersTab() {
   const toggleExpand = (id: number) => {
     setExpandedId((prev) => (prev === id ? null : id));
   };
+
+  const handleSavePromptToPreferences = useCallback(
+    async (userId: number) => {
+      setSavePromptBusy(true);
+      try {
+        const token = await getAccessTokenSilently();
+        await updateUser(userId, { custom_email_prompt: testPrompt.trim() || null }, token);
+        toast.success("Personal email prompt saved to user preferences.");
+      } catch (e: unknown) {
+        toast.error(e instanceof Error ? e.message : "Failed to save personal email prompt");
+      } finally {
+        setSavePromptBusy(false);
+      }
+    },
+    [getAccessTokenSilently, testPrompt]
+  );
 
   const handlePreviewOutbound = async (item: AdminNewsletterHistoryItem) => {
     const canPreviewOutbound = item.type === "outbound_email" && typeof item.id === "number";
@@ -258,9 +358,9 @@ export default function NewsletterAdminSubscribersTab() {
             <thead>
               <tr>
                 <th className={styles.th} style={{ width: 28 }} aria-hidden />
-                <th className={styles.th}>ID</th>
-                <th className={styles.th}>Email</th>
-                <th className={styles.th}>Name</th>
+                <th className={styles.th}>User</th>
+                <th className={styles.th}>Location</th>
+                <th className={styles.th}>Subscriptions</th>
                 <th className={styles.th}>Active</th>
               </tr>
             </thead>
@@ -282,6 +382,7 @@ export default function NewsletterAdminSubscribersTab() {
                     onToggle={() => toggleExpand(u.id)}
                     detailLoading={open && detailLoading}
                     overview={open ? overview : null}
+                    cachedOverview={overviewCache.get(u.id)}
                     history={open ? history : []}
                     cities={cities}
                     testCityId={testCityId}
@@ -291,6 +392,7 @@ export default function NewsletterAdminSubscribersTab() {
                     seymourModelOptions={seymourModelOptions}
                     testPrompt={testPrompt}
                     testBusy={testBusy}
+                    savePromptBusy={savePromptBusy}
                     testTitle={testTitle}
                     previewHtml={previewHtml}
                     previewLoading={previewLoading}
@@ -301,6 +403,7 @@ export default function NewsletterAdminSubscribersTab() {
                     onSeymourModelKey={setSeymourModelKey}
                     onTestPrompt={setTestPrompt}
                     onGenerateNewsletter={() => handleGenerateNewsletter(u.id)}
+                    onSavePromptToPreferences={() => handleSavePromptToPreferences(u.id)}
                     onPreviewOutbound={handlePreviewOutbound}
                     previewJobSessionId={previewJobSessionId}
                     onClosePreview={() => {
@@ -324,6 +427,7 @@ function UserNewsletterRow({
   onToggle,
   detailLoading,
   overview,
+  cachedOverview,
   history,
   cities,
   testCityId,
@@ -333,6 +437,7 @@ function UserNewsletterRow({
   seymourModelOptions,
   testPrompt,
   testBusy,
+  savePromptBusy,
   testTitle,
   previewHtml,
   previewLoading,
@@ -343,6 +448,7 @@ function UserNewsletterRow({
   onSeymourModelKey,
   onTestPrompt,
   onGenerateNewsletter,
+  onSavePromptToPreferences,
   onPreviewOutbound,
   previewJobSessionId,
   onClosePreview,
@@ -352,6 +458,7 @@ function UserNewsletterRow({
   onToggle: () => void;
   detailLoading: boolean;
   overview: AdminUserNewsletterOverview | null;
+  cachedOverview: AdminUserNewsletterOverview | undefined;
   history: AdminNewsletterHistoryItem[];
   cities: CityListItem[];
   testCityId: number | null;
@@ -361,6 +468,7 @@ function UserNewsletterRow({
   seymourModelOptions: { key: string; name: string }[];
   testPrompt: string;
   testBusy: boolean;
+  savePromptBusy: boolean;
   testTitle: string | null;
   previewHtml: string | null;
   previewLoading: boolean;
@@ -371,19 +479,64 @@ function UserNewsletterRow({
   onSeymourModelKey: (v: string) => void;
   onTestPrompt: (v: string) => void;
   onGenerateNewsletter: () => void;
+  onSavePromptToPreferences: () => void;
   onPreviewOutbound: (item: AdminNewsletterHistoryItem) => void;
   previewJobSessionId: string | null;
   onClosePreview: () => void;
 }) {
+  const locationLevel = getLocationLevel(cachedOverview);
+  const subCounts = getSubCounts(cachedOverview);
+
   return (
     <>
       <tr className={styles.rowClickable} onClick={onToggle}>
         <td className={styles.td} style={{ textAlign: "center", fontSize: 10 }}>
           {open ? "\u25BC" : "\u25B6"}
         </td>
-        <td className={styles.td}>{user.id}</td>
-        <td className={styles.td}>{user.email || "\u2014"}</td>
-        <td className={styles.td}>{user.name || "\u2014"}</td>
+        <td className={styles.td}>{emailUsername(user.email)}</td>
+        <td className={styles.td}>
+          {cachedOverview === undefined ? (
+            <span className={styles.muted}>\u2014</span>
+          ) : (
+            <span
+              className={`${styles.badge} ${
+                locationLevel === "District"
+                  ? styles.badgeBlue
+                  : locationLevel === "City"
+                  ? styles.badgeGreen
+                  : styles.badgeGray
+              }`}
+            >
+              {locationLevel}
+            </span>
+          )}
+        </td>
+        <td className={styles.td}>
+          {subCounts === null ? (
+            <span className={styles.muted}>\u2014</span>
+          ) : (
+            <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+              {subCounts.city > 0 && (
+                <span className={`${styles.badge} ${styles.badgeGreen}`}>
+                  {subCounts.city} city
+                </span>
+              )}
+              {subCounts.district > 0 && (
+                <span className={`${styles.badge} ${styles.badgeBlue}`}>
+                  {subCounts.district} district
+                </span>
+              )}
+              {subCounts.hasPrompt && (
+                <span className={`${styles.badge} ${styles.badgeYellow}`}>
+                  custom prompt
+                </span>
+              )}
+              {subCounts.city === 0 && subCounts.district === 0 && !subCounts.hasPrompt && (
+                <span className={`${styles.badge} ${styles.badgeGray}`}>none</span>
+              )}
+            </span>
+          )}
+        </td>
         <td className={styles.td}>{user.is_active ? "Yes" : "No"}</td>
       </tr>
       {open && (
@@ -587,9 +740,21 @@ function UserNewsletterRow({
                         </button>
                       </div>
                     </div>
-                    <label style={{ display: "block", fontSize: 12, marginTop: 8, color: "var(--text-secondary)" }}>
-                      Prompt override (optional; prepended with city/district)
-                    </label>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 8 }}>
+                      <label style={{ display: "block", fontSize: 12, color: "var(--text-secondary)" }}>
+                        Prompt override (optional; prepended with city/district)
+                      </label>
+                      <button
+                        type="button"
+                        className={styles.secondaryBtn}
+                        style={{ fontSize: 11, padding: "4px 10px" }}
+                        disabled={savePromptBusy}
+                        onClick={onSavePromptToPreferences}
+                        title="Save this text as the user's personal email prompt (visible in their settings)"
+                      >
+                        {savePromptBusy ? "Saving…" : "Save as personal prompt"}
+                      </button>
+                    </div>
                     <textarea
                       className={styles.textarea}
                       style={{ marginTop: 4, minHeight: 72 }}

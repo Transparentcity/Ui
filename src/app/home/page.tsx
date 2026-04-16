@@ -44,11 +44,15 @@ import EditHomeLocationModal from "@/components/EditHomeLocationModal";
 import RedisStatusIndicator from "@/components/RedisStatusIndicator";
 import {
   trackSignupComplete,
+  trackSignupAuthReturn,
   trackLogin,
   trackOnboardingComplete,
   trackDashboardView,
   trackUserActivation,
   trackCitySaved,
+  getFunnelSessionId,
+  recordFunnelEventBackend,
+  type SignupEventContext,
 } from "@/lib/analytics";
 import {
   mergeNewsletterPreferenceFields,
@@ -104,6 +108,7 @@ const EmailAdmin = dynamic(() => import("@/components/EmailAdmin"), { ssr: false
 const DataCompletenessAdmin = dynamic(() => import("@/components/DataCompletenessAdmin"), { ssr: false });
 const FeedAdmin = dynamic(() => import("@/components/FeedAdmin"), { ssr: false });
 const NewsletterAdmin = dynamic(() => import("@/components/NewsletterAdmin"), { ssr: false });
+const SignupFunnelDashboard = dynamic(() => import("@/components/SignupFunnelDashboard"), { ssr: false });
 
 // Dynamically import NewResearchPage to avoid SSR issues
 const NewResearchPage = dynamic(() => import("../research/new/page"), { ssr: false });
@@ -393,14 +398,23 @@ export default function DashboardPage() {
       // User arrived via "Follow this city" - save the city AND show onboarding.
       // The followed city goes into My Places regardless of what address the
       // user enters during onboarding (e.g. Boston page → lives in Somerville).
+      const followCityName = urlParams.get("follow_city_name") || window.localStorage.getItem("transparentcity.follow_city_name") || "";
+      const followCitySlug = urlParams.get("follow_city_slug") || window.localStorage.getItem("transparentcity.follow_city_slug") || slugify(followCityName);
       if (signupIntent) {
-        trackSignupComplete(signupIntent, user.sub);
+        const completionCtx: SignupEventContext = {
+          city_id: Number.isFinite(followCityId) ? followCityId : null,
+          city_slug: followCitySlug || null,
+          city_name: followCityName || null,
+          signup_intent: signupIntent,
+          source_surface: "city_header",
+          funnel_session_id: getFunnelSessionId(),
+        };
+        trackSignupAuthReturn(completionCtx);
+        trackSignupComplete(signupIntent, user.sub, completionCtx);
         trackUserActivation("signup_complete");
       } else {
         trackLogin(user.sub);
       }
-      const followCityName = urlParams.get("follow_city_name") || window.localStorage.getItem("transparentcity.follow_city_name") || "";
-      const followCitySlug = urlParams.get("follow_city_slug") || window.localStorage.getItem("transparentcity.follow_city_slug") || slugify(followCityName);
       setActiveCityId(followCityId);
       setCurrentView("city");
       hasAutoSelectedCity.current = true;
@@ -410,12 +424,24 @@ export default function DashboardPage() {
       window.localStorage.removeItem("transparentcity.follow_city_slug");
       window.localStorage.removeItem("transparentcity.follow_city_id");
       window.localStorage.removeItem("transparentcity.follow_city_name");
-      // Save city in the background
+      // Save city + record first-party funnel events in the background
       void (async () => {
         try {
           const token = await getAccessTokenSilently();
           await saveCity(followCityId, token);
           trackCitySaved(followCityId, autoSelectedCityRef.current?.name || "Unknown");
+          if (signupIntent) {
+            const completionCtxRef: SignupEventContext = {
+              city_id: Number.isFinite(followCityId) ? followCityId : null,
+              city_slug: followCitySlug || null,
+              city_name: followCityName || null,
+              signup_intent: signupIntent,
+              source_surface: "city_header",
+              funnel_session_id: getFunnelSessionId(),
+            };
+            recordFunnelEventBackend("signup_auth_return", completionCtxRef, token);
+            recordFunnelEventBackend("signup_complete", completionCtxRef, token);
+          }
         } catch {
           // Non-blocking
         }
@@ -433,8 +459,25 @@ export default function DashboardPage() {
       }
     } else if (signupIntent) {
       // User just completed signup without a follow intent
-      trackSignupComplete(signupIntent, user.sub);
+      const baseCtx: SignupEventContext = {
+        signup_intent: signupIntent,
+        source_surface: "auth_modal",
+        funnel_session_id: getFunnelSessionId(),
+        landing_path: window.location.pathname,
+      };
+      trackSignupAuthReturn(baseCtx);
+      trackSignupComplete(signupIntent, user.sub, baseCtx);
       trackUserActivation("signup_complete");
+      // Record first-party backend events (non-blocking, requires auth token)
+      void (async () => {
+        try {
+          const token = await getAccessTokenSilently();
+          recordFunnelEventBackend("signup_auth_return", baseCtx, token);
+          recordFunnelEventBackend("signup_complete", baseCtx, token);
+        } catch {
+          // Non-blocking
+        }
+      })();
       setCurrentView((prev) => (currentActiveCityId != null && prev === "city" ? "city" : "feed"));
       const newUrl = window.location.pathname;
       window.history.replaceState({}, "", newUrl);
@@ -1545,6 +1588,14 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {currentView === "system-stats" && isAdmin && (
+            <div id="system-stats-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
+              <div className={styles.adminContainer}>
+                <SignupFunnelDashboard />
+              </div>
+            </div>
+          )}
+
           {currentView === "feed" && govVerificationStatus?.government_pending_verification && !govVerificationStatus?.government_verified && (
             <div style={{
               padding: "12px 16px",
@@ -1889,7 +1940,22 @@ export default function DashboardPage() {
                     <div className={styles.settingsSectionCard}>
                       <div className={styles.settingsRow}>
                         <div className={styles.settingsRowLabel}>
-                          <div className={styles.settingsRowDescription}>Coming soon…</div>
+                          <div className={styles.settingsRowTitle}>Dashboard</div>
+                          <div className={styles.settingsRowDescription}>
+                            Landings, bounce rate, signup starts &amp; completes, city and district breakdowns.
+                          </div>
+                        </div>
+                        <div className={styles.settingsRowControl}>
+                          <button
+                            type="button"
+                            className={styles.settingsSecondaryBtn}
+                            onClick={() => {
+                              setSettingsOpen(false);
+                              setCurrentView("system-stats");
+                            }}
+                          >
+                            Open
+                          </button>
                         </div>
                       </div>
                     </div>

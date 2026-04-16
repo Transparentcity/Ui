@@ -190,6 +190,12 @@ function formatDate(value?: string | null): string {
   return dt.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
+function emailUsername(email: string | null | undefined): string {
+  if (!email) return "\u2014";
+  const idx = email.indexOf("@");
+  return idx > 0 ? email.slice(0, idx) : email;
+}
+
 function formatDateTime(value?: string | null): string {
   if (!value) return "\u2014";
   const dt = new Date(value);
@@ -1322,7 +1328,7 @@ function NewsletterDashboardQueue() {
                           aria-label={`Select ${row.recipient_email}`}
                         />
                       </td>
-                      <td className={styles.td}>{row.recipient_email}</td>
+                      <td className={styles.td}>{emailUsername(row.recipient_email)}</td>
                       <td className={styles.td} style={{ fontSize: 12 }}>
                         {newsletterScopeLabel(row)}
                       </td>
@@ -1432,7 +1438,7 @@ function NewsletterDashboardQueue() {
                               <td className={styles.td} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
                                 {row.sent_at ? formatDate(row.sent_at) : "\u2014"}
                               </td>
-                              <td className={styles.td}>{row.recipient_email}</td>
+                              <td className={styles.td}>{emailUsername(row.recipient_email)}</td>
                               <td className={styles.td} style={{ fontSize: 12 }}>
                                 {newsletterScopeLabel(row)}
                               </td>
@@ -1533,7 +1539,7 @@ function NewsletterDashboardQueue() {
                           <td className={styles.td} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
                             {row.sent_at ? formatDate(row.sent_at) : "\u2014"}
                           </td>
-                          <td className={styles.td}>{row.to_email}</td>
+                          <td className={styles.td}>{emailUsername(row.to_email)}</td>
                           <td className={styles.td} style={{ fontSize: 12 }}>{row.source}</td>
                           <td className={styles.td}>
                             <div className={styles.headline}>{row.subject || "\u2014"}</div>

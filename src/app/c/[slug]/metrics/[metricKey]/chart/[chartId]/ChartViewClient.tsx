@@ -9,12 +9,15 @@ import PublicFooter from "@/components/PublicFooter";
 import CitySignupButton from "../../../../CitySignupButton";
 import { SignupEmailProvider } from "../../../../SignupEmailContext";
 import {
+  getPublicMetricCompletenessDaily,
   getPublicTimeSeriesChart,
+  type DailyCompletenessResponse,
   type PublicTimeSeriesChartPoint,
   type PublicTimeSeriesChartResponse,
 } from "@/lib/publicApiClient";
 import type { PublicMetricDetail } from "@/lib/publicApiClient";
 import Breadcrumb from "@/components/Breadcrumb";
+import { computeReportingCompletenessStalenessDays } from "@/lib/computeReportingCompletenessStalenessDays";
 import "@/app/landing.css";
 
 function aggregateTimeSeriesPoints(
@@ -42,15 +45,6 @@ function aggregateTimeSeriesPoints(
     }
   }
   return Array.from(map.values());
-}
-
-/** Default view for the standalone chart page: monthly for granular series, year when the URL is already yearly. */
-function defaultPeriodFromMetadata(
-  periodType: string | undefined
-): PeriodType {
-  const p = periodType?.toLowerCase();
-  if (p === "year") return "year";
-  return "month";
 }
 
 interface ChartViewClientProps {
@@ -93,8 +87,32 @@ export default function ChartViewClient({
     setYearLoading(false);
   }, [aggregatedUrlChart]);
 
-  const baseDefaultPeriod = defaultPeriodFromMetadata(
-    initialChart.metadata?.period_type
+  const districtForCompleteness = useMemo(() => {
+    const d = initialChart.metadata?.district;
+    return d != null && d > 0 ? d : null;
+  }, [initialChart.metadata?.district]);
+
+  const [completenessDaily, setCompletenessDaily] =
+    useState<DailyCompletenessResponse | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setCompletenessDaily(null);
+    getPublicMetricCompletenessDaily(metric.id, "day", 90, districtForCompleteness)
+      .then((res) => {
+        if (!cancelled) setCompletenessDaily(res);
+      })
+      .catch(() => {
+        if (!cancelled) setCompletenessDaily(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [metric.id, districtForCompleteness]);
+
+  const staleness_days = useMemo(
+    () => computeReportingCompletenessStalenessDays(completenessDaily),
+    [completenessDaily]
   );
 
   const handlePeriodChange = useCallback(
@@ -154,8 +172,14 @@ export default function ChartViewClient({
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(" ");
 
-  const defaultPeriod: PeriodType =
-    useNativeYearSeries && yearChartId != null ? "year" : baseDefaultPeriod;
+  const defaultPeriod: PeriodType = useMemo(() => {
+    if (useNativeYearSeries && yearChartId != null) return "year";
+    const p = initialChart.metadata?.period_type?.toLowerCase();
+    if (p === "year") return "year";
+    return "ytd";
+  }, [useNativeYearSeries, yearChartId, initialChart.metadata?.period_type]);
+
+  const reportingCompletenessHref = `/c/${citySlug}/metrics/${metric.metric_key}#reporting-completeness`;
 
   return (
     <SignupEmailProvider>
@@ -201,10 +225,22 @@ export default function ChartViewClient({
                   height={500}
                   defaultPeriod={defaultPeriod}
                   showExternalTitle={false}
+                  staleness_days={staleness_days}
                   onPeriodChange={handlePeriodChange}
                 />
               )}
             </div>
+            <p className="chart-view-completeness-footer">
+              {staleness_days != null && staleness_days > 0 ? (
+                <>
+                  Shaded range: the latest {staleness_days} day
+                  {staleness_days !== 1 ? "s" : ""} may still be updating.{" "}
+                </>
+              ) : null}
+              <Link href={reportingCompletenessHref}>
+                View reporting completeness chart
+              </Link>
+            </p>
             <p className="chart-view-meta">
               {displayChart.count.toLocaleString()} data points
               {displayChart.metadata?.district != null &&

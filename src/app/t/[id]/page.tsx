@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { Suspense, useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useSearchParams, useRouter, usePathname } from "next/navigation";
 import TimeSeriesChart, { type PeriodType } from "@/components/TimeSeriesChart";
 import Loader from "@/components/Loader";
@@ -89,7 +89,7 @@ function aggregateTimeSeries(data: TimeSeriesDataPoint[]): TimeSeriesDataPoint[]
   });
 }
 
-export default function TimeSeriesChartPage() {
+function TimeSeriesChartPageContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -111,6 +111,11 @@ export default function TimeSeriesChartPage() {
   /** Period change: fetch in-place; do not use full-page loading. */
   const [chartRefreshing, setChartRefreshing] = useState(false);
   const [periodChangeError, setPeriodChangeError] = useState<string | null>(null);
+  /**
+   * After a successful load, `${chartId}:${periodParam ?? ""}` — skips duplicate effect runs
+   * when `onPeriodChange` already fetched and then updated the URL.
+   */
+  const lastLoadedKeyRef = useRef<string | null>(null);
 
   const fetchTimeSeries = useCallback(
     async (permalinkId: string, periodFromUrl: string | null) => {
@@ -148,7 +153,8 @@ export default function TimeSeriesChartPage() {
     []
   );
 
-  // Only reload full page when the route chart id changes — not when ?period= changes.
+  // Refetch when chart id or ?period= changes. `periodParam` was previously omitted from deps, so
+  // `?period=ytd` after searchParams hydration (or client navigations) never loaded the day sibling.
   useEffect(() => {
     if (!chartId) {
       setError("No chart ID provided");
@@ -156,39 +162,70 @@ export default function TimeSeriesChartPage() {
       return;
     }
 
+    const loadKey = `${chartId}:${periodParam ?? ""}`;
+    if (lastLoadedKeyRef.current === loadKey) {
+      return;
+    }
+
+    const prevEntry = lastLoadedKeyRef.current;
+    const prevChartId = prevEntry?.split(":")[0] ?? null;
+    const switchedChart = prevChartId !== null && prevChartId !== chartId;
+    const firstLoad = prevEntry === null;
+    const useFullPageLoader = firstLoad || switchedChart || isThumbnail;
+
     const ac = new AbortController();
-    setLoading(true);
+    if (useFullPageLoader) {
+      setLoading(true);
+    } else {
+      setChartRefreshing(true);
+    }
     setError(null);
     setPeriodChangeError(null);
 
     (async () => {
       try {
-        const periodFromUrl = searchParams.get("period");
-        const data = await fetchTimeSeries(chartId, periodFromUrl);
+        const data = await fetchTimeSeries(chartId, periodParam);
         if (ac.signal.aborted) return;
         setTimeSeries(data);
+        lastLoadedKeyRef.current = loadKey;
       } catch (err: unknown) {
         if (ac.signal.aborted) return;
-        setError(err instanceof Error ? err.message : "Failed to load time series data");
+        const msg =
+          err instanceof Error ? err.message : "Failed to load time series data";
+        if (useFullPageLoader) {
+          setError(msg);
+        } else {
+          setPeriodChangeError(
+            msg === "Failed to load time series data"
+              ? "Could not load data for this period."
+              : msg
+          );
+        }
       } finally {
-        if (!ac.signal.aborted) setLoading(false);
+        if (ac.signal.aborted) return;
+        setLoading(false);
+        setChartRefreshing(false);
       }
     })();
 
     return () => {
       ac.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- read searchParams inside only when chartId changes; including searchParams would re-run on every ?period= change and flash full-page loading
-  }, [chartId, fetchTimeSeries]);
+  }, [chartId, periodParam, fetchTimeSeries, isThumbnail]);
 
+  /**
+   * Fetch first so we never paint the new period with stale series data; then sync the URL.
+   * The load effect dedupes via `lastLoadedKeyRef` when `periodParam` catches up.
+   */
   const onPeriodChange = useCallback(
     async (p: PeriodType) => {
       if (!chartId) return;
-      setChartRefreshing(true);
       setPeriodChangeError(null);
+      setChartRefreshing(true);
       try {
         const data = await fetchTimeSeries(chartId, p);
         setTimeSeries(data);
+        lastLoadedKeyRef.current = `${chartId}:${p}`;
         const next = new URLSearchParams(searchParams.toString());
         next.set("period", p);
         router.replace(`${pathname}?${next.toString()}`, { scroll: false });
@@ -493,6 +530,23 @@ export default function TimeSeriesChartPage() {
         )}
       </article>
     </div>
+  );
+}
+
+export default function TimeSeriesChartPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="time-series-page loading">
+          <div className="tc-loading-state tc-loading-state--stacked">
+            <Loader size="md" color="dark" />
+            <span>Loading chart…</span>
+          </div>
+        </div>
+      }
+    >
+      <TimeSeriesChartPageContent />
+    </Suspense>
   );
 }
 

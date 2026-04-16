@@ -1,12 +1,18 @@
 /**
  * Google Analytics 4 (GA4) integration for Transparent.city
- * 
+ *
  * Tracks:
- * - Sign up funnel (signup_start, signup_complete, etc.)
+ * - Sign up funnel (signup_landing_view → signup_cta_click → signup_start →
+ *     signup_auth_return → signup_complete → onboarding_complete)
  * - User growth rate (first_visit, user_activation)
  * - Traffic sources (automatic via GA4)
  * - SEO and crawler effectiveness (page views, search queries)
  * - Custom events for key user actions
+ *
+ * All signup events accept a `SignupEventContext` payload so that city, district,
+ * source surface, and UTM parameters are attached to every event in the funnel.
+ * This enables city-level drilldowns in the admin dashboard without relying only
+ * on server-side GA4 reporting.
  */
 
 declare global {
@@ -18,6 +24,43 @@ declare global {
     ) => void;
     dataLayer?: unknown[];
   }
+}
+
+// ============================================================================
+// SHARED SIGNUP EVENT CONTEXT
+// ============================================================================
+
+/**
+ * Canonical context attached to every signup funnel GA4 event.
+ * All fields are optional so callers can provide only what they know.
+ */
+export interface SignupEventContext {
+  /** Numeric city ID (db) when known */
+  city_id?: number | null;
+  /** URL slug of the city page the user was viewing */
+  city_slug?: string | null;
+  /** Human-readable city name */
+  city_name?: string | null;
+  /** District number when signup originated from a district CTA */
+  district?: number | null;
+  /** Which UI surface triggered the signup */
+  source_surface?:
+    | "city_header"
+    | "city_nav_bar"
+    | "auth_modal"
+    | "add_your_city"
+    | "claim_profile"
+    | "nav_email"
+    | "mobile_bar"
+    | "customize_metrics"
+    | string
+    | null;
+  /** signup_intent value (resident / public-servant) */
+  signup_intent?: "resident" | "public-servant" | null;
+  /** URL path where the funnel began */
+  landing_path?: string | null;
+  /** Anonymous session key for pre-auth stitching (set in localStorage) */
+  funnel_session_id?: string | null;
 }
 
 const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
@@ -103,45 +146,123 @@ export function trackEvent(
 // SIGNUP FUNNEL EVENTS
 // ============================================================================
 
+/** Build a shared parameter block from a SignupEventContext. */
+function _signupCtxParams(ctx?: SignupEventContext): Record<string, unknown> {
+  if (!ctx) return {};
+  return {
+    ...(ctx.city_id != null && { city_id: ctx.city_id }),
+    ...(ctx.city_slug && { city_slug: ctx.city_slug }),
+    ...(ctx.city_name && { city_name: ctx.city_name }),
+    ...(ctx.district != null && { district: ctx.district }),
+    ...(ctx.source_surface && { source_surface: ctx.source_surface }),
+    ...(ctx.landing_path && { landing_path: ctx.landing_path }),
+    ...(ctx.funnel_session_id && { funnel_session_id: ctx.funnel_session_id }),
+  };
+}
+
 /**
- * Track when user starts signup process
+ * Read or create a stable anonymous funnel session ID stored in sessionStorage.
+ * Survives the Auth0 redirect round-trip because Auth0 returns to the same origin.
  */
-export function trackSignupStart(intent: "resident" | "public-servant"): void {
+export function getFunnelSessionId(): string {
+  if (typeof window === "undefined") return "";
+  const KEY = "tc_funnel_session_id";
+  let id = sessionStorage.getItem(KEY);
+  if (!id) {
+    id = `fsid_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    sessionStorage.setItem(KEY, id);
+  }
+  return id;
+}
+
+/**
+ * Track when a landing / city page is viewed in the signup context.
+ * This is the top of the funnel — fires once per meaningful page paint.
+ */
+export function trackSignupLandingView(ctx?: SignupEventContext): void {
+  trackEvent("signup_landing_view", {
+    ..._signupCtxParams(ctx),
+    event_category: "signup",
+    event_label: ctx?.city_slug
+      ? `Landing: /c/${ctx.city_slug}`
+      : "Landing: general",
+  });
+}
+
+/**
+ * Track when a user clicks a signup CTA button (before choosing intent).
+ */
+export function trackSignupCtaClick(ctx?: SignupEventContext): void {
+  trackEvent("signup_cta_click", {
+    ..._signupCtxParams(ctx),
+    event_category: "signup",
+    event_label: ctx?.source_surface
+      ? `CTA clicked: ${ctx.source_surface}`
+      : "CTA clicked",
+  });
+}
+
+/**
+ * Track when user starts signup process (intent chosen, about to redirect to Auth0).
+ */
+export function trackSignupStart(
+  intent: "resident" | "public-servant",
+  ctx?: SignupEventContext
+): void {
   trackEvent("signup_start", {
     signup_intent: intent,
+    ..._signupCtxParams({ ...ctx, signup_intent: intent }),
     event_category: "signup",
     event_label: `Signup started - ${intent}`,
   });
 }
 
 /**
- * Track when user clicks signup button (before redirect to Auth0)
+ * Track when user clicks signup button (before redirect to Auth0).
+ * @deprecated Use trackSignupStart – kept for backwards compat.
  */
-export function trackSignupClick(intent: "resident" | "public-servant"): void {
+export function trackSignupClick(
+  intent: "resident" | "public-servant",
+  ctx?: SignupEventContext
+): void {
   trackEvent("signup_click", {
     signup_intent: intent,
+    ..._signupCtxParams({ ...ctx, signup_intent: intent }),
     event_category: "signup",
     event_label: `Signup clicked - ${intent}`,
   });
 }
 
 /**
- * Track when user completes signup (after Auth0 callback)
+ * Track when Auth0 returns the user after the redirect (pre-onboarding).
+ */
+export function trackSignupAuthReturn(ctx?: SignupEventContext): void {
+  trackEvent("signup_auth_return", {
+    ..._signupCtxParams(ctx),
+    event_category: "signup",
+    event_label: "Auth0 return after signup",
+  });
+}
+
+/**
+ * Track when user completes signup (after Auth0 callback + user record confirmed).
  */
 export function trackSignupComplete(
   intent: "resident" | "public-servant",
-  userId?: string
+  userId?: string,
+  ctx?: SignupEventContext
 ): void {
   trackEvent("signup_complete", {
     signup_intent: intent,
     user_id: userId || "anonymous",
+    ..._signupCtxParams({ ...ctx, signup_intent: intent }),
     event_category: "signup",
     event_label: `Signup completed - ${intent}`,
   });
 }
 
 /**
- * Track when user logs in (existing user)
+ * Track when user logs in (existing user).
  */
 export function trackLogin(userId?: string): void {
   trackEvent("login", {
@@ -152,11 +273,15 @@ export function trackLogin(userId?: string): void {
 }
 
 /**
- * Track when user completes onboarding
+ * Track when user completes onboarding (WelcomeModal dismissed / city selected).
  */
-export function trackOnboardingComplete(userId?: string): void {
+export function trackOnboardingComplete(
+  userId?: string,
+  ctx?: SignupEventContext
+): void {
   trackEvent("onboarding_complete", {
     user_id: userId || "anonymous",
+    ..._signupCtxParams(ctx),
     event_category: "onboarding",
     event_label: "User completed onboarding",
   });
@@ -314,6 +439,56 @@ export function trackDashboardView(): void {
     event_category: "engagement",
     event_label: "Dashboard viewed",
   });
+}
+
+// ============================================================================
+// CONVERSION TRACKING
+// ============================================================================
+
+// ============================================================================
+// FIRST-PARTY BACKEND EVENT RECORDING
+// ============================================================================
+
+/**
+ * Fire-and-forget helper: send a signup funnel event to the first-party
+ * backend endpoint (/api/public/signup-funnel-event).
+ *
+ * Accepts an optional Auth0 access token for post-auth events.
+ * Failures are swallowed — analytics must never break the signup flow.
+ */
+export function recordFunnelEventBackend(
+  eventName: string,
+  ctx?: SignupEventContext,
+  token?: string
+): void {
+  if (typeof window === "undefined") return;
+
+  // Import lazily to avoid circular dependency issues; this module must remain
+  // side-effect-free at import time.
+  import("@/lib/apiClient")
+    .then(({ recordSignupFunnelEvent }) => {
+      void recordSignupFunnelEvent(
+        {
+          event_name: eventName,
+          funnel_session_id: ctx?.funnel_session_id ?? null,
+          city_id: ctx?.city_id ?? null,
+          city_slug: ctx?.city_slug ?? null,
+          city_name: ctx?.city_name ?? null,
+          district: ctx?.district ?? null,
+          signup_intent: ctx?.signup_intent ?? null,
+          source_surface: ctx?.source_surface ?? null,
+          landing_path: ctx?.landing_path ?? null,
+          referrer:
+            typeof document !== "undefined" ? document.referrer || null : null,
+        },
+        token
+      ).catch(() => {
+        // silently swallow
+      });
+    })
+    .catch(() => {
+      // silently swallow
+    });
 }
 
 // ============================================================================

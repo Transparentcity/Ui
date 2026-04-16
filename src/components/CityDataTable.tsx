@@ -205,6 +205,7 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
   const [countryFilter, setCountryFilter] = useState("United States");
   const [showOnlyPortals, setShowOnlyPortals] = useState(false);
   const [showOnlyInstantiated, setShowOnlyInstantiated] = useState(false);
+  const [showOnlyLaunched, setShowOnlyLaunched] = useState(false);
   const [showAddCityForm, setShowAddCityForm] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
   const [determiningPortalTypes, setDeterminingPortalTypes] = useState(false);
@@ -416,6 +417,10 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
   const filteredCities = useMemo(() => {
     let filtered = [...cities];
 
+    if (showOnlyLaunched) {
+      filtered = filtered.filter((c) => c.is_launched === true);
+    }
+
     if (showOnlyPortals) {
       filtered = filtered.filter((c) => hasPortal(c));
     }
@@ -464,7 +469,15 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
     }
 
     return filtered;
-  }, [cities, showOnlyPortals, showOnlyInstantiated, countryFilter, citySearchQuery, sortBy]);
+  }, [
+    cities,
+    showOnlyLaunched,
+    showOnlyPortals,
+    showOnlyInstantiated,
+    countryFilter,
+    citySearchQuery,
+    sortBy,
+  ]);
 
   const citiesByState = useMemo(() => {
     const groups: Record<string, CityListItem[]> = {};
@@ -1133,6 +1146,14 @@ export default function CityDataTable({ onOpenCity, onViewJob }: CityDataTablePr
                 minWidth: "200px",
               }}
             />
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", whiteSpace: "nowrap" }}>
+              <input
+                type="checkbox"
+                checked={showOnlyLaunched}
+                onChange={(e) => setShowOnlyLaunched(e.target.checked)}
+              />
+              <span>Launched only</span>
+            </label>
             <label style={{ display: "flex", alignItems: "center", gap: "8px", whiteSpace: "nowrap" }}>
               <input
                 type="checkbox"

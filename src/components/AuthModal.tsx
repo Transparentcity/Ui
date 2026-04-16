@@ -3,7 +3,14 @@
 import { useAuth0 } from "@auth0/auth0-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { trackSignupStart, trackSignupClick, trackLogin } from "@/lib/analytics";
+import {
+  trackSignupStart,
+  trackSignupClick,
+  trackLogin,
+  getFunnelSessionId,
+  recordFunnelEventBackend,
+  type SignupEventContext,
+} from "@/lib/analytics";
 import styles from "./AuthModal.module.css";
 
 interface AuthModalProps {
@@ -35,11 +42,19 @@ export default function AuthModal({ isOpen, onClose, title }: AuthModalProps) {
   }, [isOpen, onClose]);
 
   const handleSignup = async (intent: "resident" | "public-servant") => {
-    trackSignupStart(intent);
+    const ctx: SignupEventContext = {
+      source_surface: "auth_modal",
+      signup_intent: intent,
+      landing_path:
+        typeof window !== "undefined" ? window.location.pathname : null,
+      funnel_session_id: getFunnelSessionId(),
+    };
+    trackSignupStart(intent, ctx);
+    recordFunnelEventBackend("signup_start", ctx);
     if (typeof window !== "undefined") {
       window.localStorage.setItem("transparentcity.signup_intent", intent);
     }
-    trackSignupClick(intent);
+    trackSignupClick(intent, ctx);
 
     await loginWithRedirect({
       authorizationParams: {
