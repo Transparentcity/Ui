@@ -2239,7 +2239,7 @@ export default function CityView({
           <CityHeader
             emoji={cityData.emoji || undefined}
             name={cityData.name}
-            subtitle={heroSubtitle}
+            subtitle={undefined}
             metricDateRange={metricDateRange}
             onMetricDateRangeChange={setMetricDateRange}
             variant="overlay"
