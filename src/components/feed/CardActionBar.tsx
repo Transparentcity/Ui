@@ -6,12 +6,14 @@ import styles from "./feed.module.css";
 
 interface CardActionBarProps {
   onShare: () => void;
-  onOverflow: () => void;
+  onOverflow?: () => void;
+  showOverflow?: boolean;
 }
 
 export default function CardActionBar({
   onShare,
   onOverflow,
+  showOverflow = true,
 }: CardActionBarProps) {
   const handleShare = useCallback(
     (e: React.MouseEvent) => {
@@ -24,7 +26,7 @@ export default function CardActionBar({
   const handleOverflow = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      onOverflow();
+      onOverflow?.();
     },
     [onOverflow],
   );
@@ -41,16 +43,20 @@ export default function CardActionBar({
         <span className={styles.actionLabel}>Share</span>
       </button>
 
-      <div className={styles.actionSpacer} />
+      {showOverflow && (
+        <>
+          <div className={styles.actionSpacer} />
 
-      <button
-        type="button"
-        className={styles.overflowBtn}
-        onClick={handleOverflow}
-        aria-label="More options"
-      >
-        &middot;&middot;&middot;
-      </button>
+          <button
+            type="button"
+            className={styles.overflowBtn}
+            onClick={handleOverflow}
+            aria-label="More options"
+          >
+            &middot;&middot;&middot;
+          </button>
+        </>
+      )}
     </div>
   );
 }

@@ -143,7 +143,8 @@ export default function FeedCard({
   const actionBar = (
     <CardActionBar
       onShare={handleShare}
-      onOverflow={() => setOverflowOpen((o) => !o)}
+      onOverflow={isAdmin ? () => setOverflowOpen((o) => !o) : undefined}
+      showOverflow={!!isAdmin}
     />
   );
 
@@ -155,17 +156,19 @@ export default function FeedCard({
         <Template story={story}>{actionBar}</Template>
       )}
 
-      {/* Overflow menu anchor (positioned relative to action bar ···) */}
-      <div className={styles.overflowAnchor} style={{ position: "absolute", right: 16, bottom: 16 }}>
-        <OverflowMenu
-          open={overflowOpen}
-          onClose={() => setOverflowOpen(false)}
-          onShare={handleShare}
-          onHide={handleHide}
-          onDelete={handleDelete}
-          mobile={isMobile}
-        />
-      </div>
+      {/* Overflow menu anchor (admin only, positioned relative to action bar ···) */}
+      {isAdmin && (
+        <div className={styles.overflowAnchor} style={{ position: "absolute", right: 16, bottom: 16 }}>
+          <OverflowMenu
+            open={overflowOpen}
+            onClose={() => setOverflowOpen(false)}
+            onShare={handleShare}
+            onHide={handleHide}
+            onDelete={handleDelete}
+            mobile={isMobile}
+          />
+        </div>
+      )}
     </article>
   );
 }

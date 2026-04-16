@@ -132,10 +132,11 @@ describe("FeedCard", () => {
     vi.clearAllMocks();
   });
 
-  function renderCard(storyOverrides: Partial<EnrichedFeedStory> = {}) {
+  function renderCard(storyOverrides: Partial<EnrichedFeedStory> = {}, { isAdmin = false }: { isAdmin?: boolean } = {}) {
     return render(
       <FeedCard
         story={makeEnrichedStory(storyOverrides)}
+        isAdmin={isAdmin}
         onHide={onHide}
         onDelete={onDelete}
       />
@@ -274,5 +275,31 @@ describe("FeedCard", () => {
     });
     expect(screen.queryByText("Year-over-Year")).not.toBeInTheDocument();
     expect(screen.queryByText("vs. Last Month")).not.toBeInTheDocument();
+  });
+
+  // ── Overflow menu visibility (admin vs non-admin) ─────────────────────
+
+  it("hides overflow (ellipses) button for non-admin users", () => {
+    renderCard();
+    expect(screen.queryByLabelText("More options")).not.toBeInTheDocument();
+  });
+
+  it("shows overflow (ellipses) button for admin users", () => {
+    renderCard({}, { isAdmin: true });
+    expect(screen.getByLabelText("More options")).toBeInTheDocument();
+  });
+
+  it("shows overflow menu items when admin clicks ellipses", () => {
+    renderCard({}, { isAdmin: true });
+    const overflowBtn = screen.getByLabelText("More options");
+    fireEvent.click(overflowBtn);
+    expect(screen.getByText("Hide")).toBeInTheDocument();
+    expect(screen.getByText("Admin: Delete this card")).toBeInTheDocument();
+  });
+
+  it("does not render overflow menu for non-admin users", () => {
+    renderCard();
+    expect(screen.queryByText("Hide")).not.toBeInTheDocument();
+    expect(screen.queryByText("Admin: Delete this card")).not.toBeInTheDocument();
   });
 });
