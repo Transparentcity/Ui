@@ -178,7 +178,7 @@ export default function ResearchDetailPage() {
                 <code>{window.location.origin}/r/{research.short_hash}</code>
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/r/{research.short_hash}`);
+                    navigator.clipboard.writeText(`${window.location.origin}/r/${research.short_hash}`);
                     alert("Link copied!");
                   }}
                   className="copy-button"

@@ -112,7 +112,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const title = `${anomalyData.title} | TransparentCity`;
   const description = anomalyData.description;
-  const url = `https://www.transparentcity.co/a/${id}`;
+  const url = `https://transparent.city/a/${id}`;
 
   return {
     title,

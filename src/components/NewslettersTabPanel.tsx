@@ -84,6 +84,7 @@ export default function NewslettersTabPanel({
   };
 
   const handleNewsletterClick = (newsletter: NewsletterReport) => {
+    if (!newsletter.public_url) return;
     router.push(newsletter.public_url);
   };
 
