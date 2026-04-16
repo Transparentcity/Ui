@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -141,7 +142,11 @@ export default function MetricsAdmin() {
   const [selectedLastRunStatus, setSelectedLastRunStatus] = useState<LastRunFilter>("");
   const [selectedUpdateFrequency, setSelectedUpdateFrequency] = useState("");
   const [maxLagDays, setMaxLagDays] = useState<number | null>(null);
-  
+  /** List metrics whose `template_id` matches this platform template metric. */
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  /** Touch / coarse pointer: tap row to pin the action bar open. */
+  const [pinnedActionsMetricId, setPinnedActionsMetricId] = useState<number | null>(null);
+
   // City dropdown filter
   const [citySearchQuery, setCitySearchQuery] = useState("");
   const [selectedCityId, setSelectedCityId] = useState<number | null>(null);
@@ -158,12 +163,13 @@ export default function MetricsAdmin() {
   
   // Metrics query with filters (include_record_counts=false for fast load; use for troubleshooting when needed)
   const metricsQuery = useMetrics({
-    limit: 100,
+    limit: selectedTemplateId != null ? 500 : 100,
     search: debouncedSearchQuery || undefined,
     category: selectedCategory || undefined,
     metric_type: selectedType || undefined,
     is_active: selectedStatus === "" ? undefined : selectedStatus === "true",
     city_id: selectedCityId || undefined,
+    template_id: selectedTemplateId ?? undefined,
     last_execution_status: selectedLastRunStatus || undefined,
     include_record_counts: false,
   });
@@ -309,6 +315,47 @@ export default function MetricsAdmin() {
       .filter((c) => c.display_name.toLowerCase().includes(q))
       .slice(0, 50);
   }, [cities, citySearchQuery]);
+
+  const templateNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const t of templatesQuery.data ?? []) {
+      map.set(t.id, t.metric_name);
+    }
+    return map;
+  }, [templatesQuery.data]);
+
+  const sortedTemplates = useMemo(() => {
+    return [...(templatesQuery.data ?? [])].sort((a, b) =>
+      a.metric_name.localeCompare(b.metric_name, undefined, { sensitivity: "base" })
+    );
+  }, [templatesQuery.data]);
+
+  const handleMetricRowPointerToggle = useCallback(
+    (e: ReactMouseEvent<HTMLTableRowElement>, metricId: number) => {
+      if ((e.target as HTMLElement).closest("[data-metric-actions-wrap]")) return;
+      const coarse =
+        typeof window !== "undefined" &&
+        (window.matchMedia("(pointer: coarse)").matches ||
+          window.matchMedia("(hover: none)").matches);
+      if (!coarse) return;
+      setPinnedActionsMetricId((prev) => (prev === metricId ? null : metricId));
+    },
+    []
+  );
+
+  useEffect(() => {
+    setPinnedActionsMetricId(null);
+  }, [
+    selectedTemplateId,
+    selectedCityId,
+    debouncedSearchQuery,
+    selectedCategory,
+    selectedType,
+    selectedStatus,
+    selectedLastRunStatus,
+    selectedUpdateFrequency,
+    maxLagDays,
+  ]);
 
   // Debounce search query
   useEffect(() => {
@@ -1031,6 +1078,24 @@ export default function MetricsAdmin() {
 
           <select
             className={styles.select}
+            value={selectedTemplateId === null ? "" : String(selectedTemplateId)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setSelectedTemplateId(v === "" ? null : parseInt(v, 10));
+            }}
+            title="Metrics created from this template (template_id). Uses platform template metrics from the list above."
+            aria-label="Filter by source template"
+          >
+            <option value="">All templates</option>
+            {sortedTemplates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.metric_name} (#{t.id})
+              </option>
+            ))}
+          </select>
+
+          <select
+            className={styles.select}
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value as StatusFilter)}
           >
@@ -1133,7 +1198,7 @@ export default function MetricsAdmin() {
           <div className={styles.tableTitle}>Metrics List</div>
         </div>
         <div className={styles.tableWrapper}>
-          <table className={styles.table}>
+          <table className={`${styles.table} ${styles.metricsListTable}`}>
             <thead>
               <tr>
                 <th className={styles.th}>Metric</th>
@@ -1167,21 +1232,32 @@ export default function MetricsAdmin() {
 
               {!loading &&
                 metrics.map((m) => (
-                  <tr key={m.id} className={styles.rowHover}>
-                    <td className={styles.td}>
+                  <tr
+                    key={m.id}
+                    className={`${styles.rowHover} ${styles.metricRow} ${
+                      pinnedActionsMetricId === m.id ? styles.metricRowActionsPinned : ""
+                    }`}
+                    onClick={(e) => handleMetricRowPointerToggle(e, m.id)}
+                  >
+                    <td className={`${styles.td} ${styles.metricsListTd}`}>
                       <div className={styles.metricNameContent}>
                         <div>
-                          <div style={{ fontWeight: 600, fontSize: 13 }}>{m.metric_name}</div>
-                          <div className={styles.muted} style={{ fontSize: 11 }}>
-                            {m.metric_key}
-                          </div>
+                          <div className={styles.metricNameTitle}>{m.metric_name}</div>
+                          <div className={`${styles.muted} ${styles.metricNameKey}`}>{m.metric_key}</div>
                           {!m.is_active && (
-                            <span className={`${styles.badge} ${styles.badgeRed}`} style={{ marginTop: 4, fontSize: 10 }}>Inactive</span>
+                            <span className={`${styles.badge} ${styles.badgeRed} ${styles.metricInactiveBadge}`}>
+                              Inactive
+                            </span>
                           )}
                         </div>
-                        <div className={styles.metricActionsRow} onClick={(e) => e.stopPropagation()}>
+                        <div
+                          className={styles.metricActionsRow}
+                          data-metric-actions-wrap
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <MetricActions
                             metricId={m.id}
+                            compact
                             onEdit={() => openEditModal(m.id)}
                             onViewCharts={() => openCharts(m.id)}
                             onViewMaps={() => openMaps(m.id)}
@@ -1192,31 +1268,36 @@ export default function MetricsAdmin() {
                         </div>
                       </div>
                     </td>
-                    <td className={`${styles.td} ${styles.hideNarrow}`}>
+                    <td className={`${styles.td} ${styles.metricsListTd} ${styles.hideNarrow}`}>
                       <span className={styles.muted}>{m.city_name || "—"}</span>
                     </td>
-                    <td className={`${styles.td} ${styles.hideNarrow}`}>
+                    <td className={`${styles.td} ${styles.metricsListTd} ${styles.hideNarrow}`}>
                       <span className={`${styles.badge} ${styles.badgePrimary}`}>{m.category}</span>
                     </td>
-                    <td className={`${styles.td} ${styles.hideNarrow}`}>
+                    <td className={`${styles.td} ${styles.metricsListTd} ${styles.hideNarrow}`}>
                       {m.template_id != null ? (
-                        <span className={styles.muted} title={`Template metric ID: ${m.template_id}`}>{m.template_id}</span>
+                        <span
+                          className={styles.templateCell}
+                          title={`Template #${m.template_id}${templateNameById.get(m.template_id) ? `: ${templateNameById.get(m.template_id)}` : ""}`}
+                        >
+                          {templateNameById.get(m.template_id) ?? `ID ${m.template_id}`}
+                        </span>
                       ) : (
                         <span className={styles.muted}>—</span>
                       )}
                     </td>
-                    <td className={styles.td}>
+                    <td className={`${styles.td} ${styles.metricsListTd}`}>
                       {m.most_recent_data_date ? formatDate(m.most_recent_data_date) : "—"}
                     </td>
-                    <td className={styles.td}>
+                    <td className={`${styles.td} ${styles.metricsListTd}`}>
                       {m.changed_since_last_run === true && <span className={styles.badgeYellow}>Yes</span>}
                       {m.changed_since_last_run === false && <span className={styles.muted}>No</span>}
                       {m.changed_since_last_run == null && <span className={styles.muted}>—</span>}
                     </td>
-                    <td className={styles.td}>
+                    <td className={`${styles.td} ${styles.metricsListTd}`}>
                       <span title="Time series metadata (chart) count from last run">{m.time_series_count ?? 0}</span>
                     </td>
-                    <td className={`${styles.td} ${styles.hideNarrow}`}>
+                    <td className={`${styles.td} ${styles.metricsListTd} ${styles.hideNarrow}`}>
                       <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                         <span
                           title={m.has_location_fields ? "Location fields configured" : "No location fields"}

@@ -972,6 +972,131 @@
 .block-dashboard-empty--dark .dashboard-header-customize-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.25);
 }
+
+/* In-place progress while place metrics job runs (values on screen are stale until done) */
+.place-refresh-job-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  background: var(--surface-muted, rgba(0, 0, 0, 0.04));
+  text-align: left;
+}
+
+.place-refresh-job-banner--stacked {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  max-width: 420px;
+  margin-bottom: 0;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.place-refresh-job-banner__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.place-refresh-job-banner--stacked .place-refresh-job-banner__body {
+  width: 100%;
+}
+
+.place-refresh-job-banner__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  margin-bottom: 4px;
+}
+
+.place-refresh-job-banner--stacked .place-refresh-job-banner__title {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.place-refresh-job-banner__message {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary, #4b5563);
+}
+
+.place-refresh-job-banner--stacked .place-refresh-job-banner__message {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.place-refresh-job-banner--stacked .place-refresh-job-banner__hint {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.place-refresh-job-banner__hint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary, #6b7280);
+  margin-top: 6px;
+}
+
+.place-refresh-job-banner__track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border-primary, #e5e7eb);
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.place-refresh-job-banner--stacked .place-refresh-job-banner__track {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.place-refresh-job-banner__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #ad35fa;
+  transition: width 0.35s ease;
+}
+
+.dashboard-header-refresh-place-btn-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-theme="dark"] .place-refresh-job-banner:not(.place-refresh-job-banner--stacked),
+.dark .place-refresh-job-banner:not(.place-refresh-job-banner--stacked) {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="dark"] .place-refresh-job-banner:not(.place-refresh-job-banner--stacked)
+  .place-refresh-job-banner__title,
+.dark .place-refresh-job-banner:not(.place-refresh-job-banner--stacked)
+  .place-refresh-job-banner__title {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+[data-theme="dark"] .place-refresh-job-banner:not(.place-refresh-job-banner--stacked)
+  .place-refresh-job-banner__message,
+.dark .place-refresh-job-banner:not(.place-refresh-job-banner--stacked)
+  .place-refresh-job-banner__message {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+[data-theme="dark"] .place-refresh-job-banner:not(.place-refresh-job-banner--stacked)
+  .place-refresh-job-banner__hint,
+.dark .place-refresh-job-banner:not(.place-refresh-job-banner--stacked)
+  .place-refresh-job-banner__hint {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+[data-theme="dark"] .place-refresh-job-banner:not(.place-refresh-job-banner--stacked)
+  .place-refresh-job-banner__track,
+.dark .place-refresh-job-banner:not(.place-refresh-job-banner--stacked)
+  .place-refresh-job-banner__track {
+  background: rgba(255, 255, 255, 0.12);
+}
+
 .block-metrics-list,
 .block-anomalies-list {
   margin-bottom: 16px;

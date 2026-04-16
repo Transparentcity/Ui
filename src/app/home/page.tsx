@@ -1614,6 +1614,13 @@ export default function DashboardPage() {
                                   {userPreferences.extra.home_location.district !== null && userPreferences.extra.home_location.district !== undefined && (
                                     <span> · District {userPreferences.extra.home_location.district}</span>
                                   )}
+                                  {(() => {
+                                    const raw = (userPreferences.extra.home_location as { location_label?: unknown })
+                                      ?.location_label;
+                                    const label =
+                                      typeof raw === "string" && raw.trim() ? raw.trim() : "";
+                                    return label ? <span> · {label}</span> : null;
+                                  })()}
                                 </>
                               ) : (
                                 `City ID: ${userPreferences.extra.home_location.city_id}${

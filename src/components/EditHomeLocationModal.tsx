@@ -61,6 +61,8 @@ export default function EditHomeLocationModal({
     city: PublicCitySearchResult;
     coords: { lat: number; lng: number } | null;
     district: number | null;
+    /** What the user typed (e.g. ZIP) — stored in prefs for Settings display. */
+    homeDisplayLabel?: string | null;
   } | null>(null);
 
   const [placeLabel, setPlaceLabel] = useState("My Block");
@@ -137,6 +139,7 @@ export default function EditHomeLocationModal({
       city: PublicCitySearchResult;
       coords: { lat: number; lng: number } | null;
       district: number | null;
+      homeDisplayLabel?: string | null;
     }
   ) => {
     setPending(nextPending);
@@ -151,15 +154,19 @@ export default function EditHomeLocationModal({
     district,
     coords,
     place,
+    locationLabel,
   }: {
     token: string;
     cityId: number;
     district: number | null;
     coords: { lat: number; lng: number };
     place?: Pick<UserPlace, "id" | "label">;
+    /** Shown in Settings (e.g. ZIP or address the user searched). */
+    locationLabel?: string | null;
   }) => {
     const latest = await getUserPreferences(token);
     const currentExtra = latest.extra || {};
+    const trimmedLabel = locationLabel?.trim();
     await updateUserPreferences(
       {
         extra: {
@@ -169,6 +176,7 @@ export default function EditHomeLocationModal({
             district: district ?? null,
             coordinates: coords,
             ...(place ? { place_id: place.id, place_label: place.label } : {}),
+            ...(trimmedLabel ? { location_label: trimmedLabel } : {}),
           },
         },
       },
@@ -200,7 +208,12 @@ export default function EditHomeLocationModal({
   };
 
   const handleSelectCityOnly = (city: PublicCitySearchResult) => {
-    openMapStep({ city, coords: null, district: null });
+    openMapStep({
+      city,
+      coords: null,
+      district: null,
+      homeDisplayLabel: query.trim() || null,
+    });
   };
 
   /** Use current location: from search step we resolve city from reverse geocode; from map step we use pending.city. */
@@ -228,7 +241,8 @@ export default function EditHomeLocationModal({
         city.id,
         token
       );
-      openMapStep({ city, coords, district });
+      const homeDisplayLabel = pending?.homeDisplayLabel ?? null;
+      openMapStep({ city, coords, district, homeDisplayLabel });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not get location");
     } finally {
@@ -258,7 +272,7 @@ export default function EditHomeLocationModal({
         city.id,
         token
       );
-      openMapStep({ city, coords: coordinates, district });
+      openMapStep({ city, coords: coordinates, district, homeDisplayLabel: q });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Geocoding failed");
     } finally {
@@ -308,6 +322,7 @@ export default function EditHomeLocationModal({
         district,
         coords: pending.coords,
         place: createdPlace,
+        locationLabel: pending.homeDisplayLabel ?? null,
       });
       emitSavedCitiesChanged();
       queryClient.invalidateQueries({ queryKey: cityKeys.savedDistricts() });
@@ -347,6 +362,7 @@ export default function EditHomeLocationModal({
         district,
         coords: { lat: place.lat, lng: place.lng },
         place,
+        locationLabel: place.label,
       });
 
       emitSavedCitiesChanged();
@@ -475,6 +491,9 @@ export default function EditHomeLocationModal({
               {pending.city.display_name}
               {pending.district != null && (
                 <span> · District {pending.district}</span>
+              )}
+              {pending.homeDisplayLabel?.trim() && (
+                <span> · {pending.homeDisplayLabel.trim()}</span>
               )}
             </p>
             {error && (

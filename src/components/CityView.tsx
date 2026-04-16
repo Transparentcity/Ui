@@ -15,6 +15,7 @@ import {
   getPlaceAnomalies,
   runPlaceMetricsAndAnomaliesAsJob,
   getJob,
+  type Job,
   type PlaceTimeSeriesPoint,
   type PlaceAnomaly,
 } from "@/lib/apiClient";
@@ -145,11 +146,31 @@ function isValidSparklineDataPoint(
   );
 }
 
+function placeMetricsJobProgressFromJob(job: Job): {
+  status: Job["status"];
+  progress: number;
+  statusMessage: string;
+} {
+  const progress =
+    typeof job.progress === "number" && Number.isFinite(job.progress)
+      ? Math.min(100, Math.max(0, job.progress))
+      : 0;
+  const statusMessage =
+    (job.status_message && job.status_message.trim()) ||
+    (job.status === "pending"
+      ? "Waiting to start…"
+      : job.status === "running"
+        ? "Working…"
+        : "Updating…");
+  return { status: job.status, progress, statusMessage };
+}
+
 /** Poll background job until terminal state or timeout; respects `isCancelled` between iterations. */
 async function pollPlaceMetricsJobUntilDone(
   jobId: string,
   token: string,
-  isCancelled: () => boolean
+  isCancelled: () => boolean,
+  onProgress?: (job: Job) => void
 ): Promise<void> {
   const pollIntervalMs = 2000;
   const maxWaitMs = 300000;
@@ -157,6 +178,7 @@ async function pollPlaceMetricsJobUntilDone(
   while (Date.now() - start < maxWaitMs) {
     if (isCancelled()) return;
     const job = await getJob(jobId, token);
+    onProgress?.(job);
     if (
       job.status === "completed" ||
       job.status === "failed" ||
@@ -541,6 +563,12 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
   const [placeAnomalies, setPlaceAnomalies] = useState<PlaceAnomaly[]>([]);
   const [placeDataLoading, setPlaceDataLoading] = useState(false);
   const [placeRunLoading, setPlaceRunLoading] = useState(false);
+  /** Live job status while a place metrics refresh is running (server-driven message + progress). */
+  const [placeJobProgress, setPlaceJobProgress] = useState<{
+    status: Job["status"];
+    progress: number;
+    statusMessage: string;
+  } | null>(null);
   const selectedPlace = selectedPlaceId != null ? userPlaces.find((p) => p.id === selectedPlaceId) : null;
 
   const bootstrapTargetRef = useRef<number | null>(null);
@@ -556,7 +584,14 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
       bootstrapTargetRef.current === selectedPlaceId;
 
     setPlaceDataLoading(true);
-    if (runBootstrap) setPlaceRunLoading(true);
+    if (runBootstrap) {
+      setPlaceRunLoading(true);
+      setPlaceJobProgress({
+        status: "pending",
+        progress: 0,
+        statusMessage: "Computing metrics for your block…",
+      });
+    }
 
     let didConsumeBootstrap = false;
     const finishBootstrapOnce = () => {
@@ -573,7 +608,15 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
               selectedPlaceId,
               token
             );
-            await pollPlaceMetricsJobUntilDone(job_id, token, () => cancelled);
+            await pollPlaceMetricsJobUntilDone(
+              job_id,
+              token,
+              () => cancelled,
+              (job) => {
+                if (cancelled) return;
+                setPlaceJobProgress(placeMetricsJobProgressFromJob(job));
+              }
+            );
           } catch {
             // Still attempt to load whatever exists
           } finally {
@@ -597,6 +640,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
         finishBootstrapOnce();
       })
       .finally(() => {
+        setPlaceJobProgress(null);
         if (!cancelled) {
           setPlaceDataLoading(false);
           setPlaceRunLoading(false);
@@ -612,10 +656,23 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     async (placeId: number) => {
       if (!placeId || !getAccessTokenSilently) return;
       setPlaceRunLoading(true);
+      setPlaceJobProgress({
+        status: "pending",
+        progress: 0,
+        statusMessage:
+          "Starting refresh… The numbers below are still from your last completed run until this job finishes.",
+      });
       try {
         const token = await getAccessTokenSilently();
         const { job_id } = await runPlaceMetricsAndAnomaliesAsJob(placeId, token);
-        await pollPlaceMetricsJobUntilDone(job_id, token, () => false);
+        await pollPlaceMetricsJobUntilDone(
+          job_id,
+          token,
+          () => false,
+          (job) => {
+            setPlaceJobProgress(placeMetricsJobProgressFromJob(job));
+          }
+        );
         // Only update state if we're still viewing this place (user didn't switch)
         if (selectedPlaceId !== placeId) return;
         const [metricsRes, anomaliesRes] = await Promise.all([
@@ -627,6 +684,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
         setPlaceAnomalies(anomaliesRes?.anomalies ?? []);
       } finally {
         setPlaceRunLoading(false);
+        setPlaceJobProgress(null);
       }
     },
     [selectedPlaceId, getAccessTokenSilently]
@@ -1585,11 +1643,24 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
             <div className="dashboard-header-block-actions">
               <button
                 type="button"
-                className="dashboard-header-customize-btn"
+                className="dashboard-header-customize-btn dashboard-header-refresh-place-btn"
                 onClick={() => refreshPlaceData(selectedPlaceId!)}
                 disabled={placeRunLoading || placeDataLoading}
+                aria-busy={placeRunLoading}
+                aria-label={
+                  placeRunLoading
+                    ? "Refreshing place metrics, please wait"
+                    : "Refresh metrics for this place"
+                }
               >
-                {placeRunLoading ? "Running…" : "Refresh metrics for this place"}
+                {placeRunLoading ? (
+                  <span className="dashboard-header-refresh-place-btn-inner">
+                    <Loader size="sm" color="dark" />
+                    <span>Refreshing…</span>
+                  </span>
+                ) : (
+                  "Refresh metrics for this place"
+                )}
               </button>
             </div>
           </>
@@ -1614,7 +1685,39 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
           </div>
         ) : selectedPlaceId && selectedPlace && !placeDataLoading && !comparisonsLoadingState && (!comparisonsData || Object.keys(comparisonsData).length === 0) && placeAnomalies.length === 0 ? (
           <div className="block-dashboard-empty block-dashboard-empty--dark">
-            {placeRunLoading ? (
+            {placeRunLoading && placeJobProgress ? (
+              <div
+                className="place-refresh-job-banner place-refresh-job-banner--stacked"
+                role="status"
+                aria-live="polite"
+                aria-busy="true"
+              >
+                <Loader size="sm" color="white" />
+                <div className="place-refresh-job-banner__body">
+                  <div className="place-refresh-job-banner__title">
+                    Refreshing metrics for {selectedPlace?.label ?? "this place"}
+                  </div>
+                  <div className="place-refresh-job-banner__message">
+                    {placeJobProgress.statusMessage}
+                  </div>
+                  <div className="place-refresh-job-banner__hint">
+                    When the job completes, metrics will load here automatically.
+                  </div>
+                  <div
+                    className="place-refresh-job-banner__track"
+                    role="progressbar"
+                    aria-valuenow={placeJobProgress.progress}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                  >
+                    <div
+                      className="place-refresh-job-banner__fill"
+                      style={{ width: `${placeJobProgress.progress}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : placeRunLoading ? (
               <p className="block-dashboard-empty-message">Refreshing metrics…</p>
             ) : (
               <>
@@ -1637,6 +1740,43 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
           </div>
         ) : (
         <>
+        {selectedPlaceId &&
+          placeRunLoading &&
+          placeJobProgress &&
+          comparisonsData &&
+          Object.keys(comparisonsData).length > 0 && (
+            <div
+              className="place-refresh-job-banner"
+              role="status"
+              aria-live="polite"
+              aria-busy="true"
+            >
+              <Loader size="sm" color="dark" />
+              <div className="place-refresh-job-banner__body">
+                <div className="place-refresh-job-banner__title">
+                  Refreshing metrics for {selectedPlace?.label ?? "this place"}
+                </div>
+                <div className="place-refresh-job-banner__message">
+                  {placeJobProgress.statusMessage}
+                </div>
+                <div className="place-refresh-job-banner__hint">
+                  The table still shows your previous results until this run completes.
+                </div>
+                <div
+                  className="place-refresh-job-banner__track"
+                  role="progressbar"
+                  aria-valuenow={placeJobProgress.progress}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
+                  <div
+                    className="place-refresh-job-banner__fill"
+                    style={{ width: `${placeJobProgress.progress}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         {isPersonalSubsetApplied && !selectedPlaceId && (
           <div
             style={{

@@ -688,6 +688,113 @@
   background: var(--bg-secondary);
 }
 
+/* Metrics list: denser rows, template column, action bar on hover / keyboard / touch pin */
+.metricsListTable .metricsListTd {
+  padding: 4px 8px;
+  font-size: 12px;
+  vertical-align: middle;
+}
+
+@media (min-width: 768px) {
+  .metricsListTable .metricsListTd {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .metricsListTable .metricsListTd {
+    padding: 7px 12px;
+    font-size: 13px;
+  }
+}
+
+.metricsListTable .th {
+  padding: 6px 8px;
+  font-size: 9px;
+}
+
+@media (min-width: 768px) {
+  .metricsListTable .th {
+    padding: 7px 10px;
+    font-size: 10px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .metricsListTable .th {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+}
+
+.metricsListTable .metricNameContent {
+  gap: 3px;
+}
+
+.metricNameTitle {
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.25;
+  color: var(--text-primary);
+}
+
+@media (min-width: 768px) {
+  .metricNameTitle {
+    font-size: 13px;
+  }
+}
+
+.metricNameKey {
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.metricInactiveBadge {
+  margin-top: 2px;
+  font-size: 9px;
+}
+
+.metricRow .metricActionsRow {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.14s ease, visibility 0.14s ease;
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .metricRow:hover .metricActionsRow,
+  .metricRow:focus-within .metricActionsRow {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+}
+
+.metricRow.metricRowActionsPinned .metricActionsRow {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.templateCell {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: inline-block;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+@media (min-width: 1024px) {
+  .templateCell {
+    max-width: 220px;
+    font-size: 12px;
+  }
+}
+
 /* Hide columns on narrow screens */
 @media (max-width: 768px) {
   .hideNarrow {

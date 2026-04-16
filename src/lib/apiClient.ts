@@ -1369,6 +1369,8 @@ export function listAdminMetrics(
     metric_type?: string;
     is_active?: boolean;
     city_id?: number;
+    /** Metrics whose template_id matches (e.g. all cities' metrics from a template). */
+    template_id?: number;
     /** Filter by last run status: failed, completed, cancelled, timeout, or never */
     last_execution_status?: string;
     /** Include record counts (slower). Default false for fast list load. */
@@ -1383,6 +1385,7 @@ export function listAdminMetrics(
   if (options?.metric_type) params.append("metric_type", options.metric_type);
   if (options?.is_active !== undefined) params.append("is_active", options.is_active.toString());
   if (options?.city_id !== undefined) params.append("city_id", options.city_id.toString());
+  if (options?.template_id !== undefined) params.append("template_id", options.template_id.toString());
   if (options?.last_execution_status) params.append("last_execution_status", options.last_execution_status);
   if (options?.include_record_counts === true) params.append("include_record_counts", "true");
   if (options?.force_refresh) params.append("_t", Date.now().toString());
@@ -6975,6 +6978,45 @@ export interface SignupFunnelEventPayload {
   utm_medium?: string | null;
   utm_campaign?: string | null;
   metadata?: Record<string, unknown> | null;
+}
+
+// ============================================================================
+// PRODUCT ANALYTICS (first-party event log)
+// ============================================================================
+
+export interface ProductEventFunnelRow {
+  date: string;
+  page_views: number;
+  signup_starts: number;
+  signup_completes: number;
+}
+
+export interface ProductEventFunnel {
+  date_from: string;
+  date_to: string;
+  total_page_views: number;
+  total_signup_starts: number;
+  total_signup_completes: number;
+  conversion_rate: number | null;
+  daily: ProductEventFunnelRow[];
+}
+
+export function getProductEventFunnel(
+  token: string,
+  options?: { days?: number; date_from?: string; date_to?: string; city_id?: number }
+): Promise<ProductEventFunnel> {
+  const params = new URLSearchParams();
+  if (options?.days != null) params.append("days", String(options.days));
+  if (options?.date_from) params.append("date_from", options.date_from);
+  if (options?.date_to) params.append("date_to", options.date_to);
+  if (options?.city_id != null) params.append("city_id", String(options.city_id));
+  const qs = params.toString();
+  return request<ProductEventFunnel>(
+    `/api/admin/product-analytics/funnel${qs ? `?${qs}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
 }
 
 /** Fire-and-forget: record a signup funnel event (no auth required). */

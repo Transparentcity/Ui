@@ -166,9 +166,10 @@ describe("WelcomeModal", () => {
       render(<WelcomeModal {...defaultProps} />);
       const elapsed = performance.now() - start;
 
-      expect(screen.getByText(/find out what's happening near you/i)).toBeInTheDocument();
-      expect(screen.getByPlaceholderText(/enter your address/i)).toBeInTheDocument();
-      expect(screen.getByText(/find my city/i)).toBeInTheDocument();
+      expect(screen.getByText(/discover your block/i)).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/enter city, zip or address/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /use my current location/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^Continue$/i })).toBeInTheDocument();
       expect(elapsed).toBeLessThan(100);
     });
 
@@ -184,7 +185,7 @@ describe("WelcomeModal", () => {
       const user = userEvent.setup();
       render(<WelcomeModal {...defaultProps} />);
 
-      const input = screen.getByPlaceholderText(/enter your address/i);
+      const input = screen.getByPlaceholderText(/enter city, zip or address/i);
       await user.type(input, "123 Main");
 
       // Suggestions should not be fetched immediately
@@ -196,14 +197,14 @@ describe("WelcomeModal", () => {
       }, { timeout: 500 });
     });
 
-    it("shows 'Find my city' button enabled only with input", async () => {
+    it("shows Continue button enabled only with input", async () => {
       const user = userEvent.setup();
       render(<WelcomeModal {...defaultProps} />);
 
-      const btn = screen.getByText(/find my city/i).closest("button")!;
+      const btn = screen.getByText(/^Continue$/i).closest("button")!;
       expect(btn).toBeDisabled();
 
-      await user.type(screen.getByPlaceholderText(/enter your address/i), "Oakland");
+      await user.type(screen.getByPlaceholderText(/enter city, zip or address/i), "Oakland");
       expect(btn).not.toBeDisabled();
     });
   });
@@ -221,13 +222,13 @@ describe("WelcomeModal", () => {
       render(<WelcomeModal {...defaultProps} />);
 
       // Type address and submit
-      const input = screen.getByPlaceholderText(/enter your address/i);
+      const input = screen.getByPlaceholderText(/enter city, zip or address/i);
       await user.type(input, "San Francisco");
-      await user.click(screen.getByText(/find my city/i));
+      await user.click(screen.getByText(/^Continue$/i));
 
       // Should transition to preferences step
       await waitFor(() => {
-        expect(screen.getByText(/what do you care about/i)).toBeInTheDocument();
+        expect(screen.getByText(/what matters on your block/i)).toBeInTheDocument();
       });
 
       // Category pills render instantly
@@ -244,11 +245,11 @@ describe("WelcomeModal", () => {
       const user = userEvent.setup();
       render(<WelcomeModal {...defaultProps} />);
 
-      await user.type(screen.getByPlaceholderText(/enter your address/i), "San Francisco");
-      await user.click(screen.getByText(/find my city/i));
+      await user.type(screen.getByPlaceholderText(/enter city, zip or address/i), "San Francisco");
+      await user.click(screen.getByText(/^Continue$/i));
 
       await waitFor(() => {
-        expect(screen.getByText(/what do you care about/i)).toBeInTheDocument();
+        expect(screen.getByText(/what matters on your block/i)).toBeInTheDocument();
       });
 
       // Crime & Safety and Government Budget should be pre-selected
@@ -264,8 +265,8 @@ describe("WelcomeModal", () => {
       const user = userEvent.setup();
       render(<WelcomeModal {...defaultProps} />);
 
-      await user.type(screen.getByPlaceholderText(/enter your address/i), "San Francisco");
-      await user.click(screen.getByText(/find my city/i));
+      await user.type(screen.getByPlaceholderText(/enter city, zip or address/i), "San Francisco");
+      await user.click(screen.getByText(/^Continue$/i));
 
       await waitFor(() => {
         expect(screen.getByText("Housing")).toBeInTheDocument();
@@ -291,8 +292,8 @@ describe("WelcomeModal", () => {
       const user = userEvent.setup();
       render(<WelcomeModal {...defaultProps} />);
 
-      await user.type(screen.getByPlaceholderText(/enter your address/i), "San Francisco");
-      await user.click(screen.getByText(/find my city/i));
+      await user.type(screen.getByPlaceholderText(/enter city, zip or address/i), "San Francisco");
+      await user.click(screen.getByText(/^Continue$/i));
 
       await waitFor(() => {
         expect(screen.getByText(/weekly digest/i)).toBeInTheDocument();
@@ -310,8 +311,8 @@ describe("WelcomeModal", () => {
       const user = userEvent.setup();
       render(<WelcomeModal {...defaultProps} />);
 
-      await user.type(screen.getByPlaceholderText(/enter your address/i), "San Francisco");
-      await user.click(screen.getByText(/find my city/i));
+      await user.type(screen.getByPlaceholderText(/enter city, zip or address/i), "San Francisco");
+      await user.click(screen.getByText(/^Continue$/i));
 
       await waitFor(() => {
         expect(screen.getByText(/let.s go/i)).toBeInTheDocument();
@@ -324,8 +325,8 @@ describe("WelcomeModal", () => {
         expect(mockSaveCity).toHaveBeenCalledWith(1, "test-token");
       });
 
-      // Navigation callback fires immediately
-      expect(defaultProps.onCitySelected).toHaveBeenCalledWith(1, null);
+      // Navigation callback fires immediately (district from findDistrictFromCoordinates mock)
+      expect(defaultProps.onCitySelected).toHaveBeenCalledWith(1, 5);
       expect(defaultProps.onComplete).toHaveBeenCalled();
       expect(defaultProps.onClose).toHaveBeenCalled();
     });
@@ -340,8 +341,8 @@ describe("WelcomeModal", () => {
       const user = userEvent.setup();
       render(<WelcomeModal {...defaultProps} />);
 
-      await user.type(screen.getByPlaceholderText(/enter your address/i), "Smallville");
-      await user.click(screen.getByText(/find my city/i));
+      await user.type(screen.getByPlaceholderText(/enter city, zip or address/i), "Smallville");
+      await user.click(screen.getByText(/^Continue$/i));
 
       await waitFor(() => {
         expect(defaultProps.onCityNotFound).toHaveBeenCalled();
@@ -358,8 +359,8 @@ describe("WelcomeModal", () => {
       const user = userEvent.setup();
       render(<WelcomeModal {...defaultProps} />);
 
-      await user.type(screen.getByPlaceholderText(/enter your address/i), "San Francisco");
-      await user.click(screen.getByText(/find my city/i));
+      await user.type(screen.getByPlaceholderText(/enter city, zip or address/i), "San Francisco");
+      await user.click(screen.getByText(/^Continue$/i));
 
       await waitFor(() => {
         expect(defaultProps.onCityNotFound).toHaveBeenCalledWith(
@@ -377,7 +378,7 @@ describe("WelcomeModal", () => {
   describe("Modal behavior", () => {
     it("does not render when isOpen is false", () => {
       render(<WelcomeModal {...defaultProps} isOpen={false} />);
-      expect(screen.queryByText(/find out what's happening near you/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/discover your block/i)).not.toBeInTheDocument();
     });
 
     it("resets state when re-opened", async () => {
@@ -385,7 +386,7 @@ describe("WelcomeModal", () => {
       rerender(<WelcomeModal {...defaultProps} isOpen={true} />);
 
       // Should start at welcome step
-      expect(screen.getByText(/find out what's happening near you/i)).toBeInTheDocument();
+      expect(screen.getByText(/discover your block/i)).toBeInTheDocument();
     });
   });
 });

@@ -348,8 +348,12 @@ export default function WelcomeModal({
     const token = await getAccessTokenSilently();
 
     let finalDistrict = district;
+    // Resolve district whenever we have coordinates (ZIP centroid, address, GPS).
+    // Previously we only did this for "precise" points, which skipped ZIP/postcode geocodes.
     const districtPromise =
-      coordinates && isPrecise && !finalDistrict && matchedCity
+      coordinates &&
+      matchedCity &&
+      (finalDistrict === null || finalDistrict === undefined)
         ? findDistrictFromCoordinates(coordinates.lat, coordinates.lng, matchedCity.id, token)
             .catch((error) => { console.error("Error determining district from coordinates:", error); return null; })
         : Promise.resolve(null);
@@ -467,6 +471,8 @@ export default function WelcomeModal({
       const isPrecise = !!(coordinates && (placeTypes.includes("address") || placeTypes.includes("poi")));
       if (isPrecise) {
         setHasPreciseLocation(true);
+      } else {
+        setHasPreciseLocation(false);
       }
 
       await processLocationAndFindCity(cityName, stateName, countryName, null, coordinates, isPrecise);
@@ -520,7 +526,14 @@ export default function WelcomeModal({
       }
 
       // Pass GPS coordinates to determine district
-      await processLocationAndFindCity(cityName, stateName, countryName, null, { lat: latitude, lng: longitude }, true);
+      await processLocationAndFindCity(
+        cityName,
+        stateName,
+        countryName,
+        null,
+        { lat: latitude, lng: longitude },
+        true,
+      );
     } catch (err: any) {
       console.error("GPS error:", err);
       if (err.code === 1) {
@@ -554,6 +567,17 @@ export default function WelcomeModal({
     );
   };
 
+  const locationGpsIcon = (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="3" />
+      <line x1="12" y1="2" x2="12" y2="4" />
+      <line x1="12" y1="20" x2="12" y2="22" />
+      <line x1="2" y1="12" x2="4" y2="12" />
+      <line x1="20" y1="12" x2="22" y2="12" />
+    </svg>
+  );
+
   // Render combined welcome + location step
   const renderWelcomeStep = () => (
     <div className={styles.stepContent}>
@@ -561,20 +585,44 @@ export default function WelcomeModal({
         <Loader size="lg" color="purple" className="loaderStatic" />
       </div>
 
-      <h1 className={styles.title}>Find out what&apos;s happening near you</h1>
+      <h1 className={styles.title}>Discover your block</h1>
       <p className={styles.subtitle}>
-        Enter your city, zip, address or location.
+        Transparent.city gives you a personalized view of your city.
       </p>
 
       {error && <div className={styles.error}>{error}</div>}
 
       <div className={styles.locationSection}>
+        <button
+          type="button"
+          className={styles.gpsHeroButton}
+          onClick={handleGPSLocation}
+          disabled={loading}
+          aria-busy={loading}
+          aria-label="Use my current location"
+        >
+          {loading ? (
+            <Loader size="sm" color="white" />
+          ) : (
+            <>
+              {locationGpsIcon}
+              Use my current location
+            </>
+          )}
+        </button>
+
+        <div className={styles.locationDivider} aria-hidden="true">
+          <span className={styles.locationDividerLine} />
+          <span className={styles.locationDividerText}>or search</span>
+          <span className={styles.locationDividerLine} />
+        </div>
+
         <div className={styles.inputGroup} ref={locationInputRef}>
           <div className={styles.inputWithGPS}>
             <input
               type="text"
               className={styles.input}
-              placeholder="Enter your address"
+              placeholder="Enter city, zip or address"
               value={locationInput}
               onChange={(e) => handleLocationInputChange(e.target.value)}
               onFocus={() => locationInput.trim().length >= 2 && setShowAddressDropdown(true)}
@@ -589,26 +637,6 @@ export default function WelcomeModal({
               aria-autocomplete="list"
               aria-expanded={showAddressDropdown && addressSuggestions.length > 0}
             />
-            <button
-              className={styles.gpsInlineButton}
-              onClick={handleGPSLocation}
-              disabled={loading}
-              title="Use my location"
-              type="button"
-            >
-              {loading ? (
-                <Loader size="sm" color="purple" />
-              ) : (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <circle cx="12" cy="12" r="3" />
-                  <line x1="12" y1="2" x2="12" y2="4" />
-                  <line x1="12" y1="20" x2="12" y2="22" />
-                  <line x1="2" y1="12" x2="4" y2="12" />
-                  <line x1="20" y1="12" x2="22" y2="12" />
-                </svg>
-              )}
-            </button>
           </div>
 
           {showAddressDropdown && (addressSuggestions.length > 0 || addressSuggestionsLoading) && (
@@ -635,6 +663,7 @@ export default function WelcomeModal({
         </div>
 
         <button
+          type="button"
           className={styles.primaryButton}
           onClick={handleAddressSubmit}
           disabled={loading || !locationInput.trim()}
@@ -644,9 +673,14 @@ export default function WelcomeModal({
               <Loader size="sm" color="white" />
             </span>
           ) : (
-            "Find my city"
+            "Continue"
           )}
         </button>
+
+        <p className={styles.pageOneTrust}>
+          We use your place only to personalize what you see around your block and what we send by email.
+          You can change it anytime in Settings.
+        </p>
       </div>
     </div>
   );
@@ -683,9 +717,10 @@ export default function WelcomeModal({
 
     return (
       <div className={`${styles.stepContent} ${styles.emailPersonalizationStep}`}>
-        <h2 className={styles.stepTitle}>What do you care about?</h2>
+        <h2 className={styles.stepTitle}>What matters on your block?</h2>
         <p className={styles.stepDescription}>
-          Pick topics to shape your feed for {cityDisplayName}.
+          Choose topics to prioritize in your feed for {cityDisplayName}. The same picks power an optional
+          weekly email—so what you follow on your block can land in your inbox, too.
         </p>
 
         <div className={styles.presetChips}>
@@ -723,12 +758,17 @@ export default function WelcomeModal({
               <span className={styles.emailOptInTitle}>
                 Weekly digest <span className={styles.recommendedBadge}>Recommended</span>
               </span>
-              <span className={styles.emailOptInDesc}>A personalized email based on your topics</span>
+              <span className={styles.emailOptInDesc}>
+                One weekly email with highlights for your topics and the place you set. Unsubscribe anytime.
+              </span>
             </div>
           </label>
           {showDigestNudge && (
             <div className={styles.digestNudge}>
-              <span>Are you sure? You can unsubscribe at any time, and this is the best way to keep up.</span>
+              <span>
+                No problem—you can turn the weekly email on later in Settings. Your in-app feed still follows
+                the topics you pick.
+              </span>
               <button
                 type="button"
                 className={styles.digestNudgeDismiss}
@@ -825,6 +865,10 @@ export default function WelcomeModal({
       }
 
       const cityId = locationResult.matchedCity.id;
+      const homeLocationLabelSnapshot = locationInput.trim();
+      const homeDistrictSnapshot = locationResult.district ?? null;
+      const homeCoordsSnapshot = homeCoordinates;
+
       await saveCity(cityId, token);
       emitSavedCitiesChanged();
 
@@ -912,11 +956,17 @@ export default function WelcomeModal({
 
           // Always persist home_location with city_id so the feed knows the
           // user's home city on subsequent logins. Include coordinates only
-          // when a precise address was provided.
+          // when a precise address was provided; include district/label when known.
           preferencesData.extra.home_location = {
             city_id: cityId,
+            ...(homeDistrictSnapshot != null
+              ? { district: homeDistrictSnapshot }
+              : {}),
             ...(hasPreciseLocation && homeCoordinates
               ? { coordinates: homeCoordinates }
+              : {}),
+            ...(homeLocationLabelSnapshot
+              ? { location_label: homeLocationLabelSnapshot }
               : {}),
           };
 

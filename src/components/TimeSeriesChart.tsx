@@ -27,6 +27,12 @@ const DEFAULT_PERIOD_LIMITS: Record<Exclude<PeriodType, "ytd">, number> = {
  */
 const YTD_COMPARISON_PRIOR_YEARS = 1;
 
+/** Emoji-capable fallbacks so metric titles render in Plotly PNG/canvas export, not tofu. */
+const PLOT_TITLE_FONT_FAMILY =
+  "Inter, Arial, Helvetica, 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif";
+const PLOT_AXIS_FONT_FAMILY =
+  "'IBM Plex Sans', Inter, Arial, Helvetica, 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif";
+
 function isYearInYtdWindow(year: number, currentYear: number): boolean {
   return (
     Number.isFinite(year) &&
@@ -1454,7 +1460,7 @@ export default function TimeSeriesChart({
         title: {
           text: plotlyTitleText,
           font: {
-            family: "Inter, Arial, sans-serif",
+            family: PLOT_TITLE_FONT_FAMILY,
             size: 14,
             color: textColor,
           },
@@ -1467,7 +1473,7 @@ export default function TimeSeriesChart({
           title: {
             text: "",
             font: {
-              family: "IBM Plex Sans, Arial, sans-serif",
+              family: PLOT_AXIS_FONT_FAMILY,
               size: 10,
               color: textColor,
             },
@@ -1476,7 +1482,7 @@ export default function TimeSeriesChart({
           showgrid: true,
           gridcolor: gridColorLight,
           tickfont: {
-            family: "IBM Plex Sans, Arial, sans-serif",
+            family: PLOT_AXIS_FONT_FAMILY,
             size: isMobile ? 8 : 9,
             color: textColor,
           },
@@ -1499,7 +1505,7 @@ export default function TimeSeriesChart({
           title: isMobile ? "" : {
             text: yAxisLabel,
             font: {
-              family: "IBM Plex Sans, Arial, sans-serif",
+              family: PLOT_AXIS_FONT_FAMILY,
               size: 10,
               color: textColor,
             },
@@ -1510,7 +1516,7 @@ export default function TimeSeriesChart({
           zeroline: false,
           range: [0, maxYValue],
           tickfont: {
-            family: "IBM Plex Sans, Arial, sans-serif",
+            family: PLOT_AXIS_FONT_FAMILY,
             size: isMobile ? 8 : 9,
             color: textColor,
           },
@@ -1523,7 +1529,7 @@ export default function TimeSeriesChart({
           xanchor: "center" as const,
           yanchor: "top" as const,
           font: {
-            family: "IBM Plex Sans, Arial, sans-serif",
+            family: PLOT_AXIS_FONT_FAMILY,
             size: 10,
             color: textColor,
           },
@@ -1546,7 +1552,7 @@ export default function TimeSeriesChart({
           bgcolor: hoverBgColor,
           bordercolor: "var(--brand-primary, #ad35fa)",
           font: {
-            family: "IBM Plex Sans, Arial, sans-serif",
+            family: PLOT_AXIS_FONT_FAMILY,
             size: 9,
             color: hoverTextColor,
           },
@@ -1569,7 +1575,7 @@ export default function TimeSeriesChart({
       title: {
         text: plotlyTitleText,
         font: {
-          family: "Inter, Arial, sans-serif",
+          family: PLOT_TITLE_FONT_FAMILY,
           size: 14,
           color: textColor,
         },
@@ -1581,7 +1587,7 @@ export default function TimeSeriesChart({
         showgrid: true,
         gridcolor: gridColor,
         tickfont: {
-          family: "IBM Plex Sans, Arial, sans-serif",
+          family: PLOT_AXIS_FONT_FAMILY,
           size: isMobile ? 8 : 10,
           color: textColor,
         },
@@ -1597,7 +1603,7 @@ export default function TimeSeriesChart({
         title: isMobile ? "" : {
           text: yAxisLabel,
           font: {
-            family: "IBM Plex Sans, Arial, sans-serif",
+            family: PLOT_AXIS_FONT_FAMILY,
             size: 10,
             color: textColor,
           },
@@ -1606,7 +1612,7 @@ export default function TimeSeriesChart({
         gridcolor: gridColor,
         range: [0, maxYValue],
         tickfont: {
-          family: "IBM Plex Sans, Arial, sans-serif",
+          family: PLOT_AXIS_FONT_FAMILY,
           size: isMobile ? 8 : 10,
           color: textColor,
         },
@@ -1628,7 +1634,7 @@ export default function TimeSeriesChart({
         bgcolor: hoverBgColor,
         bordercolor: "var(--brand-primary, #ad35fa)",
         font: {
-          family: "IBM Plex Sans, Arial, sans-serif",
+          family: PLOT_AXIS_FONT_FAMILY,
           size: 10,
           color: hoverTextColor,
         },
@@ -1641,7 +1647,7 @@ export default function TimeSeriesChart({
         xanchor: "center" as const,
         yanchor: "top" as const,
         font: {
-          family: "IBM Plex Sans, Arial, sans-serif",
+          family: PLOT_AXIS_FONT_FAMILY,
           size: 10,
           color: textColor,
         },

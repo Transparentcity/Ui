@@ -31,9 +31,11 @@ import {
 } from "recharts";
 import {
   getSignupFunnelSummary,
+  getProductEventFunnel,
   type CityFunnelRow,
   type DistrictFunnelRow,
   type SignupFunnelSummary,
+  type ProductEventFunnelRow,
 } from "@/lib/apiClient";
 
 // ---------------------------------------------------------------------------
@@ -275,6 +277,8 @@ export default function SignupFunnelDashboard() {
   const { getAccessTokenSilently } = useAuth0();
   const [days, setDays] = useState(30);
   const [data, setData] = useState<SignupFunnelSummary | null>(null);
+  const [funnelData, setFunnelData] = useState<ProductEventFunnelRow[]>([]);
+  const [totalLandings, setTotalLandings] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedCityId, setSelectedCityId] = useState<number | null>(null);
@@ -286,14 +290,31 @@ export default function SignupFunnelDashboard() {
       setError(null);
       try {
         const token = await getAccessTokenSilently();
-        const result = await getSignupFunnelSummary(token, {
-          days: overrideDays ?? days,
-          city_id:
-            overrideCityId !== undefined
-              ? overrideCityId ?? undefined
-              : selectedCityId ?? undefined,
-        });
-        setData(result);
+        const activeDays = overrideDays ?? days;
+        const activeCityId =
+          overrideCityId !== undefined ? overrideCityId : selectedCityId;
+
+        // Load signup funnel (city/district breakdown) and first-party landing
+        // data in parallel
+        const [signupResult, funnelResult] = await Promise.all([
+          getSignupFunnelSummary(token, {
+            days: activeDays,
+            city_id: activeCityId ?? undefined,
+          }),
+          getProductEventFunnel(token, {
+            days: activeDays,
+            city_id: activeCityId ?? undefined,
+          }).catch(() => null), // landing data is best-effort
+        ]);
+
+        setData(signupResult);
+        if (funnelResult) {
+          setFunnelData(funnelResult.daily);
+          setTotalLandings(funnelResult.total_page_views);
+        } else {
+          setFunnelData([]);
+          setTotalLandings(null);
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load data");
       } finally {
@@ -343,14 +364,18 @@ export default function SignupFunnelDashboard() {
       ? data?.by_district.filter((d) => d.city_id === selectedCityId) ?? []
       : data?.by_district ?? [];
 
-  // Daily chart data
+  // Merge first-party funnel data (landings) with signup counts by date
+  const funnelByDate = Object.fromEntries(funnelData.map((r) => [r.date, r]));
   const chartData =
-    data?.daily.map((d) => ({
-      day: shortDate(d.date),
-      "Signup starts": d.signup_starts,
-      "Signup completes": d.signup_completes,
-      ...(d.landings != null ? { Landings: d.landings } : {}),
-    })) ?? [];
+    data?.daily.map((d) => {
+      const fp = funnelByDate[d.date];
+      return {
+        day: shortDate(d.date),
+        "City page views": fp?.page_views ?? 0,
+        "Signup starts": d.signup_starts,
+        "Signup completes": d.signup_completes,
+      };
+    }) ?? [];
 
   return (
     <div style={{ padding: "0 0 32px" }}>
@@ -382,19 +407,6 @@ export default function SignupFunnelDashboard() {
               style={{ fontSize: "12px", color: "var(--text-secondary, #666)", marginTop: "2px" }}
             >
               {data.date_from} → {data.date_to}
-              {!data.ga4_available && (
-                <span
-                  style={{
-                    marginLeft: "8px",
-                    padding: "1px 6px",
-                    background: "var(--bg-tertiary, #f0f0f0)",
-                    borderRadius: "4px",
-                    fontSize: "11px",
-                  }}
-                >
-                  GA4 not connected — landings &amp; bounce rate unavailable
-                </span>
-              )}
             </div>
           )}
         </div>
@@ -481,14 +493,9 @@ export default function SignupFunnelDashboard() {
         }}
       >
         <StatCard
-          label="Total landings"
-          value={fmt(data?.total_landings)}
-          sub={data?.ga4_available ? "from GA4" : undefined}
-        />
-        <StatCard
-          label="Avg bounce rate"
-          value={pct(data?.avg_bounce_rate)}
-          sub={data?.ga4_available ? "from GA4" : undefined}
+          label="City page landings"
+          value={fmt(totalLandings)}
+          sub="first-party"
         />
         <StatCard
           label="Signup starts"
@@ -502,10 +509,19 @@ export default function SignupFunnelDashboard() {
           highlight
         />
         <StatCard
-          label="Conversion"
+          label="Landing → complete"
+          value={
+            totalLandings && data?.total_signup_completes
+              ? pct(data.total_signup_completes / totalLandings)
+              : "—"
+          }
+          sub="city pages → signups"
+          highlight={!!data?.total_signup_completes && !!totalLandings}
+        />
+        <StatCard
+          label="Start → complete"
           value={pct(data?.conversion_rate)}
           sub="starts → completes"
-          highlight={!!data?.conversion_rate}
         />
       </div>
 
@@ -522,68 +538,41 @@ export default function SignupFunnelDashboard() {
             }}
           >
             <ResponsiveContainer width="100%" height={220}>
-              {data.ga4_available ? (
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary, #e5e5e5)" />
-                  <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--bg-primary, #fff)",
-                      border: "1px solid var(--border-primary, #e5e5e5)",
-                      borderRadius: "8px",
-                      fontSize: "12px",
-                    }}
-                  />
-                  <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                  <Line
-                    type="monotone"
-                    dataKey="Landings"
-                    stroke="#888"
-                    strokeWidth={1.5}
-                    dot={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="Signup starts"
-                    stroke="#5B8DEF"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="Signup completes"
-                    stroke="#ad35fa"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </LineChart>
-              ) : (
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary, #e5e5e5)" />
-                  <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--bg-primary, #fff)",
-                      border: "1px solid var(--border-primary, #e5e5e5)",
-                      borderRadius: "8px",
-                      fontSize: "12px",
-                    }}
-                  />
-                  <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                  <Bar
-                    dataKey="Signup starts"
-                    fill="#5B8DEF"
-                    radius={[3, 3, 0, 0]}
-                  />
-                  <Bar
-                    dataKey="Signup completes"
-                    fill="#ad35fa"
-                    radius={[3, 3, 0, 0]}
-                  />
-                </BarChart>
-              )}
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary, #e5e5e5)" />
+                <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--bg-primary, #fff)",
+                    border: "1px solid var(--border-primary, #e5e5e5)",
+                    borderRadius: "8px",
+                    fontSize: "12px",
+                  }}
+                />
+                <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                <Line
+                  type="monotone"
+                  dataKey="City page views"
+                  stroke="#888"
+                  strokeWidth={1.5}
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="Signup starts"
+                  stroke="#5B8DEF"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="Signup completes"
+                  stroke="#ad35fa"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
             </ResponsiveContainer>
           </div>
         </div>

@@ -13,6 +13,7 @@ import Loader from "@/components/Loader";
 import Header from "@/components/Header";
 import HomeFeedPreview from "@/components/feed/HomeFeedPreview";
 import { trackSearchReferrer } from "@/lib/analytics";
+import { useProductEvent } from "@/lib/productAnalytics";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import type { MetricCardData } from "@/components/feed/templates/MetricSummaryCard";
 
@@ -25,6 +26,9 @@ interface HomeClientProps {
 export default function HomeClient({ stories, metricCards, launchedCities = [] }: HomeClientProps) {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const router = useRouter();
+
+  // First-party landing event for the home page
+  useProductEvent("home_page_view");
 
   const handleSignup = async () => {
     if (typeof window !== "undefined") {

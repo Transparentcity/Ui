@@ -2650,6 +2650,12 @@ export default function PublicMapPage() {
     return <div className={`public-map-page ${isEmbedded ? "embedded" : ""}`}>Map not found</div>;
   }
 
+  /** Matches loadChoropleth `isDeltaMap` so legend layout stays in sync for red/green choropleths. */
+  const useDeltaChoroplethLegendStyle =
+    map.map_type === "delta" ||
+    (map.map_config as Record<string, unknown> | undefined)?.delta_palette ===
+      "red_green";
+
   // Thumbnail mode — map only, no chrome, for feed card previews
   if (isThumbnail) {
     return (
@@ -2657,7 +2663,12 @@ export default function PublicMapPage() {
         <div className="map-container-wrapper embedded-map-wrapper">
           <div className="map-container embedded-map" ref={mapContainerRef} />
           {legend && legend.items.length > 0 && map.map_type !== "multi_layer" && (
-            <div className="map-legend map-legend-thumbnail" aria-label="Map legend">
+            <div
+              className={`map-legend map-legend-thumbnail${
+                useDeltaChoroplethLegendStyle ? " map-legend-delta-choropleth" : ""
+              }`}
+              aria-label="Map legend"
+            >
               <div className="map-legend-items">
                 {legend.items.map((item) => (
                   <div key={item.label} className="map-legend-item">
@@ -2876,7 +2887,12 @@ export default function PublicMapPage() {
           )}
           <div className="map-container embedded-map" ref={mapContainerRef} />
           {legend && legend.items.length > 0 && map.map_type !== "multi_layer" && (
-            <div className="map-legend" aria-label="Map legend">
+            <div
+              className={`map-legend${
+                useDeltaChoroplethLegendStyle ? " map-legend-delta-choropleth" : ""
+              }`}
+              aria-label="Map legend"
+            >
               <div className="map-legend-title">{legend.title}</div>
               <div className="map-legend-items">
                 {legend.items.map((item) => (
@@ -3193,7 +3209,12 @@ export default function PublicMapPage() {
           )}
           <div className="map-container" ref={mapContainerRef} />
           {legend && legend.items.length > 0 && map.map_type !== "multi_layer" && (
-            <div className="map-legend" aria-label="Map legend">
+            <div
+              className={`map-legend${
+                useDeltaChoroplethLegendStyle ? " map-legend-delta-choropleth" : ""
+              }`}
+              aria-label="Map legend"
+            >
               <div className="map-legend-title">{legend.title}</div>
               <div className="map-legend-items">
                 {legend.items.map((item) => (

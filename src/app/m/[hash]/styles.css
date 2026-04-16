@@ -805,6 +805,78 @@
   display: none;
 }
 
+/* Delta choropleth: thin strip centered on bottom, transparent — avoids blocking polygons */
+.map-legend.map-legend-delta-choropleth {
+  top: auto;
+  right: auto;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  max-width: min(96vw, 400px);
+  padding: 3px 6px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+[data-theme="dark"] .map-legend.map-legend-delta-choropleth,
+.dark .map-legend.map-legend-delta-choropleth {
+  background: transparent;
+}
+
+.map-legend.map-legend-delta-choropleth .map-legend-title {
+  display: none;
+}
+
+.map-legend.map-legend-delta-choropleth .map-legend-items {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 12px;
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
+}
+
+.map-legend.map-legend-delta-choropleth .map-legend-item {
+  font-size: 0.62rem;
+  font-weight: 600;
+  gap: 4px;
+  color: var(--text-primary);
+}
+
+.map-legend.map-legend-delta-choropleth .map-legend-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.map-legend.map-legend-delta-choropleth .map-legend-label {
+  text-shadow:
+    0 0 2px rgba(255, 255, 255, 1),
+    0 0 6px rgba(255, 255, 255, 0.85),
+    0 0 10px rgba(255, 255, 255, 0.6);
+}
+
+[data-theme="dark"] .map-legend.map-legend-delta-choropleth .map-legend-label,
+.dark .map-legend.map-legend-delta-choropleth .map-legend-label {
+  text-shadow:
+    0 0 3px rgba(0, 0, 0, 1),
+    0 0 8px rgba(0, 0, 0, 0.75),
+    0 0 14px rgba(0, 0, 0, 0.5);
+}
+
+/* Thumbnail + delta: same bottom treatment (overrides thumbnail corner offsets) */
+.map-legend.map-legend-thumbnail.map-legend-delta-choropleth {
+  right: auto;
+  bottom: 4px;
+  font-size: 0.58rem;
+  padding: 2px 4px;
+}
+
 .public-map-page.embedded .error-container {
   margin: 1rem;
   padding: 1rem;

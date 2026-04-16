@@ -83,6 +83,8 @@ export interface UseMetricsOptions {
   metric_type?: string;
   is_active?: boolean;
   city_id?: number;
+  /** Filter metrics instantiated from this template metric id. */
+  template_id?: number;
   /** Filter by last run status: failed, completed, cancelled, timeout, or never */
   last_execution_status?: string;
   /** Include record counts (slower). Omit or false for fast list load. */
