@@ -897,4 +897,123 @@ describe("PlaceOnboardingContext", () => {
       expect(screen.getByTestId("status").textContent).toBe("completed");
     });
   });
+
+  // ── Edge case & robustness tests ───────────────────────────────────
+
+  describe("edge cases and robustness", () => {
+    it("startCityLoading resets stuck backgroundWorkActiveRef from prior session", () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      // Simulate a stuck state: background work started but never completed
+      act(() => { latestValue!.startCityLoading("OldCity"); });
+      act(() => { latestValue!.startBackgroundWork(); });
+      // User navigated away: completeBackgroundWork was never called
+
+      // New onboarding session starts
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+
+      // completeCityLoading should apply immediately (backgroundWork was reset)
+      act(() => { latestValue!.completeCityLoading(true); });
+      expect(screen.getByTestId("status").textContent).toBe("completed");
+    });
+
+    it("applyCityCompletion is idempotent: duplicate calls do not create extra timers", async () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+
+      // Call completeCityLoading multiple times (simulating React effect re-fires)
+      act(() => { latestValue!.completeCityLoading(true); });
+      act(() => { latestValue!.completeCityLoading(true); });
+      act(() => { latestValue!.completeCityLoading(true); });
+
+      expect(screen.getByTestId("status").textContent).toBe("completed");
+
+      // Only one auto-dismiss timer should be active; dismissed after 2s
+      await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+      expect(screen.getByTestId("dismissed").textContent).toBe("true");
+    });
+
+    it("city with no leaders: banner completes without showing mayor", () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      act(() => { latestValue!.startCityLoading("SmallTown"); });
+      act(() => { latestValue!.startBackgroundWork(); });
+
+      // Background work completes without ever calling notifyRepFound
+      // (getCityLeaders returned [] or no mayor found)
+      act(() => { latestValue!.completeCityLoading(true); });
+      act(() => { latestValue!.completeBackgroundWork(); });
+
+      // Banner should complete normally without rep notification
+      expect(screen.getByTestId("status").textContent).toBe("completed");
+      expect(screen.getByTestId("message").textContent).toBe(
+        "Your SmallTown feed is ready!"
+      );
+    });
+
+    it("user dismisses banner manually during scanning", () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+      expect(screen.getByTestId("status").textContent).toBe("scanning");
+
+      // User clicks dismiss
+      act(() => { latestValue!.dismiss(); });
+
+      expect(screen.getByTestId("dismissed").textContent).toBe("true");
+      expect(sessionStorage.setItem).toHaveBeenCalledWith("tc:onboarding-banner-dismissed", "1");
+    });
+
+    it("place creation fails: startJob never called, city banner completes normally", () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+      act(() => { latestValue!.startBackgroundWork(); });
+
+      // Mayor found
+      act(() => { latestValue!.notifyRepFound("Mayor Smith", "Mayor"); });
+
+      // Background work completes (place creation failed, no startJob called)
+      act(() => { latestValue!.completeCityLoading(true); });
+      act(() => { latestValue!.completeBackgroundWork(); });
+
+      // Should complete as city-level (no place-level transition)
+      expect(latestValue!.mode).toBe("city");
+      expect(screen.getByTestId("status").textContent).toBe("completed");
+    });
+
+    it("notifyRepFound during completed status is ignored", () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+      act(() => { latestValue!.completeCityLoading(true); });
+      expect(screen.getByTestId("status").textContent).toBe("completed");
+
+      // Late notification arrives after completion
+      act(() => { latestValue!.notifyRepFound("Late Mayor", "Mayor"); });
+
+      // Status should remain completed, not revert to found_rep
+      expect(screen.getByTestId("status").textContent).toBe("completed");
+    });
+
+    it("rapid startCityLoading calls: second call wins", () => {
+      let latestValue: ReturnType<typeof usePlaceOnboarding> | null = null;
+      renderWithProvider({}, (v) => { latestValue = v; });
+
+      act(() => { latestValue!.startCityLoading("Sacramento"); });
+      act(() => { latestValue!.startCityLoading("Chicago"); });
+
+      expect(screen.getByTestId("message").textContent).toBe(
+        "Looking for stories in Chicago..."
+      );
+      expect(latestValue!.cityName).toBe("Chicago");
+    });
+  });
 });

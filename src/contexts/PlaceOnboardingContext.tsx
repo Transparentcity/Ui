@@ -157,6 +157,9 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
     // Don't override an active place-level job
     if (modeRef.current === "place") return;
     clearAllTimers();
+    // Reset stale background work flag (e.g. user navigated away mid-onboarding and returned)
+    backgroundWorkActiveRef.current = false;
+    pendingCityCompletionRef.current = null;
     setCityName(name);
     setMode("city");
     setStatus("scanning");
@@ -170,8 +173,11 @@ export function PlaceOnboardingProvider({ children, initialJob, notifyRepFoundRe
     if (typeof window !== "undefined") sessionStorage.removeItem(SESSION_KEY);
   }, [clearAllTimers]);
 
-  // Apply city-level completion (shared by completeCityLoading and completeBackgroundWork)
+  // Apply city-level completion (shared by completeCityLoading and completeBackgroundWork).
+  // Idempotent: skips if already completed/failed to avoid duplicate timers.
   const applyCityCompletion = useCallback((success: boolean) => {
+    const s = statusRef.current;
+    if (s === "completed" || s === "failed") return;
     setStatus(success ? "completed" : "failed");
     autoDismissRef.current = setTimeout(() => {
       setDismissed(true);
