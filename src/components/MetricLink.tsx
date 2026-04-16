@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ReactNode } from "react";
 
-interface MetricLinkProps {
+interface MetricLinkProps extends Omit<React.HTMLAttributes<HTMLElement>, "onClick" | "children" | "className" | "style"> {
   metricId: number;
   metricKey?: string;
   citySlug: string;

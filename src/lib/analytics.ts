@@ -55,8 +55,8 @@ export interface SignupEventContext {
     | "customize_metrics"
     | string
     | null;
-  /** signup_intent value (resident / public-servant) */
-  signup_intent?: "resident" | "public-servant" | null;
+  /** signup_intent value (resident / public-servant / subscriber) */
+  signup_intent?: "resident" | "public-servant" | "subscriber" | null;
   /** URL path where the funnel began */
   landing_path?: string | null;
   /** Anonymous session key for pre-auth stitching (set in localStorage) */
@@ -206,7 +206,7 @@ export function trackSignupCtaClick(ctx?: SignupEventContext): void {
  * Track when user starts signup process (intent chosen, about to redirect to Auth0).
  */
 export function trackSignupStart(
-  intent: "resident" | "public-servant",
+  intent: "resident" | "public-servant" | "subscriber",
   ctx?: SignupEventContext
 ): void {
   trackEvent("signup_start", {
@@ -222,7 +222,7 @@ export function trackSignupStart(
  * @deprecated Use trackSignupStart – kept for backwards compat.
  */
 export function trackSignupClick(
-  intent: "resident" | "public-servant",
+  intent: "resident" | "public-servant" | "subscriber",
   ctx?: SignupEventContext
 ): void {
   trackEvent("signup_click", {
@@ -248,7 +248,7 @@ export function trackSignupAuthReturn(ctx?: SignupEventContext): void {
  * Track when user completes signup (after Auth0 callback + user record confirmed).
  */
 export function trackSignupComplete(
-  intent: "resident" | "public-servant",
+  intent: "resident" | "public-servant" | "subscriber",
   userId?: string,
   ctx?: SignupEventContext
 ): void {
