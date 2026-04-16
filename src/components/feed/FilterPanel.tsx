@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import styles from "./FilterPanel.module.css";
 
 /* ── Types ────────────────────────────────────────────────────────────────── */
@@ -90,6 +90,31 @@ export default function FilterPanel({
   // Draft state (applied on "Apply" for mobile, immediately on desktop)
   const [draft, setDraft] = useState<FilterState>({ ...filters });
   const isDesktop = useIsDesktop();
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // On desktop, the panel is absolutely positioned below the filter trigger.
+  // A static max-height: 80vh can extend below the viewport when the trigger
+  // is near the top of the page, clipping the bottom of the list off-screen.
+  // Measure the panel's top position and cap max-height to fit the visible area.
+  useLayoutEffect(() => {
+    if (!open || !isDesktop) return;
+    const el = panelRef.current;
+    if (!el) return;
+
+    const updateMaxHeight = () => {
+      const top = el.getBoundingClientRect().top;
+      const available = window.innerHeight - top - 16; // 16px bottom margin
+      el.style.setProperty("--panel-max-h", `${Math.max(available, 200)}px`);
+    };
+
+    updateMaxHeight();
+    window.addEventListener("resize", updateMaxHeight);
+    window.addEventListener("scroll", updateMaxHeight, { passive: true });
+    return () => {
+      window.removeEventListener("resize", updateMaxHeight);
+      window.removeEventListener("scroll", updateMaxHeight);
+    };
+  }, [open, isDesktop]);
 
   // Reset draft when panel opens + lock body scroll on mobile
   useEffect(() => {
@@ -133,6 +158,7 @@ export default function FilterPanel({
 
       {/* Panel */}
       <div
+        ref={panelRef}
         className={styles.panel}
         role="dialog"
         aria-modal="true"
