@@ -3,6 +3,7 @@
 import React, { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { VisualizationDeferredInteractiveContainer } from "./VisualizationDeferredInteractiveContainer";
 import {
   processVisualizationShortcodes,
   EmbedConfig,
@@ -69,9 +70,9 @@ export function ReportContent({
   if (isHtml) {
     // Render HTML directly with embedded visualizations
     return (
-      <div
+      <VisualizationDeferredInteractiveContainer
         className={className}
-        dangerouslySetInnerHTML={{ __html: processedContent }}
+        html={processedContent}
       />
     );
   }

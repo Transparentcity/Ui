@@ -47,6 +47,12 @@ export interface VisualizationShortcodeStoryLike {
 
 export interface VisualizationShortcodeConfig extends EmbedConfig {
   staticVisualizations?: StaticVisualizationConfig;
+  /**
+   * When a static image replaces a shortcode, also emit a disclosure that loads
+   * the interactive iframe on first open. Set to false for image-only embeds.
+   * @default true
+   */
+  deferInteractiveForStaticEmbeds?: boolean;
 }
 
 const DEFAULT_CONFIG: Required<EmbedConfig> = {
@@ -79,6 +85,26 @@ function escapeHtml(s: string): string {
 }
 
 const VALID_CHART_PERIODS = new Set(["day", "week", "month", "year", "ytd"]);
+
+function shouldDeferInteractiveForStatic(config: VisualizationShortcodeConfig): boolean {
+  return config.deferInteractiveForStaticEmbeds !== false;
+}
+
+/** Base chart embed URL (no theme). Client may append `&theme=` when activating. */
+function chartInteractiveBaseUrl(chartId: string | number, period?: string): string {
+  const validPeriod =
+    period && VALID_CHART_PERIODS.has(period.toLowerCase()) ? period.toLowerCase() : undefined;
+  const periodQuery = validPeriod ? `&period=${validPeriod}` : "";
+  return `/t/${chartId}?embedded=true${periodQuery}`;
+}
+
+function mapInteractiveBaseUrl(shortHash: string): string {
+  return `/m/${shortHash}?embedded=true`;
+}
+
+function anomalyInteractiveBaseUrl(resultId: string | number): string {
+  return `/a/${resultId}?embedded=true`;
+}
 
 function getStaticVisualizationAsset(
   visType: "chart" | "map" | "anomaly",
@@ -127,20 +153,56 @@ function getStaticVisualizationEmbed(
     ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
     : "";
 
+  const deferInteractive = shouldDeferInteractiveForStatic(config);
+  const interactiveBase =
+    visType === "chart"
+      ? chartInteractiveBaseUrl(ref)
+      : visType === "map"
+        ? mapInteractiveBaseUrl(ref)
+        : anomalyInteractiveBaseUrl(ref);
+  const iframeTitle =
+    visType === "chart"
+      ? `Chart ${ref}`
+      : visType === "map"
+        ? `Map ${ref}`
+        : `Anomaly ${ref}`;
+  const interactiveBlock = deferInteractive
+    ? `
+      <details class="viz-deferred-interactive">
+        <summary class="viz-deferred-interactive-summary">Load interactive version</summary>
+        <div class="viz-deferred-interactive-frame-wrap">
+          <iframe
+            data-deferred-src="${escapeHtml(interactiveBase)}"
+            width="${cfg.width}"
+            height="${height}"
+            frameborder="0"
+            style="border: none; border-radius: 8px; background: #f8f9fa; display: block;"
+            title="${escapeHtml(iframeTitle)}"
+          ></iframe>
+        </div>
+      </details>
+    `.trim()
+    : "";
+
   return `
-    <div class="${cfg.className} ${visType}-embed visualization-static-embed" ${attrName}="${escapeHtml(ref)}" data-shortcode="${shortcodeEscaped}">
-      <img
-        src="${srcEscaped}"
-        alt="${altEscaped}"
-        loading="lazy"
-        class="visualization-static-image"
-        style="width: 100%; height: ${height}; object-fit: cover; display: block; background: #f8f9fa;"
-      />
-      ${
-        captionEscaped
-          ? `<div class="visualization-static-caption">${captionEscaped}</div>`
-          : ""
-      }
+    <div class="${cfg.className} ${visType}-embed visualization-static-embed${
+      deferInteractive ? " viz-has-deferred-interactive" : ""
+    }" ${attrName}="${escapeHtml(ref)}" data-shortcode="${shortcodeEscaped}">
+      <div class="viz-static-stack">
+        <img
+          src="${srcEscaped}"
+          alt="${altEscaped}"
+          loading="lazy"
+          class="visualization-static-image"
+          style="width: 100%; height: ${height}; object-fit: cover; display: block; background: #f8f9fa;"
+        />
+        ${
+          captionEscaped
+            ? `<div class="visualization-static-caption">${captionEscaped}</div>`
+            : ""
+        }
+      </div>
+      ${interactiveBlock}
       ${debugHtml}
     </div>
   `.trim();
@@ -159,9 +221,7 @@ export function getChartEmbed(chartId: string | number, config: EmbedConfig = {}
   const shortcode = validPeriod ? `[chart:${chartId}:${validPeriod}]` : `[chart:${chartId}]`;
   const shortcodeEscaped = escapeHtml(shortcode);
   const themeQuery = getEmbedThemeQuery();
-  const periodQuery = validPeriod ? `&period=${validPeriod}` : "";
-  // Relative URL - /t/{id} is a frontend route in this same app
-  const url = `/t/${chartId}?embedded=true${periodQuery}${themeQuery}`;
+  const url = `${chartInteractiveBaseUrl(chartId, validPeriod)}${themeQuery}`;
   
   const debugHtml = cfg.showDebug
     ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
@@ -192,8 +252,7 @@ export function getMapEmbed(shortHash: string, config: EmbedConfig = {}): string
   const shortcode = `[map:${shortHash}]`;
   const shortcodeEscaped = escapeHtml(shortcode);
   const themeQuery = getEmbedThemeQuery();
-  // Relative URL - /m/{hash} is a frontend route in this same app
-  const url = `/m/${shortHash}?embedded=true${themeQuery}`;
+  const url = `${mapInteractiveBaseUrl(shortHash)}${themeQuery}`;
   
   const debugHtml = cfg.showDebug
     ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
@@ -224,8 +283,7 @@ export function getAnomalyEmbed(resultId: string | number, config: EmbedConfig =
   const shortcode = `[anomaly:${resultId}]`;
   const shortcodeEscaped = escapeHtml(shortcode);
   const themeQuery = getEmbedThemeQuery();
-  // Relative URL - /a/{id} is a frontend route
-  const url = `/a/${resultId}?embedded=true${themeQuery}`;
+  const url = `${anomalyInteractiveBaseUrl(resultId)}${themeQuery}`;
   
   const debugHtml = cfg.showDebug
     ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`

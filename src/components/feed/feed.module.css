@@ -1718,6 +1718,11 @@
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.16));
 }
 
+/** Suggested “jump to this saved place” chip (no dismiss control). */
+.placeNavPill {
+  border-style: dashed;
+}
+
 .activePillLabel {
   white-space: nowrap;
 }

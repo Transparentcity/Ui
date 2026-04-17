@@ -59,7 +59,27 @@ describe("processVisualizationShortcodes", () => {
     expect(out).toContain('src="/api/feed/public/story-image/abc123"');
     expect(out).toContain('alt="Austin service map"');
     expect(out).toContain("visualization-static-caption");
-    expect(out).not.toContain('src="/m/AzOP6s-N?embedded=true"');
+    expect(out).toContain("viz-deferred-interactive");
+    expect(out).toContain('data-deferred-src="/m/AzOP6s-N?embedded=true"');
+    expect(out).not.toMatch(/<iframe[^>]*\ssrc="\/m\/AzOP6s-N/);
+  });
+
+  it("can omit deferred interactive when deferInteractiveForStaticEmbeds is false", () => {
+    const out = processVisualizationShortcodes("[map:AzOP6s-N]", {
+      showDebug: false,
+      deferInteractiveForStaticEmbeds: false,
+      staticVisualizations: {
+        maps: {
+          "AzOP6s-N": {
+            src: "/api/feed/public/story-image/abc123",
+            alt: "Map",
+          },
+        },
+      },
+    });
+    expect(out).toContain('src="/api/feed/public/story-image/abc123"');
+    expect(out).not.toContain("viz-deferred-interactive");
+    expect(out).not.toContain("data-deferred-src=");
   });
 
   it("replaces anomaly shortcodes with iframe embeds", () => {

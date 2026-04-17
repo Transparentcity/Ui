@@ -1100,6 +1100,29 @@ export default function FeedContainer({
 
   const topicLabels = TOPIC_LABELS;
 
+  /** Saved places that appear on at least one visible story — offer chips to narrow the feed. */
+  const placeNavIds = useMemo(() => {
+    if (!isAuthenticated || userPlaces.length === 0 || selectedPlaceId !== null) {
+      return [] as number[];
+    }
+    const allowed = new Set(userPlaces.map((p) => p.id));
+    const found = new Set<number>();
+    for (const s of visibleStories) {
+      if (s.user_place_id != null && allowed.has(s.user_place_id)) {
+        found.add(s.user_place_id);
+      }
+      const legacy = Array.isArray(s.metadata?.user_place_ids)
+        ? s.metadata.user_place_ids
+        : [];
+      for (const id of legacy) {
+        if (typeof id === "number" && allowed.has(id)) found.add(id);
+      }
+    }
+    return [...found].sort((a, b) => a - b);
+  }, [isAuthenticated, userPlaces, visibleStories, selectedPlaceId]);
+
+  const showPillsRow = hasActiveFilters || placeNavIds.length > 0;
+
   return (
     <div
       ref={containerRef}
@@ -1178,10 +1201,27 @@ export default function FeedContainer({
         </div>
       </div>
 
-      {/* ── Active filter pills ── */}
-      {hasActiveFilters && (
+      {/* ── Active filter pills (+ place navigation when the feed mixes in saved-place stories) ── */}
+      {showPillsRow && (
         <div className={styles.activePillsRow}>
           <div className={styles.activePillsScroll}>
+            {/* Saved-place chips: tap to filter to that address (only when not already narrowed) */}
+            {placeNavIds.map((pid) => (
+              <button
+                key={`place-nav-${pid}`}
+                type="button"
+                className={`${styles.activePill} ${styles.placeNavPill}`}
+                onClick={() => {
+                  setSelectedPlaceId(pid);
+                  setOnlyMySavedPlacesFeed(true);
+                }}
+              >
+                <span className={styles.activePillLabel}>
+                  📍 {userPlaces.find((p) => p.id === pid)?.label ?? "Saved place"}
+                </span>
+              </button>
+            ))}
+
             {/* City pills */}
             {[...selectedCityIds].map((cid) => {
               const c = uniqueCities.find((u) => u.city_id === cid);
@@ -1280,20 +1320,22 @@ export default function FeedContainer({
             )}
           </div>
 
-          <button
-            type="button"
-            className={styles.clearAllBtn}
-            onClick={() => {
-              setSelectedCityIds(new Set());
-              setSelectedTopics(new Set());
-              setSelectedDistricts(new Map());
-              setSelectedPlaceId(null);
-              setOnlyMySavedPlacesFeed(userPlaces.length > 0);
-              setFeedOrder("for_you");
-            }}
-          >
-            Clear all
-          </button>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              className={styles.clearAllBtn}
+              onClick={() => {
+                setSelectedCityIds(new Set());
+                setSelectedTopics(new Set());
+                setSelectedDistricts(new Map());
+                setSelectedPlaceId(null);
+                setOnlyMySavedPlacesFeed(userPlaces.length > 0);
+                setFeedOrder("for_you");
+              }}
+            >
+              Clear all
+            </button>
+          )}
         </div>
       )}
 

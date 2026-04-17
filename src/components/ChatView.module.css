@@ -207,9 +207,6 @@
   min-height: 44px;
 }
 
-.chatInputWrapper:focus-within {
-  border-color: var(--brand-primary);
-}
 
 /* Model icon wrapper inside on the left */
 .modelIconWrapper {
@@ -319,6 +316,11 @@
 
 .chatInput:focus {
   outline: none;
+}
+
+.chatInput:focus-visible {
+  outline: none !important;
+  outline-offset: 0 !important;
 }
 
 .chatInput::placeholder {
@@ -794,6 +796,11 @@
 
 .welcomeTextarea:focus {
   outline: none;
+}
+
+.welcomeTextarea:focus-visible {
+  outline: none !important;
+  outline-offset: 0 !important;
 }
 
 .welcomeActions {

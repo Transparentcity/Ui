@@ -131,7 +131,13 @@ describe("FeedStoryDetailView", () => {
     );
 
     expect(screen.getByAltText("Austin service map")).toBeInTheDocument();
-    expect(screen.queryByTitle("Map AzOP6s-N")).toBeNull();
+    const deferredIframe = screen.getByTitle("Map AzOP6s-N");
+    expect(deferredIframe).toBeInstanceOf(HTMLIFrameElement);
+    expect((deferredIframe as HTMLIFrameElement).getAttribute("src")).toBeNull();
+    expect((deferredIframe as HTMLIFrameElement).dataset.deferredSrc).toBe(
+      "/m/AzOP6s-N?embedded=true",
+    );
+    expect(screen.getByText("Load interactive version")).toBeInTheDocument();
     expect(
       screen.getByText("Calls are concentrated downtown."),
     ).toBeInTheDocument();

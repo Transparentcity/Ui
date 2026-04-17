@@ -6,6 +6,7 @@ import { Share2 } from "lucide-react";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { ICON_COMPONENTS } from "./categoryIcons";
 import type { DetailNarrative } from "@/lib/feed/fetchReportNarratives";
+import { VisualizationDeferredInteractiveContainer } from "@/components/VisualizationDeferredInteractiveContainer";
 import {
   buildPrimaryVisualizationShortcodeConfig,
   processVisualizationShortcodes,
@@ -185,17 +186,15 @@ export function FeedStoryDetailView({
             </p>
           )}
           <div className={styles.detailNarrativeSection}>
-            <div
+            <VisualizationDeferredInteractiveContainer
               className={styles.detailArticleBody}
-              dangerouslySetInnerHTML={{
-                __html: processVisualizationShortcodes(articleHtml!, {
-                  ...inlinePrimaryVisualizationConfig,
-                  showDebug: false,
-                  chartHeight: "480px",
-                  mapHeight: "480px",
-                  anomalyHeight: "380px",
-                }),
-              }}
+              html={processVisualizationShortcodes(articleHtml!, {
+                ...inlinePrimaryVisualizationConfig,
+                showDebug: false,
+                chartHeight: "480px",
+                mapHeight: "480px",
+                anomalyHeight: "380px",
+              })}
             />
           </div>
         </>

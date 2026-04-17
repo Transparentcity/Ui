@@ -12,6 +12,8 @@ import {
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
 import SafeImage from "@/components/SafeImage";
+import { StoryFallbackVizEmbed } from "@/components/StoryFallbackVizEmbed";
+import { VisualizationDeferredInteractiveContainer } from "@/components/VisualizationDeferredInteractiveContainer";
 import CitySignupButton from "../../CitySignupButton";
 import {
   articleUsesPrimaryVisualizationShortcode,
@@ -170,6 +172,38 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
     articleUsesPrimaryVisualizationShortcode(story.article_html, story);
   const shortcodeConfig = buildPrimaryVisualizationShortcodeConfig(story);
 
+  const pvRecord = story.primary_visualization as Record<string, unknown> | null;
+  const fallbackVizType = (story.visualization_type ?? "").toLowerCase();
+  let primaryFallbackIframeSrc: string | null = null;
+  if (pvRecord && fallbackVizType) {
+    const vizId = pvRecord.id != null ? Number(pvRecord.id) : null;
+    const vizHash = typeof pvRecord.short_hash === "string" ? pvRecord.short_hash : null;
+    if (
+      (fallbackVizType === "anomaly" || fallbackVizType === "anomaly_chart") &&
+      vizId != null
+    ) {
+      primaryFallbackIframeSrc = `/a/${vizId}?embedded=true`;
+    } else if (fallbackVizType === "chart" && vizId != null) {
+      primaryFallbackIframeSrc = `/t/${vizId}?embedded=true`;
+    } else if (fallbackVizType === "map" && vizHash) {
+      primaryFallbackIframeSrc = `/m/${vizHash}?embedded=true`;
+    } else if (fallbackVizType === "map" && vizId != null) {
+      primaryFallbackIframeSrc = `/m/${vizId}?embedded=true`;
+    }
+  }
+
+  const heroImageSrc = (story.image_url ?? "").trim();
+
+  const fallbackImageWithDeferredInteractive =
+    !story.article_html &&
+    !!primaryFallbackIframeSrc &&
+    !!heroImageSrc;
+
+  const showHeroImage =
+    !!heroImageSrc &&
+    !renderPrimaryInline &&
+    !fallbackImageWithDeferredInteractive;
+
   return (
     <SignupEmailProvider>
       <PublicNavBar>
@@ -210,10 +244,10 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         </div>
 
         {/* Hero image */}
-        {story.image_url && !renderPrimaryInline && (
+        {showHeroImage && (
           <figure className="story-hero-image">
             <SafeImage
-              src={story.image_url}
+              src={heroImageSrc}
               alt={story.image_alt || headline}
               className="story-hero-img"
             />
@@ -264,17 +298,15 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
 
         {/* Long-form article body — shortcodes like [chart:N], [anomaly:N], [map:HASH] become iframes */}
         {story.article_html ? (
-          <div
+          <VisualizationDeferredInteractiveContainer
             className="story-article-body"
-            dangerouslySetInnerHTML={{
-              __html: processVisualizationShortcodes(story.article_html, {
-                ...shortcodeConfig,
-                showDebug: false,
-                chartHeight: "480px",
-                mapHeight: "480px",
-                anomalyHeight: "380px",
-              }),
-            }}
+            html={processVisualizationShortcodes(story.article_html, {
+              ...shortcodeConfig,
+              showDebug: false,
+              chartHeight: "480px",
+              mapHeight: "480px",
+              anomalyHeight: "380px",
+            })}
           />
         ) : (
           <>
@@ -283,35 +315,27 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
                 {story.summary}
               </p>
             )}
-            {/* Fallback: embed primary visualization when no article_html */}
-            {story.primary_visualization && story.visualization_type && (() => {
-              const vizType = story.visualization_type.toLowerCase();
-              const pv = story.primary_visualization as Record<string, unknown>;
-              const vizId = pv.id != null ? Number(pv.id) : null;
-              const vizHash = typeof pv.short_hash === "string" ? pv.short_hash : null;
-              let iframeSrc: string | null = null;
-              if ((vizType === "anomaly" || vizType === "anomaly_chart") && vizId != null) {
-                iframeSrc = `/a/${vizId}?embedded=true`;
-              } else if (vizType === "chart" && vizId != null) {
-                iframeSrc = `/t/${vizId}?embedded=true`;
-              } else if (vizType === "map" && vizHash) {
-                iframeSrc = `/m/${vizHash}?embedded=true`;
-              } else if (vizType === "map" && vizId != null) {
-                iframeSrc = `/m/${vizId}?embedded=true`;
-              }
-              return iframeSrc ? (
-                <div className="story-article-body story-fallback-viz">
-                  <div className="visualization-embed">
-                    <iframe
-                      src={iframeSrc}
-                      title="Visualization"
-                      className="story-viz-iframe"
-                      loading="lazy"
-                    />
-                  </div>
+            {fallbackImageWithDeferredInteractive && story.image_url ? (
+              <StoryFallbackVizEmbed
+                imageUrl={story.image_url}
+                imageAlt={story.image_alt}
+                imageCaption={story.image_caption}
+                iframeSrc={primaryFallbackIframeSrc!}
+                iframeTitle="Visualization"
+                iframeHeight="420px"
+              />
+            ) : primaryFallbackIframeSrc ? (
+              <div className="story-article-body story-fallback-viz">
+                <div className="visualization-embed">
+                  <iframe
+                    src={primaryFallbackIframeSrc}
+                    title="Visualization"
+                    className="story-viz-iframe"
+                    loading="lazy"
+                  />
                 </div>
-              ) : null;
-            })()}
+              </div>
+            ) : null}
           </>
         )}
 
