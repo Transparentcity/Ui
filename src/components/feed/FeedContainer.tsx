@@ -437,11 +437,14 @@ export default function FeedContainer({
   // ── Public preview stories fallback (shown when feed is empty during onboarding) ──
   const [previewStories, setPreviewStories] = useState<EnrichedFeedStory[]>([]);
 
-  // When a city has no stories, capture its name (for the banner) then auto-switch to All Cities
+  // When a city has no stories, capture its name (for the banner) then auto-switch to All Cities.
+  // Clear the banner once the city turns out to have stories (e.g. places loaded after initial render).
   useEffect(() => {
     if (selectedCityWithNoStories) {
       setNoStoriesCity(selectedCityWithNoStories);
       setShowCityLaunchBanner(true);
+    } else {
+      setNoStoriesCity(null);
     }
   }, [selectedCityWithNoStories]);
 
