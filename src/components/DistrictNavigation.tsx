@@ -902,9 +902,9 @@ export default function DistrictNavigation({
                         <div className="district-navigation-result-district">
                           {option.district === 0 ? "Mayor (Citywide)" : `District ${option.district}`}
                         </div>
-                        {leaderFollowerCounts != null && (
+                        {leaderFollowerCounts != null && (leaderFollowerCounts[String(option.district)] ?? 0) > 0 && (
                             <div className="district-navigation-result-subscribers">
-                              {(leaderFollowerCounts[String(option.district)] ?? 0)}
+                              {leaderFollowerCounts[String(option.district)]}
                             </div>
                           )}
                       </button>
@@ -966,9 +966,9 @@ export default function DistrictNavigation({
                           <div className="district-navigation-result-district">
                             {option.district === 0 ? "Mayor (Citywide)" : `District ${option.district}`}
                           </div>
-                          {leaderFollowerCounts != null && (
+                          {leaderFollowerCounts != null && (leaderFollowerCounts[String(option.district)] ?? 0) > 0 && (
                               <div className="district-navigation-result-subscribers">
-                                {(leaderFollowerCounts[String(option.district)] ?? 0)}
+                                {leaderFollowerCounts[String(option.district)]}
                               </div>
                             )}
                         </button>
