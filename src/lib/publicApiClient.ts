@@ -185,6 +185,8 @@ export type PublicCityMetricItem = {
   category: string;
   subcategory?: string | null;
   show_on_dash?: boolean;
+  /** "up" = increase is good (green); "down" = decrease is good. From API; defaults in UI if absent. */
+  greendirection?: string | null;
 };
 
 export type PublicCityDetail = {

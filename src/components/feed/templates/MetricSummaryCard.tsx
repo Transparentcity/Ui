@@ -5,6 +5,7 @@ import type {
   PublicMetricComparison,
 } from "@/lib/publicApiClient";
 import { formatMetricValue } from "@/lib/formatters";
+import { normalizeGreenDirection } from "@/lib/metricGreenDirection";
 import { getCategoryMeta } from "@/lib/feed/mockFeedData";
 import CardHeader from "../CardHeader";
 import feedStyles from "../feed.module.css";
@@ -204,12 +205,12 @@ export default function MetricSummaryCard({ data, children }: { data: MetricCard
       ? ((curr - prior) / prior) * 100
       : null;
 
-  // Determine if this trend is "good" based on greendirection
+  // Card-level override, else metric from API (e.g. public city detail includes greendirection)
+  const direction = normalizeGreenDirection(greendirection ?? metric.greendirection);
   const isGoodTrend =
     pctChange != null &&
-    ((greendirection === "down" && pctChange < 0) ||
-      (greendirection === "up" && pctChange > 0) ||
-      (greendirection == null && pctChange < 0)); // default: decrease is good
+    ((direction === "down" && pctChange < 0) ||
+      (direction === "up" && pctChange > 0));
 
   const fallbackSuffix = comparison.comparison_type === "mtd"
     ? "this month"

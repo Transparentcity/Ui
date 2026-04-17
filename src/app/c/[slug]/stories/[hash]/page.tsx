@@ -270,7 +270,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
               __html: processVisualizationShortcodes(story.article_html, {
                 ...shortcodeConfig,
                 showDebug: false,
-                chartHeight: "420px",
+                chartHeight: "480px",
                 mapHeight: "480px",
                 anomalyHeight: "380px",
               }),

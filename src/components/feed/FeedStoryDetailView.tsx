@@ -191,7 +191,7 @@ export function FeedStoryDetailView({
                 __html: processVisualizationShortcodes(articleHtml!, {
                   ...inlinePrimaryVisualizationConfig,
                   showDebug: false,
-                  chartHeight: "420px",
+                  chartHeight: "480px",
                   mapHeight: "480px",
                   anomalyHeight: "380px",
                 }),

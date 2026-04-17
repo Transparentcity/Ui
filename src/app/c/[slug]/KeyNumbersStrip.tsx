@@ -4,6 +4,7 @@ import type {
   PublicMetricComparisons,
 } from "@/lib/publicApiClient";
 import { formatMetricValue } from "@/lib/formatters";
+import { changeGoodBadFromGreenDirection } from "@/lib/metricGreenDirection";
 
 type Props = {
   slug: string;
@@ -48,8 +49,11 @@ export default function KeyNumbersStrip({ slug, metrics, comparisonsMap }: Props
       const absPct = pct != null ? Math.abs(pct) : 0;
       const isIncrease = curr > prior;
       const isDecrease = curr < prior;
-      const isGood = isDecrease;
-      const isBad = isIncrease;
+      const { isGood, isBad } = changeGoodBadFromGreenDirection(
+        isIncrease,
+        isDecrease,
+        m.greendirection
+      );
       const isNeutral = pct != null && Math.abs(pct) <= 5;
       return { m, curr, pct, absPct, isIncrease, isDecrease, isGood, isBad, isNeutral };
     })

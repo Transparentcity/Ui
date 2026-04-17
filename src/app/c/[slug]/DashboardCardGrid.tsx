@@ -8,6 +8,7 @@ import type {
 } from "@/lib/publicApiClient";
 import type { MetricOrderingEntry } from "./CityDashboardSection";
 import { formatMetricValue, formatCategoryName } from "@/lib/formatters";
+import { changeGoodBadFromGreenDirection } from "@/lib/metricGreenDirection";
 import DistrictListWithFollow from "./DistrictListWithFollow";
 
 type Props = {
@@ -223,12 +224,18 @@ export default function DashboardCardGrid({
                 {items.map(({ m, curr, pct }) => {
                   const isIncrease = pct != null && pct > 0;
                   const isDecrease = pct != null && pct < 0;
+                  const { isGood: trendGood, isBad: trendBad } =
+                    changeGoodBadFromGreenDirection(
+                      isIncrease,
+                      isDecrease,
+                      m.greendirection
+                    );
                   const isNeutral = pct != null && Math.abs(pct) <= 5;
                   const changeClass = isNeutral
                     ? "dcg-change--neutral"
-                    : isDecrease
+                    : trendGood
                       ? "dcg-change--good"
-                      : isIncrease
+                      : trendBad
                         ? "dcg-change--bad"
                         : "dcg-change--neutral";
                   return (

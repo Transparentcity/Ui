@@ -6,6 +6,7 @@ import type {
 } from "@/lib/publicApiClient";
 import "@/components/CityView.css";
 import { formatMetricValue, formatPeriodDate, formatCategoryName } from "@/lib/formatters";
+import { changeGoodBadFromGreenDirection } from "@/lib/metricGreenDirection";
 
 type CategoryDashboardSectionProps = {
   cityDisplayName: string;
@@ -194,8 +195,11 @@ export default function CategoryDashboardSection({
 
                     const isIncrease = absDiff != null && absDiff > 0;
                     const isDecrease = absDiff != null && absDiff < 0;
-                    const isGood = isDecrease;
-                    const isBad = isIncrease;
+                    const { isGood, isBad } = changeGoodBadFromGreenDirection(
+                      isIncrease,
+                      isDecrease,
+                      m.greendirection
+                    );
                     const isSmall = pct != null && Math.abs(pct) <= 5;
                     const changeClass = isSmall
                       ? "neutral"

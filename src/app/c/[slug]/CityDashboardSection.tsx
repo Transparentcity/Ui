@@ -8,6 +8,7 @@ import type {
 } from "@/lib/publicApiClient";
 import "@/components/CityView.css";
 import { formatMetricValue, formatPeriodDate, formatCategoryName } from "@/lib/formatters";
+import { changeGoodBadFromGreenDirection } from "@/lib/metricGreenDirection";
 import DistrictListWithFollow from "./DistrictListWithFollow";
 
 /** Optional ordering: when provided, categories and metrics are sorted by it. */
@@ -305,10 +306,11 @@ export default function CityDashboardSection({
 
                           const isIncrease = absDiff != null && absDiff > 0;
                           const isDecrease = absDiff != null && absDiff < 0;
-                          // For metrics without greendirection, default to "down is good"
-                          // (decreases are good, increases are bad)
-                          const isGood = isDecrease;
-                          const isBad = isIncrease;
+                          const { isGood, isBad } = changeGoodBadFromGreenDirection(
+                            isIncrease,
+                            isDecrease,
+                            m.greendirection
+                          );
                           const isSmall =
                             pct != null && Math.abs(pct) <= 5;
                           const changeClass = isSmall

@@ -52,7 +52,7 @@ export interface VisualizationShortcodeConfig extends EmbedConfig {
 const DEFAULT_CONFIG: Required<EmbedConfig> = {
   width: "100%",
   height: "450px",
-  chartHeight: "450px",  // Increased to accommodate header (36px) + chart content
+  chartHeight: "480px",  // header (36px) + period selector (~33px) + gap (12px) + chart (~380px) + padding (12px)
   mapHeight: "500px",
   anomalyHeight: "400px",
   className: "visualization-embed",

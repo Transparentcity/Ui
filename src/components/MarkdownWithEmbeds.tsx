@@ -26,9 +26,9 @@ const SHORTCODE_REGEX = /\[(anomaly|chart|map):([a-zA-Z0-9-]+)\]/g;
 function getEmbedHeight(type: string): string {
   switch (type) {
     case "a": return "400px";
-    case "t": return "450px";
+    case "t": return "480px";
     case "m": return "500px";
-    default: return "450px";
+    default: return "480px";
   }
 }
 
