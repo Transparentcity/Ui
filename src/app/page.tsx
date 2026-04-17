@@ -113,7 +113,10 @@ async function fetchHomeMetricCards(
 
 export default async function HomePage() {
   const cities = await listPublicCitiesForSitemap().catch(() => []);
-  const launched = cities.filter((c) => c.is_launched).slice(0, 10);
+  const launched = cities
+    .filter((c) => c.is_launched)
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .slice(0, 10);
 
   const [stories, metricCards] = await Promise.all([
     fetchFeaturedStories(),
