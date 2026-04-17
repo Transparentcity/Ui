@@ -461,7 +461,7 @@ function MyPlacesSection({
       {userPlaces.length > 0 ? (
         <>
           <div className={styles.myPlacesToggle} onClick={() => onToggle(!active)}>
-            <span className={styles.myPlacesLabel}>Show stories near my places</span>
+            <span className={styles.myPlacesLabel}>Show ONLY stories near my places</span>
             <button
               type="button"
               className={`${styles.toggleSwitch} ${active ? styles.toggleSwitchActive : ""}`}

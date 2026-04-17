@@ -136,8 +136,7 @@ export default function FeedContainer({
         personalOnly: parsed.personalOnly ?? false,
         topics,
         displayLimit: parsed.displayLimit ?? 10,
-        onlyMySavedPlaces:
-          parsed.placeId != null ? false : (parsed.onlyMySavedPlaces ?? false),
+        onlyMySavedPlaces: false,
       };
     } catch {
       return null;
@@ -211,22 +210,6 @@ export default function FeedContainer({
     }
   }, [savedCities, cityId]);
 
-  // When userPlaces arrive asynchronously, only restore the "my places"
-  // filter if the user had it enabled in a prior session.  For first-time
-  // feed visits (no sessionStorage) we leave it OFF so new subscribers see
-  // the maximum number of stories.
-  const appliedMyPlacesRef = useRef(false);
-  useEffect(() => {
-    if (
-      userPlaces.length > 0 &&
-      !appliedMyPlacesRef.current &&
-      saved.current != null &&
-      saved.current.onlyMySavedPlaces
-    ) {
-      appliedMyPlacesRef.current = true;
-      setOnlyMySavedPlacesFeed(true);
-    }
-  }, [userPlaces.length]);
 
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [feedDetailStoryId, setFeedDetailStoryId] = useState<number | null>(null);
@@ -266,7 +249,6 @@ export default function FeedContainer({
           personalOnly: personalNewsletterOnly,
           topics: [...selectedTopics],
           displayLimit,
-          onlyMySavedPlaces: onlyMySavedPlacesFeed,
         }),
       );
     } catch {
@@ -280,7 +262,6 @@ export default function FeedContainer({
     personalNewsletterOnly,
     selectedTopics,
     displayLimit,
-    onlyMySavedPlacesFeed,
   ]);
 
   // Save scroll position (throttled) so we can restore it after back-navigation
