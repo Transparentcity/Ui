@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import styles from "./FilterPanel.module.css";
+import { searchPublicCities, type PublicCitySearchResult } from "@/lib/publicApiClient";
 
 /* ── Types ────────────────────────────────────────────────────────────────── */
 
@@ -297,12 +298,37 @@ function CitiesSection({
   onChange: (ids: Set<number>) => void;
   onToggleFollow: (cityId: number) => void;
 }) {
-  const { followed, other } = useMemo(() => {
-    return {
-      followed: allCities.filter((c) => savedCityIds.has(c.city_id)),
-      other: allCities.filter((c) => !savedCityIds.has(c.city_id)),
-    };
-  }, [allCities, savedCityIds]);
+  const [typeahead, setTypeahead] = useState("");
+  const [suggestions, setSuggestions] = useState<PublicCitySearchResult[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const typeaheadRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reqIdRef = useRef(0);
+
+  const { followed, other } = useMemo(() => ({
+    followed: allCities.filter((c) => savedCityIds.has(c.city_id)),
+    other: allCities.filter((c) => !savedCityIds.has(c.city_id)),
+  }), [allCities, savedCityIds]);
+
+  const handleTypeaheadChange = (value: string) => {
+    setTypeahead(value);
+    setShowSuggestions(true);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    const q = value.trim();
+    if (q.length < 2) { setSuggestions([]); setSearching(false); return; }
+    setSearching(true);
+    const id = ++reqIdRef.current;
+    searchTimeoutRef.current = setTimeout(() => {
+      searchPublicCities(q, 8).then((results) => {
+        if (id !== reqIdRef.current) return;
+        // Filter out cities already shown in the panel
+        const panelIds = new Set(allCities.map((c) => c.city_id));
+        setSuggestions(results.filter((r) => !panelIds.has(r.id)));
+        setSearching(false);
+      }).catch(() => { if (id === reqIdRef.current) setSearching(false); });
+    }, 250);
+  };
 
   const toggle = (cityId: number) => {
     const next = new Set(selected);
@@ -313,6 +339,16 @@ function CitiesSection({
     }
     onChange(next);
   };
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (typeaheadRef.current && !typeaheadRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   return (
     <div className={styles.section}>
@@ -346,6 +382,46 @@ function CitiesSection({
               onToggleFollow={() => onToggleFollow(c.city_id)}
             />
           ))}
+          <div className={styles.citySearchWrap} ref={typeaheadRef}>
+            <input
+              type="text"
+              placeholder="Search for more cities…"
+              value={typeahead}
+              onChange={(e) => handleTypeaheadChange(e.target.value)}
+              onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+              className={styles.citySearchInput}
+              autoComplete="off"
+            />
+            {showSuggestions && searching && typeahead.trim().length >= 2 && (
+              <ul className={styles.cityTypeaheadList}>
+                <li className={styles.cityTypeaheadSearching}>Searching…</li>
+              </ul>
+            )}
+            {showSuggestions && !searching && suggestions.length > 0 && (
+              <ul className={styles.cityTypeaheadList}>
+                {suggestions.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      className={styles.cityTypeaheadItem}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        onToggleFollow(c.id);
+                        setTypeahead("");
+                        setSuggestions([]);
+                        setShowSuggestions(false);
+                      }}
+                    >
+                      <span className={styles.cityTypeaheadName}>
+                        {c.emoji ? `${c.emoji} ` : ""}{c.display_name}
+                      </span>
+                      <span className={styles.cityTypeaheadFollow}>Follow</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
 

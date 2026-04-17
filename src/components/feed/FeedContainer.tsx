@@ -411,8 +411,8 @@ export default function FeedContainer({
     [userPlaces],
   );
   const enriched = useMemo(
-    () => enrichStories(stories, undefined, userPlaceLabelMap),
-    [stories, userPlaceLabelMap],
+    () => enrichStories(stories, undefined, userPlaceLabelMap, { skipInterleave: feedOrder === "published_at" }),
+    [stories, userPlaceLabelMap, feedOrder],
   );
 
   // ── Public preview stories fallback (shown when feed is empty during onboarding) ──
@@ -803,8 +803,10 @@ export default function FeedContainer({
         .slice(0, 3)
         .some((s) => VISUAL_TEMPLATES.has(s.template));
       if (!hasVisualInTop3) {
+        const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
         const visualIdx = deduped.findIndex(
-          (s, i) => i >= 3 && VISUAL_TEMPLATES.has(s.template),
+          (s, i) => i >= 3 && VISUAL_TEMPLATES.has(s.template) &&
+            Date.now() - new Date(s.published_at ?? s.story_date ?? 0).getTime() < THREE_DAYS_MS,
         );
         if (visualIdx !== -1) {
           const reordered = [...deduped];

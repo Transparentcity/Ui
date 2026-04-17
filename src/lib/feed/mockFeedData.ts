@@ -588,15 +588,18 @@ export function isCoherentMultiMetric(story: EnrichedFeedStory): boolean {
   return categories.size < 3;
 }
 
-/** Enrich an array of stories and interleave viz stories among text-only. */
+/** Enrich an array of stories and optionally interleave viz stories among text-only. */
 export function enrichStories(
   stories: FeedStory[],
   placeMap?: PlaceMap,
   userPlaceLabelMap?: UserPlaceLabelMap,
+  options?: { skipInterleave?: boolean },
 ): EnrichedFeedStory[] {
   const enriched = stories
     .map((s) => enrichStory(s, placeMap, userPlaceLabelMap))
     .filter(isCoherentMultiMetric);
+
+  if (options?.skipInterleave) return enriched;
 
   // Separate visual stories (embeds OR photos) from text-only
   const isVisual = (s: EnrichedFeedStory) => s.embed_url_resolved || s.template === "text_photo";
