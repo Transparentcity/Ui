@@ -152,8 +152,8 @@ export default function PrivacyPage() {
           <h2>11. Contact</h2>
           <p>
             Questions about your privacy? Reach us at{" "}
-            <a href="mailto:seymour@parse.transparent.city">
-              seymour@parse.transparent.city
+            <a href="mailto:seymour@transparent.city">
+              seymour@transparent.city
             </a>
             .
           </p>

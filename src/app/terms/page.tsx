@@ -51,8 +51,8 @@ export default function TermsPage() {
           <p>
             If you create an account, you&apos;re responsible for keeping your
             login credentials secure. Let us know at{" "}
-            <a href="mailto:seymour@parse.transparent.city">
-              seymour@parse.transparent.city
+            <a href="mailto:seymour@transparent.city">
+              seymour@transparent.city
             </a>{" "}
             if you suspect unauthorized access.
           </p>
@@ -114,8 +114,8 @@ export default function TermsPage() {
           <h2>10. Contact</h2>
           <p>
             Questions about these terms? Reach us at{" "}
-            <a href="mailto:seymour@parse.transparent.city">
-              seymour@parse.transparent.city
+            <a href="mailto:seymour@transparent.city">
+              seymour@transparent.city
             </a>
             .
           </p>

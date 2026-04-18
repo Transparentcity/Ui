@@ -38,7 +38,7 @@ export default function AddYourCityPage() {
       setFormSubmitted(true);
     } catch {
       setFormError(
-        "Something went wrong. Please try again or email us directly at seymour@parse.transparent.city."
+        "Something went wrong. Please try again or email us directly at seymour@transparent.city."
       );
     }
   };
@@ -268,8 +268,8 @@ export default function AddYourCityPage() {
                     <p>
                       We'll look into it and follow up if you left your contact
                       info. You can also reach us anytime at{" "}
-                      <a href="mailto:seymour@parse.transparent.city">
-                        seymour@parse.transparent.city
+                      <a href="mailto:seymour@transparent.city">
+                        seymour@transparent.city
                       </a>
                       .
                     </p>
@@ -396,8 +396,8 @@ export default function AddYourCityPage() {
                     <p>
                       We'll reach out to coordinate. You can also email us
                       directly at{" "}
-                      <a href="mailto:seymour@parse.transparent.city">
-                        seymour@parse.transparent.city
+                      <a href="mailto:seymour@transparent.city">
+                        seymour@transparent.city
                       </a>
                       .
                     </p>
@@ -449,10 +449,10 @@ export default function AddYourCityPage() {
                 know.
               </p>
               <a
-                href="mailto:seymour@parse.transparent.city"
+                href="mailto:seymour@transparent.city"
                 className="callout-link"
               >
-                Email us at seymour@parse.transparent.city
+                Email us at seymour@transparent.city
                 <svg
                   width="16"
                   height="16"

@@ -45,8 +45,8 @@ export default function PublicFooter({ citySlug, feedbackPageUrl, feedbackPageTy
           </div>
           <div className="footer-column">
             <h3 className="footer-title">Contact</h3>
-            <a href="mailto:seymour@parse.transparent.city" className="footer-link">
-              seymour@parse.transparent.city
+            <a href="mailto:seymour@transparent.city" className="footer-link">
+              seymour@transparent.city
             </a>
           </div>
         </div>
