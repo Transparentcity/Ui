@@ -3671,6 +3671,8 @@ export interface AdminNewsletterHistoryItem {
   session_id?: string | null;
   /** ID of the matching newsletter_pending_sends row, when the body is stored there. */
   pending_send_id?: number | null;
+  /** LLM token usage pulled from the matching pending_send row, when available. */
+  llm_usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
 }
 
 export function getAdminUserNewsletterSendHistory(

@@ -10,6 +10,7 @@ import {
   getAvailableModels,
   getOutboundEmail,
   getNewsletterPendingDetail,
+  getNewsletterPrompts,
   listCities,
   listUsers,
   updateUser,
@@ -37,6 +38,38 @@ function emailUsername(email: string | null | undefined): string {
   if (!email) return "\u2014";
   const idx = email.indexOf("@");
   return idx > 0 ? email.slice(0, idx) : email;
+}
+
+function LlmCostPill({
+  usage,
+}: {
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
+}) {
+  if (!usage) return <span style={{ color: "var(--text-tertiary, #aaa)", fontSize: 11 }}>\u2014</span>;
+  const total = usage.total_tokens ?? (usage.prompt_tokens + usage.completion_tokens);
+  const estCostUsd = (usage.prompt_tokens * 5 + usage.completion_tokens * 15) / 1_000_000;
+  const costLabel = estCostUsd < 0.001 ? "<$0.001" : `~$${estCostUsd.toFixed(3)}`;
+  return (
+    <span
+      title={`prompt: ${usage.prompt_tokens.toLocaleString()} · completion: ${usage.completion_tokens.toLocaleString()} tokens`}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 3,
+        fontSize: 11,
+        fontWeight: 500,
+        background: "var(--brand-primary-faint, rgba(173,53,250,0.07))",
+        color: "var(--brand-primary, #ad35fa)",
+        border: "1px solid var(--brand-primary-light, #e9c6ff)",
+        borderRadius: 4,
+        padding: "1px 5px",
+        whiteSpace: "nowrap",
+        cursor: "default",
+      }}
+    >
+      {total.toLocaleString()} tok · {costLabel}
+    </span>
+  );
 }
 
 function getLocationLevel(ov: AdminUserNewsletterOverview | undefined): string {
@@ -102,19 +135,24 @@ export default function NewsletterAdminSubscribersTab() {
   const [testPrompt, setTestPrompt] = useState("");
   const [testBusy, setTestBusy] = useState(false);
   const [testTitle, setTestTitle] = useState<string | null>(null);
+  const [savedSharedPrompt, setSavedSharedPrompt] = useState<string | null>(null);
 
   const loadBase = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const token = await getAccessTokenSilently();
-      const [u, c, modelGroups] = await Promise.all([
+      const [u, c, modelGroups, prompts] = await Promise.all([
         listUsers(token, { limit: 500 }),
         listCities(token),
         getAvailableModels(token).catch(() => []),
+        getNewsletterPrompts(token).catch(() => null),
       ]);
       setUsers(u);
       setCities(c.filter((x) => x.is_active !== false));
+      if (prompts?.shared_newsletter_prompt) {
+        setSavedSharedPrompt(prompts.shared_newsletter_prompt);
+      }
       const flat = modelGroups
         .flatMap((g) =>
           g.models.filter((m) => m.is_available).map((m) => ({ key: m.key, name: m.name }))
@@ -278,10 +316,8 @@ export default function NewsletterAdminSubscribersTab() {
       cities.find((c) => c.city_id === testCityId)?.city_name || "City";
     const districtLabel =
       testDistrict === "0" ? "citywide" : `District ${testDistrict}`;
-    const defaultPrompt =
-      "Create a weekly newsletter report for this city and district. Focus on recent changes and trends in key metrics (crime, housing, permits, 311 calls), notable anomalies, comparative analysis (this period vs. previous, district vs. city-wide), and actionable insights for residents. Be data-driven with specific numbers; highlight both positive and concerning trends.";
-    const prompt = testPrompt.trim() || defaultPrompt;
-    const promptOverride = `For ${cityName} (${districtLabel}). ${prompt}`;
+    const prompt = testPrompt.trim() || savedSharedPrompt || "";
+    const promptOverride = prompt ? `For ${cityName} (${districtLabel}). ${prompt}` : null;
 
     setTestBusy(true);
     setTestTitle(null);
@@ -783,6 +819,7 @@ function UserNewsletterRow({
                             <th>Type</th>
                             <th>Subject</th>
                             <th>Source</th>
+                            <th>Cost</th>
                             <th>Actions</th>
                           </tr>
                         </thead>
@@ -797,6 +834,9 @@ function UserNewsletterRow({
                                 {h.subject || "\u2014"}
                               </td>
                               <td style={{ fontSize: 12 }}>{h.source}</td>
+                              <td style={{ whiteSpace: "nowrap" }}>
+                                <LlmCostPill usage={h.llm_usage} />
+                              </td>
                               <td style={{ whiteSpace: "nowrap" }}>
                                 {h.type === "outbound_email" && typeof h.id === "number" ? (
                                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>

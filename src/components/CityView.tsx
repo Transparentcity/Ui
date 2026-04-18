@@ -6,7 +6,7 @@ import CityMapView from "@/components/CityMapView";
 import CityHeader from "@/components/CityHeader";
 import MetricDateRangeSelector from "@/components/MetricDateRangeSelector";
 import DistrictNavigation from "@/components/DistrictNavigation";
-// AnomaliesTabPanel removed – anomalies section hidden for now
+import AnomaliesTabPanel from "@/components/AnomaliesTabPanel";
 import { useCity, useSavedCities, useSaveCity, useUnsaveCity, useCityLeaders, useRepresentativeFollowerCounts, usePublicCityDistricts, useRepresentativeFollows, useFollowRepresentative, useUnfollowRepresentative } from "@/lib/hooks/useCities";
 import type { CityLeader } from "@/lib/apiClient";
 import {
@@ -35,7 +35,7 @@ import { slugify } from "@/lib/utils";
 import { formatMetricValue } from "@/lib/formatters";
 import "./CityView.css";
 
-type CityViewSection = "dashboard" | "map";
+type CityViewSection = "dashboard" | "map" | "alerts";
 
 interface CityViewProps {
   cityId: number;
@@ -2094,6 +2094,9 @@ export default function CityView({
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
   const dashboardSectionRef = useRef<HTMLDivElement | null>(null);
   const [activeSection, setActiveSection] = useState<CityViewSection>(initialSection || "dashboard");
+  const [alertsTabMounted, setAlertsTabMounted] = useState<boolean>(
+    initialSection === "alerts"
+  );
   const [isCityDataReady, setIsCityDataReady] = useState(false);
   const previousCityIdRef = useRef<number | null>(null);
   useEffect(() => {
@@ -2313,6 +2316,14 @@ export default function CityView({
     }
   }, [activeSection]);
 
+  // Lazy-mount the Alerts tab only once the admin first opens it, so its
+  // queries don't fire for users who never visit the tab.
+  useEffect(() => {
+    if (activeSection === "alerts" && !alertsTabMounted) {
+      setAlertsTabMounted(true);
+    }
+  }, [activeSection, alertsTabMounted]);
+
   // Close admin drawer on Escape
   useEffect(() => {
     if (!adminDrawerOpen) return;
@@ -2436,9 +2447,11 @@ export default function CityView({
               />
             </div>
           ) : null}
-          {/* Tab nav: Dashboard | Map */}
+          {/* Tab nav: Dashboard | Map | Alerts (admin only) */}
           <nav className="city-view-tab-nav" aria-label="City view tabs" role="tablist">
-            {(["dashboard", "map"] as CityViewSection[]).map((s) => (
+            {((isAdmin
+              ? ["dashboard", "map", "alerts"]
+              : ["dashboard", "map"]) as CityViewSection[]).map((s) => (
               <button
                 key={s}
                 type="button"
@@ -2447,7 +2460,7 @@ export default function CityView({
                 aria-selected={activeSection === s}
                 role="tab"
               >
-                {s === "dashboard" ? "Dashboard" : "Map"}
+                {s === "dashboard" ? "Dashboard" : s === "map" ? "Map" : "Alerts"}
               </button>
             ))}
           </nav>
@@ -2551,6 +2564,40 @@ export default function CityView({
             lastRefreshAt={lastPlaceRefreshAt}
           />
         </section>
+
+        {/* Alerts tab content (admin only) – lazy-mounted the first time the tab is opened */}
+        {isAdmin && (
+          <section
+            className={`city-view-alerts-section city-view-tab-content${activeSection !== "alerts" ? " city-view-tab-hidden" : ""}`}
+            id="alerts-section"
+            aria-label="Alerts"
+            role="tabpanel"
+            aria-hidden={activeSection !== "alerts"}
+          >
+            {alertsTabMounted ? (
+              <AnomaliesTabPanel
+                cityId={cityId}
+                cityName={cityData.name}
+                metrics={cityData.metrics || []}
+                initialDistrict={selectedDistrict}
+                selectedPlaceId={selectedPlaceId}
+                userPlaces={userPlaces}
+                hideSectionTitle
+                onMetricClick={(metricId, district) => {
+                  setSelectedMetricId(metricId);
+                  setSelectedMetricDistrict(district ?? selectedDistrict);
+                }}
+              />
+            ) : (
+              <div className="city-view-alerts-placeholder">
+                <div className="city-view-alerts-placeholder-loading">
+                  <Loader size="sm" color="dark" />
+                  <span>Loading…</span>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
             </>
           );
         })()}
