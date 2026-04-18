@@ -19,6 +19,7 @@ export default function AddYourCityPage() {
   });
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [formError, setFormError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,12 +35,35 @@ export default function AddYourCityPage() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
+      const res = await fetch("/api/city-suggestion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: activeTab,
+          city: formData.city,
+          dataPortalUrl: formData.dataPortalUrl,
+          name: formData.name,
+          email: formData.email,
+          title: formData.title,
+          hasDataExperience: formData.hasDataExperience,
+          isCityGovernment: formData.isCityGovernment,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || `Request failed (${res.status})`);
+      }
+
       setFormSubmitted(true);
     } catch {
       setFormError(
         "Something went wrong. Please try again or email us directly at seymour@transparent.city."
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -257,8 +281,9 @@ export default function AddYourCityPage() {
                       <button
                         type="submit"
                         className="btn btn-primary btn-large"
+                        disabled={isSubmitting}
                       >
-                        Submit
+                        {isSubmitting ? "Submitting..." : "Submit"}
                       </button>
                     </div>
                   </form>
@@ -385,8 +410,9 @@ export default function AddYourCityPage() {
                       <button
                         type="submit"
                         className="btn btn-primary btn-large"
+                        disabled={isSubmitting}
                       >
-                        Get in touch
+                        {isSubmitting ? "Submitting..." : "Get in touch"}
                       </button>
                     </div>
                   </form>
