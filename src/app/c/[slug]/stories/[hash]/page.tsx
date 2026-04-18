@@ -345,7 +345,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
              Fallback: always link to the dashboard so no story is a dead end. */}
         {(() => {
           const dashboardHref = districtHref ?? backHref;
-          const dashboardLabel = story.cta_label ?? `Explore more ${story.city_name ?? "city"} data`;
+          const dashboardLabel = "See Data";
 
           if (story.story_type === "context") {
             return (
