@@ -908,7 +908,7 @@ export default function FeedContainer({
 
   // ── Toggle follow from filter panel ──
   const handleToggleFollow = useCallback(
-    (cid: number) => {
+    (cid: number, cityName?: string) => {
       if (!isAuthenticated) return;
       if (savedCityIds.has(cid) || optimisticFollowedIds.has(cid)) {
         unsaveCityMutation.mutate(cid);
@@ -928,8 +928,8 @@ export default function FeedContainer({
       } else {
         saveCityMutation.mutate(cid);
         setOptimisticFollowedIds((prev) => new Set(prev).add(cid));
-        const city = uniqueCities.find((c) => c.city_id === cid);
-        if (city) toast.success(`${city.city_name} added to your feed`);
+        const name = cityName ?? uniqueCities.find((c) => c.city_id === cid)?.city_name;
+        if (name) toast.success(`${name} added to your feed`);
       }
     },
     [isAuthenticated, savedCityIds, optimisticFollowedIds, saveCityMutation, unsaveCityMutation, uniqueCities],
@@ -1139,7 +1139,7 @@ export default function FeedContainer({
               open={showFilterPanel}
               onClose={() => setShowFilterPanel(false)}
               allCities={uniqueCities}
-              savedCityIds={savedCityIds}
+              savedCityIds={new Set([...savedCityIds, ...optimisticFollowedIds])}
               filters={{
                 selectedCityIds,
                 selectedTopics,

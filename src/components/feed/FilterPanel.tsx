@@ -296,20 +296,27 @@ function CitiesSection({
   savedCityIds: Set<number>;
   selected: Set<number>;
   onChange: (ids: Set<number>) => void;
-  onToggleFollow: (cityId: number) => void;
+  onToggleFollow: (cityId: number, cityName?: string) => void;
 }) {
   const [typeahead, setTypeahead] = useState("");
   const [suggestions, setSuggestions] = useState<PublicCitySearchResult[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [justFollowedName, setJustFollowedName] = useState<string | null>(null);
   const typeaheadRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reqIdRef = useRef(0);
 
   const { followed, other } = useMemo(() => ({
     followed: allCities.filter((c) => savedCityIds.has(c.city_id)),
     other: allCities.filter((c) => !savedCityIds.has(c.city_id)),
   }), [allCities, savedCityIds]);
+
+  const panelIds = useMemo(
+    () => new Set(allCities.map((c) => c.city_id)),
+    [allCities],
+  );
 
   const handleTypeaheadChange = (value: string) => {
     setTypeahead(value);
@@ -320,14 +327,23 @@ function CitiesSection({
     setSearching(true);
     const id = ++reqIdRef.current;
     searchTimeoutRef.current = setTimeout(() => {
-      searchPublicCities(q, 8).then((results) => {
+      searchPublicCities(q, 10).then((results) => {
         if (id !== reqIdRef.current) return;
-        // Filter out cities already shown in the panel
-        const panelIds = new Set(allCities.map((c) => c.city_id));
-        setSuggestions(results.filter((r) => !panelIds.has(r.id)));
+        setSuggestions(Array.isArray(results) ? results : []);
         setSearching(false);
       }).catch(() => { if (id === reqIdRef.current) setSearching(false); });
     }, 250);
+  };
+
+  const handleFollowFromTypeahead = (city: PublicCitySearchResult) => {
+    if (savedCityIds.has(city.id)) return;
+    onToggleFollow(city.id, city.display_name);
+    setTypeahead("");
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setJustFollowedName(city.display_name);
+    if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+    confirmTimeoutRef.current = setTimeout(() => setJustFollowedName(null), 3500);
   };
 
   const toggle = (cityId: number) => {
@@ -350,6 +366,14 @@ function CitiesSection({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+      reqIdRef.current++;
+    };
+  }, []);
+
   return (
     <div className={styles.section}>
       <h3 className={styles.sectionTitle}>Cities</h3>
@@ -363,7 +387,7 @@ function CitiesSection({
               checked={selected.has(c.city_id)}
               onToggle={() => toggle(c.city_id)}
               isFollowed
-              onToggleFollow={() => onToggleFollow(c.city_id)}
+              onToggleFollow={() => onToggleFollow(c.city_id, c.city_name)}
             />
           ))}
         </div>
@@ -379,52 +403,68 @@ function CitiesSection({
               checked={selected.has(c.city_id)}
               onToggle={() => toggle(c.city_id)}
               isFollowed={false}
-              onToggleFollow={() => onToggleFollow(c.city_id)}
+              onToggleFollow={() => onToggleFollow(c.city_id, c.city_name)}
             />
           ))}
-          <div className={styles.citySearchWrap} ref={typeaheadRef}>
-            <input
-              type="text"
-              placeholder="Search for more cities…"
-              value={typeahead}
-              onChange={(e) => handleTypeaheadChange(e.target.value)}
-              onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
-              className={styles.citySearchInput}
-              autoComplete="off"
-            />
-            {showSuggestions && searching && typeahead.trim().length >= 2 && (
-              <ul className={styles.cityTypeaheadList}>
-                <li className={styles.cityTypeaheadSearching}>Searching…</li>
-              </ul>
-            )}
-            {showSuggestions && !searching && suggestions.length > 0 && (
-              <ul className={styles.cityTypeaheadList}>
-                {suggestions.map((c) => (
-                  <li key={c.id}>
-                    <button
-                      type="button"
-                      className={styles.cityTypeaheadItem}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        onToggleFollow(c.id);
-                        setTypeahead("");
-                        setSuggestions([]);
-                        setShowSuggestions(false);
-                      }}
-                    >
-                      <span className={styles.cityTypeaheadName}>
-                        {c.emoji ? `${c.emoji} ` : ""}{c.display_name}
-                      </span>
-                      <span className={styles.cityTypeaheadFollow}>Follow</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
         </div>
       )}
 
+      <div className={styles.citySearchWrap} ref={typeaheadRef}>
+        <input
+          type="text"
+          placeholder="Search for more cities…"
+          value={typeahead}
+          onChange={(e) => handleTypeaheadChange(e.target.value)}
+          onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+          className={styles.citySearchInput}
+          autoComplete="off"
+        />
+        {showSuggestions && searching && typeahead.trim().length >= 2 && (
+          <ul className={styles.cityTypeaheadList}>
+            <li className={styles.cityTypeaheadSearching}>Searching…</li>
+          </ul>
+        )}
+        {showSuggestions && !searching && typeahead.trim().length >= 2 && suggestions.length === 0 && (
+          <ul className={styles.cityTypeaheadList}>
+            <li className={styles.cityTypeaheadSearching}>No cities found</li>
+          </ul>
+        )}
+        {showSuggestions && !searching && suggestions.length > 0 && (
+          <ul className={styles.cityTypeaheadList}>
+            {suggestions.map((c) => {
+              const isFollowed = savedCityIds.has(c.id) || panelIds.has(c.id);
+              return (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    className={styles.cityTypeaheadItem}
+                    disabled={isFollowed}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleFollowFromTypeahead(c);
+                    }}
+                  >
+                    <span className={styles.cityTypeaheadName}>
+                      {c.emoji ? `${c.emoji} ` : ""}{c.display_name}
+                    </span>
+                    {isFollowed ? (
+                      <span className={styles.cityTypeaheadFollowing}>Following</span>
+                    ) : (
+                      <span className={styles.cityTypeaheadFollow}>Follow</span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {justFollowedName && (
+          <div className={styles.citySearchConfirm} role="status" aria-live="polite">
+            <span aria-hidden>✓</span>
+            <span>{justFollowedName} added to your feed</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
