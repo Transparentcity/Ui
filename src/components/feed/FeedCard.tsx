@@ -148,8 +148,16 @@ export default function FeedCard({
     />
   );
 
+  const isFixItAlready = (story.story_type ?? "").toLowerCase() === "fix_it_already";
+
   return (
     <article className={cardClassName} onClick={handleCardClick} tabIndex={0} onKeyDown={(e) => { const tag = (e.target as HTMLElement).tagName; if (tag === "TEXTAREA" || tag === "INPUT") return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCardClick(); } }}>
+      {isFixItAlready && (
+        <div className={styles.fixItAlreadyBadge}>
+          <span aria-hidden="true">{"\u{1F926}"}</span>
+          <span>Fix It, Already</span>
+        </div>
+      )}
       {Template === PhotoCard ? (
         <PhotoCard story={story} variant={photoVariant}>{actionBar}</PhotoCard>
       ) : (

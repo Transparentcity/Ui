@@ -177,6 +177,16 @@ describe("FeedCard", () => {
     expect(screen.queryByText(/^Off the Charts$/)).not.toBeInTheDocument();
   });
 
+  it("shows Fix It, Already badge when story_type is fix_it_already", () => {
+    renderCard({ story_type: "fix_it_already" });
+    expect(screen.getByText("Fix It, Already")).toBeInTheDocument();
+  });
+
+  it("does not show Fix It, Already badge for other story types", () => {
+    renderCard({ story_type: "alert" });
+    expect(screen.queryByText("Fix It, Already")).not.toBeInTheDocument();
+  });
+
   // ── Navigation ────────────────────────────────────────────────────────
 
   it("navigates to feed detail route on click", () => {
