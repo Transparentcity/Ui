@@ -2339,6 +2339,22 @@
   color: var(--success, #10b981);
 }
 
+.fixItAlreadyBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--brand-primary-light, rgba(173, 53, 250, 0.12));
+  color: var(--brand-primary, #ad35fa);
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+  align-self: flex-start;
+}
+
 .otcContent {
   display: flex;
   align-items: flex-start;

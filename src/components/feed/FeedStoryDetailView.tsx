@@ -165,6 +165,13 @@ export function FeedStoryDetailView({
         {story.subline && <span className={styles.detailTimestamp}>{story.subline}</span>}
       </div>
 
+      {(story.story_type ?? "").toLowerCase() === "fix_it_already" && (
+        <div className={styles.fixItAlreadyBadge}>
+          <span aria-hidden="true">{"\u{1F926}"}</span>
+          <span>Fix It, Already</span>
+        </div>
+      )}
+
       <h1 className={styles.detailHeadline}>{story.headline}</h1>
 
       <p className={styles.detailDate}>
