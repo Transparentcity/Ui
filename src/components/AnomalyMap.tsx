@@ -303,34 +303,79 @@ export default function AnomalyMap({
         });
       }
 
-      // Add source for points
+      const normalizedPts = mapData.location_data
+        .map((p) => {
+          const lat = p.lat;
+          const lon = p.lon ?? p.lng;
+          if (lat == null || lon == null) return null;
+          const latN = Number(lat);
+          const lonN = Number(lon);
+          if (!Number.isFinite(latN) || !Number.isFinite(lonN)) return null;
+          return { ...p, lat: latN, lon: lonN };
+        })
+        .filter((p): p is Record<string, unknown> & { lat: number; lon: number } => p != null);
+
+      const locMap = new Map<string, { points: typeof normalizedPts; lat: number; lon: number }>();
+      normalizedPts.forEach((point) => {
+        const key = `${point.lat.toFixed(6)},${point.lon.toFixed(6)}`;
+        if (!locMap.has(key)) {
+          locMap.set(key, { points: [], lat: point.lat, lon: point.lon });
+        }
+        locMap.get(key)!.points.push(point);
+      });
+
+      const aggFeatures = Array.from(locMap.values()).map((data, index) => {
+        const count = data.points.length;
+        const first = data.points[0];
+        return {
+          type: "Feature" as const,
+          geometry: {
+            type: "Point" as const,
+            coordinates: [data.lon, data.lat],
+          },
+          properties: {
+            ...first,
+            id: index,
+            count,
+            ...(count > 1 ? { allPoints: JSON.stringify(data.points) } : {}),
+          },
+        };
+      });
+
       map.addSource("anomaly-points", {
         type: "geojson",
         data: {
           type: "FeatureCollection",
-          features: mapData.location_data
-            .filter((p) => p.lat && (p.lon || p.lng))
-            .map((point) => ({
-              type: "Feature",
-              geometry: {
-                type: "Point",
-                coordinates: [point.lon || point.lng, point.lat],
-              },
-              properties: point,
-            })),
+          features: aggFeatures,
         },
       });
 
-      // Add point layer with brand color
       map.addLayer({
         id: "anomaly-points-layer",
         type: "circle",
         source: "anomaly-points",
         paint: {
-          "circle-radius": 5,
-          "circle-color": "#ad35fa", // Brand primary color
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["get", "count"],
+            1, 5,
+            2, 8,
+            3, 10,
+            5, 12,
+            10, 16,
+            20, 20,
+          ],
+          "circle-color": "#ad35fa",
           "circle-opacity": 0.7,
-          "circle-stroke-width": 1,
+          "circle-stroke-width": [
+            "interpolate",
+            ["linear"],
+            ["get", "count"],
+            1, 1,
+            5, 1.25,
+            10, 1.5,
+          ],
           "circle-stroke-color":
             mapBasemapTheme === "dark" ? "#f8fafc" : "#ffffff",
           "circle-stroke-opacity": mapBasemapTheme === "dark" ? 0.95 : 0.9,

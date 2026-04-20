@@ -936,19 +936,36 @@ export default function PublicMapPage() {
       lon: point.lon ?? point.longitude,
     }));
     
+    const districtLocMap = new Map<string, { points: any[]; lat: number; lon: number }>();
+    validFilteredPoints.forEach((point: any) => {
+      const latN = Number(point.lat);
+      const lonN = Number(point.lon);
+      const key = `${latN.toFixed(6)},${lonN.toFixed(6)}`;
+      if (!districtLocMap.has(key)) {
+        districtLocMap.set(key, { points: [], lat: latN, lon: lonN });
+      }
+      districtLocMap.get(key)!.points.push(point);
+    });
+
     const geojsonData = {
       type: "FeatureCollection" as const,
-      features: validFilteredPoints.map((point: any, index: number) => ({
-        type: "Feature" as const,
-        geometry: {
-          type: "Point" as const,
-          coordinates: [point.lon, point.lat],
-        },
-        properties: {
-          id: index,
-          ...point,
-        },
-      })),
+      features: Array.from(districtLocMap.values()).map((data, index) => {
+        const count = data.points.length;
+        const firstPoint = data.points[0];
+        return {
+          type: "Feature" as const,
+          geometry: {
+            type: "Point" as const,
+            coordinates: [data.lon, data.lat],
+          },
+          properties: {
+            ...firstPoint,
+            id: index,
+            count,
+            ...(count > 1 ? { allPoints: JSON.stringify(data.points) } : {}),
+          },
+        };
+      }),
     };
 
     mapInstance.addSource("district-dots", {
@@ -979,10 +996,27 @@ export default function PublicMapPage() {
       type: "circle",
       source: "district-dots",
       paint: {
-        "circle-radius": 5,
+        "circle-radius": [
+          "interpolate",
+          ["linear"],
+          ["get", "count"],
+          1, 5,
+          2, 8,
+          3, 10,
+          5, 12,
+          10, 16,
+          20, 20,
+        ],
         "circle-color": colorExpr,
         "circle-stroke-color": "#fff",
-        "circle-stroke-width": 1,
+        "circle-stroke-width": [
+          "interpolate",
+          ["linear"],
+          ["get", "count"],
+          1, 1,
+          5, 1.5,
+          10, 2,
+        ],
         "circle-opacity": 0.85,
       },
     });
@@ -1012,19 +1046,53 @@ export default function PublicMapPage() {
     // Point popup (use item_noun for count/value labels)
     const displayInfo = getMapDisplayCount(map);
     const itemNounLabel = displayInfo ? displayInfo.itemNoun.charAt(0).toUpperCase() + displayInfo.itemNoun.slice(1) : null;
+    const itemNounPluralDots = (mapData.map_config?.item_noun as string) || "items";
     mapInstance.on("click", "district-dots", (e: any) => {
       if (!e.features || e.features.length === 0) return;
       const feature = e.features[0];
       const props = feature.properties;
-      let content = "<div class='map-popup'>";
-      for (const [key, value] of Object.entries(props)) {
-        if (key !== "id" && key !== "lat" && key !== "lon" && value) {
-          const label = itemNounLabel && (key === "count" || key === "value") ? itemNounLabel : key;
-          content += `<p><strong>${label}:</strong> ${value}</p>`;
+      const aggCount = Number(props.count) || 1;
+      let content = "<div class='map-popup' style='max-height:300px;overflow-y:auto;'>";
+      if (aggCount > 1) {
+        content += `<p><strong>${aggCount} ${itemNounPluralDots}</strong> at this location</p><hr style="margin:8px 0;border-color:#eee;"/>`;
+        let allPoints = props.allPoints;
+        if (typeof allPoints === "string") {
+          try {
+            allPoints = JSON.parse(allPoints);
+          } catch {
+            allPoints = null;
+          }
+        }
+        if (Array.isArray(allPoints)) {
+          allPoints.forEach((pt: any, i: number) => {
+            const desc = pt.incident_description || pt.description || `${itemNounLabel || "Item"} ${i + 1}`;
+            const date = pt.incident_date ? new Date(pt.incident_date).toLocaleDateString() : "";
+            content += `<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid #eee;">`;
+            content += `<strong>${desc}</strong>`;
+            if (date) content += `<br/><small style="color:#666;">${date}</small>`;
+            content += `</div>`;
+          });
+        }
+      } else {
+        for (const [key, value] of Object.entries(props)) {
+          if (
+            key !== "id" &&
+            key !== "lat" &&
+            key !== "lon" &&
+            key !== "count" &&
+            key !== "allPoints" &&
+            value
+          ) {
+            const label = itemNounLabel && (key === "value") ? itemNounLabel : key;
+            content += `<p><strong>${label}:</strong> ${value}</p>`;
+          }
         }
       }
       content += "</div>";
-      new (window as any).mapboxgl.Popup().setLngLat(e.lngLat).setHTML(content).addTo(mapInstance);
+      new (window as any).mapboxgl.Popup({ maxWidth: "320px" })
+        .setLngLat(e.lngLat)
+        .setHTML(content)
+        .addTo(mapInstance);
     });
   };
   
@@ -2125,13 +2193,32 @@ export default function PublicMapPage() {
           if (validPoints.length === 0) return;
           const sourceId = `multi-layer-${layerIndex}-source`;
           const layerId = `multi-layer-${layerIndex}`;
+          const mlLocMap = new Map<string, { points: any[]; lat: number; lon: number }>();
+          validPoints.forEach((point: any) => {
+            const latN = Number(point.lat);
+            const lonN = Number(point.lon);
+            const key = `${latN.toFixed(6)},${lonN.toFixed(6)}`;
+            if (!mlLocMap.has(key)) {
+              mlLocMap.set(key, { points: [], lat: latN, lon: lonN });
+            }
+            mlLocMap.get(key)!.points.push(point);
+          });
           const geojson = {
             type: "FeatureCollection" as const,
-            features: validPoints.map((point: any, i: number) => ({
-              type: "Feature" as const,
-              geometry: { type: "Point" as const, coordinates: [point.lon, point.lat] },
-              properties: { id: i, ...point },
-            })),
+            features: Array.from(mlLocMap.values()).map((data, i) => {
+              const count = data.points.length;
+              const firstPoint = data.points[0];
+              return {
+                type: "Feature" as const,
+                geometry: { type: "Point" as const, coordinates: [data.lon, data.lat] },
+                properties: {
+                  ...firstPoint,
+                  id: i,
+                  count,
+                  ...(count > 1 ? { allPoints: JSON.stringify(data.points) } : {}),
+                },
+              };
+            }),
           };
           mapInstance.addSource(sourceId, { type: "geojson", data: geojson });
           const color = MULTI_LAYER_COLORS[layerIndex % MULTI_LAYER_COLORS.length];
@@ -2140,10 +2227,27 @@ export default function PublicMapPage() {
             type: "circle",
             source: sourceId,
             paint: {
-              "circle-radius": 6,
+              "circle-radius": [
+                "interpolate",
+                ["linear"],
+                ["get", "count"],
+                1, 6,
+                2, 9,
+                3, 11,
+                5, 14,
+                10, 18,
+                20, 22,
+              ],
               "circle-color": color,
               "circle-stroke-color": "#fff",
-              "circle-stroke-width": 1,
+              "circle-stroke-width": [
+                "interpolate",
+                ["linear"],
+                ["get", "count"],
+                1, 1,
+                5, 1.5,
+                10, 2,
+              ],
               "circle-opacity": 0.8,
             },
           });
@@ -2158,8 +2262,32 @@ export default function PublicMapPage() {
             let content = "<div class='map-popup'>";
             const title = layer.title || `Layer ${layerIndex + 1}`;
             content += `<p><strong>${title}</strong></p>`;
+            const aggCount = Number(props.count) || 1;
+            if (aggCount > 1) {
+              content += `<p><strong>${aggCount}</strong> overlapping features at this location</p>`;
+              let allPts = props.allPoints;
+              if (typeof allPts === "string") {
+                try {
+                  allPts = JSON.parse(allPts);
+                } catch {
+                  allPts = null;
+                }
+              }
+              if (Array.isArray(allPts)) {
+                allPts.forEach((pt: any, idx: number) => {
+                  content += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #eee;">`;
+                  content += `<p style="margin:0;"><strong>#${idx + 1}</strong></p>`;
+                  for (const [k, v] of Object.entries(pt)) {
+                    if (["lat", "lon", "latitude", "longitude"].includes(k) || v == null) continue;
+                    content += `<p style="margin:2px 0;"><strong>${k}:</strong> ${String(v)}</p>`;
+                  }
+                  content += `</div>`;
+                });
+              }
+            }
             for (const [k, v] of Object.entries(props)) {
-              if (k !== "id" && v != null) content += `<p><strong>${k}:</strong> ${String(v)}</p>`;
+              if (k === "id" || k === "allPoints" || k === "count" || v == null) continue;
+              content += `<p><strong>${k}:</strong> ${String(v)}</p>`;
             }
             content += "</div>";
             new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(content).addTo(mapInstance);
@@ -2244,47 +2372,34 @@ export default function PublicMapPage() {
           ...point,
           lat: point.lat ?? point.latitude,
           lon: point.lon ?? point.longitude,
-        }));// Group points by exact location to detect overlaps
-        const locationMap = new Map<string, number[]>();
-        validPoints.forEach((point: any, index: number) => {
-          const key = `${point.lat},${point.lon}`;
-          if (!locationMap.has(key)) {
-            locationMap.set(key, []);
+        }));
+        const pointLocationMap = new Map<string, { points: any[]; lat: number; lon: number }>();
+        validPoints.forEach((point: any) => {
+          const latN = Number(point.lat);
+          const lonN = Number(point.lon);
+          const key = `${latN.toFixed(6)},${lonN.toFixed(6)}`;
+          if (!pointLocationMap.has(key)) {
+            pointLocationMap.set(key, { points: [], lat: latN, lon: lonN });
           }
-          locationMap.get(key)!.push(index);
+          pointLocationMap.get(key)!.points.push(point);
         });
-        
-        // Add small random offset for overlapping points (so they're all visible)
+
         const geojsonData = {
           type: "FeatureCollection" as const,
-          features: validPoints.map((point: any, index: number) => {
-            const key = `${point.lat},${point.lon}`;
-            const indicesAtLocation = locationMap.get(key) || [];
-            const positionInGroup = indicesAtLocation.indexOf(index);
-            const totalAtLocation = indicesAtLocation.length;
-            
-            // Add small random offset if multiple points at same location
-            // Offset is deterministic based on index to avoid jitter on re-render
-            let latOffset = 0;
-            let lonOffset = 0;
-            if (totalAtLocation > 1) {
-              // Spread points in a small circle around the original location
-              const angle = (positionInGroup / totalAtLocation) * Math.PI * 2;
-              const radius = 0.0001; // ~11 meters
-              latOffset = Math.cos(angle) * radius;
-              lonOffset = Math.sin(angle) * radius;
-            }
-            
+          features: Array.from(pointLocationMap.values()).map((data, index) => {
+            const count = data.points.length;
+            const firstPoint = data.points[0];
             return {
               type: "Feature" as const,
               geometry: {
                 type: "Point" as const,
-                coordinates: [point.lon + lonOffset, point.lat + latOffset],
+                coordinates: [data.lon, data.lat],
               },
               properties: {
+                ...firstPoint,
                 id: index,
-                ...point,
-                _overlap_count: totalAtLocation, // Track how many points overlap
+                count,
+                ...(count > 1 ? { allPoints: JSON.stringify(data.points) } : {}),
               },
             };
           }),
@@ -2300,7 +2415,17 @@ export default function PublicMapPage() {
           type: "circle",
           source: "map-points",
           paint: {
-            "circle-radius": 6,
+            "circle-radius": [
+              "interpolate",
+              ["linear"],
+              ["get", "count"],
+              1, 6,
+              2, 9,
+              3, 11,
+              5, 14,
+              10, 18,
+              20, 22,
+            ],
             "circle-color": (() => {
               const seriesField = map.map_config?.series_field;
               const seriesColors = map.map_config?.series_colors;
@@ -2318,7 +2443,14 @@ export default function PublicMapPage() {
               return "#ad35fa";
             })(),
             "circle-stroke-color": "#fff",
-            "circle-stroke-width": 1,
+            "circle-stroke-width": [
+              "interpolate",
+              ["linear"],
+              ["get", "count"],
+              1, 1,
+              5, 1.5,
+              10, 2,
+            ],
             "circle-opacity": 0,
           },
         });
@@ -2342,23 +2474,53 @@ export default function PublicMapPage() {
         // Add popup on click (use item_noun for count/value labels)
         const displayInfo = getMapDisplayCount(map);
         const itemNounLabel = displayInfo ? displayInfo.itemNoun.charAt(0).toUpperCase() + displayInfo.itemNoun.slice(1) : null;
+        const itemNounPlural = (map.map_config?.item_noun as string) || "items";
         mapInstance.on("click", "map-points", (e: any) => {
           if (!e.features || e.features.length === 0) return;
           
           const feature = e.features[0];
           const props = feature.properties;
+          const aggCount = Number(props.count) || 1;
           
-          // Build popup content
-          let content = "<div class='map-popup'>";
-          for (const [key, value] of Object.entries(props)) {
-            if (key !== "id" && key !== "lat" && key !== "lon" && value) {
-              const label = itemNounLabel && (key === "count" || key === "value") ? itemNounLabel : key;
-              content += `<p><strong>${label}:</strong> ${value}</p>`;
+          let content = "<div class='map-popup' style='max-height:300px;overflow-y:auto;'>";
+          if (aggCount > 1) {
+            content += `<p><strong>${aggCount} ${itemNounPlural}</strong> at this location</p><hr style="margin:8px 0;border-color:#eee;"/>`;
+            let allPoints = props.allPoints;
+            if (typeof allPoints === "string") {
+              try {
+                allPoints = JSON.parse(allPoints);
+              } catch {
+                allPoints = null;
+              }
+            }
+            if (Array.isArray(allPoints)) {
+              allPoints.forEach((pt: any, i: number) => {
+                const desc = pt.incident_description || pt.description || `${itemNounLabel || "Item"} ${i + 1}`;
+                const date = pt.incident_date ? new Date(pt.incident_date).toLocaleDateString() : "";
+                content += `<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid #eee;">`;
+                content += `<strong>${desc}</strong>`;
+                if (date) content += `<br/><small style="color:#666;">${date}</small>`;
+                content += `</div>`;
+              });
+            }
+          } else {
+            for (const [key, value] of Object.entries(props)) {
+              if (
+                key !== "id" &&
+                key !== "lat" &&
+                key !== "lon" &&
+                key !== "count" &&
+                key !== "allPoints" &&
+                value
+              ) {
+                const label = itemNounLabel && (key === "value") ? itemNounLabel : key;
+                content += `<p><strong>${label}:</strong> ${value}</p>`;
+              }
             }
           }
           content += "</div>";
           
-          new mapboxgl.Popup()
+          new mapboxgl.Popup({ maxWidth: "320px" })
             .setLngLat(e.lngLat)
             .setHTML(content)
             .addTo(mapInstance);
@@ -2515,13 +2677,32 @@ export default function PublicMapPage() {
             if (validPoints.length === 0) return;
             const sourceId = `multi-layer-${layerIndex}-source`;
             const layerId = `multi-layer-${layerIndex}`;
+            const mlLocMapStyle = new Map<string, { points: any[]; lat: number; lon: number }>();
+            validPoints.forEach((point: any) => {
+              const latN = Number(point.lat);
+              const lonN = Number(point.lon);
+              const key = `${latN.toFixed(6)},${lonN.toFixed(6)}`;
+              if (!mlLocMapStyle.has(key)) {
+                mlLocMapStyle.set(key, { points: [], lat: latN, lon: lonN });
+              }
+              mlLocMapStyle.get(key)!.points.push(point);
+            });
             const geojson = {
               type: "FeatureCollection" as const,
-              features: validPoints.map((point: any, i: number) => ({
-                type: "Feature" as const,
-                geometry: { type: "Point" as const, coordinates: [point.lon, point.lat] },
-                properties: { id: i, ...point },
-              })),
+              features: Array.from(mlLocMapStyle.values()).map((data, i) => {
+                const count = data.points.length;
+                const firstPoint = data.points[0];
+                return {
+                  type: "Feature" as const,
+                  geometry: { type: "Point" as const, coordinates: [data.lon, data.lat] },
+                  properties: {
+                    ...firstPoint,
+                    id: i,
+                    count,
+                    ...(count > 1 ? { allPoints: JSON.stringify(data.points) } : {}),
+                  },
+                };
+              }),
             };
             mapInstanceRef.current!.addSource(sourceId, { type: "geojson", data: geojson });
             const color = MULTI_LAYER_COLORS[layerIndex % MULTI_LAYER_COLORS.length];
@@ -2530,10 +2711,27 @@ export default function PublicMapPage() {
               type: "circle",
               source: sourceId,
               paint: {
-                "circle-radius": 6,
+                "circle-radius": [
+                  "interpolate",
+                  ["linear"],
+                  ["get", "count"],
+                  1, 6,
+                  2, 9,
+                  3, 11,
+                  5, 14,
+                  10, 18,
+                  20, 22,
+                ],
                 "circle-color": color,
                 "circle-stroke-color": "#fff",
-                "circle-stroke-width": 1,
+                "circle-stroke-width": [
+                  "interpolate",
+                  ["linear"],
+                  ["get", "count"],
+                  1, 1,
+                  5, 1.5,
+                  10, 2,
+                ],
                 "circle-opacity": 0.8,
               },
             });
@@ -2545,8 +2743,32 @@ export default function PublicMapPage() {
               let content = "<div class='map-popup'>";
               const title = layer.title || `Layer ${layerIndex + 1}`;
               content += `<p><strong>${title}</strong></p>`;
+              const aggCount = Number(props.count) || 1;
+              if (aggCount > 1) {
+                content += `<p><strong>${aggCount}</strong> overlapping features at this location</p>`;
+                let allPts = props.allPoints;
+                if (typeof allPts === "string") {
+                  try {
+                    allPts = JSON.parse(allPts);
+                  } catch {
+                    allPts = null;
+                  }
+                }
+                if (Array.isArray(allPts)) {
+                  allPts.forEach((pt: any, idx: number) => {
+                    content += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #eee;">`;
+                    content += `<p style="margin:0;"><strong>#${idx + 1}</strong></p>`;
+                    for (const [k, v] of Object.entries(pt)) {
+                      if (["lat", "lon", "latitude", "longitude"].includes(k) || v == null) continue;
+                      content += `<p style="margin:2px 0;"><strong>${k}:</strong> ${String(v)}</p>`;
+                    }
+                    content += `</div>`;
+                  });
+                }
+              }
               for (const [k, v] of Object.entries(props)) {
-                if (k !== "id" && v != null) content += `<p><strong>${k}:</strong> ${String(v)}</p>`;
+                if (k === "id" || k === "allPoints" || k === "count" || v == null) continue;
+                content += `<p><strong>${k}:</strong> ${String(v)}</p>`;
               }
               content += "</div>";
               new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(content).addTo(mapInstanceRef.current!);

@@ -1240,7 +1240,7 @@ export default function ProgressiveMapView({
 
   const loadPointMap = (mapInstance: any) => {
     if (!mapData.location_data || !Array.isArray(mapData.location_data)) return;
-    const pointData = mapData.location_data.filter((p: any) => p.lat && p.lon);
+    const pointData = normalizePointData(mapData.location_data);
     if (pointData.length === 0) return;
     addPointsLayer(mapInstance, pointData);
   };
