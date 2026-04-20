@@ -24,6 +24,7 @@ export default function PhotoCard({ story, children, variant }: PhotoCardProps) 
           subline={story.subline}
           neighborhoodLabel={story.neighborhood_label}
           categoryColor={story.category_color}
+          storyType={story.story_type}
         />
         <h2 className={styles.cardHeadline}>{story.headline}</h2>
         {story.cleaned_description && (
@@ -123,6 +124,7 @@ export default function PhotoCard({ story, children, variant }: PhotoCardProps) 
         subline={story.subline}
         neighborhoodLabel={story.neighborhood_label}
         categoryColor={story.category_color}
+        storyType={story.story_type}
       />
 
       <div className={styles.photoBody}>
